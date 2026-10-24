@@ -386,7 +386,7 @@ Portable selection hints (any MCP client). Detail: [`.agents/rules/engineering-s
 
 Use `util.media_identity.same_recording` for physical recording comparisons.
 Inside a `batch_scope`, each recording's identity stat is the first call's.
-A loop over many placements compares each distinct path pair once within a source id and fill group and reuses the answer for every placement that plays it.
+A loop over many placements compares each distinct path pair once (render leaves: per source id and fill group; lane clips: per stored path string) and reuses the answer for every placement that plays it.
 Keep source IDs for transcript provenance. Exact removal checks include primary
 media placements on other lanes and hold for matching unclipped playback.
 Ordinary point mappings retain their existing lane semantics. Assign pause
