@@ -442,7 +442,8 @@ def test_the_route_returns_a_plain_coded_refusal_when_speaker_recognition_is_una
     assert res.headers["X-Sharecut-Error-Code"] == "speaker_backend_unavailable"
     assert res.json()["detail"] == (
         "Speaker recognition isn't available on this computer. "
-        "In the Split speakers dialog, choose Download speaker model."
+        "In the Split speakers dialog, choose Download speaker model "
+        "(or run podcast bootstrap --component speaker-ecapa)."
     )
     assert "extra" not in res.json()["detail"]
 

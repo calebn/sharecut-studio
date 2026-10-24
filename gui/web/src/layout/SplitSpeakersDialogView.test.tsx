@@ -35,6 +35,7 @@ function view(
       onClose={vi.fn()}
       trackLabel="Interview"
       stage={stage}
+      onDownloadSpeakerModel={vi.fn()}
       onCountChange={vi.fn()}
       onNameChange={vi.fn()}
       onMarkSample={vi.fn()}

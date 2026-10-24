@@ -1,4 +1,4 @@
-"""Pins the ECAPA ONNX speaker path so the other backends can be removed without changing it (#2255)."""
+"""The ECAPA ONNX speaker path: what resolves, the embedding pass-through, and a recorded baseline."""
 
 from __future__ import annotations
 

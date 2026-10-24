@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from podcast_mcp.engines import speaker_id
@@ -36,7 +37,7 @@ def test_auto_without_a_real_backend_is_unavailable(no_real_backend: None) -> No
         with pytest.raises(SpeakerBackendUnavailable) as caught:
             resolve_speaker_backend(name)
         assert caught.value.code == "speaker_backend_unavailable"
-        assert "isn't available on this computer" in str(caught.value)
+        assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in str(caught.value)
         assert isinstance(caught.value, ImportError)
     assert not isinstance(caught.value, ModelMissing)
 
@@ -127,3 +128,35 @@ def test_audition_context_leaves_speaker_roles_out(
     project = EpisodeProject.create("spk_unavailable", str(tmp_path))
     monkeypatch.setattr(speaker_id, "load_all_profiles", lambda _project: {"Ann": object()})
     assert audition_context._speaker_roles_for_window(project, ["host"], 0.0, 1.0) is None
+
+
+def test_an_override_that_does_not_load_names_the_variable(
+    no_real_backend: None,
+) -> None:
+    with pytest.raises(SpeakerBackendUnavailable) as caught:
+        resolve_speaker_backend("auto")
+    message = str(caught.value)
+    assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in message
+    assert "Download" not in message
+    assert not isinstance(caught.value, ModelMissing)
+
+
+def test_the_generic_message_names_the_dialog_and_the_command() -> None:
+    message = str(SpeakerBackendUnavailable())
+    assert "Download speaker model" in message
+    assert "podcast bootstrap --component speaker-ecapa" in message
+
+
+def test_a_profile_from_a_removed_model_stops_scoring_and_says_to_enroll_again() -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    old = speaker_id.SpeakerProfile(
+        speaker_id="Ann",
+        track_id="a",
+        embedding=[0.1] * 256,
+        enrollment_sec=8.0,
+        stem_hash="x",
+    )
+    with pytest.raises(CodedValueError, match=r"'Ann'.*enroll that speaker again") as caught:
+        speaker_id._rank_scores(np.ones(192, dtype=np.float32), {"Ann": old})
+    assert caught.value.code == "speaker_profile_outdated"
