@@ -442,10 +442,8 @@ def test_the_route_returns_a_plain_coded_refusal_when_speaker_recognition_is_una
     assert res.headers["X-Sharecut-Error-Code"] == "speaker_backend_unavailable"
     assert res.json()["detail"] == (
         "Speaker recognition isn't available on this computer. "
-        "See the speaker setup instructions to enable it."
+        "In the Split speakers dialog, choose Download speaker model."
     )
-    assert "[speaker]" not in res.json()["detail"]
-    assert "speaker-lite" not in res.json()["detail"]
     assert "extra" not in res.json()["detail"]
 
 
@@ -467,20 +465,12 @@ def test_the_route_maps_an_unavailable_backend_to_409(
 
 @pytest.fixture
 def model_absent(room: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import sys
-
     from podcast_mcp.engines import speaker_id
     from podcast_mcp.engines.models import speaker_ecapa
 
     monkeypatch.setattr(speaker_ecapa, "models_dir", lambda: tmp_path / "no-models")
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
-    monkeypatch.setitem(sys.modules, "torch", None)
-
-    def no_encoder() -> object:
-        raise ImportError("no resemblyzer", name="resemblyzer")
-
-    monkeypatch.setattr(speaker_id, "_import_voice_encoder", no_encoder)
     monkeypatch.setattr(
         "podcast_mcp.services.media.speaker.resolve_speaker_backend",
         speaker_id.resolve_speaker_backend,

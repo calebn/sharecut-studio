@@ -10,7 +10,9 @@ from podcast_mcp.edits.speaker_split import CROSSTALK_MODES
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import SpeakerService
 
-speaker_app = typer.Typer(help="Speaker enrollment and attribution.")
+speaker_app = typer.Typer(
+    help="Speaker enrollment and attribution. Profiles enrolled with the removed Resemblyzer backend must be enrolled again."
+)
 
 
 @speaker_app.command("doctor")

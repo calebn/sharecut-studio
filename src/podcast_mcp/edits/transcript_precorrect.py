@@ -513,7 +513,7 @@ def run_precorrect_transcript(
                 skip_reason = (
                     "speaker model not downloaded"
                     if isinstance(exc, ModelMissing)
-                    else "speaker extra not installed"
+                    else "speaker recognition unavailable"
                 )
                 task.message(skip_reason)
                 speaker_report = {"ran": False, "skipped_reason": skip_reason}

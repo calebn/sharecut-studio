@@ -15,6 +15,7 @@ from podcast_mcp.edits.speaker_split import (
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.speaker_id import (
+    SPEAKER_UNAVAILABLE_MESSAGE,
     SpeakerBackend,
     compare_window,
     enroll_segment,
@@ -319,8 +320,7 @@ class SpeakerService:
         backend = resolve_speaker_backend()
         if backend.name() == "mock":
             raise CodedValueError(
-                "Speaker recognition isn't available on this computer. "
-                "See the speaker setup instructions to enable it.",
+                SPEAKER_UNAVAILABLE_MESSAGE,
                 code="speaker_backend_unavailable",
             )
         return speakers, backend

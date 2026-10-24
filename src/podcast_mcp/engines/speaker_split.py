@@ -5,7 +5,7 @@ voice embeddings, not diarization that has to guess how many people there are:
 
 1. The bundled voice detector marks voiced 20 ms frames.
 2. Windows of ``window_sec`` every ``HOP_SEC`` that are at least ``MIN_VOICED_SHARE``
-   voiced are embedded by the speaker backend (ECAPA or Resemblyzer).
+   voiced are embedded by the speaker backend (ECAPA ONNX).
 3. One centroid per speaker. An enrolled speaker (a few seconds the user confirmed)
    starts from their spans; every other speaker from k-means++ seeds placed away from
    those, so enrolling some speakers and not others still works. Either way k-means

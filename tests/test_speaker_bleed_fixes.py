@@ -190,26 +190,14 @@ def test_file_revision_key_changes_when_file_changes(tmp_path, sample_wav) -> No
     assert h1 != h2
 
 
-def test_speaker_doctor_recommends_speechbrain_before_mock() -> None:
-    sb = type("B", (), {"name": lambda self: "speechbrain-ecapa"})()
-    rz = type("B", (), {"name": lambda self: "resemblyzer"})()
-    with patch(
-        "podcast_mcp.engines.speaker_id.resolve_speaker_backend",
-        side_effect=[ImportError("no onnx"), sb, rz, MockSpeakerBackend()],
-    ):
-        doc = speaker_doctor()
-    assert doc["recommended"] == "speechbrain-ecapa"
-
-
 def test_speaker_doctor_recommends_the_onnx_backend_first() -> None:
     onnx = type("B", (), {"name": lambda self: "ecapa-onnx"})()
-    sb = type("B", (), {"name": lambda self: "speechbrain-ecapa"})()
     with patch(
         "podcast_mcp.engines.speaker_id.resolve_speaker_backend",
-        side_effect=[onnx, sb, ImportError("no rz"), MockSpeakerBackend()],
+        side_effect=[onnx, MockSpeakerBackend()],
     ):
         doc = speaker_doctor()
-    assert doc["available_backends"] == ["ecapa-onnx", "speechbrain-ecapa", "mock"]
+    assert doc["available_backends"] == ["ecapa-onnx", "mock"]
     assert doc["recommended"] == "ecapa-onnx"
 
 
@@ -270,14 +258,6 @@ def test_gate_track_service_dry_run(tmp_path, sample_wav) -> None:
     ):
         out = SpeakerService(ws).gate_track(dry_run=True)
     assert out["words_would_suppress"] == 2
-
-
-@pytest.mark.speaker
-def test_ecapa_backend_available_when_torch_installed() -> None:
-    pytest.importorskip("torch")
-    pytest.importorskip("speechbrain")
-    backend = resolve_speaker_backend("speechbrain")
-    assert backend.name() == "speechbrain-ecapa"
 
 
 def test_gate_track_service_apply_mutates(tmp_path, sample_wav) -> None:

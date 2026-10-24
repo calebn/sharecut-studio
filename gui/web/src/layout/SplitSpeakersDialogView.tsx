@@ -216,16 +216,13 @@ function SplitSpeakersForm({
     <>
       {stage.speakerReadiness === "unavailable" ? (
         <p className="export-dialog-note" role="status">
-          <span>Speaker recognition isn't available on this computer.</span>{" "}
-          <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#optional-downloads-and-extras">
-            Read the speaker setup instructions
-          </a>
+          <span>Speaker recognition isn't available on this computer.</span>
           {onDownloadSpeakerModel ? (
             <>
-              <br />
+              {" "}
               <span>
-                Or download the speaker model (about 80 MB, Apache-2.0, from
-                SpeechBrain). It stays on this computer.
+                Download the speaker model to turn it on (about 80 MB,
+                Apache-2.0, from SpeechBrain). It stays on this computer.
               </span>{" "}
               <Button
                 type="button"

@@ -242,7 +242,7 @@ def run_bootstrap(
 ) -> dict[str, Any]:
     """Download selected components; report ProgressReporter events.
 
-    Torch / speaker extras are intentionally unsupported here. Offered models (the word
+    Torch extras are intentionally unsupported here. Offered models (the word
     aligner, speaker recognition) download only when ``components`` names them. ``force``
     also re-downloads a pinned Whisper catalog snapshot. A failed component is reported in
     ``results`` (with ``failure`` when its cause is known) and the rest still run; a
