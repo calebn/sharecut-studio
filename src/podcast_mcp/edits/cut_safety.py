@@ -552,6 +552,9 @@ class HeldAcoustics:
         return bool(self.flags)
 
 
+MeasuredSources: TypeAlias = dict[tuple[Any, ...], tuple[HeldAcoustics, tuple[object, ...]]]
+
+
 def complete_effect_acoustics(
     project: EpisodeProject,
     effects: Sequence[CutAudioEffect],
@@ -561,7 +564,14 @@ def complete_effect_acoustics(
     pauses: Mapping[str, HeldPause | CutRejected | None] | None = None,
     join: CutJoin | None = None,
     unavailable: frozenset[str] = frozenset(),
+    measured: MeasuredSources | None = None,
 ) -> list[CutScopeHold]:
+    """Holds for the acoustics of ``effects`` on ``project``.
+
+    ``measured`` is the caller's promise that ``project`` is not written while the dict
+    lives: a source window already assessed on the same project, defaults and recording
+    audio is then not assessed again. The caller clears it when the project changes.
+    """
     pause_holds = [
         CutScopeHold(
             edit_id,
@@ -578,6 +588,13 @@ def complete_effect_acoustics(
     joins: dict[str, str] = {}
     heard_caches: dict[str, TrackAudioCache] = {}
     source_caches: dict[Path, TrackAudioCache] = {}
+
+    def recording_cache(recording: Path) -> TrackAudioCache:
+        cache = source_caches.get(recording)
+        if cache is None:
+            cache = source_caches[recording] = recording_audio_cache(recording)
+        return cache
+
     join_subjects: dict[str, tuple[str, float, Path] | None] = {}
     join_scored: set[str] = set()
     if defaults.get("tighten", {}).get("join_continuity_gate", False):
@@ -642,10 +659,7 @@ def complete_effect_acoustics(
                     heard = track_evidence.heard(project, effect.track_id, defaults)
                     timeline_cache = TrackAudioCache(jump=heard.jump, waveform=heard.waveform)
                     heard_caches[effect.track_id] = timeline_cache
-                source_cache = source_caches.get(effect.recording)
-                if source_cache is None:
-                    source_cache = recording_audio_cache(effect.recording)
-                    source_caches[effect.recording] = source_cache
+                source_cache = recording_cache(effect.recording)
                 cache = _source_clock_cache(
                     timeline_cache,
                     effect.before.timeline_start - effect.before.source.src_start
@@ -653,29 +667,53 @@ def complete_effect_acoustics(
                     else 0.0,
                     recording_profile=(source_cache.jump.profile, source_cache.waveform.profile),
                 )
+                share = None
             else:
-                cache = recording_audio_cache(effect.recording)
+                cache = recording_cache(effect.recording)
+                share = measured
         except (OSError, ValueError, subprocess.SubprocessError):
             for edit_id in ids:
                 flags.setdefault(edit_id, []).append("audio_unavailable")
             continue
-        measured = assess_held_source(
-            project,
+        effect_join = (
+            CutJoin.PADDED
+            if any((pauses or {}).get(edit_id) is not None for edit_id in ids)
+            else join or effect.join
+        )
+        end_in_valley = _contributor_ends_in_valley(project, ids, effect, cache)
+        key = (
+            id(project),
+            id(defaults),
+            id(cache),
             effect.track_id,
+            effect.source_id,
             effect.start,
             effect.end,
-            source_id=effect.source_id,
-            join=CutJoin.PADDED
-            if any((pauses or {}).get(edit_id) is not None for edit_id in ids)
-            else join or effect.join,
-            pause=effect.retained,
-            defaults=defaults,
-            retained_envelope=effect.retained,
-            audio_cache=cache,
-            end_in_valley=_contributor_ends_in_valley(project, ids, effect, cache),
+            effect_join,
+            effect.retained,
+            end_in_valley,
         )
+        entry = share.get(key) if share is not None else None
+        if entry is not None:
+            held = entry[0]
+        else:
+            held = assess_held_source(
+                project,
+                effect.track_id,
+                effect.start,
+                effect.end,
+                source_id=effect.source_id,
+                join=effect_join,
+                pause=effect.retained,
+                defaults=defaults,
+                retained_envelope=effect.retained,
+                audio_cache=cache,
+                end_in_valley=end_in_valley,
+            )
+            if share is not None:
+                share[key] = (held, (project, defaults, cache))
         for edit_id in ids:
-            flags.setdefault(edit_id, []).extend(measured.flags)
+            flags.setdefault(edit_id, []).extend(held.flags)
         if (
             effect.envelope is None
             and any((pauses or {}).get(edit_id) is not None for edit_id in ids)
