@@ -154,6 +154,8 @@ def build(tmp_path: Path, *, implicit_guest: bool = False) -> ProjectWorkspace:
         )
         for t in (1.0, 12.0, 41.0)
     ]
+    project.render.last_completed_step = "propose"
+    project.render.reconciliation_stale = True
     project.edit_decisions = [
         _edit("pending-a", 8.8, 9.2),
         _edit("pending-b", 33.8, 34.2),
@@ -176,28 +178,31 @@ SHAPES = {
 }
 
 
+@pytest.mark.parametrize("record_log", [False, True])
 @pytest.mark.parametrize("shape", sorted(SHAPES))
-def test_a_source_cut_leaves_its_input_project_unchanged(tmp_path, shape):
+def test_a_source_cut_leaves_its_input_project_unchanged(tmp_path, shape, record_log):
     make, implicit = SHAPES[shape]
     ws = build(tmp_path, implicit_guest=implicit)
     project = ws.project
     before = digest(project)
 
     result = _apply_source_remove(
-        project, make(), defaults=ws.effective_config(), batch=(), record_log=False
+        project, make(), defaults=ws.effective_config(), batch=(), record_log=record_log
     )
 
     assert digest(project) == before
+    assert project.render.last_completed_step == "propose"
     if shape == "held":
         assert isinstance(result, CutScopeHold)
     else:
         candidate, report = result
         assert digest(candidate) != before
+        logged = len(candidate.editorial.edit_log) - len(project.editorial.edit_log)
+        assert (logged > 0) is record_log
         if shape == "room_tone_pad":
             assert report[3]["pad_samples"]
         if shape == "implicit_clip":
             assert any(c.track_id == "guest" for c in candidate.clips)
-        assert len(candidate.editorial.edit_log) == len(project.editorial.edit_log)
 
 
 @pytest.mark.parametrize("shape", sorted(set(SHAPES) - {"held"}))
@@ -206,7 +211,7 @@ def test_the_candidate_owns_the_sections_a_cut_writes_and_shares_the_rest(tmp_pa
     ws = build(tmp_path, implicit_guest=implicit)
     project = ws.project
 
-    candidate, _report = _apply_source_remove(
+    candidate, _ = _apply_source_remove(
         project, make(), defaults=ws.effective_config(), batch=(), record_log=False
     )
 
@@ -223,8 +228,8 @@ def test_the_candidate_owns_the_sections_a_cut_writes_and_shares_the_rest(tmp_pa
     assert candidate.editorial.chapters is not project.editorial.chapters
     assert candidate.review.comments is not project.review.comments
     assert candidate.meta.ingest_alignment is not project.meta.ingest_alignment
-    held_ids = {id(clip) for clip in project.clips}
-    assert not held_ids & {id(clip) for clip in candidate.clips}
+    original_clips = {id(clip) for clip in project.clips}
+    assert not original_clips & {id(clip) for clip in candidate.clips}
     for mine, theirs in zip(candidate.transcripts, project.transcripts, strict=True):
         assert mine is not theirs
         assert mine.words is not theirs.words
@@ -252,8 +257,7 @@ def test_a_held_edit_still_leaves_the_pending_decisions_as_they_were(tmp_path):
 
 
 def test_a_write_to_a_decision_after_the_cut_does_not_reach_the_candidate(tmp_path):
-    """``_apply_auto_removes`` rewrites the edit it just applied (``replace_gap_sec``) on the
-    decision it was handed; the candidate it returned must not see that write."""
+    """``_apply_auto_removes`` rewrites the decision it was handed after the cut."""
     ws = build(tmp_path)
     project = ws.project
     pending = project.edit_decisions[0]
@@ -271,14 +275,14 @@ def test_a_write_to_a_decision_after_the_cut_does_not_reach_the_candidate(tmp_pa
 
 
 def _spy_copies(monkeypatch):
-    """Every ``_cut_copy`` made: (source project, copy, digest of the source when copied)."""
+    """Every ``_cut_copy`` made: (source, its copy, digest of the source at that moment)."""
     made: list[tuple[EpisodeProject, EpisodeProject, str]] = []
     real = cut_application._cut_copy
 
     def spy(project):
-        copy = real(project)
-        made.append((project, copy, digest(project)))
-        return copy
+        duplicate = real(project)
+        made.append((project, duplicate, digest(project)))
+        return duplicate
 
     monkeypatch.setattr(cut_application, "_cut_copy", spy)
     return made
@@ -334,3 +338,27 @@ def test_a_forced_re_pass_leaves_the_mute_base_it_restarts_from_unchanged(tmp_pa
     assert {digest(src) for src, _c, _d in restarts} == {restarts[0][2]}
     assert digest(base) == restarts[0][2]
     assert {h.edit_id for h in held} == {"near-held", "near-applied"}
+
+
+@pytest.mark.parametrize("shape", ["applied", "punch", "room_tone_pad", "implicit_clip"])
+def test_a_cut_adds_archive_entries_without_touching_the_ones_it_shares(tmp_path, shape):
+    """Words and archive entries are shared objects, so a cut must only append and replace."""
+    make, implicit = SHAPES[shape]
+    ws = build(tmp_path, implicit_guest=implicit)
+    project = ws.project
+    entries = [list(t.archived_words) for t in project.transcripts]
+    entry_dumps = [[e.model_dump() for e in group] for group in entries]
+    word_dumps = [[w.model_dump() for w in t.words] for t in project.transcripts]
+
+    candidate, _ = _apply_source_remove(
+        project, make(), defaults=ws.effective_config(), batch=(), record_log=True
+    )
+
+    for mine, shared, dumps in zip(candidate.transcripts, entries, entry_dumps, strict=True):
+        assert all(a is b for a, b in zip(mine.archived_words, shared, strict=False))
+        assert [e.model_dump() for e in shared] == dumps
+    host = candidate.transcripts[0]
+    assert len(host.archived_words) > len(entries[0])
+    assert [[w.model_dump() for w in t.words] for t in project.transcripts] == word_dumps
+    survivors = {id(w) for t in project.transcripts for w in t.words}
+    assert all(id(w) in survivors for t in candidate.transcripts for w in t.words)
