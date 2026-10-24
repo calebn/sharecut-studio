@@ -18,10 +18,11 @@ import logging
 import tempfile
 import threading
 from collections import OrderedDict
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Collection, Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +39,7 @@ from podcast_mcp.engines.ungated_audio import resample_streams
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import scoped, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.project_state import (
     FileRevision,
     file_revision,
@@ -48,6 +50,7 @@ from podcast_mcp.util.project_state import (
 _LOG = logging.getLogger(__name__)
 
 EVIDENCE_CACHE_BYTES = 1 << 30
+MAX_EVALUATORS = 4
 VERIFY_ENV = "PODCAST_EVIDENCE_VERIFY"
 RENDER_PREFIX = "sharecut-evidence-render-"
 _STORE_KEY = "track_evidence_store"
@@ -137,6 +140,76 @@ def rms(
         with _rendered(project, track_id, defaults, entry, locked=not private) as path, unscoped():
             return TrackRmsCache.from_timeline_stem(path)
     return entry.cache(JUMP_SAMPLE_RATE)
+
+
+def rms_readers(
+    project: EpisodeProject,
+    track_ids: Collection[str],
+    defaults: EffectiveConfig,
+    *,
+    private: bool = False,
+) -> dict[str, Callable[[], TrackRmsCache]]:
+    """Return, for each track, a reader that gives what :func:`rms` gives, after evaluating the missing trees together.
+
+    Each track is planned on the caller's thread, in ``track_ids`` order, as :func:`rms` plans
+    it. The trees the batch store lacks are then evaluated at most ``MAX_EVALUATORS`` at a
+    time, each worker inside the caller's batch scope. A reader returns the track's cache, or
+    raises what :func:`rms` would have raised for it, so the caller keeps its per-track
+    fallback. A single missing tree is evaluated by its reader, as :func:`rms` does.
+    """
+    store = _store()
+    planned: dict[str, tuple[EvidenceKey, Audio] | Declined | Exception] = {}
+    for track_id in dict.fromkeys(track_ids):
+        try:
+            with project_state_lock(project) if not private else nullcontext():
+                planned[track_id] = _plan(project, track_id, defaults)
+        except Exception as exc:
+            planned[track_id] = exc
+    missing: dict[EvidenceKey, Audio] = {}
+    for plan in planned.values():
+        if isinstance(plan, tuple) and plan[0] not in missing and not store.holds(plan[0]):
+            missing[plan[0]] = plan[1]
+    evaluated: dict[EvidenceKey, _Entry | Declined | Exception] = {}
+    if len(missing) > 1:
+        keys = list(missing)
+        results = run_parallel(
+            keys,
+            lambda key: _build_or_error(store, key, missing[key]),
+            max_workers=min(len(keys), MAX_EVALUATORS),
+        )
+        evaluated = dict(zip(keys, results, strict=True))
+
+    def read(track_id: str) -> TrackRmsCache:
+        plan = planned[track_id]
+        if isinstance(plan, Exception):
+            raise plan
+        entry: _Entry | Declined | Exception = (
+            plan
+            if isinstance(plan, Declined)
+            else (
+                evaluated[plan[0]]
+                if plan[0] in evaluated
+                else store.get_or_build(plan[0], lambda: _evaluate(plan[1], plan[0].curve))
+            )
+        )
+        if isinstance(entry, Exception):
+            raise entry
+        if isinstance(entry, Declined):
+            with (
+                _rendered(project, track_id, defaults, entry, locked=not private) as path,
+                unscoped(),
+            ):
+                return TrackRmsCache.from_timeline_stem(path)
+        return entry.cache(JUMP_SAMPLE_RATE)
+
+    return {track_id: partial(read, track_id) for track_id in planned}
+
+
+def _build_or_error(store: _Store, key: EvidenceKey, tree: Audio) -> _Entry | Declined | Exception:
+    try:
+        return store.get_or_build(key, lambda: _evaluate(tree, key.curve))
+    except Exception as exc:
+        return exc
 
 
 def _plan(
@@ -244,6 +317,10 @@ class _Store:
             finally:
                 with self._lock:
                     self._building.pop(key, None)
+
+    def holds(self, key: EvidenceKey) -> bool:
+        with self._lock:
+            return key in self._entries or key in self._declined
 
     def _find(self, key: EvidenceKey) -> _Entry | Declined | None:
         entry = self._entries.get(key)
