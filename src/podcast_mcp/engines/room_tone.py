@@ -53,13 +53,7 @@ from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.ungated_audio import held_mono_full
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
-from podcast_mcp.util.dsp import (
-    DIGITAL_SILENCE_DB,
-    bool_runs,
-    frame_rms_db,
-    frame_rms_db_stream,
-    rms_db,
-)
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
 from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import track_audio_path
@@ -69,6 +63,7 @@ log = logging.getLogger(__name__)
 FRAME_SEC = 0.01
 # Silero's rate. Levels see up to 8 kHz, where hiss and sibilance sit.
 SAMPLE_RATE = 16000
+_HELD_CHUNK = SAMPLE_RATE * 60
 FLOOR_PERCENTILE = 10.0
 SPEECH_PERCENTILE = 90.0
 # Every frame of a quiet run sits within this of the floor.
@@ -599,7 +594,8 @@ def _track_floor(path: Path, revision: FileRevision) -> FloorRead:
         # is not decoded again; with none held the stream keeps a long track out of memory.
         held = held_mono_full(path, sample_rate=SAMPLE_RATE)
         if held is not None:
-            frames = frame_rms_db(held, frame, frame, floor_db=DIGITAL_SILENCE_DB)
+            chunks = (held[i : i + _HELD_CHUNK] for i in range(0, held.size, _HELD_CHUNK))
+            frames = frame_rms_db_stream(chunks, frame, frame, floor_db=DIGITAL_SILENCE_DB)
         else:
             chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=SAMPLE_RATE)
             frames = frame_rms_db_stream(chunks, frame, frame, floor_db=DIGITAL_SILENCE_DB)
