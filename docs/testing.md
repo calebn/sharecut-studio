@@ -1175,22 +1175,13 @@ contracts; they do not replace Lab parity or listening acceptance.
 
 ## Occurrence automatic-reduction coverage
 
-`clipBleed.test.ts` validates host inspection DTOs and exact opaque targets.
-`clipBleedSession.test.ts` exercises opening generations, materialization,
-recording replacement, stale reads, peer-head round trips and exact Undo receipts.
-Command and host-inspector tests cover queue admission, access and current-target
-checks. Timeline and selection-surface tests cover mounting, placement
-cancellation, current-region geometry and phone selection. Central input-contract,
-hit-candidate and real-router grammar tests guard direct activation, touch scroll,
-long press and second-finger rollback without governance allowlists.
-`gui/web/e2e/bleed-band-touch.spec.ts` drives the built app with CDP touch at
-390x844 on the phone timeline and at 844x390: a held press at a band's selector
-beside a join opens the chooser with the Roll and the band, a held press at a
-band edge beside a click-through trim handle selects the band alone, and the
-selector sits farther from a comment pin than `TOUCH_HIT_RADIUS_PX`. The
-handle and write checks have controls in the same spec: a selected clip makes
-the handle live and a live handle is detected, and a recorded write is observed.
-The pin-gap check has no control.
+`clipBleed.test.ts` validates host inspection DTOs and exact opaque targets. `clipBleedSession.test.ts` exercises opening generations,
+materialization, recording replacement, stale reads, peer-head round trips and exact Undo receipts. Command and host-inspector tests cover queue
+admission, access and current-target checks. Timeline and selection-surface tests cover mounting, placement cancellation, current-region geometry and
+phone selection. Central input-contract, hit-candidate and real-router grammar tests guard direct activation, touch scroll, long press and second-
+finger rollback without governance allowlists. `gui/web/e2e/bleed-band-touch.spec.ts` drives CDP touch on the built phone timeline: a held press at a
+band's selector beside a join lists the Roll and the band, a held press at a band edge beside a click-through trim handle selects the band alone, and
+the selector sits farther from a comment pin than `TOUCH_HIT_RADIUS_PX`. The handle and write checks have controls; the pin gap does not.
 
 `test_proxy_variants.py` covers whole-generation retention, actual encoded chunk
 identity, partial or damaged destinations, derived saves, concurrent render
