@@ -7,7 +7,6 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -165,7 +164,7 @@ def completed_audio_effects(
                     "complete_effect_probe",
                     source.path,
                     None,
-                    partial(ffmpeg.FFmpegEngine().probe, source.path),
+                    lambda: ffmpeg.FFmpegEngine().probe(source.path),
                 ).sample_rate
                 for mute in source.mute_spans:
                     samples = mute.samples(rate, source_start=source.src_start)
