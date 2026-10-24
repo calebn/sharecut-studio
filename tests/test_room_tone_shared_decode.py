@@ -19,6 +19,30 @@ from podcast_mcp.util.batch_scope import batch_scope
 SR = 48000
 
 
+def test_slices_of_the_held_decode_give_the_one_shot_floor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wav = _write_wav(tmp_path / "t.wav", 1)
+    with batch_scope():
+        load_mono_full(wav, sample_rate=SAMPLE_RATE)
+        whole = room_tone._track_floor(wav, room_tone.file_revision(wav))
+        room_tone._track_floor.cache_clear()
+        monkeypatch.setattr(room_tone, "_HELD_CHUNK", 1000 * SAMPLE_RATE // 1000 + 7)
+        sliced = room_tone._track_floor(wav, room_tone.file_revision(wav))
+    assert sliced == whole
+
+
+def test_a_missing_file_inside_a_batch_reads_as_it_does_outside(tmp_path: Path) -> None:
+    held = _write_wav(tmp_path / "held.wav", 1)
+    gone = tmp_path / "gone.wav"
+    outside = room_tone._track_floor(gone, room_tone.file_revision(held))
+    room_tone._track_floor.cache_clear()
+    with batch_scope():
+        load_mono_full(held, sample_rate=SAMPLE_RATE)
+        inside = room_tone._track_floor(gone, room_tone.file_revision(held))
+    assert inside == outside
+
+
 def _write_wav(path: Path, channels: int) -> Path:
     rng = np.random.default_rng(7)
     seconds = 6
