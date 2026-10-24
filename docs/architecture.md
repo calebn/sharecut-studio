@@ -62,11 +62,6 @@ segments, chapters), `TranscriptService` (transcription, export and word
 edits), `AnalysisService` (effects, loudness, bleed, audibility, reconcile and
 cut-boundary previews). They share `WorkspaceService` and `CutMutatingService`
 from `service_base.py`; `tests/test_module_size_budget.py` holds the budgets.
-`HistoryService.status()` and `list_entries()` return service-owned Pydantic
-results from `document/history_results.py`. The list result distinguishes flat
-entries, snapshot groups, and mutation groups. CLI, MCP, GUI, and document sync
-convert these results to their existing wire dictionaries at the adapter
-boundaries. History moves still return their existing dictionaries.
 Document sync owns `apply_external_document_edit`: it compares committed project
 state under project ownership, then publishes changed CLI applies outside the
 SQLite journal transaction. See [CLI edit journal ownership](session-sync.md#cli-edit-journal-ownership).

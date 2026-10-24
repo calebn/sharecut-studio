@@ -363,6 +363,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
     from podcast_mcp.gui import assembler
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
     from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import HistoryListResult
     from podcast_mcp.util import workspace_paths
     from podcast_mcp.util.batch_scope import _scope
 
@@ -390,6 +391,14 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
         ]
     )
     workspace = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    empty_history = HistoryListResult(
+        cursor=-1,
+        head_id="root",
+        can_undo=False,
+        can_redo=False,
+        entries=[],
+        groups=[],
+    )
 
     _resolve_within_calls: list[str] = []
     resolve_within = workspace_paths._resolve_within
@@ -402,7 +411,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
     detail = assembler.dump_project_projection(
         workspace,
         projection=assembler.ViewProjection.DETAIL,
-        history={},
+        history=empty_history,
     )
     rows = detail["transcript"]["utterances"]
     expected = [
@@ -431,7 +440,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
     moved = assembler.dump_project_projection(
         workspace,
         projection=assembler.ViewProjection.DETAIL,
-        history={},
+        history=empty_history,
     )
     moved_rows = moved["transcript"]["utterances"]
     assert [(row["source_id"], row["timeline_spans"][0]["start"]) for row in moved_rows] == [
@@ -451,6 +460,6 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
         assembler.dump_project_projection(
             workspace,
             projection=assembler.ViewProjection.DETAIL,
-            history={},
+            history=empty_history,
         )
     assert _scope.get() is None
