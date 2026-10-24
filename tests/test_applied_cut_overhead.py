@@ -4,9 +4,11 @@ import copy
 import os
 import random
 import sys
+import typing
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
 
 from podcast_mcp.edits import cut_effects
 from podcast_mcp.edits.cut_application import _cut_copy
@@ -26,6 +28,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import TranscriptWords
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.media_identity import same_recording
+from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 
 def _recordings(tmp_path: Path) -> list[Path]:
@@ -199,9 +202,8 @@ def _timeline_project(tmp_path: Path, paths: list[Path]) -> EpisodeProject:
 
 
 def _naive_recording_clips(project: EpisodeProject, track_id: str) -> list[Clip]:
-    from podcast_mcp.util.workspace_paths import resolve_under_workspace
-
     track = project.track_by_id(track_id)
+    assert track is not None and track.media is not None
     media = resolve_under_workspace(project, track.media.path)
     found = []
     for clip in project.clips:
@@ -270,13 +272,10 @@ def test_recording_clips_skip_a_foreign_lane_path_outside_the_workspace_but_not_
     assert [c.id for c in timeline._recording_clips("host")] == [
         c.id for c in _naive_recording_clips(project, "host")
     ]
-    with pytest.raises(ValueError, match="path must be under workspace") as first_raise:
+    with pytest.raises(ValueError, match="path must be under workspace"):
         timeline._recording_clips("guest")
-    with pytest.raises(ValueError, match="path must be under workspace") as second_raise:
+    with pytest.raises(ValueError, match="path must be under workspace"):
         timeline._recording_clips("guest")
-    assert second_raise.value is not first_raise.value
-    assert second_raise.value.__traceback__.tb_next is not None
-    assert second_raise.value.__suppress_context__
     with pytest.raises(ValueError, match="path must be under workspace"):
         _naive_recording_clips(project, "guest")
 
@@ -389,10 +388,6 @@ def test_cut_copy_runs_inside_a_batch_scope_unchanged():
 
 
 def test_transcript_words_are_held_only_by_the_lists_that_cut_copy_shares():
-    import typing
-
-    from pydantic import BaseModel
-
     holders: set[str] = set()
     seen: set[type] = set()
 

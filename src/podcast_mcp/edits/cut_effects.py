@@ -230,7 +230,6 @@ def _same_recording_leaves(old: Sequence[PlacedSource]) -> Callable[[SourceAudio
     compared in order of their first leaf, so the first comparison to raise is the one an
     all-pairs scan reaches first.
     """
-
     by_path: dict[tuple[str | None, bool], dict[Path, list[int]]] = {}
     for index, previous in enumerate(old):
         paths = by_path.setdefault((previous.source.source_id, previous.source.is_fill), {})
