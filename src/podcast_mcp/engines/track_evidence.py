@@ -15,6 +15,7 @@ tree the evaluator cannot take, still uses the render. The module logs the reaso
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 import threading
 from collections import OrderedDict
@@ -149,13 +150,9 @@ def rms_readers(
     *,
     private: bool = False,
 ) -> dict[str, Callable[[], TrackRmsCache]]:
-    """Return, for each track, a reader that gives what :func:`rms` gives, after evaluating the missing trees together.
+    """Return a reader per track that gives what :func:`rms` gives, with the missing trees already evaluated together.
 
-    Each track is planned on the caller's thread, in ``track_ids`` order, as :func:`rms` plans
-    it. The trees the batch store lacks are then evaluated at most ``MAX_EVALUATORS`` at a
-    time, each worker inside the caller's batch scope. A reader returns the track's cache, or
-    raises what :func:`rms` would have raised for it, so the caller keeps its per-track
-    fallback. A single missing tree is evaluated by its reader, as :func:`rms` does.
+    A reader raises what :func:`rms` would raise for its track, so the caller keeps its per-track fallback.
     """
     store = _store()
     planned: dict[str, tuple[EvidenceKey, Audio] | Declined | Exception] = {}
@@ -175,7 +172,7 @@ def rms_readers(
         results = run_parallel(
             keys,
             lambda key: _build_or_error(store, key, missing[key]),
-            max_workers=min(len(keys), MAX_EVALUATORS),
+            max_workers=min(len(keys), MAX_EVALUATORS, os.cpu_count() or 1),
         )
         evaluated = dict(zip(keys, results, strict=True))
 
@@ -183,15 +180,13 @@ def rms_readers(
         plan = planned[track_id]
         if isinstance(plan, Exception):
             raise plan
-        entry: _Entry | Declined | Exception = (
-            plan
-            if isinstance(plan, Declined)
-            else (
-                evaluated[plan[0]]
-                if plan[0] in evaluated
-                else store.get_or_build(plan[0], lambda: _evaluate(plan[1], plan[0].curve))
-            )
-        )
+        entry: _Entry | Declined | Exception
+        if isinstance(plan, Declined):
+            entry = plan
+        elif plan[0] in evaluated:
+            entry = evaluated[plan[0]]
+        else:
+            entry = store.get_or_build(plan[0], lambda: _evaluate(plan[1], plan[0].curve))
         if isinstance(entry, Exception):
             raise entry
         if isinstance(entry, Declined):
