@@ -5,7 +5,7 @@ Builds on ``cut_placement``; ``cut_safety`` assesses acoustics on top of it."""
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -15,7 +15,7 @@ from podcast_mcp.edits.cut_policy import (
     CutJoin,
 )
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
-from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource
+from podcast_mcp.engines.audio import GainRamp, MuteSampleEnvelope, PlacedSource, SourceAudio
 from podcast_mcp.engines.session_timeline import (
     clip_plays_lane,
 )
@@ -222,6 +222,33 @@ def completed_audio_effects(
     return tuple(effects)
 
 
+def _same_recording_leaves(old: Sequence[PlacedSource]) -> Callable[[SourceAudio], list[int]]:
+    """Indexes of the ``old`` leaves that play ``source``'s recording, ascending.
+
+    Leaves are grouped by source id, fill flag and path, so each distinct recording pair is
+    compared once however many leaves play it.
+    """
+
+    by_path: dict[tuple[str | None, bool], dict[Path, list[int]]] = {}
+    for index, previous in enumerate(old):
+        paths = by_path.setdefault((previous.source.source_id, previous.source.is_fill), {})
+        paths.setdefault(previous.source.path, []).append(index)
+    found: dict[tuple[str | None, bool, Path], list[int]] = {}
+
+    def matching(source: SourceAudio) -> list[int]:
+        key = (source.source_id, source.is_fill, source.path)
+        if key not in found:
+            found[key] = sorted(
+                index
+                for path, indexes in by_path.get(key[:2], {}).items()
+                if same_recording(path, source.path)
+                for index in indexes
+            )
+        return found[key]
+
+    return matching
+
+
 def _before_occurrences(
     old: Sequence[PlacedSource],
     new: Sequence[PlacedSource],
@@ -231,18 +258,13 @@ def _before_occurrences(
 
     before_ids = {leaf.source.clip_id for leaf in old}
     bindings: list[int | None] = [None] * len(new)
+    same_old_recording = _same_recording_leaves(old)
     for position in sorted(range(len(new)), key=lambda i: new[i].source.is_fill):
         leaf = new[position]
         source = leaf.source
         if source.clip_id in introduced_clips:
             continue
-        qualified = [
-            index
-            for index, previous in enumerate(old)
-            if previous.source.source_id == source.source_id
-            and previous.source.is_fill == source.is_fill
-            and same_recording(previous.source.path, source.path)
-        ]
+        qualified = same_old_recording(source)
         origin = clip_split_origin(source.clip_id, before_ids)
         containing = [
             i
