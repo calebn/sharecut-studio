@@ -19,7 +19,7 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
 )
 from podcast_mcp.models import ClipJoinMode, EpisodeProject
-from podcast_mcp.util.batch_scope import scoped_by_file
+from podcast_mcp.util.batch_scope import scoped_by_file, scoped_by_file_if_held, snapshot
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -269,6 +269,19 @@ def _calibrate_locality(grid: int, rate: int) -> tuple[int, int] | None:
 
 def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:
     return _decode_f32(path, sample_rate, ffmpeg, ffmpeg_mono_mean_layout(path))
+
+
+def held_mono_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray | None:
+    """What :func:`load_mono_full` returns for these arguments if the batch already decoded it.
+
+    ``None`` outside a batch or before the first decode; it never decodes. The array is the
+    batch's own, so the caller must not write to it.
+    """
+    if snapshot()[0] is None:
+        return None
+    return scoped_by_file_if_held(
+        "decode", path, (sample_rate, None, tuple(ffmpeg_mono_mean_layout(path)))
+    )
 
 
 def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
