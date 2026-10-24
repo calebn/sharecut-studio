@@ -88,7 +88,7 @@ def _counting(monkeypatch, module) -> list[tuple[Path, Path]]:
 
 
 @pytest.mark.parametrize("seed", range(6))
-def test_old_leaf_matching_equals_comparing_every_leaf(tmp_path, seed):
+def test_leaf_matching_equals_the_all_pairs_scan(tmp_path, seed):
     paths = _recordings(tmp_path)
     rng = random.Random(seed)
     kinds = [(None, False), (None, True), ("b", False), ("b", True)]
@@ -103,7 +103,7 @@ def test_old_leaf_matching_equals_comparing_every_leaf(tmp_path, seed):
         assert matching(query) == _naive_matches(old, query)
 
 
-def test_old_leaf_matching_keeps_alias_semantics_of_same_recording(tmp_path):
+def test_leaf_matching_keeps_alias_semantics_of_same_recording(tmp_path):
     first, hardlink, symlink, twin, dotted, cased, missing, dotted_missing = _recordings(tmp_path)
     old = [_leaf(path, i) for i, path in enumerate([hardlink, symlink, twin, missing, cased])]
     matching = cut_effects._same_recording_leaves(old)
@@ -116,7 +116,7 @@ def test_old_leaf_matching_keeps_alias_semantics_of_same_recording(tmp_path):
     assert matching(_leaf(cased, 9).source) == _naive_matches(old, _leaf(cased, 9).source)
 
 
-def test_old_leaf_matching_compares_each_recording_pair_once(tmp_path, monkeypatch):
+def test_leaf_matching_compares_each_group_path_pair_once(tmp_path, monkeypatch):
     first, hardlink, _, twin, *_ = _recordings(tmp_path)
     calls = _counting(monkeypatch, cut_effects)
     old = [_leaf([first, hardlink, twin][i % 3], i) for i in range(90)]
@@ -129,7 +129,25 @@ def test_old_leaf_matching_compares_each_recording_pair_once(tmp_path, monkeypat
     assert len(set(calls)) == 9
 
 
-def test_old_leaf_matching_surfaces_identity_errors(tmp_path, monkeypatch):
+def test_leaf_matching_raises_for_the_path_an_all_pairs_scan_reaches_first(tmp_path, monkeypatch):
+    first, hardlink, symlink, twin, *_ = _recordings(tmp_path)
+
+    def refuse(left, _right):
+        if left in (hardlink, symlink):
+            raise ValueError(f"no identity for {left.name}")
+        return False
+
+    monkeypatch.setattr(cut_effects, "same_recording", refuse)
+    old = [_leaf(twin, 0), _leaf(symlink, 1), _leaf(hardlink, 2), _leaf(symlink, 3)]
+    matching = cut_effects._same_recording_leaves(old)
+    with pytest.raises(ValueError, match=r"symlink\.wav"):
+        matching(_leaf(first, 9).source)
+    with pytest.raises(ValueError, match=r"symlink\.wav"):
+        for previous in old:
+            cut_effects.same_recording(previous.source.path, first)
+
+
+def test_leaf_matching_surfaces_identity_errors(tmp_path, monkeypatch):
     first, hardlink, *_ = _recordings(tmp_path)
 
     def refuse(_first, _second):
@@ -222,7 +240,14 @@ def test_recording_clips_compare_each_stored_path_once(tmp_path, monkeypatch):
 
     SessionTimeline(project)._recording_clips("host")
 
-    assert 0 < len(calls) <= len(paths)
+    stored = set()
+    for clip in project.clips:
+        if clip.source_id:
+            stored.add(project.source_by_id(clip.source_id).path)
+        else:
+            stored.add(project.track_by_id(clip.track_id).media.path)
+    assert len(stored) > 1
+    assert len(calls) == len(stored)
 
 
 def test_recording_clips_skip_a_foreign_lane_path_outside_the_workspace_but_not_their_own(
@@ -245,8 +270,13 @@ def test_recording_clips_skip_a_foreign_lane_path_outside_the_workspace_but_not_
     assert [c.id for c in timeline._recording_clips("host")] == [
         c.id for c in _naive_recording_clips(project, "host")
     ]
-    with pytest.raises(ValueError, match="path must be under workspace"):
+    with pytest.raises(ValueError, match="path must be under workspace") as first_raise:
         timeline._recording_clips("guest")
+    with pytest.raises(ValueError, match="path must be under workspace") as second_raise:
+        timeline._recording_clips("guest")
+    assert second_raise.value is not first_raise.value
+    assert second_raise.value.__traceback__.tb_next is not None
+    assert second_raise.value.__suppress_context__
     with pytest.raises(ValueError, match="path must be under workspace"):
         _naive_recording_clips(project, "guest")
 
@@ -356,3 +386,39 @@ def test_cut_copy_runs_inside_a_batch_scope_unchanged():
     project = _project_with_words(10, 1)
     with batch_scope():
         assert _cut_copy(project) == _walked_copy(project)
+
+
+def test_transcript_words_are_held_only_by_the_lists_that_cut_copy_shares():
+    import typing
+
+    from pydantic import BaseModel
+
+    holders: set[str] = set()
+    seen: set[type] = set()
+
+    def mentions_word(annotation) -> bool:
+        if annotation is TranscriptWord:
+            return True
+        return any(mentions_word(arg) for arg in typing.get_args(annotation))
+
+    def walk(model: type[BaseModel]) -> None:
+        if model in seen:
+            return
+        seen.add(model)
+        for name, field in model.model_fields.items():
+            if mentions_word(field.annotation):
+                holders.add(f"{model.__name__}.{name}")
+
+            def nested(annotation):
+                if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                    walk(annotation)
+                for arg in typing.get_args(annotation):
+                    nested(arg)
+
+            nested(field.annotation)
+
+    walk(EpisodeProject)
+    assert holders == {"Transcript.words", "ArchivedTranscriptWord.word"}, (
+        "a new field holds TranscriptWord objects; _cut_copy shares words only through "
+        "Transcript.words and ArchivedTranscriptWord.word, so it must seed this field too"
+    )

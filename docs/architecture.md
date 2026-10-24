@@ -150,11 +150,13 @@ Narrative handoff selection belongs to `AnalysisService.suggest_handoff_cut`. Om
 files, including hardlinks. Inside a `batch_scope`, each distinct resolved path uses
 the first `Path.stat`. Distinct missing files prove no equivalence. Identical
 missing paths preserve metadata geometry but cannot authorize an audio edit.
-A scan that tests many placements against one recording compares each distinct path pair once. Exact removal geometry inventories the queried recording across every stored
+Exact removal geometry inventories the queried recording across every stored
 placement, including another lane's primary media. A matching unclipped lane
 holds because the renderer independently plays its full recording. Ordinary
 point mapping retains semantic lane ownership. Transcript groups retain exact
 source IDs even when their files match.
+A scan that tests many placements against one recording compares each distinct path pair
+once within a source id and fill group.
 Primary placements select their own lane transcript before physical audio reuse.
 Parked sources use their explicit transcript or a unique primary owner's primary
 transcript. Ambiguous primary ownership refuses the trim before mutation.

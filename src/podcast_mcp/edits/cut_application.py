@@ -400,8 +400,8 @@ def _cut_copy(project: EpisodeProject) -> EpisodeProject:
     A cut archives, restores and rebuilds words (new lists, new archive entries) but
     never changes a word's own fields (``transcript_sync``: word times stay source
     seconds and survivors are never shifted), and the words are most of what a deep
-    copy walks. Each ``words`` list is copied in one step, so the copy costs the same
-    for a short transcript as for a long one.
+    copy walks. Each live ``words`` list is copied in one step, so the copy does not visit
+    live words individually; it still walks the archived words, which a batch grows.
     """
     memo: dict[int, object] = {}
     for transcript in project.transcripts:
