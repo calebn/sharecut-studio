@@ -351,7 +351,6 @@ def test_cancelled_claim_reply_cannot_remove_a_newer_guest_connection(
 
     async def cancel_claim():
         held_tasks[0].cancel()
-        await asyncio.sleep(0)
 
     with TestClient(create_app()) as client:
         with client.websocket_connect(path) as live:
@@ -360,17 +359,21 @@ def test_cancelled_claim_reply_cannot_remove_a_newer_guest_connection(
             live.receive_json()
             monkeypatch.setattr(review_share, "run_in_threadpool", worker)
             monkeypatch.setattr(common.GuestWsConnection, "release", release)
-            with suppress(CancelledError):
-                with client.websocket_connect(path):
-                    assert claimed.wait(5)
-                    with client.websocket_connect(path) as replacement:
-                        assert replacement.receive_json()["client_id"] == client_id
-                        replacement.receive_json()
-                        client.portal.call(cancel_claim)
-                        assert released.wait(5)
-                        assert any(
-                            row["client_id"] == client_id for row in service.snapshot()["clients"]
-                        )
+            held = client.websocket_connect(path)
+            held.__enter__()
+            try:
+                assert claimed.wait(5)
+                with client.websocket_connect(path) as replacement:
+                    assert replacement.receive_json()["client_id"] == client_id
+                    replacement.receive_json()
+                    client.portal.call(cancel_claim)
+                    assert released.wait(5)
+                    assert any(
+                        row["client_id"] == client_id for row in service.snapshot()["clients"]
+                    )
+            finally:
+                with suppress(CancelledError):
+                    held.__exit__(None, None, None)
 
 
 @pytest.mark.parametrize("kind", ["review", "record"])
