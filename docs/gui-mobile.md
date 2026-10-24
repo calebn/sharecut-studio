@@ -564,9 +564,18 @@ its full-sheet fallback can cover scrolling content in those other workflows.
 Desktop and ordinary tablet feedback stays above the status bar.
 On every shell the toast also stays off the comment composer, the **Commenting as**
 line, its **Change** field and the guest name step, whatever part of them the person can
-see: it moves just above them, or just below when there is no room above, and on a window
-too short for a free band it covers the content above them rather than the field (#2199,
-proven at 844x390 and 390x340 in `e2e/comment-toast-clearance.spec.ts`).
+see and that sits under the card's width: it moves just above them, or just below when
+there is no room above, and on a window too short for a free band it covers the content
+above them rather than the field (#2199). Limits (#2221). A field beside the card, with
+no horizontal overlap, is ignored, so it does not lift the toast. When no spot clears
+every field (the fields and the 62 px card do not fit between the top edge and the mode
+nav or status bar), the card goes flush with the top edge if that clears them, else to
+the spot above the mode nav or status bar that covers the least of them; that overlap
+lasts until the toast expires or is dismissed. Passive chrome is not
+protected: on a short phone the card can sit over the player card or the header **Menu**,
+and Play-row clearance is a best effort (it can give way to a field). Proven in Chromium
+with a hit-test oracle at 844x390, 390x340 and 320x300 in
+`e2e/comment-toast-clearance.spec.ts`; the real iOS software keyboard is unproven.
 
 Compact half and full detents keep the same outer height when feedback appears.
 The shared body scroller exposes feedback without taking more timeline room.

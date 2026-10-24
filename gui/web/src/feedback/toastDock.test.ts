@@ -215,13 +215,13 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
     ).toBe(400 - (200 - 8));
   });
 
-  it("keeps the resting spot when no side of the field has room", () => {
+  it("covers the least of a field that leaves no side with room (#2221)", () => {
     expect(
       toastDockBottomPx({
         ...landscape,
         protectPx: [{ top: 10, bottom: 380 }],
       }),
-    ).toBe(390 - 362 + 8);
+    ).toBe(390 - 62);
   });
 });
 

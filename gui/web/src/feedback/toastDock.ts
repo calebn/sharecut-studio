@@ -34,6 +34,8 @@ const CEILING_SELECTORS = [
   ".daw-shell--phone .mobile-status-row",
 ] as const;
 
+type Extent = { top: number; bottom: number };
+
 export type ToastDockInput = {
   viewportHeight: number;
   /** Bottom of the lowest top-docked control row (transport, status row). */
@@ -49,11 +51,11 @@ export type ToastDockInput = {
    * toast that reports it does not cover it, e.g. "Move track down" in a full
    * sheet.
    */
-  pressedPx?: { top: number; bottom: number } | null;
+  pressedPx?: Extent | null;
   /** Vertical extents of body controls the toast must clear (Listen's Play row). */
-  keepClearPx?: readonly { top: number; bottom: number }[];
+  keepClearPx?: readonly Extent[];
   /** Fields the toast must never cover. Unlike keepClearPx they win over the ceiling. */
-  protectPx?: readonly { top: number; bottom: number }[];
+  protectPx?: readonly Extent[];
 };
 
 /**
@@ -65,7 +67,8 @@ export type ToastDockInput = {
  * chrome, over the sheet's scrolling body, which the person can scroll past. If that spot covers the control just pressed or a
  * control that must stay clear (Listen's Play row on a short phone), the toast
  * moves just above it, or just below it when there is no room above; the first
- * spot that covers none of them wins.
+ * spot that covers none of them wins. If no spot clears a protected field, the
+ * toast covers as little of the fields as it can above the rest chrome.
  */
 export function toastDockBottomPx({
   viewportHeight,
@@ -109,23 +112,45 @@ export function toastDockBottomPx({
   if (moved !== undefined) return viewportHeight - moved;
   if (protectPx.length === 0) return viewportHeight - spot;
   // Protected fields win over the ceiling: go past it, keeping everything clear
-  // if the viewport allows, else at least the protected fields.
+  // if the viewport allows, else at least the protected fields. The top edge is
+  // a spot too, flush with no gap, for a field that starts just under the toast.
+  const spotsAround = (extents: readonly Extent[]) => [
+    spot,
+    ...extents.map((extent) => extent.top - gapPx),
+    ...extents.map((extent) => extent.bottom + gapPx + toastHeightPx),
+    toastHeightPx,
+  ];
+  const onScreen = (bottom: number) =>
+    bottom - toastHeightPx >= 0 && bottom <= viewportHeight;
   for (const keep of [avoid, protectPx]) {
-    const clearOfKept = (bottom: number) =>
-      keep.every((extent) => clearOf(extent, bottom));
-    const past = [
-      spot,
-      ...keep.map((extent) => extent.top - gapPx),
-      ...keep.map((extent) => extent.bottom + gapPx + toastHeightPx),
-    ].find(
+    const past = spotsAround(keep).find(
       (bottom) =>
-        bottom - toastHeightPx >= 0 &&
-        bottom <= viewportHeight &&
-        clearOfKept(bottom),
+        onScreen(bottom) && keep.every((extent) => clearOf(extent, bottom)),
     );
     if (past !== undefined) return viewportHeight - past;
   }
-  return viewportHeight - spot;
+  // No spot clears the fields: cover as little of them as possible, and never
+  // the chrome the toast rests above.
+  const covered = (extents: readonly Extent[], bottom: number) =>
+    extents.reduce(
+      (sum, extent) =>
+        sum +
+        Math.max(
+          0,
+          Math.min(extent.bottom, bottom) -
+            Math.max(extent.top, bottom - toastHeightPx),
+        ),
+      0,
+    );
+  const [least = spot] = spotsAround(avoid)
+    .filter((bottom) => onScreen(bottom) && bottom <= restTopPx)
+    .sort(
+      (a, b) =>
+        covered(protectPx, a) - covered(protectPx, b) ||
+        covered(avoid, a) - covered(avoid, b) ||
+        Math.abs(a - spot) - Math.abs(b - spot),
+    );
+  return viewportHeight - least;
 }
 
 function shownRects(selectors: readonly string[]): DOMRect[] {
@@ -145,20 +170,29 @@ function restTop(chrome: HTMLElement): number {
 /** Extents clipped by scrolling ancestors, so a field scrolled out of its panel does not count. */
 function visibleExtents(
   selectors: readonly string[],
-): { top: number; bottom: number }[] {
+): (Extent & { left: number; right: number })[] {
   return selectors.flatMap((selector) =>
     Array.from(document.querySelectorAll<HTMLElement>(selector)).flatMap(
       (el) => {
         const rect = el.getBoundingClientRect();
         if (rect.height <= 0 || rect.width <= 0) return [];
-        let { top, bottom } = rect;
+        let { top, bottom, left, right } = rect;
         for (let a = el.parentElement; a; a = a.parentElement) {
-          if (getComputedStyle(a).overflowY === "visible") continue;
+          const { overflowX, overflowY } = getComputedStyle(a);
+          if (overflowX === "visible" && overflowY === "visible") continue;
           const box = a.getBoundingClientRect();
-          top = Math.max(top, box.top);
-          bottom = Math.min(bottom, box.bottom);
+          if (overflowY !== "visible") {
+            top = Math.max(top, box.top);
+            bottom = Math.min(bottom, box.bottom);
+          }
+          if (overflowX !== "visible") {
+            left = Math.max(left, box.left);
+            right = Math.min(right, box.right);
+          }
         }
-        return bottom > top ? [{ top, bottom }] : [];
+        return bottom > top && right > left
+          ? [{ top, bottom, left, right }]
+          : [];
       },
     ),
   );
@@ -206,13 +240,16 @@ export function useToastDock(
             keepClearPx: shownRects(KEEP_CLEAR_SELECTORS),
           }
         : { ceilingPx: 0, floorTopsPx: [], pressedPx: null, keepClearPx: [] };
+      const toast = card.getBoundingClientRect();
       const bottomPx = toastDockBottomPx({
         viewportHeight: window.innerHeight,
         restTopPx: restTop(rest),
-        toastHeightPx: card.getBoundingClientRect().height,
+        toastHeightPx: toast.height,
         gapPx: gapRem * rootPx,
         ...phoneOnly,
-        protectPx: visibleExtents(PROTECT_SELECTORS),
+        protectPx: visibleExtents(PROTECT_SELECTORS).filter(
+          (field) => field.left < toast.right && field.right > toast.left,
+        ),
       });
       const value = `${bottomPx / rootPx}rem`;
       if (region.style.getPropertyValue("--toast-dock-bottom") !== value) {
