@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -29,7 +30,7 @@ REAL_EVALUATE = track_evidence._evaluate
 
 @pytest.fixture(autouse=True)
 def _enough_cores(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(track_evidence.os, "cpu_count", lambda: 8)
+    monkeypatch.setattr(os, "cpu_count", lambda: 8)
 
 
 def _three_chained(tmp_path: Path) -> EpisodeProject:
@@ -149,11 +150,11 @@ def test_evaluation_count_equals_the_serial_count_for_distinct_and_repeated_keys
 ) -> None:
     _ffmpeg_or_skip()
     project = _three_chained(tmp_path)
-    serial = _Probe(monkeypatch)
-    _serial(project)
+    with monkeypatch.context() as serial_patch:
+        serial = _Probe(serial_patch)
+        _serial(project)
     serial_count = len(serial.trees)
 
-    monkeypatch.undo()
     concurrent = _Probe(monkeypatch)
     with batch_scope():
         _build(project)
@@ -333,13 +334,14 @@ def test_an_unexpected_worker_error_surfaces_after_the_others_finish(
 ) -> None:
     _ffmpeg_or_skip()
     project = _three_chained(tmp_path)
-    threads = threading.active_count()
     planned = track_evidence._plan(project, "audra", load_defaults())
     assert not isinstance(planned, Declined)
     started: list[Audio] = []
+    workers: list[threading.Thread] = []
 
     def evaluate(tree: Audio, curve: str) -> Evidence | Declined:
         started.append(tree)
+        workers.append(threading.current_thread())
         if tree == planned[1]:
             raise RuntimeError("boom")
         return REAL_EVALUATE(tree, curve)
@@ -350,4 +352,6 @@ def test_an_unexpected_worker_error_surfaces_after_the_others_finish(
         _build(project)
 
     assert len(started) == len(TRACKS)
-    assert threading.active_count() == threads
+    for worker in workers:
+        worker.join(timeout=10)
+    assert not any(worker.is_alive() for worker in workers)
