@@ -5,6 +5,7 @@ import type { ClipRow } from "../types/project";
 import { Dialog, InspectorSeekFooter } from "../ui";
 import { joinKind } from "../utils/editMarkerRegistry";
 import { JoinPopoverView } from "./JoinPopoverView";
+import { ROUTER_TRACE, routerTrace } from "./routerTrace";
 import type { JoinEdit } from "./useJoinEdit";
 
 export interface JoinPopoverProps {
@@ -37,6 +38,9 @@ export function JoinPopover({
   // silently, so Escape, Close, an outside click and opening another join
   // glyph (EditMarkerLayer.tsx) all wait for SetClipJoin to settle.
   const dismiss = useCallback(() => {
+    if (ROUTER_TRACE) {
+      routerTrace("popover-dismiss", { stack: new Error().stack });
+    }
     if (!useDawStore.getState().joinMutationInFlight) {
       edit.cancel();
       onClose();

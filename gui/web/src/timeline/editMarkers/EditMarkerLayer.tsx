@@ -14,6 +14,7 @@ import { useDaw } from "../../state/useDaw";
 import { useResizeObserver } from "../../ui";
 import { EDIT_GLYPH_PATH, EDIT_MARKERS } from "../../utils/editMarkerRegistry";
 import { hitTargetProps } from "../hitTargets";
+import { ROUTER_TRACE, routerTrace } from "../routerTrace";
 import {
   chipCount,
   chipLabel,
@@ -186,6 +187,13 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
   }));
   const popoverMark = useRef<string | null>(null);
   const toggle = (clipId: string) => {
+    if (ROUTER_TRACE) {
+      routerTrace("glyph-toggle", {
+        clipId,
+        openJoinId,
+        inFlight: useDawStore.getState().joinMutationInFlight,
+      });
+    }
     if (useDawStore.getState().joinMutationInFlight) {
       return;
     }
