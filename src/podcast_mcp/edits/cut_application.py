@@ -128,6 +128,7 @@ def _completed_holds(
     owned: bool = True,
     exact_ranges: Mapping[str, ExactRangeTarget] | None = None,
     mode: cut_policy.CutMode | None = None,
+    measured: cut_safety.MeasuredSources | None = None,
 ) -> list[cut_placement.CutScopeHold]:
     placement = [
         hold
@@ -193,6 +194,7 @@ def _completed_holds(
             pauses=pauses,
             join=join,
             unavailable=unavailable,
+            measured=measured,
         ),
         manual_ids=manual_ids,
         mode=mode,
@@ -502,6 +504,7 @@ def _apply_source_remove(
     batch: Sequence[SourceExtent],
     record_log: bool = False,
     override_peer_holds: set[str] | None = None,
+    measured: cut_safety.MeasuredSources | None = None,
 ) -> (
     tuple[EpisodeProject, tuple[float, float, list[str], dict]]
     | CutSpeechConfirmation
@@ -511,7 +514,8 @@ def _apply_source_remove(
 
     Trusted human application intent can override acoustic peer evidence;
     ``override_peer_holds`` records those overrides for the caller's summary.
-    Measurements share frozen state only until the first mutation. This writer
+    Measurements share frozen state only until the first mutation. ``measured`` carries
+    held-source measurements between cuts while ``project`` stays the same object. This writer
     completes every source, pad and edge write before policy can publish the copy.
     """
 
@@ -564,6 +568,7 @@ def _apply_source_remove(
             pads=pads,
             peers=observation.peers,
             owned=observation.removal is not None and bool(observation.removal.selected),
+            measured=measured,
         )
     except UnconfirmedCutSpeech as asked:
         return asked.confirmation
@@ -969,6 +974,7 @@ def approve_edits(
         survivors = [edit for edit in removes if edit.id not in excluded]
         batch = _source_extents(survivors)
         newly_held: set[str] = set()
+        measured: cut_safety.MeasuredSources = {}
         for edit in sorted(survivors, key=lambda e: e.start, reverse=True):
             previous = project
             applied = _apply_source_remove(
@@ -979,6 +985,7 @@ def approve_edits(
                 batch=tuple(batch.values()),
                 record_log=False,
                 override_peer_holds=override_peer_holds,
+                measured=measured,
             )
             if isinstance(applied, CutSpeechConfirmation):
                 asked.append(applied)
@@ -992,6 +999,7 @@ def approve_edits(
                 batch.pop(edit.id)
                 continue
             project, report = applied
+            measured.clear()
             tl_start, tl_end, track_ids, params = report
             if not track_ids:
                 continue
