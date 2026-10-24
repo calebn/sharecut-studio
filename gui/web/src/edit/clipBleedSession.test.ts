@@ -271,6 +271,40 @@ describe("clip bleed occurrence session", () => {
       expect(session.currentTarget()).toBeNull();
     },
   );
+  it("keeps an in-flight read when a late update replaces the project view with identical content", async () => {
+    const { session, reads } = harness();
+    const pending = session.open(occurrence);
+    replaceProject({ ...currentProject() });
+    expect(reads[0].signal.aborted).toBe(false);
+    const value = inspection();
+    reads[0].response.resolve(value);
+    await pending;
+    expect(session.getSnapshot()?.read).toEqual({
+      state: "ready",
+      inspection: value,
+    });
+  });
+  it("keeps a loading read through a late transcript-words hydration", async () => {
+    const { session, reads } = harness();
+    const pending = session.open(occurrence);
+    const current = currentProject();
+    replaceProject({
+      ...current,
+      meta: { ...current.meta, hydration: { transcript_words: true } },
+    } as ProjectView);
+    reads[0].response.resolve(inspection());
+    await pending;
+    expect(session.getSnapshot()?.read.state).toBe("ready");
+  });
+  it("still marks a loading read stale when a peer head lands before the read returns", async () => {
+    const { session, reads } = harness();
+    const pending = session.open(occurrence);
+    setHead(peerHead);
+    reads[0].response.resolve(inspection());
+    await pending;
+    expect(session.getSnapshot()?.read.state).toBe("error");
+    expect(session.currentTarget()).toBeNull();
+  });
   it("retires a deleted occurrence and its pending action", async () => {
     const { session, selected } = harness();
     const captured = await selected();
