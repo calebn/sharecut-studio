@@ -227,15 +227,6 @@ describe("timeline styles", () => {
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
     ).toMatch(/--join-hit-min:\s*calc\(2 \* var\(--clip-inset-top\)\);/);
-    const coarse = css.slice(
-      css.indexOf("@media (pointer: coarse) {\n  .timeline-time:not("),
-    );
-    expect(coarse).toMatch(
-      /^@media \(pointer: coarse\) \{\s*\.timeline-time:not\(\.timeline-blade-mode, \.timeline-comment-mode\)\s*\.edit-mark::before \{\s*inset-inline:\s*calc\(\(100% - var\(--join-hit-touch\)\) \/ 2\);/,
-    );
-    expect(
-      readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
-    ).toMatch(/--join-hit-touch:\s*calc\(4 \* var\(--clip-inset-top\)\);/);
     const chip = rule(css, ".edit-chip");
     expect(chip).toMatch(/min-inline-size:\s*var\(--clip-inset-top\)/);
     expect(chip).toMatch(/height:\s*var\(--clip-inset-top\)/);

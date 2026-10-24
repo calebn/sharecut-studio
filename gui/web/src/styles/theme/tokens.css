@@ -132,7 +132,6 @@
   /* WCAG 2.5.8 24 px target for the join marks' hit areas (.edit-mark::before, .edit-chip::before):
      two --clip-inset-top gutters, so it stays canvas px at any root font size. */
   --join-hit-min: calc(2 * var(--clip-inset-top));
-  --join-hit-touch: calc(4 * var(--clip-inset-top));
   --header-width: 11.25rem;
   --inspector-width: 17.5rem;
   --transport-height: 3.5rem;

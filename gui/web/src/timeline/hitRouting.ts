@@ -259,6 +259,7 @@ export interface HitRouter {
   dispose: () => void;
   /** True when the press layer owns `down`, a touch the router deferred. */
   defers: (down: PointerEvent) => boolean;
+  claimsClick: (event: Event) => boolean;
   /**
    * The press layer saw a long press: open the chooser, arm or select the
    * one target, or open the create menu.
@@ -388,6 +389,7 @@ export function attachHitRouting(
     restore: null,
   };
   let suppressClickUntil = 0;
+  let redirectedUntil = 0;
   const pendingClicks = new Map<ReturnType<typeof setTimeout>, number>();
   const cancelClicks = (pointerId?: number) => {
     for (const [timer, owner] of pendingClicks) {
@@ -823,6 +825,7 @@ export function attachHitRouting(
         replayPointer("pointerdown", tap, down, origin);
         replayPointer("pointerup", tap, event, origin);
         deferClick(tap, event, origin);
+        if (tap !== down.target) redirectedUntil = Date.now() + GHOST_CLICK_MS;
         return;
       }
       case "open": {
@@ -974,6 +977,7 @@ export function attachHitRouting(
       // the click of the finger that just lifted, which comes before it.
       if (type === "down" && pointers.size === 0 && !gesture.multi) {
         suppressClickUntil = 0;
+        redirectedUntil = 0;
       }
       if (
         type === "down" &&
@@ -1056,6 +1060,11 @@ export function attachHitRouting(
         parts.delete(part);
         part.removeEventListener("touchmove", onTouchMove as EventListener);
       };
+    },
+    claimsClick(event) {
+      if (isReplayed(event) || Date.now() >= redirectedUntil) return false;
+      redirectedUntil = 0;
+      return true;
     },
     defers(down) {
       return phase.kind === "pressing" && phase.down === down;
