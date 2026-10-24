@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { TOUCH_HIT_RADIUS_PX } from "../src/timeline/hitCandidates";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
@@ -13,6 +14,7 @@ import { type Point, touch, watchCommands } from "./touchTimeline";
 
 const CLIENT_ID = "e2e-bleed-band-touch";
 const JOIN_S = 10;
+const HOLD_MARGIN_MS = 250;
 const BAND = { fade_out_ms: 5, fade_in_ms: 5 };
 
 const VIEWPORTS = [
@@ -144,6 +146,13 @@ async function settle(read: () => Promise<unknown>): Promise<void> {
     .toBe(true);
 }
 
+async function holdPastLongPress(page: Page): Promise<void> {
+  const downAt = await page.evaluate(() => performance.now());
+  await expect
+    .poll(() => page.evaluate((at) => performance.now() - at, downAt))
+    .toBeGreaterThan(LONG_PRESS_MS + HOLD_MARGIN_MS);
+}
+
 async function pressedBands(page: Page): Promise<boolean[]> {
   return picks(page).evaluateAll((els) =>
     els.map((el) => el.getAttribute("aria-pressed") === "true"),
@@ -198,8 +207,10 @@ for (const viewport of VIEWPORTS) {
     expect(await liveHandlesInReach(page, atEnd)).toEqual([]);
     await touch(cdp, "touchStart", [atEnd]);
     await expect.poll(() => pressedBands(page)).toEqual([false, true]);
+    await holdPastLongPress(page);
     await expect(chooserItems(page)).toHaveCount(0);
     await expect(createMenu(page)).toHaveCount(0);
+    expect(await pressedBands(page)).toEqual([false, true]);
     await touch(cdp, "touchEnd");
     await expect(chooserItems(page)).toHaveCount(0);
     await refreshBands(page);
@@ -210,6 +221,7 @@ for (const viewport of VIEWPORTS) {
     };
     expect(await liveHandlesInReach(page, atJoin)).toEqual([]);
     await touch(cdp, "touchStart", [atJoin]);
+    await holdPastLongPress(page);
     await expect
       .poll(() => chooserLabels(page))
       .toEqual(["Roll at 00:10.000", "Automatic audio reduction at 00:10.000"]);

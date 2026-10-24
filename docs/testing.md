@@ -1187,9 +1187,10 @@ long press and second-finger rollback without governance allowlists.
 390x844 on the phone timeline and at 844x390: a held press at a band's selector
 beside a join opens the chooser with the Roll and the band, a held press at a
 band edge beside a click-through trim handle selects the band alone, and the
-selector sits farther from a comment pin than `TOUCH_HIT_RADIUS_PX`. Each
-negative check has a control in the same spec: a selected clip makes the
-handle live and a live handle is detected, and a recorded write is observed.
+selector sits farther from a comment pin than `TOUCH_HIT_RADIUS_PX`. The
+handle and write checks have controls in the same spec: a selected clip makes
+the handle live and a live handle is detected, and a recorded write is observed.
+The pin-gap check has no control.
 
 `test_proxy_variants.py` covers whole-generation retention, actual encoded chunk
 identity, partial or damaged destinations, derived saves, concurrent render
