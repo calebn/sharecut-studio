@@ -78,7 +78,6 @@ import {
   longPressAction,
   needsDirectHit,
 } from "./inputContract";
-import { describeNode, ROUTER_TRACE, routerTrace } from "./routerTrace";
 
 const replayed = new WeakSet<Event>();
 
@@ -157,23 +156,6 @@ function replayClick(element: Element, source: PointerEvent, at: HitPoint) {
     detail: 1,
   });
   replayed.add(event);
-  if (ROUTER_TRACE) {
-    let error: string | null = null;
-    let notCancelled: boolean | null = null;
-    try {
-      notCancelled = element.dispatchEvent(event);
-    } catch (thrown) {
-      error = String(thrown);
-    }
-    routerTrace("replay-click", {
-      element: describeNode(element),
-      connected: element.isConnected,
-      notCancelled,
-      defaultPrevented: event.defaultPrevented,
-      error,
-    });
-    return;
-  }
   element.dispatchEvent(event);
 }
 
@@ -695,48 +677,6 @@ export function attachHitRouting(
         ? (hits[0]?.element ?? hit)
         : (hit ?? event.target);
     const touch = event.pointerType === "touch";
-    if (ROUTER_TRACE) {
-      const tapTarget =
-        !hit && !ownsTap(event.target) && (options.surfaceTaps?.() ?? true)
-          ? surfaceTapTarget(part, origin)
-          : null;
-      routerTrace("down", {
-        pointerType: event.pointerType,
-        trusted: event.isTrusted,
-        x: origin.x,
-        y: origin.y,
-        target: describeNode(event.target),
-        hit: describeNode(hit),
-        winner: describeNode(winner),
-        ownsTap: ownsTap(event.target),
-        surfaceTaps: options.surfaceTaps?.() ?? true,
-        surfaceTapTarget: describeNode(tapTarget),
-        hits: hits.length,
-        touch,
-        rangeArmed: Boolean(event.target.closest("[data-range-armed]")),
-        stack: document
-          .elementsFromPoint(origin.x, origin.y)
-          .slice(0, 5)
-          .map(describeNode),
-        marks: [...part.querySelectorAll("[data-hit-kind]")]
-          .filter((el) =>
-            /^(join|edit-chip)$/.test(el.getAttribute("data-hit-kind") ?? ""),
-          )
-          .slice(0, 6)
-          .map((el) => {
-            const r = el.getBoundingClientRect();
-            return {
-              kind: el.getAttribute("data-hit-kind"),
-              l: r.left,
-              t: r.top,
-              r: r.right,
-              b: r.bottom,
-              dx: Math.max(r.left - origin.x, origin.x - r.right, 0),
-              dy: origin.y - r.top,
-            };
-          }),
-      });
-    }
     // One finger moving never edits: every touch, on a selected target too,
     // waits for the press layer, which arms only on a long press. An armed
     // Select range is the one mode that owns its touches.
@@ -885,17 +825,6 @@ export function attachHitRouting(
         // the browser's own click, so no target sees two.
         phase.at = at;
         const press = settle();
-        if (ROUTER_TRACE) {
-          routerTrace("up", {
-            phase: "pressing",
-            trusted: event.isTrusted,
-            x: at.x,
-            y: at.y,
-            settled: press != null,
-            tap: describeNode(press?.tap),
-            winner: describeNode(press?.winner),
-          });
-        }
         if (!press) return;
         const { tap, winner, down, origin } = press;
         report(tap);
@@ -903,8 +832,6 @@ export function attachHitRouting(
           const timer = setTimeout(() => {
             pendingClicks.delete(timer);
             redirect = null;
-            if (ROUTER_TRACE)
-              routerTrace("fallback-timer", { tap: describeNode(tap) });
             replayClick(tap, event, origin);
           }, GHOST_CLICK_MS);
           pendingClicks.set(timer, event.pointerId);
@@ -1011,17 +938,6 @@ export function attachHitRouting(
   };
 
   const onClick = (event: MouseEvent) => {
-    if (ROUTER_TRACE) {
-      routerTrace("click", {
-        trusted: event.isTrusted,
-        replayed: isReplayed(event),
-        target: describeNode(event.target),
-        x: event.clientX,
-        y: event.clientY,
-        pendingRedirect: redirect != null,
-        suppressActive: Date.now() < suppressClickUntil,
-      });
-    }
     if (redirect && !isReplayed(event)) {
       const { tap, source, at, timer } = redirect;
       redirect = null;
@@ -1174,15 +1090,7 @@ export function attachHitRouting(
       };
     },
     claimsClick(event) {
-      const claimed = !isReplayed(event) && Date.now() < redirectedUntil;
-      if (ROUTER_TRACE) {
-        routerTrace("claimsClick", {
-          claimed,
-          replayed: isReplayed(event),
-          target: describeNode(event.target),
-        });
-      }
-      if (!claimed) return false;
+      if (isReplayed(event) || Date.now() >= redirectedUntil) return false;
       redirectedUntil = 0;
       return true;
     },

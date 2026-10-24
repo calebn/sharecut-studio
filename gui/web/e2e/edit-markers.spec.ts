@@ -307,6 +307,36 @@ test.describe("coarse pointer", () => {
     }
   });
 
+  test("the browser's click after a tap sent to a glyph does not seek from the lane", async ({
+    page,
+  }) => {
+    await open(page);
+    const box = await glyphAt(page, 1);
+    const before = await playheadSec(page);
+    const x = box.x + box.width + 13;
+    const y = box.y + box.height / 2;
+    await page.touchscreen.tap(x, y);
+    await expect(joinDialog(page)).toBeVisible();
+    await page.evaluate(
+      async ([cx, cy]) => {
+        document.elementFromPoint(cx, cy)?.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            clientX: cx,
+            clientY: cy,
+          }),
+        );
+        for (let frame = 0; frame < 3; frame += 1) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      },
+      [x, y],
+    );
+    await expect(joinDialog(page)).toBeVisible();
+    expect(await playheadSec(page)).toBe(before);
+  });
+
   test("a touch 30 px beside a glyph seeks", async ({ page }) => {
     await open(page);
     const box = await glyphAt(page, 0);
