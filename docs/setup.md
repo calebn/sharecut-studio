@@ -9,7 +9,7 @@
 
 ## Full local install
 
-Recommended contributor path (tests + GUI API + relay + prosody; **not** the heavy torch extras):
+Recommended contributor path (tests + GUI API + relay + prosody; **not** the heavy torch extra):
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -77,7 +77,7 @@ summary table.
 
 ## Maximal install (all extras)
 
-For enrollment speaker ID and/or neural join QC, install **every** pip extra. This is much larger than `./install.sh` (Docker clean-room on Linux aarch64: ~6 GB `.venv` from CUDA-flavored `torch`, plus the models `podcast bootstrap --component all` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from a direct first-party CDN url in the manifest).
+For neural join QC, install **every** pip extra. This is much larger than `./install.sh` (Docker clean-room on Linux aarch64: ~6 GB `.venv` from CUDA-flavored `torch`, plus the models `podcast bootstrap --component all` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from a direct first-party CDN url in the manifest).
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -92,8 +92,6 @@ cd gui/web && npm ci && npm run build && cd ../..
 Smaller heavy subsets when you do not need everything:
 
 ```bash
-uv sync --extra speaker          # torch + speechbrain
-uv sync --extra speaker-lite     # resemblyzer (+ numba)
 uv sync --extra joinqc           # torch + librosa + transformers
 ```
 
@@ -131,20 +129,18 @@ CI places pytest, browser, and extras temporary work in [private disk temporary 
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, anyio ≥4, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
 | `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
-| `speaker` | torch, speechbrain | Enrollment speaker attribution — **large** |
-| `speaker-lite` | resemblyzer (+ numba floor) | Lighter speaker embeddings. Resemblyzer's `webrtcvad` dependency imports `pkg_resources`, which setuptools 82 removed, so `engines/speaker_id.py` loads `VoiceEncoder` with a placeholder `webrtcvad`, used only when the real `webrtcvad` fails to import (only `preprocess_wav`'s silence trimming uses it, and the backend never calls that); the extra needs no `setuptools` pin (#1284) |
 | `joinqc` | torch, librosa, transformers | Optional neural join continuity — **large** |
 | `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
 | `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling — expect multi‑GB torch/CUDA on Linux |
 
-`./install.sh` installs `dev` + `gui` + `relay` + `prosody`. It deliberately skips `speaker` / `joinqc` / `all`.
+`./install.sh` installs `dev` + `gui` + `relay` + `prosody`. It deliberately skips `joinqc` / `all`.
 
-Without `speaker` or `speaker-lite` (an `install.sh` checkout and the packaged app) the embedding speaker commands (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute`, `split`) and the Split speakers dialog report `model_needed` (HTTP 409, with the `podcast bootstrap --component speaker-ecapa` command) when the ONNX model is not downloaded, or `speaker_backend_unavailable` when a download cannot help (a `PODCAST_MCP_SPEAKER_ECAPA_MODEL` file that is missing or does not load), rather than running on the development mock, while the pipeline's speaker pass skips with "speaker model not downloaded" (the ONNX file is missing) or "speaker extra not installed"; `audition_context` leaves `speaker_roles` out. Set `PODCAST_SPEAKER_BACKEND=mock` only to develop against the mock; Split speakers still refuses it (#1999).
+Speaker recognition has no pip extra: it runs the ECAPA ONNX model on core `onnxruntime`. Until that model is downloaded (any checkout and the packaged app) the embedding speaker commands (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute`, `split`) and the Split speakers dialog report `model_needed` (HTTP 409, with the `podcast bootstrap --component speaker-ecapa` command) when the ONNX model is not downloaded, or `speaker_backend_unavailable` when a download cannot help (a `PODCAST_MCP_SPEAKER_ECAPA_MODEL` file that is missing or does not load), rather than running on the development mock, while the pipeline's speaker pass skips with "speaker model not downloaded" (the ONNX file is missing) or "speaker recognition unavailable"; `audition_context` leaves `speaker_roles` out. Set `PODCAST_SPEAKER_BACKEND=mock` only to develop against the mock; Split speakers still refuses it (#1999).
 
 **Clean-install check.** `pip install "podcast-mcp[extra]"` ignores `uv.lock`, so an extra can break on a newer transitive release while a locked `uv sync` still works (#1168). `tests/test_extras_import.py` builds a fresh unlocked venv per extra, installs the project with it, and imports the modules the code uses. It is opt-in because it downloads wheels. The path-filtered, weekly `extras-import` workflow runs it; run one extra locally with:
 
 ```bash
-PODCAST_CHECK_EXTRAS=1 uv run pytest --no-cov -k speaker-lite tests/test_extras_import.py
+PODCAST_CHECK_EXTRAS=1 uv run pytest --no-cov -k joinqc tests/test_extras_import.py
 ```
 
 A new extra must be added to `EXTRA_IMPORTS` in that file; a fast test fails otherwise.
@@ -160,7 +156,7 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`). T
 | `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the ShareCut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.engines.models.whisper.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch that survives the download reports `[fail] whisper: Whisper speech model downloaded but isn't the expected version. Run: podcast bootstrap --component whisper --whisper-model <model> --upgrade` (status checks name the same command); any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset, or the `arnndn` effect without `params.model`: adding either to a track without the model is refused (`model_needed`) instead of failing at render |
 | `word-aligner` | Pinned wav2vec2-base CTC ONNX snapshot (~360 MB, English; **offered**: installed by `--component all` or by name, never by a bare `podcast bootstrap`; once downloaded, `transcribe.forced_alignment.enabled` (default unset) turns forced alignment on by itself. Without the snapshot, unset remains unavailable and an explicit `true` blocks the run with this command; Studio shows that saved request checked and lets a person turn it off. #780. Every snapshot file (`vocab.json`, `config.json`, `preprocessor_config.json`, the ONNX) is checked against a pinned per-file sha256 manifest at download, at load (before `vocab.json` is read) and in status checks (Pipeline badge, bootstrap status, `podcast doctor`; memoised per file on path/size/mtime) and, uncached, in bootstrap's cache check, so a corrupt or swapped snapshot is re-fetched instead of skipped (and reports [fail] if the fresh download still does not match), and any download (including Studio's **Download word aligner**) re-fetches it; a failed load is not retried for the rest of that run) | `transcribe.forced_alignment.enabled`; `PODCAST_MCP_WORD_ALIGNER_MODEL` points at a local snapshot dir. Studio: **Download word aligner** under the Pipeline tab's Precise word boundaries field (`POST /api/bootstrap/run` `components: ["word-aligner"]`); `GET /api/bootstrap/status` lists it in `models` (`id: "word-aligner"`, `tier: "offered"`, so never in `ready`). The status check hashes an unchanged snapshot once per process, keyed by path/size/mtime/pin, and remembers a pin mismatch the same way until a re-download changes the file. |
-| `speaker-ecapa` | Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (~80 MB, Apache-2.0; **offered**: installed by `--component all` or by name, never by a bare `podcast bootstrap`). Runs on `onnxruntime`, so it needs no torch and works in the packaged app. Checked against its pinned sha256 at download and in status checks. | Speaker enroll, score, attribute, gate-track and split. `resolve_speaker_backend()` prefers it (`ecapa-onnx`) over the torch `speechbrain-ecapa` extra; embeddings match (cosine 1.0, `scripts/export_ecapa_onnx.py`), so existing profiles keep matching. `PODCAST_MCP_SPEAKER_ECAPA_MODEL` points at a local ONNX file. The manifest carries a direct first-party CDN url for the file, so a stock build downloads it with no mirror configured; the sha256 pin rejects any other bytes. |
+| `speaker-ecapa` | Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (~80 MB, Apache-2.0; **offered**: installed by `--component all` or by name, never by a bare `podcast bootstrap`). Runs on `onnxruntime`, so it needs no torch and works in the packaged app. It is the only speaker model: Resemblyzer and the torch SpeechBrain backend were removed (#2255), and a missing model is never answered with another one. Checked against its pinned sha256 at download and in status checks. | Speaker enroll, score, attribute, gate-track and split. `resolve_speaker_backend()` returns it (`ecapa-onnx`); its embeddings match SpeechBrain ECAPA (cosine 1.0, `scripts/export_ecapa_onnx.py`), so profiles enrolled with SpeechBrain keep matching. Profiles enrolled with the removed Resemblyzer backend do not: enroll those speakers again (beta, no upgrade code). `PODCAST_MCP_SPEAKER_ECAPA_MODEL` points at a local ONNX file. The manifest carries a direct first-party CDN url for the file, so a stock build downloads it with no mirror configured; the sha256 pin rejects any other bytes. |
 
 **Word aligner tiers.** `word-aligner` bootstraps the single pinned tier the
 pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` also
@@ -261,7 +257,7 @@ On the host home screen (no `?project=`), ShareCut Studio checks `GET /api/boots
 and reports audio-tool readiness. It can download Whisper via `POST /api/bootstrap/run` (progress on
 `GET /api/bootstrap/events` — same progress plane as pipeline jobs; see [progress.md](progress.md)). A request the running download already covers (a subset of its components, the same Whisper size when Whisper is asked for, and `force` only if it runs forced) joins that job: the response is the same `{job, adopted: true}`, and cancelling from either tab cancels it for both. Any other request while one runs, or while it is stopping, is a 409 `bootstrap_job_running` whose `detail` object carries `detail` (the message), `running` (its components) and `cancelling`. The wizard lets you pick a Whisper size; default is
 **large-v3-turbo** (lowest practical WER, ~1.6 GB). Same assets as `podcast bootstrap`;
-torch extras are not offered in the UI. Contributor CLI path is unchanged.
+the torch extra is not offered in the UI. Contributor CLI path is unchanged.
 
 Native window (optional): [`gui/desktop/`](../gui/desktop/) — see
 [desktop-packaging.md](desktop-packaging.md). Local CI mirror:
@@ -416,7 +412,7 @@ system/base Python) — every third-party import is declared here.
 # Match install.sh (recommended contributor set)
 uv sync --extra dev --extra gui --extra relay --extra prosody
 
-# Everything including speaker + joinqc (large torch/CUDA wheels on Linux)
+# Everything including joinqc (large torch/CUDA wheels on Linux)
 uv sync --all-extras
 
 uv run make test       # or: .venv/bin/pytest
@@ -428,10 +424,8 @@ Note: transcription (`faster-whisper`, core dependency) already ships
 `onnxruntime` and a bundled Silero VAD model. Whisper **weights** are not
 auto-pulled by pipeline Run or transcription — download them via
 `podcast bootstrap --component whisper`, the ShareCut Studio first-run wizard, or
-the Pipeline picker before running those steps. Neither needs a speaker
-extra. `torch`/`speechbrain` are only for the optional enrollment-based
-speaker ID workflow; a fully functional install (transcribe, tighten, mix,
-master, export) needs neither `speaker` nor `speaker-lite`. Source installs
+the Pipeline picker before running those steps. `torch` is only for the optional `joinqc` neural join QC; a fully functional install (transcribe, tighten, mix,
+master, export) does not need it. Source installs
 require a supported FFmpeg pair as described above. Whisper weights are still
 required for ASR.
 
@@ -442,8 +436,8 @@ uv lock
 ```
 
 Without `uv`, `install.sh` creates a plain `.venv` and runs
-`pip install -e ".[dev,gui,relay,prosody]"`. Add speaker/joinqc manually if needed:
-`pip install -e ".[speaker,joinqc]"`.
+`pip install -e ".[dev,gui,relay,prosody]"`. Add joinqc manually if needed:
+`pip install -e ".[joinqc]"`.
 
 ## MCP and agents
 
