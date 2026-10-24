@@ -243,6 +243,38 @@ describe("local clip placement owner", () => {
     expect(getClipPlacement()).toEqual({ kind: "idle" });
     expect(moveClips).not.toHaveBeenCalled();
   });
+  it("keeps a preview open when the project view is replaced with identical content", () => {
+    const token = begin();
+    updateClipPlacement(token, "7", "guest");
+    const s = useDawStore.getState();
+    if (!s.project) throw new Error("no project");
+    s.setProject({ ...s.project });
+    expect(useDawStore.getState().project).not.toBe(s.project);
+    expect(getClipPlacement()).toMatchObject({ kind: "preview", start: "7" });
+  });
+  it("applies a move after the project view is replaced with identical content", async () => {
+    const token = begin();
+    updateClipPlacement(token, "7", "guest");
+    const s = useDawStore.getState();
+    if (!s.project) throw new Error("no project");
+    s.setProject({ ...s.project });
+    await applyClipPlacement(token);
+    expect(moveClips).toHaveBeenCalled();
+  });
+  it("does not refuse a committing move queued behind a content-identical replacement", async () => {
+    const held = deferred();
+    const blocker = enqueueTrackMutate(() => held.promise);
+    const token = begin();
+    updateClipPlacement(token, "7", "guest");
+    const applying = applyClipPlacement(token);
+    const s = useDawStore.getState();
+    if (!s.project) throw new Error("no project");
+    s.setProject({ ...s.project });
+    held.resolve();
+    await blocker;
+    await applying;
+    expect(moveClips).toHaveBeenCalled();
+  });
   it.each(["geometry", "project", "cancel", "selection", "permission"])(
     "rechecks %s after waiting in the mutation queue",
     async (change) => {
