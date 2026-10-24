@@ -614,11 +614,22 @@ def build_track_rms_caches(
     sources: dict[Path, np.ndarray] = {}
     raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
     timeline = SessionTimeline(project)
-    for tid in dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids):
+    wanted = list(dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids))
+    readers = (
+        track_evidence.rms_readers(
+            project,
+            [tid for tid in wanted if _has_active_chain(project, tid)],
+            defaults,
+            private=private_copy,
+        )
+        if unprocessed
+        else {}
+    )
+    for tid in wanted:
         track = project.track_by_id(tid)
-        if unprocessed and track is not None and _has_active_chain(project, tid):
+        if tid in readers and track is not None:
             try:
-                caches[tid] = track_evidence.rms(project, tid, defaults, private=private_copy)
+                caches[tid] = readers[tid]()
                 continue
             except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
                 # No unprocessed render: the track's evidence stays as before, processed.

@@ -622,6 +622,8 @@ The first acoustic gate plan decodes selected source evidence. Owner activity us
 
 Gate-overreach reports separate noise and transcript components when both gates exist on one track. Noise-gate tuning uses the noise component only. A gated Refresh reconciles against current evidence before transcript gating and retains a fresh status only if the rendered audio fingerprint still matches the measured state. Reconciliation reuses a verified fresh ungated stem; a stale stem or a track with transcript gating requires a fresh render without the transcript gate.
 
+Cut approval builds its chain-track RMS evidence (`engines/track_evidence.py`, #1958) once per distinct track state in a batch. `build_track_rms_caches(unprocessed=True)` plans every chain track on the caller's thread in track order, then evaluates the trees the batch store lacks in a pool of at most `MAX_EVALUATORS` (4) threads, each worker inside the caller's batch scope. A track whose evaluation fails falls back alone, and the caches keep the serial order and the same samples. A single missing tree is evaluated on the caller's thread.
+
 ## Refusals
 
 A step or edit that refuses its input raises a coded refusal (`util/coded_error.py`), not a bare `ValueError`: `fill_gate_holes` and the other analysis steps refuse a bad config value with `pipeline_config_value_invalid`, and the audition context refuses an unknown detail level with `invalid_detail`. The message names what was refused and what to do next; CLI, MCP and the Studio toast all show it with its code (#1810, [contributing.md § Errors](contributing.md)).
