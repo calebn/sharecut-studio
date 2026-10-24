@@ -299,10 +299,16 @@ never reaches the lane above, never applies in blade or comment mode, never appl
 tap on any target (a trim handle, fade corner, roll seam or clip body) is
 ranked as before, with a focused glyph no longer counting as selected. The
 mark opens from the browser's own click, not from replayed pointer events
-(#2148): Mobile Safari delivers the click on the lane after the press layer's
-press has ended, so the router replays a click on the mark when that click
-arrives (or after the ghost-click window if none does), and the lane's seek
-ignores it (`HitRouter.claimsClick`).
+(#2148). A tap that has no target under the finger and is sent to a mark
+(`tap` differs from `winner`) waits for the browser's click, which the iPhone
+Simulator delivers on the lane after the press layer's press:
+the router then replays one click on the mark, and the lane's seek ignores
+that browser click once (`HitRouter.claimsClick`, a claim window of
+`GHOST_CLICK_MS`). A browser click on the mark itself is left to the mark.
+If no click arrives within `GHOST_CLICK_MS` the mark opens anyway, and a
+browser click that comes after that window opens nothing more but does seek.
+A new press within the window drops the pending open. A tap on a target (a
+trim handle, fade corner, roll seam or clip body) keeps the pointer replay.
 
 Applied ticks stay as the earlier decision left them: inert, `aria-hidden`,
 and never inside a chip. Counting applied edits in a chip would make a count
