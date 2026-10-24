@@ -40,11 +40,7 @@ from podcast_mcp.util.wav import open_wav
 
 @dataclass
 class SpeakerProfile:
-    """One enrolled voice, embedded by the ECAPA ONNX model.
-
-    Profiles enrolled in the Resemblyzer era (256 values, not 192) do not match it: enroll
-    those speakers again.
-    """
+    """One enrolled voice, embedded by the ECAPA ONNX model."""
 
     speaker_id: str
     track_id: str
@@ -139,8 +135,16 @@ MOCK_BACKEND_ENV = "PODCAST_SPEAKER_BACKEND"
 
 SPEAKER_UNAVAILABLE_MESSAGE = (
     "Speaker recognition isn't available on this computer. "
-    "In the Split speakers dialog, choose Download speaker model."
+    "In the Split speakers dialog, choose Download speaker model "
+    "(or run podcast bootstrap --component speaker-ecapa)."
 )
+
+
+def _override_unusable(reason: object) -> SpeakerBackendUnavailable:
+    return SpeakerBackendUnavailable(
+        "The speaker model file set in PODCAST_MCP_SPEAKER_ECAPA_MODEL cannot be used "
+        f"({reason}). Point it at a working ONNX file or unset it; downloading will not help."
+    )
 
 
 class SpeakerBackendUnavailable(CodedValueError, ImportError):
@@ -247,6 +251,7 @@ def resolve_speaker_backend(
                 raise ImportError(
                     f"speaker backend unavailable: {name} (override does not load: {exc})"
                 ) from exc
+            problem = str(exc)
     if name == "ecapa-onnx":
         if problem is not None and override is None:
             raise _speaker_model_missing()
@@ -257,6 +262,8 @@ def resolve_speaker_backend(
         return MockSpeakerBackend()
     if problem is not None and override is None:
         raise _speaker_model_missing()
+    if override is not None:
+        raise _override_unusable(problem)
     raise SpeakerBackendUnavailable()
 
 
@@ -556,6 +563,13 @@ def _rank_scores(
 ) -> tuple[dict[str, float], str, float, str]:
     scores: dict[str, float] = {}
     for sid, prof in profiles.items():
+        if len(prof.embedding) != emb.shape[-1]:
+            raise CodedValueError(
+                f"Speaker profile {sid!r} has {len(prof.embedding)} embedding values but the "
+                f"speaker model gives {emb.shape[-1]}. It was enrolled with a removed speaker "
+                "model: enroll that speaker again.",
+                code="speaker_profile_outdated",
+            )
         scores[sid] = _cosine_similarity(emb, np.array(prof.embedding, dtype=np.float32))
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     best_id, best_score = ranked[0]

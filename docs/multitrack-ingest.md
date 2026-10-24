@@ -572,7 +572,7 @@ Reopen #1204 on a user report, or when a method for short utterances passes the 
 
 The gold mixdown (`source/gold/full-mixdown.wav` in the private lab checkout) is 184.679 s of the same three speakers after the human content cut. It is not the 28-minute Zoom sum in the table below.
 
-`SpeakerService.check_split` raises `model_needed` when the ONNX model is not downloaded, or `speaker_backend_unavailable` when a download cannot help. The splits below were run with the since-removed Resemblyzer backend (#2255 keeps ECAPA ONNX only), with `podcast speaker split --track room --speakers 3`, and the same engine path as MCP `enrollment` and CLI `--enroll NAME=START:END` (source seconds). Enrollment spans are exclusive 8 s windows taken from the gold solos: Caleb `24.0:32.0`, Audra `149.75:157.75`, Lana `114.88:122.88`. No audio left the Mac.
+`SpeakerService.check_split` raises `model_needed` when the ONNX model is not downloaded, or `speaker_backend_unavailable` when a download cannot help. The splits below were run with the since-removed Resemblyzer backend, with `podcast speaker split --track room --speakers 3`, and the same engine path as MCP `enrollment` and CLI `--enroll NAME=START:END` (source seconds). Enrollment spans are exclusive 8 s windows taken from the gold solos: Caleb `24.0:32.0`, Audra `149.75:157.75`, Lana `114.88:122.88`. No audio left the Mac.
 
 | | Blind (`method=cluster`) | Enrolled (`method=enroll`) |
 | --- | --- | --- |

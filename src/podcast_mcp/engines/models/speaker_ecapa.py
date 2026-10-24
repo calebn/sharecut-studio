@@ -4,9 +4,7 @@ Speaker recognition runs this export on ``onnxruntime`` (a core dependency); it 
 speaker model. It is the ``embedding_model`` of
 ``speechbrain/spkrec-ecapa-voxceleb`` (Apache-2.0) at ``SOURCE_REVISION``, exported by
 ``scripts/export_ecapa_onnx.py``; ``engines/models/ecapa_features.py`` supplies the
-filterbank features it consumes. Embeddings match the SpeechBrain torch pipeline (cosine 1.0),
-so profiles enrolled with SpeechBrain keep matching. Profiles enrolled with the removed
-Resemblyzer backend do not (256 values, not 192): enroll those speakers again.
+filterbank features it consumes. Embeddings match the SpeechBrain torch pipeline (cosine 1.0).
 
 Nothing downloads on import or during a run; ``bootstrap_speaker_ecapa`` is the only
 network path (``podcast bootstrap --component speaker-ecapa``).

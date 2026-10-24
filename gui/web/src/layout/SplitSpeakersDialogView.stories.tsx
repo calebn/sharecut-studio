@@ -116,6 +116,7 @@ const meta: Meta<typeof SplitSpeakersDialogView> = {
   args: {
     open: false,
     onClose: fn(),
+    onDownloadSpeakerModel: fn(),
     trackLabel: "Interview",
     stage: {
       kind: "configure",
