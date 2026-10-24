@@ -571,6 +571,8 @@ def complete_effect_acoustics(
     ``measured`` is the caller's promise that ``project`` is not written while the dict
     lives: a source window already assessed on the same project, defaults and recording
     audio is then not assessed again. The caller clears it when the project changes.
+    The dict is not locked: one thread reads and writes it. Outside a batch scope each
+    recording lookup is a new object, so nothing is shared and the result is unchanged.
     """
     pause_holds = [
         CutScopeHold(
