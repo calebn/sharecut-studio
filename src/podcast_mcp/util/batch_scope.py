@@ -68,6 +68,22 @@ def scoped_by_file(kind: str, path: Path, extra: Hashable, make: Callable[[], T]
     return scoped((kind, str(path), stamp.mtime_ns, stamp.size, extra), make)
 
 
+def scoped_by_file_if_held(kind: str, path: Path, extra: Hashable) -> Any | None:
+    """The scope's value that :func:`scoped_by_file` holds for these arguments, else ``None``.
+
+    Never computes: a caller that can do without the value (it has a streaming path) takes
+    what the batch already decoded and otherwise does its own work.
+    """
+    scope = _scope.get()
+    if scope is None:
+        return None
+    try:
+        stamp = file_stamp(path)
+    except OSError:
+        return None
+    return scope.get((kind, str(path), stamp.mtime_ns, stamp.size, extra))
+
+
 _frozen: ContextVar[dict[Hashable, Any] | None] = ContextVar("frozen_state", default=None)
 
 

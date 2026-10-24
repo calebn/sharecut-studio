@@ -50,9 +50,16 @@ import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.media_probe import has_several_audio_streams
+from podcast_mcp.engines.ungated_audio import held_mono_full
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
-from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
+from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_DB,
+    bool_runs,
+    frame_rms_db,
+    frame_rms_db_stream,
+    rms_db,
+)
 from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import track_audio_path
@@ -588,8 +595,14 @@ def _track_floor(path: Path, revision: FileRevision) -> FloorRead:
 
     frame = round(SAMPLE_RATE * FRAME_SEC)
     try:
-        chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=SAMPLE_RATE)
-        frames = frame_rms_db_stream(chunks, frame, frame, floor_db=DIGITAL_SILENCE_DB)
+        # The batch's own 16 kHz mono decode of this file is the stream's samples, so it
+        # is not decoded again; with none held the stream keeps a long track out of memory.
+        held = held_mono_full(path, sample_rate=SAMPLE_RATE)
+        if held is not None:
+            frames = frame_rms_db(held, frame, frame, floor_db=DIGITAL_SILENCE_DB)
+        else:
+            chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=SAMPLE_RATE)
+            frames = frame_rms_db_stream(chunks, frame, frame, floor_db=DIGITAL_SILENCE_DB)
     except FileNotFoundError:
         return Unmeasured("missing_file", path)
     except Exception as exc:
