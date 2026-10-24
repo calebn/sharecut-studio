@@ -213,12 +213,12 @@ keyboard button remain available for narrow regions. The selector is an
 activation target registered in the central input contract. It does not start a clip drag or a second touch recognizer. Nearby clip
 handles retain the existing touch selection grammar and cancellation behavior.
 
-While a band is being inspected the clip is not selected, so its trim and fade
-handles are click-through. A held touch at the selector's edge beside a handle
+While a band is being inspected the clip is not selected, so its trim handles
+are click-through. A held touch at the selector's edge beside a trim handle
 therefore selects that band and opens no chooser. The chooser lists the band
 only beside a live target, such as the roll seam of a join. The selector sits at
-the bottom of the clip and comment pins sit in the marker lane above it, well
-past the 22 px touch reach, so no chooser lists a band with a pin.
+the bottom of the clip and comment pins sit in the marker lane above it, farther
+apart than `TOUCH_HIT_RADIUS_PX`, so no chooser lists a band with a pin.
 
 Selecting a reduction cancels a local Move clip placement preview first.
 Reduction selection and its inspection target stay local to this tab. Canceling

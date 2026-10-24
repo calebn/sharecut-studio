@@ -1183,11 +1183,13 @@ checks. Timeline and selection-surface tests cover mounting, placement
 cancellation, current-region geometry and phone selection. Central input-contract,
 hit-candidate and real-router grammar tests guard direct activation, touch scroll,
 long press and second-finger rollback without governance allowlists.
-`gui/web/e2e/bleed-band-touch.spec.ts` drives the built app with CDP touch at a
-phone held upright and on its side: a held press at a band's selector beside a
-join opens the chooser with the Roll and the band, a held press at a band edge
-whose trim handle is click-through selects the band alone, and no finger point
-reaches both a band and a comment pin.
+`gui/web/e2e/bleed-band-touch.spec.ts` drives the built app with CDP touch at
+390x844 on the phone timeline and at 844x390: a held press at a band's selector
+beside a join opens the chooser with the Roll and the band, a held press at a
+band edge beside a click-through trim handle selects the band alone, and the
+selector sits farther from a comment pin than `TOUCH_HIT_RADIUS_PX`. Each
+negative check has a control in the same spec: a selected clip makes the
+handle live and a live handle is detected, and a recorded write is observed.
 
 `test_proxy_variants.py` covers whole-generation retention, actual encoded chunk
 identity, partial or damaged destinations, derived saves, concurrent render
