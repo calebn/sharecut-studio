@@ -63,6 +63,7 @@ log = logging.getLogger(__name__)
 FRAME_SEC = 0.01
 # Silero's rate. Levels see up to 8 kHz, where hiss and sibilance sit.
 SAMPLE_RATE = 16000
+# The held decode is the stream's samples; slices keep the RMS squares as small as the stream's.
 _HELD_CHUNK = SAMPLE_RATE * 60
 FLOOR_PERCENTILE = 10.0
 SPEECH_PERCENTILE = 90.0
@@ -590,8 +591,6 @@ def _track_floor(path: Path, revision: FileRevision) -> FloorRead:
 
     frame = round(SAMPLE_RATE * FRAME_SEC)
     try:
-        # The batch's own 16 kHz mono decode of this file is the stream's samples, so it
-        # is not decoded again; with none held the stream keeps a long track out of memory.
         held = held_mono_full(path, sample_rate=SAMPLE_RATE)
         if held is not None:
             chunks = (held[i : i + _HELD_CHUNK] for i in range(0, held.size, _HELD_CHUNK))

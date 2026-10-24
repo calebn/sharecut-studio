@@ -274,10 +274,10 @@ def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = 
 def held_mono_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray | None:
     """What :func:`load_mono_full` returns for these arguments if the batch already decoded it.
 
-    ``None`` outside a batch or before the first decode; it never decodes. The array is the
-    batch's own, so the caller must not write to it.
+    ``None`` outside a batch, for a missing file or before the first decode; it probes the
+    layout but never decodes. The array is the batch's own and read-only.
     """
-    if snapshot()[0] is None:
+    if snapshot()[0] is None or not path.is_file():
         return None
     return scoped_by_file_if_held(
         "decode", path, (sample_rate, None, tuple(ffmpeg_mono_mean_layout(path)))
