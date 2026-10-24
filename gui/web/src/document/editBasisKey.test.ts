@@ -36,18 +36,27 @@ describe("editBasisKey", () => {
   it("is empty for no project", () => {
     expect(editBasisKey(null)).toBe("");
   });
-  it("is stable when only the transcript and meta.hydration change", () => {
+  const hydrate = (p: ProjectView): ProjectView => ({
+    ...p,
+    transcript: { utterances: [{ id: "u" } as never] },
+    meta: { ...p.meta, hydration: { transcript_words: true } },
+    history: { ...p.history, groups: [{ id: "g" } as never] },
+  });
+  it("is stable when only the transcript, meta.hydration and history.groups change", () => {
     const project = base();
     const key = editBasisKey(project);
-    const hydrated: ProjectView = {
-      ...project,
-      transcript: {
-        utterances: [{ id: "u" } as never],
-      },
-      meta: { ...project.meta, hydration: { transcript_words: true } },
-    };
+    const hydrated = hydrate(project);
     expect(hydrated).not.toBe(project);
     expect(editBasisKey(hydrated)).toBe(key);
+  });
+  it("keeps the late-load exclusions on the uncached path", () => {
+    const project = base();
+    const hydrated = hydrate(project);
+    const key = editBasisKey(project);
+    editBasisKey(minimalProject({ meta: { name: "other" } as never }));
+    expect(editBasisKey(hydrated)).toBe(key);
+    editBasisKey(minimalProject({ meta: { name: "other" } as never }));
+    expect(editBasisKey(project)).toBe(key);
   });
   it("is stable for a content-identical copy of the root", () => {
     const project = base();
@@ -90,12 +99,29 @@ describe("editBasisKey", () => {
     ],
     ["the timeline duration", (p) => ({ ...p, timeline_duration_sec: 100 })],
     [
+      "the clips duration",
+      (p) => ({ ...p, clips: { ...p.clips, timeline_duration_sec: 100 } }),
+    ],
+    [
+      "the workspace",
+      (p) => ({ ...p, meta: { ...p.meta, workspace_dir: "/elsewhere" } }),
+    ],
+    [
+      "another meta field",
+      (p) => ({ ...p, meta: { ...p.meta, extra_field: 1 } as never }),
+    ],
+    [
+      "the history cursor",
+      (p) => ({ ...p, history: { ...p.history, cursor: 9 } }),
+    ],
+    [
       "the project name",
       (p) => ({ ...p, meta: { ...p.meta, name: "Renamed" } }),
     ],
   ])("changes with %s", (_name, change) => {
     const project = base();
-    expect(editBasisKey(change(project))).not.toBe(editBasisKey(project));
+    const key = editBasisKey(project);
+    expect(editBasisKey(change(project))).not.toBe(key);
   });
   it("returns the same string for the same references and recomputes after a change", () => {
     const project = base();

@@ -214,6 +214,8 @@ describe("local clip placement owner", () => {
   );
   it.each([
     "geometry",
+    "meta",
+    "history",
     "selection",
     "project",
     "permission",
@@ -231,6 +233,16 @@ describe("local clip placement owner", () => {
     const s = useDawStore.getState();
     if (change === "geometry" && s.project)
       s.setProject({ ...s.project, timeline_duration_sec: 100 });
+    if (change === "meta" && s.project)
+      s.setProject({
+        ...s.project,
+        meta: { ...s.project.meta, name: "Renamed" },
+      });
+    if (change === "history" && s.project)
+      s.setProject({
+        ...s.project,
+        history: { ...s.project.history, head_id: "h2" as never },
+      });
     if (change === "selection")
       s.setSelection({ kind: "track", trackId: "guest" });
     if (change === "project")
@@ -250,6 +262,19 @@ describe("local clip placement owner", () => {
     if (!s.project) throw new Error("no project");
     s.setProject({ ...s.project });
     expect(useDawStore.getState().project).not.toBe(s.project);
+    expect(getClipPlacement()).toMatchObject({ kind: "preview", start: "7" });
+  });
+  it("keeps a preview open across a late transcript, hydration flag and history groups load", () => {
+    const token = begin();
+    updateClipPlacement(token, "7", "guest");
+    const s = useDawStore.getState();
+    if (!s.project) throw new Error("no project");
+    s.setProject({
+      ...s.project,
+      transcript: { utterances: [{ id: "u" } as never] },
+      meta: { ...s.project.meta, hydration: { transcript_words: true } },
+      history: { ...s.project.history, groups: [{ id: "g" } as never] },
+    });
     expect(getClipPlacement()).toMatchObject({ kind: "preview", start: "7" });
   });
   it("applies a move after the project view is replaced with identical content", async () => {

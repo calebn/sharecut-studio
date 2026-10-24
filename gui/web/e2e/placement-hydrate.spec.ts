@@ -33,7 +33,11 @@ test("a late transcript word load keeps an open Move clip form and Apply sends o
     await route.continue();
   });
   const moves: string[] = [];
+  const inflight = new Set<unknown>();
+  page.on("requestfinished", (request) => inflight.delete(request));
+  page.on("requestfailed", (request) => inflight.delete(request));
   page.on("request", (request) => {
+    inflight.add(request);
     const body = request.postData() ?? "";
     if (
       request.url().includes("/api/document/command") &&
@@ -56,8 +60,14 @@ test("a late transcript word load keeps an open Move clip form and Apply sends o
   release();
   await expect(correct).toBeEnabled();
   await expect(start).toHaveValue("7");
+  const sent = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/document/command") &&
+      /moveClips/i.test(response.request().postData() ?? ""),
+  );
   await page.getByRole("button", { name: "Apply move", exact: true }).click();
-  await expect.poll(() => moves.length).toBe(1);
+  await sent;
   await expect(start).toHaveCount(0);
+  await expect.poll(() => inflight.size).toBe(0);
   expect(moves).toHaveLength(1);
 });

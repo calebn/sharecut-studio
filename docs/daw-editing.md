@@ -704,8 +704,10 @@ preview, then choose **Apply move** or **Cancel**. A selected group moves togeth
 with each clip clamped at zero and the outer tracks. Exact input does not snap.
 Apply uses one existing move History action. Cancel and unchanged Apply save
 nothing. The preview stays visible while Apply waits for an earlier edit to finish.
-A late transcript load that replaces the project view with the same clips and
-tracks keeps the preview open; any other change to the project closes it.
+A late load of transcript words, the hydration flags, or history groups keeps
+the preview open. A change to any other project field (clips, tracks, duration,
+name or other metadata, history head or cursor) or to the document authority
+closes it.
 A refused save keeps a current draft and an error so you can retry. The
 **Moved clips** feedback offers **Undo** for the saved move, including the whole
 selected group. Queued or unchanged replies offer no Undo. Late move feedback
