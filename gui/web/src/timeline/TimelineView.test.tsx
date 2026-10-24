@@ -32,7 +32,11 @@ import { place } from "../test/hitDom";
 import { stubRaf } from "../test/raf";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { readyEntry } from "../test/waveform";
-import type { ClipRow, ProjectView } from "../types/project";
+import {
+  type ClipRow,
+  type ProjectView,
+  parseHistoryEntryId,
+} from "../types/project";
 import {
   COMPACT_LANE_HEIGHT,
   FIT_GUTTER,
@@ -1790,7 +1794,10 @@ describe("TimelineView automatic reduction inspection", () => {
     const { container } = await mount();
     act(() => {
       const p = useDawStore.getState().project!;
-      useDawStore.getState().setProject({ ...p });
+      useDawStore.getState().setProject({
+        ...p,
+        history: { ...p.history, head_id: parseHistoryEntryId("peer-head")! },
+      });
     });
     expect(clipBleedSession.getSnapshot()?.read.state).toBe("error");
     expect(container.querySelector(".bleed-attenuation-band")).toBeNull();
