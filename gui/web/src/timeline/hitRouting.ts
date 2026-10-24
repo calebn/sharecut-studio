@@ -390,6 +390,12 @@ export function attachHitRouting(
   };
   let suppressClickUntil = 0;
   let redirectedUntil = 0;
+  let redirect: {
+    tap: Element;
+    source: PointerEvent;
+    at: HitPoint;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
   const pendingClicks = new Map<ReturnType<typeof setTimeout>, number>();
   const cancelClicks = (pointerId?: number) => {
     for (const [timer, owner] of pendingClicks) {
@@ -820,12 +826,22 @@ export function attachHitRouting(
         phase.at = at;
         const press = settle();
         if (!press) return;
-        const { tap, down, origin } = press;
+        const { tap, winner, down, origin } = press;
         report(tap);
+        if (tap !== winner) {
+          const timer = setTimeout(() => {
+            pendingClicks.delete(timer);
+            redirect = null;
+            replayClick(tap, event, origin);
+          }, GHOST_CLICK_MS);
+          pendingClicks.set(timer, event.pointerId);
+          redirect = { tap, source: event, at: origin, timer };
+          redirectedUntil = Date.now() + GHOST_CLICK_MS;
+          return;
+        }
         replayPointer("pointerdown", tap, down, origin);
         replayPointer("pointerup", tap, event, origin);
         deferClick(tap, event, origin);
-        if (tap !== down.target) redirectedUntil = Date.now() + GHOST_CLICK_MS;
         return;
       }
       case "open": {
@@ -922,6 +938,13 @@ export function attachHitRouting(
   };
 
   const onClick = (event: MouseEvent) => {
+    if (redirect && !isReplayed(event)) {
+      const { tap, source, at, timer } = redirect;
+      redirect = null;
+      clearTimeout(timer);
+      pendingClicks.delete(timer);
+      replayClick(tap, source, at);
+    }
     if (isReplayed(event) || Date.now() >= suppressClickUntil) return;
     // A chip's or create item's own press needs its click.
     if (
@@ -978,6 +1001,11 @@ export function attachHitRouting(
       if (type === "down" && pointers.size === 0 && !gesture.multi) {
         suppressClickUntil = 0;
         redirectedUntil = 0;
+        if (redirect) {
+          clearTimeout(redirect.timer);
+          pendingClicks.delete(redirect.timer);
+          redirect = null;
+        }
       }
       if (
         type === "down" &&

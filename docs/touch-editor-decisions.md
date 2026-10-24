@@ -269,8 +269,8 @@ enforced-by:
 - gui/web/src/timeline/timelineStyles.test.ts::shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion
 - gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
 - gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
-- gui/web/e2e/edit-markers.spec.ts::a tap beside a glyph whose browser click arrives after the pointer is up opens the join and does not seek
-- gui/web/src/timeline/hitRouting.grammar.test.ts::claims the browser's own click on the surface after a tap sent to a mark, once
+- gui/web/e2e/edit-markers.spec.ts::a tap beside a glyph delivered in Mobile Safari's event order opens the join and does not seek
+- gui/web/src/timeline/hitRouting.grammar.test.ts::opens the join from the browser's click when a finger lands 20 px beside it
 - gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a selected seam tick
 -->
 
@@ -298,9 +298,11 @@ to a glyph or chip within 22 px beside it and 44 px down from its top. It
 never reaches the lane above, never applies in blade or comment mode, never applies to a pending region or the envelope lane (they own their tap), and a
 tap on any target (a trim handle, fade corner, roll seam or clip body) is
 ranked as before, with a focused glyph no longer counting as selected. The
-browser's own click after a tap the router sent to a mark is ignored by the
-lane's seek (`HitRouter.claimsClick`, #2148): Mobile Safari delivers it after
-the press layer's press has ended, so the layer's guard alone let it seek.
+mark opens from the browser's own click, not from replayed pointer events
+(#2148): Mobile Safari delivers the click on the lane after the press layer's
+press has ended, so the router replays a click on the mark when that click
+arrives (or after the ghost-click window if none does), and the lane's seek
+ignores it (`HitRouter.claimsClick`).
 
 Applied ticks stay as the earlier decision left them: inert, `aria-hidden`,
 and never inside a chip. Counting applied edits in a chip would make a count

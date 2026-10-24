@@ -326,21 +326,6 @@ describe("tap on a surface near an edit mark", () => {
   const marks = (name: string) =>
     log.filter((entry) => entry.startsWith(`${name}:`));
 
-  it.each(["join", "edit-chip"] as const)(
-    "goes to the %s when a finger lands 20 px beside it",
-    (kind) => {
-      const el = lane();
-      mark(kind);
-      tap(el, 228, 104);
-
-      expect(marks(kind)).toEqual([
-        `${kind}:pointerdown@228,104`,
-        `${kind}:pointerup@228,104`,
-      ]);
-      expect(seeks()).toEqual([]);
-    },
-  );
-
   const nativeClick = (el: Element, x: number, y: number) =>
     el.dispatchEvent(
       new MouseEvent("click", {
@@ -351,11 +336,50 @@ describe("tap on a surface near an edit mark", () => {
       }),
     );
 
-  it("claims the browser's own click on the surface after a tap sent to a mark, once", () => {
+  function opensFromClick(kind: "join" | "edit-chip"): void {
+    const el = lane();
+    mark(kind);
+    tap(el, 228, 104);
+    const before = marks(kind);
+    nativeClick(el, 228, 104);
+
+    expect(before).toEqual([]);
+    expect(marks(kind)).toEqual([`${kind}:click@228,104`]);
+    expect(seeks()).toEqual([]);
+  }
+
+  it("opens the join from the browser's click when a finger lands 20 px beside it", () => {
+    opensFromClick("join");
+  });
+
+  it("opens the edit chip from the browser's click when a finger lands 20 px beside it", () => {
+    opensFromClick("edit-chip");
+  });
+
+  it("opens the mark once when no browser click follows the tap", () => {
     const el = lane();
     mark();
     tap(el, 228, 104);
     vi.runAllTimers();
+
+    expect(marks("join")).toEqual(["join:click@228,104"]);
+    expect(router.claimsClick(new MouseEvent("click"))).toBe(false);
+  });
+
+  it("drops a pending tap when the next press starts", () => {
+    const el = lane();
+    mark();
+    tap(el, 228, 104);
+    press(el, "pointerdown", 600, 104);
+    vi.runAllTimers();
+
+    expect(marks("join")).toEqual([]);
+  });
+
+  it("claims the browser's own click on the surface after a tap sent to a mark, once", () => {
+    const el = lane();
+    mark();
+    tap(el, 228, 104);
     const claims: boolean[] = [];
     el.addEventListener("click", (e) => claims.push(router.claimsClick(e)));
     nativeClick(el, 228, 104);
@@ -394,8 +418,9 @@ describe("tap on a surface near an edit mark", () => {
     const el = lane();
     mark();
     tap(el, 200, 144);
+    nativeClick(el, 200, 144);
 
-    expect(marks("join")).toHaveLength(2);
+    expect(marks("join")).toEqual(["join:click@200,144"]);
     expect(seeks()).toEqual([]);
   });
 

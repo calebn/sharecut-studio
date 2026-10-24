@@ -259,7 +259,7 @@ test.describe("coarse pointer", () => {
     await expect(joinDialog(page)).toBeVisible();
   });
 
-  test("a tap beside a glyph whose browser click arrives after the pointer is up opens the join and does not seek", async ({
+  test("a tap beside a glyph delivered in Mobile Safari's event order opens the join and does not seek", async ({
     page,
   }) => {
     await open(page);
@@ -267,21 +267,36 @@ test.describe("coarse pointer", () => {
     const before = await playheadSec(page);
     const y = box.y + box.height / 2;
     for (const x of [box.x + box.width + 13, box.x - 8]) {
-      await page.touchscreen.tap(x, y);
-      await expect(joinDialog(page)).toBeVisible();
       await page.evaluate(
         async ([cx, cy]) => {
-          document.elementFromPoint(cx, cy)?.dispatchEvent(
-            new MouseEvent("click", {
-              bubbles: true,
-              cancelable: true,
-              clientX: cx,
-              clientY: cy,
-            }),
-          );
-          for (let frame = 0; frame < 3; frame += 1) {
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-          }
+          const target = document.elementFromPoint(cx, cy);
+          if (!target) throw new Error("nothing at the tap point");
+          const at = {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            clientX: cx,
+            clientY: cy,
+          };
+          const pointer = {
+            ...at,
+            pointerId: 41,
+            pointerType: "touch",
+            isPrimary: true,
+            width: 24,
+            height: 24,
+            pressure: 0.5,
+          };
+          const frame = () =>
+            new Promise((resolve) => requestAnimationFrame(resolve));
+          target.dispatchEvent(new PointerEvent("pointerdown", pointer));
+          await frame();
+          target.dispatchEvent(new PointerEvent("pointerup", pointer));
+          target.dispatchEvent(new MouseEvent("mousedown", at));
+          target.dispatchEvent(new MouseEvent("mouseup", at));
+          await new Promise((resolve) => setTimeout(resolve));
+          target.dispatchEvent(new MouseEvent("click", at));
+          for (let n = 0; n < 3; n += 1) await frame();
         },
         [x, y],
       );
