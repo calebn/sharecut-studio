@@ -561,7 +561,7 @@ class SessionTimeline:
             candidate = resolved[path]
             if isinstance(candidate, ValueError):
                 if clip.track_id == track_id:
-                    raise candidate
+                    raise ValueError(str(candidate)) from None
                 continue
             if path not in matches:
                 matches[path] = same_recording(candidate, media)

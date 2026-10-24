@@ -225,8 +225,10 @@ def completed_audio_effects(
 def _same_recording_leaves(old: Sequence[PlacedSource]) -> Callable[[SourceAudio], list[int]]:
     """Indexes of the ``old`` leaves that play ``source``'s recording, ascending.
 
-    Leaves are grouped by source id, fill flag and path, so each distinct recording pair is
-    compared once however many leaves play it.
+    Leaves are grouped by source id, fill flag and path, so each distinct path pair within
+    a source id and fill group is compared once however many leaves play it. Paths are
+    compared in order of their first leaf, so the first comparison to raise is the one an
+    all-pairs scan reaches first.
     """
 
     by_path: dict[tuple[str | None, bool], dict[Path, list[int]]] = {}
