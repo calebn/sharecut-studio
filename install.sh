@@ -44,7 +44,7 @@ while [ $# -gt 0 ]; do
 done
 
 if command -v uv >/dev/null 2>&1; then
-    # Omits speaker/joinqc (large torch/CUDA downloads). For those: uv sync --all-extras
+    # Omits joinqc (large torch/CUDA downloads). For those: uv sync --all-extras
   uv sync --extra dev --extra gui --extra relay --extra prosody
   PODCAST=(uv run podcast)
 else

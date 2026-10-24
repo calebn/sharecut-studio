@@ -43,17 +43,6 @@ dev = [
     "hatchling>=1.27.0",
     "editables>=0.5",
 ]
-speaker = [
-    "torch>=2.0.0",
-    "speechbrain>=1.0.0",
-]
-speaker-lite = [
-    "resemblyzer>=0.1.3",
-    # Pin floor explicitly: resemblyzer -> librosa -> numba is unconstrained upstream,
-    # and older numba/llvmlite releases fail to build on Python 3.12+ (no python_requires
-    # metadata, just a runtime guard). Force a modern, 3.12+/3.14-compatible resolution.
-    "numba>=0.59.0",
-]
 joinqc = [
     "torch>=2.0.0",
     "librosa>=0.10.0",
@@ -88,9 +77,6 @@ prosody = [
 all = [
     "anyio>=4.0.0",
     "torch>=2.0.0",
-    "speechbrain>=1.0.0",
-    "resemblyzer>=0.1.3",
-    "numba>=0.59.0",
     "fastapi>=0.116.1",
     "uvicorn[standard]>=0.32.0",
     "httpx>=0.27.0",
@@ -149,7 +135,6 @@ markers = [
     "e2e_slow: live transcribe / full pipeline (minutes)",
     "e2e_real: nightly fixtures (AMI bleed, benchmark regression, real speech)",
     "slow: benchmark or long-running tighten tests",
-    "speaker: requires SpeechBrain/torch optional extra",
     "extras_install: builds a clean venv per optional extra (opt-in via PODCAST_CHECK_EXTRAS=1)",
     "refine_gate: exercises transcript refine hard gate (disables test default mode=off)",
 ]
@@ -296,13 +281,9 @@ extend_exclude = [
 
 [tool.deptry.package_module_name_map]
 # Optional extras / conditional imports mapped for deptry.
-speechbrain = "speechbrain"
-resemblyzer = "resemblyzer"
 "praat-parselmouth" = "parselmouth"
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [
     "av", # Compatibility constraint for faster-whisper's metadata_errors argument.
-    # Pin floor for speaker-lite (resemblyzer -> numba); not imported directly.
-    "numba",
 ]

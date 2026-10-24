@@ -34,7 +34,7 @@ Before enroll/compare on a new episode, ask how many distinct speakers (and name
 | Two people on one mic, keep one lane | `enroll --speaker A --track T --start … --end …` (repeat per person) |
 | Debug one window | `podcast speaker score` or `speaker_score_tool` |
 | Re-build profiles after stem change | `podcast speaker enroll` then `gate-track --dry-run` |
-| No torch installed | Skip; precorrect continues with glossary + cross-track |
+| Speaker model not downloaded | Skip; precorrect continues with glossary + cross-track. Download it with `podcast bootstrap --component speaker-ecapa` or **Download speaker model** in Split speakers. Profiles enrolled with the removed Resemblyzer backend must be enrolled again |
 
 ## Commands
 

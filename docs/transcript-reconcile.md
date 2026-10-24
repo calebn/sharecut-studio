@@ -544,7 +544,7 @@ Level and timbre keep some of a peer's copy at full level: a copy that runs over
 its usual level for whole phrases, and copy whose spectral match overlaps the
 speaker's own sound. Three rounds tried to tell that copy from own voice per 10 ms
 frame. Each frame's YIN f0 on the lane was compared with the peer's own track at the
-copy lag. With the `speaker` extra, ECAPA or Resemblyzer embeddings judged runs of
+copy lag. ECAPA or Resemblyzer embeddings judged runs of
 1.5 s or more. None shipped, and the gate is level and timbre only.
 
 - Round 1 called unpitched frames between copy pitch the copy. It cut a laugh

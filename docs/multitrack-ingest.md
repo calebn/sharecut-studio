@@ -403,8 +403,7 @@ podcast speaker split --project P --track room --speakers 2 --crosstalk lane --a
 speaker's cluster. Enrolling some speakers and not others works: the rest are clustered
 and numbered by when each first talks. `--name` (repeatable) sets every name in order
 and must include each enrolled name; without it, enrolled speakers come first and the
-rest are `Speaker N`. An enrollment window that the end of the audio cuts to under 50 ms (800 samples at 16 kHz) is dropped, not embedded as a sliver; a shorter-than-a-second window of 50 ms or more is still embedded; a speaker whose spans all lie past the end is refused with `enrollment_past_end`. A span longer than the recording costs about as much as one that ends a window past it. An enrolled name with no spans is refused with `enrollment_empty` before any audio is read. Spans must be finite with 0 <= start < end; a bad span, including one with start equal to end, is refused with `enrollment_span_invalid` before any audio is read. A real speaker embedding is required (`[speaker]` ECAPA or
-`[speaker-lite]` Resemblyzer); the CI mock is refused.
+rest are `Speaker N`. An enrollment window that the end of the audio cuts to under 50 ms (800 samples at 16 kHz) is dropped, not embedded as a sliver; a shorter-than-a-second window of 50 ms or more is still embedded; a speaker whose spans all lie past the end is refused with `enrollment_past_end`. A span longer than the recording costs about as much as one that ends a window past it. An enrolled name with no spans is refused with `enrollment_empty` before any audio is read. Spans must be finite with 0 <= start < end; a bad span, including one with start equal to end, is refused with `enrollment_span_invalid` before any audio is read. The ECAPA ONNX speaker model is required (downloaded in the Split speakers dialog); the CI mock is refused.
 
 **Data shape.** `engines/speaker_split.py` returns a `SpeakerAttribution`: turns that
 cover the recording with no gaps, each with its speakers (most likely first, two or
@@ -573,7 +572,7 @@ Reopen #1204 on a user report, or when a method for short utterances passes the 
 
 The gold mixdown (`source/gold/full-mixdown.wav` in the private lab checkout) is 184.679 s of the same three speakers after the human content cut. It is not the 28-minute Zoom sum in the table below.
 
-The default Mac venv has no speaker embedding, so `SpeakerService.check_split` raises `model_needed` when the ONNX model is not downloaded, or `speaker_backend_unavailable` when a download cannot help. A scratch venv with `[speaker-lite]` loads Resemblyzer. Both splits below used that backend, `podcast speaker split --track room --speakers 3`, and the same engine path as MCP `enrollment` and CLI `--enroll NAME=START:END` (source seconds). Enrollment spans are exclusive 8 s windows taken from the gold solos: Caleb `24.0:32.0`, Audra `149.75:157.75`, Lana `114.88:122.88`. No audio left the Mac.
+`SpeakerService.check_split` raises `model_needed` when the ONNX model is not downloaded, or `speaker_backend_unavailable` when a download cannot help. The splits below were run with the since-removed Resemblyzer backend (#2255 keeps ECAPA ONNX only), with `podcast speaker split --track room --speakers 3`, and the same engine path as MCP `enrollment` and CLI `--enroll NAME=START:END` (source seconds). Enrollment spans are exclusive 8 s windows taken from the gold solos: Caleb `24.0:32.0`, Audra `149.75:157.75`, Lana `114.88:122.88`. No audio left the Mac.
 
 | | Blind (`method=cluster`) | Enrolled (`method=enroll`) |
 | --- | --- | --- |

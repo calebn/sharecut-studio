@@ -41,11 +41,6 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
         "hatchling",
         "editables",
     ),
-    "speaker": ("torch", "speechbrain.inference.speaker"),
-    # In a clean unlocked venv with setuptools>=82, resemblyzer cannot be imported (#1284:
-    # webrtcvad needs the removed pkg_resources), so its numba dependency stands in. The
-    # locked env pins setuptools 81, where resemblyzer imports.
-    "speaker-lite": ("numba",),
     "joinqc": ("torch", "librosa", "transformers"),
     "gui": (
         "anyio",
@@ -64,29 +59,10 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
 }
 ALL_EXTRA = "all"
 
-# In a clean unlocked venv with setuptools>=82, `import resemblyzer` fails on webrtcvad's
-# removed `pkg_resources` import (#1284). The backend loads it past that, so the probe
-# drives the backend instead.
-EXTRA_EXERCISE: dict[str, str] = {
-    "speaker-lite": (
-        "import numpy as np; "
-        "from podcast_mcp.engines.speaker_id import ResemblyzerBackend; "
-        "samples = np.random.default_rng(0).normal(size=32000).astype('float32'); "
-        "emb = ResemblyzerBackend().embed(samples, 16000); "
-        "assert emb.shape == (256,), emb.shape"
-    ),
-}
-
 
 def _declared_extras() -> set[str]:
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     return set(data["project"]["optional-dependencies"])
-
-
-def _exercise_for(extra: str) -> str:
-    if extra == ALL_EXTRA:
-        return "; ".join(EXTRA_EXERCISE.values())
-    return EXTRA_EXERCISE.get(extra, "pass")
 
 
 def _imports_for(extra: str) -> tuple[str, ...]:
@@ -129,7 +105,7 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
     assert created.returncode == 0, created.stderr
 
     # Unlocked on purpose: a user's `pip install` ignores uv.lock. CPU torch keeps the
-    # speaker/joinqc/all downloads small on Linux.
+    # joinqc/all downloads small on Linux.
     installed = _run(
         [
             "uv",
@@ -151,7 +127,7 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
     code = (
         "import sys, pathlib; "
         f"assert pathlib.Path(sys.prefix).resolve() == pathlib.Path({str(venv)!r}).resolve(), sys.prefix; "
-        f"import {imports}; {_exercise_for(extra)}"
+        f"import {imports}"
     )
     # Run from tmp_path so the checkout's src/ cannot shadow the installed package.
     probe = subprocess.run(
@@ -173,9 +149,3 @@ def test_extras_workflow_runs_the_clean_venv_check() -> None:
     assert run["env"]["PODCAST_CHECK_EXTRAS"] == "1"
     assert "tests/test_extras_import.py" in run["run"]
     assert "schedule" in workflow["on"]
-
-
-def test_extras_workflow_triggers_on_the_modules_the_probe_exercises() -> None:
-    workflow = load_github_yaml(ROOT / ".github" / "workflows" / "extras-import.yml")
-    for event in ("pull_request", "push"):
-        assert "src/podcast_mcp/engines/speaker_id.py" in workflow["on"][event]["paths"]
