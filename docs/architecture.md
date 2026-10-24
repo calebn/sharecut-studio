@@ -154,10 +154,7 @@ Exact removal geometry inventories the queried recording across every stored
 placement, including another lane's primary media. A matching unclipped lane
 holds because the renderer independently plays its full recording. Ordinary
 point mapping retains semantic lane ownership. Transcript groups retain exact
-source IDs even when their files match.
-A scan that tests many placements against one recording compares each distinct path pair
-once: per source id and fill group when matching render leaves, per stored path string when
-scanning a lane's clips.
+source IDs even when their files match. Scans over many placements compare each distinct path pair once.
 Primary placements select their own lane transcript before physical audio reuse.
 Parked sources use their explicit transcript or a unique primary owner's primary
 transcript. Ambiguous primary ownership refuses the trim before mutation.

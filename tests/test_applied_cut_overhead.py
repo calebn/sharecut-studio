@@ -39,7 +39,10 @@ def _recordings(tmp_path: Path) -> list[Path]:
     hardlink = root / "hardlink.wav"
     os.link(first, hardlink)
     symlink = root / "symlink.wav"
-    symlink.symlink_to(first)
+    try:
+        symlink.symlink_to(first)
+    except OSError:
+        pytest.skip("symlinks unavailable")
     twin = root / "twin.wav"
     twin.write_bytes(b"recording")
     return [
