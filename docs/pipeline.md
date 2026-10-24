@@ -58,7 +58,7 @@ and lab evidence: [audio-engineering.md § Gate fill](audio-engineering.md#gate-
 On the lab tape the step takes 20 s for three 28-minute tracks when their fills are already
 written, and 26 s when it writes them. Per track that time is one native-rate decode for
 holes and one 16 kHz decode for the room-tone sampler's floor and quiet runs (cached, and
-shared with Tighten's room-tone pads). Then each track takes two decodes of its closures:
+shared with Tighten's room-tone pads; inside a batch the floor reads the batch's own 16 kHz decode). Then each track takes two decodes of its closures:
 one for the closure profile (its measured hold), one for the hold's frames. A track with
 no measured hold takes one decode of its own pauses instead of the second. Writing a fill
 adds one FLAC encode.
@@ -614,7 +614,7 @@ Do not substitute one for another: a stat stamp cannot say a stem is stale again
 
 ### Room-tone levels
 
-With the default `tighten.filler_pad_mode: room_tone`, the first pad or mute fill on a track streams its source audio once at 16 kHz into 10 ms frame levels (`engines/room_tone.py`), cached in-process per file version. Each pick then reads one window of the length it needs and runs Silero on it (an error from Silero rejects that window, so a failing detector leaves the fill silent). On the lab tape's three 28-minute tracks the level pass takes about 1.2 s per track, nearly all of it `ffmpeg` decode (8 kHz decodes no faster). Approving every proposal took 5.5 s (ripple, 26 edits) and 4.5 s (mute, 54) against 3.7 s and 1.8 s for the word-gap sampler it replaced. The level pass (3.6 s for three tracks) is most of that; the picks themselves cost less than the old per-window reads. `filler_pad_mode: silence` reads nothing.
+With the default `tighten.filler_pad_mode: room_tone`, the first pad or mute fill on a track streams its source audio once at 16 kHz into 10 ms frame levels (`engines/room_tone.py`; inside a batch that already decoded the file at 16 kHz, it reads that decode instead), cached in-process per file version. Each pick then reads one window of the length it needs and runs Silero on it (an error from Silero rejects that window, so a failing detector leaves the fill silent). On the lab tape's three 28-minute tracks the level pass takes about 1.2 s per track, nearly all of it `ffmpeg` decode (8 kHz decodes no faster). Approving every proposal took 5.5 s (ripple, 26 edits) and 4.5 s (mute, 54) against 3.7 s and 1.8 s for the word-gap sampler it replaced. The level pass (3.6 s for three tracks) is most of that; the picks themselves cost less than the old per-window reads. `filler_pad_mode: silence` reads nothing.
 
 ### Conservative bleed planning cost
 
