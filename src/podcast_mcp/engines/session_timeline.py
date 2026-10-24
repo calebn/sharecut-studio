@@ -543,6 +543,8 @@ class SessionTimeline:
             return [clip for clip in self._project.clips if clip.track_id == track_id]
         media = resolve_under_workspace(self._project, track.media.path)
         placements = []
+        resolved: dict[str, Path | ValueError] = {}
+        matches: dict[str, bool] = {}
         for clip in self._project.clips:
             if clip.source_id:
                 path = _clip_source_path(self._project, clip)
@@ -551,13 +553,19 @@ class SessionTimeline:
                 path = lane.media.path if lane is not None and lane.media is not None else None
             if not path:
                 continue
-            try:
-                candidate = resolve_under_workspace(self._project, path)
-            except ValueError:
+            if path not in resolved:
+                try:
+                    resolved[path] = resolve_under_workspace(self._project, path)
+                except ValueError as error:
+                    resolved[path] = error
+            candidate = resolved[path]
+            if isinstance(candidate, ValueError):
                 if clip.track_id == track_id:
-                    raise
+                    raise candidate
                 continue
-            if same_recording(candidate, media):
+            if path not in matches:
+                matches[path] = same_recording(candidate, media)
+            if matches[path]:
                 placements.append(clip)
         return placements
 
