@@ -7,6 +7,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,6 +46,11 @@ from podcast_mcp.engines.timeline_render import placed_track_audio
 from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.tracks import recording_audio_path
+
+
+def _probe_on_miss(path: Path) -> ffmpeg.AudioProbe:
+    """Probe ``path`` with a new engine; the batch scope calls this only when it has no probe yet."""
+    return ffmpeg.FFmpegEngine().probe(path)
 
 
 @dataclass(frozen=True)
@@ -164,7 +170,7 @@ def completed_audio_effects(
                     "complete_effect_probe",
                     source.path,
                     None,
-                    lambda: ffmpeg.FFmpegEngine().probe(source.path),
+                    partial(_probe_on_miss, source.path),
                 ).sample_rate
                 for mute in source.mute_spans:
                     samples = mute.samples(rate, source_start=source.src_start)

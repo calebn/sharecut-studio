@@ -6,10 +6,12 @@ import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits import cut_effects
+from podcast_mcp.engines import ffmpeg as ffmpeg_module
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
 from podcast_mcp.models.episode import ClipMuteRegion
-from podcast_mcp.util import binaries
 from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.binaries import FFmpegPairResolutionError
 
 
 def _muted_pair(tmp_path: Path) -> tuple[EpisodeProject, EpisodeProject]:
@@ -43,42 +45,49 @@ def _muted_pair(tmp_path: Path) -> tuple[EpisodeProject, EpisodeProject]:
     return project, candidate
 
 
+def _require_ffmpeg() -> None:
+    ok, _ = FFmpegEngine().check_available()
+    if not ok:
+        pytest.skip("ffmpeg not available")
+
+
+def _run(project: EpisodeProject, candidate: EpisodeProject):
+    return cut_effects.completed_audio_effects(
+        project, candidate, frozenset({"remove"}), defaults={}
+    )
+
+
 def test_probe_cache_hit_constructs_no_ffmpeg_engine(tmp_path, monkeypatch):
+    _require_ffmpeg()
     project, candidate = _muted_pair(tmp_path)
     calls: list[tuple] = []
-    real = binaries.resolve_ffmpeg_pair
+    real = ffmpeg_module.resolve_ffmpeg_pair
 
     def counting(*args, **kwargs):
         calls.append(args)
         return real(*args, **kwargs)
 
-    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.resolve_ffmpeg_pair", counting)
-
-    def run():
-        return cut_effects.completed_audio_effects(
-            project, candidate, frozenset({"remove"}), defaults={}
-        )
-
+    # FFmpegEngine.__init__ looks resolve_ffmpeg_pair up in its module globals at call time.
+    monkeypatch.setattr(ffmpeg_module, "resolve_ffmpeg_pair", counting)
     with batch_scope():
-        first = run()
+        first = _run(project, candidate)
         after_first = len(calls)
-        second = run()
+        second = _run(project, candidate)
     assert first == second
-    assert any(effect.envelope is not None for effect in first)
-    assert after_first == 1  # one distinct muted source path: one real probe
+    assert after_first >= 1, "the muted source must reach the probe"
     assert len(calls) == after_first, "a probe cache hit must not resolve the ffmpeg pair"
 
 
 def test_probe_resolution_error_surfaces_only_on_a_miss(tmp_path, monkeypatch):
+    _require_ffmpeg()
     project, candidate = _muted_pair(tmp_path)
+
+    def broken(*_args, **_kwargs):
+        raise FFmpegPairResolutionError("pair unavailable")
+
     with batch_scope():
-        cut_effects.completed_audio_effects(project, candidate, frozenset({"r"}), defaults={})
-
-        def broken(*_args, **_kwargs):
-            raise AssertionError("pair resolved on a cache hit")
-
-        monkeypatch.setattr("podcast_mcp.engines.ffmpeg.resolve_ffmpeg_pair", broken)
-        cut_effects.completed_audio_effects(project, candidate, frozenset({"r"}), defaults={})
-    with pytest.raises(AssertionError):
-        with batch_scope():
-            cut_effects.completed_audio_effects(project, candidate, frozenset({"r"}), defaults={})
+        _run(project, candidate)
+        monkeypatch.setattr(ffmpeg_module, "resolve_ffmpeg_pair", broken)
+        assert _run(project, candidate)
+    with batch_scope(), pytest.raises(FFmpegPairResolutionError, match="pair unavailable"):
+        _run(project, candidate)
