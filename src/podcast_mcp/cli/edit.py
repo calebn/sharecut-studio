@@ -27,6 +27,7 @@ from podcast_mcp.services.document import (
     TimelineService,
     TrimBoundaryTarget,
 )
+from podcast_mcp.services.document_sync import apply_external_document_edit
 from podcast_mcp.services.jobs import run_audio_edit
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC
 
@@ -89,7 +90,9 @@ def propose_edits_cmd(
         except ValueError as exc:
             raise typer.BadParameter(str(exc), param_hint="--intensity") from exc
     ws = ProjectWorkspace.open(project)
-    proposal = EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)
+    proposal = apply_external_document_edit(
+        ws, lambda: EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)
+    )
     if as_json:
         typer.echo(json.dumps(proposal.to_payload(), indent=2, default=str))
         return
@@ -100,7 +103,7 @@ def apply_edits_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    n = EditService(ws).apply_auto()
+    n = apply_external_document_edit(ws, lambda: EditService(ws).apply_auto())
     typer.echo(f"Applied {n} auto edit decisions.")
 
 
@@ -134,13 +137,16 @@ def edit_cut_range_cmd(
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    EditService(ws).cut_time_range(
-        track,
-        start,
-        end,
-        reason=reason,
-        review_required=review,
-        use_inaudible_opt=inaudible_opt,
+    apply_external_document_edit(
+        ws,
+        lambda: EditService(ws).cut_time_range(
+            track,
+            start,
+            end,
+            reason=reason,
+            review_required=review,
+            use_inaudible_opt=inaudible_opt,
+        ),
     )
     typer.echo(f"Cut {track} {start}-{end}s")
 
@@ -154,12 +160,15 @@ def edit_cut_text_cmd(
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    cuts = EditService(ws).cut_text_match(
-        query,
-        track_id=track,
-        match_all=all_matches,
-        review_required=True,
-        use_inaudible_opt=inaudible_opt,
+    cuts = apply_external_document_edit(
+        ws,
+        lambda: EditService(ws).cut_text_match(
+            query,
+            track_id=track,
+            match_all=all_matches,
+            review_required=True,
+            use_inaudible_opt=inaudible_opt,
+        ),
     )
     typer.echo(f"Created {len(cuts)} cut(s)")
 
@@ -171,7 +180,9 @@ def edit_cut_utterance_cmd(
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    EditService(ws).cut_utterance(index, use_inaudible_opt=inaudible_opt)
+    apply_external_document_edit(
+        ws, lambda: EditService(ws).cut_utterance(index, use_inaudible_opt=inaudible_opt)
+    )
     typer.echo(f"Cut utterance {index}")
 
 
@@ -207,7 +218,7 @@ def edit_approve_cmd(
                 asked_out=asked,
             )
 
-    n = require_cut_applied(approve)
+    n = require_cut_applied(lambda: apply_external_document_edit(ws, approve))
     typer.echo(f"Approved {n} edit(s).")
     _echo_held(held, asked)
     if asked or any(item.reason != STALE_REASON for item in held):
@@ -299,8 +310,11 @@ def edit_apply_suggested_cmd(
     ws = ProjectWorkspace.open(project)
     id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
     with cli_override(override_checks):
-        result = EditService(ws).apply_suggested_actions(
-            id_list, overrides=overrides, revise=revise
+        result = apply_external_document_edit(
+            ws,
+            lambda: EditService(ws).apply_suggested_actions(
+                id_list, overrides=overrides, revise=revise
+            ),
         )
     typer.echo(result["summary"])
 
@@ -311,7 +325,12 @@ def edit_reject_cmd(
     ids: str = typer.Option(..., "--ids", help="Comma-separated edit ids"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    n = EditService(ws).reject([x.strip() for x in ids.split(",") if x.strip()], allow_exact=True)
+    n = apply_external_document_edit(
+        ws,
+        lambda: EditService(ws).reject(
+            [x.strip() for x in ids.split(",") if x.strip()], allow_exact=True
+        ),
+    )
     typer.echo(f"Removed {n} edit(s).")
 
 
@@ -490,12 +509,15 @@ def edit_strip_silence_cmd(
     ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    result = AnalysisService(ws).strip_silence(
-        track_id=track,
-        speaker=speaker,
-        over_voice_floor_db=over_voice_floor_db,
-        min_duration_sec=min_duration,
-        use_inaudible_opt=inaudible_opt,
+    result = apply_external_document_edit(
+        ws,
+        lambda: AnalysisService(ws).strip_silence(
+            track_id=track,
+            speaker=speaker,
+            over_voice_floor_db=over_voice_floor_db,
+            min_duration_sec=min_duration,
+            use_inaudible_opt=inaudible_opt,
+        ),
     )
     typer.echo(json.dumps(result, indent=2))
 
@@ -559,9 +581,9 @@ def edit_ripple_delete_cmd(
             )
 
     if query:
-        result = require_cut_applied(ripple_text)
+        result = apply_external_document_edit(ws, lambda: require_cut_applied(ripple_text))
     elif start is not None and end is not None:
-        result = require_cut_applied(ripple_range)
+        result = apply_external_document_edit(ws, lambda: require_cut_applied(ripple_range))
     else:
         raise typer.BadParameter("provide --start and --end, or --query")
     if as_json:
@@ -581,9 +603,13 @@ def edit_move_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     if from_query and to_query:
-        result = TimelineService(ws).move_by_text(from_query, to_query, "after")
+        result = apply_external_document_edit(
+            ws, lambda: TimelineService(ws).move_by_text(from_query, to_query, "after")
+        )
     elif source_start is not None and source_end is not None and insert_at is not None:
-        result = TimelineService(ws).move_segment(source_start, source_end, insert_at)
+        result = apply_external_document_edit(
+            ws, lambda: TimelineService(ws).move_segment(source_start, source_end, insert_at)
+        )
     else:
         raise typer.BadParameter("provide time range or --from-query and --to-after")
     typer.echo(json.dumps(result, indent=2))
@@ -602,7 +628,11 @@ def edit_move_clips_cmd(
     raw = json.loads(clips_json)
     if not isinstance(raw, list):
         raise typer.BadParameter("--clips-json must be a JSON array")
-    typer.echo(json.dumps(TimelineService(ws).move_clips(raw), indent=2))
+    typer.echo(
+        json.dumps(
+            apply_external_document_edit(ws, lambda: TimelineService(ws).move_clips(raw)), indent=2
+        )
+    )
 
 
 @edit_app.command("delete-clips")
@@ -723,7 +753,12 @@ def edit_insert_gap_cmd(
     duration: float = typer.Option(1.0, "--duration"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(TimelineService(ws).insert_gap(at, duration), indent=2))
+    typer.echo(
+        json.dumps(
+            apply_external_document_edit(ws, lambda: TimelineService(ws).insert_gap(at, duration)),
+            indent=2,
+        )
+    )
 
 
 @edit_app.command("fade-joins")
@@ -735,17 +770,14 @@ def edit_fade_joins_cmd(
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            TimelineService(ws).fade_joins(
-                track_id=track,
-                speaker=speaker,
-                fade_ms=fade_ms,
-                dry_run=dry_run,
-            ),
-            indent=2,
+
+    def fade() -> dict:
+        return TimelineService(ws).fade_joins(
+            track_id=track, speaker=speaker, fade_ms=fade_ms, dry_run=dry_run
         )
-    )
+
+    result = fade() if dry_run else apply_external_document_edit(ws, fade)
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("crossfade-joins")
@@ -757,17 +789,14 @@ def edit_crossfade_joins_cmd(
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            TimelineService(ws).crossfade_joins(
-                track_id=track,
-                speaker=speaker,
-                fade_ms=fade_ms,
-                dry_run=dry_run,
-            ),
-            indent=2,
+
+    def crossfade() -> dict:
+        return TimelineService(ws).crossfade_joins(
+            track_id=track, speaker=speaker, fade_ms=fade_ms, dry_run=dry_run
         )
-    )
+
+    result = crossfade() if dry_run else apply_external_document_edit(ws, crossfade)
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("set-clip-join")
@@ -781,7 +810,12 @@ def edit_set_clip_join_cmd(
     """Set one join's mode and fades (crossfade needs fades to blend)."""
     ws = ProjectWorkspace.open(project)
     typer.echo(
-        json.dumps(TimelineService(ws).set_clip_join(left, right, mode, length_ms), indent=2)
+        json.dumps(
+            apply_external_document_edit(
+                ws, lambda: TimelineService(ws).set_clip_join(left, right, mode, length_ms)
+            ),
+            indent=2,
+        )
     )
 
 
@@ -820,7 +854,9 @@ def edit_trim_clip_cmd(
                 expected_token=revision,
             )
 
-    typer.echo(json.dumps(require_cut_applied(trim), indent=2))
+    typer.echo(
+        json.dumps(apply_external_document_edit(ws, lambda: require_cut_applied(trim)), indent=2)
+    )
 
 
 @edit_app.command("roll-join")
@@ -864,8 +900,12 @@ def edit_add_chapter_cmd(
     at_time: float = typer.Option(..., "--at-time"),
     title: str = typer.Option(..., "--title"),
 ) -> None:
-    ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(TimelineService(ws).add_chapter(at_time, title), indent=2))
+    from podcast_mcp.services.document_sync import submit_host_command_result
+
+    result = submit_host_command_result(
+        project, "AddChapter", {"time": at_time, "title": title}, client_id="cli"
+    )
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("remove-chapter")
@@ -874,7 +914,12 @@ def edit_remove_chapter_cmd(
     title: str = typer.Option(..., "--title"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(TimelineService(ws).remove_chapter(title), indent=2))
+    typer.echo(
+        json.dumps(
+            apply_external_document_edit(ws, lambda: TimelineService(ws).remove_chapter(title)),
+            indent=2,
+        )
+    )
 
 
 @edit_app.command("list-chapters")
@@ -935,7 +980,7 @@ def edit_shorten_gaps_cmd(
         with cli_override(override_checks):
             return TimelineService(ws).shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt)
 
-    result = require_cut_applied(shorten)
+    result = apply_external_document_edit(ws, lambda: require_cut_applied(shorten))
     typer.echo(json.dumps(result, indent=2))
 
 
@@ -1108,19 +1153,19 @@ def edit_reconcile_transcript_cmd(
         dry_run_param = False
     else:
         dry_run_param = None
-    typer.echo(
-        json.dumps(
-            AnalysisService(ws).reconcile_transcript(
-                track_id=track,
-                speaker=speaker,
-                dry_run=dry_run_param,
-                start_sec=start,
-                end_sec=end,
-                progress=get_progress(),
-            ),
-            indent=2,
+
+    def reconcile() -> dict:
+        return AnalysisService(ws).reconcile_transcript(
+            track_id=track,
+            speaker=speaker,
+            dry_run=dry_run_param,
+            start_sec=start,
+            end_sec=end,
+            progress=get_progress(),
         )
-    )
+
+    result = reconcile() if dry_run else apply_external_document_edit(ws, reconcile)
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("bleed-words")

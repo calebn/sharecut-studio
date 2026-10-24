@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         command_context_for_role,
     )
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
+    from podcast_mcp.services.document_sync.external_apply import apply_external_document_edit
     from podcast_mcp.services.document_sync.host_submit import (
         host_command_result,
         submit_host_command_result,
@@ -68,6 +69,7 @@ __all__ = [
     "ViewProjection",
     "WordTimingTargetPayload",
     "after_agent_mutation",
+    "apply_external_document_edit",
     "command_context_for_role",
     "document_command_from_body",
     "document_command_json_schema",
@@ -109,6 +111,7 @@ _MODULE_BY_NAME = {
     "ViewProjection": "projection_types",
     "WordTimingTargetPayload": "payloads",
     "after_agent_mutation": "service",
+    "apply_external_document_edit": "external_apply",
     "document_command_from_body": "payloads",
     "document_command_json_schema": "payloads",
     "document_command_types_for_caps": "capabilities",
