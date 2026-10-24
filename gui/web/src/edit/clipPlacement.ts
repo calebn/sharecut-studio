@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { executePointerCommand } from "../commands/pointer";
+import { editBasisKey } from "../document/editBasisKey";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { selectedClipIdsOf } from "../state/selection";
@@ -15,6 +16,7 @@ type Capture = {
   projectPath: string;
   projectEpoch: number;
   basis: NonNullable<DawState["project"]>;
+  key: string;
   selection: string;
   anchorId: string;
   movingIds: string[];
@@ -80,7 +82,7 @@ export function clipPlacementIsCurrent(token: number): boolean {
     current.kind !== "idle" &&
     current.capture.token === token &&
     identityIsCurrent(current.capture, s) &&
-    current.capture.basis === s.projectEditBasis()
+    current.capture.key === editBasisKey(s.projectEditBasis())
   );
 }
 export function cancelClipPlacement(token?: number): void {
@@ -103,6 +105,7 @@ export function beginClipPlacement(anchorId: string): number | null {
     projectPath: s.projectPath,
     projectEpoch: s.projectEpoch,
     basis,
+    key: editBasisKey(basis),
     selection: selectionKey(s),
     anchorId,
     movingIds: selectedClipIdsOf(s.selection).includes(anchorId)
@@ -224,7 +227,8 @@ useDawStore.subscribe((s) => {
   const { capture } = current;
   if (
     !identityIsCurrent(capture, s) ||
-    (current.kind === "preview" && capture.basis !== s.projectEditBasis())
+    (current.kind === "preview" &&
+      capture.key !== editBasisKey(s.projectEditBasis()))
   )
     cancelClipPlacement(capture.token);
 });
