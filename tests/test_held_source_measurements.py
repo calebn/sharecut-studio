@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
-from podcast_mcp.edits import cut_application, cut_effects, cut_safety
+from podcast_mcp.edits import cut_application, cut_effects, cut_placement, cut_safety
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -124,14 +124,29 @@ def test_a_cleared_dict_reads_an_edited_transcript(tmp_path, assessed):
     project, effects = _scene(tmp_path)
     measured: cut_safety.MeasuredSources = {}
     with batch_scope():
-        _holds(project, effects, measured=measured)
+        before = _holds(project, effects, measured=measured)
         once = len(assessed)
         project.transcripts[0].words[0].suppressed = True
         measured.clear()
         after = _holds(project, effects, measured=measured)
         expected = _holds(project, effects)
     assert len(assessed) == once + once + len(effects)
+    assert "word_edge" in before[0].detail
+    assert "word_edge" not in after[0].detail
+    assert before != after
     assert after == expected
+
+
+def test_outside_a_batch_scope_nothing_is_shared_and_results_match(tmp_path, assessed):
+    project, effects = _scene(tmp_path)
+    path = effects[0].recording
+    assert cut_safety.recording_audio_cache(path) is not cut_safety.recording_audio_cache(path)
+    measured: cut_safety.MeasuredSources = {}
+    first = _holds(project, effects, measured=measured)
+    once = len(assessed)
+    second = _holds(project, effects, measured=measured)
+    assert len(assessed) == 2 * once
+    assert second == first == _holds(project, effects)
 
 
 def test_a_failed_recording_lookup_is_retried_not_remembered(tmp_path, monkeypatch):
@@ -152,7 +167,7 @@ def test_a_failed_recording_lookup_is_retried_not_remembered(tmp_path, monkeypat
     assert {h.edit_id for h in holds} <= {"remove"}
 
 
-def test_approve_edits_shares_one_dict_per_pass_and_empties_it_at_each_apply(tmp_path, monkeypatch):
+def _approve_scene(tmp_path):
     project = EpisodeProject.create("approve sharing", str(tmp_path))
     project.tracks = [
         Track(
@@ -186,15 +201,43 @@ def test_approve_edits_shares_one_dict_per_pass_and_empties_it_at_each_apply(tmp
         for i in (2, 5, 8)
     ]
     write_wav(tmp_path / "raw/host.wav", room(seconds=12, seed=3, db=-70))
-    ws = ProjectWorkspace.open(save_project(project))
-    real = cut_application._apply_source_remove
+    return ProjectWorkspace.open(save_project(project))
+
+
+_REAL_APPLY = cut_application._apply_source_remove
+_REAL_HOLDS = cut_application._completed_holds
+_REAL_ASSESS = cut_safety.assess_held_source
+
+
+def _approve(ws, monkeypatch, *, share, hold_after=None):
+    real = _REAL_APPLY
+    real_holds = _REAL_HOLDS
     seen: list[tuple[int, int]] = []
+    cea_runs: list[int] = []
+    assessed_windows: list[tuple[float, float]] = []
+    real_assess = _REAL_ASSESS
 
     def spy(project, edit, **kwargs):
         seen.append((id(kwargs["measured"]), len(kwargs["measured"])))
+        if not share:
+            kwargs["measured"] = None
         return real(project, edit, **kwargs)
 
+    def count(project, track_id, start, end, **kwargs):
+        assessed_windows.append((start, end))
+        return real_assess(project, track_id, start, end, **kwargs)
+
+    def forced(before, candidate, ids, **kwargs):
+        result = real_holds(before, candidate, ids, **kwargs)
+        if hold_after is not None and not result:
+            cea_runs.append(1)
+            if len(cea_runs) > hold_after:
+                return [cut_placement.CutScopeHold(e, (), "acoustic_edge") for e in ids]
+        return result
+
     monkeypatch.setattr(cut_application, "_apply_source_remove", spy)
+    monkeypatch.setattr(cut_application, "_completed_holds", forced)
+    monkeypatch.setattr(cut_safety, "assess_held_source", count)
     held: list = []
     applied = cut_application.approve_edits(
         ws.project,
@@ -202,6 +245,21 @@ def test_approve_edits_shares_one_dict_per_pass_and_empties_it_at_each_apply(tmp
         defaults=ws.effective_config(),
         held_out=held,
     )
+    return applied, held, seen, assessed_windows
+
+
+def test_approve_edits_shares_one_dict_per_pass_and_empties_it_at_each_apply(tmp_path, monkeypatch):
+    applied, held, seen, _ = _approve(_approve_scene(tmp_path), monkeypatch, share=True)
     assert applied == 3 and not held
     assert len({dict_id for dict_id, _ in seen}) == 1
     assert [size for _, size in seen] == [0, 0, 0]
+
+
+def test_consecutive_holds_reuse_what_the_first_one_measured(tmp_path, monkeypatch):
+    shared = _approve(_approve_scene(tmp_path / "a"), monkeypatch, share=True, hold_after=1)
+    plain = _approve(_approve_scene(tmp_path / "b"), monkeypatch, share=False, hold_after=1)
+    assert shared[0] == plain[0] == 1
+    assert [h.edit_id for h in shared[1]] == [h.edit_id for h in plain[1]]
+    assert shared[2][0][1] == 0
+    assert max(size for _, size in shared[2]) > 0
+    assert len(shared[3]) < len(plain[3])

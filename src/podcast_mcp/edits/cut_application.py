@@ -515,8 +515,8 @@ def _apply_source_remove(
     Trusted human application intent can override acoustic peer evidence;
     ``override_peer_holds`` records those overrides for the caller's summary.
     Measurements share frozen state only until the first mutation. ``measured`` carries
-    held-source measurements between cuts while ``project`` stays the same object. This writer
-    completes every source, pad and edge write before policy can publish the copy.
+    held-source measurements between cuts while ``project`` stays the same object.
+    This writer completes every source, pad and edge write before policy can publish the copy.
     """
 
     candidate = _cut_copy(project)
@@ -974,6 +974,7 @@ def approve_edits(
         survivors = [edit for edit in removes if edit.id not in excluded]
         batch = _source_extents(survivors)
         newly_held: set[str] = set()
+        # Cleared after each apply: the applied candidate is then written in place.
         measured: cut_safety.MeasuredSources = {}
         for edit in sorted(survivors, key=lambda e: e.start, reverse=True):
             previous = project
