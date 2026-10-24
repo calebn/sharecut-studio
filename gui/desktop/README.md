@@ -12,7 +12,7 @@ still uses `devUrl` on :8765 (start `podcast gui` in another terminal).
 | In | Out |
 |----|-----|
 | Tauri window + this Rust crate | `podcast-relay` / Caddy / Terraform |
-| Python sidecar (frozen CPython + `gui` extra + `web-dist`) | Node.js toolchain; torch / speaker / joinqc |
+| Python sidecar (frozen CPython + `gui` extra + `web-dist`) | Node.js toolchain; torch / joinqc |
 | Prebuilt `gui/web/dist` (served by FastAPI) | tests, docs sites |
 | Bundled FFmpeg; optional first-run Whisper download | |
 

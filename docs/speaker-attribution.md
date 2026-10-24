@@ -6,12 +6,9 @@ Bleed reconcile tags words by **RMS dominance** (which mic is louder). Same-room
 
 ## Install
 
-```bash
-pip install -e ".[speaker]"      # SpeechBrain ECAPA (primary)
-pip install -e ".[speaker-lite]"  # Resemblyzer fallback
-```
+There is one speaker model: the ECAPA ONNX export (`podcast bootstrap --component speaker-ecapa`, ~80 MB, or **Download speaker model** in the Split speakers dialog; #1998). It runs on `onnxruntime`, which is a core dependency, so there is no speaker extra. Without the downloaded model, the commands that embed audio (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute` and `split`) and the Split speakers dialog refuse instead of running. A missing or stale ONNX model is `model_needed` (HTTP 409; the message names `podcast bootstrap --component speaker-ecapa`, with `--upgrade` for a stale file). `speaker_backend_unavailable` stays for what a download cannot fix: a `PODCAST_MCP_SPEAKER_ECAPA_MODEL` override that is missing or does not load. Its message names the override variable. `doctor` still lists the ONNX backend as unavailable in both cases; `doctor`, `profiles`, `set-speaker-count` and `move-lane-span` do not need the default backend and still run. A developer or test run opts in with `PODCAST_SPEAKER_BACKEND=mock` or `backend="mock"`; Split speakers still refuses the mock. `podcast speaker doctor` lists the mock only under that opt-in (#1999).
 
-Without either extra, and without the downloaded ONNX model (`podcast bootstrap --component speaker-ecapa`, ~80 MB; the packaged app ships no torch, so this is its route, #1998), the commands that embed audio (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute` and `split`) and the Split speakers dialog refuse instead of running. A missing or stale ONNX model is `model_needed` (HTTP 409; the message names `podcast bootstrap --component speaker-ecapa`, with `--upgrade` for a stale file). `speaker_backend_unavailable` stays for what a download cannot fix: a `PODCAST_MCP_SPEAKER_ECAPA_MODEL` override that is missing or does not load, or no backend and no model problem. `doctor` still lists the ONNX backend as unavailable in both cases; `doctor`, `profiles`, `set-speaker-count` and `move-lane-span` do not need the default backend and still run. The development mock is never a fallback. A developer or test run opts in with `PODCAST_SPEAKER_BACKEND=mock` or `backend="mock"`; Split speakers still refuses the mock. `podcast speaker doctor` lists the mock only under that opt-in (#1999).
+**Profiles from the Resemblyzer era must be enrolled again.** The Resemblyzer backend is gone. Its embeddings have 256 values and ECAPA's have 192, so a profile enrolled with it does not match: scoring stops with `speaker_profile_outdated`, naming the profile, until you enroll that speaker again (`podcast speaker enroll`, or the enrollment spans of Split speakers). Profiles enrolled with SpeechBrain ECAPA keep working, because the ONNX model gives the same embeddings (cosine 1.0).
 
 ## Standalone CLI
 
@@ -58,7 +55,7 @@ To keep one lane and only label words, enroll segment profiles with distinct `sp
 
 ## When the pipeline runs it
 
-Inside `precorrect_transcript` when `analysis.speaker_id.mode` is `auto` (product default) or `always` and bleed thresholds are met. `never` skips entirely (CI / no torch).
+Inside `precorrect_transcript` when `analysis.speaker_id.mode` is `auto` (product default) or `always` and bleed thresholds are met. `never` skips entirely (CI / no speaker model).
 
 ```yaml
 analysis:
@@ -99,4 +96,4 @@ Bleed mute uses enrolled profiles to keep owner speech open across short inter-w
 
 ## Prove-out
 
-Integration tests marked `@pytest.mark.speaker` require `[speaker]`. On real fixtures, verify `compare` discriminates known bleed windows before claiming cleanup success.
+Real-model checks set `PODCAST_TEST_ECAPA_ONNX` to the downloaded ONNX file. On real fixtures, verify `compare` discriminates known bleed windows before claiming cleanup success.

@@ -310,85 +310,35 @@ def test_pin_and_override_misuse_are_reported(
         speaker_ecapa.bootstrap_speaker_ecapa()
 
 
-def _compare_script():
-    import importlib.util
-
-    root = Path(__file__).resolve().parents[1]
-    spec = importlib.util.spec_from_file_location(
-        "compare_speaker_backends", root / "scripts" / "compare_speaker_backends.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_compare_script_windows_fit_word_length_regions_after_merging() -> None:
-    script = _compare_script()
-    words = [(0.0, 1.0), (1.2, 2.1), (2.3, 3.4), (10.0, 10.5)]
-    merged = script._merge(words)
-    assert merged == [(0.0, 3.4), (10.0, 10.5)]
-    # unmerged word-length regions never hold a 3 s window; the merged speech does
-    assert script._windows(words, 40) == []
-    assert script._windows(merged, 40) == [(0.0, 3.0)]
-    many = [(float(i) * 10, float(i) * 10 + 9.0) for i in range(30)]
-    assert len(script._windows(many, 5)) == 5
-
-
-def _chain_env(monkeypatch: pytest.MonkeyPatch, *, onnx: bool, speechbrain: bool, lite: bool):
-    """Which of the three real backends this machine could build."""
-    import sys
-    import types
-
+def _model_state(monkeypatch: pytest.MonkeyPatch, *, ready: bool) -> None:
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.setattr(
-        speaker_ecapa, "speaker_ecapa_problem", lambda **_: None if onnx else "not downloaded"
+        speaker_ecapa, "speaker_ecapa_problem", lambda **_: None if ready else "not downloaded"
     )
-    if speechbrain:
-        monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
-        inference = types.ModuleType("speechbrain.inference.speaker")
-        inference.EncoderClassifier = object  # type: ignore[attr-defined]
-        monkeypatch.setitem(sys.modules, "speechbrain", types.ModuleType("speechbrain"))
-        monkeypatch.setitem(sys.modules, "speechbrain.inference", types.ModuleType("x"))
-        monkeypatch.setitem(sys.modules, "speechbrain.inference.speaker", inference)
-    else:
-        monkeypatch.setitem(sys.modules, "torch", None)
-
-    def encoder() -> object:
-        if not lite:
-            raise ImportError("no resemblyzer", name="resemblyzer")
-        return object
-
-    monkeypatch.setattr(speaker_id, "_import_voice_encoder", encoder)
 
 
-def test_auto_backend_walks_onnx_then_speechbrain_then_resemblyzer_then_unavailable(
+def test_auto_backend_is_the_onnx_model_or_the_model_missing_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    order = []
-    for onnx, speechbrain, lite in [
-        (True, True, True),
-        (False, True, True),
-        (False, False, True),
-    ]:
-        _chain_env(monkeypatch, onnx=onnx, speechbrain=speechbrain, lite=lite)
-        order.append(speaker_id.resolve_speaker_backend("auto").name())
-    assert order == ["ecapa-onnx", "speechbrain-ecapa", "resemblyzer"]
-    _chain_env(monkeypatch, onnx=False, speechbrain=False, lite=False)
-    with pytest.raises(speaker_id.SpeakerBackendUnavailable):
+    _model_state(monkeypatch, ready=True)
+    assert speaker_id.resolve_speaker_backend("auto").name() == "ecapa-onnx"
+    _model_state(monkeypatch, ready=False)
+    with pytest.raises(speaker_id.SpeakerModelMissing):
         speaker_id.resolve_speaker_backend("auto")
 
 
-def test_a_user_model_that_does_not_load_falls_through_in_auto(
+def test_a_user_model_that_does_not_load_is_unavailable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     junk = tmp_path / "junk.onnx"
     junk.write_bytes(b"not a model")
-    _chain_env(monkeypatch, onnx=True, speechbrain=False, lite=True)
+    _model_state(monkeypatch, ready=True)
     monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(junk))
-    assert speaker_id.resolve_speaker_backend("auto").name() == "resemblyzer"
-    with pytest.raises(ImportError, match="override does not load"):
+    with pytest.raises(speaker_id.SpeakerBackendUnavailable) as auto:
+        speaker_id.resolve_speaker_backend("auto")
+    assert not isinstance(auto.value, speaker_id.SpeakerModelMissing)
+    with pytest.raises(ImportError, match="PODCAST_MCP_SPEAKER_ECAPA_MODEL"):
         speaker_id.resolve_speaker_backend("ecapa-onnx")
 
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from podcast_mcp.engines import speaker_id
@@ -23,29 +23,24 @@ from podcast_mcp.util.model_missing import ModelMissing
 
 
 @pytest.fixture
-def no_real_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """No torch/speechbrain, no resemblyzer, no mock opt-in, and a speaker model override
-    that does not load, so a download is not what is missing."""
+def unloadable_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     junk = tmp_path / "junk.onnx"
     junk.write_bytes(b"not a model")
     monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(junk))
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
-    monkeypatch.setitem(sys.modules, "torch", None)
-
-    def missing() -> object:
-        raise ImportError("no resemblyzer", name="resemblyzer")
-
-    monkeypatch.setattr(speaker_id, "_import_voice_encoder", missing)
 
 
-def test_auto_without_a_real_backend_is_unavailable(no_real_backend: None) -> None:
+def test_an_override_that_does_not_load_is_unavailable_and_names_the_variable(
+    unloadable_override: None,
+) -> None:
     for name in (None, "auto"):
         with pytest.raises(SpeakerBackendUnavailable) as caught:
             resolve_speaker_backend(name)
         assert caught.value.code == "speaker_backend_unavailable"
-        assert "isn't available on this computer" in str(caught.value)
+        assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in str(caught.value)
+        assert "Download" not in str(caught.value)
         assert isinstance(caught.value, ImportError)
-    assert not isinstance(caught.value, ModelMissing)
+        assert not isinstance(caught.value, ModelMissing)
 
 
 @pytest.fixture
@@ -54,12 +49,6 @@ def no_model_no_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
     monkeypatch.delenv(speaker_id.MOCK_BACKEND_ENV, raising=False)
     monkeypatch.delenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", raising=False)
     monkeypatch.setattr(speaker_ecapa, "models_dir", lambda: tmp_path / "models")
-    monkeypatch.setitem(sys.modules, "torch", None)
-
-    def missing() -> object:
-        raise ImportError("no resemblyzer", name="resemblyzer")
-
-    monkeypatch.setattr(speaker_id, "_import_voice_encoder", missing)
 
 
 @pytest.mark.parametrize("name", [None, "auto", "ecapa-onnx"])
@@ -105,7 +94,7 @@ def test_an_override_that_is_missing_is_never_a_download(
 
 
 def test_the_mock_is_still_there_when_asked_for(
-    no_real_backend: None, monkeypatch: pytest.MonkeyPatch
+    unloadable_override: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert isinstance(resolve_speaker_backend("mock"), MockSpeakerBackend)
     assert isinstance(resolve_speaker_backend(prefer_mock=True), MockSpeakerBackend)
@@ -113,7 +102,7 @@ def test_the_mock_is_still_there_when_asked_for(
     assert isinstance(resolve_speaker_backend(), MockSpeakerBackend)
 
 
-def test_doctor_does_not_offer_the_mock_as_a_backend(no_real_backend: None) -> None:
+def test_doctor_does_not_offer_the_mock_as_a_backend(unloadable_override: None) -> None:
     assert speaker_doctor() == {"available_backends": [], "recommended": None}
 
 
@@ -125,7 +114,7 @@ def _service(tmp_path: Path) -> SpeakerService:
     return SpeakerService(ProjectWorkspace.open(path))
 
 
-def test_service_calls_report_unavailable(no_real_backend: None, tmp_path: Path) -> None:
+def test_service_calls_report_unavailable(unloadable_override: None, tmp_path: Path) -> None:
     service = _service(tmp_path)
     with pytest.raises(SpeakerBackendUnavailable) as caught:
         service.enroll(track_id="host", speaker_id="Ann", start_sec=0.0, end_sec=3.0)
@@ -133,10 +122,25 @@ def test_service_calls_report_unavailable(no_real_backend: None, tmp_path: Path)
 
 
 def test_audition_context_leaves_speaker_roles_out(
-    no_real_backend: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    unloadable_override: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from podcast_mcp.edits import audition_context
 
     project = EpisodeProject.create("spk_unavailable", str(tmp_path))
     monkeypatch.setattr(speaker_id, "load_all_profiles", lambda _project: {"Ann": object()})
     assert audition_context._speaker_roles_for_window(project, ["host"], 0.0, 1.0) is None
+
+
+def test_a_profile_from_a_removed_model_stops_scoring_and_says_to_enroll_again() -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    old = speaker_id.SpeakerProfile(
+        speaker_id="Ann",
+        track_id="a",
+        embedding=[0.1] * 256,
+        enrollment_sec=8.0,
+        stem_hash="x",
+    )
+    with pytest.raises(CodedValueError, match=r"'Ann'.*enroll that speaker again") as caught:
+        speaker_id._rank_scores(np.ones(192, dtype=np.float32), {"Ann": old})
+    assert caught.value.code == "speaker_profile_outdated"

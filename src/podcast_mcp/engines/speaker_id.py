@@ -4,8 +4,6 @@ import glob
 import json
 import logging
 import re
-import sys
-import types
 import wave
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -133,17 +131,25 @@ MOCK_BACKEND_ENV = "PODCAST_SPEAKER_BACKEND"
 """Set to ``mock`` to let a bare ``resolve_speaker_backend()`` use the development mock."""
 
 
-class SpeakerBackendUnavailable(CodedValueError, ImportError):
-    """No real speaker backend can be imported here (the packaged app ships none)."""
+SPEAKER_UNAVAILABLE_MESSAGE = (
+    "Speaker recognition isn't available on this computer. "
+    "In the Split speakers dialog, choose Download speaker model "
+    "(or run podcast bootstrap --component speaker-ecapa)."
+)
 
+
+def _override_unusable(reason: object) -> SpeakerBackendUnavailable:
+    return SpeakerBackendUnavailable(
+        "The speaker model file set in PODCAST_MCP_SPEAKER_ECAPA_MODEL cannot be used "
+        f"({reason}). Point it at a working ONNX file or unset it; downloading will not help."
+    )
+
+
+class SpeakerBackendUnavailable(CodedValueError, ImportError):
     code = "speaker_backend_unavailable"
 
     def __init__(self, message: str | None = None) -> None:
-        super().__init__(
-            message
-            or "Speaker recognition isn't available on this computer. "
-            "See the speaker setup instructions to enable it."
-        )
+        super().__init__(message or SPEAKER_UNAVAILABLE_MESSAGE)
 
 
 class SpeakerModelMissing(ModelMissing, SpeakerBackendUnavailable):
@@ -186,32 +192,6 @@ class MockSpeakerBackend:
         return vec
 
 
-class SpeechBrainBackend:
-    def __init__(self) -> None:
-        self._classifier = None
-
-    def name(self) -> str:
-        return "speechbrain-ecapa"
-
-    def _load(self):
-        if self._classifier is None:
-            from speechbrain.inference.speaker import EncoderClassifier
-
-            self._classifier = EncoderClassifier.from_hparams(
-                source="speechbrain/spkrec-ecapa-voxceleb",
-                savedir=None,
-            )
-        return self._classifier
-
-    def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
-        import torch
-
-        classifier = self._load()
-        tensor = torch.tensor(samples, dtype=torch.float32).unsqueeze(0)
-        emb = classifier.encode_batch(tensor)
-        return emb.squeeze().detach().cpu().numpy().astype(np.float32)
-
-
 class OnnxEcapaBackend:
     """ECAPA embeddings from the pinned ONNX export; needs onnxruntime, not torch (#1998)."""
 
@@ -234,73 +214,6 @@ class OnnxEcapaBackend:
 # Shortest span worth embedding: below it the pinned networks cannot pad the input.
 _MIN_EMBED_SEC = 0.05
 
-_WEBRTCVAD_IMPORT_FAILURES = frozenset({"webrtcvad", "pkg_resources"})
-
-
-def _unavailable_webrtcvad(name: str) -> Any:
-    if name.startswith("__"):
-        raise AttributeError(name)
-    raise ImportError(
-        f"webrtcvad.{name} is unavailable: webrtcvad does not import in this environment, "
-        "so silence trimming via resemblyzer.preprocess_wav cannot run. "
-        "ShareCut only uses the voice encoder."
-    )
-
-
-def _import_voice_encoder() -> Any:
-    """Import resemblyzer's VoiceEncoder, tolerating a webrtcvad that cannot import.
-
-    resemblyzer imports webrtcvad at module scope for `preprocess_wav`'s silence
-    trimming, which this repo never calls. webrtcvad 2.0.10 imports `pkg_resources`,
-    which setuptools 82 removed. Only when that import fails, and no `webrtcvad` is
-    already loaded, a placeholder stands in for the duration of the import. Any other
-    ImportError, including resemblyzer not being installed, propagates unchanged.
-    """
-    try:
-        return _resemblyzer_voice_encoder()
-    except ImportError as exc:
-        if exc.name not in _WEBRTCVAD_IMPORT_FAILURES or "webrtcvad" in sys.modules:
-            raise
-        sys.modules["webrtcvad"] = _webrtcvad_placeholder()
-        try:
-            return _resemblyzer_voice_encoder()
-        finally:
-            sys.modules.pop("webrtcvad", None)
-
-
-def _webrtcvad_placeholder() -> types.ModuleType:
-    placeholder = types.ModuleType("webrtcvad")
-    placeholder.__dict__["__getattr__"] = _unavailable_webrtcvad
-    return placeholder
-
-
-def _resemblyzer_voice_encoder() -> Any:
-    from resemblyzer import VoiceEncoder
-
-    return VoiceEncoder
-
-
-class ResemblyzerBackend:
-    def __init__(self) -> None:
-        self._encoder = None
-
-    def name(self) -> str:
-        return "resemblyzer"
-
-    def _load(self):
-        if self._encoder is None:
-            self._encoder = _import_voice_encoder()(verbose=False)
-        return self._encoder
-
-    def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
-        encoder = self._load()
-        if sample_rate != 16000:
-            ratio = 16000 / sample_rate
-            idx = (np.arange(int(samples.size * ratio)) / ratio).astype(int)
-            idx = np.clip(idx, 0, samples.size - 1)
-            samples = samples[idx]
-        return encoder.embed_utterance(samples).astype(np.float32)
-
 
 def resolve_speaker_backend(
     backend_name: str | None = None,
@@ -312,54 +225,32 @@ def resolve_speaker_backend(
     name = (backend_name or "auto").lower()
     if name == "mock":
         return MockSpeakerBackend()
-    if name in ("ecapa-onnx", "ecapa", "auto"):
-        from podcast_mcp.engines.models.speaker_ecapa import (
-            speaker_ecapa_override,
-            speaker_ecapa_problem,
-        )
+    if name not in ("ecapa-onnx", "auto"):
+        raise ImportError(f"speaker backend unavailable: {name}")
+    from podcast_mcp.engines.models.speaker_ecapa import (
+        speaker_ecapa_override,
+        speaker_ecapa_problem,
+    )
 
-        problem = speaker_ecapa_problem(memoize=True)
-        if problem is None:
-            onnx = OnnxEcapaBackend()
-            if speaker_ecapa_override() is None:
-                return onnx  # the pinned file is hash-checked; a user's own file is not
-            try:
-                onnx.check_loads()
-                return onnx
-            except Exception as exc:
-                log.warning("speaker model override does not load (%s)", exc)
-                if name == "ecapa-onnx":
-                    raise ImportError(
-                        f"speaker backend unavailable: {name} (override does not load: {exc})"
-                    ) from exc
-        if name == "ecapa-onnx":
-            if problem is not None and speaker_ecapa_override() is None:
-                raise _speaker_model_missing()
-            raise ImportError(f"speaker backend unavailable: {name} ({problem})")
-    if name in ("speechbrain", "ecapa", "auto"):
+    problem = speaker_ecapa_problem(memoize=True)
+    override = speaker_ecapa_override()
+    if problem is None:
+        onnx = OnnxEcapaBackend()
+        if override is None:
+            return onnx  # the pinned file is hash-checked; a user's own file is not
         try:
-            import torch  # noqa: F401
-            from speechbrain.inference.speaker import EncoderClassifier  # noqa: F401
-
-            return SpeechBrainBackend()
-        except ImportError:
-            pass
-    if name in ("resemblyzer", "lite", "auto"):
-        try:
-            _import_voice_encoder()
-
-            return ResemblyzerBackend()
-        except ImportError:
-            pass
-    if name == "auto":
-        # The mock's embeddings are made up. Only an explicit request gets them, so a
-        # build without a real backend reports "unavailable" instead of a made-up result.
-        if settings.text(MOCK_BACKEND_ENV).lower() == "mock":
-            return MockSpeakerBackend()
-        if speaker_ecapa_problem(memoize=True) is not None and speaker_ecapa_override() is None:
-            raise _speaker_model_missing()
-        raise SpeakerBackendUnavailable()
-    raise ImportError(f"speaker backend unavailable: {name}")
+            onnx.check_loads()
+            return onnx
+        except Exception as exc:
+            log.warning("speaker model override does not load (%s)", exc)
+            problem = str(exc)
+    # The mock's embeddings are made up. Only an explicit request gets them, so a
+    # build without the model reports "unavailable" instead of a made-up result.
+    if name == "auto" and settings.text(MOCK_BACKEND_ENV).lower() == "mock":
+        return MockSpeakerBackend()
+    if override is None:
+        raise _speaker_model_missing()
+    raise _override_unusable(problem)
 
 
 def _stem_path_and_source(project: EpisodeProject, track_id: str) -> tuple[Path | None, str | None]:
@@ -658,6 +549,13 @@ def _rank_scores(
 ) -> tuple[dict[str, float], str, float, str]:
     scores: dict[str, float] = {}
     for sid, prof in profiles.items():
+        if len(prof.embedding) != emb.shape[-1]:
+            raise CodedValueError(
+                f"Speaker profile {sid!r} has {len(prof.embedding)} embedding values but the "
+                f"speaker model gives {emb.shape[-1]}. It was enrolled with a different speaker "
+                "model: enroll that speaker again.",
+                code="speaker_profile_outdated",
+            )
         scores[sid] = _cosine_similarity(emb, np.array(prof.embedding, dtype=np.float32))
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     best_id, best_score = ranked[0]
@@ -1284,10 +1182,9 @@ def run_speaker_attribution(
 
 
 def speaker_doctor() -> dict[str, Any]:
-    priority = ("ecapa-onnx", "speechbrain-ecapa", "resemblyzer", "mock")
     available: list[str] = []
     # The mock is listed only when it was opted into: it is not a backend to recommend.
-    names = ["ecapa-onnx", "speechbrain", "resemblyzer"]
+    names = ["ecapa-onnx"]
     if settings.text(MOCK_BACKEND_ENV).lower() == "mock":
         names.append("mock")
     for name in names:
@@ -1297,7 +1194,7 @@ def speaker_doctor() -> dict[str, Any]:
                 available.append(b.name())
         except ImportError:
             pass
-    recommended = next((p for p in priority if p in available), None)
+    recommended = available[0] if available else None
     return {
         "available_backends": available,
         "recommended": recommended,

@@ -918,8 +918,10 @@ def test_precorrect_speaker_import_error(tmp_path) -> None:
     with patch.dict("sys.modules", {"podcast_mcp.engines.speaker_id": None}):
         result = run_precorrect_transcript(p, dry_run=True, context=ctx, defaults=load_defaults())
 
-    assert result.speaker_skipped_reason == "speaker extra not installed"
-    assert result.report["speaker_attribution"]["skipped_reason"] == "speaker extra not installed"
+    assert result.speaker_skipped_reason == "speaker recognition unavailable"
+    assert (
+        result.report["speaker_attribution"]["skipped_reason"] == "speaker recognition unavailable"
+    )
 
 
 def test_precorrect_speaker_model_missing_names_the_model_not_the_extra(tmp_path) -> None:

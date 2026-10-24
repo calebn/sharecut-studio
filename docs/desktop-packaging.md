@@ -112,7 +112,7 @@ Home screen shows a bootstrap wizard when FFmpeg or Whisper is missing:
 Default speech model is **large-v3-turbo**. Users can pick a smaller size in the wizard or via `./install.sh --whisper-model` / `podcast bootstrap --whisper-model`.
 
 First run checks the bundled FFmpeg pair and downloads Whisper, with optional RNNoise.
-Torch / speaker / joinqc are **not** exposed in the GUI.
+Torch / joinqc are **not** exposed in the GUI.
 
 **Open project:** ShareCut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
 
