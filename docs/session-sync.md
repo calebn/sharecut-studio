@@ -313,6 +313,102 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 
 **Process boundary:** host MCP (`http://127.0.0.1:8765/mcp`) and GUI routes run in-process and fan out immediately over the socket. Stdio `podcast-mcp` hands each tool call that takes `project_path` (or uses the `PODCAST_MCP_PROJECT` default) to the Studio serving it (#1753, `mcp/studio_handoff.py`; [gui-integration.md](gui-integration.md)), so a stdio mutation runs in the Studio process and fans out at once like a host MCP one (`tests/test_mcp_studio_handoff.py` holds an open Studio socket and sees the `Applied` frame, #1848); only with no Studio serving the project, a Studio that cannot be reached before the call is sent, or `PODCAST_NO_STUDIO_HANDOFF=1` does it run in its own process. The `podcast session` / `podcast play` CLIs, `podcast record land` / `discard-take`, the `podcast edit` bleed apply commands and that fallback run in a separate process; they journal to the shared `artifacts/session/` stores, and the GUI process's cross-process watcher pushes those rows to open tabs within about `CROSS_PROCESS_POLL_S` (0.5 s) while any document/session/guest socket is open (#695). The 30 s sanity poll and the focus/visibility check remain the net for a write that advances no journal seq, and for a watcher read error.
 
+### CLI edit journal ownership
+
+`add-chapter` submits the existing `AddChapter` command. Other newly covered edits
+keep their service validation, audio checks, override attribution, and history.
+`apply_external_document_edit` samples the canonical project before and after a
+successful service call under project ownership. It attempts one
+`after_agent_mutation` notification when saved state changes, after that ownership
+interval ends. It adds no save or history entry. Audio work holds no SQLite journal
+write transaction. The helper is for synchronous commit-complete service calls;
+it does not classify a job or typed submit that already owns notification.
+
+A row means that saved state changed. Zero accepted cuts can still save a history
+baseline or pending-proposal speech metadata. Those changes can move Studio's
+History cursor, head, and Undo availability, so they receive a row. A fully
+initialized, unchanged held approval receives none. The CLI preserves its held
+message and exit status, including an exit of 1 after a successful service return.
+A restored confirmation or a raised service failure receives no new external row.
+Explicit previews and dry-runs receive none. Existing typed submits and audio jobs
+retain their own successful no-op journal policy.
+
+Saving and external publication remain separate critical sections. Another writer
+can commit between them, and publication can fail or the process can exit after
+save. Notification is best effort and can describe a newer combined state. This
+boundary does not provide crash-safe exactly-once delivery.
+
+The table covers all registered `podcast edit` commands. `External` means the
+state-aware service boundary above. `Typed` and `Audio job` each retain sole
+notification ownership. Read and artifact operations write no document row.
+Moving an audio-changing operation to typed submission also requires proof that
+its automatic reconciliation path performs no decode under the SQLite write lock.
+The existing service path avoids that new lock contract in this sweep.
+
+| CLI edit command | Journal owner | Contract |
+| --- | --- | --- |
+| `inspect-clip-bleed` | None | Read or analysis only. |
+| `restore-clip-bleed` | Typed `RestoreClipBleed` | One command row; no external notification. |
+| `search` | None | Read or analysis only. |
+| `cut-range` | External | Preserve waveform planning and staging semantics outside the journal write lock. |
+| `cut-text` | External | Preserve created count, lookup metadata, and waveform planning. |
+| `cut-utterance` | External | Preserve utterance lookup and waveform planning. |
+| `approve` | External | Preserve exact-range permission, partial holds, CLI override stamp, and output. |
+| `held` | None | Read or analysis only. |
+| `apply-suggested` | External | Preserve batch history, revise, held metadata, and CLI override stamp. |
+| `reject` | External | Preserve exact-range permission and removed count. |
+| `list` | None | Read or analysis only. |
+| `impact` | None | Read or analysis only. |
+| `transcript` | None | Read or analysis only. |
+| `preview-cut` | None | Read or analysis only. |
+| `suggest-handoff-cut` | None | Read or analysis only. |
+| `join-quality` | None | Read or analysis only. |
+| `join-sweep` | None | Read or analysis only. |
+| `join-label` | None | Artifact only. |
+| `join-train` | None | Artifact only. |
+| `strip-silence` | External | No matching typed command; preserve audio analysis. |
+| `ripple-delete` | External | Preserve both targeting modes, cut checks, and override disabling optimization. |
+| `move` | External | Keep both existing service paths and audio-mutation reconciliation outside the journal lock. |
+| `move-clips` | External | Preserve raw placement validation and domain errors. |
+| `delete-clips` | Typed `DeleteClip` | One command row; no external notification. |
+| `propose-range-cut` | Typed `EditSelectedRange` | One command row; no external notification. |
+| `copy-segment` | None | Read or analysis only. |
+| `paste-segment` | Typed `PasteSegment` | One command row; no external notification. |
+| `insert-gap` | External | Preserve domain numeric validation. |
+| `fade-joins` | External | Default fade recommendation decodes audio; explicit dry-run has no row. |
+| `crossfade-joins` | External | Keep the audio-mutation reconciliation path outside the journal lock; dry-run has no row. |
+| `set-clip-join` | External | Preserve mode and length validation at the service boundary. |
+| `trim-clip` | External | Keep token lookup and guarded application under one project transaction. |
+| `roll-join` | Typed `RollClipJoin` | One command row; no external notification. |
+| `add-chapter` | Typed `AddChapter` | One command row; no external notification. |
+| `remove-chapter` | External | Remove all matching titles; typed DeleteChapter targets one time and title. |
+| `list-chapters` | None | Read or analysis only. |
+| `list-clips` | None | Read or analysis only. |
+| `list-applied` | None | Read or analysis only. |
+| `render-status` | None | Read or analysis only. |
+| `shorten-gaps` | External | No matching typed command; preserve planning, unchanged, and held behavior. |
+| `analyze-cleanup` | None | Read or analysis only. |
+| `audio-diagnostics` | None | Read or analysis only. |
+| `recommend-fades` | None | Read or analysis only. |
+| `low-audibility` | None | Read or analysis only. |
+| `suppress-low-audibility` | Typed `SuppressLowAudibility` | One command row; no external notification. |
+| `gate-overreach` | None | Read or analysis only. |
+| `audibility-map` | None | Read or analysis only. |
+| `flagged-words` | None | Read or analysis only. |
+| `reconciliation-status` | None | Read or analysis only. |
+| `reconcile-transcript` | External | Preserve progress and tri-state policy; explicit dry-run has no row. |
+| `bleed-words` | None | Read or analysis only. |
+| `suppress-bleed` | Typed `SuppressBleed` | One applying command row; explicit dry-run has none. |
+| `apply-bleed-mute` | Audio job | Existing run_audio_edit owner; explicit dry-run has no row. |
+| `mute-off-speaker` | Audio job | Existing run_audio_edit owner; explicit dry-run has no row. |
+| `overlap-duplicates` | None | Read or analysis only. |
+| `align-retained-bleed` | Audio job | Existing run_audio_edit owner; explicit dry-run has no row. |
+| `bleed-alignment-choice` | Typed `SetBleedAlignmentMode` | One command row; no external notification. |
+
+The adjacent top-level `propose-edits` and `apply-edits` aliases use the same
+external boundary. Proposal generation saves before advisory approval checks;
+auto application with no saved change adds no row. `edit-context` remains read-only.
+
 ### Cross-process bridge (#695)
 
 Each host document/session socket and the guest `/daw/ws` socket leases the process-wide `CrossProcessBridge` through the `cross_process_lease(ws)` async context manager. The socket enters it right after `hub.subscribe(...)` and before its hello snapshot, so a foreign write landing in between is either in that snapshot or published by the watcher. The context manager acquires off the event loop and releases in its own `finally`, even when another cleanup step raises or the socket task is cancelled mid-acquire. The lease is refcounted per workspace: one daemon thread polls a workspace's `sync.db` and `document.db` only while at least one socket holds a lease, and the last release stops it, so an idle project (no open tab) does no watcher work. The GUI app's lifespan calls `cross_process_bridge().stop_all()` on shutdown. The live-recording socket holds no lease, because only the GUI process writes record state and `podcast record land` writes through the session journal, which the session watcher already follows.
