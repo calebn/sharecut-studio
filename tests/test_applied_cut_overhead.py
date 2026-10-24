@@ -338,9 +338,7 @@ def test_cut_copy_matches_a_word_by_word_shared_copy(count, archived, tracked):
             for a, b in zip(made.archived_words, source.archived_words, strict=True)
         ] == [True] * len(source.archived_words)
         assert made.archived_words is not source.archived_words
-        assert all(
-            a is not b for a, b in zip(made.archived_words, source.archived_words, strict=True)
-        )
+        assert all(a is b for a, b in zip(made.archived_words, source.archived_words, strict=True))
         if isinstance(made.words, TranscriptWords):
             assert made.words._memo == {}
             assert made.words._memo is not source.words._memo
