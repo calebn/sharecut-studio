@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import copy
+import typing
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
-from podcast_mcp.edits.cut_application import _cut_copy
+from cut_copy_fields import SHARED_FIELDS
+from podcast_mcp.edits.cut_application import _SECTION_COPIES, _cut_copy
 from podcast_mcp.models import (
     AppliedEditRecord,
     ArchivedTranscriptWord,
@@ -144,7 +148,7 @@ def _check(verdict: str, original: Any, made: Any, where: str) -> None:
 
 
 def test_every_project_section_has_a_copy_verdict():
-    assert set(TOP) == set(EpisodeProject.model_fields), (
+    assert set(_SECTION_COPIES) == set(EpisodeProject.model_fields) == set(TOP), (
         "a project section was added or removed: decide in TOP (and _cut_copy) whether a cut "
         "may write it before it is shared or copied"
     )
@@ -154,7 +158,7 @@ def test_every_project_section_has_a_copy_verdict():
             f"{model.__name__} gained or lost a field: decide in NESTED (and _cut_copy) "
             "whether a cut may write it"
         )
-    assert {v for v in TOP.values()} <= {"scalar", "shared", "shell"}
+    assert set(TOP.values()) <= {"scalar", "shared", "shell"}
     assert set(TOP) >= set(NESTED)
     assert {name for name, v in TOP.items() if v == "shell"} == set(NESTED)
 
@@ -224,4 +228,80 @@ def test_cut_copy_deep_copies_the_timeline_objects_a_cut_edits_in_place(section)
     made = _cut_copy(project)
     assert all(
         a is not b for a, b in zip(getattr(made, section), getattr(project, section), strict=True)
+    )
+
+
+def _models_in(annotation: Any) -> list[type[BaseModel]]:
+    found = (
+        [annotation] if isinstance(annotation, type) and issubclass(annotation, BaseModel) else []
+    )
+    for arg in typing.get_args(annotation):
+        found += _models_in(arg)
+    return found
+
+
+def shared_field_names() -> set[str]:
+    """``Model.field`` for every model a cut can reach through a section it shares.
+
+    That is the shared sections, the items of the lists the copy only re-containers, the
+    nested models of a shallow-copied decision, and the words a transcript holds.
+    """
+    roots: list[type[BaseModel]] = []
+    for name, verdict in TOP.items():
+        if verdict == "shared":
+            roots += _models_in(EpisodeProject.model_fields[name].annotation)
+    sections = {
+        "meta": type(EpisodeProject.create("t", "/tmp/t").meta),
+        "editorial": type(EpisodeProject.create("t", "/tmp/t").editorial),
+        "transcript_data": type(EpisodeProject.create("t", "/tmp/t").transcript_data),
+        "review": type(EpisodeProject.create("t", "/tmp/t").review),
+    }
+    for name, model in sections.items():
+        for field, verdict in NESTED[name].items():
+            if verdict in {"shared", "list", "items"}:
+                roots += [
+                    m
+                    for m in _models_in(model.model_fields[field].annotation)
+                    if m is not EditDecision
+                ]
+    roots += [
+        model
+        for field in EditDecision.model_fields.values()
+        for model in _models_in(field.annotation)
+    ]
+    roots += [TranscriptWord, ArchivedTranscriptWord]
+    names: set[str] = set()
+    seen: set[type[BaseModel]] = set()
+    while roots:
+        model = roots.pop()
+        if model in seen:
+            continue
+        seen.add(model)
+        names |= {f"{model.__name__}.{field}" for field in model.model_fields}
+        for field in model.model_fields.values():
+            roots += _models_in(field.annotation)
+    return names
+
+
+def test_a_new_field_inside_a_shared_section_needs_a_verdict():
+    listed = {
+        f"{model}.{field}" for model, fields in SHARED_FIELDS.items() for field in fields.split()
+    }
+    assert shared_field_names() == listed, (
+        "a model reachable through a section _cut_copy shares gained or lost a field: if a source "
+        "cut can write it, copy it in _SECTION_COPIES; otherwise add it to SHARED_FIELDS"
+    )
+
+
+@pytest.mark.parametrize("make", [lambda: EpisodeProject.create("t", "/tmp/t"), populated])
+def test_cut_copy_leaves_which_fields_were_set_as_they_were(make):
+    project = make()
+    made = _cut_copy(project)
+    assert made.model_dump(exclude_unset=True) == project.model_dump(exclude_unset=True)
+    assert made.model_dump(exclude_unset=True) == copy.deepcopy(project).model_dump(
+        exclude_unset=True
+    )
+    assert made.__pydantic_fields_set__ == project.__pydantic_fields_set__
+    assert made.transcript_data.__pydantic_fields_set__ == (
+        project.transcript_data.__pydantic_fields_set__
     )

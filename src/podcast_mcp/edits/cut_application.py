@@ -6,7 +6,9 @@ import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety, suggested_actions
@@ -402,63 +404,71 @@ def _apply_replace_gap_pad(
     return samples
 
 
+_M = TypeVar("_M", bound=BaseModel)
+
+
+def _replaced(model: _M, **fields: Any) -> _M:
+    """A shallow copy with ``fields`` swapped in, leaving ``model_fields_set`` as it was.
+
+    ``model_copy(update=...)`` marks every updated field as set, which changes
+    ``exclude_unset`` dumps; a deep copy does not.
+    """
+    copied = model.model_copy()
+    copied.__dict__.update(fields)
+    return copied
+
+
 def _shared(section: Any) -> Any:
     return section
 
 
 def _meta_copy(meta: ProjectMeta) -> ProjectMeta:
     alignment = meta.ingest_alignment
-    return meta.model_copy(
-        update={"ingest_alignment": None if alignment is None else dict(alignment)}
-    )
+    return _replaced(meta, ingest_alignment=None if alignment is None else dict(alignment))
 
 
 def _timeline_copy(timeline: TimelineSection) -> TimelineSection:
-    return timeline.model_copy(
-        update={"tracks": copy.deepcopy(timeline.tracks), "clips": copy.deepcopy(timeline.clips)}
+    return _replaced(
+        timeline, tracks=copy.deepcopy(timeline.tracks), clips=copy.deepcopy(timeline.clips)
     )
 
 
 def _editorial_copy(editorial: EditorialSection) -> EditorialSection:
-    return editorial.model_copy(
-        update={
-            "edit_decisions": [decision.model_copy() for decision in editorial.edit_decisions],
-            "edit_log": list(editorial.edit_log),
-            "chapters": list(editorial.chapters),
-        }
+    return _replaced(
+        editorial,
+        # shallow copies: _apply_auto_removes rewrites the decisions it applied after the cut
+        edit_decisions=[decision.model_copy() for decision in editorial.edit_decisions],
+        edit_log=list(editorial.edit_log),
+        chapters=list(editorial.chapters),
     )
 
 
 def _transcripts_copy(section: TranscriptsSection) -> TranscriptsSection:
-    return section.model_copy(
-        update={
-            "per_track": [
-                transcript.model_copy(
-                    update={
-                        "words": copy.copy(transcript.words),
-                        "archived_words": list(transcript.archived_words),
-                    }
-                )
-                for transcript in section.per_track
-            ]
-        }
+    return _replaced(
+        section,
+        per_track=[
+            _replaced(
+                transcript,
+                words=copy.copy(transcript.words),
+                archived_words=list(transcript.archived_words),
+            )
+            for transcript in section.per_track
+        ],
     )
 
 
 def _review_copy(review: ReviewSection) -> ReviewSection:
-    return review.model_copy(update={"comments": list(review.comments)})
+    return _replaced(review, comments=list(review.comments))
 
 
-# What a source cut does to each project section. Every top-level field needs a row, so a new
-# section fails with a KeyError in _cut_copy (and in tests/test_cut_copy.py) until someone
-# decides whether the cut writes it.
+# Every project field needs a row; tests/test_cut_copy.py checks the table against the model.
 _SECTION_COPIES: Mapping[str, Callable[[Any], Any]] = {
     "version": _shared,
-    "meta": _meta_copy,  # ingest_alignment gains entries when a manual clip splits
+    "meta": _meta_copy,  # a manual clip's split adds ingest_alignment entries
     "sources": _shared,
-    "timeline": _timeline_copy,  # clips move, fade and split in place; a track's timeline_empty flips
-    "editorial": _editorial_copy,  # edit_log appends, chapters are replaced; see _cut_copy
-    "transcript_data": _transcripts_copy,  # words and archived words are replaced or appended
+    "timeline": _timeline_copy,  # clips and tracks are edited in place
+    "editorial": _editorial_copy,  # edit_log appends, chapters are replaced
+    "transcript_data": _transcripts_copy,  # words are replaced, archived words appended
     "mix": _shared,
     "render": _shared,
     "social": _shared,
@@ -469,22 +479,17 @@ _SECTION_COPIES: Mapping[str, Callable[[Any], Any]] = {
 
 
 def _cut_copy(project: EpisodeProject) -> EpisodeProject:
-    """A private copy of ``project`` for one cut, copying only what a cut writes.
+    """A private copy of ``project`` for one cut that copies only what a cut writes.
 
-    The cut writes the clips and tracks in place, appends to the edit log and the archived
-    words, and replaces the word, comment and chapter lists, the combined transcript and
-    ``meta.ingest_alignment`` entries (``_SECTION_COPIES``). Everything else is shared with
-    ``project``: the copy walks neither the other sections nor any transcript word (a cut
-    archives and rebuilds words but never changes one's fields, so word and archive-entry
-    objects stay shared). Each pending decision is a shallow copy because
-    ``_apply_auto_removes`` rewrites the decisions it applied after the cut, which must not
-    reach the candidates cut from them.
+    Sections a cut never writes, and the word and archive-entry objects (a cut archives
+    and rebuilds words but never changes one), are shared with ``project``.
     """
-    return project.model_copy(
-        update={
+    return _replaced(
+        project,
+        **{
             name: _SECTION_COPIES[name](getattr(project, name))
             for name in type(project).model_fields
-        }
+        },
     )
 
 
