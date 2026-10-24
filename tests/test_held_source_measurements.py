@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
-from podcast_mcp.edits import cut_application, cut_effects, cut_placement, cut_safety
+from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits import cut_application, cut_effects, cut_placement, cut_proof, cut_safety
+from podcast_mcp.edits.cut_proof import TimelineCarry, shared_timeline_rms_caches
+from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -263,3 +268,67 @@ def test_consecutive_holds_reuse_what_the_first_one_measured(tmp_path, monkeypat
     assert shared[2][0][1] == 0
     assert max(size for _, size in shared[2]) > 0
     assert len(shared[3]) < len(plain[3])
+
+
+def _approve_counting_timelines(ws, monkeypatch, *, carry, hold_after):
+    builds: list[int] = []
+    real_build = cut_proof.build_track_rms_caches
+    real_shared = cut_application.shared_timeline_rms_caches
+
+    def counting(project, **kwargs):
+        builds.append(id(project))
+        return real_build(project, **kwargs)
+
+    def shared(project, *, defaults, carry=None):
+        return real_shared(project, defaults=defaults, carry=carry if keep else None)
+
+    keep = carry
+    with monkeypatch.context() as patch:
+        patch.setattr(cut_proof, "build_track_rms_caches", counting)
+        patch.setattr(cut_application, "shared_timeline_rms_caches", shared)
+        applied, held, _, windows = _approve(ws, patch, share=True, hold_after=hold_after)
+    return applied, [h.edit_id for h in held], windows, builds, ws.project.model_dump_json()
+
+
+def test_consecutive_holds_build_the_timeline_stems_once(tmp_path, monkeypatch):
+    kept = _approve_counting_timelines(
+        _approve_scene(tmp_path / "a"), monkeypatch, carry=True, hold_after=0
+    )
+    plain = _approve_counting_timelines(
+        _approve_scene(tmp_path / "b"), monkeypatch, carry=False, hold_after=0
+    )
+    assert kept[0] == plain[0] == 0
+    assert len(plain[3]) == 3 and len(kept[3]) == 1
+    assert kept[1] == plain[1] and kept[2] == plain[2]
+
+
+@pytest.mark.parametrize("hold_after", [0, 1, 2, None])
+def test_carrying_the_stems_changes_no_outcome(tmp_path, monkeypatch, hold_after):
+    kept = _approve_counting_timelines(
+        _approve_scene(tmp_path / "a"), monkeypatch, carry=True, hold_after=hold_after
+    )
+    plain = _approve_counting_timelines(
+        _approve_scene(tmp_path / "b"), monkeypatch, carry=False, hold_after=hold_after
+    )
+    assert kept[:3] == plain[:3]
+    assert len(kept[3]) <= len(plain[3])
+
+
+def test_the_carry_misses_for_another_project_object_or_defaults():
+    project, other = SimpleNamespace(), SimpleNamespace()
+    defaults = load_defaults()
+    carry = TimelineCarry()
+    built: list[object] = []
+
+    def fake_build(p, **kwargs):
+        built.append(p)
+        return TrackRmsCacheSet()
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(cut_proof, "build_track_rms_caches", fake_build)
+        patch.setattr(cut_proof, "dialogue_track_ids", lambda _p: [])
+        first = shared_timeline_rms_caches(project, defaults=defaults, carry=carry)
+        assert shared_timeline_rms_caches(project, defaults=defaults, carry=carry) is first
+        assert shared_timeline_rms_caches(other, defaults=defaults, carry=carry) is not first
+        shared_timeline_rms_caches(project, defaults=load_defaults(), carry=carry)
+    assert built == [project, other, project]

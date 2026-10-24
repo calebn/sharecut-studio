@@ -15,7 +15,11 @@ from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.cut_placement import CutScopeHold, pending_pad_source_spans
-from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
+from podcast_mcp.edits.cut_proof import (
+    TimelineCarry,
+    shared_source_audio_caches,
+    shared_timeline_rms_caches,
+)
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
@@ -505,6 +509,7 @@ def _apply_source_remove(
     record_log: bool = False,
     override_peer_holds: set[str] | None = None,
     measured: cut_safety.MeasuredSources | None = None,
+    timeline_carry: TimelineCarry | None = None,
 ) -> (
     tuple[EpisodeProject, tuple[float, float, list[str], dict]]
     | CutSpeechConfirmation
@@ -515,7 +520,8 @@ def _apply_source_remove(
     Trusted human application intent can override acoustic peer evidence;
     ``override_peer_holds`` records those overrides for the caller's summary.
     Measurements share frozen state only until the first mutation. ``measured`` carries
-    held-source measurements between cuts while ``project`` stays the same object.
+    held-source measurements between cuts while ``project`` stays the same object, and
+    ``timeline_carry`` the timeline stems the same way.
     This writer completes every source, pad and edge write before policy can publish the copy.
     """
 
@@ -532,7 +538,9 @@ def _apply_source_remove(
             manual=manual,
             batch=batch,
             audio_caches=caches,
-            timeline_caches=shared_timeline_rms_caches(project, defaults=defaults),
+            timeline_caches=shared_timeline_rms_caches(
+                project, defaults=defaults, carry=timeline_carry
+            ),
         )
         pause = observation.pause if isinstance(observation.pause, cut_safety.HeldPause) else None
         actual = (
@@ -976,6 +984,7 @@ def approve_edits(
         newly_held: set[str] = set()
         # Cleared after each apply: the applied candidate is then written in place.
         measured: cut_safety.MeasuredSources = {}
+        timeline_carry = TimelineCarry()
         for edit in sorted(survivors, key=lambda e: e.start, reverse=True):
             previous = project
             applied = _apply_source_remove(
@@ -987,6 +996,7 @@ def approve_edits(
                 record_log=False,
                 override_peer_holds=override_peer_holds,
                 measured=measured,
+                timeline_carry=timeline_carry,
             )
             if isinstance(applied, CutSpeechConfirmation):
                 asked.append(applied)

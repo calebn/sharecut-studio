@@ -495,12 +495,9 @@ def _pick_sample(
     eligible = [run for run in track.runs if run[1] - run[0] >= need - 1e-9]
     if not eligible:
         return SampleAbsent("too_short")
-    runs = [
-        r
-        for run in eligible
-        for r in subtract_intervals([run], avoid)
-        if r[1] - r[0] >= need - 1e-9
-    ]
+    # One subtraction over every eligible run: the pieces come out run by run in order, as
+    # one call per run gave them, but ``avoid`` (every pending edit) is merged once.
+    runs = [r for r in subtract_intervals(eligible, avoid) if r[1] - r[0] >= need - 1e-9]
     runs.sort(key=lambda r: max(r[0] - near_sec, near_sec - r[1], 0.0))
     if not runs:
         return SampleAbsent("excluded")
