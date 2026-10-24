@@ -136,12 +136,13 @@ async function chooserLabels(page: Page): Promise<string[]> {
 
 async function settle(read: () => Promise<unknown>): Promise<void> {
   let last = "";
+  let steady = 0;
   await expect
     .poll(async () => {
       const now = JSON.stringify(await read());
-      const still = now === last;
+      steady = now === last ? steady + 1 : 0;
       last = now;
-      return still;
+      return steady >= 2;
     })
     .toBe(true);
 }
@@ -313,7 +314,7 @@ for (const viewport of VIEWPORTS) {
     await page.keyboard.press("Escape");
     await expect(chooserItems(page)).toHaveCount(0);
 
-    await touch(cdp, "touchStart", [centre(pinBox)]);
+    await touch(cdp, "touchStart", [centre(await boxOf(pin(page)))]);
     await expect
       .poll(() => chooserLabels(page))
       .toEqual(["Join at 00:10.000", "Comment by Ada at 00:10.000"]);

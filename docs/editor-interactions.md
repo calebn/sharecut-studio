@@ -217,9 +217,8 @@ While a band is being inspected the clip is not selected, so its trim handles
 are click-through. A held touch at the selector's edge beside a trim handle
 therefore selects that band and opens no chooser. A held press at the
 selector where a band starts at a join lists the Roll and the band. In that
-fixture the selector sits at the bottom of the clip and the comment pin in the
-marker lane above it, farther apart than `TOUCH_HIT_RADIUS_PX`, so a held press
-on the pin lists the Join and the comment, not the band.
+fixture the selector and the comment pin are farther apart than
+`TOUCH_HIT_RADIUS_PX`, so a held press on the pin lists the Join and the comment, not the band.
 
 Selecting a reduction cancels a local Move clip placement preview first.
 Reduction selection and its inspection target stay local to this tab. Canceling
