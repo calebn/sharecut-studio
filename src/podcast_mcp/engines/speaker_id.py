@@ -40,8 +40,6 @@ from podcast_mcp.util.wav import open_wav
 
 @dataclass
 class SpeakerProfile:
-    """One enrolled voice, embedded by the ECAPA ONNX model."""
-
     speaker_id: str
     track_id: str
     embedding: list[float]
@@ -148,8 +146,6 @@ def _override_unusable(reason: object) -> SpeakerBackendUnavailable:
 
 
 class SpeakerBackendUnavailable(CodedValueError, ImportError):
-    """The speaker model cannot be used here."""
-
     code = "speaker_backend_unavailable"
 
     def __init__(self, message: str | None = None) -> None:
@@ -247,24 +243,14 @@ def resolve_speaker_backend(
             return onnx
         except Exception as exc:
             log.warning("speaker model override does not load (%s)", exc)
-            if name == "ecapa-onnx":
-                raise ImportError(
-                    f"speaker backend unavailable: {name} (override does not load: {exc})"
-                ) from exc
             problem = str(exc)
-    if name == "ecapa-onnx":
-        if problem is not None and override is None:
-            raise _speaker_model_missing()
-        raise ImportError(f"speaker backend unavailable: {name} ({problem})")
     # The mock's embeddings are made up. Only an explicit request gets them, so a
     # build without the model reports "unavailable" instead of a made-up result.
-    if settings.text(MOCK_BACKEND_ENV).lower() == "mock":
+    if name == "auto" and settings.text(MOCK_BACKEND_ENV).lower() == "mock":
         return MockSpeakerBackend()
-    if problem is not None and override is None:
+    if override is None:
         raise _speaker_model_missing()
-    if override is not None:
-        raise _override_unusable(problem)
-    raise SpeakerBackendUnavailable()
+    raise _override_unusable(problem)
 
 
 def _stem_path_and_source(project: EpisodeProject, track_id: str) -> tuple[Path | None, str | None]:
@@ -566,7 +552,7 @@ def _rank_scores(
         if len(prof.embedding) != emb.shape[-1]:
             raise CodedValueError(
                 f"Speaker profile {sid!r} has {len(prof.embedding)} embedding values but the "
-                f"speaker model gives {emb.shape[-1]}. It was enrolled with a removed speaker "
+                f"speaker model gives {emb.shape[-1]}. It was enrolled with a different speaker "
                 "model: enroll that speaker again.",
                 code="speaker_profile_outdated",
             )
@@ -1208,7 +1194,7 @@ def speaker_doctor() -> dict[str, Any]:
                 available.append(b.name())
         except ImportError:
             pass
-    recommended = next((p for p in ("ecapa-onnx", "mock") if p in available), None)
+    recommended = available[0] if available else None
     return {
         "available_backends": available,
         "recommended": recommended,

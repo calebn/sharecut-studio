@@ -97,7 +97,6 @@ export type SplitSpeakersDialogViewProps = {
     row: ModelView | null;
     busy: boolean;
   };
-  /** Omit where the model cannot be downloaded (catalog previews). */
   onDownloadSpeakerModel: () => void;
   /** Shown with the settings after the person declined a model download. */
   modelHint?: ReactNode;
@@ -214,36 +213,33 @@ function SplitSpeakersForm({
     <>
       {stage.speakerReadiness === "unavailable" ? (
         <p className="export-dialog-note" role="status">
-          <span>Speaker recognition isn't available on this computer.</span>
-          <>
-            {" "}
-            <span>
-              Download the speaker model to turn it on (about 80 MB, Apache-2.0,
-              from SpeechBrain). It stays on this computer.
-            </span>{" "}
-            <Button
-              type="button"
-              disabledReason={
-                speakerDownload.working
-                  ? BUSY_REASON
-                  : speakerDownload.blockedReason
-              }
-              aria-busy={speakerDownload.working || undefined}
-              {...downloadNote.describedBy}
-              onClick={onDownloadSpeakerModel}
-            >
-              {speakerDownload.working
-                ? "Downloading…"
-                : "Download speaker model"}
-            </Button>
-            {speakerDownload.downloading ? (
-              <ModelProgress
-                state={speakerDownload.downloading}
-                label="Speaker model"
-              />
-            ) : null}
-            <InlineError message={speakerDownload.failure?.plain} />
-          </>
+          <span>Speaker recognition isn't available on this computer.</span>{" "}
+          <span>
+            Download the speaker model to turn it on (about 80 MB, Apache-2.0,
+            from SpeechBrain). It stays on this computer.
+          </span>{" "}
+          <Button
+            type="button"
+            disabledReason={
+              speakerDownload.working
+                ? BUSY_REASON
+                : speakerDownload.blockedReason
+            }
+            aria-busy={speakerDownload.working || undefined}
+            {...downloadNote.describedBy}
+            onClick={onDownloadSpeakerModel}
+          >
+            {speakerDownload.working
+              ? "Downloading…"
+              : "Download speaker model"}
+          </Button>
+          {speakerDownload.downloading ? (
+            <ModelProgress
+              state={speakerDownload.downloading}
+              label="Speaker model"
+            />
+          ) : null}
+          <InlineError message={speakerDownload.failure?.plain} />
         </p>
       ) : null}
       {downloadNote.note}

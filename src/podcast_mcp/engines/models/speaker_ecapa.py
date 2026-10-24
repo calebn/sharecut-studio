@@ -1,10 +1,8 @@
 """Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (#1998).
 
-Speaker recognition runs this export on ``onnxruntime`` (a core dependency); it is the only
-speaker model. It is the ``embedding_model`` of
+Runs on ``onnxruntime`` (a core dependency). It is the ``embedding_model`` of
 ``speechbrain/spkrec-ecapa-voxceleb`` (Apache-2.0) at ``SOURCE_REVISION``, exported by
-``scripts/export_ecapa_onnx.py``; ``engines/models/ecapa_features.py`` supplies the
-filterbank features it consumes. Embeddings match the SpeechBrain torch pipeline (cosine 1.0).
+``scripts/export_ecapa_onnx.py``, fed by ``engines/models/ecapa_features.py``. Embeddings match the SpeechBrain torch pipeline (cosine 1.0).
 
 Nothing downloads on import or during a run; ``bootstrap_speaker_ecapa`` is the only
 network path (``podcast bootstrap --component speaker-ecapa``).

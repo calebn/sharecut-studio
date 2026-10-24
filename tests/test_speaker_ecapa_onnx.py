@@ -328,7 +328,7 @@ def test_auto_backend_is_the_onnx_model_or_the_model_missing_state(
         speaker_id.resolve_speaker_backend("auto")
 
 
-def test_a_user_model_that_does_not_load_is_unavailable_never_another_model(
+def test_a_user_model_that_does_not_load_is_unavailable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     junk = tmp_path / "junk.onnx"
@@ -338,7 +338,7 @@ def test_a_user_model_that_does_not_load_is_unavailable_never_another_model(
     with pytest.raises(speaker_id.SpeakerBackendUnavailable) as auto:
         speaker_id.resolve_speaker_backend("auto")
     assert not isinstance(auto.value, speaker_id.SpeakerModelMissing)
-    with pytest.raises(ImportError, match="override does not load"):
+    with pytest.raises(ImportError, match="PODCAST_MCP_SPEAKER_ECAPA_MODEL"):
         speaker_id.resolve_speaker_backend("ecapa-onnx")
 
 
