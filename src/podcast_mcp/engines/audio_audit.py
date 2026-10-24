@@ -195,7 +195,7 @@ def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float 
     text = filter_log_text(r.stderr, "astats") if ok else ""
 
     def _grab(label: str) -> float | None:
-        matches = re.findall(rf"{re.escape(label)}:\s*(-?inf|-?[\d.]+)", text)
+        matches = re.findall(rf"^[ \t]*{re.escape(label)}:\s*(-?inf|-?[\d.]+)", text, re.MULTILINE)
         if not matches:
             return None
         val = matches[-1]
