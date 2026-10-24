@@ -134,9 +134,9 @@ def test_service_is_one_undo_step(minimal_project):
     from podcast_mcp.services.document import HistoryService
 
     hist = HistoryService(ProjectWorkspace.open(minimal_project))
-    before = hist.status()["cursor"]
+    before = hist.status().cursor
     hist.undo()
-    assert hist.status()["cursor"] == before - 1
+    assert hist.status().cursor == before - 1
     ws2 = ProjectWorkspace.open(minimal_project)
     c1, c2 = ws2.project.clips
     assert c2.join_in_mode == ClipJoinMode.FADE

@@ -60,7 +60,7 @@ def test_raw_fade_after_undo_refuses_without_persisted_changes(minimal_project):
     before = minimal_project.read_bytes()
     history = HistoryService(ProjectWorkspace.open(minimal_project)).status()
     sequence = svc.document_snapshot()["server_seq"]
-    assert history["can_redo"] is True
+    assert history.can_redo is True
 
     def journal():
         with closing(sqlite3.connect(document_db_path(svc.project))) as connection, connection:
