@@ -623,6 +623,13 @@ button.join-seam:focus-visible {
   inset-inline: calc((100% - var(--join-hit-min)) / 2);
 }
 
+@media (pointer: coarse) {
+  .timeline-time:not(.timeline-blade-mode, .timeline-comment-mode)
+    .edit-mark::before {
+    inset-inline: calc((100% - var(--join-hit-touch)) / 2);
+  }
+}
+
 /* A crossfade render cannot blend (join_crossfade_blocked). */
 .edit-mark--blocked .edit-mark-face {
   border-color: var(--color-warning);

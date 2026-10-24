@@ -269,6 +269,8 @@ enforced-by:
 - gui/web/src/timeline/timelineStyles.test.ts::shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion
 - gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
 - gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
+- gui/web/e2e/edit-markers.spec.ts::a touch 13 px beside a glyph lands on the glyph, not the lane
+- gui/web/e2e/edit-markers.spec.ts::each of three glyphs 30 px apart opens its own join at its centre and at the edge toward its neighbour
 - gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a selected seam tick
 -->
 
@@ -290,6 +292,12 @@ ceiling, focus moves to the chip now holding it, else the nearest remaining
 mark. A glyph that draws a label is named with that text first ("Crossfade
 120 ms join at 0:05.0"). The touch chooser names a chip "Edit
 group".
+
+On a coarse pointer a glyph's own hit area is 48 px wide (`--join-hit-touch`,
+four gutters) and as tall as the glyph, so a finger within 18 px beside it
+presses the glyph itself and does not depend on the surface redirect below; the
+touch that Mobile Safari sent to the lane's seek surface 13 px beside a glyph
+(#2148) now lands on the glyph. Blade and comment mode keep the 24 px area.
 
 A finger's tap that lands on no target (a bare lane or a non-movable clip) goes
 to a glyph or chip within 22 px beside it and 44 px down from its top. It
