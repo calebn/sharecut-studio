@@ -22,6 +22,7 @@ from podcast_mcp.services.collaboration.share import (
 )
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import HistoryService
+from podcast_mcp.services.document.history_results import HistoryStatusResult
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
@@ -101,7 +102,7 @@ def _undo(svc: DocumentSyncService, expected_head_id: str | None, seq: int = 2) 
     )
 
 
-def _status(project_path: Path) -> dict:
+def _status(project_path: Path) -> HistoryStatusResult:
     return HistoryService(ProjectWorkspace.open(project_path)).status()
 
 
@@ -115,7 +116,7 @@ def test_a_host_command_reply_names_the_history_entry_it_recorded(minimal_projec
 
     reply = _host_reject(svc)
 
-    head = _status(minimal_project)["head_id"]
+    head = _status(minimal_project).head_id
     assert reply["history_head_id"] == head
     assert svc.document_snapshot(projection="shell")["history"]["head_id"] == head
 
@@ -125,18 +126,18 @@ def test_toast_undo_at_the_history_cap_refuses_once_an_agent_edit_lands(minimal_
     _pad_history_to_cap(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
     toast_entry = _host_reject(svc)["history_head_id"]
-    cursor_after_host = _status(minimal_project)["cursor"]
+    cursor_after_host = _status(minimal_project).cursor
 
     _agent_edit(minimal_project)
 
     after_agent = _status(minimal_project)
-    assert cursor_after_host == after_agent["cursor"] == HISTORY_ENTRY_LIMIT - 1
-    assert after_agent["head_id"] != toast_entry
+    assert cursor_after_host == after_agent.cursor == HISTORY_ENTRY_LIMIT - 1
+    assert after_agent.head_id != toast_entry
     with pytest.raises(DocumentConflictError) as refused:
         _undo(svc, toast_entry)
     assert refused.value.code == "history_stale"
     assert "agent-cut" in _decision_ids(minimal_project)
-    assert _status(minimal_project)["head_id"] == after_agent["head_id"]
+    assert _status(minimal_project).head_id == after_agent.head_id
 
 
 def test_toast_undo_refuses_when_an_agent_edit_lands_before_the_click(minimal_project):
@@ -177,7 +178,7 @@ def test_toolbar_undo_skips_preview_render_at_tip(minimal_project):
         lambda p: p.edit_decisions.append(_decision("render-side-effect", 3.0)),
         operation="render_preview",
     )
-    preview_head = _status(minimal_project)["head_id"]
+    preview_head = _status(minimal_project).head_id
 
     reply = _undo(svc, preview_head)
 
@@ -208,10 +209,10 @@ def test_a_second_undo_after_two_approvals_each_followed_by_a_preview_reverts_th
     _agent_edit(minimal_project)
     _preview_render(minimal_project, "render-2")
 
-    _undo(svc, _status(minimal_project)["head_id"], seq=2)
+    _undo(svc, _status(minimal_project).head_id, seq=2)
     assert _decision_ids(minimal_project) == {"render-1"}
 
-    _undo(svc, _status(minimal_project)["head_id"], seq=3)
+    _undo(svc, _status(minimal_project).head_id, seq=3)
 
     assert _decision_ids(minimal_project) == {"host-hit"}
 
@@ -227,7 +228,7 @@ def test_toast_undo_still_reverts_its_change_after_a_preview_render_landed(minim
         lambda p: p.edit_decisions.append(_decision("render-side-effect", 3.0)),
         operation="render_preview",
     )
-    assert _status(minimal_project)["head_id"] != toast_entry
+    assert _status(minimal_project).head_id != toast_entry
 
     reply = _undo(svc, toast_entry)
 
@@ -256,7 +257,7 @@ def test_a_stale_cmd_z_refuses_and_a_fresh_one_undoes_the_latest_change(minimal_
     _seed(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
     _host_reject(svc)
-    seen_by_tab = _status(minimal_project)["head_id"]
+    seen_by_tab = _status(minimal_project).head_id
 
     _agent_edit(minimal_project)
 
@@ -265,13 +266,13 @@ def test_a_stale_cmd_z_refuses_and_a_fresh_one_undoes_the_latest_change(minimal_
     assert refused.value.code == "history_stale"
     assert "agent-cut" in _decision_ids(minimal_project)
 
-    _undo(svc, _status(minimal_project)["head_id"], seq=3)
+    _undo(svc, _status(minimal_project).head_id, seq=3)
     assert "agent-cut" not in _decision_ids(minimal_project)
 
 
 def test_a_stale_undo_over_http_is_a_coded_409(minimal_project):
     _seed(minimal_project)
-    stale = _status(minimal_project)["head_id"]
+    stale = _status(minimal_project).head_id
     _agent_edit(minimal_project)
 
     response = TestClient(create_app()).post(
@@ -297,26 +298,24 @@ def test_redo_refuses_a_stale_expected_head(minimal_project):
     _agent_edit(minimal_project)
     _agent_edit(minimal_project, "second-agent-cut")
     HistoryService(ProjectWorkspace.open(minimal_project)).undo()
-    seen = _status(minimal_project)["head_id"]
+    seen = _status(minimal_project).head_id
     HistoryService(ProjectWorkspace.open(minimal_project)).undo()
 
     with pytest.raises(StaleHistoryError):
         HistoryService(ProjectWorkspace.open(minimal_project)).redo(expected_head_id=seen)
-    assert _status(minimal_project)["head_id"] != seen
+    assert _status(minimal_project).head_id != seen
 
 
 def test_mcp_undo_refuses_a_stale_expected_head_and_undoes_a_current_one(minimal_project):
     _seed(minimal_project)
-    stale = _status(minimal_project)["head_id"]
+    stale = _status(minimal_project).head_id
     _agent_edit(minimal_project)
 
     with pytest.raises(StaleHistoryError):
         mcp_server.history_undo(str(minimal_project), expected_head_id=stale)
     assert "agent-cut" in _decision_ids(minimal_project)
 
-    mcp_server.history_undo(
-        str(minimal_project), expected_head_id=_status(minimal_project)["head_id"]
-    )
+    mcp_server.history_undo(str(minimal_project), expected_head_id=_status(minimal_project).head_id)
     assert "agent-cut" not in _decision_ids(minimal_project)
 
 
@@ -326,7 +325,7 @@ async def test_mcp_undo_tool_call_reports_history_stale(minimal_project):
     from mcp.client import Client
 
     _seed(minimal_project)
-    stale = _status(minimal_project)["head_id"]
+    stale = _status(minimal_project).head_id
     _agent_edit(minimal_project)
 
     async with Client(mcp_server.mcp) as client:
@@ -342,7 +341,7 @@ async def test_mcp_undo_tool_call_reports_history_stale(minimal_project):
 
 def test_cli_undo_refuses_a_stale_expected_head_and_undoes_a_current_one(minimal_project):
     _seed(minimal_project)
-    stale = _status(minimal_project)["head_id"]
+    stale = _status(minimal_project).head_id
     _agent_edit(minimal_project)
 
     refused = runner.invoke(
@@ -352,7 +351,7 @@ def test_cli_undo_refuses_a_stale_expected_head_and_undoes_a_current_one(minimal
     assert "(code history_stale)" in refused.stderr
     assert "agent-cut" in _decision_ids(minimal_project)
 
-    current = _status(minimal_project)["head_id"]
+    current = _status(minimal_project).head_id
     undone = runner.invoke(
         app, ["undo", "--project", str(minimal_project), "--expected-head", current]
     )
@@ -379,7 +378,7 @@ def test_mcp_and_cli_without_an_expected_head_undo_whatever_is_latest(minimal_pr
 
 def test_a_project_before_any_history_holds_the_root_head(minimal_project):
     assert ProjectHistory().head_id() == HISTORY_ROOT_ID
-    assert _status(minimal_project)["head_id"] == HISTORY_ROOT_ID
+    assert _status(minimal_project).head_id == HISTORY_ROOT_ID
     shell = DocumentSyncService.open(minimal_project).document_snapshot(projection="shell")
     assert shell["history"]["head_id"] == HISTORY_ROOT_ID
     assert shell["project"]["history"]["head_id"] == HISTORY_ROOT_ID
@@ -428,7 +427,7 @@ def test_a_document_history_move_without_the_head_it_saw_is_refused(
     )
 
     assert response.status_code in (400, 422), response.text
-    assert _status(minimal_project)["head_id"] == before["head_id"]
+    assert _status(minimal_project).head_id == before.head_id
 
 
 # --- Guests see the real head and are held to it -------------------------------------
@@ -457,7 +456,7 @@ def test_a_guest_view_carries_the_opaque_head_and_no_history_labels(
     _seed(minimal_project)
     _agent_edit(minimal_project)
     token = _editor_share(published_share)
-    head = _status(minimal_project)["head_id"]
+    head = _status(minimal_project).head_id
 
     state = TestClient(create_app()).get(f"/api/review/{token}/daw/document/state").json()
 
@@ -502,8 +501,8 @@ def test_a_guest_undo_refuses_an_agent_edit_the_guest_never_saw(minimal_project,
     assert blind.status_code in (400, 422), blind.text
     assert "agent-cut" in _decision_ids(minimal_project)
 
-    current = _status(minimal_project)["head_id"]
+    current = _status(minimal_project).head_id
     undone = _guest_undo(client, token, {"expected_head_id": current}, seq=3)
     assert undone.status_code == 200, undone.text
     assert "agent-cut" not in _decision_ids(minimal_project)
-    assert undone.json()["history_head_id"] == _status(minimal_project)["head_id"]
+    assert undone.json()["history_head_id"] == _status(minimal_project).head_id

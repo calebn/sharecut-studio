@@ -390,13 +390,13 @@ async def test_apply_is_one_history_step_and_one_undo_restores_the_project(tmp_p
     after_layout = _layout(ws.path)
     assert after_layout != before_layout
     status = HistoryService(ProjectWorkspace.open(ws.path)).status()
-    assert status["current_label"] == label
-    assert status["total"] == base["total"] + 1
-    assert status["can_undo"] is True
+    assert status.current_label == label
+    assert status.total == base.total + 1
+    assert status.can_undo is True
     HistoryService(ProjectWorkspace.open(ws.path)).undo()
     undone = HistoryService(ProjectWorkspace.open(ws.path)).status()
-    assert undone["current_label"] == "baseline"
-    assert undone["can_redo"] is True
+    assert undone.current_label == "baseline"
+    assert undone.can_redo is True
     assert _layout(ws.path) == before_layout
     HistoryService(ProjectWorkspace.open(ws.path)).redo()
     assert _layout(ws.path) == after_layout

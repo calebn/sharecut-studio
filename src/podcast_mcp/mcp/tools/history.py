@@ -35,13 +35,13 @@ def history_redo(
 def history_list(project_path: str) -> str:
     """List the project's history entries (index, label, mutation type)."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).list_entries())
+    return to_json(HistoryService(ws).list_entries().model_dump())
 
 
 def history_status_tool(project_path: str) -> str:
     """Report history cursor, total, undo/redo availability, and current label."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).status())
+    return to_json(HistoryService(ws).status().model_dump())
 
 
 def history_goto_tool(project_path: str, index: int, rerender: bool = False) -> str:

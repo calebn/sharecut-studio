@@ -123,4 +123,4 @@ def history_status_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(HistoryService(ws).status(), indent=2))
+    typer.echo(json.dumps(HistoryService(ws).status().model_dump(), indent=2))

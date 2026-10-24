@@ -150,8 +150,8 @@ def test_history_service_list(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.record_snapshot("test", force=True)
     data = HistoryService(ws).list_entries()
-    assert "entries" in data
-    assert "groups" in data
+    assert len(data.entries) == 1
+    assert len(data.groups) == 1
 
 
 def test_history_service_status_goto_diff_undo(minimal_project):
@@ -160,9 +160,9 @@ def test_history_service_status_goto_diff_undo(minimal_project):
     ws.record_snapshot("two", force=True)
     svc = HistoryService(ws)
     status = svc.status()
-    assert "cursor" in status
+    assert status.cursor == 1
     listing = svc.list_entries()
-    assert listing["groups"]
+    assert listing.groups
     goto = svc.goto(0)
     assert goto["cursor"] == 0
     ws.record_snapshot("three", force=True)
@@ -231,10 +231,10 @@ def test_history_moves_keep_content_addressed_stem_hashes(minimal_project, sampl
 def test_history_service_mutation_groups_and_rerender(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     EditService(ws).cut_range(0.0, 0.1, mode=EditMode.RIPPLE)
-    groups = HistoryService(ws).list_entries()["groups"]
-    mut = next(g for g in groups if g.get("kind") == "mutation")
-    assert mut.get("title")
-    assert "ripple" in mut["title"].lower()
+    groups = HistoryService(ws).list_entries().groups
+    mut = next(g for g in groups if g.kind == "mutation")
+    assert mut.title
+    assert "ripple" in mut.title.lower()
     with (
         patch("podcast_mcp.services.document.history.rerender_preview"),
         patch(

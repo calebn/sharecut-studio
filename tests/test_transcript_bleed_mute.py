@@ -357,8 +357,8 @@ def test_bleed_mute_history_records_gate_flag(tmp_path: Path, sample_wav: Path) 
         AnalysisService(ws).apply_bleed_mute(track_id="host", apply=True)
 
     hist = HistoryService(ws)
-    entries = hist.list_entries()["entries"]
-    labels = [e["label"] for e in entries]
+    entries = hist.list_entries().entries
+    labels = [e.label for e in entries]
     assert "before apply bleed mute" in labels
     assert "after apply bleed mute" in labels
     assert ws.project.track_by_id("host").transcript_gate is True

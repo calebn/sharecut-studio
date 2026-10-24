@@ -3139,7 +3139,7 @@ def test_rollback_failure_keeps_confirmed_land(minimal_project, sample_wav, monk
     assert load_project(minimal_project).track_by_id(track_id).media.path == seg1_rel
     assert any(s.id == stale_source_id for s in ws.project.sources)
     assert len(uploader.land_rollbacks(session_id=room["session_id"])) == 1
-    assert any("media repair" in e["label"] for e in HistoryService(ws).list_entries()["entries"])
+    assert any("media repair" in e.label for e in HistoryService(ws).list_entries().entries)
     assert result["deferred_rollbacks_pending"] == 1
     assert ws.project.render.invalidations[-1].track_ids == [track_id]
 
@@ -3653,7 +3653,7 @@ def _fail_rollback_once(monkeypatch, *, times: int = 1):
 
 
 def _history_labels(ws) -> list[str]:
-    return [e["label"] for e in HistoryService(ws).list_entries()["entries"]]
+    return [e.label for e in HistoryService(ws).list_entries().entries]
 
 
 def _two_segment_room_with_stale_seg0(minimal_project, sample_wav, monkeypatch):

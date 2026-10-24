@@ -5,20 +5,28 @@ import logging
 from collections.abc import Callable
 
 from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, HistoryEntry
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.history.diff import diff_snapshots
 from podcast_mcp.project.history.summary import format_history_group_title, summarize_diff
 from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.history_results import (
+    HistoryEntryResult,
+    HistoryGroup,
+    HistoryListResult,
+    HistoryStatusResult,
+    MutationHistoryGroup,
+    SnapshotHistoryGroup,
+)
 from podcast_mcp.services.pipeline import render_preview_result, rerender_preview
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
 log = logging.getLogger(__name__)
 
 
-def _group_history_entries(entries: list) -> list[dict]:
-    groups: list[dict] = []
+def _group_history_entries(entries: list[HistoryEntry]) -> list[HistoryGroup]:
+    groups: list[HistoryGroup] = []
     i = 0
     while i < len(entries):
         entry = entries[i]
@@ -30,42 +38,40 @@ def _group_history_entries(entries: list) -> list[dict]:
             after = entries[i + 1]
             label = after.label.removeprefix("after ")
             groups.append(
-                {
-                    "kind": "mutation",
-                    "before_index": i,
-                    "after_index": i + 1,
-                    "before_id": entry.id,
-                    "after_id": after.id,
-                    "label": label,
-                    "operation": after.operation,
-                    "params": after.params,
-                    "created_at": after.created_at,
-                    "title": format_history_group_title(
+                MutationHistoryGroup(
+                    before_index=i,
+                    after_index=i + 1,
+                    before_id=entry.id,
+                    after_id=after.id,
+                    label=label,
+                    operation=after.operation,
+                    params=after.params,
+                    created_at=after.created_at,
+                    title=format_history_group_title(
                         kind="mutation",
                         label=label,
                         operation=after.operation,
                         params=after.params or {},
                     ),
-                }
+                )
             )
             i += 2
         else:
             groups.append(
-                {
-                    "kind": "snapshot",
-                    "index": i,
-                    "id": entry.id,
-                    "label": entry.label,
-                    "operation": entry.operation,
-                    "params": entry.params,
-                    "created_at": entry.created_at,
-                    "title": format_history_group_title(
+                SnapshotHistoryGroup(
+                    index=i,
+                    id=entry.id,
+                    label=entry.label,
+                    operation=entry.operation,
+                    params=entry.params,
+                    created_at=entry.created_at,
+                    title=format_history_group_title(
                         kind="snapshot",
                         label=entry.label,
                         operation=entry.operation,
                         params=entry.params or {},
                     ),
-                }
+                )
             )
             i += 1
     return groups
@@ -137,7 +143,7 @@ class HistoryService:
             mark_history_move_stale(project, before, defaults=self.ws.effective_config())
             self.ws.save()
         if not rerender:
-            return self.status()
+            return self.status().model_dump()
         # save() recorded the revision it wrote, so checkpoint() keeps this copy (equal to the
         # saved file) and uses that file, stale marks included, as the merge base.
         project = self.ws.checkpoint()
@@ -165,35 +171,42 @@ class HistoryService:
                 "preview rendered; check history_status before re-rendering the preview",
             )
         )
-        return {**self.status(), "preview": preview}
+        return {**self.status().model_dump(), "preview": preview}
 
-    def status(self) -> dict:
+    def status(self) -> HistoryStatusResult:
         status = self._mgr.status(self.ws.project)
-        return dict(status.__dict__)
+        return HistoryStatusResult(
+            cursor=status.cursor,
+            total=status.total,
+            can_undo=status.can_undo,
+            can_redo=status.can_redo,
+            current_label=status.current_label,
+            head_id=status.head_id,
+        )
 
-    def list_entries(self) -> dict:
+    def list_entries(self) -> HistoryListResult:
         status = self._mgr.status(self.ws.project)
         entries = self._mgr.list_entries(self.ws.project)
         flat = [
-            {
-                "index": i,
-                "id": e.id,
-                "label": e.label,
-                "created_at": e.created_at,
-                "operation": e.operation,
-                "params": e.params,
-                "current": i == status.cursor,
-            }
+            HistoryEntryResult(
+                index=i,
+                id=e.id,
+                label=e.label,
+                created_at=e.created_at,
+                operation=e.operation,
+                params=e.params,
+                current=i == status.cursor,
+            )
             for i, e in enumerate(entries)
         ]
-        return {
-            "cursor": status.cursor,
-            "head_id": status.head_id,
-            "can_undo": status.can_undo,
-            "can_redo": status.can_redo,
-            "entries": flat,
-            "groups": _group_history_entries(entries),
-        }
+        return HistoryListResult(
+            cursor=status.cursor,
+            head_id=status.head_id,
+            can_undo=status.can_undo,
+            can_redo=status.can_redo,
+            entries=flat,
+            groups=_group_history_entries(entries),
+        )
 
     def diff(
         self,

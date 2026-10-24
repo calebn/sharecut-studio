@@ -315,7 +315,7 @@ def _assert_remove_restore_refused(project, record_id):
 def _refuse_restore_then_undo(ws, original):
     before = ws.project.model_dump(mode="json")
     disk = ws.path.read_bytes()
-    head = HistoryService(ws).status()["head_id"]
+    head = HistoryService(ws).status().head_id
     with pytest.raises(ValueError) as refused:
         EditService(ws).revert_applied(ws.project.editorial.edit_log[-1].id)
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
@@ -326,7 +326,7 @@ def _refuse_restore_then_undo(ws, original):
     )
     assert ws.project.model_dump(mode="json") == before
     assert ws.path.read_bytes() == disk
-    assert HistoryService(ws).status()["head_id"] == head
+    assert HistoryService(ws).status().head_id == head
     HistoryService(ws).undo(expected_head_id=head)
     assert snapshot_from_project(ws.project).model_dump(mode="json") == original
 

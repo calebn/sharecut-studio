@@ -130,7 +130,7 @@ def test_auto_apply_keeps_held_cut_and_undo_restores_the_positive_action(tmp_pat
         assert saved.timeline.duration_sec == pytest.approx(4.98)
     history = HistoryService(ws)
     status = history.status()
-    assert status["can_undo"] is True
-    history.undo(expected_head_id=status["head_id"])
+    assert status.can_undo is True
+    history.undo(expected_head_id=status.head_id)
     assert snapshot_from_project(ws.project).model_dump(mode="json") == original
     assert [clip.model_dump(mode="json") for clip in ws.project.clips] == original_clips

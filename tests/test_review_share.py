@@ -487,7 +487,7 @@ def test_share_daw_routes_view_cap(minimal_project, sample_wav, tmp_workspace, m
     assert body["project_path"] == ""
     assert body["history"] == {
         "cursor": 0,
-        "head_id": HistoryService(ProjectWorkspace.open(minimal_project)).status()["head_id"],
+        "head_id": HistoryService(ProjectWorkspace.open(minimal_project)).status().head_id,
         "can_undo": False,
         "can_redo": False,
         "entries": [],

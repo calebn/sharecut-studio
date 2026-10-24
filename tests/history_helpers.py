@@ -15,7 +15,7 @@ from podcast_mcp.services.document import HistoryService
 
 def seen_head(project_path: Path) -> str:
     """The history head an up-to-date client sees (``history.head_id``)."""
-    return HistoryService(ProjectWorkspace.open(project_path)).status()["head_id"]
+    return HistoryService(ProjectWorkspace.open(project_path)).status().head_id
 
 
 def history_move(project_path: Path, **extra: Any) -> dict[str, Any]:
