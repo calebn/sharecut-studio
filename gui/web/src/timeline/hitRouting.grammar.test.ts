@@ -366,6 +366,27 @@ describe("tap on a surface near an edit mark", () => {
     expect(router.claimsClick(new MouseEvent("click"))).toBe(false);
   });
 
+  it("does not open the mark twice when the browser's click lands on the mark itself", () => {
+    const el = lane();
+    const target = mark();
+    tap(el, 228, 104);
+    nativeClick(target, 228, 104);
+    vi.runAllTimers();
+
+    expect(marks("join")).toEqual([]);
+  });
+
+  it("drops a pending tap when its pointer is cancelled", () => {
+    const el = lane();
+    mark();
+    tap(el, 228, 104);
+    press(el, "pointercancel", 228, 104);
+    nativeClick(el, 228, 104);
+    vi.runAllTimers();
+
+    expect(marks("join")).toEqual([]);
+  });
+
   it("drops a pending tap when the next press starts", () => {
     const el = lane();
     mark();

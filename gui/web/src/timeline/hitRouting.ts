@@ -12,9 +12,11 @@
  * layer (`useTouchPress`, React Aria) and reaches no target while it decides:
  * - One finger moving scrolls: the browser takes it, it ends in
  *   pointercancel, and nothing is edited, selected target or not.
- * - A release within the slop is a tap, replayed on the winner at once:
- *   React Aria reports a press only from the click that follows, when the
- *   pointer is no longer live and an owner that captures it would refuse it.
+ * - A release within the slop is a tap. On a target it is replayed on the
+ *   winner at once: React Aria reports a press only from the click that
+ *   follows, when the pointer is no longer live and an owner that captures it
+ *   would refuse it. From a bare surface to a nearby mark it opens the mark
+ *   from the browser's own click.
  * - A long press (the layer calls `longPress`) over 2+ targets opens the
  *   chooser. Over one target it arms it, if the contract lets it drag, or
  *   selects it. A clip body under the finger is that one target when no
@@ -398,6 +400,12 @@ export function attachHitRouting(
   } | null = null;
   const pendingClicks = new Map<ReturnType<typeof setTimeout>, number>();
   const cancelClicks = (pointerId?: number) => {
+    if (
+      redirect &&
+      (pointerId == null || redirect.source.pointerId === pointerId)
+    ) {
+      redirect = null;
+    }
     for (const [timer, owner] of pendingClicks) {
       if (pointerId != null && pointerId !== owner) continue;
       clearTimeout(timer);
@@ -943,7 +951,9 @@ export function attachHitRouting(
       redirect = null;
       clearTimeout(timer);
       pendingClicks.delete(timer);
-      replayClick(tap, source, at);
+      if (!(event.target instanceof Node && tap.contains(event.target))) {
+        replayClick(tap, source, at);
+      }
     }
     if (isReplayed(event) || Date.now() >= suppressClickUntil) return;
     // A chip's or create item's own press needs its click.
