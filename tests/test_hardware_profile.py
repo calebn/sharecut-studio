@@ -78,7 +78,7 @@ def test_cuda_outranks_coreml_and_directml_and_cpu_is_always_last() -> None:
 
 
 @pytest.mark.parametrize("profile", [NVIDIA, APPLE, WINDOWS])
-def test_cpu_preference_pins_everything_to_the_cpu(profile) -> None:
+def test_cpu_preference_leaves_only_the_cpu_provider(profile) -> None:
     assert profile.onnx_provider_order("cpu") == (CPU_PROVIDER,)
     assert "turned off" in profile.summary("cpu")
 
@@ -231,6 +231,8 @@ def test_a_failing_probe_reads_as_cpu_only_and_never_raises(monkeypatch) -> None
         raise RuntimeError("driver exploded")
 
     monkeypatch.setattr(hardware, "_onnx_providers", boom)
+    monkeypatch.setattr(hardware, "_ctranslate2_cuda_devices", lambda: 0)
+    monkeypatch.setattr(hardware, "_nvidia_smi", lambda: None)
     profile = probe_hardware()
     assert profile.onnx_provider_order() == (CPU_PROVIDER,)
     assert profile.cuda is None
