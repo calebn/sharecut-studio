@@ -20,6 +20,7 @@ import numpy as np
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import models_dir
 from podcast_mcp.engines.models.ecapa_features import ecapa_features
+from podcast_mcp.engines.onnx_session import OnnxModel
 from podcast_mcp.util.asset_sources import (
     OnProgress,
     asset_entry,
@@ -38,6 +39,8 @@ SPEAKER_ECAPA_LABEL = "Speaker recognition (ECAPA, ONNX)"
 SPEAKER_ECAPA_SIZE = "~80 MB"
 # 0.05 s at 16 kHz; the network's reflect-padded convolutions fail below about 700 samples.
 MIN_SAMPLES = 800
+# Off until the Mac lab shows the accelerator is faster, within tolerance and affordable (#2249).
+ACCELERATE_ECAPA = False
 SOURCE_REPO = "speechbrain/spkrec-ecapa-voxceleb"
 SOURCE_REVISION = "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"
 
@@ -118,13 +121,7 @@ class EcapaOnnx:
                     if (problem := speaker_ecapa_problem()) is not None:
                         raise SpeakerEcapaMissingError(f"{SPEAKER_ECAPA_LABEL} {problem}")
                     path = speaker_ecapa_path()
-                import onnxruntime as ort
-
-                options = ort.SessionOptions()
-                options.log_severity_level = 3
-                self._session = ort.InferenceSession(
-                    str(path), sess_options=options, providers=["CPUExecutionProvider"]
-                )
+                self._session = OnnxModel(path, accelerate=ACCELERATE_ECAPA, quiet=True)
             return self._session
 
     def embed(self, samples: np.ndarray) -> np.ndarray:
