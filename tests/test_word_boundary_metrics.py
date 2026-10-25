@@ -354,7 +354,6 @@ def test_checked_in_native_reports_match_reference_fixture() -> None:
     [
         ("onnx-base", 42, 48, 2, 42.9762),
         ("onnx-base-int8", 42, 48, 4, 47.2619),
-        ("torch-large", 42, 48, 1, 48.6905),
     ],
 )
 def test_checked_in_candidate_reports_match_reference_fixture(

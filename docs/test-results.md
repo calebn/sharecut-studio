@@ -137,8 +137,7 @@ candidate prediction and counted in `provenance.alignment_stats.dropped_zero_dur
 Each side's `dropped_zero_duration` count in `*.agree.json` is that recorded
 upstream count plus any zero-duration word still in the compared payload
 (the native reference's are dropped there), so a candidate's agree count
-matches its `alignment_stats`. `torch-large`
-needs `uv sync --extra dev --extra gui --extra relay --extra joinqc`; the ONNX
+matches its `alignment_stats`. The ONNX
 candidates need only `onnxruntime`, which the base install gets transitively
 through `faster-whisper` (it is not a direct dependency, so declare it if
 faster-whisper ever drops it).
@@ -151,7 +150,9 @@ Each prediction's provenance records `runtime_sec`, `realtime_factor`,
 
 **Candidate results (#641).** Measured 2026-09-27 on an Apple M2 Pro (12
 cores, 32 GiB RAM), `--threads 4`, onnxruntime 1.27.0, torch 2.14.0,
-transformers 5.17.0, faster-whisper 1.2.1. Reproduce with:
+transformers 5.17.0, faster-whisper 1.2.1. The `torch-large` rows are the recorded
+run only: its backend, candidate pin and checked-in reports were removed in #2257, so
+only the ONNX candidates reproduce. Reproduce with:
 
 ```bash
 uv run python scripts/benchmark_forced_aligners.py download-commands   # then run what it prints
@@ -164,7 +165,6 @@ For per-candidate peak RSS (`peak_rss_mb` is process-wide) run one
 ```bash
 uv run python scripts/benchmark_forced_aligners.py run --target librispeech --candidate onnx-base --runs-dir .lab-runs/align/librispeech-onnx-base --threads 4
 uv run python scripts/benchmark_forced_aligners.py run --target librispeech --candidate onnx-base-int8 --runs-dir .lab-runs/align/librispeech-onnx-base-int8 --threads 4
-uv run python scripts/benchmark_forced_aligners.py run --target librispeech --candidate torch-large --runs-dir .lab-runs/align/librispeech-torch-large --threads 4
 uv run python scripts/benchmark_forced_aligners.py run --target aligned_dialogue --runs-dir .lab-runs/align/aligned_dialogue --threads 4
 $LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py run --target lab --lab "$LAB" --threads 4
 ```
@@ -237,7 +237,7 @@ ear (see § Lab tape below), so no audit was needed.
    within 5 ms of fp32 **and** its over-150 ms count within 1 word of fp32.
    The MAE gap is 4.29 ms (within 5 ms) but the over-150 ms gap is 2 words
    (4 vs 2, not within 1) — so `onnx-base` (fp32) stays the ONNX pick.
-3. `torch-large` only wins if it beats the best eligible ONNX candidate
+3. `torch-large` (removed in #2257; numbers above are the recorded #641 run) only wins if it beats the best eligible ONNX candidate
    (`onnx-base`) by ≥15 ms MAE **and** ≥3 fewer over-150 ms words.
    `torch-large`'s MAE (48.69 ms) is *worse* than `onnx-base`'s (42.98 ms),
    so it does not qualify regardless of its over-150 ms count.

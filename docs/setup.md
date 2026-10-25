@@ -159,9 +159,9 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`). T
 | `speaker-ecapa` | Pinned ONNX build of the SpeechBrain ECAPA speaker-embedding network (~80 MB, Apache-2.0; **offered**: installed by `--component all` or by name, never by a bare `podcast bootstrap`). Runs on `onnxruntime`, so it needs no torch and works in the packaged app. It is the only speaker model. Checked against its pinned sha256 at download and in status checks. | Speaker enroll, score, attribute, gate-track and split. `resolve_speaker_backend()` returns it (`ecapa-onnx`); its embeddings match SpeechBrain ECAPA (cosine 1.0, `scripts/export_ecapa_onnx.py`), so profiles enrolled with SpeechBrain keep matching. `PODCAST_MCP_SPEAKER_ECAPA_MODEL` points at a local ONNX file. The manifest carries a direct first-party CDN url for the file, so a stock build downloads it with no mirror configured; the sha256 pin rejects any other bytes. |
 
 **Word aligner tiers.** `word-aligner` bootstraps the single pinned tier the
-pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` also
-benchmarks a heavier `torch-large` candidate, which is not wired into
-`transcribe.forced_alignment` and not part of any bootstrap component. The
+pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` benchmarks
+ONNX candidates only (the torch `torch-large` comparison backend was removed in
+#2257; its #641 measurement stays in the test-results record). The
 shipped `onnx-base` tier's measured cost and accuracy on real audio are in
 [docs/testing.md § Shipped pass results (#715)](test-results.md#shipped-pass-results-715).
 
