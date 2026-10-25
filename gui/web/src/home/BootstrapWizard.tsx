@@ -2,14 +2,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import {
   ANOTHER_DOWNLOAD_REASON,
   formatBytes,
-  ModelRow,
   type ModelRowAction,
   type ModelView,
   useModels,
-  VariantPicker,
 } from "../models";
-import { Button, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { BootstrapWizardView } from "./BootstrapWizardView";
 
 export type BootstrapWizardProps = {
   onReady: () => void;
@@ -48,31 +46,9 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
     }
   }, [ready, finished, onReady]);
 
-  if (models === null) {
-    return (
-      <div
-        className="box elevated bootstrap-wizard stack"
-        role={loadError ? undefined : "status"}
-      >
-        {loadError ? (
-          <>
-            <InlineError message={loadError} />
-            {onSkip ? (
-              <div className="cluster">
-                <Button onClick={onSkip}>Skip for now</Button>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <p>Checking installed tools…</p>
-        )}
-      </div>
-    );
-  }
-
   const checked = (m: ModelView): boolean =>
     m.tier === "required" || (overrides[m.id] ?? m.tier === "recommended");
-  const picked = models.filter((m) => checked(m) && needsDownload(m));
+  const picked = (models ?? []).filter((m) => checked(m) && needsDownload(m));
   const toolsOk = tools.ffmpeg === "installed";
 
   const actionFor = (m: ModelView): ModelRowAction => {
@@ -117,73 +93,19 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
   };
 
   return (
-    <div
-      className="box elevated bootstrap-wizard stack"
-      role="region"
-      aria-label="Setup"
-    >
-      <div className="bootstrap-wizard-header stack">
-        <h1>Set up ShareCut Studio</h1>
-        <p>
-          Choose the models to download. Nothing downloads until you click
-          Continue.
-        </p>
-      </div>
-      <p className="model-tools" role="status">
-        Audio tools: {toolsOk ? "ready" : "unavailable"}
-      </p>
-      {!toolsOk ? (
-        <p>
-          Reinstall ShareCut Studio, or follow the{" "}
-          <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair">
-            setup guide for the audio tools
-          </a>
-          .
-        </p>
-      ) : null}
-      <ul className="stack tight model-list">
-        {models.map((m) => (
-          <ModelRow
-            key={m.id}
-            model={m}
-            variantPicker={<VariantPicker model={m} disabled={busy} />}
-            action={actionFor(m)}
-          />
-        ))}
-      </ul>
-      <p className="model-summary" id={summaryId}>
-        {busy ? "Download in progress" : summary(picked)}
-      </p>
-      {stuckReason ? (
-        <p className="model-note" id={stuckId}>
-          {stuckReason}
-        </p>
-      ) : null}
-      <div className="cluster">
-        <Button
-          variant="primary"
-          onClick={onContinue}
-          disabledReason={continueReason}
-          aria-describedby={
-            busy ? summaryId : stuckReason ? stuckId : undefined
-          }
-        >
-          {busy ? "Downloading…" : "Continue"}
-        </Button>
-        {onSkip ? (
-          <Button
-            onClick={onSkip}
-            disabledReason={busy ? BUSY_REASON : undefined}
-            aria-describedby={busy ? summaryId : undefined}
-            variant="link"
-          >
-            Skip for now
-          </Button>
-        ) : null}
-      </div>
-      {onSkip ? (
-        <p className="model-note">You can download these later from Models.</p>
-      ) : null}
-    </div>
+    <BootstrapWizardView
+      models={models}
+      loadError={loadError}
+      toolsOk={toolsOk}
+      busy={busy}
+      summary={summary(picked)}
+      summaryId={summaryId}
+      stuckReason={stuckReason}
+      stuckId={stuckId}
+      continueReason={continueReason}
+      actionFor={actionFor}
+      onContinue={onContinue}
+      onSkip={onSkip}
+    />
   );
 }

@@ -109,13 +109,13 @@ const COVERED: Record<string, string[]> = {
   "DLG-HELP": ["Templates/HelpDialog"],
   "CMP-TUNNEL": ["Templates/ShareDialog"],
   "CMP-PRESENCE-STATUS": ["Templates/StatusBar"],
+  "SCR-SETUP": ["Templates/Home · Setup wizard"],
+  "SCR-SETUP-CHECKING": ["Templates/Home · Setup wizard"],
+  "SCR-SETUP-DOWNLOAD": ["Templates/Home · Setup wizard"],
 };
 
 /** A story exists but shows only part of the surface. */
 const PARTIAL: Record<string, string[]> = {
-  "SCR-SETUP": ["Molecules/ModelRow"],
-  "SCR-SETUP-CHECKING": ["Molecules/ModelRow"],
-  "SCR-SETUP-DOWNLOAD": ["Molecules/ModelRow"],
   "SCR-SHELL-DESKTOP": ["Templates/StudioShell"],
   "SCR-SHELL-TABLET": ["Templates/StudioShell"],
   "SCR-SHELL-LOADING": ["Templates/StudioShell", "Templates/StatusBar"],
