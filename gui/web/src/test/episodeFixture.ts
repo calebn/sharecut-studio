@@ -7,6 +7,7 @@ import {
   HISTORY_ROOT_ID,
   type HistoryEntryId,
   type HistoryGroup,
+  type PendingEditView,
   type ProjectView,
   type Selection,
   type SocialClipView,
@@ -353,6 +354,53 @@ export function emptyEpisode(): ProjectView {
       groups: [],
     },
   });
+}
+
+/** Pending tighten hits, each on the words it would cut, for the Tighten panel. */
+export function tightenHits(): PendingEditView[] {
+  const hit = (
+    id: string,
+    trackId: string,
+    reason: string,
+    start: number,
+    end: number,
+    overrides: Partial<PendingEditView> = {},
+  ) =>
+    pendingEditView({
+      id,
+      track_id: trackId,
+      track_ids: [trackId],
+      reason,
+      source_start: start,
+      source_end: end,
+      source_start_timeline: start,
+      source_end_timeline: end,
+      timeline_start: start,
+      timeline_end: end,
+      timeline_spans: [{ start, end }],
+      harsh: false,
+      listen_one_by_one: false,
+      review_required: false,
+      ...overrides,
+    });
+  return [
+    hit("tighten-filler", TOMAS, "filler:um", 20, 20.45, { label: "Filler" }),
+    hit("tighten-pause", MIRA, "pause:long", 49.6, 52, {
+      label: "Pause",
+      suggested_action: "shorten",
+    }),
+    hit("tighten-repeat", TOMAS, "repetition:the", 94, 94.4, {
+      label: "Repetition",
+      review_required: true,
+    }),
+    hit("tighten-restart", TOMAS, "restart:i", 134, 134.5, {
+      label: "Restart",
+      harsh: true,
+      listen_one_by_one: true,
+      review_required: true,
+      join_risk: { verdict: "review", label: "risky" },
+    }),
+  ];
 }
 
 export const selections = {

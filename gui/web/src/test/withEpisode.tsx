@@ -1,5 +1,7 @@
 import type { Decorator } from "@storybook/react-vite";
 import { type ReactNode, useLayoutEffect, useState } from "react";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import type { DawState } from "../state/types";
 import type { ProjectView, Selection } from "../types/project";
@@ -19,19 +21,24 @@ export interface EpisodeParameters {
   selection?: Selection;
   /** Store fields set after hydration (active tab, layout, pipeline job). */
   state?: Partial<DawState>;
+  /** JSON bodies for requests whose URL contains the key. Any other request gets a 503. */
+  responses?: Record<string, unknown>;
 }
 
 const NO_SERVER = JSON.stringify({ detail: "Storybook has no server." });
 
-function installStubs(): () => void {
+function installStubs(responses: Record<string, unknown>): () => void {
   const { fetch, WebSocket } = globalThis;
-  globalThis.fetch = () =>
-    Promise.resolve(
-      new Response(NO_SERVER, {
-        status: 503,
+  globalThis.fetch = (input) => {
+    const url = input instanceof Request ? input.url : String(input);
+    const hit = Object.entries(responses).find(([key]) => url.includes(key));
+    return Promise.resolve(
+      new Response(hit ? JSON.stringify(hit[1]) : NO_SERVER, {
+        status: hit ? 200 : 503,
         headers: { "Content-Type": "application/json" },
       }),
     );
+  };
   FakeWebSocket.reset({ autoOpen: false });
   globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
   return () => {
@@ -48,10 +55,11 @@ export function EpisodeHydrator({
   children: ReactNode;
 }) {
   const [ready, setReady] = useState(false);
-  const { project, role = "host", selection, state } = config;
+  const { project, role = "host", selection, state, responses } = config;
   useLayoutEffect(() => {
     const previous = useDawStore.getState();
-    const restoreStubs = installStubs();
+    const restoreStubs = installStubs(responses ?? {});
+    registerDawCommands();
     const { guestMode, capabilities } = ROLE_SHARE[role];
     const episodeProject = project ?? episode();
     previous.hydrate(
@@ -68,9 +76,10 @@ export function EpisodeHydrator({
     return () => {
       setReady(false);
       useDawStore.setState(previous, true);
+      clearRegisteredCommands();
       restoreStubs();
     };
-  }, [project, role, selection, state]);
+  }, [project, role, selection, state, responses]);
   return ready ? children : null;
 }
 

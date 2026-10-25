@@ -7,6 +7,17 @@ import { describe, expect, it } from "vitest";
  * that adds its story.
  */
 const COVERED: Record<string, string[]> = {
+  "PNL-COMMENTS": [
+    "Templates/Editor · Comments panel",
+    "Templates/CommentCard",
+    "Templates/CommentCompose",
+  ],
+  "CMP-GUEST-NAME": ["Templates/Editor · Comments panel"],
+  "DLG-STEP-PARAMS": ["Templates/Editor · Pipeline panel"],
+  "PNL-PIPELINE": ["Templates/Editor · Pipeline panel"],
+  "PNL-TIGHTEN": ["Templates/Editor · Tighten panel"],
+  "PNL-IMPACT": ["Templates/Editor · Impact panel"],
+  "PNL-HISTORY": ["Templates/Editor · History panel"],
   "INS-PEEK": ["Templates/Editor · Inspector · Peek"],
   "INS-RANGE": ["Templates/Editor · Inspector · Range"],
   "INS-WORD": ["Templates/Editor · Inspector · Word"],
@@ -108,7 +119,6 @@ const PARTIAL: Record<string, string[]> = {
   "MENU-VIEW": ["Templates/OverlayLegend"],
   "CMP-TIMELINE": ["Templates/TimelineRange"],
   "PNL-TRANSCRIPT": ["Templates/TranscriptTurn"],
-  "PNL-COMMENTS": ["Templates/CommentCard", "Templates/CommentCompose"],
   "DLG-MODEL-GATE": ["Templates/ExportDialog", "Templates/SplitSpeakersDialog"],
   "SCR-PHONE-LISTEN": ["Templates/ListenHero", "Templates/MobileShell"],
   "SCR-PHONE-TIMELINE": ["Templates/MobileShell"],
@@ -145,12 +155,6 @@ const PENDING = [
   "CMP-WORDBAR",
   "CMP-WORDRANGE",
   "CMP-VOCAB",
-  "CMP-GUEST-NAME",
-  "PNL-HISTORY",
-  "PNL-IMPACT",
-  "PNL-TIGHTEN",
-  "PNL-PIPELINE",
-  "DLG-STEP-PARAMS",
   "INS-CLIP-MULTI",
   "DLG-HELP",
   "DLG-MODELS",
@@ -172,7 +176,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 42;
+const PENDING_LIMIT = 36;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
