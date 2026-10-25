@@ -13,6 +13,7 @@ export const STORY_SUPPORT_MODULES = new Set([
   "storybook/StudioDocsContainer.tsx",
   "storybook/openDialog.ts",
   "storybook/storyLayout.tsx",
+  "test/hitRouterStub.ts",
   "test/modelsStory.tsx",
   "test/withEpisode.tsx",
 ]);
