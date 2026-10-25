@@ -125,6 +125,8 @@ def verdict_key(
     span: tuple[float, float],
 ) -> str | None:
     """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable."""
+    if any(max(c.fade_in_ms, c.fade_out_ms) > FADE_REACH_SEC * 1000 for c in project.clips):
+        return None  # a fade longer than the window margin
     try:
         return _key(project, edit, defaults, manual, batch, span)
     except (OSError, ValueError, KeyError):
@@ -141,8 +143,6 @@ def _key(
 ) -> str:
     from podcast_mcp.util.tracks import recording_audio_path
 
-    if any(max(c.fade_in_ms, c.fade_out_ms) > FADE_REACH_SEC * 1000 for c in project.clips):
-        raise ValueError("a fade longer than the window margin")
     reach = FADE_REACH_SEC
     lo = float(span[0]) - WINDOW_SEC - reach
     hi = float(span[1]) + WINDOW_SEC + reach

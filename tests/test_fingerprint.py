@@ -15,6 +15,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 STAMPED = {
     "podcast_mcp/edits/prosody_profile.py",
     "podcast_mcp/edits/transcript_reuse.py",
+    "podcast_mcp/edits/verdict_cache.py",
     "podcast_mcp/engines/alignment_audit.py",
     "podcast_mcp/engines/decoded_source.py",
     "podcast_mcp/engines/gate_fill.py",
