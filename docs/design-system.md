@@ -391,11 +391,13 @@ and cannot enter the app bundle.
 A store-bound component gets a story that hydrates the DAW store with the shared
 fictional episode (`src/test/episodeFixture.ts`) through the `withEpisode`
 decorator (`src/test/withEpisode.tsx`), the way `ClipInspector.stories.tsx`
-does. The decorator hydrates `share:episode`, applies `guestMode`,
-capabilities and selection from `parameters.episode`, installs network and
-audio stubs, and restores the store when the story unmounts. Titles keep the
-screen as a name prefix, for example `Templates/Editor · Inspector · Pending
-edit`, because the title rule allows one segment after the level.
+does. From `parameters.episode` the decorator takes the role (the host opens the
+project by path, a guest opens `share:episode` with that role's capabilities),
+the selection, extra store fields and canned JSON for requests. It also
+registers the app commands, replaces `fetch` and `WebSocket` with offline
+stubs, and restores the store and the stubs when the story unmounts. Titles keep
+the screen as a name prefix, for example `Templates/Editor · Inspector ·
+Pending edit`, because the title rule allows one segment after the level.
 
 A component splits into a props-only `XView` rendered by its live adapter only
 where its render path crosses an I/O seam that store state cannot fake: `api.ts`

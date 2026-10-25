@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { listRegisteredIds } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
+import { EpisodeHydrator } from "./EpisodeHydrator";
 import { selections } from "./episodeFixture";
-import { EpisodeHydrator } from "./withEpisode";
 
 function Probe() {
   const trackCount = useDawStore((s) => s.project?.tracks.length ?? 0);
