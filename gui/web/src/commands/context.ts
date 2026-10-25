@@ -111,9 +111,10 @@ export function buildCommandContext(): CommandContext {
     canManageProjects: canManageProjects(s.projectPath),
     hasProject: s.project != null,
     canUndo:
-      (s.project?.history?.can_undo ?? false) || editUnsaved(s.projectPath),
-    canRedo:
-      (s.project?.history?.can_redo ?? false) || editUnsaved(s.projectPath),
+      s.guestMode != null ||
+      (s.project?.history?.can_undo ?? false) ||
+      editUnsaved(s.projectPath),
+    canRedo: s.guestMode != null || (s.project?.history?.can_redo ?? false),
     shellBreakpoint: s.shellBreakpoint,
     playheadSec: s.playheadSec,
     timelineDurationSec: s.project?.timeline_duration_sec ?? Infinity,

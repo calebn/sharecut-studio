@@ -358,14 +358,18 @@ describe("command governance", () => {
     clearRegisteredCommands();
   });
 
-  it("canUndo and canRedo follow the history flags and in-flight saves", async () => {
+  it("canUndo and canRedo follow the history flags, canUndo also in-flight saves and guests", async () => {
     const history = (can_undo: boolean, can_redo: boolean) =>
       ({
         meta: { name: "t" },
         tracks: [],
         history: { can_undo, can_redo },
       }) as never;
-    useDawStore.setState({ projectPath: "/tmp/ep", project: null });
+    useDawStore.setState({
+      projectPath: "/tmp/ep",
+      project: null,
+      guestMode: null,
+    });
     expect(evaluateWhen("canUndo", buildCommandContext())).toEqual({
       ok: false,
       reason: "No project loaded",
@@ -397,11 +401,17 @@ describe("command governance", () => {
     );
     const busy = buildCommandContext();
     expect(evaluateWhen("canUndo", busy)).toEqual({ ok: true });
-    expect(evaluateWhen("canRedo", busy)).toEqual({ ok: true });
+    expect(evaluateWhen("canRedo", busy).ok).toBe(false);
     landed();
     await save;
     await Promise.resolve();
     expect(evaluateWhen("canUndo", buildCommandContext()).ok).toBe(false);
+
+    useDawStore.setState({ guestMode: "editor" });
+    const guest = buildCommandContext();
+    expect(evaluateWhen("canUndo", guest)).toEqual({ ok: true });
+    expect(evaluateWhen("canRedo", guest)).toEqual({ ok: true });
+    useDawStore.setState({ guestMode: null });
   });
 
   it("every keybinding declares a when predicate", () => {
