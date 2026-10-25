@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { redoHistory, undoHistory } from "../api";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerFocusedClipHandle } from "../commands/focusedClipHandle";
 import { registerDawCommands } from "../commands/register";
@@ -30,6 +31,12 @@ vi.mock("../commands/execute", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../commands/execute")>();
   return { ...actual, execute: vi.fn(actual.execute) };
 });
+
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api")>()),
+  undoHistory: vi.fn(async () => null),
+  redoHistory: vi.fn(async () => null),
+}));
 
 function KeymapHost() {
   useDawKeymapListener();
@@ -455,4 +462,51 @@ it("drops a marker on M while the record panel is open and mutes the track once 
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["record.marker"]);
   useDawStore.getState().setRecordPanelOpen(false);
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["track.muteToggle"]);
+});
+
+async function pressModZ(shiftKey: boolean) {
+  await act(async () => {
+    fireEvent.keyDown(screen.getByTestId("canvas"), {
+      key: shiftKey ? "Z" : "z",
+      code: "KeyZ",
+      metaKey: true,
+      ctrlKey: true,
+      shiftKey,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+function showHistory(history: { can_undo: boolean; can_redo: boolean }) {
+  const project = minimalProject();
+  useDawStore.getState().hydrate("/tmp/keymap-project", {
+    ...project,
+    history: {
+      ...project.history,
+      head_id: "head-1" as typeof project.history.head_id,
+      ...history,
+    },
+  });
+}
+
+it("Mod+Z with nothing to undo does not send the command (#2168)", async () => {
+  render(<KeymapHost />);
+  vi.mocked(undoHistory).mockClear();
+  showHistory({ can_undo: false, can_redo: false });
+  await pressModZ(false);
+  expect(undoHistory).not.toHaveBeenCalled();
+  showHistory({ can_undo: true, can_redo: false });
+  await pressModZ(false);
+  expect(undoHistory).toHaveBeenCalledTimes(1);
+});
+
+it("Mod+Shift+Z with nothing to redo does not send the command (#2168)", async () => {
+  render(<KeymapHost />);
+  vi.mocked(redoHistory).mockClear();
+  showHistory({ can_undo: true, can_redo: false });
+  await pressModZ(true);
+  expect(redoHistory).not.toHaveBeenCalled();
+  showHistory({ can_undo: true, can_redo: true });
+  await pressModZ(true);
+  expect(redoHistory).toHaveBeenCalledTimes(1);
 });
