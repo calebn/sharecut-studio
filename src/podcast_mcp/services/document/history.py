@@ -12,11 +12,14 @@ from podcast_mcp.project.history.summary import format_history_group_title, summ
 from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.history_results import (
+    EmptyHistoryDiffResult,
+    HistoryDiffResult,
     HistoryEntryResult,
     HistoryGroup,
     HistoryListResult,
     HistoryStatusResult,
     MutationHistoryGroup,
+    PopulatedHistoryDiffResult,
     SnapshotHistoryGroup,
 )
 from podcast_mcp.services.pipeline import render_preview_result, rerender_preview
@@ -212,16 +215,16 @@ class HistoryService:
         self,
         from_index: int | None = None,
         to_index: int | None = None,
-    ) -> dict:
+    ) -> HistoryDiffResult:
         history = self._mgr._load_index(self.ws.project)
         entries = history.entries
         if not entries:
-            return {
-                "diff": {},
-                "summary": [],
-                "from_index": None,
-                "to_index": None,
-            }
+            return EmptyHistoryDiffResult(
+                diff={},
+                summary=[],
+                from_index=None,
+                to_index=None,
+            )
         to_idx = history.cursor if to_index is None else to_index
         from_idx = to_idx - 1 if from_index is None else from_index
         if from_idx < 0 or to_idx < 0 or from_idx >= len(entries) or to_idx >= len(entries):
@@ -232,21 +235,21 @@ class HistoryService:
         after = self._mgr._read_snapshot(self.ws.project, entries[to_idx])
         raw = diff_snapshots(before, after)
         after_entry = entries[to_idx]
-        return {
-            "from_index": from_idx,
-            "to_index": to_idx,
-            "from_label": entries[from_idx].label,
-            "to_label": after_entry.label,
-            "operation": after_entry.operation,
-            "params": after_entry.params,
-            "diff": raw,
-            "summary": summarize_diff(
+        return PopulatedHistoryDiffResult(
+            from_index=from_idx,
+            to_index=to_idx,
+            from_label=entries[from_idx].label,
+            to_label=after_entry.label,
+            operation=after_entry.operation,
+            params=after_entry.params,
+            diff=raw,
+            summary=summarize_diff(
                 raw,
                 operation=after_entry.operation,
                 params=after_entry.params or {},
                 label=after_entry.label,
             ),
-        }
+        )
 
     def record(self, label: str = "manual") -> str:
         return self.ws.record_snapshot(label, force=True)

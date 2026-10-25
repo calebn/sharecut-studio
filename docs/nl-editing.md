@@ -69,7 +69,11 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 
 MCP edit and playback handlers import `EditService`, `TimelineService`,
 `TranscriptService`, `AnalysisService`, `PlayService`, and their related public
-names from `podcast_mcp.services.document`. The implementation
+names from `podcast_mcp.services.document`. `history_diff_tool` serializes the
+service's typed empty or populated diff result as an ordinary dictionary. Empty
+history has four fields; a selected comparison has eight, including nullable
+operation and params. See [History diff results](history.md#history-diff-results).
+The implementation
 lives in `services/document/`; tool behavior and names are unchanged.
 
 Share and session-control MCP handlers use the `services.collaboration` facade.

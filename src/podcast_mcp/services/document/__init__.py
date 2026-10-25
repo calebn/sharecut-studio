@@ -30,7 +30,12 @@ if TYPE_CHECKING:
         score_golden_ear,
     )
     from podcast_mcp.services.document.history import HISTORY_RERENDER_ERRORS, HistoryService
-    from podcast_mcp.services.document.history_results import HistoryListResult
+    from podcast_mcp.services.document.history_results import (
+        EmptyHistoryDiffResult,
+        HistoryDiffResult,
+        HistoryListResult,
+        PopulatedHistoryDiffResult,
+    )
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.transcript import TranscriptService
@@ -47,11 +52,14 @@ __all__ = [
     "ClipService",
     "CommentService",
     "EditService",
+    "EmptyHistoryDiffResult",
     "EpisodeService",
+    "HistoryDiffResult",
     "HistoryListResult",
     "HistoryService",
     "PlayRequest",
     "PlayService",
+    "PopulatedHistoryDiffResult",
     "RollBoundaryTarget",
     "TimelineService",
     "TranscriptService",
@@ -85,7 +93,10 @@ _MODULE_BY_NAME = {
     "score_golden_ear": "golden_ear",
     "HISTORY_RERENDER_ERRORS": "history",
     "HistoryService": "history",
+    "EmptyHistoryDiffResult": "history_results",
+    "HistoryDiffResult": "history_results",
     "HistoryListResult": "history_results",
+    "PopulatedHistoryDiffResult": "history_results",
     "PlayRequest": "play",
     "PlayService": "play",
     "TransportPath": "play",

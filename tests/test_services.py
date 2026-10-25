@@ -172,9 +172,8 @@ def test_history_service_status_goto_diff_undo(minimal_project):
     # the snapshots hold the same audio, so the move marks nothing stale (#424)
     assert reloaded.project.reconciliation_stale is False
     diff = svc.diff(from_index=0, to_index=1)
-    assert "diff" in diff
-    assert "summary" in diff
-    assert isinstance(diff["summary"], list)
+    assert isinstance(diff.diff, dict)
+    assert isinstance(diff.summary, list)
 
 
 def test_history_moves_keep_content_addressed_stem_hashes(minimal_project, sample_wav) -> None:

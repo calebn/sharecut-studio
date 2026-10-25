@@ -641,7 +641,7 @@ def test_history_diff_empty_and_out_of_range(minimal_project):
 
     ws = ProjectWorkspace.open(minimal_project)
     svc = HistoryService(ws)
-    assert svc.diff() == {
+    assert svc.diff().model_dump() == {
         "diff": {},
         "summary": [],
         "from_index": None,

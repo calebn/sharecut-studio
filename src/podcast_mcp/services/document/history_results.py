@@ -65,3 +65,24 @@ class HistoryListResult(_HistoryResult):
     can_redo: bool
     entries: list[HistoryEntryResult]
     groups: list[HistoryGroup]
+
+
+class EmptyHistoryDiffResult(_HistoryResult):
+    diff: Annotated[dict[str, Any], Field(max_length=0)]
+    summary: Annotated[list[str], Field(max_length=0)]
+    from_index: None
+    to_index: None
+
+
+class PopulatedHistoryDiffResult(_HistoryResult):
+    from_index: int
+    to_index: int
+    from_label: str
+    to_label: str
+    operation: str | None
+    params: dict[str, Any] | None
+    diff: dict[str, Any]
+    summary: list[str]
+
+
+HistoryDiffResult = EmptyHistoryDiffResult | PopulatedHistoryDiffResult
