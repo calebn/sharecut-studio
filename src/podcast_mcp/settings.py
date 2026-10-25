@@ -105,7 +105,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_ACCELERATOR",
-            "cpu keeps every model on the CPU (support override); auto uses a GPU where found.",
+            "auto or cpu (support override). Only reported in the doctor and support bundle so far; no model reads it yet.",
             "auto",
         ),
         ("PODCAST_MCP_WORD_ALIGNER_MODEL", "Local word-aligner snapshot directory."),

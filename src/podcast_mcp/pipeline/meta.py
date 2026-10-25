@@ -352,7 +352,7 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
     _ParamSpec(
         path="performance.accelerator",
         label="Accelerator",
-        description="auto uses a GPU where one is found; cpu keeps everything on the CPU.",
+        description="auto or cpu. No model reads it yet; it is reported in the doctor and support bundle.",
         enum=("auto", "cpu"),
         group="advanced",
         section="performance",
