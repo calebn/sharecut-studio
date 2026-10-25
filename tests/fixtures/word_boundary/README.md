@@ -38,14 +38,14 @@ aligner the harness in `scripts/benchmark_forced_aligners.py` can run
 (an ONNX wav2vec2-base and its int8 variant; both Apache-2.0). The
 torch wav2vec2-large comparison candidate and its backend were removed in
 [#2257](https://github.com/calebn/sharecut-studio/issues/2257); its #641
-measurement survives only as numbers in docs/test-results.md. Sizes are not claimed here. Print the exact
-download command for a candidate with `download-commands`, then score it
+measurement survives only as numbers in docs/test-results.md. Sizes are not claimed
+here. Print the exact download command for a candidate with `download-commands`, then score it
 against these clips with `run --target librispeech`; the harness never
 downloads a model itself. Check that the pins still resolve and the licenses
 still match the model cards with `verify-candidates` (network, metadata
 only; a card with no declared license is printed as a note, not verified).
-`<id>.<label>.json` (`<label>` one of `onnx-base`, `onnx-base-int8`) are the measured [#641](https://github.com/calebn/sharecut-studio/issues/641)
-reports: produced by `run --target librispeech --threads 4` and copied
+`<id>.<label>.json` (`<label>` one of `onnx-base`, `onnx-base-int8`) are the measured
+[#641](https://github.com/calebn/sharecut-studio/issues/641) reports: produced by `run --target librispeech --threads 4` and copied
 unchanged from `<runs-dir>/<id>.<label>.report.json`. Re-scoring them against
 the gold fixtures is asserted in
 `tests/test_word_boundary_metrics.py::test_checked_in_candidate_reports_match_reference_fixture`;
