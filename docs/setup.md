@@ -688,6 +688,8 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_PACKAGED_CLI` |  | Set to 1 by the installed app's CLI shim. |
 | `PODCAST_GUEST_RENDER` |  | Allow guest render previews (1, true, yes, on). |
 | `PODCAST_SHARE_ACCOUNTS` |  | Enable restricted shares with sign-in (1, true, yes, on). |
+| `PODCAST_VERDICT_CACHE` |  | Reuse the apply-time check of a cut whose neighbourhood was already checked (1, true, yes, on). |
+| `PODCAST_VERDICT_VERIFY` |  | On every verdict cache hit, run the full check too and fail if it differs (tests, lab). |
 | `PODCAST_EVIDENCE_VERIFY` |  | On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab). |
 
 **Studio server**

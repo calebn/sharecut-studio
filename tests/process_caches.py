@@ -46,6 +46,10 @@ ISOLATED: dict[str, str] = {
         "same path inside one clock tick would read the earlier profile, so each test starts "
         "empty (#2269)."
     ),
+    "podcast_mcp.edits.verdict_cache:_STORE": (
+        "Entries are keyed by the project's clips, words, media revisions and settings; a test "
+        "that edits any of them behind the key's back must not see another test's verdict (#1958)."
+    ),
     "podcast_mcp.engines.render_clock:_NATIVE_FORMATS": (
         "Tests count the probe spawns of a render and expect the first one to probe."
     ),

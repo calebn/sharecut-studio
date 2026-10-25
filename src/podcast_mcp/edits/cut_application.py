@@ -11,7 +11,14 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety, suggested_actions
+from podcast_mcp.edits import (
+    cut_effects,
+    cut_placement,
+    cut_policy,
+    cut_safety,
+    suggested_actions,
+    verdict_cache,
+)
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.cut_placement import CutScopeHold, pending_pad_source_spans
@@ -101,7 +108,7 @@ from podcast_mcp.models.episode import (
 )
 from podcast_mcp.project import merge as project_merge
 from podcast_mcp.project.merge import adopt_project_state
-from podcast_mcp.util.batch_scope import batch_scope, frozen_state
+from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.timebase import TimelineSec
@@ -182,6 +189,7 @@ def _completed_holds(
             mode=mode,
         )
     except (OSError, ValueError, subprocess.SubprocessError):
+        verdict_cache.mark_unstable()
         effects = ()
         unavailable = ids
     return cut_safety.apply_safety_actions(
@@ -517,22 +525,137 @@ def _apply_source_remove(
     Measurements share frozen state only until the first mutation. ``measured`` carries
     held-source measurements between cuts while ``project`` stays the same object.
     This writer completes every source, pad and edge write before policy can publish the copy.
+    With the verdict cache on (#1958), a cut whose neighbourhood was already checked reuses
+    that check; see ``verdict_cache``.
+    """
+
+    manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
+    key = entry = None
+    placed = cut_safety.source_cut_placement(project, edit)
+    if verdict_cache.enabled():
+        key = verdict_cache.verdict_key(
+            project, edit, defaults=defaults, manual=manual, batch=batch, span=placed[1]
+        )
+        entry = verdict_cache.lookup(key)
+        if entry is not None and not verdict_cache.verifying():
+            if entry.outcome is not None:
+                return entry.outcome
+            reused = _check_source_remove(
+                project,
+                edit,
+                defaults=defaults,
+                manual=manual,
+                batch=batch,
+                record_log=record_log,
+                override_peer_holds=override_peer_holds,
+                measured=measured,
+                placed=placed,
+                key=key,
+                cached=entry,
+            )
+            if reused is not None:
+                return reused
+            entry = None
+    return _check_source_remove(
+        project,
+        edit,
+        defaults=defaults,
+        manual=manual,
+        batch=batch,
+        record_log=record_log,
+        override_peer_holds=override_peer_holds,
+        measured=measured,
+        placed=placed,
+        key=key,
+        cached=None,
+        verify=entry,
+    )
+
+
+def precompute_verdicts(
+    project: EpisodeProject,
+    ids: Iterable[str],
+    *,
+    defaults: EffectiveConfig,
+    application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+) -> int:
+    """Check each pending source remove of ``ids`` now so a later approval can reuse the check.
+
+    Nothing in ``project`` changes; every cut is checked on a copy, as ``approve_edits`` does.
+    Returns how many cuts were checked; 0 while the verdict cache is off.
+    """
+
+    if not verdict_cache.enabled():
+        return 0
+    wanted = set(ids)
+    removes = [
+        e
+        for e in project.edit_decisions
+        if e.id in wanted
+        and not e.applied
+        and e.type == EditDecisionType.REMOVE
+        and e.exact_range is None
+        and e.timebase == "source"
+    ]
+    batch = tuple(_source_extents(removes).values())
+    # Its own scope, never the caller's: what a check parks there (a consumed room-tone bed,
+    # pad origins) belongs to one batch and must not leak from a trial into the real one.
+    with unscoped(), batch_scope():
+        for edit in removes:
+            _apply_source_remove(
+                project,
+                edit,
+                defaults=defaults,
+                application_intent=application_intent,
+                batch=batch,
+                measured={},
+            )
+    return len(removes)
+
+
+def _check_source_remove(
+    project: EpisodeProject,
+    edit: EditDecision,
+    *,
+    defaults: EffectiveConfig,
+    manual: bool,
+    batch: Sequence[SourceExtent],
+    record_log: bool,
+    override_peer_holds: set[str] | None,
+    measured: cut_safety.MeasuredSources | None,
+    placed: tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]],
+    key: str | None,
+    cached: verdict_cache.CachedVerdict | None,
+    verify: verdict_cache.CachedVerdict | None = None,
+) -> (
+    tuple[EpisodeProject, tuple[float, float, list[str], dict]]
+    | CutSpeechConfirmation
+    | CutScopeHold
+    | None
+):
+    """One full check and write; with ``cached``, reuse its observation and skip the check.
+
+    Returns ``None`` only for a reused check whose written cut differs from the recorded one.
     """
 
     candidate = _cut_copy(project)
     pads: list[cut_effects.PadEffect] = []
-    manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
-    with ExitStack() as proof:
+    with verdict_cache.recording() as marks, ExitStack() as proof:
         proof.enter_context(frozen_state())
         caches = shared_source_audio_caches(project)
-        observation = cut_safety.observe_source_cut(
-            project,
-            edit,
-            defaults=defaults,
-            manual=manual,
-            batch=batch,
-            audio_caches=caches,
-            timeline_caches=shared_timeline_rms_caches(project, defaults=defaults),
+        observation = (
+            cached.observation
+            if cached is not None
+            else cut_safety.observe_source_cut(
+                project,
+                edit,
+                defaults=defaults,
+                manual=manual,
+                batch=batch,
+                audio_caches=caches,
+                timeline_caches=shared_timeline_rms_caches(project, defaults=defaults),
+                placed=placed,
+            )
         )
         pause = observation.pause if isinstance(observation.pause, cut_safety.HeldPause) else None
         actual = (
@@ -554,26 +677,45 @@ def _apply_source_remove(
             pads=pads,
             defaults=defaults,
         )
-    ids = frozenset({edit.id})
-    try:
-        held = _completed_holds(
-            project,
-            candidate,
-            ids,
-            defaults=defaults,
-            manual_ids=ids if manual else frozenset(),
-            pauses={edit.id: observation.pause},
-            join=cut_policy.CutJoin.PADDED if actual.replace_gap_sec else cut_policy.CutJoin.SPLICE,
-            observation=observation,
-            pads=pads,
-            peers=observation.peers,
-            owned=observation.removal is not None and bool(observation.removal.selected),
-            measured=measured,
+        written = verdict_cache.written_digest(result)
+        padded = verdict_cache.pads_digest(pads)
+        if cached is not None and (written, padded) != (cached.written, cached.pads):
+            return None
+        outcome: CutSpeechConfirmation | CutScopeHold | None = None
+        if cached is None:
+            ids = frozenset({edit.id})
+            try:
+                held = _completed_holds(
+                    project,
+                    candidate,
+                    ids,
+                    defaults=defaults,
+                    manual_ids=ids if manual else frozenset(),
+                    pauses={edit.id: observation.pause},
+                    join=cut_policy.CutJoin.PADDED
+                    if actual.replace_gap_sec
+                    else cut_policy.CutJoin.SPLICE,
+                    observation=observation,
+                    pads=pads,
+                    peers=observation.peers,
+                    owned=observation.removal is not None and bool(observation.removal.selected),
+                    measured=measured,
+                )
+            except UnconfirmedCutSpeech as asked:
+                outcome = asked.confirmation
+            else:
+                outcome = held[0] if held else None
+    if cached is None:
+        if verify is not None:
+            fresh = verdict_cache.written_digest((outcome, observation))
+            known = verdict_cache.written_digest((verify.outcome, verify.observation))
+            if (fresh, written, padded) != (known, verify.written, verify.pads):
+                raise AssertionError(f"verdict cache entry differs from a full check ({edit.id})")
+        verdict_cache.store(
+            key, verdict_cache.CachedVerdict(observation, outcome, written, padded), marks
         )
-    except UnconfirmedCutSpeech as asked:
-        return asked.confirmation
-    if held:
-        return held[0]
+    if outcome is not None:
+        return outcome
     if (
         manual
         and override_peer_holds is not None
@@ -945,6 +1087,14 @@ def approve_edits(
             project = previous
             continue
         applied_ids.add(edit.id)
+    if verdict_cache.verifying():
+        # Lab and tests: every check below then finds a cached one and compares against it.
+        precompute_verdicts(
+            project,
+            [e.id for e in removes],
+            defaults=defaults,
+            application_intent=application_intent,
+        )
     batch = _source_extents(removes)
     extents = batch.copy()
     applied_removes: list[str] = []
