@@ -65,10 +65,8 @@ beforeEach(() => {
 it("keeps a held trim when only the words arrive at the same seq", async () => {
   const detail = interceptDetailLoads();
   applyDocumentSnapshot(shellSnapshot(shell(), 4));
-  const store = useDawStore.getState();
   const token = Symbol();
-  store.changeHeldTrim({ kind: "begin", token, target });
-  store.changeHeldTrim({ kind: "value", token, sourceSec: 9.99 });
+  begin(token);
   await detail.land(withWords(shell()));
   expect(useDawStore.getState().project?.meta.hydration?.transcript_words).toBe(
     true,

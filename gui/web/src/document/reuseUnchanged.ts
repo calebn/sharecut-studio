@@ -271,11 +271,7 @@ export function reuseUnchanged(
   };
 }
 
-/**
- * A transcript detail load answers the same seq and token as the shell it
- * extends, so its other root fields are the shell's values freshly parsed.
- * Keep the shell's references so the revision still compares as unchanged.
- */
+// Keeps the shell's references so the revision still compares as unchanged.
 export function reuseSettledFields(
   prev: ProjectView | null,
   next: ProjectView,
