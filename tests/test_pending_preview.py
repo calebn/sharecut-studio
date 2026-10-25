@@ -519,22 +519,22 @@ def test_a_track_level_profile_is_measured_once_per_file_and_survives_a_restart(
 
     monkeypatch.setattr(level_profile, "frame_levels_db", measure)
     records = ws.project.artifacts_dir() / "level_profiles"
-    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    level_profile._FILE_PROFILES.clear()
     assert audio_cache.track_level_profile(ws.project, "host") is not None
     assert not list(records.glob("*.json"))
-    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    level_profile._FILE_PROFILES.clear()
     measured = audio_cache.track_level_profile(ws.project, "host", record=True)
     assert len(measures) == 2
     assert list(records.glob("*.json"))
 
-    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    level_profile._FILE_PROFILES.clear()
     reopened = ProjectWorkspace.open(minimal_project)
     assert audio_cache.track_level_profile(reopened.project, "host") == measured
     assert len(measures) == 2
 
     raw = reopened.project.workspace_path() / "raw" / "host.wav"
     raw.write_bytes(raw.read_bytes() + b"\0\0")
-    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    level_profile._FILE_PROFILES.clear()
     audio_cache.track_level_profile(reopened.project, "host", record=True)
     assert len(measures) == 3
 

@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +26,7 @@ from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_DB,
     SPEECH_BAND,
@@ -251,8 +251,8 @@ def track_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
     return level_profile(samples, sample_rate, whole_track=True) or SILENT
 
 
-_FILE_PROFILES: dict[tuple[str, FileRevision, int], LevelProfile] = {}
-_FILE_PROFILES_LOCK = threading.Lock()
+# Bounded: a long-lived server measures every revision of every file it ever opens.
+_FILE_PROFILES: BoundedCache[tuple[str, FileRevision, int], LevelProfile] = BoundedCache(256)
 
 
 def file_level_profile(
@@ -278,8 +278,7 @@ def file_level_profile(
     """
     resolved = path.resolve()
     key = (str(resolved), file_revision(resolved), int(sample_rate))
-    with _FILE_PROFILES_LOCK:
-        known = _FILE_PROFILES.get(key)
+    known = _FILE_PROFILES.get(key)
     if known is not None:
         return known
     name_parts = [_RECORD_REV, *map(str, key)]
@@ -295,8 +294,7 @@ def file_level_profile(
         profile = profile_from_levels(levels, whole_track=True) or SILENT
     if record and write_record:
         _write_record(record, profile)
-    with _FILE_PROFILES_LOCK:
-        _FILE_PROFILES[key] = profile
+    _FILE_PROFILES.put(key, profile)
     return profile
 
 

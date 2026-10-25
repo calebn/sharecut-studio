@@ -333,7 +333,7 @@ def test_level_record_name_follows_the_first_stream_for_several_only(
     revision = (1, 2, 3, 4)
     monkeypatch.setattr(level_profile, "file_revision", lambda _path: revision)
     monkeypatch.setattr(level_profile, "load_mono_full", lambda *_a, **_k: np.zeros(8000))
-    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    level_profile._FILE_PROFILES.clear()
     several = media.multistream(tmp_path, "two_b.mkv")
     records = tmp_path / "records"
     for path in (mono_wav, several):
@@ -344,7 +344,7 @@ def test_level_record_name_follows_the_first_stream_for_several_only(
         marker = records / f"{main_name}.json"
         marker.parent.mkdir(exist_ok=True)
         marker.write_text(json.dumps({"room_db": -60.0, "speech_db": -20.0, "loud_db": -10.0}))
-        monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+        level_profile._FILE_PROFILES.clear()
         read = level_profile.file_level_profile(path, record_dir=records)
         assert (read.speech_db == -20.0) is (path == mono_wav)
         marker.unlink()
