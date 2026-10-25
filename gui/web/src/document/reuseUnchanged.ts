@@ -9,6 +9,7 @@ import type {
   ProjectView,
 } from "../types/project";
 import { jsonEqual } from "../utils/jsonEqual";
+import { LATE } from "./editBasisKey";
 
 type SourceSpans = ClipMuteRegion[] | ClippingRegion[];
 
@@ -268,4 +269,27 @@ export function reuseUnchanged(
     pending_edits: pendingEdits,
     applied_edits: appliedEdits,
   };
+}
+
+/**
+ * A transcript detail load answers the same seq and token as the shell it
+ * extends, so its other root fields are the shell's values freshly parsed.
+ * Keep the shell's references so the revision still compares as unchanged.
+ */
+export function reuseSettledFields(
+  prev: ProjectView | null,
+  next: ProjectView,
+): ProjectView {
+  if (!prev) return next;
+  let kept: ProjectView | null = null;
+  for (const key of Object.keys(next) as Array<keyof ProjectView>) {
+    if (
+      (LATE.root as readonly string[]).includes(key) ||
+      !jsonEqual(prev[key], next[key])
+    )
+      continue;
+    kept ??= { ...next };
+    Object.assign(kept, { [key]: prev[key] });
+  }
+  return kept ?? next;
 }

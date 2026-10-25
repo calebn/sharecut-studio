@@ -14,7 +14,9 @@ import {
   saveWordTiming,
   type WordTimingContext,
 } from "../api/transcriptTiming";
+import { documentAuthority } from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
+import { sameBasis } from "../document/editBasisKey";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { WaveformLayer } from "../timeline/WaveformLayer";
@@ -33,7 +35,11 @@ type Editor =
       draft: Bounds;
       message: string;
     };
-type Saved = { project: ProjectView | null; seq: number };
+type Saved = {
+  project: ProjectView | null;
+  seq: number;
+  token: string | null;
+};
 
 function SourceProgress({
   ownerId,
@@ -105,6 +111,14 @@ export function TranscriptWordbar({
         />
       )}
     </section>
+  );
+}
+
+function staleSince(saved: Saved, project: ProjectView | null): boolean {
+  return (
+    currentDocumentSeq() !== saved.seq ||
+    documentAuthority.token !== saved.token ||
+    !sameBasis(project, saved.project)
   );
 }
 
@@ -301,7 +315,11 @@ function TimingEditor({
       setSaved(
         typeof result.server_seq === "number" &&
           result.server_seq === currentDocumentSeq()
-          ? { project: useDawStore.getState().project, seq: result.server_seq }
+          ? {
+              project: useDawStore.getState().project,
+              seq: result.server_seq,
+              token: documentAuthority.token,
+            }
           : null,
       );
       const context = await loadWordTimingContext(
@@ -568,17 +586,14 @@ function TimingEditor({
           <CommandButton
             commandId="history.undo"
             disabledReason={
-              project !== saved.project || currentDocumentSeq() !== saved.seq
+              staleSince(saved, project)
                 ? "The transcript changed since this timing. Use History to review newer changes."
                 : undefined
             }
             onKeyDown={cancelOnEscape}
             onClick={(event) => {
               const current = useDawStore.getState();
-              if (
-                current.project !== saved.project ||
-                currentDocumentSeq() !== saved.seq
-              ) {
+              if (staleSince(saved, current.project)) {
                 event.preventDefault();
                 setSaved(null);
                 return;

@@ -3,6 +3,7 @@ import {
   documentAuthority,
   resetDocumentAuthority,
 } from "../document/authorityState";
+import { sameBasis } from "../document/editBasisKey";
 import { overlayDocumentDrafts } from "../document/pendingDrafts";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { trimDraft } from "../edit/ripplePreview";
@@ -32,6 +33,7 @@ type TrimLifetime = {
   authorityPath: string;
   generation: number;
   seq: number;
+  token: string | null;
   authority: ProjectView | null;
 };
 
@@ -72,10 +74,11 @@ function lifetimeOf(state: DawStore): TrimLifetime {
     authorityPath: documentAuthority.path,
     generation: documentAuthority.generation,
     seq: documentAuthority.seq,
+    token: documentAuthority.token,
     authority: documentAuthority.project,
   };
 }
-function ownsLifetime(layer: HeldTrimLayer, state: DawStore): boolean {
+function sameDocument(layer: HeldTrimLayer, state: DawStore): boolean {
   const lifetime = layer.lifetime;
   return (
     state.projectPath === lifetime.path &&
@@ -83,8 +86,37 @@ function ownsLifetime(layer: HeldTrimLayer, state: DawStore): boolean {
     documentAuthority.path === lifetime.authorityPath &&
     documentAuthority.generation === lifetime.generation &&
     documentAuthority.seq === lifetime.seq &&
-    documentAuthority.project === lifetime.authority
+    documentAuthority.token === lifetime.token
   );
+}
+function ownsLifetime(layer: HeldTrimLayer, state: DawStore): boolean {
+  return (
+    sameDocument(layer, state) &&
+    documentAuthority.project === layer.lifetime.authority
+  );
+}
+// A same-seq hydration swaps only late fields, so the trim survives it.
+function rebaseHeldTrim(
+  layer: HeldTrimLayer,
+  state: DawStore,
+  project: ProjectView,
+): HeldTrimLayer | null {
+  if (
+    !sameDocument(layer, state) ||
+    documentAuthority.project === layer.lifetime.authority ||
+    !sameBasis(documentAuthority.project, layer.lifetime.authority)
+  )
+    return null;
+  const { trackId, clipId, edge, mode } = layer.target;
+  return {
+    ...layer,
+    origin: project,
+    preview:
+      layer.preview === layer.origin
+        ? project
+        : trimDraft(project, trackId, clipId, edge, layer.value, mode),
+    lifetime: { ...layer.lifetime, authority: documentAuthority.project },
+  };
 }
 export function ownsSavingTrim(state: DawStore, token: symbol): boolean {
   const layer = state.heldTrim;
@@ -232,15 +264,18 @@ export const createProjectSlice: StateCreator<
     };
   },
   setProject: (project) => {
-    set((state) =>
-      state.heldTrim === null && state.project === project
-        ? state
-        : {
-            heldTrim: null,
-            project,
-            ...zoomReclampPatch(state, sessionSecOf({ project })),
-          },
-    );
+    set((state) => {
+      if (state.heldTrim === null && state.project === project) return state;
+      const held = state.heldTrim
+        ? rebaseHeldTrim(state.heldTrim, state, project)
+        : null;
+      const shown = held ? held.preview : project;
+      return {
+        heldTrim: held,
+        project: shown,
+        ...zoomReclampPatch(state, sessionSecOf({ project: shown })),
+      };
+    });
   },
   setGuestMode: (guestMode: string | null) => set({ guestMode }),
   setPipelineJob: (pipelineJob: PipelineJobSnapshot | null) =>

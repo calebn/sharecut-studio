@@ -121,4 +121,8 @@ it("keeps Undo timing enabled when only the words arrive at the same seq", async
     await detail.land(withWords(saved));
   });
   expect(screen.getByRole("button", { name: "Undo timing" })).toBeEnabled();
+  act(() => {
+    applyDocumentSnapshot(shellSnapshot(withWords(saved), 6));
+  });
+  expect(screen.getByRole("button", { name: "Undo timing" })).toBeDisabled();
 });

@@ -9,7 +9,7 @@ type Cached = {
 };
 let last: Cached | null = null;
 
-const LATE = {
+export const LATE = {
   root: ["transcript", "meta", "history"],
   meta: ["hydration"],
   history: ["groups"],
@@ -34,11 +34,18 @@ function sameRoot(a: ProjectView, b: ProjectView): boolean {
   );
 }
 
+export function sameBasis(
+  a: ProjectView | null,
+  b: ProjectView | null,
+): boolean {
+  return a === b || (!!a && !!b && sameRoot(a, b));
+}
+
 export function editBasisKey(basis: ProjectView | null): string {
   if (!basis) return "";
   const { seq, token } = documentAuthority;
   if (last && last.seq === seq && last.token === token) {
-    if (last.basis === basis || sameRoot(last.basis, basis)) {
+    if (sameBasis(last.basis, basis)) {
       last = { ...last, basis };
       return last.key;
     }

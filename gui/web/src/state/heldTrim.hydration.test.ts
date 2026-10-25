@@ -1,6 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
-import { resetDocumentAuthority } from "../document/authorityState";
+import {
+  documentAuthority,
+  resetDocumentAuthority,
+} from "../document/authorityState";
 import { TRIM_MODE } from "../edit/clipEdgeSave";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import {
@@ -48,6 +51,12 @@ const shell = () =>
     }),
   );
 
+const begin = (token: symbol) => {
+  const store = useDawStore.getState();
+  store.changeHeldTrim({ kind: "begin", token, target });
+  store.changeHeldTrim({ kind: "value", token, sourceSec: 9.99 });
+};
+
 beforeEach(() => {
   resetDocumentAuthority(path);
   useDawStore.getState().hydrate(path, shell());
@@ -70,4 +79,20 @@ it("keeps a held trim when only the words arrive at the same seq", async () => {
       .getState()
       .changeHeldTrim({ kind: "value", token, sourceSec: 9.98 }).kind,
   ).toBe("accepted");
+});
+
+it("drops a held trim when a peer edit lands at the next seq", async () => {
+  applyDocumentSnapshot(shellSnapshot(shell(), 4));
+  begin(Symbol());
+  applyDocumentSnapshot(shellSnapshot(withWords(shell()), 5));
+  expect(useDawStore.getState().heldTrim).toBeNull();
+});
+
+it("drops a held trim when the token changes at the same seq", () => {
+  applyDocumentSnapshot(shellSnapshot(shell(), 4));
+  begin(Symbol());
+  documentAuthority.token = "c".repeat(64);
+  documentAuthority.project = withWords(shell());
+  useDawStore.getState().setProject(documentAuthority.project);
+  expect(useDawStore.getState().heldTrim).toBeNull();
 });

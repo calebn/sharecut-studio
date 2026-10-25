@@ -92,5 +92,11 @@ describe("TranscriptFindReplace after late word hydration", () => {
     expect(
       screen.getByRole("button", { name: "Undo replacements" }),
     ).toBeEnabled();
+    act(() => {
+      applyDocumentSnapshot(shellSnapshot(withWords(shell()), 6));
+    });
+    expect(
+      screen.getByRole("button", { name: "Undo replacements" }),
+    ).toBeDisabled();
   });
 });

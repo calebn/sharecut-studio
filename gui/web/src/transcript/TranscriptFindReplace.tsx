@@ -4,7 +4,9 @@ import type {
   TranscriptReplacementPreview,
 } from "../api";
 import { previewTranscriptReplacement, replaceTranscriptMatches } from "../api";
+import { documentAuthority } from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
+import { sameBasis } from "../document/editBasisKey";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
@@ -17,7 +19,13 @@ type ReplaceState =
   | { kind: "previewing" }
   | { kind: "review"; preview: TranscriptReplacementPreview }
   | { kind: "replacing"; preview: TranscriptReplacementPreview }
-  | { kind: "done"; count: number; project: ProjectView | null; seq: number }
+  | {
+      kind: "done";
+      count: number;
+      project: ProjectView | null;
+      seq: number;
+      token: string | null;
+    }
   | { kind: "queued" }
   | { kind: "error"; message: string };
 
@@ -84,6 +92,7 @@ export function TranscriptFindReplace() {
           count: preview.count,
           project: useDawStore.getState().project,
           seq: currentDocumentSeq(),
+          token: documentAuthority.token,
         });
     } catch (error) {
       if (useDawStore.getState().projectPath === projectPath)
@@ -92,6 +101,11 @@ export function TranscriptFindReplace() {
       busyRef.current = false;
     }
   };
+  const stale =
+    state.kind === "done" &&
+    (currentDocumentSeq() !== state.seq ||
+      documentAuthority.token !== state.token ||
+      !sameBasis(project, state.project));
   return (
     <section
       className="transcript-find-replace"
@@ -223,16 +237,14 @@ export function TranscriptFindReplace() {
           <CommandButton
             commandId="history.undo"
             disabledReason={
-              project !== state.project || currentDocumentSeq() !== state.seq
+              stale
                 ? "The transcript changed since this replacement. Use History to review newer changes."
                 : undefined
             }
           >
             Undo replacements
           </CommandButton>
-          {project !== state.project && (
-            <span> Use History to review newer changes.</span>
-          )}
+          {stale && <span> Use History to review newer changes.</span>}
         </div>
       )}
       {state.kind === "queued" && (

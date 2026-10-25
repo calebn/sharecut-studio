@@ -30,6 +30,7 @@ import {
   projectFromDocumentSnapshot,
   snapshotFromResult,
 } from "./projectPatch";
+import { reuseSettledFields } from "./reuseUnchanged";
 
 let recovery: {
   scope: DocumentScope;
@@ -257,6 +258,8 @@ export function applyDocumentSnapshot(
     )
       return invalidate(seq, scope);
     next = projectFromDocumentSnapshot(previous, snap);
+    if (next && opts?.hydrationSeq !== undefined)
+      next = reuseSettledFields(previous, next);
   }
   if (!next) return invalidate(seq, scope);
   documentAuthority.token = snap.state_token ?? null;
