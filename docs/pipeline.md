@@ -615,6 +615,20 @@ takes 7.5 to 9.3 s against 5.1 to 7.2 s. The reading is cached on the run, so it
 per recording, not per pause.
 
 
+### Reusing an approval check (`PODCAST_VERDICT_CACHE`, #1958)
+
+Approving a source remove observes the cut's neighbourhood (peer speech, acoustic edges, pauses)
+and then checks the written result; that is nearly all of an approval's cost. With
+`PODCAST_VERDICT_CACHE=1`, `precompute_verdicts` checks pending cuts ahead of time and an
+approval reuses the check of every cut whose neighbourhood is unchanged. The key
+(`edits/verdict_cache.py`) hashes the cut, the intent, the whole settings mapping, what every
+track plays within 13 s of the cut (not clip ids or ends outside that window), the words there,
+the recordings' file revisions, the policy tables and the speaker-profile files. The cheap,
+timeline-dependent part always runs again: the placement, the written cut, and the room-tone
+pads, which must equal what the entry recorded or the full check runs. A check that read an
+unreadable file is never stored. `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
+hit and fails if it differs; the approve and cut tests pass in that mode. Off by default.
+
 ### Which fingerprint answers which question
 
 The repo has three kinds of revision check, and they answer different questions (#1946, #1895):

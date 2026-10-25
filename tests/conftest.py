@@ -151,6 +151,31 @@ def _isolate_process_caches() -> Iterator[None]:
     reset_isolated_caches()
 
 
+# PODCAST_VERDICT_VERIFY=1 (lab and local runs) checks every cut a second time against a cached
+# check, so a test that counts checks, reads, or patches code between two approvals of the same
+# project sees that second check. These tests assert exactly that; they run without it (#1958).
+_VERDICT_VERIFY_COUNTS_CHECKS = (
+    "test_approve_read_ledger.py::test_approving_a_cut_never_reads_the_bleed_path",
+    "test_cut_copy_write_scope.py::test_a_forced_re_pass_leaves_the_mute_base_it_restarts_from_unchanged",
+    "test_cut_scope_publication_contract.py::test_saved_session_approval_unavailable_hold_preserves_saved_bytes",
+    "test_approve_all_holds.py::test_a_hold_far_from_the_applied_cuts_does_not_rerun_them",
+    "test_pause_policy_measurement_red.py::test_nonpause_selected_bed_is_consumed_once_and_tiles_with_literal_outer_fades",
+    "test_source_identity_consumers.py::test_partial_approval_drops_held_source_from_next_batch",
+    "test_source_remove_geometry.py::test_new_id_cannot_remove_a_source_span_consumed_by_an_earlier_cut",
+    "test_source_remove_geometry.py::test_completed_structural_policy_is_the_only_veto",
+    "test_source_remove_geometry.py::test_apply_reassesses_real_sabotage_after_offer",
+    "test_source_remove_geometry.py::test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor",
+)
+
+
+@pytest.fixture(autouse=True)
+def _verdict_verify_off_for_check_counting_tests(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if any(name in request.node.nodeid for name in _VERDICT_VERIFY_COUNTS_CHECKS):
+        monkeypatch.delenv("PODCAST_VERDICT_VERIFY", raising=False)
+
+
 @pytest.fixture(autouse=True)
 def _repo_pipeline_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     """Isolate unit tests from PODCAST_MCP_PIPELINE_DEFAULTS in the shell."""

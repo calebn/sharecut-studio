@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits import cut_speech, join_continuity, speech_energy_guard
+from podcast_mcp.edits import cut_speech, join_continuity, speech_energy_guard, verdict_cache
 from podcast_mcp.edits.audio_cache import TrackAudioCache, recording_audio_cache, source_audio_cache
 from podcast_mcp.edits.breath_detect import (
     _LEVEL_CONTEXT_SEC,
@@ -337,6 +337,7 @@ def resolve_cut_scope(
             if speaker and speaker.get("role") == "bleed":
                 return ResolvedCutScope("speaker_bleed")
     except Exception as exc:
+        verdict_cache.mark_unstable()
         log.debug("speaker cut scope guard skipped: %s", exc, exc_info=True)
 
     try:
@@ -647,6 +648,8 @@ def complete_effect_acoustics(
                     join_subjects[edit_id] = (track_id, offset, recording)
             except (KeyError, OSError, ValueError, subprocess.SubprocessError):
                 join_subjects[edit_id] = None
+    if unavailable - manual_ids - paused:
+        verdict_cache.mark_unstable()
     flags: dict[str, list[str]] = {
         edit_id: ["audio_unavailable"] for edit_id in unavailable - manual_ids - paused
     }
@@ -674,6 +677,7 @@ def complete_effect_acoustics(
                 cache = recording_cache(effect.recording)
                 share = measured
         except (OSError, ValueError, subprocess.SubprocessError):
+            verdict_cache.mark_unstable()
             for edit_id in ids:
                 flags.setdefault(edit_id, []).append("audio_unavailable")
             continue
@@ -729,6 +733,7 @@ def complete_effect_acoustics(
                     continue
                 subject = join_subjects[edit_id]
                 if subject is None:
+                    verdict_cache.mark_unstable()
                     joins[edit_id] = "audio_unavailable"
                     continue
                 if effect.before is None or effect.track_id != subject[0]:
@@ -739,6 +744,7 @@ def complete_effect_acoustics(
                 try:
                     matches_recording = same_recording(effect.recording, subject[2])
                 except (KeyError, OSError, ValueError, subprocess.SubprocessError):
+                    verdict_cache.mark_unstable()
                     joins[edit_id] = "audio_unavailable"
                     continue
                 if matches_recording:
@@ -766,7 +772,10 @@ def complete_effect_acoustics(
                         for edit_id in quality_ids
                     )
             except (OSError, ValueError, subprocess.SubprocessError):
+                verdict_cache.mark_unstable()
                 joins.update((edit_id, "audio_unavailable") for edit_id in quality_ids)
+    if join_subjects.keys() - join_scored - joins.keys():
+        verdict_cache.mark_unstable()
     joins.update(
         (edit_id, "audio_unavailable")
         for edit_id in join_subjects.keys() - join_scored - joins.keys()
@@ -881,6 +890,7 @@ def assess_held_source(
     try:
         cache = audio_cache or source_audio_cache(project, track_id, source_id)
     except (OSError, ValueError, subprocess.SubprocessError):
+        verdict_cache.mark_unstable()
         return HeldAcoustics(("audio_unavailable",))
     words = CutWordIndex.from_transcript(
         project.transcript_for_source(track_id, source_id), track_id
@@ -888,6 +898,7 @@ def assess_held_source(
     lo, hi = max(0.0, start - fade_out_ms / 1000), end + fade_in_ms / 1000
     samples = cache.window(max(0.0, lo - FRAME_SEC), hi + FRAME_SEC)
     if samples.size == 0 or not np.all(np.isfinite(samples)):
+        verdict_cache.mark_unstable()
         return HeldAcoustics(("audio_unavailable",))
     transcript = project.transcript_for_source(track_id, source_id)
     voice = assess_voiced_edges(
@@ -1083,6 +1094,27 @@ class SourceCutObservations:
     removal: RippleRemoval | None
 
 
+def source_cut_placement(
+    project: EpisodeProject, edit: EditDecision
+) -> tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]]:
+    """The placement hold (if any) and the timeline span of a source remove; cheap."""
+    placement = inspect_source_remove_placement(project, edit)
+    if not isinstance(placement, CutScopeHold):
+        return None, placement
+    witness = edit.source_timeline_span
+    spans = SessionTimeline(project).map_source_span(
+        edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
+    )
+    span = (
+        (TimelineSec(witness.start), TimelineSec(witness.end))
+        if witness
+        else spans[0]
+        if spans
+        else (TimelineSec(edit.start), TimelineSec(edit.end))
+    )
+    return placement, span
+
+
 def observe_source_cut(
     project: EpisodeProject,
     edit: EditDecision,
@@ -1092,23 +1124,10 @@ def observe_source_cut(
     batch: Sequence[SourceExtent],
     audio_caches: dict[str, TrackAudioCache],
     timeline_caches: TrackRmsCacheSet,
+    placed: tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]] | None = None,
 ) -> SourceCutObservations:
 
-    placement = inspect_source_remove_placement(project, edit)
-    if isinstance(placement, CutScopeHold):
-        witness = edit.source_timeline_span
-        spans = SessionTimeline(project).map_source_span(
-            edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
-        )
-        span = (
-            (TimelineSec(witness.start), TimelineSec(witness.end))
-            if witness
-            else spans[0]
-            if spans
-            else (TimelineSec(edit.start), TimelineSec(edit.end))
-        )
-    else:
-        span = placement
+    placement, span = placed or source_cut_placement(project, edit)
     pause = (
         assess_held_pause(
             project, edit, span, defaults=defaults, audio_caches=audio_caches, manual=manual
@@ -1144,7 +1163,7 @@ def observe_source_cut(
     )
     return SourceCutObservations(
         span,
-        placement if isinstance(placement, CutScopeHold) else None,
+        placement,
         pause,
         PeerObservations(mapped, speech),
         removal,
