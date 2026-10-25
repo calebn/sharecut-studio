@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -20,6 +19,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.episode import ProcessingChain, ProcessingEffect
 from podcast_mcp.util import batch_scope as scope_module
 from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.hardware import cpu_only_profile, use_hardware_profile
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.project_state import project_state_lock
 from test_audio_eval import _ffmpeg_or_skip, _project
@@ -29,8 +29,9 @@ REAL_EVALUATE = track_evidence._evaluate
 
 
 @pytest.fixture(autouse=True)
-def _enough_cores(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(os, "cpu_count", lambda: 8)
+def _enough_cores() -> Iterator[None]:
+    with use_hardware_profile(cpu_only_profile(8)):
+        yield
 
 
 def _three_chained(tmp_path: Path) -> EpisodeProject:

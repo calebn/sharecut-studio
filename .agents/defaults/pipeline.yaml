@@ -3,7 +3,7 @@
 # working set; the working set replaces this file for that project (ProjectWorkspace.effective_config).
 
 performance:
-  # 0 = auto (cpu_count-based, capped at 8 workers); 1 = force serial (debugging/
+  # 0 = auto (cpu_budget-based, capped at 8 workers); 1 = force serial (debugging/
   # deterministic reproduction); N = explicit worker cap. Applies to per-track stem
   # rendering (assemble_timeline/render_dialogue_stems), filler/pause candidate
   # analysis (analyze_fillers_pauses), and per-format export encoding
