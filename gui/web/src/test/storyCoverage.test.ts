@@ -7,6 +7,12 @@ import { describe, expect, it } from "vitest";
  * that adds its story.
  */
 const COVERED: Record<string, string[]> = {
+  "PNL-TRANSCRIPT": [
+    "Templates/Editor · Transcript panel",
+    "Templates/TranscriptTurn",
+  ],
+  "CMP-FINDREPLACE": ["Templates/Editor · Transcript panel"],
+  "DLG-PRECISION": ["Templates/Editor · Precision boundary dialog"],
   "PNL-COMMENTS": [
     "Templates/Editor · Comments panel",
     "Templates/CommentCard",
@@ -118,7 +124,6 @@ const PARTIAL: Record<string, string[]> = {
   "MENU-MAIN": ["Molecules/Menu"],
   "MENU-VIEW": ["Templates/OverlayLegend"],
   "CMP-TIMELINE": ["Templates/TimelineRange"],
-  "PNL-TRANSCRIPT": ["Templates/TranscriptTurn"],
   "DLG-MODEL-GATE": ["Templates/ExportDialog", "Templates/SplitSpeakersDialog"],
   "SCR-PHONE-LISTEN": ["Templates/ListenHero", "Templates/MobileShell"],
   "SCR-PHONE-TIMELINE": ["Templates/MobileShell"],
@@ -151,7 +156,6 @@ const PENDING = [
   "CMP-SOLO-CHIP",
   "POP-WORD-EDIT",
   "POP-SPEAKER",
-  "CMP-FINDREPLACE",
   "CMP-WORDBAR",
   "CMP-WORDRANGE",
   "CMP-VOCAB",
@@ -159,7 +163,6 @@ const PENDING = [
   "DLG-HELP",
   "DLG-MODELS",
   "DLG-WHISPER",
-  "DLG-PRECISION",
   "DLG-RECORD",
   "BAN-HOME-SCREEN-HINT",
   "BAN-GUEST-ROLE",
@@ -176,7 +179,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 36;
+const PENDING_LIMIT = 34;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,

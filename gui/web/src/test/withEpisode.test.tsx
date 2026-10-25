@@ -48,13 +48,20 @@ describe("EpisodeHydrator", () => {
 
   it("answers configured URLs with JSON and everything else with a 503", async () => {
     render(
-      <EpisodeHydrator config={{ responses: { "/api/steps": ["clean"] } }}>
+      <EpisodeHydrator
+        config={{ responses: { "/api/steps": ["clean"] }, hang: ["/api/slow"] }}
+      >
         <Probe />
       </EpisodeHydrator>,
     );
     const known = await fetch("/api/steps?x=1");
     expect(await known.json()).toEqual(["clean"]);
     expect((await fetch("/api/other")).status).toBe(503);
+    const outcome = await Promise.race([
+      fetch("/api/slow").then(() => "answered"),
+      Promise.resolve("pending"),
+    ]);
+    expect(outcome).toBe("pending");
   });
 
   it("restores the store and the network stubs when it unmounts, twice", () => {
