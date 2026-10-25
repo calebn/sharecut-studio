@@ -51,8 +51,10 @@ DETECTORS = [
     "late_energy_ratio",
 ]
 
-# CI runners differ in float kernels (one run moved two borderline cases by 0.02), so the risk
-# is pinned loosely; the verdict, which no rounding of this size flips, and the detector list stay exact.
+# One CI run moved two cases by 0.02 (level_drop 0.4546 -> 0.4347, pitch_level_jump 0.4373 -> 0.4578)
+# and a re-run of the same commit passed, so the risk is pinned loosely. The verdict string and the
+# detector list stay exact; pitch_level_jump sits 0.022 under the 0.48 fail line, so a bigger shift
+# fails the verdict assert instead of passing here. The cause of the swing is tracked in #2269.
 RISK_TOLERANCE = 0.03
 
 # case -> {join_sec: (verdict, risk)}
