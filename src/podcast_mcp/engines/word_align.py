@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -50,6 +49,7 @@ from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.fingerprint import file_stamp
+from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowReader
 
 # The #641 measurement setting.
@@ -130,7 +130,7 @@ class WordAligner:
             )
             backend = OnnxCtcBackend(
                 onnx_path,
-                threads=threads or min(DEFAULT_ALIGNER_THREADS, os.cpu_count() or 1),
+                threads=threads or min(DEFAULT_ALIGNER_THREADS, cpu_budget()),
             )
         except (WordAlignerMissingError, OnnxRuntimeMissingError):
             raise

@@ -330,6 +330,14 @@ def hardware_profile() -> HardwareProfile:
     return _override if _override is not None else _probed()
 
 
+def cpu_budget() -> int:
+    """The cores this process may use (affinity and container quota respected), at least 1.
+
+    The one place thread and worker counts start from; ``os.cpu_count()`` ignores both limits.
+    """
+    return max(1, hardware_profile().effective_cores)
+
+
 def reset_hardware_cache() -> None:
     _probed.cache_clear()
 
