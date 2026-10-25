@@ -9,8 +9,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import cut_application, cut_safety, verdict_cache
+from podcast_mcp.edits import cut_application, cut_policy, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
+from podcast_mcp.edits.cut_speech import LaneSourceExtent
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
 from source_review_helpers import _cut
 
@@ -223,3 +224,44 @@ def test_verify_mode_fails_when_an_entry_is_wrong(
 
 def test_cut_application_names_the_cache_module() -> None:
     assert cut_application.verdict_cache is verdict_cache
+
+
+def test_the_window_covers_the_breath_context_it_reads() -> None:
+    assert verdict_cache.WINDOW_SEC >= 5.0 + verdict_cache.FADE_REACH_SEC
+
+
+def test_the_production_window_sees_a_change_four_seconds_away(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    base = verdict_cache.verdict_key(project, edit, **kwargs)
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0, source_end=9.4, timeline_start=0),
+        Clip(id="b", track_id="host", source_start=9.4, source_end=SECONDS, timeline_start=9.4),
+    ]
+    assert verdict_cache.verdict_key(project, edit, **kwargs) != base
+
+
+def test_a_batch_cut_changes_the_key_only_when_it_maps_into_the_window(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    kwargs = {"defaults": load_defaults(), "manual": False, "span": (5.0, 5.4)}
+    base = verdict_cache.verdict_key(project, edit, batch=(), **kwargs)
+    near = (LaneSourceExtent("host", 6.0, 6.4),)
+    far = (LaneSourceExtent("host", 35.0, 35.4),)
+    elsewhere = (LaneSourceExtent("host", 36.0, 36.4),)
+    assert verdict_cache.verdict_key(project, edit, batch=near, **kwargs) != base
+    assert verdict_cache.verdict_key(project, edit, batch=far, **kwargs) == (
+        verdict_cache.verdict_key(project, edit, batch=elsewhere, **kwargs)
+    )
+
+
+def test_the_policy_tables_are_part_of_the_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    base = verdict_cache.verdict_key(project, edit, **kwargs)
+    monkeypatch.setattr(cut_policy, "CUT_EDGE_CHECKS", {})
+    assert verdict_cache.verdict_key(project, edit, **kwargs) != base
