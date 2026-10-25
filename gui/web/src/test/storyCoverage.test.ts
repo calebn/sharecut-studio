@@ -106,6 +106,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-REC-HOSTROSTER": ["Templates/HostUploadRoster"],
   "EMPTY-STATES": ["Atoms/EmptyState"],
   "CMP-INLINE-ERROR": ["Atoms/InlineError"],
+  "DLG-HELP": ["Templates/HelpDialog"],
   "CMP-TUNNEL": ["Templates/ShareDialog"],
   "CMP-PRESENCE-STATUS": ["Templates/StatusBar"],
 };
@@ -160,7 +161,6 @@ const PENDING = [
   "CMP-WORDRANGE",
   "CMP-VOCAB",
   "INS-CLIP-MULTI",
-  "DLG-HELP",
   "DLG-MODELS",
   "DLG-WHISPER",
   "DLG-RECORD",
@@ -179,7 +179,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 34;
+const PENDING_LIMIT = 33;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
