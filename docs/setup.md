@@ -9,7 +9,7 @@
 
 ## Full local install
 
-Recommended contributor path (tests + GUI API + relay + prosody; **not** the heavy torch extra):
+Recommended contributor path (tests + GUI API + relay + prosody):
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -77,7 +77,7 @@ summary table.
 
 ## Maximal install (all extras)
 
-For neural join QC, install **every** pip extra. This is much larger than `./install.sh` (Docker clean-room on Linux aarch64: ~6 GB `.venv` from CUDA-flavored `torch`, plus the models `podcast bootstrap --component all` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from a direct first-party CDN url in the manifest).
+Install **every** pip extra. No extra pulls torch; the download beyond `./install.sh` is the models `podcast bootstrap --component all` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from a direct first-party CDN url in the manifest.
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -89,12 +89,6 @@ podcast doctor
 cd gui/web && npm ci && npm run build && cd ../..
 ```
 
-The heavy `joinqc` subset alone:
-
-```bash
-uv sync --extra joinqc           # torch + librosa + transformers
-```
-
 Without `uv`:
 
 ```bash
@@ -104,8 +98,6 @@ source .venv/bin/activate
 podcast bootstrap --component all
 podcast doctor
 ```
-
-`podcast bootstrap` does not download NISQA weights. Set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir when using the neural joinqc path.
 
 ## Frontend exporter dependencies
 
@@ -129,18 +121,17 @@ CI places pytest, browser, and extras temporary work in [private disk temporary 
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, anyio ≥4, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
 | `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
-| `joinqc` | torch, librosa, transformers | Optional neural join continuity — **large** |
 | `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
-| `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling — expect multi‑GB torch/CUDA on Linux |
+| `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling |
 
-`./install.sh` installs `dev` + `gui` + `relay` + `prosody`. It deliberately skips `joinqc` / `all`.
+`./install.sh` installs `dev` + `gui` + `relay` + `prosody`. It deliberately skips `object-store` and `all`.
 
 Speaker recognition has no pip extra: it runs the ECAPA ONNX model on core `onnxruntime`. The embedding speaker commands (`enroll`, `score`, `compare`, `label`, `gate-track`, `attribute`, `split`) and the Split speakers dialog report `model_needed` (HTTP 409, with the `podcast bootstrap --component speaker-ecapa` command) when the ONNX model is not downloaded, or `speaker_backend_unavailable` when a download cannot help (a `PODCAST_MCP_SPEAKER_ECAPA_MODEL` file that is missing or does not load), rather than running on the development mock, while the pipeline's speaker pass skips with "speaker model not downloaded" (the ONNX file is missing) or "speaker recognition unavailable"; `audition_context` leaves `speaker_roles` out. Set `PODCAST_SPEAKER_BACKEND=mock` only to develop against the mock; Split speakers still refuses it (#1999).
 
 **Clean-install check.** `pip install "podcast-mcp[extra]"` ignores `uv.lock`, so an extra can break on a newer transitive release while a locked `uv sync` still works (#1168). `tests/test_extras_import.py` builds a fresh unlocked venv per extra, installs the project with it, and imports the modules the code uses. It is opt-in because it downloads wheels. The path-filtered, weekly `extras-import` workflow runs it; run one extra locally with:
 
 ```bash
-PODCAST_CHECK_EXTRAS=1 uv run pytest --no-cov -k joinqc tests/test_extras_import.py
+PODCAST_CHECK_EXTRAS=1 uv run pytest --no-cov -k prosody tests/test_extras_import.py
 ```
 
 A new extra must be added to `EXTRA_IMPORTS` in that file; a fast test fails otherwise.
@@ -257,7 +248,7 @@ On the host home screen (no `?project=`), ShareCut Studio checks `GET /api/boots
 and reports audio-tool readiness. It can download Whisper via `POST /api/bootstrap/run` (progress on
 `GET /api/bootstrap/events` — same progress plane as pipeline jobs; see [progress.md](progress.md)). A request the running download already covers (a subset of its components, the same Whisper size when Whisper is asked for, and `force` only if it runs forced) joins that job: the response is the same `{job, adopted: true}`, and cancelling from either tab cancels it for both. Any other request while one runs, or while it is stopping, is a 409 `bootstrap_job_running` whose `detail` object carries `detail` (the message), `running` (its components) and `cancelling`. The wizard lets you pick a Whisper size; default is
 **large-v3-turbo** (lowest practical WER, ~1.6 GB). Same assets as `podcast bootstrap`;
-the torch extra is not offered in the UI. Contributor CLI path is unchanged.
+Contributor CLI path is unchanged.
 
 Native window (optional): [`gui/desktop/`](../gui/desktop/) — see
 [desktop-packaging.md](desktop-packaging.md). Local CI mirror:
@@ -412,7 +403,7 @@ system/base Python) — every third-party import is declared here.
 # Match install.sh (recommended contributor set)
 uv sync --extra dev --extra gui --extra relay --extra prosody
 
-# Everything including joinqc (large torch/CUDA wheels on Linux)
+# Every extra
 uv sync --all-extras
 
 uv run make test       # or: .venv/bin/pytest
@@ -435,8 +426,7 @@ uv lock
 ```
 
 Without `uv`, `install.sh` creates a plain `.venv` and runs
-`pip install -e ".[dev,gui,relay,prosody]"`. Add joinqc manually if needed:
-`pip install -e ".[joinqc]"`.
+`pip install -e ".[dev,gui,relay,prosody]"`.
 
 ## MCP and agents
 
@@ -676,7 +666,6 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_MCP_WORD_ALIGNER_MODEL` |  | Local word-aligner snapshot directory. |
 | `PODCAST_MCP_RNNOISE_MODEL` |  | RNNoise model file. |
 | `PODCAST_MCP_SPEAKER_ECAPA_MODEL` |  | Speaker-recognition ONNX model file. |
-| `PODCAST_MCP_NISQA_MODEL` |  | NISQA weights directory. |
 | `PODCAST_MCP_FFMPEG` |  | Explicit ffmpeg executable (set together with PODCAST_MCP_FFPROBE). |
 | `PODCAST_MCP_FFPROBE` |  | Explicit ffprobe executable. |
 | `PODCAST_MCP_FFMPEG_BUNDLE` |  | Directory holding the desktop app's bundled FFmpeg pair. |

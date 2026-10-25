@@ -41,7 +41,6 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
         "hatchling",
         "editables",
     ),
-    "joinqc": ("torch", "librosa", "transformers"),
     "gui": (
         "anyio",
         "fastapi",
@@ -104,8 +103,7 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
     created = _run(["uv", "venv", str(venv), "--python", sys.executable], timeout=120)
     assert created.returncode == 0, created.stderr
 
-    # Unlocked on purpose: a user's `pip install` ignores uv.lock. CPU torch keeps the
-    # joinqc/all downloads small on Linux.
+    # Unlocked on purpose: a user's `pip install` ignores uv.lock.
     installed = _run(
         [
             "uv",
@@ -113,8 +111,6 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
             "install",
             "--python",
             str(python),
-            "--torch-backend",
-            "cpu",
             f"{ROOT}[{extra}]",
         ],
         timeout=1500,

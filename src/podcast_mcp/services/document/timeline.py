@@ -164,7 +164,6 @@ class TimelineService(CutMutatingService):
             features={
                 "risk": features.get("risk"),
                 "detectors": det_map,
-                "neural": features.get("neural"),
             },
             source="human",
         )

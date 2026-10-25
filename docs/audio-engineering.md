@@ -1089,7 +1089,7 @@ review-window twin).
   [`edits/tighten/`](../src/podcast_mcp/edits/tighten/) (breath detection is done;
   filler/pause detection still uses the RMS heuristic only).
 - Recording MOS / non-intrusive quality scoring in `engines/audio_audit.py`
-  (see `ROADMAP.md`; distinct from shipped joinqc NISQA).
+  (see `ROADMAP.md`).
 - Kitchen-sink audition payload, extra MOS, hypothetical FX A/B without mutate,
   share-host context parity, and stacked mix PNGs in `audition_context` visuals.
 

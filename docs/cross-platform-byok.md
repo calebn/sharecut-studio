@@ -68,7 +68,7 @@ Follow these **now**, while shipping unrelated features. They are cheap constrai
 - Don’t rewrite render/loudnorm/deess in AVFoundation “because iOS” unless legal forbids LGPL FFmpeg — that duplicates `FFmpegEngine`.
 - Don’t assume a guest share + user API key is a full phone DAW (missing pipeline, ingest, host-only mutations).
 - Don’t design Siri / App Intents as the editor (no production-audio App Schema; 10 App Shortcut cap). Cursor-style tool use is the editor.
-- Don’t put torch / joinqc in the GUI bootstrap path; they stay optional desktop/cloud even in the end state.
+- Don’t put torch in the GUI bootstrap path; the repo has no torch dependency (#2256).
 - Don’t fork document commands or clip math for a “lite” mobile apply path.
 
 ### Cheap prep (only when you are already in that file)
@@ -129,7 +129,7 @@ Whenever this becomes real: **desktop chat first** (sidecar already there). Mobi
 
 **Do not use FFmpeg for live play/scrub or ASR.** Playback: AVAudioEngine / Oboe / current HTMLAudio. ASR: whisper.cpp (Metal / Vulkan / NNAPI) or platform speech APIs (SpeechAnalyzer, on-device Android). That replaces faster-whisper, not `FFmpegEngine`.
 
-Filters to keep in a mobile libav build: concat, acrossfade, afade, volume, loudnorm, acompressor, deesser, afftdn, arnndn + RNNoise model, astats, showspectrumpic, showwavespic, lame. Torch / joinqc stay desktop-or-cloud optional.
+Filters to keep in a mobile libav build: concat, acrossfade, afade, volume, loudnorm, acompressor, deesser, afftdn, arnndn + RNNoise model, astats, showspectrumpic, showwavespic, lame.
 
 ---
 
@@ -156,10 +156,10 @@ Tauri 2 can wrap the same WebView on iOS/Android, but **desktop sidecars do not 
 
 ## Platform matrix (target end state)
 
-- **macOS:** Tauri `.app`, Python sidecar, ffmpeg CLI, Keychain. Full pipeline including optional joinqc.
+- **macOS:** Tauri `.app`, Python sidecar, ffmpeg CLI, Keychain. Full pipeline.
 - **Windows:** Tauri msi/nsis, same sidecar + ffmpeg, Credential Manager, WebView2.
 - **Linux:** AppImage/deb, sidecar + system or bundled ffmpeg.
-- **iOS / iPadOS:** WebView shell, in-process libav, AVAudioEngine play, whisper.cpp or SpeechAnalyzer, Keychain, phone UI modes. Pipeline subset on-device; joinqc optional off-device.
+- **iOS / iPadOS:** WebView shell, in-process libav, AVAudioEngine play, whisper.cpp or SpeechAnalyzer, Keychain, phone UI modes. Pipeline subset on-device.
 - **Android:** same as iOS with Oboe/AudioTrack + FFmpegKit JNI + Keystore.
 - **Laptop-offline phone:** requires the mobile engine above.
 - **Laptop-online phone (interim):** tunnel + authenticated **owner** tools, never a review-link guest catalog.
@@ -176,7 +176,7 @@ Laptop-offline use requires the mobile engine. It is not required for BYOK on de
 4. `AudioEngine` protocol; desktop still subprocess.
 5. iOS (then Android) shell around `gui/web`; FFmpegKit; platform playback; sandbox import.
 6. Embedded CPython (or thin native `services/`) so NL tools run without a laptop.
-7. On-device ASR + bounce/export; hybrid offload for joinqc/master if needed.
+7. On-device ASR + bounce/export; hybrid offload for master if needed.
 8. Optional OS assistants for play/search/share — never as the editor.
 
 ---
@@ -275,6 +275,5 @@ BYOK HTTP (implement as OpenAI-compatible + Anthropic; do not hardcode one vendo
 - Implementing FFmpegKit, embedded CPython, or in-app chat now.
 - Teaching system Siri a DAW vocabulary.
 - Dumping the full MCP catalog into Shortcuts or App Intents.
-- Running torch/joinqc on phones as v1.
 
 **Bottom line:** one document, one UI, one BYOK agent. Desktop = Python + ffmpeg CLI. Phones = same tools + in-process FFmpeg libraries + platform playback/ASR. Until then, do not scatter ffmpeg, do not conflate guest MCP with an owner device, and do not put a second DAW in a native UI toolkit.

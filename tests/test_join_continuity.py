@@ -35,7 +35,6 @@ LAB_LEVELS = LevelProfile(room_db=-60.0, speech_db=-15.0, loud_db=-9.0)
 def _cfg(**kwargs) -> JoinContinuityConfig:
     base = dict(
         calibrate=False,
-        neural=False,
         force_review_multi_hot=False,
         side_sec=0.045,
         sample_rate=16000,
@@ -224,7 +223,7 @@ def _tiny_project(minimal_project: Path, sample_wav: Path, *, gated_tail_sec: fl
 
 def test_assess_proposed_cut_and_project_joins(minimal_project: Path, sample_wav: Path) -> None:
     project = _tiny_project(minimal_project, sample_wav)
-    cfg = _cfg(calibrate=False, neural=False)
+    cfg = _cfg(calibrate=False)
     rep = assess_proposed_cut(
         project, "host", 0.2, 0.4, timebase="source", config=cfg, defaults=load_defaults()
     )
@@ -391,7 +390,7 @@ def test_project_join_sweep_shares_decode_and_baseline(
     project.clips.append(
         Clip(id="c3", track_id="host", source_start=1.6, source_end=1.9, timeline_start=1.0)
     )
-    cfg = _cfg(calibrate=True, neural=False)
+    cfg = _cfg(calibrate=True)
     individual = [
         jc.assess_existing_join(project, "host", t, config=cfg, defaults=load_defaults()).to_dict()
         for t in (0.5, 1.0)

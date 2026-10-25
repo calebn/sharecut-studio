@@ -2,7 +2,7 @@
 
 Which features use a downloaded model or an optional runtime, where setup covers them today, and what is missing. This is the audit for [#1998](https://github.com/calebn/sharecut-studio/issues/1998) against `main`; update it in the same PR that changes a row. The single authoritative setup catalog it points at is the model registry, `engines/models/registry.py` (`MODELS`). `services/pipeline/bootstrap.py` (`component_status`, `run_bootstrap`) derives from it, and the GUI setup, `podcast bootstrap` and `podcast setup` share it.
 
-"In GUI setup" means the component is a registry row (listed in `ALL_GUI_COMPONENTS`) and can be installed from the packaged app. The frozen sidecar is built with `--extra gui` only (no torch, no joinqc; see [desktop-packaging.md](desktop-packaging.md) § Frozen sidecar), so a feature whose runtime is a Python extra cannot work in a packaged app by downloading weights alone.
+"In GUI setup" means the component is a registry row (listed in `ALL_GUI_COMPONENTS`) and can be installed from the packaged app. The frozen sidecar is built with `--extra gui` only (no torch; see [desktop-packaging.md](desktop-packaging.md) § Frozen sidecar), so a feature whose runtime is a Python extra cannot work in a packaged app by downloading weights alone.
 
 | Feature | Model or runtime | Download path | In GUI setup | Pinned and checked | Packaged app today |
 | --- | --- | --- | --- | --- | --- |
@@ -11,15 +11,13 @@ Which features use a downloaded model or an optional runtime, where setup covers
 | Noise reduction | RNNoise `.rnnn` for FFmpeg `arnndn` | `bootstrap_rnnoise_model` | Yes, optional | sha256 and size_bytes pinned in contracts/bootstrap-assets.json; GitHub source is a commit-pinned raw URL (GregorR/rnnoise-models@3eee541); CDN copy not yet uploaded | Works |
 | Precise word boundaries | Forced word aligner (ONNX, `onnxruntime` is a core dependency) | `bootstrap_word_aligner`, pinned HF snapshot | Yes, opt-in | Revision pin, `word_aligner_problem` | Works |
 | Speaker recognition and split | ECAPA embedding network exported to ONNX (`engines/models/speaker_ecapa.py`), `onnxruntime` | `bootstrap_speaker_ecapa`, sha256-pinned file at a direct first-party CDN url | Yes, opt-in (`speaker-ecapa`) | sha256 pin, `speaker_ecapa_problem` | Works once downloaded |
-| Join quality, continuity | WavLM (`transformers`, revision pinned in `join_neural.py`) plus `torch` | Lazy `from_pretrained` on first use | No | Revision pinned; no readiness state | Runtime absent, so the STFT embedding fallback runs |
-| Join quality, discontinuity | "NISQA" | None; weights are user-supplied via `PODCAST_MCP_NISQA_MODEL` | No (not a registry row) | No | The scoring in `join_neural.py` is a spectral proxy; real NISQA inference is not integrated |
 
 ## Findings
 
-1. **NISQA is not a ready integration.** The join scorer falls back to a spectral proxy, so the registry has no NISQA row and `bootstrap` no longer fetches its placeholder weights. Only a user-supplied `PODCAST_MCP_NISQA_MODEL` directory is read, until real inference is separately scoped.
+1. **Join quality has no model.** #2256 removed the WavLM and NISQA-named layer (it never ran in a default install; the bake-off had no real labelled fails to rank it against the numpy detector fusion). Continuity is the numpy detector fusion only, so there is nothing to download or set up for it.
 2. **Speaker backends were the real gap.** The torch backends could not run in the packaged app; the ONNX ECAPA component (#1998, option A below) fixed that and is now the only speaker model. Whatever the fix is, it needs a runtime decision first (see below), then catalog entries, readiness checks and tests.
 3. **(Fixed by #1999.) `resolve_speaker_backend()` with no argument fell back to `MockSpeakerBackend`** when neither real backend imports, so a packaged app silently scored speakers with the development mock. The default now raises `speaker_backend_unavailable` (or `model_needed` when the ECAPA ONNX file is the missing piece and no override is set) unless `PODCAST_SPEAKER_BACKEND=mock` is set, so the embedding commands report the missing backend instead of scoring. Setup must not present that as a working backend, and the status payload should say the speaker feature is unavailable rather than ready.
-4. **Lazy, unpinned downloads.** ECAPA downloads at first use with no revision pin and no offline story; WavLM pins a revision but also downloads at first use. Both bypass the consent, progress, cancel and retry flow the catalog components get.
+4. **Lazy, unpinned downloads.** ECAPA downloads at first use with no revision pin and no offline story. That bypasses the consent, progress, cancel and retry flow the catalog components get.
 5. **Resolved: the RNNoise download is pinned.** The URL is commit-pinned and the sha256 and size are verified. Remaining gaps: the CDN object is not uploaded yet (issue item 1) and the live mirror check (item 3).
 
 ## Decision needed before building the speaker slice
@@ -34,7 +32,6 @@ Recommendation: the ONNX route, with the unavailable state (third option) as the
 
 ## Planned slices
 
-1. This inventory, plus the registry carrying no NISQA row (its weights are user-supplied) and the speaker features as unavailable in packaged installs (status only, no new downloads).
+1. This inventory, plus the speaker features as unavailable in packaged installs (status only, no new downloads).
 2. (Done by #1999.) Replace the silent mock fallback in the app path with an explicit unavailable state.
 3. Speaker backend component once the runtime decision is made.
-4. WavLM component, if a torch-free route exists; otherwise documented as source-only.

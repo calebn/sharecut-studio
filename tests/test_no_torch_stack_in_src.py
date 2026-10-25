@@ -24,18 +24,10 @@ BANNED_TOP_LEVEL = frozenset(
     {"torch", "speechbrain", "resemblyzer", "transformers", "librosa", "numba"}
 )
 
-# (file, module) pairs that still import a banned package today, with the reason. Shrink this
-# when the owner lands; by convention never grow it (nothing fails if you do). The guard also
-# fails when a pair no longer occurs, so a finished removal cannot leave a stale exemption.
-ALLOWED_TORCH_STACK_IMPORTS: dict[tuple[str, str], str] = {
-    # joinqc extra (torch + transformers WavLM embedding, librosa audio load); #2256.
-    ("src/podcast_mcp/edits/join_neural.py", "torch"): "joinqc neural join QC, waits for #2256",
-    ("src/podcast_mcp/edits/join_neural.py", "transformers"): "joinqc WavLM, waits for #2256",
-    ("src/podcast_mcp/edits/join_neural.py", "librosa"): "joinqc audio load, waits for #2256",
-    # Optional `import torch` inside try/except only to report cuda/mps availability.
-    # Follow-up: swap for onnxruntime providers.
-    ("src/podcast_mcp/services/support/diagnostics.py", "torch"): "optional GPU flag probe",
-}
+# (file, module) pairs that still import a banned package, with the reason. Empty since #2256;
+# by convention never grow it (nothing fails if you do). The guard also fails when a pair no
+# longer occurs, so a finished removal cannot leave a stale exemption.
+ALLOWED_TORCH_STACK_IMPORTS: dict[tuple[str, str], str] = {}
 
 
 def _top_level(name: str) -> str:

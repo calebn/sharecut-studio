@@ -97,7 +97,6 @@ class JoinContinuityConfig:
     calibrate_margin: float = _CALIBRATE_MARGIN
     force_review_multi_hot: bool = True
     enable_enf: bool = False
-    neural: bool = True
     weight_click: float = 1.35
     weight_level: float = 0.85
     weight_spectral_flux: float = 1.1
@@ -110,8 +109,6 @@ class JoinContinuityConfig:
     weight_onset: float = 1.15
     weight_bicoherence: float = 0.6
     weight_late_energy: float = 0.55
-    weight_nisqa: float = 1.4
-    weight_wavlm: float = 1.4
     # Both splice sides this far under the track's voice floor cannot be heard: room tone
     # against gated digital silence passes as "inaudible splice" instead of scoring a level
     # jump. :meth:`at_levels` sets the track's voice floor and voice level (dBFS); unset,
@@ -146,7 +143,6 @@ class JoinContinuityConfig:
             calibrate_margin=float(cfg.get("calibrate_margin", _CALIBRATE_MARGIN)),
             force_review_multi_hot=bool(cfg.get("force_review_multi_hot", True)),
             enable_enf=bool(cfg.get("enable_enf", False)),
-            neural=bool(cfg.get("neural", True)),
             weight_click=float(cfg.get("weight_click", 1.35)),
             weight_level=float(cfg.get("weight_level", 0.85)),
             weight_spectral_flux=float(cfg.get("weight_spectral_flux", 1.1)),
@@ -159,8 +155,6 @@ class JoinContinuityConfig:
             weight_onset=float(cfg.get("weight_onset", 1.15)),
             weight_bicoherence=float(cfg.get("weight_bicoherence", 0.6)),
             weight_late_energy=float(cfg.get("weight_late_energy", 0.55)),
-            weight_nisqa=float(cfg.get("weight_nisqa", 1.4)),
-            weight_wavlm=float(cfg.get("weight_wavlm", 1.4)),
             inaudible_under_voice_floor_db=float(cfg.get("inaudible_under_voice_floor_db", 18.0)),
             spectral_audibility_db=float(cfg.get("spectral_audibility_db", 30.0)),
         )
@@ -181,7 +175,6 @@ class JoinContinuityReport:
     natural_p95: float | None
     side_sec: float
     disclaimer: str
-    neural: dict[str, Any] | None = None
     ranker: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -801,39 +794,6 @@ def _score_highrate_batches(
     return scores
 
 
-def _maybe_neural(
-    project: EpisodeProject,
-    track_id: str,
-    src_join_sec: float,
-    cfg: JoinContinuityConfig,
-) -> tuple[list[DetectorHit], dict[str, Any]]:
-    neural_out: dict[str, Any] = {"available": False, "nisqa": None, "wavlm": None}
-    hits: list[DetectorHit] = []
-    if not cfg.neural:
-        return hits, neural_out
-    try:
-        from podcast_mcp.edits.join_neural import (
-            NeuralJoinDetector,
-            nisqa_discontinuity_delta,
-            wavlm_continuity_z,
-        )
-    except ImportError:  # pragma: no cover
-        return hits, neural_out
-
-    nisqa = nisqa_discontinuity_delta(project, track_id, src_join_sec)
-    wavlm = wavlm_continuity_z(project, track_id, src_join_sec)
-    neural_out["available"] = nisqa is not None or wavlm is not None
-    neural_out["nisqa"] = nisqa
-    neural_out["wavlm"] = wavlm
-    neural: JoinDetector = NeuralJoinDetector(
-        nisqa,
-        wavlm,
-        {"nisqa_discontinuity": cfg.weight_nisqa, "wavlm_continuity": cfg.weight_wavlm},
-    )
-    hits.extend(neural.detect())
-    return hits, neural_out
-
-
 def _maybe_ranker(
     report: JoinContinuityReport, *, artifacts_dir: Path | None = None
 ) -> JoinContinuityReport:
@@ -861,7 +821,6 @@ def _finalize(
     samples: np.ndarray,
     cfg: JoinContinuityConfig,
     extra_reasons: list[str] | None = None,
-    neural: dict[str, Any] | None = None,
     artifacts_dir: Path | None = None,
     natural_p95: float | None = None,
     baseline_ready: bool = False,
@@ -889,7 +848,6 @@ def _finalize(
         natural_p95=natural,
         side_sec=cfg.side_sec,
         disclaimer=_DISCLAIMER,
-        neural=neural,
     )
     return _maybe_ranker(report, artifacts_dir=artifacts_dir)
 
@@ -964,11 +922,6 @@ def _assess_existing_join(
         )
         wsum = sum(h.weight for h in hits) or 1.0
         risk = sum(h.score * h.weight for h in hits) / wsum
-    neural_hits, neural_info = _maybe_neural(project, track_id, points[1], cfg)
-    if neural_hits:
-        hits.extend(neural_hits)
-        wsum = sum(h.weight for h in hits) or 1.0
-        risk = sum(h.score * h.weight for h in hits) / wsum
     return _finalize(
         track_id=track_id,
         mode="existing_join",
@@ -979,7 +932,6 @@ def _assess_existing_join(
         samples=samples,
         cfg=cfg,
         extra_reasons=reasons,
-        neural=neural_info,
         artifacts_dir=project.artifacts_dir(),
         natural_p95=natural_p95,
         baseline_ready=baseline_ready,

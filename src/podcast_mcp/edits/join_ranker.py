@@ -127,14 +127,6 @@ def _feature_vector(report: JoinContinuityReport, names: list[str]) -> np.ndarra
     flat: dict[str, float] = {"risk": float(report.risk)}
     for h in report.detectors:
         flat[f"det:{h.name}"] = float(h.score)
-    neural = report.neural or {}
-    if isinstance(neural.get("nisqa"), dict):
-        n = neural["nisqa"]
-        for k in ("discontinuity_delta", "mos_delta"):
-            if isinstance(n.get(k), (int, float)):
-                flat[f"neural:{k}"] = float(n[k])
-    if isinstance(neural.get("wavlm"), dict) and isinstance(neural["wavlm"].get("z"), (int, float)):
-        flat["neural:z"] = float(neural["wavlm"]["z"])
     return np.asarray([float(flat.get(n, 0.0)) for n in names], dtype=np.float64)
 
 

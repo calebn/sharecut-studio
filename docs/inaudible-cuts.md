@@ -80,7 +80,7 @@ the playback window edge. Transcript gating runs once on the assembled segment.
 
 Future cuts only — existing committed edits are not retroactively re-optimized.
 
-If a waveform window cannot be decoded while optimizing a cut or scoring an optional neural join, the safe fallback remains in effect and the failure is recorded at debug level for diagnosis.
+If a waveform window cannot be decoded while optimizing a cut or scoring a join, the safe fallback remains in effect and the failure is recorded at debug level for diagnosis.
 
 Ordinary clip bodies that meet at their effective component ends use native
 concatenation, preserving submillisecond CUT sample boundaries. Independently
@@ -201,14 +201,15 @@ Render-side consequences (gap closing, crossfade overlap) are in
 FOSS multi-detector join scoring (`edits/join_continuity.py` + paper reimpl in
 `edits/join_cost_spectral.py`): click, level, spectral flux, MFCC/LSF/MCA join
 costs (Vepa & King), noise floor, F0, onset, bicoherence proxy, late-energy /
-RIR proxy. Optional neural layer (`joinqc` extra: NISQA discontinuity + WavLM
-continuity) may only elevate risk. Explicit A/B labels → numpy ranker; tighten
+RIR proxy. This detector fusion is the only continuity measure: #2256 dropped the
+neural layer (WavLM and the NISQA-named spectral proxy), which never ran in a default
+install, so default verdicts did not change. Explicit A/B labels → numpy ranker; tighten
 gate (`tighten.join_continuity_gate`) skips proposed cuts with verdict `fail`.
 The gate scores a butt splice, so Tighten runs it only on cuts that approve as
 one (no `replace_gap_sec`). A filler cut with a paced pad never abuts its two
 edges: each fades against silence, and the owner heard such cuts as clean that
 this gate failed (0.49–0.68 on the four lab cuts in #978), so it is skipped for them.
-The spectral and optional neural scorers keep their native score formats;
+The spectral scorers keep their native score formats;
 adapters implement `JoinDetector.detect()` and return weighted `DetectorHit`
 values to the fusion step. This keeps detector policy in one place while the
 published report format stays stable.

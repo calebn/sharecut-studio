@@ -31,7 +31,7 @@ from podcast_mcp.util.coded_error import CodedError
 def _enabled(monkeypatch, mode):
     cfg = defaults(acoustic=True, mode=mode)
     cfg["tighten"].update(leave_in_if_risky=True, join_continuity_gate=True)
-    cfg["join_continuity"] = {"neural": False, "calibrate": False}
+    cfg["join_continuity"] = {"calibrate": False}
     configure(monkeypatch, cfg)
     for target in ("podcast_mcp.config.defaults.load_defaults",):
         monkeypatch.setattr(target, lambda: copy.deepcopy(cfg))

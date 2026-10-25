@@ -112,7 +112,6 @@ Home screen shows a bootstrap wizard when FFmpeg or Whisper is missing:
 Default speech model is **large-v3-turbo**. Users can pick a smaller size in the wizard or via `./install.sh --whisper-model` / `podcast bootstrap --whisper-model`.
 
 First run checks the bundled FFmpeg pair and downloads Whisper, with optional RNNoise.
-Torch / joinqc are **not** exposed in the GUI.
 
 **Open project:** ShareCut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
 
@@ -239,7 +238,7 @@ Run `python scripts/build_sidecar.py --check-launcher --out <temporary-directory
 
 Testers do not have `podcast` on PATH. [`scripts/build_sidecar.py`](../scripts/build_sidecar.py) freezes **on each OS** (native `faster-whisper` / CTranslate2 wheels):
 
-- Standalone CPython (`uv python install 3.12`) + venv with `--extra gui` (no torch / joinqc). The pinned prebuilt FFmpeg resource is admitted before completion; first run never downloads FFmpeg. The venv is created from `uv python find --managed-python --no-project 3.12` under `UV_PYTHON_INSTALL_DIR`, not the repo `.venv`. A Homebrew/framework interpreter plus uv `PYTHONHOME` fails with `ModuleNotFoundError: math` (uv standalone keeps `math` builtin; Homebrew expects `lib-dynload/math*.so`). Freeze then imports `math`, `datetime`, `encodings`, and `uvicorn` before writing `.freeze-complete`.
+- Standalone CPython (`uv python install 3.12`) + venv with `--extra gui` (no torch). The pinned prebuilt FFmpeg resource is admitted before completion; first run never downloads FFmpeg. The venv is created from `uv python find --managed-python --no-project 3.12` under `UV_PYTHON_INSTALL_DIR`, not the repo `.venv`. A Homebrew/framework interpreter plus uv `PYTHONHOME` fails with `ModuleNotFoundError: math` (uv standalone keeps `math` builtin; Homebrew expects `lib-dynload/math*.so`). Freeze then imports `math`, `datetime`, `encodings`, and `uvicorn` before writing `.freeze-complete`.
 - Copied `gui/web/dist` as `sharecut-runtime/web-dist`. The freeze and
   `--ensure` reuse paths reject assets containing recording E2E hooks; build
   ordinary web assets after running `make test-web-e2e` before packaging.
