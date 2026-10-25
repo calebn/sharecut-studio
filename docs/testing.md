@@ -887,6 +887,15 @@ TypeScript codegen uses the web project's Biome configuration; a formatter failu
 must fail export/check rather than writing an unformatted artifact. Install the
 `gui/web` dependencies before running the local schema gate.
 
+The project TypeScript exporter rejects unsupported schema shapes with the model
+name and an exact source path, such as `$["properties"]["payload"]["items"]`.
+Path keys use JSON-escaped brackets. A rejected scalar in a list-valued `type`
+points to its `type` index; failures in child schemas point to those source children.
+Empty and annotation-only schemas still produce `unknown`, and recognized shapes
+retain their existing handling of extra keywords. `tests/test_generated_artifacts.py`
+covers recursive diagnostics and verifies that failed CLI generation leaves both
+existing and absent outputs untouched in write and check modes.
+
 `test_document_delta.py` checks actual command deltas, fresh-state retry heads, same-inode/restored-mtime reloads, artifact and history certificates, cache bounds, saved-command repair, concurrent writers, guest privacy, and 10,000-clip/long-transcript byte budgets. Compact actual service projections in `tests/fixtures/document_delta/` also run through the TypeScript parser/applier. Frontend `document/authority.test.ts`, `projectionDelta.test.ts`, and `pendingDrafts.test.ts` cover predecessor recovery, HTTP-before-WS races, scope generations, copy-on-write behavior, hostile expansion, and bounded optimistic display.
 
 `test_gain_curve_fixture.py` renders the nine cases in `tests/fixtures/gain_curve/cases.json` through FFmpeg (edge fades, then the track volume envelope) the nine in `mute_cases.json` (mute regions) and the eight in `automatic_cases.json` (off-speaker regions) and checks the fixtures; `gui/web/src/audio/gainCurve.test.ts` checks the browser preview's evaluator against the same samples, so the two cannot drift (#1649). `test_render_clock_fixture.py` likewise places the lane cases in `tests/fixtures/render_clock/cases.json` with `timeline_render.placed_track_audio` and checks the fixture (`REGEN_RENDER_CLOCK=1` rewrites it); `gui/web/src/audio/renderClock.test.ts` checks the browser's render clock against the same placed starts, so the timeline's clock and the export's cannot drift (#1888).
