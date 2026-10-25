@@ -49,7 +49,6 @@ function record(value: unknown): Record<string, unknown> | null {
     ? (value as Record<string, unknown>)
     : null;
 }
-/** True while an edit of this document is shown but not yet adopted from the server. */
 export function hasDocumentDrafts(): boolean {
   return current().size > 0;
 }
