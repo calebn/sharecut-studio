@@ -506,3 +506,24 @@ def test_a_guest_undo_refuses_an_agent_edit_the_guest_never_saw(minimal_project,
     assert undone.status_code == 200, undone.text
     assert "agent-cut" not in _decision_ids(minimal_project)
     assert undone.json()["history_head_id"] == _status(minimal_project).head_id
+
+
+def test_undo_is_unavailable_when_only_previews_sit_under_the_cursor(minimal_project):
+    """A fresh project whose only history is the auto preview has nothing to undo (#2168).
+
+    The status the GUI reads must say so, or Undo stays enabled and the press fails with
+    "Nothing to undo"."""
+    _preview_render(minimal_project, "render-1")
+
+    status = _status(minimal_project)
+
+    assert status.can_undo is False
+    with pytest.raises(ValueError, match="Nothing to undo"):
+        HistoryService(ProjectWorkspace.open(minimal_project)).undo()
+
+
+def test_undo_stays_available_when_an_edit_sits_under_the_preview(minimal_project):
+    _seed(minimal_project)
+    _preview_render(minimal_project, "render-1")
+
+    assert _status(minimal_project).can_undo is True
