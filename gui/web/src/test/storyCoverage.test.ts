@@ -126,38 +126,38 @@ const COVERED: Record<string, string[]> = {
   "CMP-RANGE-ACTIONS": ["Templates/Editor · Inspector · Range"],
   "CMP-VOCAB": ["Templates/Pipeline · Transcript vocabulary"],
   "DLG-WHISPER": ["Templates/Whisper model"],
+  "SCR-SHELL-DESKTOP": ["Templates/StudioShell", "Templates/Shell"],
+  "SCR-SHELL-TABLET": ["Templates/StudioShell", "Templates/Shell"],
+  "SCR-SHELL-LOADING": ["Templates/StudioShell", "Templates/Shell"],
+  "SCR-SHELL-INGEST": ["Templates/StudioShell", "Templates/Shell"],
+  "SCR-LAYOUT-TIMELINE": ["Templates/Shell"],
+  "SCR-LAYOUT-TEXT": ["Templates/Shell"],
+  "SCR-LAYOUT-REVIEW": ["Templates/Shell"],
+  "CMP-LAYOUT-CHIP": ["Templates/Shell"],
+  "CMP-DRAWER-HANDLE": ["Templates/Shell"],
+  "SCR-GUEST-VIEWER": ["Templates/Shell"],
+  "SCR-GUEST-COMMENTER": ["Templates/Shell"],
+  "SCR-GUEST-EDITOR": ["Templates/Shell"],
+  "SCR-GUEST-MOBILE": ["Templates/Shell"],
+  "SCR-PHONE-LISTEN": ["Templates/Shell"],
+  "SCR-PHONE-TIMELINE": ["Templates/Shell"],
+  "SCR-PHONE-TEXT": ["Templates/Shell"],
+  "SCR-PHONE-MORE": ["Templates/Shell"],
+  "SCR-PHONE-MORE-PANEL": ["Templates/Shell"],
 };
 
 /** A story exists but shows only part of the surface. */
 const PARTIAL: Record<string, string[]> = {
-  "SCR-SHELL-DESKTOP": ["Templates/StudioShell"],
-  "SCR-SHELL-TABLET": ["Templates/StudioShell"],
-  "SCR-SHELL-LOADING": ["Templates/StudioShell", "Templates/StatusBar"],
-  "SCR-SHELL-INGEST": ["Templates/StudioShell"],
-  "SCR-LAYOUT-TIMELINE": ["Templates/BottomTabsSplitter"],
   "CMP-TRANSPORT": ["Templates/Transport", "Templates/TransportPlayControls"],
   "MENU-MAIN": ["Molecules/Menu"],
   "MENU-VIEW": ["Templates/OverlayLegend"],
   "CMP-TIMELINE": ["Templates/TimelineRange"],
-  "SCR-PHONE-LISTEN": ["Templates/ListenHero", "Templates/MobileShell"],
-  "SCR-PHONE-TIMELINE": ["Templates/MobileShell"],
-  "SCR-PHONE-TEXT": ["Templates/MobileShell"],
-  "SCR-PHONE-MORE": ["Templates/MobileShell"],
-  "SCR-PHONE-MORE-PANEL": ["Templates/MobileShell"],
-  "SCR-GUEST-VIEWER": ["Templates/StudioShell", "Templates/ToolModeToggle"],
-  "SCR-GUEST-COMMENTER": ["Templates/StudioShell"],
-  "SCR-GUEST-EDITOR": ["Templates/StudioShell"],
-  "SCR-GUEST-MOBILE": ["Templates/MobileShell"],
   "CMP-REC-NOTICES": ["Templates/Room"],
   "TOAST-MAIN": ["Molecules/Toast"],
   "CMP-GUEST-COMMENT": ["Templates/CommentCompose"],
 };
 
 const PENDING = [
-  "SCR-LAYOUT-TEXT",
-  "SCR-LAYOUT-REVIEW",
-  "CMP-LAYOUT-CHIP",
-  "CMP-DRAWER-HANDLE",
   "OVL-PROSODY",
   "OVL-RECORDING",
   "MENU-CREATE",
@@ -179,7 +179,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 20;
+const PENDING_LIMIT = 16;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
