@@ -417,14 +417,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Undo",
     variants: ["Undo replacements", "Undo timing"],
     keywords: ["revert", "go back"],
-    when: "hasProject",
+    when: "canUndo",
   },
   "history.redo": {
     id: "history.redo",
     category: "history",
     label: "Redo",
     keywords: ["repeat"],
-    when: "hasProject",
+    when: "canRedo",
   },
   "ui.toggleCommandPalette": {
     id: "ui.toggleCommandPalette",
