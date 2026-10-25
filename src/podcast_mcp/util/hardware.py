@@ -26,11 +26,13 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from podcast_mcp import settings
 
 log = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 ACCELERATORS = ("auto", "cpu")
 
@@ -70,7 +72,12 @@ class HardwareProfile:
         if preference == "cpu":
             return (CPU_PROVIDER,)
         have = set(self.onnx_providers)
-        ranked = tuple(p for p in PROVIDER_PRIORITY if p in have and p != CPU_PROVIDER)
+        usable = {
+            CUDA_PROVIDER: self.cuda is not None,
+            COREML_PROVIDER: self.apple_silicon,
+            DIRECTML_PROVIDER: self.directml,
+        }
+        ranked = tuple(p for p in PROVIDER_PRIORITY if p in have and usable.get(p, False))
         return (*ranked, CPU_PROVIDER)
 
     def summary(self, preference: str = "auto") -> str:
@@ -119,12 +126,20 @@ def cpu_only_profile(logical_cores: int | None = None) -> HardwareProfile:
     )
 
 
+def _pipeline_defaults() -> Mapping[str, Any]:
+    from podcast_mcp.config.defaults import load_defaults
+
+    return _part(load_defaults, {})
+
+
 def accelerator_preference(defaults: Mapping[str, Any] | None = None) -> str:
     """``auto`` or ``cpu``: the env override, else ``performance.accelerator``, else ``auto``."""
     env = settings.text("PODCAST_ACCELERATOR").lower()
     if env in ACCELERATORS:
         return env
-    performance = (defaults or {}).get("performance")
+    if defaults is None:
+        defaults = _pipeline_defaults()
+    performance = defaults.get("performance")
     configured = performance.get("accelerator") if isinstance(performance, Mapping) else None
     return configured if configured in ACCELERATORS else "auto"
 
@@ -249,7 +264,7 @@ def _nvidia_smi(
     if exe is None:
         return None
     try:
-        out = run(  # nosec B603
+        out = run(
             [exe, "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits"],
             capture_output=True,
             text=True,
@@ -262,31 +277,39 @@ def _nvidia_smi(
         return None
 
 
-def probe_hardware() -> HardwareProfile:
-    """Probe this machine now. Never raises; a failed part reports its CPU-only value."""
+def _part(read: Callable[[], _T], fallback: _T) -> _T:
     try:
-        logical = max(1, os.cpu_count() or 1)
-        providers = _onnx_providers()
-        cuda_devices = _ctranslate2_cuda_devices()
-        cuda = None
-        if CUDA_PROVIDER in providers or cuda_devices > 0:
-            cuda = _nvidia_smi() or CudaDevice()
-        return HardwareProfile(
-            system=platform.system(),
-            machine=platform.machine(),
-            apple_silicon=platform.system() == "Darwin" and platform.machine() == "arm64",
-            cuda=cuda,
-            directml=DIRECTML_PROVIDER in providers,
-            onnx_providers=providers,
-            ctranslate2_cuda_devices=cuda_devices,
-            physical_cores=_physical_cores(),
-            logical_cores=logical,
-            effective_cores=effective_cpu_count(logical),
-            ram_bytes=_ram_bytes(),
-        )
+        return read()
     except Exception:
-        log.warning("hardware probe failed; treating this machine as CPU only", exc_info=True)
-        return cpu_only_profile()
+        log.warning(
+            "hardware probe: %s failed; using %r", getattr(read, "__name__", "part"), fallback
+        )
+        return fallback
+
+
+def probe_hardware() -> HardwareProfile:
+    """Probe this machine now. Never raises; each part that fails reports its CPU-only value."""
+    logical = max(1, os.cpu_count() or 1)
+    providers: tuple[str, ...] = _part(_onnx_providers, (CPU_PROVIDER,))
+    cuda_devices = _part(_ctranslate2_cuda_devices, 0)
+    cuda = _part(_nvidia_smi, None)
+    if cuda is None and cuda_devices > 0:
+        cuda = CudaDevice()
+    system = _part(platform.system, "")
+    machine = _part(platform.machine, "")
+    return HardwareProfile(
+        system=system,
+        machine=machine,
+        apple_silicon=system == "Darwin" and machine == "arm64",
+        cuda=cuda,
+        directml=DIRECTML_PROVIDER in providers,
+        onnx_providers=providers,
+        ctranslate2_cuda_devices=cuda_devices,
+        physical_cores=_part(_physical_cores, None),
+        logical_cores=logical,
+        effective_cores=_part(lambda: effective_cpu_count(logical), logical),
+        ram_bytes=_part(_ram_bytes, None),
+    )
 
 
 _override: HardwareProfile | None = None
