@@ -31,8 +31,6 @@ from podcast_mcp.engines.ctc_forced_align import (
     DEFAULT_PAD_SEC,
     CtcVocab,
     LogProbBackend,
-    log_softmax,
-    normalize_waveform,
     retime_spans,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -176,10 +174,10 @@ def load_candidates(
     candidates = []
     for entry in payload["candidates"]:
         backend = entry["backend"]
-        if backend not in ("onnx", "torch"):
+        if backend != "onnx":
             raise ValueError(f"unknown backend {backend!r} for candidate {entry['label']!r}")
         onnx_file = entry.get("onnx_file")
-        if backend == "onnx" and not onnx_file:
+        if not onnx_file:
             raise ValueError(f"onnx candidate {entry['label']!r} needs onnx_file")
         candidates.append(
             Candidate(
@@ -306,32 +304,9 @@ def write_wav16(path: Path, samples: np.ndarray) -> None:
     write_bytes_atomic(path, pcm_wav_header(len(data), sample_rate=SAMPLE_RATE) + data)
 
 
-class TorchBackend:
-    def __init__(self, model_dir: Path, threads: int) -> None:
-        try:
-            import torch
-            from transformers import Wav2Vec2ForCTC
-        except ImportError as exc:
-            raise RuntimeError(
-                "torch backend needs: uv sync --extra dev --extra gui --extra relay --extra joinqc"
-            ) from exc
-
-        self._torch = torch
-        torch.set_num_threads(threads)
-        self._model = Wav2Vec2ForCTC.from_pretrained(model_dir, local_files_only=True).eval()
-
-    def log_probs(self, samples: np.ndarray) -> np.ndarray:
-        with self._torch.inference_mode():
-            inputs = self._torch.from_numpy(normalize_waveform(samples)[None, :].astype(np.float32))
-            logits = self._model(inputs).logits[0].float().numpy()
-        return log_softmax(logits)
-
-
 def make_backend(c: Candidate, model_dir: Path, threads: int) -> LogProbBackend:
-    if c.backend == "onnx":
-        assert c.onnx_file is not None
-        return OnnxCtcBackend(model_dir / c.onnx_file, threads=threads)
-    return TorchBackend(model_dir, threads)
+    assert c.onnx_file is not None
+    return OnnxCtcBackend(model_dir / c.onnx_file, threads=threads)
 
 
 def align_prediction(
@@ -703,7 +678,7 @@ def run_suite(
                 scored[c.label].append(report)
             agreements[c.label].append(entry)
 
-        # Free the ONNX session / torch model before the next candidate loads.
+        # Free the ONNX session before the next candidate loads.
         del backend
         gc.collect()
 

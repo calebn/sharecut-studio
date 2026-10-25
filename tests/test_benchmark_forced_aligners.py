@@ -83,12 +83,12 @@ def test_runs_dir_refuses_lab_checkout_and_requires_a_location(tmp_path) -> None
 def test_candidates_config_is_pinned_and_valid() -> None:
     candidates = bfa.load_candidates()
 
-    assert {c.label for c in candidates} == {"onnx-base", "onnx-base-int8", "torch-large"}
+    assert {c.label for c in candidates} == {"onnx-base", "onnx-base-int8"}
     for c in candidates:
         assert len(c.revision) == 40
         int(c.revision, 16)
-        if c.backend == "onnx":
-            assert c.onnx_file in c.allow_patterns
+        assert c.backend == "onnx"
+        assert c.onnx_file in c.allow_patterns
         command = bfa.download_command(c)
         assert c.hf_repo in command
         assert c.revision in command
@@ -126,6 +126,10 @@ def test_resolve_model_dir_surfaces_other_hub_errors(monkeypatch) -> None:
 
     with pytest.raises(PermissionError, match="not readable"):
         bfa.resolve_model_dir(candidate, None)
+
+
+_BASE_FILES = ["vocab.json", "config.json", "preprocessor_config.json", "onnx/model.onnx"]
+_INT8_FILES = ["vocab.json", "config.json", "preprocessor_config.json", "onnx/model_int8.onnx"]
 
 
 def _fake_hub(
@@ -251,12 +255,12 @@ def test_main_verify_candidates_exit_code(monkeypatch, capsys) -> None:
         lambda: _fake_hub(candidate, error=_hub_error(RevisionNotFoundError)),
     )
     assert (
-        bfa.main(["verify-candidates", "--candidate", "onnx-base", "--candidate", "torch-large"])
+        bfa.main(["verify-candidates", "--candidate", "onnx-base", "--candidate", "onnx-base-int8"])
         == 1
     )
     out = capsys.readouterr().out
     assert "onnx-base: revision" in out
-    assert "torch-large: revision" in out
+    assert "onnx-base-int8: revision" in out
 
 
 def test_main_verify_candidates_prints_notes_without_failing(monkeypatch, capsys) -> None:
@@ -279,21 +283,25 @@ def test_main_verify_candidates_prints_notes_before_problems_and_fails(monkeypat
     line is printed."""
     import huggingface_hub
 
-    onnx, torch = bfa.load_candidates(labels=["onnx-base", "torch-large"])
-    hubs = {
-        onnx.hf_repo: _fake_hub(onnx, undeclared_license=True),
-        torch.hf_repo: _fake_hub(torch, license="mit", files=["config.json", "pytorch_model.bin"]),
-    }
-    api = SimpleNamespace(model_info=lambda repo, revision: hubs[repo].model_info(repo, revision))
+    onnx, drifted = bfa.load_candidates(labels=["onnx-base", "onnx-base-int8"])
+    # Both pins share one Hub repo, so answer per call: the first candidate's card
+    # declares no license (a note), the second's declares a different one (drift).
+    hubs = iter(
+        [
+            _fake_hub(onnx, undeclared_license=True, files=_BASE_FILES),
+            _fake_hub(drifted, license="mit", files=_INT8_FILES),
+        ]
+    )
+    api = SimpleNamespace(model_info=lambda repo, revision: next(hubs).model_info(repo, revision))
     monkeypatch.setattr(huggingface_hub, "HfApi", lambda: api)
 
     assert (
-        bfa.main(["verify-candidates", "--candidate", "onnx-base", "--candidate", "torch-large"])
+        bfa.main(["verify-candidates", "--candidate", "onnx-base", "--candidate", "onnx-base-int8"])
         == 1
     )
     assert capsys.readouterr().out.splitlines() == [
         "note: onnx-base: model card declares no license; pinned 'apache-2.0' not verified",
-        "torch-large: model card license 'mit', pinned 'apache-2.0'",
+        "onnx-base-int8: model card license 'mit', pinned 'apache-2.0'",
     ]
 
 
@@ -677,7 +685,7 @@ def test_main_plan_and_download_commands_print_json(capsys) -> None:
 
     assert bfa.main(["download-commands"]) == 0
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
-    assert len(lines) == 3
+    assert len(lines) == 2
 
 
 class _FakeAligner:

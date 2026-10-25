@@ -33,14 +33,6 @@
       ],
       "onnx_file": "onnx/model_int8.onnx",
       "license": "apache-2.0"
-    },
-    {
-      "label": "torch-large",
-      "backend": "torch",
-      "hf_repo": "facebook/wav2vec2-large-960h-lv60-self",
-      "revision": "54074b1c16f4de6a5ad59affb4caa8f2ea03a119",
-      "allow_patterns": ["*.json", "pytorch_model.bin"],
-      "license": "apache-2.0"
     }
   ]
 }
