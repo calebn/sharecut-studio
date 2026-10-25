@@ -218,6 +218,8 @@ def test_one_failing_part_keeps_the_others(monkeypatch) -> None:
         raise OSError("libcudart.so missing")
 
     monkeypatch.setattr(hardware, "_onnx_providers", broken)
+    monkeypatch.setattr(hardware, "_ctranslate2_cuda_devices", lambda: 0)
+    monkeypatch.setattr(hardware, "_nvidia_smi", lambda: None)
     monkeypatch.setattr(hardware, "_ram_bytes", lambda: 123)
     monkeypatch.setattr(hardware, "_physical_cores", lambda: 3)
     profile = probe_hardware()
@@ -298,3 +300,10 @@ def test_preference_reads_the_pipeline_defaults_when_none_are_passed(monkeypatch
     monkeypatch.delenv("PODCAST_ACCELERATOR", raising=False)
     monkeypatch.setattr(defaults, "load_defaults", lambda: {"performance": {"accelerator": "cpu"}})
     assert accelerator_preference() == "cpu"
+
+
+def test_a_gpu_that_onnx_runtime_cannot_use_is_named_in_the_summary() -> None:
+    nvidia = _profile(cuda=CudaDevice("RTX 4070", 12000, "550.1"), onnx_providers=(CPU_PROVIDER,))
+    assert "NVIDIA GPU found, but ONNX Runtime has no CUDA support" in nvidia.summary()
+    apple = _profile(system="Darwin", machine="arm64", apple_silicon=True)
+    assert "Apple Silicon found, but ONNX Runtime has no Core ML support" in apple.summary()
