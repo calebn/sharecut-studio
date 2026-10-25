@@ -388,24 +388,32 @@ and cannot enter the app bundle.
 
 ### Catalog boundary (store-bound components)
 
-Per sync rule 6 (#172/#173), a component that cannot render from props alone
-gets a refactor issue, not a story. The shell chrome catalog from
-[#616](https://github.com/calebn/sharecut-studio/issues/616) uses the production
-props-only `MobileShellView` and `StudioShellView` rendered by their live adapters.
-The live `TransportBar`, full Listen and More bodies, connected panels, and full
-DAW page remain outside this catalog. Their store subscriptions and commands stay
-in the runtime adapters.
+A store-bound component gets a story that hydrates the DAW store with the shared
+fictional episode (`src/test/episodeFixture.ts`) through the `withEpisode`
+decorator (`src/test/withEpisode.tsx`), the way `ClipInspector.stories.tsx`
+does. The decorator hydrates `share:episode`, applies `guestMode`,
+capabilities and selection from `parameters.episode`, installs network and
+audio stubs, and restores the store when the story unmounts. Titles keep the
+screen as a name prefix, for example `Templates/Editor · Inspector · Pending
+edit`, because the title rule allows one segment after the level.
+
+A component splits into a props-only `XView` rendered by its live adapter only
+where its render path crosses an I/O seam that store state cannot fake: `api.ts`
+calls, a provider such as `useModels`, timers or media. The shell chrome catalog
+from [#616](https://github.com/calebn/sharecut-studio/issues/616) uses the
+production props-only `MobileShellView` and `StudioShellView` rendered by
+their live adapters. Hydrated stories share one store, so a hydrated story
+file never takes the `autodocs` tag: autodocs renders every story of a file on
+one page and the stories would overwrite each other's hydration.
 
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
-and `MenuItem`, which already have stories; they are not on this list and get
-no separate refactor issue. A component leaves this list only once its
-production view is extracted into a props-only `XView` rendered by the live
-adapter, the way `TrackHeaderView`, `TimeRulerView`, `TranscriptTurnView`,
-`FollowBannerView`, `GuestAttentionBannerView`, `ShareDialogView`,
-`BounceDialogView`, `ToolModeToggleView`, `EditingToolRailView`,
-`CommandPaletteView`, `ClipBlockView`, `MarkerLaneView`,
-`PendingEditOverlayView`, `EditBoundaryMarkView`, `InspectorSeekFooterView`
-and `BottomTabsSplitterView` already were.
+and `MenuItem`, which already have stories and need none of their own. Views
+extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
+examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
+`GuestAttentionBannerView`, `ShareDialogView`, `BounceDialogView`,
+`ToolModeToggleView`, `EditingToolRailView`, `CommandPaletteView`,
+`ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
+`EditBoundaryMarkView`, `InspectorSeekFooterView` and `BottomTabsSplitterView`.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -610,6 +618,9 @@ jsdom visibility checks.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-10-25 — Catalog boundary now allows store-hydrated stories through
+  `withEpisode` (#2279); a view split is required only at an I/O seam.
 
 - 2026-09-27 — Closed #614: added `Templates/ClipBlock`,
   `Templates/MarkerLane`, `Templates/PendingEditOverlay` and
