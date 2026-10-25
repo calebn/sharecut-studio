@@ -127,7 +127,9 @@ def whisper_span_transcriber(defaults: dict[str, Any]) -> SpanTranscriber:
     from podcast_mcp.engines.transcribe import TranscriptionEngine
 
     model = (defaults.get("transcribe") or {}).get("model", DEFAULT_WHISPER_MODEL)
-    engine = TranscriptionEngine(model_size=model, defaults=defaults)
+    # The span check compares short phrases against a threshold: keep it on the CPU until
+    # GPU output is proven equivalent there (#2248).
+    engine = TranscriptionEngine(model_size=model, device="cpu", defaults=defaults)
 
     def transcribe(samples: np.ndarray, language: str | None) -> str:
         return engine.transcribe_samples(

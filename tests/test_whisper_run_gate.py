@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,11 +11,15 @@ from fastapi.testclient import TestClient
 
 from model_pin_helpers import isolate_model_env, plant_pinned_whisper
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.util.hardware import cpu_only_profile, use_hardware_profile
 
 
 @pytest.fixture(autouse=True)
-def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     isolate_model_env(monkeypatch, tmp_path)
+    monkeypatch.delenv("PODCAST_ACCELERATOR", raising=False)
+    with use_hardware_profile(cpu_only_profile(4)):
+        yield
 
 
 def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
