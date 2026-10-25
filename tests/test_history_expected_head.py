@@ -523,10 +523,7 @@ def test_a_guest_undo_refuses_an_agent_edit_the_guest_never_saw(minimal_project,
 
 
 def test_undo_is_unavailable_when_only_previews_sit_under_the_cursor(minimal_project):
-    """A fresh project whose only history is the auto preview has nothing to undo (#2168).
-
-    The status the GUI reads must say so, or Undo stays enabled and the press fails with
-    "Nothing to undo"."""
+    """The GUI's Undo button reads this status, so it must say so or the press fails (#2168)."""
     _preview_render(minimal_project, "render-1")
 
     status = _status(minimal_project)
