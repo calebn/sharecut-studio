@@ -60,7 +60,6 @@ export type CommandContext = {
   tightenPanelOpen: boolean;
 };
 
-/** The history flags lag an edit still saving, and undo waits for that save. */
 function editUnsaved(projectPath: string): boolean {
   return documentActivityBusy(projectPath) || hasDocumentDrafts();
 }
