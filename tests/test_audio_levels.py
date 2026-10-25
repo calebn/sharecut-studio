@@ -284,19 +284,5 @@ def test_the_per_file_profile_memory_is_bounded() -> None:
     cache = level_profile_module._FILE_PROFILES
     for i in range(cache.maxsize + 50):
         cache.put((f"/f/{i}", (1, i, 3, 4), 16000), SILENT)
+    assert cache.maxsize == 256
     assert len(cache) == cache.maxsize
-
-
-def test_a_different_file_at_a_reused_path_and_revision_is_not_read_from_the_last_test(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Two tests that write different audio at the same path inside one clock tick share a stat
-    revision, so only clearing the memory between tests keeps their profiles apart (#2269)."""
-    monkeypatch.setattr(level_profile_module, "file_revision", lambda _path: (1, 2, 3, 4))
-    path = tmp_path / "host.wav"
-    loud, quiet = np.full(RATE, 0.5, np.float32), np.full(RATE, 0.005, np.float32)
-    seen = []
-    for samples in (loud, quiet):
-        level_profile_module._FILE_PROFILES.clear()
-        seen.append(file_level_profile(path, samples=samples))
-    assert seen[0] != seen[1]

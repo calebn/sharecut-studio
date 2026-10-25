@@ -42,9 +42,9 @@ ISOLATED: dict[str, str] = {
         "Tests mock the probe result for a path another test may probe for real."
     ),
     "podcast_mcp.engines.level_profile:_FILE_PROFILES": (
-        "Keyed by path and a stat revision (inode, size, mtime); a test that writes a different "
-        "file at a reused path and inode inside one clock tick would read the previous test's "
-        "profile (#2269)."
+        "Keyed by path and a stat revision (inode, size, mtime); a different file written at the "
+        "same path inside one clock tick would read the earlier profile, so each test starts "
+        "empty (#2269)."
     ),
     "podcast_mcp.engines.render_clock:_NATIVE_FORMATS": (
         "Tests count the probe spawns of a render and expect the first one to probe."
