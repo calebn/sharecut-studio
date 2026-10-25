@@ -72,3 +72,25 @@ def test_project_type_generator_fails_on_a_schema_shape_it_cannot_express(monkey
     assert gen._ts({"title": "Any"}) == "unknown"
     with pytest.raises(ValueError, match="unhandled JSON-schema shape"):
         gen._ts({"not": {"type": "string"}})
+
+
+def test_project_type_generator_reports_model_and_nested_schema_path(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(SCRIPTS))
+    gen = load_script("export_project_types")
+    monkeypatch.setattr(
+        gen,
+        "_definitions",
+        lambda: {
+            "DiagnosticModel": {
+                "type": "object",
+                "properties": {"nested": {"type": "array", "items": {"not": {"type": "string"}}}},
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match="unhandled JSON-schema shape") as exc_info:
+        gen.project_types()
+
+    message = str(exc_info.value)
+    assert "DiagnosticModel" in message
+    assert '$["properties"]["nested"]["items"]' in message
