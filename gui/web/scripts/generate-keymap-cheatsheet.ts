@@ -36,6 +36,8 @@ const WHEN_HINTS: Record<string, string> = {
   canSuggestStructural: "Structural edits allowed",
   timelineAndStructural: "Timeline focused + structural edits allowed",
   hasProject: "Project loaded",
+  canUndo: "Something to undo",
+  canRedo: "Something to redo",
   canApplyPass12: "Host or shared edit mode",
   canRefreshMix: "Refresh mix allowed",
   canIngestMedia: "Media ingest allowed",

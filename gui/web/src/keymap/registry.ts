@@ -286,7 +286,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "hasProject",
+    when: "canUndo",
     notes: "Mod+Z",
   },
   {
@@ -297,7 +297,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: true,
-    when: "hasProject",
+    when: "canRedo",
     notes: "Mod+Shift+Z",
   },
   {

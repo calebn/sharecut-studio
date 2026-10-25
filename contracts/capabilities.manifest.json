@@ -1337,7 +1337,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "canUndo"
       ],
       "surfaces": {
         "command": "history.undo",
@@ -1373,7 +1373,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "canRedo"
       ],
       "surfaces": {
         "command": "history.redo",

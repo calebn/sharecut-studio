@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KEYMAP_COMMANDS, matchKeymapCommands } from "../keymap/registry";
 import { isProgrammaticUi, withProgrammaticUi } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
+import { trackEditSave } from "../state/documentSendOrder";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import {
   SRC_ROOT,
@@ -355,6 +356,52 @@ describe("command governance", () => {
       false,
     );
     clearRegisteredCommands();
+  });
+
+  it("canUndo and canRedo follow the history flags and in-flight saves", async () => {
+    const history = (can_undo: boolean, can_redo: boolean) =>
+      ({
+        meta: { name: "t" },
+        tracks: [],
+        history: { can_undo, can_redo },
+      }) as never;
+    useDawStore.setState({ projectPath: "/tmp/ep", project: null });
+    expect(evaluateWhen("canUndo", buildCommandContext())).toEqual({
+      ok: false,
+      reason: "No project loaded",
+    });
+
+    useDawStore.setState({ project: history(false, false) });
+    const idle = buildCommandContext();
+    expect(evaluateWhen("canUndo", idle)).toEqual({
+      ok: false,
+      reason: "Nothing to undo",
+    });
+    expect(evaluateWhen("canRedo", idle)).toEqual({
+      ok: false,
+      reason: "Nothing to redo",
+    });
+
+    useDawStore.setState({ project: history(true, true) });
+    const ready = buildCommandContext();
+    expect(evaluateWhen("canUndo", ready)).toEqual({ ok: true });
+    expect(evaluateWhen("canRedo", ready)).toEqual({ ok: true });
+
+    useDawStore.setState({ project: history(false, false) });
+    let landed!: () => void;
+    const save = trackEditSave(
+      "/tmp/ep",
+      new Promise<void>((resolve) => {
+        landed = resolve;
+      }),
+    );
+    const busy = buildCommandContext();
+    expect(evaluateWhen("canUndo", busy)).toEqual({ ok: true });
+    expect(evaluateWhen("canRedo", busy)).toEqual({ ok: true });
+    landed();
+    await save;
+    await Promise.resolve();
+    expect(evaluateWhen("canUndo", buildCommandContext()).ok).toBe(false);
   });
 
   it("every keybinding declares a when predicate", () => {

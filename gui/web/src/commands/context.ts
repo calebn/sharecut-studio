@@ -1,3 +1,4 @@
+import { hasDocumentDrafts } from "../document/pendingDrafts";
 import {
   canApplyPass12,
   canComment,
@@ -9,6 +10,7 @@ import {
   canSuggestStructural,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { documentActivityBusy } from "../state/documentSendOrder";
 import {
   readShortTouchLandscape,
   resolveLayoutMode,
@@ -36,6 +38,8 @@ export type CommandContext = {
   canComment: boolean;
   canManageProjects: boolean;
   hasProject: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
   shellBreakpoint: string;
   playheadSec: number;
   timelineDurationSec: number;
@@ -55,6 +59,11 @@ export type CommandContext = {
   recordPanelOpen: boolean;
   tightenPanelOpen: boolean;
 };
+
+/** The history flags lag an edit still saving, and undo waits for that save. */
+function editUnsaved(projectPath: string): boolean {
+  return documentActivityBusy(projectPath) || hasDocumentDrafts();
+}
 
 export function buildCommandContext(): CommandContext {
   const s = useDawStore.getState();
@@ -102,6 +111,10 @@ export function buildCommandContext(): CommandContext {
     canComment: canComment(s.projectPath, s.guestMode, s.shareCapabilities),
     canManageProjects: canManageProjects(s.projectPath),
     hasProject: s.project != null,
+    canUndo:
+      (s.project?.history?.can_undo ?? false) || editUnsaved(s.projectPath),
+    canRedo:
+      (s.project?.history?.can_redo ?? false) || editUnsaved(s.projectPath),
     shellBreakpoint: s.shellBreakpoint,
     playheadSec: s.playheadSec,
     timelineDurationSec: s.project?.timeline_duration_sec ?? Infinity,
@@ -195,6 +208,20 @@ export function evaluateWhen(
         return { ok: false, reason: "Structural edits not allowed" };
       }
       return { ok: true };
+    case "canUndo":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.canUndo
+        ? { ok: true }
+        : { ok: false, reason: "Nothing to undo" };
+    case "canRedo":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.canRedo
+        ? { ok: true }
+        : { ok: false, reason: "Nothing to redo" };
     case "hasProject":
       return ctx.hasProject
         ? { ok: true }

@@ -39,7 +39,9 @@ export type ContextPredicateId =
   | "hasInspectorSelection"
   | "following"
   | "recordPanelOpen"
-  | "tightenPanelOpen";
+  | "tightenPanelOpen"
+  | "canUndo"
+  | "canRedo";
 
 export type ExecuteResult =
   | { status: "ok" }

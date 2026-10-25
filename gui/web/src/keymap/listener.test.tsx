@@ -14,6 +14,7 @@ import { registerDawCommands } from "../commands/register";
 import { AskDialog } from "../feedback/AskDialog";
 import { askConfirm, askText } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
+import { trackEditSave } from "../state/documentSendOrder";
 import { setChrome } from "../test/chrome";
 import { minimalProject } from "../test/fixtures";
 import { BottomSheet } from "../ui/BottomSheet";
@@ -207,6 +208,7 @@ const SHORTCUTS = [
 
 it("holds every app shortcut while an in-app confirm is open, and hands them back once it closes", async () => {
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
+  showHistory({ can_undo: true, can_redo: true });
   useDawStore.setState({ selection: { kind: "track", trackId: "guest" } });
   render(
     <>
@@ -509,4 +511,22 @@ it("Mod+Shift+Z with nothing to redo does not send the command (#2168)", async (
   showHistory({ can_undo: true, can_redo: true });
   await pressModZ(true);
   expect(redoHistory).toHaveBeenCalledTimes(1);
+});
+
+it("Mod+Z still sends while an edit's save is in flight (#2168)", async () => {
+  render(<KeymapHost />);
+  vi.mocked(undoHistory).mockClear();
+  showHistory({ can_undo: false, can_redo: false });
+  let landed!: () => void;
+  const save = trackEditSave(
+    "/tmp/keymap-project",
+    new Promise<void>((resolve) => {
+      landed = resolve;
+    }),
+  );
+  await pressModZ(false);
+  expect(undoHistory).not.toHaveBeenCalled();
+  landed();
+  await save;
+  await waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
 });

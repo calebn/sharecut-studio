@@ -64,8 +64,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `Mod+Z` | Undo (`history.undo`) | Project loaded | Mod+Z |
-| `Mod+Shift+Z` | Redo (`history.redo`) | Project loaded | Mod+Shift+Z |
+| `Mod+Z` | Undo (`history.undo`) | Something to undo | Mod+Z |
+| `Mod+Shift+Z` | Redo (`history.redo`) | Something to redo | Mod+Shift+Z |
 
 ## edit
 
