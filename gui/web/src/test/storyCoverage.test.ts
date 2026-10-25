@@ -144,42 +144,54 @@ const COVERED: Record<string, string[]> = {
   "SCR-PHONE-TEXT": ["Templates/Shell"],
   "SCR-PHONE-MORE": ["Templates/Shell"],
   "SCR-PHONE-MORE-PANEL": ["Templates/Shell"],
+  "OVL-PROSODY": ["Templates/ProsodyOverlay"],
+  "OVL-RECORDING": ["Templates/RecordingOverlay"],
+  "MENU-CREATE": ["Templates/CreateMenu"],
+  "POP-CHOOSER": ["Templates/TargetChooser"],
+  "CMP-SOLO-CHIP": ["Templates/SoloChip"],
+  "BAN-HOME-SCREEN-HINT": ["Templates/HomeScreenHint"],
+  "BAN-GUEST-ROLE": ["Templates/Shell"],
+  "BAN-GUEST-VERSION": ["Templates/GuestVersionNotice"],
+  "SCR-REC-ACCESS-ENDED": ["Templates/AccessEnded"],
+  "CMP-REC-STOP": ["Templates/StopTakeControl"],
+  "CHIP-REC-TRANSPORT": ["Templates/RecordTransportChip"],
+  "BAN-LOADFAIL": ["Templates/LoadFailureBanner"],
+  "CMP-RAIL-PEEK": ["Templates/RailLabelPeek"],
+  "CMP-TRANSPORT": [
+    "Templates/Transport",
+    "Templates/TransportPlayControls",
+    "Templates/Transport menus",
+  ],
+  "MENU-MAIN": ["Molecules/Menu", "Templates/Transport menus"],
+  "MENU-VIEW": ["Templates/OverlayLegend", "Templates/Transport menus"],
+  "CMP-TIMELINE": ["Templates/TimelineRange", "Templates/Timeline"],
+  "CMP-REC-NOTICES": ["Templates/Room", "Templates/Record · Notices"],
+  "TOAST-MAIN": ["Molecules/Toast", "Templates/Toast dock"],
+  "CMP-GUEST-COMMENT": [
+    "Templates/CommentCompose",
+    "Templates/GuestNameStep",
+    "Templates/Shell",
+  ],
 };
 
 /** A story exists but shows only part of the surface. */
-const PARTIAL: Record<string, string[]> = {
-  "CMP-TRANSPORT": ["Templates/Transport", "Templates/TransportPlayControls"],
-  "MENU-MAIN": ["Molecules/Menu"],
-  "MENU-VIEW": ["Templates/OverlayLegend"],
-  "CMP-TIMELINE": ["Templates/TimelineRange"],
-  "CMP-REC-NOTICES": ["Templates/Room"],
-  "TOAST-MAIN": ["Molecules/Toast"],
-  "CMP-GUEST-COMMENT": ["Templates/CommentCompose"],
-};
+const PARTIAL: Record<string, string[]> = {};
 
-const PENDING = [
-  "OVL-PROSODY",
-  "OVL-RECORDING",
-  "MENU-CREATE",
-  "POP-CHOOSER",
-  "CMP-SOLO-CHIP",
-  "INS-CLIP-MULTI",
-  "BAN-HOME-SCREEN-HINT",
-  "BAN-GUEST-ROLE",
-  "BAN-GUEST-VERSION",
-  "SCR-REC-ACCESS-ENDED",
-  "CMP-REC-STOP",
-  "CHIP-REC-TRANSPORT",
-  "STAT-LIVE",
-  "BAN-LOADFAIL",
-  "CMP-RAIL-PEEK",
-  "CMP-DESKTOP-GUARD",
-];
+const PENDING: string[] = [];
+
+/** Listed in the inventory but with nothing to draw. */
+const NOT_A_SURFACE: Record<string, string> = {
+  "INS-CLIP-MULTI":
+    "The app has no multi-clip inspector; the Clip inspector takes one clip.",
+  "STAT-LIVE": "A screen-reader-only live region with nothing visible.",
+  "CMP-DESKTOP-GUARD":
+    "A window close guard in the desktop wrapper, not React.",
+};
 
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 16;
+const PENDING_LIMIT = 0;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
@@ -193,6 +205,7 @@ describe("story coverage manifest", () => {
       ...Object.keys(COVERED),
       ...Object.keys(PARTIAL),
       ...PENDING,
+      ...Object.keys(NOT_A_SURFACE),
       ...OUTSIDE_APP,
     ];
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
