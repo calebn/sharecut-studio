@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { listRegisteredIds } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { selections } from "./episodeFixture";
 import { EpisodeHydrator } from "./withEpisode";
@@ -45,6 +46,17 @@ describe("EpisodeHydrator", () => {
     expect(state.selection).toEqual(selections.comment);
   });
 
+  it("answers configured URLs with JSON and everything else with a 503", async () => {
+    render(
+      <EpisodeHydrator config={{ responses: { "/api/steps": ["clean"] } }}>
+        <Probe />
+      </EpisodeHydrator>,
+    );
+    const known = await fetch("/api/steps?x=1");
+    expect(await known.json()).toEqual(["clean"]);
+    expect((await fetch("/api/other")).status).toBe(503);
+  });
+
   it("restores the store and the network stubs when it unmounts, twice", () => {
     const before = useDawStore.getState();
     const { fetch, WebSocket } = globalThis;
@@ -55,9 +67,11 @@ describe("EpisodeHydrator", () => {
         </EpisodeHydrator>,
       );
       expect(useDawStore.getState()).not.toBe(before);
+      expect(listRegisteredIds()).toContain("tighten.applyHit");
       expect(globalThis.fetch).not.toBe(fetch);
       view.unmount();
       expect(useDawStore.getState()).toBe(before);
+      expect(listRegisteredIds()).toEqual([]);
       expect(globalThis.fetch).toBe(fetch);
       expect(globalThis.WebSocket).toBe(WebSocket);
     }
