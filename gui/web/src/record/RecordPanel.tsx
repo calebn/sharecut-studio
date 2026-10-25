@@ -4,13 +4,10 @@ import { executePointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { Button, Dialog } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { sourceIdPointToTimeline } from "../utils/timebase";
-import { HostUploadRoster } from "./HostUploadRoster";
 import {
   landGate,
-  START_FIX_LABEL,
   type StartFix,
   startBlockerItems,
   TAKE_CONTROL,
@@ -21,33 +18,20 @@ import {
 } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 import { sendRecordHostCommand } from "./hostWire";
-import { LiveComments } from "./LiveComments";
+import type { TakeClipRegion } from "./keeper/clipRegions";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
-import { MicLossNotice } from "./MicLossNotice";
-import { MicMeter } from "./MicMeter";
 import {
   copyForMicStatus,
-  MIC_RETRY_LABEL,
   type MicPermissionStatus,
   micGrantFailed,
 } from "./micPermission";
-import { NoAudioNotice } from "./NoAudioNotice";
-import { RecIndicator } from "./RecIndicator";
-import { RoomToneCapture } from "./RoomToneCapture";
-import { Roster } from "./Roster";
-import { StopTakeControl } from "./StopTakeControl";
-import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
-import { TakeClippingReport } from "./TakeClippingReport";
+import { RecordPanelView } from "./RecordPanelView";
 import {
   captureAttention,
-  HEARING_COPY,
   hostReconnectPauseCopyFromSnapshot,
-  LOCAL_KEEPER_COPY,
-  RECORD_ROOM_RECONNECTING_COPY,
   recordSourceId,
   shouldApplyRecordSnapshot,
 } from "./types";
-import { UploadStatus } from "./UploadStatus";
 import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 import {
   keeperCaptureSettled,
@@ -60,9 +44,6 @@ import { useRoomToneCapture } from "./useRoomToneCapture";
 
 /** Commands whose success the panel shows in place (a copied link is invisible otherwise). */
 const SHOWN_RESULTS = new Set(["record.createRoom", "record.copyGuestLink"]);
-
-/** The one app shortcut the open room hands on: M drops a live marker. */
-const RECORD_ROOM_SHORTCUTS = ["record.marker"] as const;
 
 type Props = {
   recordingLocally?: boolean;
@@ -343,311 +324,96 @@ export function RecordPanel({
   const micFailed =
     micStatus && micStatus !== "lost" ? micGrantFailed(micStatus) : false;
 
-  const takeActions =
-    snapshot && control ? (
-      <div className="cluster">
-        <Button
-          ref={takeControlRef}
-          variant={control.commandId === "record.pause" ? "default" : "primary"}
-          disabledReason={
-            startBlocked
-              ? "Resolve the items listed above to start."
-              : undefined
-          }
-          aria-disabled={transportBusy || undefined}
-          aria-describedby={startBlocked ? blockersId : undefined}
-          onClick={() => runCommand(control.commandId)}
-        >
-          {control.label}
-        </Button>
-        {land ? (
-          <Button
-            disabledReason={land.enabled ? undefined : land.reason}
-            aria-disabled={transportBusy || undefined}
-            onClick={() => runCommand("record.land")}
-          >
-            {land.label}
-          </Button>
-        ) : null}
-      </div>
-    ) : null;
+  const onRetryStorage = () => {
+    void retryHostKeeperStorage().catch(() => undefined);
+  };
+  const jumpFor = (region: TakeClipRegion) => {
+    if (!snapshot) {
+      return null;
+    }
+    const hit = project
+      ? sourceIdPointToTimeline(
+          project.clips.tracks,
+          recordSourceId(
+            snapshot.session_id,
+            snapshot.take_index,
+            "p_host",
+            region.segmentIndex,
+          ),
+          region.segmentStartMs / 1000,
+        )
+      : null;
+    if (!hit) {
+      return null;
+    }
+    return () => {
+      selectClip(hit.clip.id, hit.trackId);
+      void seekTransport(hit.timelineSec);
+      setRecordPanelOpen(false);
+    };
+  };
 
   return (
-    <Dialog
+    <RecordPanelView
       open={recordPanelOpen}
       onClose={() => setRecordPanelOpen(false)}
-      title="Record room"
-      footer={takeActions}
-      shortcuts={RECORD_ROOM_SHORTCUTS}
       closeDisabled={
         uploadBlocking || micLossNeedsAttention || captureUnavailable
       }
-    >
-      <div className="stack record-panel">
-        {!snapshot && roomLookup === "none" ? (
-          <div className="stack record-empty">
-            <p>
-              No record room yet. Creating one copies a guest link you can send.
-            </p>
-            <div className="cluster">
-              <Button
-                variant="primary"
-                aria-disabled={transportBusy || undefined}
-                onClick={() => runCommand("record.createRoom")}
-              >
-                Create record room
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        {!snapshot && roomLookup === "failed" ? (
-          <div className="cluster record-empty">
-            <Button
-              aria-disabled={transportBusy || undefined}
-              onClick={() => setLookupNonce((value) => value + 1)}
-            >
-              Check again
-            </Button>
-          </div>
-        ) : null}
-        {!snapshot && roomLookup === "checking" ? (
-          <p role="status">Looking for a record room…</p>
-        ) : null}
-        {snapshot ? (
-          <RecIndicator
-            snapshot={snapshot}
-            capture={capture}
-            offline={offline}
-            clipping={(takeClipping?.regions.length ?? 0) > 0}
-          />
-        ) : null}
-        {offline ? (
-          <p className="record-warn" role="status">
-            {RECORD_ROOM_RECONNECTING_COPY}
-          </p>
-        ) : null}
-        {snapshot ? <MicMeter stream={stream} label="Your mic level" /> : null}
-        <StorageHeadroomWarning
-          visible={state === "lobby" || state === "stopped"}
-          recheck={state === "stopped"}
-        />
-        {snapshot &&
-        (snapshot.state === "lobby" || snapshot.state === "stopped") ? (
-          <RoomToneCapture
-            status={roomTone.status}
-            delivery={roomTone.delivery}
-            error={roomTone.error}
-            micReady={!!stream}
-            captureReady={sink !== null && roomTone.captureReady}
-            onRecord={roomTone.record}
-            onSkip={roomTone.skip}
-            onRetry={roomTone.retry}
-            primary={false}
-          />
-        ) : null}
-        <div aria-live="polite">
-          {reconnectCopy ? (
-            <p className="record-warn">{reconnectCopy}</p>
-          ) : null}
-          {recordingLocally && !keeperError && !noAudioNeedsAttention ? (
-            <p>{LOCAL_KEEPER_COPY}</p>
-          ) : null}
-          {micLossNeedsAttention ? (
-            <MicLossNotice onRetry={onRetryMic} />
-          ) : null}
-          {noAudioNeedsAttention ? (
-            <NoAudioNotice onCheck={onCheckMic} checkFailed={micCheckFailed} />
-          ) : null}
-          {hearing ? <p>{HEARING_COPY}</p> : null}
-          {micCopy ? (
-            <p
-              id={micHintId}
-              role={micPending ? "status" : undefined}
-              className={micFailed ? "record-warn" : undefined}
-            >
-              {micCopy}
-            </p>
-          ) : null}
-          {micError && micStatus === "error" ? (
-            <p className="record-warn">{micError}</p>
-          ) : null}
-          {micFailed && onRetryMic && !micLost ? (
-            <Button
-              type="button"
-              onClick={onRetryMic}
-              aria-describedby={micHintId}
-            >
-              {MIC_RETRY_LABEL}
-            </Button>
-          ) : null}
-          {snapshot ? (
-            <TakeClippingReport
-              report={takeClipping}
-              roomState={snapshot.state}
-              jumpFor={(region) => {
-                const hit = project
-                  ? sourceIdPointToTimeline(
-                      project.clips.tracks,
-                      recordSourceId(
-                        snapshot.session_id,
-                        snapshot.take_index,
-                        "p_host",
-                        region.segmentIndex,
-                      ),
-                      region.segmentStartMs / 1000,
-                    )
-                  : null;
-                if (!hit) {
-                  return null;
-                }
-                return () => {
-                  selectClip(hit.clip.id, hit.trackId);
-                  void seekTransport(hit.timelineSec);
-                  setRecordPanelOpen(false);
-                };
-              }}
-            />
-          ) : null}
-          {keeperError ? (
-            <>
-              <p className="record-warn">
-                Full-quality recording stopped: {keeperError}
-              </p>
-              {onRetryKeeper ? (
-                <Button
-                  type="button"
-                  onClick={onRetryKeeper}
-                  disabledReason={
-                    recording
-                      ? undefined
-                      : paused
-                        ? "Resume the take to retry full-quality recording."
-                        : "Start a new take to retry full-quality recording."
-                  }
-                >
-                  Retry full-quality recording
-                </Button>
-              ) : null}
-              {!recording ? (
-                <p>
-                  {paused
-                    ? "Resume the take before retrying full-quality recording."
-                    : "Start a new take before retrying full-quality recording."}
-                </p>
-              ) : null}
-            </>
-          ) : null}
-          {sinkError && control?.stop ? (
-            <>
-              <p className="record-warn">{sinkError}</p>
-              <Button
-                type="button"
-                onClick={() => {
-                  void retryHostKeeperStorage().catch(() => undefined);
-                }}
-              >
-                Retry storage check
-              </Button>
-            </>
-          ) : null}
-          {monitorError ? <p className="record-warn">{monitorError}</p> : null}
-          {hydrateError ? <p className="record-warn">{hydrateError}</p> : null}
-          {transportError ? (
-            <p className="record-warn">{transportError}</p>
-          ) : null}
-        </div>
-        <UploadStatus
-          progress={upload}
-          stopped={state === "stopped"}
-          segmentList={false}
-          onResume={() => setUploadRetryNonce((value) => value + 1)}
-          actions={keeperActions}
-        />
-        {snapshot ? (
-          <HostUploadRoster
-            participants={snapshot.participants}
-            segments={hostSegments}
-            stopped={state === "stopped"}
-          />
-        ) : null}
-        {snapshot ? (
-          hasRemovedParticipant ? (
-            <p className="record-warn">
-              A removed participant’s invite is closed to new participants. Use
-              Copy links… to replace that role’s link; existing recording access
-              remains available to participants who still hold a valid lease.
-            </p>
-          ) : null
-        ) : null}
-        {snapshot ? <Roster participants={snapshot.participants} /> : null}
-        {snapshot ? (
-          <LiveComments
-            snapshot={snapshot}
-            me={host ?? null}
-            note={liveComments.note}
-            onNote={liveComments.setNote}
-            onMarker={liveComments.postMarker}
-            onSubmitNote={liveComments.submitNote}
-          />
-        ) : null}
-        {snapshot ? (
-          <div className="cluster">
-            <Button
-              onClick={() => {
-                setRecordPanelOpen(false);
-                setShareDialogOpen(true);
-              }}
-            >
-              Copy links…
-            </Button>
-          </div>
-        ) : null}
-        {snapshot && control ? (
-          <section className="stack record-controls" aria-label="Take controls">
-            {host ? (
-              <label className="cluster record-mute">
-                <input
-                  type="checkbox"
-                  checked={host.muted}
-                  onChange={(e) =>
-                    sendRecordHostCommand("SetMuted", {
-                      muted: e.target.checked,
-                    })
-                  }
-                />
-                Mute my mic
-              </label>
-            ) : null}
-            {startBlocked ? (
-              <ul id={blockersId} className="record-blockers">
-                {blockers.map((item) => (
-                  <li key={item.key}>
-                    <span>{item.text}</span>
-                    {item.fix ? (
-                      <Button
-                        aria-disabled={transportBusy || undefined}
-                        onClick={startFixes[item.fix]}
-                      >
-                        {START_FIX_LABEL[item.fix]}
-                      </Button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {doneNotice ? <p className="record-hint">{doneNotice}</p> : null}
-            {land && !land.enabled ? (
-              <p className="record-hint">{land.reason}</p>
-            ) : null}
-            {control.stop ? (
-              <StopTakeControl
-                busy={transportBusy}
-                onStop={() => runCommand("record.stop")}
-              />
-            ) : null}
-          </section>
-        ) : null}
-      </div>
-    </Dialog>
+      snapshot={snapshot}
+      roomLookup={roomLookup}
+      host={host}
+      onCommand={runCommand}
+      onCheckAgain={() => setLookupNonce((value) => value + 1)}
+      transportBusy={transportBusy}
+      takeControlRef={takeControlRef}
+      control={control}
+      land={land}
+      startBlocked={startBlocked}
+      blockers={blockers}
+      blockersId={blockersId}
+      startFixes={startFixes}
+      doneNotice={doneNotice}
+      capture={capture}
+      offline={offline}
+      takeClipping={takeClipping}
+      jumpFor={jumpFor}
+      stream={stream}
+      storageReady={sink !== null}
+      roomTone={roomTone}
+      reconnectCopy={reconnectCopy}
+      recordingLocally={recordingLocally}
+      keeperError={keeperError}
+      onRetryKeeper={onRetryKeeper}
+      noAudioNeedsAttention={noAudioNeedsAttention}
+      micLossNeedsAttention={micLossNeedsAttention}
+      micLost={micLost}
+      onRetryMic={onRetryMic}
+      onCheckMic={onCheckMic}
+      micCheckFailed={micCheckFailed}
+      hearing={hearing}
+      micHintId={micHintId}
+      micCopy={micCopy}
+      micPending={micPending}
+      micFailed={micFailed}
+      micStatus={micStatus}
+      micError={micError}
+      sinkError={sinkError}
+      onRetryStorage={onRetryStorage}
+      monitorError={monitorError}
+      hydrateError={hydrateError}
+      transportError={transportError}
+      upload={upload}
+      keeperActions={keeperActions}
+      hostSegments={hostSegments}
+      onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
+      hasRemovedParticipant={hasRemovedParticipant}
+      liveComments={liveComments}
+      onCopyLinks={() => {
+        setRecordPanelOpen(false);
+        setShareDialogOpen(true);
+      }}
+      onMuteChange={(muted) => sendRecordHostCommand("SetMuted", { muted })}
+    />
   );
 }
