@@ -350,6 +350,14 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
         ),
     ),
     _ParamSpec(
+        path="performance.accelerator",
+        label="Accelerator",
+        description="auto uses a GPU where one is found; cpu keeps everything on the CPU.",
+        enum=("auto", "cpu"),
+        group="advanced",
+        section="performance",
+    ),
+    _ParamSpec(
         path="transcribe.model",
         label="Whisper model",
         description="faster-whisper model (default large-v3-turbo; smaller sizes at setup).",

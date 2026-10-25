@@ -38,6 +38,7 @@ from podcast_mcp.util.diagnostics_bundle_contract import (
     diagnostics_log_archive_name,
     is_safe_diagnostics_log_name,
 )
+from podcast_mcp.util.hardware import accelerator_preference, hardware_profile
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.redact import sanitize
@@ -432,6 +433,7 @@ def _build_report_json(
             "cached": whisper_model_is_cached(model, memoize=True),
         },
         "gpu": _gpu_flags(),
+        "hardware": hardware_profile().to_dict(accelerator_preference()),
         "gui_dist_present": _gui_dist_present(),
         "doctor": doctor.to_json(),
         "bootstrap": component_status(),

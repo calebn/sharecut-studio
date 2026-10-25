@@ -462,6 +462,8 @@ performance:
   max_workers: 0   # 0 = auto (cpu_count-based, capped at 8); 1 = serial; N = explicit cap
 ```
 
+`performance.accelerator` is `auto` (default) or `cpu`. The hardware probe (`util/hardware.py`) detects an NVIDIA GPU, Apple Silicon (Core ML), DirectML, the ONNX Runtime execution providers and the cores this process may use (affinity and container quota); `podcast doctor` and the support bundle print the result in plain words. `cpu` pins everything to the CPU; `PODCAST_ACCELERATOR=cpu` does the same for support. Nothing picks a device from the probe yet: each model path adopts it in its own change.
+
 Set `max_workers: 1` to force fully serial, single-threaded execution — useful when
 debugging a specific cut/render issue and you want deterministic, reproducible
 single-threaded behavior. `master_loudness` is not parallelized
