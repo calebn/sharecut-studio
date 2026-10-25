@@ -845,11 +845,11 @@ def test_analysis_policy_from_custom_defaults():
                     "bleed_text_match_min_overlap_sec": 0.1,
                     "bleed_text_match_min_dominance_db": 4.0,
                 },
-                "ml_backend": "nisqa",
+                "ml_backend": "onnx",
             }
         }
     )
-    assert pol.ml_backend == "nisqa"
+    assert pol.ml_backend == "onnx"
     assert pol.bleed_text_match_enabled is False
     assert pol.bleed_text_match_min_overlap_sec == 0.1
     assert pol.bleed_text_match_min_dominance_db == 4.0
