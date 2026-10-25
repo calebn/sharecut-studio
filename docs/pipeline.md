@@ -470,11 +470,11 @@ Supported hardware, as of this release:
 
 | Platform | Speech-to-text | Other models (aligner, speaker embedding, VAD) |
 |---|---|---|
-| Windows or Linux with an NVIDIA GPU, current driver and the CUDA 12 libraries (cuBLAS, cuDNN) | GPU when the model fits in GPU memory | CPU |
-| Apple Silicon | CPU (CTranslate2 has no Metal backend) | CPU (Core ML was measured slower or too memory-hungry) |
+| Windows or Linux with an NVIDIA GPU, current driver and the CUDA 12 libraries (cuBLAS, cuDNN 9) | GPU when the model is expected to fit in GPU memory (a coded estimate per model size, not a measurement); falls back to the CPU if the GPU fails | CPU |
+| Apple Silicon | CPU (CTranslate2 has no Metal backend) | CPU (Core ML was slower or too memory-hungry in the #2249 Mac benchmark) |
 | Everything else | CPU | CPU |
 
-The CUDA libraries are not installed by Studio, and the Windows (DirectML) and Linux (CUDA) ONNX Runtime builds are not shipped: the stock `onnxruntime` wheel is used everywhere. `podcast doctor` says where speech-to-text will run, and when an NVIDIA GPU is present but unused it says why and what to update. To force the CPU for support, set `PODCAST_ACCELERATOR=cpu` (or `performance.accelerator: cpu`).
+The CUDA libraries are not installed by Studio, and the Windows (DirectML) and Linux (CUDA) ONNX Runtime builds are not shipped: the stock `onnxruntime` wheel is used everywhere. `podcast doctor` says where speech-to-text will run and, when an NVIDIA GPU is present but unused, why; for a GPU the speech engine cannot see it also says what to update. To force the CPU for support, set `PODCAST_ACCELERATOR=cpu` (or `performance.accelerator: cpu`).
 
 To decide whether a model path should use the accelerator, run `python scripts/benchmark_accelerators.py --path <name>` (lab only, not shipped; `--path onnx-model --onnx FILE` times any ONNX file). It runs the path on the CPU and then on this machine's best accelerator (whatever `PODCAST_ACCELERATOR` says), each in its own process, and prints one table: median time, load time, first-run time, peak host memory (RSS; GPU memory is not counted), the largest output difference against the CPU run, and a plain verdict. Inputs are seeded random, so it is a timing and agreement check, not a quality check; batch axes are 1, other dynamic axes take `--dynamic-dim`, and `--dim NAME=SIZE` sets one named axis of an ONNX model (an input array over 256 MB is refused, and a `--dim` name that matches no axis is an error). A path that is not clearly faster, that uses more memory than the speed-up pays for, or whose output differs stays on the CPU. New paths register in `PATHS` in the script.
 
