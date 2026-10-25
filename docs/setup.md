@@ -663,7 +663,7 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PODCAST_WHISPER_MODEL` |  | Whisper model name; overrides preferences and the pipeline default. |
-| `PODCAST_ACCELERATOR` | `auto` | auto or cpu (support override). Only reported in the doctor and support bundle so far; no model reads it yet. |
+| `PODCAST_ACCELERATOR` | `auto` | auto or cpu (support override). Speech-to-text runs on an NVIDIA GPU when there is one unless this is cpu; other steps do not use a GPU yet. |
 | `PODCAST_MCP_WORD_ALIGNER_MODEL` |  | Local word-aligner snapshot directory. |
 | `PODCAST_MCP_RNNOISE_MODEL` |  | RNNoise model file. |
 | `PODCAST_MCP_SPEAKER_ECAPA_MODEL` |  | Speaker-recognition ONNX model file. |

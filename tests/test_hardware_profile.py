@@ -302,6 +302,12 @@ def test_preference_reads_the_pipeline_defaults_when_none_are_passed(monkeypatch
     assert accelerator_preference() == "cpu"
 
 
+def test_the_summary_says_speech_to_text_uses_the_nvidia_gpu() -> None:
+    assert "speech-to-text runs on it, the other steps on the CPU" in NVIDIA.summary()
+    onnx_cpu_only = _profile(cuda=NVIDIA.cuda, ctranslate2_cuda_devices=1)
+    assert "speech-to-text runs on it" in onnx_cpu_only.summary()
+
+
 def test_a_gpu_that_onnx_runtime_cannot_use_is_named_in_the_summary() -> None:
     nvidia = _profile(cuda=CudaDevice("RTX 4070", 12000, "550.1"), onnx_providers=(CPU_PROVIDER,))
     assert "NVIDIA GPU found, but ONNX Runtime has no CUDA support" in nvidia.summary()

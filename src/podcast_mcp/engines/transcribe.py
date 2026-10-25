@@ -36,6 +36,7 @@ from podcast_mcp.engines.models.whisper import (
     validate_whisper_model,
 )
 from podcast_mcp.engines.utterance_runs import transcript_word_runs, utterance_text
+from podcast_mcp.engines.whisper_device import CPU_PLACEMENT, WhisperPlacement, choose_placement
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,
@@ -49,7 +50,9 @@ from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file, short_digest
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import (
+    CancelledProgress,
     ProgressReporter,
     raise_if_cancel_requested,
     resolve_progress_task,
@@ -461,13 +464,18 @@ class TranscriptionEngine:
     def __init__(
         self,
         model_size: str = DEFAULT_WHISPER_MODEL,
-        device: str = "cpu",
+        device: str = "auto",
         options: AsrOptions | None = None,
         *,
         defaults: EffectiveConfig,
     ) -> None:
         self.model_size = validate_whisper_model(model_size)
         self.device = device
+        # "auto" picks from the hardware probe on first use; "cpu" and "cuda" force a device.
+        self.placement: WhisperPlacement | None = {
+            "cpu": CPU_PLACEMENT,
+            "cuda": WhisperPlacement("cuda", "float16"),
+        }.get(device)
         self.options = (
             options if options is not None else AsrOptions.from_defaults(defaults=defaults)
         )
@@ -493,14 +501,55 @@ class TranscriptionEngine:
 
                 require_model("whisper", self.model_size, memoize=False)
                 raise
-            self._model = WhisperModel(
-                model_path,
-                device=self.device,
-                compute_type="int8" if self.device == "cpu" else "float16",
-                download_root=str(whisper_cache_dir()),
-                local_files_only=True,
-            )
+            placement = self._choose_placement()
+            try:
+                self._model = self._load_model(WhisperModel, model_path, placement)
+            except Exception as exc:
+                if placement.device == "cpu":
+                    raise
+                self._fall_back_to_cpu(f"the GPU model would not load ({exc})")
+                self._model = self._load_model(WhisperModel, model_path, CPU_PLACEMENT)
         return self._model
+
+    def _choose_placement(self) -> WhisperPlacement:
+        if self.placement is None:
+            self.placement = choose_placement(self.model_size)
+            if self.placement.reason:
+                log.warning("Whisper runs on the CPU: %s.", self.placement.reason)
+        return self.placement
+
+    def _load_model(self, factory: Any, model_path: str, placement: WhisperPlacement) -> Any:
+        return factory(
+            model_path,
+            device=placement.device,
+            compute_type=placement.compute_type,
+            download_root=str(whisper_cache_dir()),
+            local_files_only=True,
+        )
+
+    def _fall_back_to_cpu(self, why: str) -> None:
+        log.warning("Whisper runs on the CPU for the rest of this run: %s.", why)
+        self.placement = CPU_PLACEMENT
+        self._model = None
+
+    def _with_cpu_fallback(self, run: Callable[[], _T]) -> _T:
+        try:
+            return run()
+        except Exception as exc:
+            if not self._on_gpu_failure(exc):
+                raise
+        return run()
+
+    def _on_gpu_failure(self, exc: Exception) -> bool:
+        """Switch to the CPU after a GPU error; False when there is nothing to fall back from."""
+        if (
+            self.placement is None
+            or self.placement.device == "cpu"
+            or isinstance(exc, ModelMissing | CancelledProgress)
+        ):
+            return False
+        self._fall_back_to_cpu(f"the GPU run failed ({exc})")
+        return True
 
     def cache_path(
         self,
@@ -695,14 +744,18 @@ class TranscriptionEngine:
         No VAD and no earlier text to condition on: the model sees only this audio, so a
         sound that is not a word comes back as a filler or nothing.
         """
-        segments, _ = self._get_model().transcribe(
-            samples.astype(np.float32, copy=False),
-            language=language,
-            initial_prompt=initial_prompt,
-            vad_filter=False,
-            condition_on_previous_text=False,
-        )
-        return " ".join(segment.text.strip() for segment in segments).strip()
+
+        def run() -> str:
+            segments, _ = self._get_model().transcribe(
+                samples.astype(np.float32, copy=False),
+                language=language,
+                initial_prompt=initial_prompt,
+                vad_filter=False,
+                condition_on_previous_text=False,
+            )
+            return " ".join(segment.text.strip() for segment in segments).strip()
+
+        return self._with_cpu_fallback(run)
 
     def transcribe_file(
         self,
@@ -712,6 +765,25 @@ class TranscriptionEngine:
         initial_prompt: str | None = None,
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
         progress_label: str | None = None,
+    ) -> Transcript:
+        return self._with_cpu_fallback(
+            lambda: self._transcribe_file(
+                audio_path,
+                language,
+                initial_prompt=initial_prompt,
+                max_word_sec=max_word_sec,
+                progress_label=progress_label,
+            )
+        )
+
+    def _transcribe_file(
+        self,
+        audio_path: Path,
+        language: str | None,
+        *,
+        initial_prompt: str | None,
+        max_word_sec: float,
+        progress_label: str | None,
     ) -> Transcript:
         model = self._get_model()
         kwargs: dict = {
