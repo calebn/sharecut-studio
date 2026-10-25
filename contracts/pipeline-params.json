@@ -176,6 +176,11 @@
       "type": "number"
     },
     {
+      "default": "auto",
+      "path": "performance.accelerator",
+      "type": "enum"
+    },
+    {
       "default": 0,
       "path": "performance.max_workers",
       "type": "integer"

@@ -103,6 +103,11 @@ VARIABLES: tuple[Variable, ...] = (
             "PODCAST_WHISPER_MODEL",
             "Whisper model name; overrides preferences and the pipeline default.",
         ),
+        (
+            "PODCAST_ACCELERATOR",
+            "cpu keeps every model on the CPU (support override); auto uses a GPU where found.",
+            "auto",
+        ),
         ("PODCAST_MCP_WORD_ALIGNER_MODEL", "Local word-aligner snapshot directory."),
         ("PODCAST_MCP_RNNOISE_MODEL", "RNNoise model file."),
         ("PODCAST_MCP_SPEAKER_ECAPA_MODEL", "Speaker-recognition ONNX model file."),

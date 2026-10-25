@@ -27,6 +27,7 @@ from podcast_mcp.util.binaries import (
     FFmpegPairResolutionError,
     resolve_ffmpeg_pair,
 )
+from podcast_mcp.util.hardware import accelerator_preference, hardware_profile
 from podcast_mcp.util.model_assets import rnnoise_model_path
 
 DoctorStatus = Literal["ok", "fail", "warn"]
@@ -111,6 +112,10 @@ def run_doctor_checks(
                 err=True,
             )
         )
+
+    report.checks.append(
+        DoctorCheck("ok", f"hardware: {hardware_profile().summary(accelerator_preference())}")
+    )
 
     env_model = settings.raw("PODCAST_WHISPER_MODEL")
     if env_model and env_model.strip():
