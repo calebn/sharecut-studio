@@ -58,6 +58,14 @@ describe("episode fixture", () => {
     expect(selections.clip.id).toBe(project.clips.tracks[MIRA]?.[0]?.id);
   });
 
+  it("flags the selected low-confidence word", () => {
+    const words = (episode().transcript?.utterances ?? [])
+      .filter((u) => u.track_id === TOMAS)
+      .flatMap((u) => u.words ?? []);
+    const word = words[selections.lowConfidenceWord.startWordIndex];
+    expect([word?.text, word?.confidence]).toEqual(["Um,", 0.42]);
+  });
+
   it("emptyEpisode drops everything reviewable", () => {
     const project = emptyEpisode();
     expect(project.pending_edits).toEqual([]);
