@@ -119,6 +119,13 @@ const COVERED: Record<string, string[]> = {
   "DLG-RECORD": ["Templates/Record · Host panel"],
   "DLG-MODELS": ["Templates/Models dialog"],
   "DLG-MODEL-GATE": ["Templates/Model gate"],
+  "POP-WORD-EDIT": ["Templates/Editor · Transcript editors"],
+  "POP-SPEAKER": ["Templates/Editor · Transcript editors"],
+  "CMP-WORDBAR": ["Templates/Editor · Inspector · Word"],
+  "CMP-WORDRANGE": ["Templates/Editor · Inspector · Range"],
+  "CMP-RANGE-ACTIONS": ["Templates/Editor · Inspector · Range"],
+  "CMP-VOCAB": ["Templates/Pipeline · Transcript vocabulary"],
+  "DLG-WHISPER": ["Templates/Whisper model"],
 };
 
 /** A story exists but shows only part of the surface. */
@@ -153,17 +160,10 @@ const PENDING = [
   "CMP-DRAWER-HANDLE",
   "OVL-PROSODY",
   "OVL-RECORDING",
-  "CMP-RANGE-ACTIONS",
   "MENU-CREATE",
   "POP-CHOOSER",
   "CMP-SOLO-CHIP",
-  "POP-WORD-EDIT",
-  "POP-SPEAKER",
-  "CMP-WORDBAR",
-  "CMP-WORDRANGE",
-  "CMP-VOCAB",
   "INS-CLIP-MULTI",
-  "DLG-WHISPER",
   "BAN-HOME-SCREEN-HINT",
   "BAN-GUEST-ROLE",
   "BAN-GUEST-VERSION",
@@ -179,7 +179,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 27;
+const PENDING_LIMIT = 20;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
