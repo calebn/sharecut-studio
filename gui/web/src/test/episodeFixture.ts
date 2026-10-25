@@ -14,6 +14,7 @@ import {
 } from "../types/project";
 import {
   appliedEditRecord,
+  COMMENTER_CAPABILITIES,
   clipRow,
   minimalProject,
   pendingEditView,
@@ -411,3 +412,19 @@ export const recordRoom: RecordSnapshot = recordSnapshot({
     }),
   ],
 });
+
+export type EpisodeRole = "host" | "viewer" | "commenter" | "editor";
+
+/** `guest_mode` and capabilities the server sends for each role; the host has neither. */
+export const ROLE_SHARE: Record<
+  EpisodeRole,
+  { guestMode: string | null; capabilities: string[] | null }
+> = {
+  host: { guestMode: null, capabilities: null },
+  viewer: { guestMode: "view", capabilities: ["play", "view"] },
+  commenter: { guestMode: "comment", capabilities: COMMENTER_CAPABILITIES },
+  editor: {
+    guestMode: "edit",
+    capabilities: [...COMMENTER_CAPABILITIES, "edit"],
+  },
+};
