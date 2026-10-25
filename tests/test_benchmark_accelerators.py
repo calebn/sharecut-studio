@@ -282,8 +282,47 @@ def test_bad_dim_items_are_refused(item) -> None:
 
 
 def test_a_failed_benchmark_is_a_plain_message_not_a_traceback(tmp_path, capsys) -> None:
-    code = bench.main(
-        ["--path", "onnx-model", "--onnx", str(tmp_path / "missing.onnx"), "--repeat", "1"]
-    )
-    assert code == 1
+    bad = tmp_path / "bad.onnx"
+    bad.write_bytes(b"not a model")
+    assert bench.main(["--path", "onnx-model", "--onnx", str(bad), "--repeat", "1"]) == 1
     assert "benchmark failed" in capsys.readouterr().err
+
+
+def test_a_missing_model_file_is_named_before_anything_runs(tmp_path, capsys) -> None:
+    assert bench.main(["--path", "onnx-model", "--onnx", str(tmp_path / "gone.onnx")]) == 2
+    assert "gone.onnx not found" in capsys.readouterr().err
+
+
+def test_the_input_size_cap_is_exact() -> None:
+    n = 256 * 1024**2 // 4
+    assert bench.input_shape("x", ["t"], np.float32, _ns(dim=[f"t={n}"])) == [n]
+    with pytest.raises(ValueError, match="MB"):
+        bench.input_shape("x", ["t"], np.float32, _ns(dim=[f"t={n + 1}"]))
+
+
+def test_a_superscript_digit_is_not_a_size() -> None:
+    with pytest.raises(ValueError, match="NAME=SIZE"):
+        bench.parse_dims(["t=\u00b2"])
+
+
+def test_a_dim_name_that_matches_no_axis_is_refused(tmp_path, capsys) -> None:
+    onnx = pytest.importorskip("onnx")
+    pytest.importorskip("onnxruntime")
+    from onnx import TensorProto as T
+    from onnx import helper as h
+
+    graph = h.make_graph(
+        [h.make_node("Neg", ["x"], ["y"])],
+        "g",
+        [h.make_tensor_value_info("x", T.FLOAT, ["batch_size", "sequence_length"])],
+        [h.make_tensor_value_info("y", T.FLOAT, ["batch_size", "sequence_length"])],
+    )
+    model = h.make_model(graph, opset_imports=[h.make_opsetid("", 13)])
+    model.ir_version = 8
+    path = tmp_path / "neg.onnx"
+    onnx.save(model, path)
+    argv = ["--path", "onnx-model", "--onnx", str(path), "--repeat", "1", "--warmup", "0"]
+    assert bench.main([*argv, "--dim", "sequence_length=64"]) == 0
+    capsys.readouterr()
+    assert bench.main([*argv, "--dim", "sequnce_length=64"]) == 1
+    assert "matches no dynamic axis" in capsys.readouterr().err
