@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import statistics
 import subprocess  # nosec B404
 import sys
@@ -119,19 +120,24 @@ def parse_dims(items: list[str]) -> dict[str, int]:
     dims: dict[str, int] = {}
     for item in items:
         name, _, size = item.partition("=")
-        if not name or not size.isdigit() or int(size) < 1:
+        if not name or not re.fullmatch(r"[0-9]+", size) or int(size) < 1:
             raise ValueError(f"--dim wants NAME=SIZE with a positive size, got {item!r}")
         dims[name] = int(size)
     return dims
 
 
 def input_shape(
-    name: str, meta_shape: list[Any], dtype: Any, args: argparse.Namespace
+    name: str,
+    meta_shape: list[Any],
+    dtype: Any,
+    args: argparse.Namespace,
+    used: set[str] | None = None,
 ) -> list[int]:
     """Concrete shape for one model input; refuses one too big to be a sensible benchmark input.
 
-    A named dynamic axis takes its ``--dim NAME=SIZE``; a batch axis is 1; any other dynamic axis
-    takes ``--dynamic-dim``.
+    A named dynamic axis takes its ``--dim NAME=SIZE``; an axis called batch, batch_size or n is 1;
+    any other dynamic axis takes ``--dynamic-dim``. The cap is on the size of the input array
+    itself, not on what the model needs to run it (wav2vec2 needs far more than its input).
     """
     dims = parse_dims(getattr(args, "dim", None) or [])
     shape: list[int] = []
@@ -140,6 +146,8 @@ def input_shape(
             shape.append(axis)
         elif isinstance(axis, str) and axis in dims:
             shape.append(dims[axis])
+            if used is not None:
+                used.add(axis)
         elif isinstance(axis, str) and axis in _BATCH_AXES:
             shape.append(1)
         else:
@@ -162,17 +170,27 @@ def _onnx_model(providers: tuple[str, ...], args: argparse.Namespace) -> Loaded:
     session = onnxruntime.InferenceSession(str(args.onnx), options, providers=list(providers))
     rng = np.random.default_rng(_SEED)
     feeds: dict[str, np.ndarray] = {}
+    used: set[str] = set()
     for meta in session.get_inputs():
         dtype = _ONNX_DTYPES.get(meta.type)
         if dtype is None:
             raise ValueError(f"input {meta.name!r} has unsupported type {meta.type}")
-        shape = input_shape(meta.name, meta.shape, dtype, args)
+        shape = input_shape(meta.name, meta.shape, dtype, args, used)
         if dtype is np.bool_:
-            feeds[meta.name] = rng.integers(0, 2, size=shape).astype(dtype)
+            feeds[meta.name] = rng.integers(0, 2, size=shape, dtype=np.uint8).astype(dtype)
         elif np.issubdtype(dtype, np.integer):
-            feeds[meta.name] = rng.integers(0, 8, size=shape).astype(dtype)
+            feeds[meta.name] = rng.integers(0, 8, size=shape, dtype=dtype)
+        elif dtype in (np.float32, np.float64):
+            feeds[meta.name] = rng.standard_normal(shape, dtype=dtype)
         else:
-            feeds[meta.name] = rng.standard_normal(shape).astype(dtype)
+            feeds[meta.name] = rng.standard_normal(shape, dtype=np.float32).astype(dtype)
+
+    unused = sorted(set(parse_dims(args.dim)) - used)
+    if unused:
+        axes = sorted({str(a) for m in session.get_inputs() for a in m.shape if isinstance(a, str)})
+        raise ValueError(
+            f"--dim {', '.join(unused)} matches no dynamic axis; the model's are {axes}"
+        )
 
     def flatten(outputs: list[Any]) -> np.ndarray:
         return np.concatenate([_flat(o) for o in outputs])
@@ -456,12 +474,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.child:
         try:
             args.result.write_text(json.dumps(asdict(run_child(args))), encoding="utf-8")
-        except ValueError as exc:
+        except Exception as exc:
             print(exc, file=sys.stderr)
             return 3
         return 0
     if args.path == "onnx-model" and not args.onnx:
         print("--path onnx-model needs --onnx FILE", file=sys.stderr)
+        return 2
+    if args.onnx is not None and not args.onnx.is_file():
+        print(f"--onnx {args.onnx} not found", file=sys.stderr)
         return 2
     try:
         parse_dims(args.dim)
