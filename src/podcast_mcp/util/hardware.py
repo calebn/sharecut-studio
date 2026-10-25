@@ -334,8 +334,12 @@ def cpu_budget() -> int:
     """The cores this process may use (affinity and container quota respected), at least 1.
 
     The one place thread and worker counts start from; ``os.cpu_count()`` ignores both limits.
+    It reads only the core count, affinity and quota, so the first call does not pay for the GPU
+    probe.
     """
-    return max(1, hardware_profile().effective_cores)
+    if _override is not None:
+        return max(1, _override.effective_cores)
+    return effective_cpu_count(max(1, os.cpu_count() or 1))
 
 
 def reset_hardware_cache() -> None:
