@@ -7,6 +7,16 @@ import { describe, expect, it } from "vitest";
  * that adds its story.
  */
 const COVERED: Record<string, string[]> = {
+  "INS-PEEK": ["Templates/Editor · Inspector · Peek"],
+  "INS-RANGE": ["Templates/Editor · Inspector · Range"],
+  "INS-WORD": ["Templates/Editor · Inspector · Word"],
+  "INS-COMMENT": ["Templates/Editor · Inspector · Comment"],
+  "INS-SOCIAL": ["Templates/Editor · Inspector · Social clip"],
+  "INS-CHAPTER": ["Templates/Editor · Inspector · Chapter"],
+  "INS-TRACK": ["Templates/Editor · Inspector · Track"],
+  "INS-APPLIED": ["Templates/Editor · Inspector · Applied edit"],
+  "INS-PENDING": ["Templates/Editor · Inspector · Pending edit"],
+  "INS-EMPTY": ["Templates/Editor · Inspector · Empty"],
   "SCR-LOADING": ["Organisms/LoadingScreen"],
   "SCR-ERROR": ["Organisms/ErrorScreen"],
   "SCR-COVER": ["Organisms/CoverScreen"],
@@ -141,17 +151,7 @@ const PENDING = [
   "PNL-TIGHTEN",
   "PNL-PIPELINE",
   "DLG-STEP-PARAMS",
-  "INS-EMPTY",
   "INS-CLIP-MULTI",
-  "INS-PENDING",
-  "INS-APPLIED",
-  "INS-TRACK",
-  "INS-CHAPTER",
-  "INS-SOCIAL",
-  "INS-COMMENT",
-  "INS-WORD",
-  "INS-RANGE",
-  "INS-PEEK",
   "DLG-HELP",
   "DLG-MODELS",
   "DLG-WHISPER",
@@ -172,7 +172,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 52;
+const PENDING_LIMIT = 42;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,

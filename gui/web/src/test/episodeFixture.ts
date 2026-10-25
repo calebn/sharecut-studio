@@ -89,7 +89,7 @@ const SCRIPT: readonly (readonly [string, string])[] = [
   [TOMAS, "Thank you, and good morning to everyone listening."],
 ];
 
-const LOW_CONFIDENCE = new Set(["maybe", "um,", "Flour"]);
+const LOW_CONFIDENCE = new Set(["maybe", "Um,", "Flour"]);
 
 function buildUtterances(): CombinedUtterance[] {
   const nextWordIndex: Record<string, number> = { [MIRA]: 0, [TOMAS]: 0 };
@@ -370,6 +370,13 @@ export const selections = {
     sourceId: null,
     startWordIndex: 3,
     endWordIndex: 3,
+  },
+  lowConfidenceWord: {
+    kind: "transcriptRange",
+    trackId: TOMAS,
+    sourceId: null,
+    startWordIndex: 24,
+    endWordIndex: 24,
   },
   range: {
     kind: "transcriptRange",
