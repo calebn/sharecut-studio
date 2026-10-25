@@ -3,7 +3,6 @@ import {
   documentAuthority,
   resetDocumentAuthority,
 } from "../document/authorityState";
-import { sameBasis } from "../document/editBasisKey";
 import { overlayDocumentDrafts } from "../document/pendingDrafts";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { trimDraft } from "../edit/ripplePreview";
@@ -11,6 +10,7 @@ import { resetServerClock } from "../presence/clock";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ProjectView } from "../types/project";
+import { sameBasis } from "../utils/projectBasis";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { presenceProjectInitial } from "./presenceSlice";

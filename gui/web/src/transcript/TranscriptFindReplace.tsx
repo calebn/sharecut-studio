@@ -6,13 +6,13 @@ import type {
 import { previewTranscriptReplacement, replaceTranscriptMatches } from "../api";
 import { documentAuthority } from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
-import { sameBasis } from "../document/editBasisKey";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { Button, CommandButton, Field, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
+import { sameBasis } from "../utils/projectBasis";
 
 type ReplaceState =
   | { kind: "idle" }

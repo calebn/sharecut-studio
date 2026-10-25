@@ -9,7 +9,7 @@ import type {
   ProjectView,
 } from "../types/project";
 import { jsonEqual } from "../utils/jsonEqual";
-import { LATE } from "./editBasisKey";
+import { LATE } from "../utils/projectBasis";
 
 type SourceSpans = ClipMuteRegion[] | ClippingRegion[];
 

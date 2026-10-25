@@ -16,7 +16,6 @@ import {
 } from "../api/transcriptTiming";
 import { documentAuthority } from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
-import { sameBasis } from "../document/editBasisKey";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { WaveformLayer } from "../timeline/WaveformLayer";
@@ -24,6 +23,7 @@ import type { ProjectView, TranscriptWordView } from "../types/project";
 import { Button, CommandButton, InlineError } from "../ui";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { errorMessage } from "../utils/apiError";
+import { sameBasis } from "../utils/projectBasis";
 
 type Bounds = { start: number; end: number };
 type Editor =
