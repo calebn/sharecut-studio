@@ -68,7 +68,7 @@ Follow these **now**, while shipping unrelated features. They are cheap constrai
 - Don’t rewrite render/loudnorm/deess in AVFoundation “because iOS” unless legal forbids LGPL FFmpeg — that duplicates `FFmpegEngine`.
 - Don’t assume a guest share + user API key is a full phone DAW (missing pipeline, ingest, host-only mutations).
 - Don’t design Siri / App Intents as the editor (no production-audio App Schema; 10 App Shortcut cap). Cursor-style tool use is the editor.
-- Don’t put torch in the GUI bootstrap path; the repo has no torch dependency (#2256).
+- Don’t put torch in the GUI bootstrap path; the repo has no torch dependency.
 - Don’t fork document commands or clip math for a “lite” mobile apply path.
 
 ### Cheap prep (only when you are already in that file)

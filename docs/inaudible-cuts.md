@@ -201,8 +201,8 @@ Render-side consequences (gap closing, crossfade overlap) are in
 FOSS multi-detector join scoring (`edits/join_continuity.py` + paper reimpl in
 `edits/join_cost_spectral.py`): click, level, spectral flux, MFCC/LSF/MCA join
 costs (Vepa & King), noise floor, F0, onset, bicoherence proxy, late-energy /
-RIR proxy. This detector fusion is the only continuity measure: #2256 dropped the
-neural layer (WavLM and the NISQA-named spectral proxy), which never ran in a default
+RIR proxy. This detector fusion is the only continuity measure: the
+neural layer (WavLM and the NISQA-named spectral proxy) was removed. It never ran in a default
 install, so default verdicts did not change. Explicit A/B labels → numpy ranker; tighten
 gate (`tighten.join_continuity_gate`) skips proposed cuts with verdict `fail`.
 The gate scores a butt splice, so Tighten runs it only on cuts that approve as
