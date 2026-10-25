@@ -276,3 +276,6 @@ extend_exclude = [
 DEP002 = [
     "av", # Compatibility constraint for faster-whisper's metadata_errors argument.
 ]
+DEP003 = [
+    "ctranslate2", # Comes with faster-whisper; the hardware probe asks it for CUDA devices.
+]
