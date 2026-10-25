@@ -112,6 +112,10 @@ const COVERED: Record<string, string[]> = {
   "SCR-SETUP": ["Templates/Home · Setup wizard"],
   "SCR-SETUP-CHECKING": ["Templates/Home · Setup wizard"],
   "SCR-SETUP-DOWNLOAD": ["Templates/Home · Setup wizard"],
+  "SCR-HOME": ["Templates/Home"],
+  "SCR-HOME-NEW": ["Templates/Home"],
+  "SCR-HOME-OPEN": ["Templates/Home"],
+  "SCR-HOME-ERROR": ["Templates/Home"],
 };
 
 /** A story exists but shows only part of the surface. */
@@ -141,10 +145,6 @@ const PARTIAL: Record<string, string[]> = {
 };
 
 const PENDING = [
-  "SCR-HOME",
-  "SCR-HOME-NEW",
-  "SCR-HOME-OPEN",
-  "SCR-HOME-ERROR",
   "SCR-LAYOUT-TEXT",
   "SCR-LAYOUT-REVIEW",
   "CMP-LAYOUT-CHIP",
@@ -179,7 +179,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 33;
+const PENDING_LIMIT = 29;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
