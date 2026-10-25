@@ -98,7 +98,7 @@ class HardwareProfile:
             label = "Windows GPU (DirectML)"
         else:
             return f"No GPU found: everything runs on the CPU, {cores}."
-        return f"{label} detected; the CPU stays the fallback, {cores}."
+        return f"{label} detected; no model uses it yet, {cores}."
 
     def to_dict(self, preference: str = "auto") -> dict[str, Any]:
         out = asdict(self)
@@ -109,7 +109,7 @@ class HardwareProfile:
 
 
 def cpu_only_profile(logical_cores: int | None = None) -> HardwareProfile:
-    """What a failed probe, or a machine with no accelerator, reports."""
+    """A machine with no accelerator; the base the tests build their fake machines on."""
     logical = max(1, logical_cores or os.cpu_count() or 1)
     return HardwareProfile(
         system=platform.system(),
