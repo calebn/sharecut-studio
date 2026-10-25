@@ -353,7 +353,10 @@ def test_the_doctor_line_says_where_speech_to_text_runs() -> None:
     text = describe_placement(
         "large-v3-turbo", profile=_gpu(), compute_types=_types("float16", "int8")
     )
-    assert text == "speech-to-text (large-v3-turbo) runs on the NVIDIA GPU (float16)."
+    assert (
+        text
+        == "speech-to-text (large-v3-turbo) is set to run on the NVIDIA GPU; if the GPU fails it falls back to the CPU."
+    )
 
 
 def test_the_doctor_line_names_the_reason_when_a_gpu_is_too_small() -> None:
@@ -365,12 +368,13 @@ def test_the_doctor_line_names_the_reason_when_a_gpu_is_too_small() -> None:
 
 def test_the_doctor_line_says_how_to_fix_a_gpu_the_engine_cannot_see() -> None:
     text = describe_placement("small", profile=_gpu(devices=0))
-    assert "NVIDIA GPU is present but the speech engine cannot use it" in text
+    assert "NVIDIA GPU is present but speech-to-text cannot use it" in text
     assert "update the NVIDIA driver" in text
+    assert "CUDA 12 libraries (cuBLAS and cuDNN 9)" in text
 
 
 def test_the_doctor_line_for_the_cpu_setting_and_for_no_gpu() -> None:
-    assert "because the accelerator setting is cpu" in describe_placement(
+    assert "runs on the CPU because GPU use is turned off in settings" in describe_placement(
         "small", profile=_gpu(), preference="cpu"
     )
     assert describe_placement("small", profile=cpu_only_profile(4)) == (
@@ -385,4 +389,4 @@ def test_podcast_doctor_prints_the_speech_to_text_placement(monkeypatch) -> None
     with use_hardware_profile(_gpu(devices=0)):
         report = run_doctor_checks()
     messages = [check.message for check in report.checks]
-    assert any("speech engine cannot use it" in m for m in messages), messages
+    assert any("speech-to-text cannot use it" in m for m in messages), messages
