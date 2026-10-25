@@ -117,6 +117,8 @@ const COVERED: Record<string, string[]> = {
   "SCR-HOME-OPEN": ["Templates/Home"],
   "SCR-HOME-ERROR": ["Templates/Home"],
   "DLG-RECORD": ["Templates/Record · Host panel"],
+  "DLG-MODELS": ["Templates/Models dialog"],
+  "DLG-MODEL-GATE": ["Templates/Model gate"],
 };
 
 /** A story exists but shows only part of the surface. */
@@ -130,7 +132,6 @@ const PARTIAL: Record<string, string[]> = {
   "MENU-MAIN": ["Molecules/Menu"],
   "MENU-VIEW": ["Templates/OverlayLegend"],
   "CMP-TIMELINE": ["Templates/TimelineRange"],
-  "DLG-MODEL-GATE": ["Templates/ExportDialog", "Templates/SplitSpeakersDialog"],
   "SCR-PHONE-LISTEN": ["Templates/ListenHero", "Templates/MobileShell"],
   "SCR-PHONE-TIMELINE": ["Templates/MobileShell"],
   "SCR-PHONE-TEXT": ["Templates/MobileShell"],
@@ -162,7 +163,6 @@ const PENDING = [
   "CMP-WORDRANGE",
   "CMP-VOCAB",
   "INS-CLIP-MULTI",
-  "DLG-MODELS",
   "DLG-WHISPER",
   "BAN-HOME-SCREEN-HINT",
   "BAN-GUEST-ROLE",
@@ -179,7 +179,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 28;
+const PENDING_LIMIT = 27;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
