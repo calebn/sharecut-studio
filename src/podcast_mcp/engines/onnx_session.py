@@ -3,8 +3,8 @@
 A model asks for acceleration (``accelerate=True``) only when the lab showed it is faster, within
 the output tolerance and affordable in memory on that machine class (``scripts/benchmark_accelerators.py``);
 everything else stays on the CPU, exactly as before. An accelerated session that will not load or
-fails while running is rebuilt on the CPU, the failure is remembered for the process, and the job
-carries on.
+fails while running is rebuilt on the CPU, the failure is remembered for the process only once the CPU has done the work (a bad input or a
+missing file is the caller's error, not the accelerator's), and the job carries on.
 """
 
 from __future__ import annotations
@@ -64,7 +64,9 @@ class OnnxModel:
         self._quiet = quiet
         self._lock = threading.Lock()
         order = provider_order(accelerate=accelerate, profile=profile, preference=preference)
-        order = tuple(p for p in order if (self.path, p) not in _failed) or (CPU_PROVIDER,)
+        with _failed_lock:
+            order = tuple(p for p in order if (self.path, p) not in _failed)
+        order = order or (CPU_PROVIDER,)
         self._session = self._build_or_fall_back(order)
 
     @property
@@ -80,9 +82,19 @@ class OnnxModel:
         try:
             return session.run(output_names, feed)
         except Exception as exc:
-            if not self._leave_accelerator(session, f"a run failed ({exc})", exc):
+            if session is not self._session:
+                return self._session.run(output_names, feed)
+            active = _providers_of(session)[:1]
+            if not active or active[0] == CPU_PROVIDER:
                 raise
-        return self._session.run(output_names, feed)
+            error = exc
+        cpu = self._build((CPU_PROVIDER,))
+        result = cpu.run(output_names, feed)
+        self._remember_failure(active[0], f"a run failed ({error})", error)
+        with self._lock:
+            if session is self._session:
+                self._session = cpu
+        return result
 
     def _build(self, order: tuple[str, ...]) -> Any:
         import onnxruntime as ort
@@ -100,8 +112,9 @@ class OnnxModel:
         except Exception as exc:
             if order[0] == CPU_PROVIDER:
                 raise
+            session = self._build((CPU_PROVIDER,))
             self._remember_failure(order[0], f"the session would not load ({exc})", exc)
-            return self._build((CPU_PROVIDER,))
+            return session
 
     def _remember_failure(self, provider: str, why: str, exc: BaseException | None) -> None:
         with _failed_lock:
@@ -111,14 +124,3 @@ class OnnxModel:
             log.warning(
                 "%s runs on the CPU for this process: %s.", Path(self.path).name, why, exc_info=exc
             )
-
-    def _leave_accelerator(self, session: Any, why: str, exc: BaseException) -> bool:
-        with self._lock:
-            if session is not self._session:
-                return True
-            active = _providers_of(session)[:1]
-            if not active or active[0] == CPU_PROVIDER:
-                return False
-            self._remember_failure(active[0], why, exc)
-            self._session = self._build((CPU_PROVIDER,))
-            return True
