@@ -30,7 +30,7 @@ def _reference_runs(track, need, near_sec, avoid):
     return runs
 
 
-def _scene(seed: int):
+def _scene(seed: int, *, scrambled: bool = False):
     rng = random.Random(seed)
     cursor = 0.0
     runs = []
@@ -44,6 +44,9 @@ def _scene(seed: int):
         start = rng.uniform(0.0, cursor + 1.0)
         # Edits that touch run boundaries, overlap each other, or are empty.
         avoid.append((start, start + rng.choice([0.0, 0.2, rng.uniform(0.0, 4.0)])))
+    if scrambled:
+        rng.shuffle(runs)
+        runs += [(a + 0.2, b + 0.2) for a, b in runs[:3]]
     track = TrackFloor(Path("x.wav"), -60.0, -20.0, tuple(runs))
     return track, avoid, rng.uniform(0.0, cursor), rng.choice([0.25, 0.5, 1.5, 4.0, 0.0])
 
@@ -64,17 +67,19 @@ def measured(monkeypatch):
     return spans
 
 
+@pytest.mark.parametrize("scrambled", [False, True])
 @pytest.mark.parametrize("seed", range(120))
-def test_the_windows_tried_and_the_pick_match_one_subtraction_per_run(seed, measured, monkeypatch):
-    track, avoid, near, duration = _scene(seed)
+def test_the_windows_tried_and_the_pick_match_one_subtraction_per_run(
+    seed, scrambled, measured, monkeypatch
+):
+    track, avoid, near, duration = _scene(seed, scrambled=scrambled)
     need = min(duration, room_tone.MIN_SAMPLE_SEC)
     picked = room_tone._pick_sample(track, near_sec=near, duration_sec=duration, avoid=avoid)
 
     expected = _reference_runs(track, need, near, avoid)
     tried = [room_tone._window_nearest(r, near, duration) for r in expected[: len(measured)]]
     assert measured == tried
-    if expected:
-        assert len(measured) == min(len(expected), 3 if len(expected) >= 3 else len(expected))
+    assert len(measured) == min(len(expected), 3)
     if isinstance(picked, room_tone.OwnQuietSample):
         assert (picked.sample.start, picked.sample.end) == tried[-1]
 
