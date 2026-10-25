@@ -110,13 +110,19 @@ function buildUtterances(): CombinedUtterance[] {
       timeline_end: start + SPOKEN_SEC,
       words: words.map((word, index) => {
         const wordStart = start + index * step;
+        const wordIndex = nextWordIndex[trackId]++;
         return {
+          timing_target: {
+            track_id: trackId,
+            source_id: null,
+            word_index: wordIndex,
+          },
           text: word,
           start: wordStart,
           end: wordStart + step,
           timeline_start: wordStart,
           timeline_end: wordStart + step,
-          word_index: nextWordIndex[trackId]++,
+          word_index: wordIndex,
           confidence: LOW_CONFIDENCE.has(word) ? 0.42 : 0.96,
           mappable: true,
         };
