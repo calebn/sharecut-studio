@@ -15,7 +15,6 @@ tree the evaluator cannot take, still uses the render. The module logs the reaso
 from __future__ import annotations
 
 import logging
-import os
 import tempfile
 import threading
 from collections import OrderedDict
@@ -40,6 +39,7 @@ from podcast_mcp.engines.ungated_audio import resample_streams
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import scoped, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.project_state import (
     FileRevision,
@@ -172,7 +172,7 @@ def rms_readers(
         results = run_parallel(
             keys,
             lambda key: _build_or_error(store, key, missing[key]),
-            max_workers=min(len(keys), MAX_EVALUATORS, os.cpu_count() or 1),
+            max_workers=min(len(keys), MAX_EVALUATORS, cpu_budget()),
         )
         evaluated = dict(zip(keys, results, strict=True))
 

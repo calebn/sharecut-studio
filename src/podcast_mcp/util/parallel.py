@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from typing import TypeVar
 
 from podcast_mcp.util.batch_scope import BatchState, carried, snapshot
+from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.process import current_niceness, low_priority
 
 T = TypeVar("T")
@@ -16,14 +16,14 @@ R = TypeVar("R")
 def resolve_worker_count(configured: int | None, item_count: int) -> int:
     """Resolve how many worker threads to use for a batch of item_count tasks.
 
-    0 or None = auto (cpu_count-based, capped at 8); 1 = force serial;
+    0 or None = auto (cpu_budget-based, capped at 8); 1 = force serial;
     >1 = explicit cap, still bounded by item_count (no point spawning more
     workers than there is work).
     """
     if item_count <= 1:
         return 1
     if configured is None or configured == 0:
-        auto = min(8, (os.cpu_count() or 4) + 2)
+        auto = min(8, cpu_budget() + 2)
         return max(1, min(auto, item_count))
     return max(1, min(int(configured), item_count))
 

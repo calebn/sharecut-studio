@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import dataclasses
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.util.hardware import cpu_only_profile, use_hardware_profile
 from podcast_mcp.util.parallel import resolve_worker_count, run_parallel
 
 
@@ -19,25 +21,30 @@ def test_resolve_worker_count_zero_items_is_serial():
     assert resolve_worker_count(None, 0) == 1
 
 
-def test_resolve_worker_count_auto_uses_cpu_count():
-    with patch("podcast_mcp.util.parallel.os.cpu_count", return_value=4):
+def _budget(cores: int):
+    return use_hardware_profile(dataclasses.replace(cpu_only_profile(cores), effective_cores=cores))
+
+
+def test_resolve_worker_count_auto_uses_the_cpu_budget():
+    with _budget(4):
         assert resolve_worker_count(None, 100) == 6
         assert resolve_worker_count(0, 100) == 6
 
 
+def test_resolve_worker_count_auto_follows_a_container_limit_below_the_logical_cores():
+    profile = dataclasses.replace(cpu_only_profile(16), effective_cores=2)
+    with use_hardware_profile(profile):
+        assert resolve_worker_count(None, 100) == 4
+
+
 def test_resolve_worker_count_auto_caps_at_eight():
-    with patch("podcast_mcp.util.parallel.os.cpu_count", return_value=64):
+    with _budget(64):
         assert resolve_worker_count(None, 100) == 8
 
 
 def test_resolve_worker_count_auto_bounded_by_item_count():
-    with patch("podcast_mcp.util.parallel.os.cpu_count", return_value=16):
+    with _budget(16):
         assert resolve_worker_count(None, 3) == 3
-
-
-def test_resolve_worker_count_auto_falls_back_when_cpu_count_none():
-    with patch("podcast_mcp.util.parallel.os.cpu_count", return_value=None):
-        assert resolve_worker_count(None, 100) == 6
 
 
 def test_resolve_worker_count_explicit_serial_override():
