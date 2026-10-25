@@ -63,7 +63,12 @@ def test_provider_order_and_summary_per_platform(profile, order, words) -> None:
 
 
 def test_cuda_outranks_coreml_and_directml_and_cpu_is_always_last() -> None:
-    mixed = _profile(onnx_providers=(DIRECTML_PROVIDER, COREML_PROVIDER, CUDA_PROVIDER))
+    mixed = _profile(
+        onnx_providers=(DIRECTML_PROVIDER, COREML_PROVIDER, CUDA_PROVIDER),
+        cuda=CudaDevice("RTX 4070", 12000, "550.1"),
+        apple_silicon=True,
+        directml=True,
+    )
     assert mixed.onnx_provider_order() == (
         CUDA_PROVIDER,
         COREML_PROVIDER,
@@ -184,11 +189,41 @@ def test_probe_reads_the_providers_and_cuda_count(monkeypatch) -> None:
     assert 1 <= profile.effective_cores <= profile.logical_cores
 
 
-def test_cuda_provider_without_nvidia_smi_still_reports_a_device(monkeypatch) -> None:
+def test_cuda_count_without_nvidia_smi_still_reports_a_device(monkeypatch) -> None:
+    monkeypatch.setattr(hardware, "_onnx_providers", lambda: (CUDA_PROVIDER, CPU_PROVIDER))
+    monkeypatch.setattr(hardware, "_ctranslate2_cuda_devices", lambda: 1)
+    monkeypatch.setattr(hardware, "_nvidia_smi", lambda: None)
+    assert probe_hardware().cuda == CudaDevice()
+
+
+def test_a_listed_provider_without_a_device_is_not_a_gpu(monkeypatch) -> None:
     monkeypatch.setattr(hardware, "_onnx_providers", lambda: (CUDA_PROVIDER, CPU_PROVIDER))
     monkeypatch.setattr(hardware, "_ctranslate2_cuda_devices", lambda: 0)
     monkeypatch.setattr(hardware, "_nvidia_smi", lambda: None)
-    assert probe_hardware().cuda == CudaDevice()
+    profile = probe_hardware()
+    assert profile.cuda is None
+    assert profile.onnx_provider_order() == (CPU_PROVIDER,)
+    assert "No GPU found" in profile.summary()
+
+
+def test_coreml_on_an_intel_mac_is_not_used() -> None:
+    intel = _profile(
+        system="Darwin", machine="x86_64", onnx_providers=(COREML_PROVIDER, CPU_PROVIDER)
+    )
+    assert intel.onnx_provider_order() == (CPU_PROVIDER,)
+
+
+def test_one_failing_part_keeps_the_others(monkeypatch) -> None:
+    def broken():
+        raise OSError("libcudart.so missing")
+
+    monkeypatch.setattr(hardware, "_onnx_providers", broken)
+    monkeypatch.setattr(hardware, "_ram_bytes", lambda: 123)
+    monkeypatch.setattr(hardware, "_physical_cores", lambda: 3)
+    profile = probe_hardware()
+    assert profile.onnx_providers == (CPU_PROVIDER,)
+    assert profile.ram_bytes == 123
+    assert profile.physical_cores == 3
 
 
 def test_a_failing_probe_reads_as_cpu_only_and_never_raises(monkeypatch) -> None:
@@ -253,3 +288,11 @@ def test_doctor_and_support_bundle_report_the_profile_in_plain_words(
         )
     assert report["hardware"]["onnx_provider_order"] == [CPU_PROVIDER]
     assert report["hardware"]["preference"] == "cpu"
+
+
+def test_preference_reads_the_pipeline_defaults_when_none_are_passed(monkeypatch) -> None:
+    from podcast_mcp.config import defaults
+
+    monkeypatch.delenv("PODCAST_ACCELERATOR", raising=False)
+    monkeypatch.setattr(defaults, "load_defaults", lambda: {"performance": {"accelerator": "cpu"}})
+    assert accelerator_preference() == "cpu"
