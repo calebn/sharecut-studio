@@ -45,6 +45,7 @@ from podcast_mcp.engines.models.word_aligner import (
     word_aligner_model,
     word_aligner_override_dir,
 )
+from podcast_mcp.engines.onnx_session import OnnxModel
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import clamp
@@ -53,6 +54,8 @@ from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowRea
 
 # The #641 measurement setting.
 DEFAULT_ALIGNER_THREADS = 4
+# Off until the Mac lab shows the accelerator is faster, within tolerance and affordable (#2249).
+ACCELERATE_ALIGNER = False
 
 
 class OnnxRuntimeMissingError(RuntimeError):
@@ -62,17 +65,13 @@ class OnnxRuntimeMissingError(RuntimeError):
 class OnnxCtcBackend:
     def __init__(self, model_path: Path, *, threads: int = DEFAULT_ALIGNER_THREADS) -> None:
         try:
-            import onnxruntime as ort
+            import onnxruntime  # noqa: F401
         except ImportError as exc:
             raise OnnxRuntimeMissingError(
                 "word alignment needs onnxruntime (a core dependency): run uv sync"
             ) from exc
 
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = threads
-        self._session = ort.InferenceSession(
-            str(model_path), opts, providers=["CPUExecutionProvider"]
-        )
+        self._session = OnnxModel(model_path, accelerate=ACCELERATE_ALIGNER, threads=threads)
         self._input_name = self._session.get_inputs()[0].name
 
     def log_probs(self, samples: np.ndarray) -> np.ndarray:

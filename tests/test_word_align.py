@@ -44,7 +44,8 @@ def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
 
 
 class _FakeSession:
-    def __init__(self, path, opts, providers) -> None:
+    def __init__(self, path, sess_options, providers) -> None:
+        opts = sess_options
         self.opts = opts
         self.feed = None
 
@@ -59,8 +60,8 @@ class _FakeSession:
 def _fake_onnxruntime():
     sessions: list[_FakeSession] = []
 
-    def make_session(path, opts, providers):
-        session = _FakeSession(path, opts, providers)
+    def make_session(path, sess_options, providers):
+        session = _FakeSession(path, sess_options, providers)
         sessions.append(session)
         return session
 
