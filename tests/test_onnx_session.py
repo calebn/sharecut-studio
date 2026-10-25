@@ -105,7 +105,7 @@ def test_an_accelerator_that_will_not_load_is_replaced_by_the_cpu_and_remembered
     with use_hardware_profile(_apple()):
         first = OnnxModel("m.onnx", accelerate=True)
         second = OnnxModel("m.onnx", accelerate=True)
-    assert first.providers == [CPU_PROVIDER] or first.providers == (CPU_PROVIDER,)
+    assert first.providers == (CPU_PROVIDER,)
     assert [b["providers"][0] for b in _Session.built] == [
         COREML_PROVIDER,
         CPU_PROVIDER,
@@ -128,6 +128,23 @@ def test_an_accelerator_that_fails_while_running_is_replaced_and_the_call_is_ret
         CPU_PROVIDER,
     ]
     assert again.run(None, {}) == [f"ran on {CPU_PROVIDER}"]
+
+
+def test_a_model_that_loads_nowhere_does_not_blame_the_accelerator() -> None:
+    _Session.fail_load = {COREML_PROVIDER, CPU_PROVIDER}
+    with use_hardware_profile(_apple()), pytest.raises(RuntimeError, match="cannot load"):
+        OnnxModel("missing.onnx", accelerate=True)
+    assert onnx_session._failed == set()
+
+
+def test_a_bad_input_does_not_blame_the_accelerator() -> None:
+    _Session.fail_run = {COREML_PROVIDER, CPU_PROVIDER}
+    with use_hardware_profile(_apple()):
+        model = OnnxModel("m.onnx", accelerate=True)
+        with pytest.raises(RuntimeError, match="accelerator failed"):
+            model.run(None, {})
+        assert model.providers[0] == COREML_PROVIDER
+    assert onnx_session._failed == set()
 
 
 def test_a_cpu_error_is_raised_not_retried() -> None:
