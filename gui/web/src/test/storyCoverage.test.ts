@@ -116,6 +116,7 @@ const COVERED: Record<string, string[]> = {
   "SCR-HOME-NEW": ["Templates/Home"],
   "SCR-HOME-OPEN": ["Templates/Home"],
   "SCR-HOME-ERROR": ["Templates/Home"],
+  "DLG-RECORD": ["Templates/Record · Host panel"],
 };
 
 /** A story exists but shows only part of the surface. */
@@ -163,7 +164,6 @@ const PENDING = [
   "INS-CLIP-MULTI",
   "DLG-MODELS",
   "DLG-WHISPER",
-  "DLG-RECORD",
   "BAN-HOME-SCREEN-HINT",
   "BAN-GUEST-ROLE",
   "BAN-GUEST-VERSION",
@@ -179,7 +179,7 @@ const PENDING = [
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 29;
+const PENDING_LIMIT = 28;
 
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
