@@ -161,6 +161,17 @@ def input_shape(
     return shape
 
 
+def random_input(rng: Any, dtype: Any, shape: list[int]) -> np.ndarray:
+    """Seeded random data made directly in ``dtype``: no float64 or int64 temporary at the cap."""
+    if dtype is np.bool_:
+        return rng.integers(0, 2, size=shape, dtype=np.uint8).astype(dtype)
+    if np.issubdtype(dtype, np.integer):
+        return rng.integers(0, 8, size=shape, dtype=dtype)
+    if dtype in (np.float32, np.float64):
+        return rng.standard_normal(shape, dtype=dtype)
+    return rng.standard_normal(shape, dtype=np.float32).astype(dtype)
+
+
 def _onnx_model(providers: tuple[str, ...], args: argparse.Namespace) -> Loaded:
     """Any ONNX file with seeded random inputs shaped from the model's own metadata."""
     import onnxruntime
@@ -176,14 +187,7 @@ def _onnx_model(providers: tuple[str, ...], args: argparse.Namespace) -> Loaded:
         if dtype is None:
             raise ValueError(f"input {meta.name!r} has unsupported type {meta.type}")
         shape = input_shape(meta.name, meta.shape, dtype, args, used)
-        if dtype is np.bool_:
-            feeds[meta.name] = rng.integers(0, 2, size=shape, dtype=np.uint8).astype(dtype)
-        elif np.issubdtype(dtype, np.integer):
-            feeds[meta.name] = rng.integers(0, 8, size=shape, dtype=dtype)
-        elif dtype in (np.float32, np.float64):
-            feeds[meta.name] = rng.standard_normal(shape, dtype=dtype)
-        else:
-            feeds[meta.name] = rng.standard_normal(shape, dtype=np.float32).astype(dtype)
+        feeds[meta.name] = random_input(rng, dtype, shape)
 
     unused = sorted(set(parse_dims(args.dim)) - used)
     if unused:

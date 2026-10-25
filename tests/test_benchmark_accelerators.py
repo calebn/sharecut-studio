@@ -326,3 +326,33 @@ def test_a_dim_name_that_matches_no_axis_is_refused(tmp_path, capsys) -> None:
     capsys.readouterr()
     assert bench.main([*argv, "--dim", "sequnce_length=64"]) == 1
     assert "matches no dynamic axis" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("dtype", "method", "made_as"),
+    [
+        (np.float32, "standard_normal", np.float32),
+        (np.float64, "standard_normal", np.float64),
+        (np.float16, "standard_normal", np.float32),
+        (np.int8, "integers", np.int8),
+        (np.int64, "integers", np.int64),
+        (np.bool_, "integers", np.uint8),
+    ],
+)
+def test_random_inputs_are_made_in_their_own_dtype_without_a_wider_temporary(
+    dtype, method, made_as
+) -> None:
+    seen: list[tuple[str, object]] = []
+    real = np.random.default_rng(0)
+
+    class Spy:
+        def __getattr__(self, name):
+            def call(*args, **kwargs):
+                seen.append((name, kwargs.get("dtype")))
+                return getattr(real, name)(*args, **kwargs)
+
+            return call
+
+    out = bench.random_input(Spy(), dtype, [4, 3])
+    assert out.dtype == np.dtype(dtype) and out.shape == (4, 3)
+    assert seen == [(method, made_as)]
