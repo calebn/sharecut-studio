@@ -236,6 +236,20 @@ def test_toast_undo_still_reverts_its_change_after_a_preview_render_landed(minim
     assert _decision_ids(minimal_project) == {"host-hit"}
 
 
+def test_undo_naming_a_preview_head_reverts_the_edit_under_the_previews(minimal_project):
+    _seed(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+    _host_reject(svc)
+    _preview_render(minimal_project, "render-1")
+    seen = _status(minimal_project).head_id
+    _preview_render(minimal_project, "render-2")
+
+    reply = _undo(svc, seen)
+
+    assert reply["ok"] is True
+    assert _decision_ids(minimal_project) == {"host-hit"}
+
+
 def test_toast_undo_refuses_when_an_edit_landed_after_the_preview_render(minimal_project):
     _seed(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
@@ -524,6 +538,7 @@ def test_undo_is_unavailable_when_only_previews_sit_under_the_cursor(minimal_pro
 
 def test_undo_stays_available_when_an_edit_sits_under_the_preview(minimal_project):
     _seed(minimal_project)
+    _agent_edit(minimal_project)
     _preview_render(minimal_project, "render-1")
 
     assert _status(minimal_project).can_undo is True

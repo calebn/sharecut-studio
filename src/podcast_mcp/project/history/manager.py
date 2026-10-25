@@ -67,35 +67,21 @@ def _require_head(
         raise StaleHistoryError(action)
 
 
-def _rewind_over_render_previews(history: ProjectHistory) -> None:
-    """Move the cursor off automatic ``render_preview`` entries it sits on.
-
-    Auto refresh-mix lands after the edit that triggered it; an undo that names the
-    preview head (toolbar Mod+Z) should revert that edit in one step, not peel the
-    preview alone. The cursor sits on a preview below the tip too: an Undo of the
-    second of two edits steps onto the first edit's preview, and the next Undo must
-    revert that first edit, not step onto it (#1675)."""
-    while history.cursor > 0 and history.entries[history.cursor].operation == "render_preview":
-        history.cursor -= 1
-
-
-def _behind_render_only(history: ProjectHistory, expected_head_id: str | None) -> int | None:
-    """The index of ``expected_head_id`` when only preview renders were recorded after it.
+def _behind_render_only(history: ProjectHistory, expected_head_id: str | None) -> bool:
+    """Whether only preview renders were recorded after ``expected_head_id``.
 
     A preview render lands in history a while after the edit that caused it, so an undo
     that targets the edit (a toast's Undo) would otherwise refuse as "the project changed".
     A render adds no edit of its own, so stepping back from the edit is what the caller meant."""
     if expected_head_id is None or history.head_id() == expected_head_id:
-        return None
+        return False
     ids = [entry.id for entry in history.entries]
     if expected_head_id not in ids:
-        return None
+        return False
     index = ids.index(expected_head_id)
     if history.cursor != len(ids) - 1:
-        return None
-    if all(entry.operation == "render_preview" for entry in history.entries[index + 1 :]):
-        return index
-    return None
+        return False
+    return all(entry.operation == "render_preview" for entry in history.entries[index + 1 :])
 
 
 @dataclass
@@ -204,13 +190,9 @@ class HistoryManager:
 
     def _undo_locked(self, project: EpisodeProject, expected_head_id: str | None) -> HistoryStatus:
         history = self._load_index(project)
-        resumed = _behind_render_only(history, expected_head_id)
-        if resumed is None:
+        if not _behind_render_only(history, expected_head_id):
             _require_head(history, "undo", expected_head_id)
-        if resumed is not None:
-            history.cursor = resumed
-        else:
-            _rewind_over_render_previews(history)
+        history.cursor = history.undo_origin()
         if not history.can_undo():
             raise ValueError("Nothing to undo")
         history.cursor -= 1

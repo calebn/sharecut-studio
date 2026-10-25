@@ -30,8 +30,21 @@ class ProjectHistory(BaseModel):
         """True before any snapshot has been recorded (no entries, no cursor)."""
         return not self.entries and self.cursor < 0
 
+    def undo_origin(self) -> int:
+        """The cursor an Undo steps back from: it skips automatic ``render_preview`` entries.
+
+        Auto refresh-mix lands after the edit that triggered it; an undo that names the
+        preview head (toolbar Mod+Z) should revert that edit in one step, not peel the
+        preview alone. The cursor sits on a preview below the tip too: an Undo of the
+        second of two edits steps onto the first edit's preview, and the next Undo must
+        revert that first edit, not step onto it (#1675)."""
+        i = self.cursor
+        while 0 < i < len(self.entries) and self.entries[i].operation == "render_preview":
+            i -= 1
+        return i
+
     def can_undo(self) -> bool:
-        return self.cursor > 0
+        return self.undo_origin() > 0
 
     def can_redo(self) -> bool:
         return self.cursor >= 0 and self.cursor < len(self.entries) - 1
