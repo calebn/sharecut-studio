@@ -93,16 +93,9 @@ the implementation modules.
 The projection guard remains in
 `tests/test_import_direction.py`.
 
-The document facade exposes `HistoryDiffResult`, an untagged union of
-`EmptyHistoryDiffResult` and `PopulatedHistoryDiffResult`. The frozen models in
-`document/history_results.py` distinguish absent history from a selected
-comparison, including identical snapshots. CLI, MCP, and HTTP adapters call
-`model_dump()` before their existing dictionary serializers. Snapshot comparison
-and summary logic remain in `project/history/`. See [history.md](history.md).
-
-The media facade exposes `WaveformStatusResult` with typed media entries.
-Host and share routes serialize these results; the waveform service and engines
-own scheduling and metadata. See [waveform.md](waveform.md).
+The document facade exposes `HistoryDiffResult`. The media facade exposes
+`WaveformStatusResult`. Adapters preserve existing replies. See
+[history.md](history.md#history-diff-results) and [waveform.md](waveform.md).
 
 ### Jobs
 
