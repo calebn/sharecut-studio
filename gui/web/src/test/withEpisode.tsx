@@ -23,14 +23,20 @@ export interface EpisodeParameters {
   state?: Partial<DawState>;
   /** JSON bodies for requests whose URL contains the key. Any other request gets a 503. */
   responses?: Record<string, unknown>;
+  /** URLs containing one of these never answer, so a story can hold a loading state. */
+  hang?: string[];
 }
 
 const NO_SERVER = JSON.stringify({ detail: "Storybook has no server." });
 
-function installStubs(responses: Record<string, unknown>): () => void {
+function installStubs(
+  responses: Record<string, unknown>,
+  hang: string[],
+): () => void {
   const { fetch, WebSocket } = globalThis;
   globalThis.fetch = (input) => {
     const url = input instanceof Request ? input.url : String(input);
+    if (hang.some((key) => url.includes(key))) return new Promise(() => {});
     const hit = Object.entries(responses).find(([key]) => url.includes(key));
     return Promise.resolve(
       new Response(hit ? JSON.stringify(hit[1]) : NO_SERVER, {
@@ -55,10 +61,10 @@ export function EpisodeHydrator({
   children: ReactNode;
 }) {
   const [ready, setReady] = useState(false);
-  const { project, role = "host", selection, state, responses } = config;
+  const { project, role = "host", selection, state, responses, hang } = config;
   useLayoutEffect(() => {
     const previous = useDawStore.getState();
-    const restoreStubs = installStubs(responses ?? {});
+    const restoreStubs = installStubs(responses ?? {}, hang ?? []);
     registerDawCommands();
     const { guestMode, capabilities } = ROLE_SHARE[role];
     const episodeProject = project ?? episode();
@@ -79,7 +85,7 @@ export function EpisodeHydrator({
       clearRegisteredCommands();
       restoreStubs();
     };
-  }, [project, role, selection, state, responses]);
+  }, [project, role, selection, state, responses, hang]);
   return ready ? children : null;
 }
 
