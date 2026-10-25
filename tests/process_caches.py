@@ -35,6 +35,9 @@ ISOLATED: dict[str, str] = {
     "podcast_mcp.util.asset_sources:_read_manifest": (
         "Key is empty; the value depends on contracts_dir(), which tests patch."
     ),
+    "podcast_mcp.util.hardware:_probed": (
+        "Key is empty; the value depends on the providers, nvidia-smi and cgroup files tests patch."
+    ),
     "podcast_mcp.engines.media_probe:_cached_media_probe": (
         "Tests mock the probe result for a path another test may probe for real."
     ),

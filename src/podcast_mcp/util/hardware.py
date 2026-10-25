@@ -96,6 +96,10 @@ class HardwareProfile:
             label = "Apple Silicon GPU and Neural Engine (Core ML)"
         elif best == DIRECTML_PROVIDER:
             label = "Windows GPU (DirectML)"
+        elif self.cuda is not None:
+            return f"NVIDIA GPU found, but ONNX Runtime has no CUDA support here: everything runs on the CPU, {cores}."
+        elif self.apple_silicon:
+            return f"Apple Silicon found, but ONNX Runtime has no Core ML support here: everything runs on the CPU, {cores}."
         else:
             return f"No GPU found: everything runs on the CPU, {cores}."
         return f"{label} detected; no model uses it yet, {cores}."
