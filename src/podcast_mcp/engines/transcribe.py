@@ -70,6 +70,8 @@ ASR_CACHE_VARIANTS = 2
 ASR_CACHE_LOCK_TIMEOUT_SEC = 10.0
 
 _T = TypeVar("_T")
+# What CTranslate2 raises when the GPU, its driver or the CUDA libraries are the problem.
+_GPU_ERROR = re.compile(r"cuda|cublas|cudnn|out of memory|\bgpu\b", re.IGNORECASE)
 
 # ``forced_alignment_jobs`` statuses where the aligner's times replaced Whisper's
 # (set in ``_align_words``); ``keep_whisper`` records ``failed`` / ``skipped``.
@@ -470,6 +472,11 @@ class TranscriptionEngine:
         defaults: EffectiveConfig,
     ) -> None:
         self.model_size = validate_whisper_model(model_size)
+        if device not in ("auto", "cpu", "cuda"):
+            raise CodedValueError(
+                f"Unknown Whisper device {device!r}. Choose auto, cpu or cuda",
+                code="invalid_request",
+            )
         self.device = device
         # "auto" picks from the hardware probe on first use; "cpu" and "cuda" force a device.
         self.placement: WhisperPlacement | None = {
@@ -507,7 +514,7 @@ class TranscriptionEngine:
             except Exception as exc:
                 if placement.device == "cpu":
                     raise
-                self._fall_back_to_cpu(f"the GPU model would not load ({exc})")
+                self._fall_back_to_cpu(f"the GPU model would not load ({exc})", exc)
                 self._model = self._load_model(WhisperModel, model_path, CPU_PLACEMENT)
         return self._model
 
@@ -527,8 +534,8 @@ class TranscriptionEngine:
             local_files_only=True,
         )
 
-    def _fall_back_to_cpu(self, why: str) -> None:
-        log.warning("Whisper runs on the CPU for the rest of this run: %s.", why)
+    def _fall_back_to_cpu(self, why: str, exc: BaseException | None = None) -> None:
+        log.warning("Whisper runs on the CPU for the life of this engine: %s.", why, exc_info=exc)
         self.placement = CPU_PLACEMENT
         self._model = None
 
@@ -542,13 +549,11 @@ class TranscriptionEngine:
 
     def _on_gpu_failure(self, exc: Exception) -> bool:
         """Switch to the CPU after a GPU error; False when there is nothing to fall back from."""
-        if (
-            self.placement is None
-            or self.placement.device == "cpu"
-            or isinstance(exc, ModelMissing | CancelledProgress)
-        ):
+        if self.placement is None or self.placement.device == "cpu":
             return False
-        self._fall_back_to_cpu(f"the GPU run failed ({exc})")
+        if isinstance(exc, ModelMissing | CancelledProgress) or not _GPU_ERROR.search(str(exc)):
+            return False
+        self._fall_back_to_cpu(f"the GPU run failed ({exc})", exc)
         return True
 
     def cache_path(

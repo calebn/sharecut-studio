@@ -9,7 +9,7 @@ performance:
   # analysis (analyze_fillers_pauses), and per-format export encoding
   # (export_deliverables). See docs/pipeline.md#performance.
   max_workers: 0
-  # auto or cpu. Speech-to-text uses an NVIDIA GPU under auto; no other step uses a GPU yet.
+  # auto or cpu. Speech-to-text uses a usable NVIDIA GPU under auto; no other step uses a GPU yet.
   # PODCAST_ACCELERATOR overrides this for support.
   accelerator: auto
 

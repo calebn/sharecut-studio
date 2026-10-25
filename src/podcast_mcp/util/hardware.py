@@ -92,7 +92,7 @@ class HardwareProfile:
         if self.cuda is not None and self.cuda.name:
             nvidia += f" ({self.cuda.name})"
         if self.ctranslate2_cuda_devices:
-            return f"{nvidia} detected; speech-to-text runs on it, the other steps on the CPU, {cores}."
+            return f"{nvidia} detected; speech-to-text uses it when the model fits, the other steps run on the CPU, {cores}."
         if best == CUDA_PROVIDER:
             return f"{nvidia} detected; no model uses it yet, {cores}."
         if best == COREML_PROVIDER:

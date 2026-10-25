@@ -34,9 +34,9 @@ def native_prediction(audio_path: Path, model: str) -> dict[str, Any]:
     is the transcribe time.
     """
     start = time.perf_counter()
-    transcript = TranscriptionEngine(model_size=model, defaults=load_defaults()).transcribe_file(
-        audio_path
-    )
+    transcript = TranscriptionEngine(
+        model_size=model, device="cpu", defaults=load_defaults()
+    ).transcribe_file(audio_path)
     runtime_sec = time.perf_counter() - start
     words = [{"text": word.text, "start": word.start, "end": word.end} for word in transcript.words]
     provenance = {

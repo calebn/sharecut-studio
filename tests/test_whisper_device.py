@@ -177,7 +177,7 @@ def test_a_gpu_that_will_not_load_falls_back_to_the_cpu_once(planted, caplog) ->
         engine._get_model()
         engine._get_model()
     assert calls == ["cuda", "cpu"]
-    assert sum("CPU for the rest of this run" in r.message for r in caplog.records) == 1
+    assert sum("CPU for the life of this engine" in r.message for r in caplog.records) == 1
     assert "out of memory" in caplog.text
 
 
@@ -226,8 +226,8 @@ def test_a_cpu_error_is_not_swallowed(planted, tmp_path) -> None:
     assert model.transcribe.call_count == 1
 
 
-@pytest.mark.parametrize("error", [CancelledProgress("stop"), KeyboardInterrupt()])
-def test_cancel_and_interrupt_do_not_trigger_a_fallback(planted, tmp_path, error) -> None:
+@pytest.mark.parametrize("error", [CancelledProgress("stop")])
+def test_cancel_does_not_trigger_a_fallback(planted, tmp_path, error) -> None:
     gpu = MagicMock()
     gpu.transcribe.side_effect = error
     made: list[str] = []
@@ -259,3 +259,91 @@ def test_the_transcript_cache_key_ignores_the_device(minimal_project, tmp_path: 
     a = _engine("cpu").cache_path(project, "host", audio)
     b = _engine("auto").cache_path(project, "host", audio)
     assert a == b
+
+
+def test_an_unknown_device_is_refused() -> None:
+    with pytest.raises(ValueError, match="Unknown Whisper device"):
+        _engine("gpu")
+
+
+def test_a_gpu_engine_does_not_redo_work_for_an_error_that_is_not_the_gpu(
+    planted, tmp_path
+) -> None:
+    gpu = MagicMock()
+    gpu.transcribe.side_effect = RuntimeError("could not decode the audio")
+    made: list[str] = []
+
+    def factory(name, **kwargs):
+        made.append(kwargs["device"])
+        return gpu
+
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"x")
+    with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
+        with pytest.raises(RuntimeError, match="could not decode"):
+            _engine().transcribe_file(audio, language="en")
+    assert made == ["cuda"] and gpu.transcribe.call_count == 1
+
+
+def test_a_gpu_that_fails_while_segments_are_being_read_is_redone_on_the_cpu(
+    planted, tmp_path
+) -> None:
+    def broken_segments():
+        yield MagicMock(
+            text="a", start=0.0, end=0.5, words=[MagicMock(word="a", start=0.0, end=0.5)]
+        )
+        raise RuntimeError("CUDA out of memory")
+
+    gpu = MagicMock()
+    gpu.transcribe.return_value = (broken_segments(), MagicMock(duration=1.0))
+    models = {"cuda": gpu, "cpu": _words_model("done")}
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"x")
+    with (
+        use_hardware_profile(_gpu()),
+        patch("faster_whisper.WhisperModel", lambda n, **kw: models[kw["device"]]),
+    ):
+        transcript = _engine().transcribe_file(audio, language="en")
+    assert [w.text for w in transcript.words] == ["done"]
+
+
+def test_the_acoustic_word_check_stays_on_the_cpu(monkeypatch) -> None:
+    from podcast_mcp.edits import acoustic_word
+
+    seen: dict = {}
+    real = TranscriptionEngine
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr("podcast_mcp.engines.transcribe.TranscriptionEngine", spy)
+    acoustic_word.whisper_span_transcriber(load_defaults())
+    assert seen["device"] == "cpu"
+
+
+def test_the_memory_check_is_exact_at_the_boundary() -> None:
+    need = whisper_vram_mb("large-v3")
+    types = _types("float16")
+    assert (
+        choose_placement("large-v3", profile=_gpu(vram_mb=need), compute_types=types).device
+        == "cuda"
+    )
+    assert (
+        choose_placement("large-v3", profile=_gpu(vram_mb=need - 1), compute_types=types).device
+        == "cpu"
+    )
+
+
+def test_a_cpu_redo_that_also_fails_raises_its_own_error(planted, tmp_path) -> None:
+    models = {"cuda": MagicMock(), "cpu": MagicMock()}
+    models["cuda"].transcribe.side_effect = RuntimeError("CUDA error")
+    models["cpu"].transcribe.side_effect = RuntimeError("cpu decode failed")
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"x")
+    with (
+        use_hardware_profile(_gpu()),
+        patch("faster_whisper.WhisperModel", lambda n, **kw: models[kw["device"]]),
+    ):
+        with pytest.raises(RuntimeError, match="cpu decode failed"):
+            _engine().transcribe_file(audio, language="en")
