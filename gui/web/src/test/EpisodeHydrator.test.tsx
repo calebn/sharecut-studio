@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { listRegisteredIds } from "../commands/execute";
+import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { EpisodeHydrator } from "./EpisodeHydrator";
-import { selections } from "./episodeFixture";
+import { recordRoom, selections } from "./episodeFixture";
 
 function Probe() {
   const trackCount = useDawStore((s) => s.project?.tracks.length ?? 0);
@@ -82,5 +83,18 @@ describe("EpisodeHydrator", () => {
       expect(globalThis.fetch).toBe(fetch);
       expect(globalThis.WebSocket).toBe(WebSocket);
     }
+  });
+
+  it("shows the host's record room and clears it on unmount", () => {
+    const view = render(
+      <EpisodeHydrator config={{ record: recordRoom }}>
+        <Probe />
+      </EpisodeHydrator>,
+    );
+    expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
+    expect(useRecordHostStore.getState().connected).toBe(true);
+    view.unmount();
+    expect(useRecordHostStore.getState().snapshot).toBeNull();
+    expect(useRecordHostStore.getState().connected).toBe(false);
   });
 });
