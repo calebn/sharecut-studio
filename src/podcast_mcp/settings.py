@@ -105,7 +105,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_ACCELERATOR",
-            "auto or cpu (support override). Only reported in the doctor and support bundle so far; no model reads it yet.",
+            "auto or cpu (support override). Speech-to-text runs on an NVIDIA GPU when there is one unless this is cpu; other steps do not use a GPU yet.",
             "auto",
         ),
         ("PODCAST_MCP_WORD_ALIGNER_MODEL", "Local word-aligner snapshot directory."),

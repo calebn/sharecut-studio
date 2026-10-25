@@ -152,7 +152,6 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
             engines.append(
                 TranscriptionEngine(
                     model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
-                    device="cpu",
                     options=options,
                     defaults=defaults,
                 )

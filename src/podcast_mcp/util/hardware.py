@@ -88,21 +88,22 @@ class HardwareProfile:
         if preference == "cpu":
             return f"Accelerator turned off (cpu): everything runs on the CPU, {cores}."
         best = self.onnx_provider_order("auto")[0]
+        nvidia = "NVIDIA GPU"
+        if self.cuda is not None and self.cuda.name:
+            nvidia += f" ({self.cuda.name})"
+        if self.ctranslate2_cuda_devices:
+            return f"{nvidia} detected; speech-to-text runs on it, the other steps on the CPU, {cores}."
         if best == CUDA_PROVIDER:
-            label = "NVIDIA GPU"
-            if self.cuda is not None and self.cuda.name:
-                label += f" ({self.cuda.name})"
-        elif best == COREML_PROVIDER:
-            label = "Apple Silicon GPU and Neural Engine (Core ML)"
-        elif best == DIRECTML_PROVIDER:
-            label = "Windows GPU (DirectML)"
-        elif self.cuda is not None:
+            return f"{nvidia} detected; no model uses it yet, {cores}."
+        if best == COREML_PROVIDER:
+            return f"Apple Silicon GPU and Neural Engine (Core ML) detected; no model uses it yet, {cores}."
+        if best == DIRECTML_PROVIDER:
+            return f"Windows GPU (DirectML) detected; no model uses it yet, {cores}."
+        if self.cuda is not None:
             return f"NVIDIA GPU found, but ONNX Runtime has no CUDA support here: everything runs on the CPU, {cores}."
-        elif self.apple_silicon:
+        if self.apple_silicon:
             return f"Apple Silicon found, but ONNX Runtime has no Core ML support here: everything runs on the CPU, {cores}."
-        else:
-            return f"No GPU found: everything runs on the CPU, {cores}."
-        return f"{label} detected; no model uses it yet, {cores}."
+        return f"No GPU found: everything runs on the CPU, {cores}."
 
     def to_dict(self, preference: str = "auto") -> dict[str, Any]:
         out = asdict(self)
