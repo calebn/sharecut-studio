@@ -20,7 +20,7 @@ import json
 from collections.abc import Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from podcast_mcp import settings
 from podcast_mcp.edits import cut_policy
@@ -163,13 +163,14 @@ def _key(
     heard.sort(key=repr)
     elsewhere.sort(key=repr)
     track_ids = [t.id for t in project.tracks]
-    pairs = sorted({(h[0], h[1]) for h in heard} | {(e[0], e[1]) for e in elsewhere}, key=repr)
+    pairs: set[tuple[str, str | None]] = {(str(h[0]), h[1]) for h in heard}
+    pairs |= {(str(e[0]), cast("str | None", e[1])) for e in elsewhere}
     media = {
         f"{t}|{sid}": [
             str(path := recording_audio_path(project, t, sid)),
             repr(file_stamp(path).revision),
         ]
-        for t, sid in pairs
+        for t, sid in sorted(pairs, key=repr)
     }
     words = []
     for h in heard:

@@ -6,7 +6,7 @@ import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -503,6 +503,13 @@ def _cut_copy(project: EpisodeProject) -> EpisodeProject:
     )
 
 
+_Decided = (
+    tuple[EpisodeProject, tuple[float, float, list[str], dict]]
+    | CutSpeechConfirmation
+    | CutScopeHold
+)
+
+
 def _apply_source_remove(
     project: EpisodeProject,
     edit: EditDecision,
@@ -513,11 +520,7 @@ def _apply_source_remove(
     record_log: bool = False,
     override_peer_holds: set[str] | None = None,
     measured: cut_safety.MeasuredSources | None = None,
-) -> (
-    tuple[EpisodeProject, tuple[float, float, list[str], dict]]
-    | CutSpeechConfirmation
-    | CutScopeHold
-):
+) -> _Decided:
     """Assess and write an ordinary source removal against current playback.
 
     Trusted human application intent can override acoustic peer evidence;
@@ -556,7 +559,7 @@ def _apply_source_remove(
             if reused is not None:
                 return reused
             entry = None
-    return _check_source_remove(
+    decided = _check_source_remove(
         project,
         edit,
         defaults=defaults,
@@ -570,6 +573,7 @@ def _apply_source_remove(
         cached=None,
         verify=entry,
     )
+    return cast(_Decided, decided)  # only a reused check can return None
 
 
 def precompute_verdicts(
