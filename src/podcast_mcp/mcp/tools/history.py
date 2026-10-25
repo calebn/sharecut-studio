@@ -57,7 +57,7 @@ def history_diff_tool(
 ) -> str:
     """Diff two history indices, showing what changed between them."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).diff(from_index=from_index, to_index=to_index))
+    return to_json(HistoryService(ws).diff(from_index=from_index, to_index=to_index).model_dump())
 
 
 def history_record(project_path: str, label: str = "manual") -> str:

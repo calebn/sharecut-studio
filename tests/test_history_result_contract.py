@@ -13,7 +13,12 @@ from podcast_mcp.mcp.tools.history import history_diff_tool, history_list, histo
 from podcast_mcp.models import Track
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import HistoryService
+from podcast_mcp.services.document import (
+    EmptyHistoryDiffResult,
+    HistoryDiffResult,
+    HistoryService,
+    PopulatedHistoryDiffResult,
+)
 from podcast_mcp.services.document.history_results import HistoryGroup, HistoryStatusResult
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.util.coded_error import CodedValueError
@@ -267,3 +272,60 @@ def test_history_diff_index_refusals_keep_code_and_cli_exit(minimal_project):
     assert result.exit_code == 1
     assert result.stdout == ""
     assert result.stderr == "history diff index out of range\n"
+
+
+def test_history_diff_typed_variants_preserve_selected_comparison(minimal_project):
+    service = HistoryService(ProjectWorkspace.open(minimal_project))
+    empty = service.diff(from_index=-1, to_index=99)
+    assert isinstance(empty, EmptyHistoryDiffResult)
+    assert empty.diff == {}
+    assert empty.summary == []
+    assert empty.from_index is None
+    assert empty.to_index is None
+
+    service.ws.record_snapshot("café", force=True)
+    selected = service.diff(from_index=0, to_index=0)
+    assert isinstance(selected, PopulatedHistoryDiffResult)
+    assert selected.from_index == selected.to_index == 0
+    assert selected.from_label == selected.to_label == "café"
+    assert selected.operation is None
+    assert selected.params is None
+    assert selected.summary == ["café"]
+    assert selected.diff["tracks"] == {"changed": []}
+
+
+def test_history_diff_models_reject_incomplete_or_mixed_variants():
+    empty = {"diff": {}, "summary": [], "from_index": None, "to_index": None}
+    populated = {
+        "from_index": 0,
+        "to_index": 1,
+        "from_label": "before",
+        "to_label": "after",
+        "operation": None,
+        "params": None,
+        "diff": {"nested": {"values": [1, 2.5, True, None, {"é": "茶"}]}},
+        "summary": [],
+    }
+    adapter = TypeAdapter(HistoryDiffResult)
+    for valid in (empty, populated):
+        result = adapter.validate_python(valid)
+        assert result.model_dump() == valid
+        assert list(result.model_dump()) == list(valid)
+        with pytest.raises(ValidationError, match="frozen"):
+            result.summary = ["changed"]
+    for invalid in (
+        {**empty, "diff": {"changed": True}},
+        {**empty, "summary": ["changed"]},
+        {**empty, "from_index": 0},
+        {**empty, "to_index": 0},
+        {**empty, "from_label": "before"},
+        {**populated, "from_index": None},
+        {**populated, "to_index": None},
+        {**populated, "unknown": True},
+        *(
+            {key: value for key, value in populated.items() if key != missing}
+            for missing in populated
+        ),
+    ):
+        with pytest.raises(ValidationError):
+            adapter.validate_python(invalid)

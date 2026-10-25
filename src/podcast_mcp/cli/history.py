@@ -59,7 +59,7 @@ def history_diff(
     try:
         typer.echo(
             json.dumps(
-                HistoryService(ws).diff(from_index=from_index, to_index=to_index),
+                HistoryService(ws).diff(from_index=from_index, to_index=to_index).model_dump(),
                 indent=2,
             )
         )

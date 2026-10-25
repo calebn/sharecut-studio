@@ -358,9 +358,7 @@ def history_diff(
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
-        return HistoryService(ws).diff(
-            from_index=from_index,
-            to_index=to_index,
-        )
+        result = HistoryService(ws).diff(from_index=from_index, to_index=to_index)
+        return result.model_dump()
     except ValueError as exc:
         raise bad_request_error(exc) from exc

@@ -340,6 +340,24 @@ fades, history head, redo entries, nor the document journal. A fresh gesture can
 save against the restored pair. This target guard leaves the save-before-Undo
 wait and unseen-peer history-head refusal unchanged.
 
+## History diff results
+
+`HistoryService.diff()` returns `HistoryDiffResult` through the document service
+facade. `EmptyHistoryDiffResult` contains `diff`, `summary`, `from_index`, and
+`to_index`, in that order. The collections are empty and both indices are null.
+Empty history returns this result before index validation.
+
+`PopulatedHistoryDiffResult` contains `from_index`, `to_index`, `from_label`,
+`to_label`, `operation`, `params`, `diff`, and `summary`, in that order.
+`operation` and `params` are required nullable fields. An identical snapshot
+comparison still has these eight fields. The raw diff and params retain nested
+persisted JSON values, and the summary retains its existing order.
+
+CLI, MCP, and HTTP adapters serialize `model_dump()` with their existing JSON
+encoders. Without explicit indices, the target is the history cursor and the
+source is the preceding entry. Invalid indices, including the default source
+for a single entry, raise `history_index_out_of_range`.
+
 ## History MCP tools
 
 - `history_list` — entries, cursor, and grouped mutations
