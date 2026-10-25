@@ -224,18 +224,17 @@ def collect_env_flags() -> dict[str, str]:
     return out
 
 
-def _torch_gpu_flags() -> dict[str, bool]:
+def _gpu_flags() -> dict[str, bool]:
+    """Accelerators ONNX Runtime can use here: ``cuda`` (CUDA provider), ``coreml`` (Core ML)."""
     try:
-        import torch
+        import onnxruntime
     except ImportError:
-        return {"torch": False, "cuda": False, "mps": False}
-    cuda = bool(getattr(torch, "cuda", None) and torch.cuda.is_available())
-    mps = False
-    backends = getattr(torch, "backends", None)
-    mps_mod = getattr(backends, "mps", None) if backends is not None else None
-    if mps_mod is not None:
-        mps = bool(mps_mod.is_available())
-    return {"torch": True, "cuda": cuda, "mps": mps}
+        return {"cuda": False, "coreml": False}
+    providers = set(onnxruntime.get_available_providers())
+    return {
+        "cuda": "CUDAExecutionProvider" in providers,
+        "coreml": "CoreMLExecutionProvider" in providers,
+    }
 
 
 def _project_counts(project: EpisodeProject | None) -> dict[str, Any] | None:
@@ -432,7 +431,7 @@ def _build_report_json(
             "model": model,
             "cached": whisper_model_is_cached(model, memoize=True),
         },
-        "gpu": _torch_gpu_flags(),
+        "gpu": _gpu_flags(),
         "gui_dist_present": _gui_dist_present(),
         "doctor": doctor.to_json(),
         "bootstrap": component_status(),

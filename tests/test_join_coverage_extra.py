@@ -1,15 +1,13 @@
-"""Extra coverage for join neural / labels / ranker / model assets."""
+"""Extra coverage for join labels / ranker / config."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import join_neural
 from podcast_mcp.edits.join_continuity import (
     DetectorHit,
     JoinContinuityConfig,
@@ -17,7 +15,6 @@ from podcast_mcp.edits.join_continuity import (
     _apply_calibration,
     _click_check_hires,
     _late_energy_ratio,
-    _maybe_neural,
 )
 from podcast_mcp.edits.join_labels import (
     JoinLabel,
@@ -39,150 +36,6 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.util import model_assets
-
-
-def test_joinqc_available_true_false() -> None:
-    with patch.dict("sys.modules", {"torch": MagicMock(), "librosa": MagicMock()}):
-        # May still be True if already imported
-        _ = join_neural.joinqc_available()
-    with patch("podcast_mcp.edits.join_neural.joinqc_available", return_value=True):
-        assert join_neural.joinqc_available() is True
-
-
-def test_nisqa_full_proxy_with_mock_librosa() -> None:
-    project = MagicMock()
-    audio = np.random.default_rng(0).normal(0, 0.1, 16000 * 2)
-    fake_librosa = MagicMock()
-    # Varying STFT so std(flux) > 0
-    stft = np.linspace(0.1, 1.0, 257 * 30, dtype=np.float32).reshape(257, 30)
-    fake_librosa.stft = lambda y, **kw: stft.copy()
-
-    with (
-        patch.object(join_neural, "joinqc_available", return_value=True),
-        patch(
-            "podcast_mcp.edits.join_neural._load_window",
-            return_value=audio,
-        ),
-        patch(
-            "podcast_mcp.edits.join_neural._try_nisqa_model",
-            return_value=None,
-        ),
-        patch.dict("sys.modules", {"librosa": fake_librosa}),
-    ):
-        # Force re-execution of import librosa inside function
-        out = join_neural.nisqa_discontinuity_delta(project, "host", 5.0)
-    assert out is not None
-    assert out["backend"] == "spectral_proxy"
-    assert "discontinuity_delta" in out
-
-
-def test_try_nisqa_with_weights_path(tmp_path: Path) -> None:
-    weights = tmp_path / "nisqa"
-    weights.mkdir()
-    x = np.random.default_rng(0).normal(0, 0.1, 4000)
-    fake_librosa = MagicMock()
-    fake_librosa.stft = lambda y, **kw: np.ones((257, 10), dtype=np.float32)
-    with (
-        patch(
-            "podcast_mcp.util.model_assets.resolve_nisqa_model",
-            return_value=weights,
-        ),
-        patch.dict("sys.modules", {"librosa": fake_librosa}),
-    ):
-        out = join_neural._try_nisqa_model(x, x, x)
-    assert out is not None
-    assert out["backend"] == "nisqa_weights"
-
-
-def test_load_window_success(minimal_project: Path, sample_wav: Path) -> None:
-    project = load_project(minimal_project)
-    raw = project.workspace_path() / "raw"
-    raw.mkdir(exist_ok=True)
-    (raw / "host.wav").write_bytes(sample_wav.read_bytes())
-    project.tracks = [
-        Track(
-            id="host",
-            label="H",
-            role=TrackRole.DIALOGUE,
-            speaker="Host",
-            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
-        )
-    ]
-    save_project(project, minimal_project)
-    project = load_project(minimal_project)
-    win = join_neural._load_window(project, "host", 0.0, 0.5, sr=16000)
-    assert win is not None
-    assert win.size > 0
-
-
-def test_frame_embeddings_returns_mel() -> None:
-    audio = np.random.default_rng(4).normal(0, 0.1, 16000)
-    fake_librosa = MagicMock()
-    fake_librosa.feature.melspectrogram = MagicMock(
-        return_value=np.ones((40, 50), dtype=np.float32)
-    )
-    with (
-        patch.dict(
-            "sys.modules",
-            {"transformers": None, "torch": None},
-        ),
-        patch.object(join_neural, "_WAVLM_MODEL", None),
-        patch.dict("sys.modules", {"librosa": fake_librosa}),
-    ):
-        emb = join_neural._frame_embeddings(audio)
-    assert emb is not None
-    assert emb.shape[1] == 40
-
-
-def test_wavlm_continuity_z_body() -> None:
-    project = MagicMock()
-    audio = np.random.default_rng(1).normal(0, 0.1, 16000 * 4)
-    emb = np.random.default_rng(2).normal(0, 1, (40, 16))
-    with (
-        patch.object(join_neural, "joinqc_available", return_value=True),
-        patch.object(join_neural, "_WAVLM_MODEL", None),
-        patch(
-            "podcast_mcp.edits.join_neural._load_window",
-            return_value=audio,
-        ),
-        patch(
-            "podcast_mcp.edits.join_neural._frame_embeddings",
-            return_value=emb,
-        ),
-    ):
-        out = join_neural.wavlm_continuity_z(project, "host", 2.0)
-    assert out is not None
-    assert "z" in out
-    assert out["backend"] == "stft_embed"
-
-
-def test_nisqa_short_windows_return_none() -> None:
-    project = MagicMock()
-    with (
-        patch.object(join_neural, "joinqc_available", return_value=True),
-        patch(
-            "podcast_mcp.edits.join_neural._load_window",
-            return_value=np.zeros(100),
-        ),
-        patch.dict("sys.modules", {"librosa": MagicMock()}),
-    ):
-        assert join_neural.nisqa_discontinuity_delta(project, "h", 1.0) is None
-
-
-def test_load_window_exception() -> None:
-    project = MagicMock()
-    with (
-        patch(
-            "podcast_mcp.util.tracks.track_audio_path",
-            return_value=Path("/nope.wav"),
-        ),
-        patch(
-            "podcast_mcp.engines.align.load_mono_window",
-            side_effect=OSError("boom"),
-        ),
-    ):
-        assert join_neural._load_window(project, "h", 0.0, 1.0) is None
 
 
 def test_join_cost_pad_and_short() -> None:
@@ -235,14 +88,11 @@ def test_ranker_feature_vector_and_defaults(tmp_path: Path) -> None:
         natural_p95=None,
         side_sec=0.045,
         disclaimer="x",
-        neural={
-            "nisqa": {"discontinuity_delta": 0.3, "mos_delta": -0.1},
-            "wavlm": {"z": 2.5},
-        },
     )
+    # Features a retired detector used to supply (#2256) read 0, exactly as in a default install.
     names = ["risk", "det:click", "neural:discontinuity_delta", "neural:z"]
     vec = _feature_vector(rep, names)
-    assert vec.shape == (4,)
+    assert vec.tolist() == [0.5, 0.2, 0.0, 0.0]
     tiny = JoinRankerModel(
         weights=np.zeros(1),
         bias=0.0,
@@ -285,14 +135,14 @@ def test_maybe_ranker_applies(tmp_path: Path, minimal_project: Path, sample_wav:
         n_train=10,
     )
     save_ranker(model, project.artifacts_dir() / "join_ranker.json")
-    cfg = JoinContinuityConfig(neural=False, calibrate=False)
+    cfg = JoinContinuityConfig(calibrate=False)
     rep = assess_proposed_cut(
         project, "host", 0.2, 0.5, timebase="source", config=cfg, defaults=load_defaults()
     )
     assert rep.ranker is None or "available" in (rep.ranker or {})
 
 
-def test_export_training_table_neural_branches() -> None:
+def test_export_training_table_ignores_retired_neural_features() -> None:
     labels = [
         JoinLabel(
             ts="t",
@@ -306,11 +156,7 @@ def test_export_training_table_neural_branches() -> None:
             features={
                 "risk": 0.6,
                 "detectors": {"click": {"score": 0.8}, "level": 0.2},
-                "neural": {
-                    "discontinuity_delta": 0.3,
-                    "nisqa": {"discontinuity_delta": 0.4, "mos_delta": -0.1},
-                    "wavlm": {"z": 3.0},
-                },
+                "neural": {"wavlm": {"z": 3.0}},
             },
             episode="e",
             config_hash="abc",
@@ -320,6 +166,7 @@ def test_export_training_table_neural_branches() -> None:
     assert X.shape[0] == 1
     assert y[0] == 1.0
     assert any(n.startswith("det:") for n in names)
+    assert not any(n.startswith("neural:") for n in names)
 
 
 def test_load_labels_missing_and_blank(tmp_path: Path) -> None:
@@ -404,7 +251,7 @@ def test_late_energy() -> None:
     assert _late_energy_ratio(right, 16000) >= 0.0
 
 
-def test_click_hires_and_maybe_neural(minimal_project: Path, sample_wav: Path) -> None:
+def test_click_hires(minimal_project: Path, sample_wav: Path) -> None:
     project = load_project(minimal_project)
     raw = project.workspace_path() / "raw"
     raw.mkdir(exist_ok=True)
@@ -422,18 +269,13 @@ def test_click_hires_and_maybe_neural(minimal_project: Path, sample_wav: Path) -
     project = load_project(minimal_project)
     spike = _click_check_hires(project, "host", (0.5, 0.5))
     assert spike is None or spike >= 0.0
-    cfg = JoinContinuityConfig(neural=False)
-    hits, info = _maybe_neural(project, "host", 0.5, cfg)
-    assert hits == []
-    assert info["available"] is False
 
 
 def test_config_from_defaults() -> None:
     cfg = JoinContinuityConfig.from_defaults(
-        {"join_continuity": {"pass_below": 0.2, "neural": False, "edge_tolerance_ms": 0}}
+        {"join_continuity": {"pass_below": 0.2, "edge_tolerance_ms": 0}}
     )
     assert cfg.pass_below == 0.2
-    assert cfg.neural is False
     assert cfg.edge_tolerance_ms == 0.0
     assert JoinContinuityConfig.from_defaults({}).edge_tolerance_ms == 3.0
     assert JoinContinuityConfig.from_defaults({}).spectral_audibility_db == 30.0
@@ -443,16 +285,6 @@ def test_config_from_defaults() -> None:
         ).spectral_audibility_db
         == 0.0
     )
-
-
-def test_model_assets_nisqa_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_MCP_NISQA_MODEL", str(tmp_path / "nisqa_w"))
-    p = model_assets.nisqa_model_path()
-    assert p == tmp_path / "nisqa_w"
-    with pytest.raises(FileNotFoundError):
-        model_assets.resolve_nisqa_model()
-    p.mkdir()
-    assert model_assets.resolve_nisqa_model() == p
 
 
 def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> None:
@@ -513,7 +345,6 @@ def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> N
             "track_id": "host",
             "risk": 0.5,
             "detectors": [{"name": "click", "score": 0.6}],
-            "neural": None,
         }
         out = TimelineService(ws).join_label(
             track_id="host", join_sec=1.0, verdict="fail", note="t", play=False
@@ -558,7 +389,7 @@ def test_assess_existing_click_hires_path(minimal_project: Path, sample_wav: Pat
     ]
     save_project(project, minimal_project)
     project = load_project(minimal_project)
-    cfg = JoinContinuityConfig(neural=False, calibrate=False)
+    cfg = JoinContinuityConfig(calibrate=False)
     with patch(
         "podcast_mcp.edits.join_continuity._click_check_hires",
         return_value=30.0,

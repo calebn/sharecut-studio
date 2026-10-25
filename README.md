@@ -14,7 +14,7 @@ podcast doctor
 # Whisper defaults to large-v3-turbo (~1.6 GB, first transcribe). Smaller: ./install.sh --whisper-model small.en
 ```
 
-`./install.sh` installs a **contributor** set (`dev` + `gui` + `relay`) — not the heavy `joinqc` torch extra. Optional downloads and extras: [docs/setup.md](docs/setup.md#optional-downloads-and-extras).
+`./install.sh` installs a **contributor** set (`dev` + `gui` + `relay`). Optional downloads and extras: [docs/setup.md](docs/setup.md#optional-downloads-and-extras).
 
 Choose a downloaded Whisper model for one standalone transcription with `podcast transcribe --project … --model small.en`; use `podcast setup --whisper-model small.en` or `PODCAST_WHISPER_MODEL` to make that choice the machine default.
 
@@ -29,7 +29,7 @@ Codex UI edits have project-local [Impeccable design hooks](docs/setup.md#impecc
 
 ## Maximal install (all extras)
 
-Use this only when you need neural join QC (`joinqc`). On Linux this pulls **multi‑GB** PyTorch/CUDA wheels (Docker clean-room: ~6 GB `.venv` + plus the models `podcast bootstrap --component all` fetches: about 360 MB for the word aligner and about 80 MB for the speaker model). Prefer the Quick start above for everyday CLI/MCP/GUI work.
+Every pip extra, plus the models `podcast bootstrap --component all` fetches: about 360 MB for the word aligner and about 80 MB for the speaker model. No extra pulls torch. Prefer the Quick start above for everyday CLI/MCP/GUI work.
 
 ```bash
 git clone <repo-url> && cd sharecut-studio
@@ -43,9 +43,7 @@ cd gui/web && npm ci && npm run build && cd ../..
 
 Notes (verified in a disposable Linux Docker image):
 
-- `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `relay`, `object-store`, `joinqc`).
-- Expect CUDA-flavored `torch` on Linux even without a GPU; plan for several GB of free disk.
-- `podcast bootstrap` does not download NISQA weights; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights directory if you need neural NISQA.
+- `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `relay`, `object-store`, `prosody`).
 - A bare `podcast bootstrap` installs Whisper and RNNoise; `--component all` also installs the word aligner and the speaker model. `podcast bootstrap --component word-aligner` installs just the aligner; once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
 - Without `uv`: `python3 -m venv .venv && .venv/bin/pip install -e ".[all]"` then the same bootstrap/doctor steps.
 

@@ -333,32 +333,34 @@ def test_collect_env_flags_and_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
     real_import = __import__
 
     def fake_import(name: str, *args: object, **kwargs: object):
-        if name == "torch":
-            raise ImportError("no torch")
+        if name == "onnxruntime":
+            raise ImportError("no onnxruntime")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr("builtins.__import__", fake_import)
-    assert diagnostics_mod._torch_gpu_flags() == {
-        "torch": False,
-        "cuda": False,
-        "mps": False,
-    }
+    assert diagnostics_mod._gpu_flags() == {"cuda": False, "coreml": False}
 
 
-def test_torch_gpu_flags_with_fake_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    class Cuda:
-        @staticmethod
-        def is_available() -> bool:
-            return True
-
-    class Mps:
-        @staticmethod
-        def is_available() -> bool:
-            return True
-
-    fake = SimpleNamespace(cuda=Cuda(), backends=SimpleNamespace(mps=Mps()))
-    monkeypatch.setitem(sys.modules, "torch", fake)
-    assert diagnostics_mod._torch_gpu_flags() == {"torch": True, "cuda": True, "mps": True}
+@pytest.mark.parametrize(
+    ("providers", "expected"),
+    [
+        (["CPUExecutionProvider"], {"cuda": False, "coreml": False}),
+        (
+            ["CUDAExecutionProvider", "CPUExecutionProvider"],
+            {"cuda": True, "coreml": False},
+        ),
+        (
+            ["CoreMLExecutionProvider", "CPUExecutionProvider"],
+            {"cuda": False, "coreml": True},
+        ),
+    ],
+)
+def test_gpu_flags_read_onnxruntime_providers(
+    monkeypatch: pytest.MonkeyPatch, providers: list[str], expected: dict[str, bool]
+) -> None:
+    fake = SimpleNamespace(get_available_providers=lambda: providers)
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+    assert diagnostics_mod._gpu_flags() == expected
 
 
 def test_build_bundle_logs_jobs_and_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

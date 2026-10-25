@@ -482,7 +482,6 @@ def _finish_candidate(
         try:
             jc_cfg = replace(
                 JoinContinuityConfig.from_defaults(defaults),
-                neural=False,
                 calibrate=False,
             )
             jc = cut_safety.assess_proposed_cut(

@@ -318,15 +318,14 @@
     {
       "id": "join-continuity-splice-qa",
       "when": "Join continuity / splice QA",
-      "update": "`docs/inaudible-cuts.md` § Join continuity, optional `joinqc` extra, `tighten.join_continuity_gate`, skills above",
+      "update": "`docs/inaudible-cuts.md` § Join continuity, `tighten.join_continuity_gate`, skills above",
       "docs": [
         "docs/inaudible-cuts.md"
       ],
       "advisory": {
         "include": [
           "src/podcast_mcp/edits/join_continuity.py",
-          "src/podcast_mcp/edits/join_cost_spectral.py",
-          "src/podcast_mcp/edits/join_neural.py"
+          "src/podcast_mcp/edits/join_cost_spectral.py"
         ]
       }
     },

@@ -38,16 +38,13 @@ _DEFAULT_PROJECT = ROOT / "tests" / "fixtures" / "join_continuity"
 
 
 def _cfg() -> JoinContinuityConfig:
-    return replace(
-        JoinContinuityConfig.from_defaults(load_defaults()), neural=False, calibrate=False
-    )
+    return replace(JoinContinuityConfig.from_defaults(load_defaults()), calibrate=False)
 
 
 def _feats(rep) -> dict:
     return {
         "risk": rep.risk,
         "detectors": {h.name: h.score for h in rep.detectors},
-        "neural": rep.neural,
     }
 
 

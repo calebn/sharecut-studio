@@ -136,19 +136,6 @@ def export_training_table(
                     flat[f"det:{k}"] = float(v)
                 elif isinstance(v, dict) and "score" in v:
                     flat[f"det:{k}"] = float(v["score"])
-        neural = feats.get("neural") or {}
-        if isinstance(neural, dict):
-            for k in ("discontinuity_delta", "mos_delta", "z"):
-                if k in neural and isinstance(neural[k], (int, float)):
-                    flat[f"neural:{k}"] = float(neural[k])
-            nisqa = neural.get("nisqa")
-            if isinstance(nisqa, dict):
-                for k in ("discontinuity_delta", "mos_delta"):
-                    if k in nisqa and isinstance(nisqa[k], (int, float)):
-                        flat[f"neural:{k}"] = float(nisqa[k])
-            wavlm = neural.get("wavlm")
-            if isinstance(wavlm, dict) and isinstance(wavlm.get("z"), (int, float)):
-                flat["neural:z"] = float(wavlm["z"])
         if names is None:
             names = sorted(flat.keys())
         assert names is not None

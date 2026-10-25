@@ -205,7 +205,7 @@ tighten:
   leave_in_if_risky: true
   max_cut_risk_score: 0.65
   # Fail-closed perceptual join gate (assess_proposed_cut). Skip candidate when
-  # verdict is fail. DSP-only until ranker is trained; neural may only elevate.
+  # verdict is fail. DSP-only until ranker is trained.
   # Scores a butt splice, so it runs only on cuts without a paced pad.
   join_continuity_gate: true
   min_filler_confidence: 0.15
@@ -552,7 +552,6 @@ join_continuity:
   calibrate_margin: 1.15
   force_review_multi_hot: true
   enable_enf: false
-  neural: true
   weight_click: 1.35
   weight_level: 0.85
   weight_spectral_flux: 1.1
@@ -565,5 +564,3 @@ join_continuity:
   weight_onset: 1.15
   weight_bicoherence: 0.6
   weight_late_energy: 0.55
-  weight_nisqa: 1.4
-  weight_wavlm: 1.4

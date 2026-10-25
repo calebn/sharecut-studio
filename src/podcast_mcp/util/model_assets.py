@@ -1,7 +1,7 @@
 """Resolve and (optionally) bootstrap small downloadable model assets.
 
 The RNNoise `.rnnn` model used by FFmpeg's `arnndn` filter (the
-`noise_reduction_rnnoise` preset), plus the path of user-supplied NISQA weights.
+`noise_reduction_rnnoise` preset).
 Silero VAD needs no entry here: its ONNX model already ships inside
 `faster-whisper` (a core dependency), so there is nothing to download -- see
 `podcast_mcp.engines.vad_silero`. The opt-in forced word aligner lives in
@@ -32,8 +32,6 @@ from podcast_mcp.util.asset_sources import (
 logger = logging.getLogger(__name__)
 
 RNNOISE_MODEL_NAME = "somnolent-hogwash.rnnn"
-
-NISQA_MODEL_NAME = "nisqa"
 
 
 def rnnoise_model_path() -> Path:
@@ -84,20 +82,3 @@ def _verify_pinned_size(path: Path, size_bytes: object) -> None:
         raise AssetSourceError(
             f"size mismatch for {path.name}: expected {size_bytes} bytes, got {got}"
         )
-
-
-def nisqa_model_path() -> Path:
-    if override := settings.raw("PODCAST_MCP_NISQA_MODEL"):
-        return Path(override).expanduser()
-    return models_dir() / NISQA_MODEL_NAME
-
-
-def resolve_nisqa_model() -> Path:
-    """Path to NISQA weights dir/file, or raise with bootstrap hint."""
-    path = nisqa_model_path()
-    if path.exists():
-        return path
-    raise FileNotFoundError(
-        f"NISQA model not found at {path}. Set PODCAST_MCP_NISQA_MODEL to an unpacked "
-        "weights directory (optional joinqc extra)."
-    )

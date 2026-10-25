@@ -1557,7 +1557,6 @@ def test_edit_join_label_play(minimal_project, sample_wav) -> None:
             "track_id": "host",
             "risk": 0.4,
             "detectors": [],
-            "neural": None,
         }
         out = TimelineService(ws).join_label(
             track_id="host", join_sec=1.0, verdict="pass", play=True

@@ -754,9 +754,7 @@ def complete_effect_acoustics(
                     effect.end,
                     timebase="source",
                     defaults=defaults,
-                    config=replace(
-                        JoinContinuityConfig.from_defaults(defaults), neural=False, calibrate=False
-                    ),
+                    config=replace(JoinContinuityConfig.from_defaults(defaults), calibrate=False),
                     audio_caches={effect.track_id: cache},
                 )
                 if report.verdict != "pass":

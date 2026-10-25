@@ -43,11 +43,6 @@ dev = [
     "hatchling>=1.27.0",
     "editables>=0.5",
 ]
-joinqc = [
-    "torch>=2.0.0",
-    "librosa>=0.10.0",
-    "transformers>=4.40.0",
-]
 gui = [
     "anyio>=4.0.0",
     "fastapi>=0.116.1",
@@ -76,7 +71,6 @@ prosody = [
 # Runtime extras only (not `dev` tooling). Install tooling via `--extra dev`.
 all = [
     "anyio>=4.0.0",
-    "torch>=2.0.0",
     "fastapi>=0.116.1",
     "uvicorn[standard]>=0.32.0",
     "httpx>=0.27.0",
@@ -84,8 +78,6 @@ all = [
     "boto3>=1.34.0",
     "botocore>=1.34.0",
     "starlette>=0.47.0",
-    "librosa>=0.10.0",
-    "transformers>=4.40.0",
     "praat-parselmouth>=0.4.7",
 ]
 
@@ -181,8 +173,6 @@ strict_equality = true
 source = ["podcast_mcp", "podcast_relay"]
 branch = true
 omit = [
-    # Optional neural inference that downloads weights (CI stays torch-free).
-    "**/join_neural.py",
     # Protocol-only module (no runtime bodies).
     "**/podcast_mcp/extensions/spi.py",
 ]
@@ -245,7 +235,6 @@ extend-immutable-calls = [
 ]
 # Optional heavy imports after availability guards.
 "src/podcast_mcp/engines/speaker_id.py" = ["E402"]
-"src/podcast_mcp/edits/join_neural.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
