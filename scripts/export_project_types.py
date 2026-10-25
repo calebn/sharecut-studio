@@ -12,7 +12,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +36,24 @@ def _doc(text: str | None) -> str:
     return f"/** {body} */\n"
 
 
-def _ts(node: dict[str, Any]) -> str:
+@dataclass(frozen=True)
+class _SchemaLocation:
+    model: str
+    path: tuple[str | int, ...] = ()
+    type_index: int | None = None
+
+    def child(self, *segments: str | int) -> _SchemaLocation:
+        return _SchemaLocation(self.model, self.path + segments)
+
+    def type_alternative(self, index: int) -> _SchemaLocation:
+        return _SchemaLocation(self.model, self.path, index)
+
+    def display(self) -> str:
+        path = self.path if self.type_index is None else (*self.path, "type", self.type_index)
+        return "$" + "".join(f"[{json.dumps(segment)}]" for segment in path)
+
+
+def _ts(node: dict[str, Any], location: _SchemaLocation) -> str:
     if "$ref" in node:
         return str(node["$ref"]).rsplit("/", 1)[-1]
     if "const" in node:
@@ -43,13 +62,19 @@ def _ts(node: dict[str, Any]) -> str:
         return " | ".join(_lit(v) for v in node["enum"])
     for key in ("anyOf", "oneOf"):
         if key in node:
-            parts = list(dict.fromkeys(_ts(alt) for alt in node[key]))
+            parts = list(
+                dict.fromkeys(_ts(alt, location.child(key, i)) for i, alt in enumerate(node[key]))
+            )
             return " | ".join(parts)
     if "allOf" in node:
-        return " & ".join(_ts(alt) for alt in node["allOf"])
+        return " & ".join(
+            _ts(alt, location.child("allOf", i)) for i, alt in enumerate(node["allOf"])
+        )
     kind = node.get("type")
     if isinstance(kind, list):
-        return " | ".join(_ts({**node, "type": k}) for k in kind)
+        return " | ".join(
+            _ts({**node, "type": k}, location.type_alternative(i)) for i, k in enumerate(kind)
+        )
     if kind in ("string",):
         return "string"
     if kind in ("number", "integer"):
@@ -60,13 +85,24 @@ def _ts(node: dict[str, Any]) -> str:
         return "null"
     if kind == "array":
         if "prefixItems" in node:
-            return "[" + ", ".join(_ts(item) for item in node["prefixItems"]) + "]"
-        return f"Array<{_ts(node.get('items') or {})}>"
+            return (
+                "["
+                + ", ".join(
+                    _ts(item, location.child("prefixItems", i))
+                    for i, item in enumerate(node["prefixItems"])
+                )
+                + "]"
+            )
+        return f"Array<{_ts(node.get('items') or {}, location.child('items'))}>"
     if kind == "object" or "properties" in node or "additionalProperties" in node:
         if node.get("properties"):
-            return _object(node)
+            return _object(node, location)
         extra = node.get("additionalProperties")
-        value = _ts(extra) if isinstance(extra, dict) and extra else "unknown"
+        value = (
+            _ts(extra, location.child("additionalProperties"))
+            if isinstance(extra, dict) and extra
+            else "unknown"
+        )
         return f"Record<string, {value}>"
     if not node or set(node) <= {
         "title",
@@ -79,7 +115,10 @@ def _ts(node: dict[str, Any]) -> str:
         "$comment",
     }:
         return "unknown"  # a schema that places no constraint (Pydantic's Any)
-    raise ValueError(f"export_project_types: unhandled JSON-schema shape {sorted(node)}")
+    raise ValueError(
+        f"export_project_types: unhandled JSON-schema shape {sorted(node)} "
+        f"in model {location.model!r} at {location.display()}"
+    )
 
 
 def _lit(value: Any) -> str:
@@ -92,12 +131,14 @@ def _lit(value: Any) -> str:
     return str(value)
 
 
-def _object(node: dict[str, Any]) -> str:
+def _object(node: dict[str, Any], location: _SchemaLocation) -> str:
     required = set(node.get("required") or [])
     lines = []
     for name, prop in (node.get("properties") or {}).items():
         mark = "" if name in required else "?"
-        lines.append(f"{_doc(prop.get('description'))}{_key(name)}{mark}: {_ts(prop)};")
+        lines.append(
+            f"{_doc(prop.get('description'))}{_key(name)}{mark}: {_ts(prop, location.child('properties', name))};"
+        )
     return "{\n" + "\n".join(lines) + "\n}"
 
 
@@ -106,10 +147,11 @@ def _key(name: str) -> str:
 
 
 def _declaration(name: str, node: dict[str, Any]) -> str:
+    location = _SchemaLocation(name)
     doc = _doc(node.get("description"))
     if node.get("properties"):
-        return f"{doc}export interface {name} {_object(node)}\n"
-    return f"{doc}export type {name} = {_ts(node)};\n"
+        return f"{doc}export interface {name} {_object(node, location)}\n"
+    return f"{doc}export type {name} = {_ts(node, location)};\n"
 
 
 def _definitions() -> dict[str, dict[str, Any]]:
