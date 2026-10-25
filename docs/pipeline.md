@@ -466,6 +466,16 @@ performance:
 
 Worker and thread counts start from one number, `cpu_budget()` in `util/hardware.py`: the cores this process may really use, which is the smaller of the logical cores, the CPU affinity and the container CPU quota. Code does not call `os.cpu_count()` (a test enforces it), so a container limited to 2 cores gets 2-core pools instead of the host's 16. `performance.max_workers` still overrides the automatic worker count.
 
+Supported hardware, as of this release:
+
+| Platform | Speech-to-text | Other models (aligner, speaker embedding, VAD) |
+|---|---|---|
+| Windows or Linux with an NVIDIA GPU, current driver and the CUDA 12 libraries (cuBLAS, cuDNN) | GPU when the model fits in GPU memory | CPU |
+| Apple Silicon | CPU (CTranslate2 has no Metal backend) | CPU (Core ML was measured slower or too memory-hungry) |
+| Everything else | CPU | CPU |
+
+The CUDA libraries are not installed by Studio, and the Windows (DirectML) and Linux (CUDA) ONNX Runtime builds are not shipped: the stock `onnxruntime` wheel is used everywhere. `podcast doctor` says where speech-to-text will run, and when an NVIDIA GPU is present but unused it says why and what to update. To force the CPU for support, set `PODCAST_ACCELERATOR=cpu` (or `performance.accelerator: cpu`).
+
 To decide whether a model path should use the accelerator, run `python scripts/benchmark_accelerators.py --path <name>` (lab only, not shipped; `--path onnx-model --onnx FILE` times any ONNX file). It runs the path on the CPU and then on this machine's best accelerator (whatever `PODCAST_ACCELERATOR` says), each in its own process, and prints one table: median time, load time, first-run time, peak host memory (RSS; GPU memory is not counted), the largest output difference against the CPU run, and a plain verdict. Inputs are seeded random, so it is a timing and agreement check, not a quality check; batch axes are 1, other dynamic axes take `--dynamic-dim`, and `--dim NAME=SIZE` sets one named axis of an ONNX model (an input array over 256 MB is refused, and a `--dim` name that matches no axis is an error). A path that is not clearly faster, that uses more memory than the speed-up pays for, or whose output differs stays on the CPU. New paths register in `PATHS` in the script.
 
 The ONNX models (word aligner, speaker embedding) load through `engines/onnx_session.py`. Each has an `ACCELERATE_*` flag in its module, off by default, that lets the session try the accelerator providers and rebuild on the CPU if loading or running fails. Measured on Apple Silicon with Core ML (#2249): the word aligner was 2.37x slower, used 6.75x the memory and its output differed (5e-3), the speaker embedding was 1.17x slower with 3.8x the memory, and Silero VAD was faster (18 vs 29 ms) but used 1.77x the memory, so all three stay on the CPU. Flip a flag only when the benchmark above passes its verdict on the target hardware.

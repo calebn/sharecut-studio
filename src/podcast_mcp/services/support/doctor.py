@@ -22,6 +22,7 @@ from podcast_mcp.engines.models.word_aligner import (
     WordAlignerPinMismatchError,
     word_aligner_problem,
 )
+from podcast_mcp.engines.whisper_device import describe_placement
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import (
     FFmpegPairResolutionError,
@@ -125,6 +126,7 @@ def run_doctor_checks(
             report.checks.append(DoctorCheck("warn", str(exc), err=True))
 
     preferred = resolve_whisper_model()
+    report.checks.append(DoctorCheck("ok", describe_placement(preferred)))
     whisper_problem = whisper_model_problem(preferred, memoize=True)
     if whisper_problem is None:
         report.checks.append(DoctorCheck("ok", f"whisper model {preferred} cached"))

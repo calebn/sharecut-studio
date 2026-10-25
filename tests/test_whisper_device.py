@@ -12,7 +12,7 @@ import pytest
 from model_pin_helpers import plant_pinned_whisper
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
-from podcast_mcp.engines.whisper_device import choose_placement, whisper_vram_mb
+from podcast_mcp.engines.whisper_device import choose_placement, describe_placement, whisper_vram_mb
 from podcast_mcp.models import load_project
 from podcast_mcp.util.hardware import (
     CPU_PROVIDER,
@@ -347,3 +347,42 @@ def test_a_cpu_redo_that_also_fails_raises_its_own_error(planted, tmp_path) -> N
     ):
         with pytest.raises(RuntimeError, match="cpu decode failed"):
             _engine().transcribe_file(audio, language="en")
+
+
+def test_the_doctor_line_says_where_speech_to_text_runs() -> None:
+    text = describe_placement(
+        "large-v3-turbo", profile=_gpu(), compute_types=_types("float16", "int8")
+    )
+    assert text == "speech-to-text (large-v3-turbo) runs on the NVIDIA GPU (float16)."
+
+
+def test_the_doctor_line_names_the_reason_when_a_gpu_is_too_small() -> None:
+    text = describe_placement(
+        "large-v3", profile=_gpu(vram_mb=2000), compute_types=_types("float16")
+    )
+    assert "runs on the CPU: the GPU has 2000 MB of memory" in text
+
+
+def test_the_doctor_line_says_how_to_fix_a_gpu_the_engine_cannot_see() -> None:
+    text = describe_placement("small", profile=_gpu(devices=0))
+    assert "NVIDIA GPU is present but the speech engine cannot use it" in text
+    assert "update the NVIDIA driver" in text
+
+
+def test_the_doctor_line_for_the_cpu_setting_and_for_no_gpu() -> None:
+    assert "because the accelerator setting is cpu" in describe_placement(
+        "small", profile=_gpu(), preference="cpu"
+    )
+    assert describe_placement("small", profile=cpu_only_profile(4)) == (
+        "speech-to-text (small) runs on the CPU."
+    )
+
+
+def test_podcast_doctor_prints_the_speech_to_text_placement(monkeypatch) -> None:
+    from podcast_mcp.services.support.doctor import run_doctor_checks
+
+    monkeypatch.delenv("PODCAST_WHISPER_MODEL", raising=False)
+    with use_hardware_profile(_gpu(devices=0)):
+        report = run_doctor_checks()
+    messages = [check.message for check in report.checks]
+    assert any("speech engine cannot use it" in m for m in messages), messages

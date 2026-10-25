@@ -86,3 +86,32 @@ def choose_placement(
     return WhisperPlacement(
         "cpu", CPU_COMPUTE_TYPE, "the GPU supports none of the needed number formats"
     )
+
+
+def describe_placement(
+    model_size: str,
+    *,
+    profile: HardwareProfile | None = None,
+    preference: str | None = None,
+    compute_types: Callable[[], Sequence[str]] | None = None,
+) -> str:
+    """Where speech-to-text runs and, when a GPU is present but unused, why and what to do."""
+    profile = profile or hardware_profile()
+    preference = preference or accelerator_preference()
+    placement = choose_placement(
+        model_size, profile=profile, preference=preference, compute_types=compute_types
+    )
+    name = f"speech-to-text ({model_size})"
+    if placement.device == "cuda":
+        return f"{name} runs on the NVIDIA GPU ({placement.compute_type})."
+    if preference == "cpu":
+        return f"{name} runs on the CPU because the accelerator setting is cpu."
+    if placement.reason:
+        return f"{name} runs on the CPU: {placement.reason}."
+    if profile.cuda is not None and not profile.ctranslate2_cuda_devices:
+        return (
+            f"{name} runs on the CPU: an NVIDIA GPU is present but the speech engine cannot use it. "
+            "To use it, update the NVIDIA driver and install the CUDA 12 libraries (cuBLAS and cuDNN); "
+            "the CPU works fine without them."
+        )
+    return f"{name} runs on the CPU."
