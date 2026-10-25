@@ -251,3 +251,39 @@ def test_bad_numbers_are_refused(argv, capsys) -> None:
 def test_the_onnx_path_needs_a_model_file(capsys) -> None:
     assert bench.main(["--path", "onnx-model"]) == 2
     assert "--onnx" in capsys.readouterr().err
+
+
+def _ns(**kw):
+    import argparse
+
+    return argparse.Namespace(**{"dim": [], "dynamic_dim": 16, **kw})
+
+
+def test_input_shapes_name_batch_and_length_separately() -> None:
+    shape = bench.input_shape(
+        "x", ["batch_size", "sequence_length"], np.float32, _ns(dim=["sequence_length=160000"])
+    )
+    assert shape == [1, 160000]
+
+
+def test_fixed_axes_and_the_default_dynamic_size() -> None:
+    assert bench.input_shape("x", [1, "t", 80], np.float32, _ns()) == [1, 16, 80]
+
+
+def test_an_input_that_would_be_huge_is_refused_before_it_is_allocated() -> None:
+    with pytest.raises(ValueError, match="--dim NAME=SIZE"):
+        bench.input_shape("x", ["a", "b"], np.float32, _ns(dynamic_dim=160000))
+
+
+@pytest.mark.parametrize("item", ["noequals", "x=", "x=0", "=5", "x=abc"])
+def test_bad_dim_items_are_refused(item) -> None:
+    with pytest.raises(ValueError, match="NAME=SIZE"):
+        bench.parse_dims([item])
+
+
+def test_a_failed_benchmark_is_a_plain_message_not_a_traceback(tmp_path, capsys) -> None:
+    code = bench.main(
+        ["--path", "onnx-model", "--onnx", str(tmp_path / "missing.onnx"), "--repeat", "1"]
+    )
+    assert code == 1
+    assert "benchmark failed" in capsys.readouterr().err

@@ -110,6 +110,49 @@ _ONNX_DTYPES = {
 }
 
 
+_BATCH_AXES = frozenset({"batch", "batch_size", "n", "N"})
+_MAX_INPUT_MB = 256
+
+
+def parse_dims(items: list[str]) -> dict[str, int]:
+    """``NAME=SIZE`` pairs from the command line, for naming the length of one dynamic axis."""
+    dims: dict[str, int] = {}
+    for item in items:
+        name, _, size = item.partition("=")
+        if not name or not size.isdigit() or int(size) < 1:
+            raise ValueError(f"--dim wants NAME=SIZE with a positive size, got {item!r}")
+        dims[name] = int(size)
+    return dims
+
+
+def input_shape(
+    name: str, meta_shape: list[Any], dtype: Any, args: argparse.Namespace
+) -> list[int]:
+    """Concrete shape for one model input; refuses one too big to be a sensible benchmark input.
+
+    A named dynamic axis takes its ``--dim NAME=SIZE``; a batch axis is 1; any other dynamic axis
+    takes ``--dynamic-dim``.
+    """
+    dims = parse_dims(getattr(args, "dim", None) or [])
+    shape: list[int] = []
+    for axis in meta_shape:
+        if isinstance(axis, int) and axis > 0:
+            shape.append(axis)
+        elif isinstance(axis, str) and axis in dims:
+            shape.append(dims[axis])
+        elif isinstance(axis, str) and axis in _BATCH_AXES:
+            shape.append(1)
+        else:
+            shape.append(args.dynamic_dim)
+    megabytes = math.prod(shape) * np.dtype(dtype).itemsize / 1024**2
+    if megabytes > _MAX_INPUT_MB:
+        raise ValueError(
+            f"input {name!r} would be {megabytes:.0f} MB with shape {shape}; "
+            f"name each dynamic axis with --dim NAME=SIZE (axes: {meta_shape})"
+        )
+    return shape
+
+
 def _onnx_model(providers: tuple[str, ...], args: argparse.Namespace) -> Loaded:
     """Any ONNX file with seeded random inputs shaped from the model's own metadata."""
     import onnxruntime
@@ -123,7 +166,7 @@ def _onnx_model(providers: tuple[str, ...], args: argparse.Namespace) -> Loaded:
         dtype = _ONNX_DTYPES.get(meta.type)
         if dtype is None:
             raise ValueError(f"input {meta.name!r} has unsupported type {meta.type}")
-        shape = [d if isinstance(d, int) and d > 0 else args.dynamic_dim for d in meta.shape]
+        shape = input_shape(meta.name, meta.shape, dtype, args)
         if dtype is np.bool_:
             feeds[meta.name] = rng.integers(0, 2, size=shape).astype(dtype)
         elif np.issubdtype(dtype, np.integer):
@@ -375,6 +418,13 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--path", choices=sorted(PATHS), default="synthetic-matmul")
     p.add_argument("--onnx", type=Path, help="model file for --path onnx-model")
     p.add_argument("--dynamic-dim", type=int, default=16, help="size used for dynamic axes")
+    p.add_argument(
+        "--dim",
+        action="append",
+        default=[],
+        metavar="NAME=SIZE",
+        help="size of one named dynamic axis (repeatable); batch axes default to 1",
+    )
     p.add_argument("--size", type=int, default=512, help="matrix size for synthetic-matmul")
     p.add_argument("--repeat", type=int, default=20)
     p.add_argument("--warmup", type=int, default=3)
@@ -390,6 +440,8 @@ def _parser() -> argparse.ArgumentParser:
 def _passthrough(args: argparse.Namespace) -> list[str]:
     extra = ["--repeat", str(args.repeat), "--warmup", str(args.warmup)]
     extra += ["--size", str(args.size), "--dynamic-dim", str(args.dynamic_dim)]
+    for dim in args.dim:
+        extra += ["--dim", dim]
     return extra + (["--onnx", str(args.onnx)] if args.onnx else [])
 
 
@@ -402,12 +454,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     if args.child:
-        args.result.write_text(json.dumps(asdict(run_child(args))), encoding="utf-8")
+        try:
+            args.result.write_text(json.dumps(asdict(run_child(args))), encoding="utf-8")
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 3
         return 0
     if args.path == "onnx-model" and not args.onnx:
         print("--path onnx-model needs --onnx FILE", file=sys.stderr)
         return 2
-    rows, note = benchmark(args.path, _passthrough(args))
+    try:
+        parse_dims(args.dim)
+        rows, note = benchmark(args.path, _passthrough(args))
+    except (RuntimeError, ValueError) as exc:
+        print(f"benchmark failed: {exc}", file=sys.stderr)
+        return 1
     print(format_table(rows))
     if note:
         print(note)
