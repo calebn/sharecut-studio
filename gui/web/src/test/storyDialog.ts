@@ -1,13 +1,18 @@
 import { type Dispatch, type SetStateAction, useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+const isRunning = (animation: Animation) =>
+  animation.playState === "running" &&
+  animation.effect?.getTiming().iterations !== Infinity;
+
 /**
  * Story play helper: return the open dialog named `dialogName`, first
  * clicking the `launcherName` button when that dialog is not already open.
  * An unrelated open dialog does not suppress the click. Autodocs previews
- * start closed; standalone Canvas stories start open. Returns once focus is
- * inside the dialog: it takes its initial focus on the next animation frame,
- * and a play function that focuses a field sooner would lose it to that move.
+ * start closed; standalone Canvas stories start open. Returns once the dialog
+ * has finished fading in and focus is inside it: it takes its initial focus on
+ * the next animation frame, and a play function that focuses a field sooner
+ * would lose it to that move.
  */
 export async function openDialogByLauncher(
   canvasElement: HTMLElement,
@@ -24,6 +29,14 @@ export async function openDialogByLauncher(
   await waitFor(() =>
     expect(dialog).toContainElement(document.activeElement as HTMLElement),
   );
+  // A dialog fades in; text read at its first frame is still at zero opacity.
+  if (typeof dialog.getAnimations === "function") {
+    await waitFor(() =>
+      expect(
+        dialog.getAnimations({ subtree: true }).filter(isRunning),
+      ).toHaveLength(0),
+    );
+  }
   return dialog;
 }
 

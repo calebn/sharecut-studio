@@ -1,11 +1,22 @@
 import axe from "axe-core";
 import { expect } from "vitest";
 
-/** Assert a rendered container has no axe accessibility violations. */
+export type A11yRule = { id: string; enabled: boolean };
+
+/**
+ * Assert a rendered container has no axe accessibility violations. `rules` are
+ * the story's own `parameters.a11y.config.rules`, the Storybook a11y addon's
+ * per-story switch.
+ */
 export async function expectNoA11yViolations(
   container: HTMLElement,
+  rules: readonly A11yRule[] = [],
 ): Promise<void> {
-  const results = await axe.run(container);
+  const results = await axe.run(container, {
+    rules: Object.fromEntries(
+      rules.map(({ id, enabled }) => [id, { enabled }]),
+    ),
+  });
   expect(
     results.violations,
     results.violations

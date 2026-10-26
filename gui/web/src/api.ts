@@ -1,6 +1,7 @@
 export type {
   BootstrapDownload,
   BootstrapFailure,
+  BootstrapFailureKind,
   BootstrapJobSnapshot,
   BootstrapStatus,
   ModelStatus,

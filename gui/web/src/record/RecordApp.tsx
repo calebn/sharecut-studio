@@ -1,17 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  BrandLockup,
-  Button,
-  CoverScreen,
-  ErrorScreen,
-  FocusPull,
-  LoadingScreen,
-} from "../ui";
-import { BUSY_REASON } from "../ui/disabledReason";
+import { BrandLockup, ErrorScreen, FocusPull, LoadingScreen } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import "../styles/partials/record-entry.css";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { readLocal, writeLocal } from "../utils/storage";
+import { AccessEndedView } from "./AccessEndedView";
 import { Declined } from "./Declined";
 import { FullRoom } from "./FullRoom";
 import {
@@ -324,37 +317,11 @@ export function RecordApp({ token }: { token: string }) {
   }
   if (accessEnded) {
     return (
-      <CoverScreen
-        heading={inviteClosed ? "Invite link closed" : "Recording access ended"}
-        shellClassName="error-screen record-shell"
-      >
-        <p className="home-screen-error" role="alert">
-          {inviteClosed
-            ? "The host closed this invite link to new participants. Ask the host for a new link."
-            : "Your access to this recording room has ended."}
-        </p>
-        {!captureSettled ? <p>Finishing your full-quality recording…</p> : null}
-        {captureSettled && keeperActions.recover ? (
-          <Button
-            onClick={keeperActions.recover}
-            disabledReason={keeperActions.busy ? BUSY_REASON : undefined}
-          >
-            Recover full-quality recording
-          </Button>
-        ) : null}
-        {captureSettled && keeperActions.download ? (
-          <Button
-            onClick={keeperActions.download}
-            disabledReason={keeperActions.busy ? BUSY_REASON : undefined}
-          >
-            Download full-quality recording
-          </Button>
-        ) : null}
-        {keeperActions.error ? <p role="alert">{keeperActions.error}</p> : null}
-        {keeperActions.notice ? (
-          <p role="status">{keeperActions.notice}</p>
-        ) : null}
-      </CoverScreen>
+      <AccessEndedView
+        inviteClosed={inviteClosed}
+        captureSettled={captureSettled}
+        keeperActions={keeperActions}
+      />
     );
   }
   if (!bootstrap) {

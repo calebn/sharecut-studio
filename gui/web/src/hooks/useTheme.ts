@@ -20,10 +20,10 @@ export function isThemePreference(v: unknown): v is ThemePreference {
   return THEME_OPTIONS.some((t) => t.id === v);
 }
 
-const STORAGE_KEY = "daw_theme";
+export const THEME_STORAGE_KEY = "daw_theme";
 
 function readStored(): ThemePreference {
-  const v = readLocal(STORAGE_KEY);
+  const v = readLocal(THEME_STORAGE_KEY);
   return isThemePreference(v) ? v : "system";
 }
 
@@ -74,7 +74,7 @@ export function useTheme(): {
 
   useEffect(() => {
     applyTheme(preference);
-    writeLocal(STORAGE_KEY, preference);
+    writeLocal(THEME_STORAGE_KEY, preference);
   }, [preference]);
 
   const setPreference = useCallback((p: ThemePreference) => {
