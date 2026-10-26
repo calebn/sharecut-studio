@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**126** capabilities · **107** ShareCut Studio commands · **55** keyed · **192** MCP tools · **17** skills on rows (+ **19** hub skills).
+**127** capabilities · **111** ShareCut Studio commands · **55** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -76,6 +76,11 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls` | — | — | — | — | none · look |
 | Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls` | — | — | — | — | none · look |
 | Fit session width | view | `view.fit` | `\` | — | `transport.fit`, `transport.menu` | — | — | — | — | none · look |
+| Go to Record | view | `stage.record` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Prepare | view | `stage.prepare` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Edit | view | `stage.edit` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Review | view | `stage.review` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Deliver | view | `stage.deliver` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
 | Switch editor tab | view | `view.setTab` | — (not industry-standard; tab click) | — | `tabBar` | — | — | — | — | anchor · look |
 | Switch phone mode | view | `view.setMobileMode` | — (not industry-standard; tab click) | — | `mobileNav` | — | — | — | — | anchor · look |
 | Waveform amplitude zoom in | view | `view.waveformZoomIn` | `ArrowUp` | — | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeIn` | — | — | — | — | time · look |
@@ -92,8 +97,6 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Create record room | project | `record.createRoom` | — (empty-state action in the Record room panel) | — | `RecordPanel` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
 | Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
 | Start recording | project | `record.start` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
-| Capture room tone | project | `record.roomTone` | — (chords in a later PR) | — | `RecordPanel` | `record_room_tone_tool` | `podcast record room-tone` | `podcast-record-session` | yes | none · none |
-| Set session target | project | `record.setTarget` | — (host CLI/MCP only) | — | — | `record_target_tool` | `podcast record target` | `podcast-record-session` | yes | none · none |
 | Pause recording | project | `record.pause` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_pause_tool` | `podcast record pause` | `podcast-record-session` | yes | none · none |
 | Resume recording | project | `record.resume` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
 | Stop recording | project | `record.stop` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_stop_tool` | `podcast record stop` | `podcast-record-session` | yes | none · none |
@@ -106,6 +109,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `transport.menu`, `ExportDialog` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | New project… | project | `project.new` | `Mod+N` | — | `transport.menu` | `episode_create` | `podcast episode init` | — | yes | none · none |
 | Open project… | session | `project.open` | `Mod+O` | — | `transport.menu` | — | — | — | yes | none · none |
+| All projects | session | `project.home` | — (no key yet; the stage shell binds it) | — | — | — | — | — | yes | none · none |
 | New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `transport.menu`, `editingToolRail`, `trackLane`, `mobileShell.more` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
 | Import audio… | project | `media.import` | `Mod+I` | — | `transport.menu`, `editingToolRail`, `drop`, `mobileShell.more` | `track_set_media_tool` | — | — | — | none · none |
 | Annotate transcript | view | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | — | `transcript.annotate` | — | — | — | — | none · none |
@@ -144,9 +148,6 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Label | Effect | MCP | CLI | Skill | Host-only |
 | ----- | ------ | --- | --- | ----- | --------- |
 | Discard recording take | project | `record_discard_take_tool` | `podcast record discard-take` | `podcast-record-session` | yes |
-| List staged sessions | project | `list_session_suggestions_tool` | `podcast review session-suggestions` | `podcast-record-session` | yes |
-| Accept staged session | project | `accept_session_suggestion_tool` | `podcast review accept-session-suggestion` | `podcast-record-session` | yes |
-| Skip staged session | project | `skip_session_suggestion_tool` | `podcast review skip-session-suggestion` | `podcast-record-session` | yes |
 | Episode / track CRUD | project | `episode_create`, `track_set_meta_tool` | `podcast episode` | `podcast-setup` | yes |
 | Transcript layers | project | `transcribe_track`, `get_transcript`, `get_transcript_vocabulary_tool`, `set_transcript_vocabulary_tool`, `export_transcript`, `precorrect_transcript_tool`, +4 | `podcast transcript` | `podcast-transcript-workflow` | yes |
 | Edit decisions / NL cuts | project | `build_edit_context`, `search_transcript_tool`, `cut_time_range_tool`, `cut_text_match_tool`, `cut_utterance_tool`, `cut_words_tool`, +14 | `podcast edit` | `podcast-edit-natural-language` | yes |
