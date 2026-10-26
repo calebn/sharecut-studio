@@ -3,7 +3,8 @@ import { CloseButton } from "../ui";
 
 export type CardProps = {
   tone?: "default" | "hint";
-  title: string;
+  /** Text, or text with an inline aria-hidden glyph. */
+  title: ReactNode;
   /** Names the close button for assistive technology: "Dismiss the setup card". */
   dismissLabel: string;
   /** Without it the card cannot be dismissed and shows no close button. */
