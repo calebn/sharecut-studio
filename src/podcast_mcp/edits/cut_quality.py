@@ -176,7 +176,7 @@ def post_pad_fade_in_bounds_ms(defaults: EffectiveConfig) -> tuple[int, int]:
 
 
 def fade_reach_sec(project: EpisodeProject, edit: EditDecision, defaults: EffectiveConfig) -> float:
-    """How far a fade can reach past a cut: the longest of the cut's crossfade, the pad fades and any clip fade."""
+    """The longest fade that can reach past a cut."""
     return (
         max(
             edit.crossfade_ms,

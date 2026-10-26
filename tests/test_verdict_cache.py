@@ -188,11 +188,10 @@ def test_a_long_clip_fade_still_caches_and_widens_the_window(tmp_path: Path) -> 
     edit = project.edit_decisions[0]
     kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
     base = verdict_cache.verdict_key(project, edit, **kwargs)
-    split = (
+    project.clips = [
         Clip(id="a", track_id="host", source_start=0, source_end=12.5, timeline_start=0),
         Clip(id="b", track_id="host", source_start=12.5, source_end=SECONDS, timeline_start=12.5),
-    )
-    project.clips = list(split)
+    ]
     assert base is not None
     assert verdict_cache.verdict_key(project, edit, **kwargs) == base
     project.clips[1].fade_in_ms = 3000

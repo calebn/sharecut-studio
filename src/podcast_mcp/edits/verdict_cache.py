@@ -43,11 +43,7 @@ if TYPE_CHECKING:
 
 ENABLE_ENV = "PODCAST_VERDICT_CACHE"
 VERIFY_ENV = "PODCAST_VERDICT_VERIFY"
-# The farthest a check reads from its cut apart from fades: breath level context 5 s, voiced-run
-# reach 0.64 s, pad and join reach under 0.2 s, plus margin. A fade reaches further by
-# ``cut_quality.fade_reach_sec``.
 READ_SEC = 6.0
-# A held pause is never keyed narrower than the 12 s window and 1 s fade guess it had before.
 PAUSE_REACH_FLOOR_SEC = 13.0
 _ENTRIES = 512
 
@@ -150,7 +146,7 @@ def check_reach_sec(
     span: tuple[float, float],
     defaults: dict,
 ) -> float:
-    """How far from its cut a check reads: ``READ_SEC`` and the fade reach, out to a held pause's observed words, and never under ``PAUSE_REACH_FLOOR_SEC`` for a pause."""
+    """How far from its cut a check reads."""
     reach = READ_SEC + fade_reach_sec(project, edit, defaults)
     if not (edit.reason or "").startswith("pause:"):
         return reach

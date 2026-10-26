@@ -537,7 +537,7 @@ def held_pause_observation_span(
     words: tuple[TranscriptWord, TranscriptWord],
     defaults: EffectiveConfig,
 ) -> HeldPauseSpan:
-    """The timeline audio a held pause is observed over (its cut and fades, out to the words either side) and the gap between those words."""
+    """The timeline span a held pause is observed over and the gap between its words."""
     timeline = SessionTimeline(project)
     before_span = timeline.exact_source_span(
         edit.track_id, SourceSec(words[0].start), SourceSec(words[0].end)

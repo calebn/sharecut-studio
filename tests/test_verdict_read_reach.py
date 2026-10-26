@@ -1,7 +1,6 @@
 """A check reads no further from its cut than the verdict key's window (#2356).
 
-Reads made while scanning a whole recording (its room level, its first and last word) are
-left out: the key covers them by the recording's file revision, not by the window.
+Whole-recording scans are excluded; the key covers them by file revision.
 """
 
 from __future__ import annotations
@@ -36,6 +35,7 @@ SR = 16_000
 SECONDS = 80
 _INTENT = {False: {}, True: {"boundary_intent": CutIntent.HUMAN_BOUNDARIES}}
 CUT = (40.0, 40.4)
+NEAR_JOINS = (34.0, 38.0, 43.0, 47.0, 70.0)
 
 
 def _write(path: Path, seed: int, bursts: tuple[tuple[float, float], ...]) -> None:
@@ -62,7 +62,7 @@ def _project(
     tmp_path: Path,
     reason: str,
     host_starts: list[float] | None = None,
-    joins: tuple[float, ...] = (34.0, 38.0, 43.0, 47.0, 70.0),
+    joins: tuple[float, ...] = NEAR_JOINS,
     manual: bool = False,
 ) -> EpisodeProject:
     host_starts = host_starts or [float(s) for s in range(30, 52, 1)]
@@ -150,20 +150,18 @@ def _spy_reads(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, float, float]
 
 
 LONG_SILENCE = [30.0, 31.0, 32.0, 48.0, 49.0, 50.0]
-JOINS_BEFORE = (33.0, 31.0, 28.0, 25.0, 20.0, 15.0)
-JOINS_AFTER = (47.4, 49.4, 52.4, 55.4, 60.4, 65.4)
-FAR_JOINS = tuple(sorted(JOINS_BEFORE + JOINS_AFTER))
+FAR_JOINS = (15.0, 20.0, 25.0, 28.0, 31.0, 33.0, 47.4, 49.4, 52.4, 55.4, 60.4, 65.4)
 
 
 @pytest.mark.parametrize(
     ("reason", "manual", "host_starts", "joins"),
     [
-        ("nl:range", False, None, (34.0, 38.0, 43.0, 47.0, 70.0)),
-        ("filler:um", False, None, (34.0, 38.0, 43.0, 47.0, 70.0)),
+        ("nl:range", False, None, NEAR_JOINS),
+        ("filler:um", False, None, NEAR_JOINS),
         ("nl:range", False, None, FAR_JOINS),
         ("filler:um", False, None, FAR_JOINS),
         ("nl:range", True, None, FAR_JOINS),
-        ("pause:long", False, LONG_SILENCE, (34.0, 38.0, 43.0, 47.0, 70.0)),
+        ("pause:long", False, LONG_SILENCE, NEAR_JOINS),
     ],
 )
 def test_a_check_reads_no_further_than_the_window_around_its_cut(
