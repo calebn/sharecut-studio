@@ -2835,3 +2835,303 @@
     display: block;
   }
 }
+
+/* Advanced steps and vocabulary */
+
+.sys-vocab,
+.sys-vocab-again {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sys-vocab-again {
+  align-items: flex-start;
+}
+
+.sys-adv {
+  container: sys-adv / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.sys-adv-title,
+.sys-adv-group-title {
+  margin: 0;
+  font-size: var(--font-size-emphasis);
+  font-weight: 600;
+}
+
+.sys-adv-group-title {
+  font-size: var(--font-size-ui);
+  color: var(--color-text-secondary);
+}
+
+.sys-adv-title:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sys-adv-bar {
+  display: flex;
+}
+
+.sys-adv-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sys-adv-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.sys-adv-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline-end: var(--space-3);
+}
+
+.sys-adv-row + .sys-adv-row {
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+.sys-adv-open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: 3rem;
+  padding: var(--space-3) var(--space-4);
+  padding-inline-end: var(--space-7);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.sys-adv-chevron {
+  position: absolute;
+  inset-inline-end: var(--space-3);
+  inset-block-start: 50%;
+  display: inline-flex;
+  color: var(--color-text-secondary);
+  transform: translateY(-50%) rotate(-90deg);
+}
+
+.sys-adv-open:focus-visible,
+.sys-adv-reset:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.sys-adv-running {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sys-adv-reason,
+.sys-adv-result {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-adv-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--control-height);
+}
+
+.sys-adv-switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  inline-size: 2.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-sunken);
+  cursor: pointer;
+}
+
+.sys-adv-switch::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0.1875rem;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  transform: translateY(-50%);
+}
+
+.sys-adv-switch:checked {
+  border-color: var(--color-accent-solid);
+  background: var(--color-accent-solid);
+}
+
+.sys-adv-switch:checked::before {
+  background: var(--color-accent-on-solid);
+  transform: translate(1rem, -50%);
+}
+
+.sys-adv-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sys-adv-switch:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sys-adv-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.sys-adv-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sys-adv-field-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sys-adv-label {
+  flex: 1;
+  font-weight: 500;
+}
+
+.sys-adv-value {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-ui);
+}
+
+.sys-adv-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-height-compact);
+  block-size: var(--control-height-compact);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sys-adv-reset:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.sys-adv-reset-dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.sys-adv-range {
+  inline-size: 100%;
+  min-block-size: var(--control-height);
+  accent-color: var(--color-accent-solid);
+}
+
+.sys-adv-select {
+  inline-size: 100%;
+  min-block-size: var(--control-height);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-field);
+}
+
+.sys-adv-range:focus-visible,
+.sys-adv-select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* One line of help: always read with the field, shown while it has focus. */
+.sys-adv-help {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sys-adv-field:focus-within .sys-adv-help {
+  position: static;
+  inline-size: auto;
+  block-size: auto;
+  margin: 0;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-adv-switch,
+  .sys-adv-switch::before {
+    transition:
+      background-color var(--motion-hover),
+      transform var(--motion-hover);
+  }
+}
+
+.sys-chips-count {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* A long line of detail beside a wide action: the action drops below instead of squeezing the words. */
+.sys-status-line {
+  flex-wrap: wrap;
+  row-gap: var(--space-3);
+}
+
+.sys-status-text {
+  flex: 1 1 12rem;
+}
+
+.sys-status-line > .ui-control {
+  margin-inline-start: auto;
+}

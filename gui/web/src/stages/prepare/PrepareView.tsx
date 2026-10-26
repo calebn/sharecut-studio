@@ -15,6 +15,7 @@ import {
   type ReadyRowId,
 } from "./ReadyList";
 import { SessionSources } from "./SessionSources";
+import { Vocabulary } from "./Vocabulary";
 
 export type CleanupSettings = {
   tight: "light" | "medium" | "tight";
@@ -43,7 +44,13 @@ export type PrepareViewProps = {
   rows: readonly ReadyRowData[];
   /** The phone's collapsed line: "Transcribing 2 of 3". */
   readySummary: string;
-  /** Names and terms (the vocabulary input). A plain line stands in when omitted. */
+  /** Names and terms. The speakers come from the named Source cards. */
+  terms?: readonly string[];
+  onTermsChange?: (terms: string[]) => void;
+  /** Transcription has run, so a new term needs another pass. */
+  needsRetranscribe?: boolean;
+  onRetranscribe?: () => void;
+  /** Replaces the vocabulary field; a plain line stands in when nothing is given. */
   vocabulary?: ReactNode;
   cleanup: CleanupSettings;
   onCleanup: (next: CleanupSettings) => void;
@@ -98,6 +105,10 @@ export function PrepareView({
   sessions,
   rows,
   readySummary,
+  terms,
+  onTermsChange,
+  needsRetranscribe,
+  onRetranscribe,
   vocabulary,
   cleanup,
   onCleanup,
@@ -114,7 +125,11 @@ export function PrepareView({
   onRowAction,
   onHandoff,
 }: PrepareViewProps) {
-  const [readyOpen, setReadyOpen] = useState(false);
+  // On a phone the rows fold behind the summary, but a row that needs you or
+  // failed has a button the person must reach, so those start open.
+  const [readyOpen, setReadyOpen] = useState(() =>
+    ["failed", "needs-you"].includes(summaryState(rows)),
+  );
   const ids = {
     sources: useId(),
     ready: useId(),
@@ -172,6 +187,14 @@ export function PrepareView({
         .reduce((sum, earlier) => sum + earlier.sources.length, 0),
   );
   const state = summaryState(rows);
+  const speakers = [
+    ...new Map(
+      sessions
+        .flatMap((one) => one.sources.map((source) => source.name.trim()))
+        .filter(Boolean)
+        .map((name) => [name.toLowerCase(), name] as const),
+    ).values(),
+  ];
   return (
     <div className="sys-prepare" data-phase={phase}>
       <div className="sys-prepare-layout">
@@ -238,11 +261,21 @@ export function PrepareView({
           <h2 id={ids.help} className="sys-prepare-title">
             Help the transcriber
           </h2>
-          {vocabulary ?? (
-            <p className="sys-prepare-note">
-              Speaker names from Sources are shared with the transcriber.
-            </p>
-          )}
+          {vocabulary ??
+            (terms && onTermsChange ? (
+              <Vocabulary
+                heading={false}
+                speakers={speakers}
+                terms={terms}
+                onTermsChange={onTermsChange}
+                needsRetranscribe={needsRetranscribe}
+                onRetranscribe={onRetranscribe}
+              />
+            ) : (
+              <p className="sys-prepare-note">
+                Speaker names from Sources are shared with the transcriber.
+              </p>
+            ))}
           <h3 id={ids.cleanup} className="sys-prepare-subtitle">
             Cleanup
           </h3>

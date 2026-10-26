@@ -1,4 +1,4 @@
-import { VOICE_PEAKS } from "../../system/prepareFixtures";
+import { PEOPLE, VOICE_PEAKS } from "../../system/prepareFixtures";
 import type { PrepareSession, PrepareSource } from "./prepareTypes";
 import type { ReadyRowData } from "./ReadyList";
 
@@ -235,3 +235,34 @@ export const FAILURE = {
   step: "Transcribing",
   cause: "The computer ran out of memory.",
 } as const;
+
+/** Speaker chips for the Vocabulary stories: the people from the Source cards. */
+export const SPEAKER_NAMES: readonly string[] = PEOPLE.map(
+  (person) => person.name,
+);
+
+export const SOME_TERMS: readonly string[] = [
+  "Okonkwo-Adeyemi Labs",
+  "Tessellate Systems",
+  "Quetzalcoatlus",
+];
+
+/** Enough terms to leave 25 of the 372 characters: the count shows. */
+export const NEAR_LIMIT_TERMS: readonly string[] = [
+  "Okonkwo-Adeyemi Labs",
+  "Tessellate Systems",
+  "Bioluminescence",
+  "Quetzalcoatlus",
+  "Chiaroscuro Press",
+  "Hyperion Cantos",
+  "Mnemosyne Archive",
+  "Ouroboros Engine",
+  "Phosphorescent Co",
+  "Zeitgeber Clock",
+  "Saccharomyces",
+  "Lindisfarne Gospels",
+  "Vantablack Studio",
+  "Heliopause Radio",
+  "Mediterranean Cartographers",
+  "Interstellar Fermentation",
+];
