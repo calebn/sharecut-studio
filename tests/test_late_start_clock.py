@@ -18,6 +18,8 @@ import pytest
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio import SourceAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.media_probe import audio_start_sec
+from podcast_mcp.util.coded_error import CodedValueError
 
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src" / "podcast_mcp"
 SR = 44_100
@@ -233,3 +235,58 @@ def test_every_media_seek_names_its_lead() -> None:
         if "lead_sec=" not in hit["args"]
     ]
     assert not missing, "MediaSeek.at without lead_sec:\n" + "\n".join(missing)
+
+
+def _with_video(eng: FFmpegEngine, path: Path, lead: float, *codecs: str) -> Path:
+    return _build(
+        eng,
+        path,
+        *["-f", "lavfi", "-i", "testsrc=size=64x64:rate=10:duration=8"],
+        *["-itsoffset", str(lead), "-f", "lavfi", "-i", f"sine=f=440:r={SR}:duration=2"],
+        *["-map", "0:v", "-map", "1:a", *codecs],
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "codecs"),
+    [
+        ("late.ts", ["-c:v", "mpeg2video", "-c:a", "mp2"]),
+        ("late.m2ts", ["-c:v", "mpeg2video", "-c:a", "mp2"]),
+        ("late.mpg", ["-f", "mpeg", "-c:v", "mpeg2video", "-c:a", "mp2"]),
+    ],
+)
+def test_late_mpeg_transport_is_refused(
+    eng: FFmpegEngine, tmp_path: Path, name: str, codecs: list[str]
+) -> None:
+    """ffmpeg rebases an audio-only read of these containers, so no lead can be right."""
+    info = eng.probe(_with_video(eng, tmp_path / name, 0.5, *codecs))
+    assert info.audio_start_sec > 0.4
+    assert info.duration_estimated
+
+
+def test_on_time_mpeg_transport_is_accepted(eng: FFmpegEngine, tmp_path: Path) -> None:
+    ts = _with_video(eng, tmp_path / "on_time.ts", 0.0, "-c:v", "mpeg2video", "-c:a", "mp2")
+    assert not eng.probe(ts).duration_estimated
+
+
+@pytest.mark.parametrize(("lead", "applied"), [(0.05, 0.05), (0.01, 0.0)])
+def test_start_gate_applies_a_real_lead_and_zeroes_priming(
+    eng: FFmpegEngine, tmp_path: Path, lead: float, applied: float
+) -> None:
+    mkv = _with_video(eng, tmp_path / "gate.mkv", lead, "-c:v", "ffv1", "-c:a", "pcm_s16le")
+    assert eng.probe(mkv).audio_start_sec == pytest.approx(applied, abs=0.005)
+
+
+def test_forged_start_marks_the_probe_estimated(
+    eng: FFmpegEngine, late: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(FFmpegEngine, "_first_decoded_pts", lambda *_, **__: 1e12)
+    assert eng.probe(late).duration_estimated
+
+
+def test_unprobeable_media_has_no_audio_start(tmp_path: Path) -> None:
+    garbage = tmp_path / "garbage.mp4"
+    garbage.write_bytes(b"not media" * 100)
+    with pytest.raises(CodedValueError) as raised:
+        audio_start_sec(garbage)
+    assert raised.value.code == "invalid_audio"
