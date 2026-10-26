@@ -11,14 +11,34 @@ describe("ReadyList", () => {
     expect(within(list).getAllByRole("listitem")).toHaveLength(5);
   });
 
-  it("puts a row that needs you first and opens it", () => {
+  it("opens a row that needs you and keeps it in the pipeline order", () => {
     render(<ReadyList rows={ROWS.alignCheck} onAction={vi.fn()} />);
-    const first = screen.getAllByRole("listitem")[0];
-    expect(first).toHaveTextContent("Line up tracks");
+    const items = screen.getAllByRole("listitem");
+    expect(items[2]).toHaveTextContent("Line up tracks");
     expect(
-      within(first).getByRole("button", { name: /Line up tracks/ }),
+      within(items[2]).getByRole("button", { name: /Line up tracks/ }),
     ).toHaveAttribute("aria-expanded", "true");
-    expect(first).toHaveTextContent("Needs you");
+    expect(items[2]).toHaveTextContent("Needs you: Line up tracks");
+  });
+
+  it("does not reorder the DOM when a different row needs you", () => {
+    const { rerender } = render(
+      <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
+    );
+    const before = screen.getAllByRole("listitem");
+    rerender(<ReadyList rows={ROWS.alignCheck} onAction={vi.fn()} />);
+    const after = screen.getAllByRole("listitem");
+    expect(after).toHaveLength(before.length);
+    for (const [at, item] of after.entries()) expect(item).toBe(before[at]);
+    expect(
+      after.map((item) => item.querySelector(".sys-status-title")?.textContent),
+    ).toEqual([
+      "Add audio",
+      "Transcribe",
+      "Line up tracks",
+      "Clean and level",
+      "Find suggestions",
+    ]);
   });
 
   it("keeps the extra buttons in a labelled group in the body", async () => {
@@ -40,8 +60,19 @@ describe("ReadyList", () => {
       "primary",
     );
     const replace = screen.getByRole("button", { name: "Replace" });
-    expect(replace).toHaveClass("danger");
+    expect(replace).toHaveClass("danger", "sys-danger-outline");
     expect(replace).not.toHaveClass("primary");
+  });
+
+  it("puts focus on Keep my fixes, never Replace, when the row is opened by hand", async () => {
+    const user = userEvent.setup();
+    render(<ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Replace" })).not.toHaveFocus();
+    const row = screen.getByRole("button", { name: /Transcribe/ });
+    await user.click(row);
+    await user.click(row);
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Replace" })).not.toHaveFocus();
   });
 
   it("never moves focus when a row appears, opens or changes", async () => {
@@ -61,18 +92,30 @@ describe("ReadyList", () => {
     outside.remove();
   });
 
-  it("has one action in a failed row and its details behind the row button", async () => {
+  it("shows the plain cause, Try again, and the technical cause behind Details", async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
     render(<ReadyList rows={ROWS.failed} onAction={onAction} />);
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(onAction).toHaveBeenCalledWith("transcribe", "try-again");
-    const row = screen.getByRole("button", { name: /Transcribe/ });
-    expect(row).toHaveAttribute("aria-expanded", "false");
+    const item = screen.getAllByRole("listitem")[1];
+    expect(item).toHaveTextContent("Failed: Transcribe");
+    expect(item).toHaveTextContent("Not enough memory to finish");
+    expect(item.querySelector("[data-state='failed']")).not.toBeNull();
+    const details = screen.getByRole("button", {
+      name: "Details for Transcribe",
+    });
+    expect(details).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText(/ran out of memory/)).toBeNull();
-    await user.click(row);
+    await user.click(details);
+    expect(details).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText(/ran out of memory/)).toBeVisible();
-    expect(screen.getAllByRole("listitem")[1]).toHaveTextContent("Failed");
+  });
+
+  it("gives every running row a progress bar with words", () => {
+    render(<ReadyList rows={ROWS.alignCheck} onAction={vi.fn()} />);
+    const bar = screen.getByRole("progressbar", { name: "Clean and level" });
+    expect(bar).toHaveAttribute("aria-valuetext", "30 percent");
   });
 
   it("says what to do in the model and word-timing rows", async () => {

@@ -2,7 +2,7 @@ import { SessionGroup } from "../../system/SessionGroup";
 import { SourceCard } from "../../system/SourceCard";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 
-export type SessionSourcesProps = {
+type SessionSourcesProps = {
   session: PrepareSession;
   /** Position of the session's first card among all cards, so "Voice N" is unique. */
   firstIndex: number;

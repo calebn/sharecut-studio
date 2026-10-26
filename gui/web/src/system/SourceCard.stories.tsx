@@ -39,7 +39,7 @@ const meta: Meta<typeof SourceCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, Remove and More. A card that sounds like several people asks "One recording of several people?" and adds the voice count (2 to 8, with the reason shown at each limit) and Split (`canSplit`, on by default only for that state). Remove, Split, Replace audio and Move carry the card name for assistive tech ("Remove Maya"). More holds Replace audio, Merge, and Move up and Move down, the keyboard way to reorder tracks. While `splitting` the card shows progress with Cancel splitting. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
+          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, Remove and More. A card that sounds like several people asks "One recording of several people?" and adds the voice count (2 to 8, with the reason shown at each limit) and Split (`canSplit`, on by default only for that state). Remove, Split, Fewer and More voices, Speaker name, Try again, Details, Cancel splitting, Replace audio and Move carry the card name for assistive tech ("Remove Maya"). More holds Replace audio, Merge, and Move up and Move down, the keyboard way to reorder tracks. While `splitting` the card shows progress with Cancel splitting. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
       },
     },
   },
@@ -71,7 +71,7 @@ export const NeedsName: Story = {
     await expect(
       canvas.getByRole("button", { name: "Hear voice 2" }),
     ).toBeVisible();
-    await userEvent.type(canvas.getByLabelText("Speaker name"), "Maya");
+    await userEvent.type(canvas.getByLabelText(/^Speaker name/), "Maya");
     await expect(
       canvas.getByRole("button", { name: "Hear Maya" }),
     ).toBeVisible();
@@ -119,7 +119,7 @@ export const StepperLimits: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Eight is the most")).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: "More voices" }),
+      canvas.getByRole("button", { name: /^More voices/ }),
     ).toHaveAttribute("aria-disabled", "true");
   },
 };
@@ -150,7 +150,7 @@ export const Splitting: Story = {
       canvas.getByRole("progressbar", { name: "Finding voices" }),
     ).toHaveAttribute("aria-valuenow", "40");
     await userEvent.click(
-      canvas.getByRole("button", { name: "Cancel splitting" }),
+      canvas.getByRole("button", { name: /^Cancel splitting/ }),
     );
     await expect(args.onCancelSplit).toHaveBeenCalledOnce();
   },

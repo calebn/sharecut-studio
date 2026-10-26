@@ -25,10 +25,10 @@ describe("SourceCard", () => {
     render(<Card voices={4} canSplit onMoveUp={vi.fn()} />);
     expect(screen.getByRole("region", { name: "Voice 2" })).toBeVisible();
     const order = [
-      "Speaker name",
+      "Speaker name for voice 2",
       "Hear voice 2",
-      "Fewer voices",
-      "More voices",
+      "Fewer voices for voice 2",
+      "More voices for voice 2",
       "Split voice 2",
       "Remove voice 2",
       "More for voice 2",
@@ -44,7 +44,7 @@ describe("SourceCard", () => {
     expect(screen.getByRole("button", { name: /^Hear/ })).toHaveAccessibleName(
       "Hear voice 2",
     );
-    await userEvent.type(screen.getByLabelText("Speaker name"), "Maya");
+    await userEvent.type(screen.getByLabelText(/^Speaker name/), "Maya");
     expect(screen.getByRole("button", { name: /^Hear/ })).toHaveAccessibleName(
       "Hear Maya",
     );
@@ -90,16 +90,16 @@ describe("SourceCard", () => {
     const group = screen.getByRole("group", { name: "Number of voices" });
     expect(group).toBeVisible();
     expect(screen.getByText("Two is the fewest")).toBeVisible();
-    const fewer = screen.getByRole("button", { name: "Fewer voices" });
+    const fewer = screen.getByRole("button", { name: /^Fewer voices/ });
     expect(fewer).toHaveAttribute("aria-disabled", "true");
     expect(fewer).not.toBeDisabled();
     expect(fewer).toHaveAccessibleDescription("Two is the fewest");
     expect(
-      screen.getByRole("button", { name: "More voices" }),
+      screen.getByRole("button", { name: /^More voices/ }),
     ).not.toHaveAttribute("aria-describedby");
     await userEvent.click(fewer);
     expect(onVoices).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "More voices" }));
+    await userEvent.click(screen.getByRole("button", { name: /^More voices/ }));
     expect(onVoices).toHaveBeenCalledWith(3);
     rerender(
       <SourceCard
@@ -116,9 +116,9 @@ describe("SourceCard", () => {
     );
     expect(screen.getByText("Eight is the most")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "More voices" }),
+      screen.getByRole("button", { name: /^More voices/ }),
     ).toHaveAccessibleDescription("Eight is the most");
-    await userEvent.click(screen.getByRole("button", { name: "More voices" }));
+    await userEvent.click(screen.getByRole("button", { name: /^More voices/ }));
     expect(onVoices).toHaveBeenCalledTimes(1);
     expect(group.querySelector("output")).toHaveTextContent("8");
     expect(group.querySelector("output")).toHaveAttribute(
@@ -150,6 +150,14 @@ describe("SourceCard", () => {
     expect(screen.getByText(text)).toBeVisible();
   });
 
+  it("says the upload bar in words", () => {
+    render(<Card state="uploading" progress={0.62} />);
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuetext",
+      "62 percent",
+    );
+  });
+
   it("reads voice time as audio, never a share", () => {
     render(<Card state="needs-name" />);
     expect(screen.getByText("5:11 of audio")).toBeVisible();
@@ -168,8 +176,8 @@ describe("SourceCard", () => {
       />,
     );
     expect(screen.getByText("This file has no audio in it.")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Try again/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Details/ }));
     expect(onRetry).toHaveBeenCalled();
     expect(onDetails).toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /^Hear/ })).toBeNull();
@@ -280,7 +288,7 @@ describe("SourceCard", () => {
     expect(screen.queryByRole("button", { name: /^Split/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^More for/ })).toBeNull();
     await userEvent.click(
-      screen.getByRole("button", { name: "Cancel splitting" }),
+      screen.getByRole("button", { name: /^Cancel splitting/ }),
     );
     expect(onCancelSplit).toHaveBeenCalledOnce();
   });

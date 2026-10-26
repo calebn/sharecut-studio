@@ -3,7 +3,7 @@ import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Menu, MenuItem } from "../../ui";
 
-export type ScrubParam = {
+type ScrubParam = {
   kind: "scrub";
   id: string;
   label: string;
@@ -18,7 +18,7 @@ export type ScrubParam = {
   unit: readonly [singular: string, plural: string];
 };
 
-export type LanguageParam = {
+type LanguageParam = {
   kind: "language";
   id: string;
   label: string;
@@ -28,7 +28,7 @@ export type LanguageParam = {
   options: readonly { value: string; label: string }[];
 };
 
-export type StepParam = ScrubParam | LanguageParam;
+type StepParam = ScrubParam | LanguageParam;
 
 export type AdvancedStep = {
   id: string;
@@ -48,7 +48,7 @@ export type AdvancedGroup = {
   steps: readonly AdvancedStep[];
 };
 
-export type RunningStep = {
+type RunningStep = {
   title: string;
   detail?: string;
   progress?: number;

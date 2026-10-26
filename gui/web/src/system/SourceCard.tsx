@@ -135,6 +135,7 @@ export function SourceCard({
           <input
             {...control}
             type="text"
+            aria-label={`Speaker name for voice ${index}`}
             autoComplete="off"
             value={name}
             onChange={(event) => onName(event.target.value)}
@@ -149,6 +150,7 @@ export function SourceCard({
           title="Uploading"
           progress={progress ?? 0}
           detail={`${percentOf(progress)}%`}
+          valueText={`${percentOf(progress)} percent`}
         />
       ) : null}
       {state === "probing" ? (
@@ -187,7 +189,11 @@ export function SourceCard({
           progress={progress ?? 0}
           action={
             onCancelSplit
-              ? { label: "Cancel splitting", onAction: onCancelSplit }
+              ? {
+                  label: "Cancel splitting",
+                  name: `Cancel splitting ${who}`,
+                  onAction: onCancelSplit,
+                }
               : undefined
           }
         />
@@ -198,7 +204,13 @@ export function SourceCard({
           state="failed"
           title={cause ?? "Could not read this file"}
           action={
-            onRetry ? { label: "Try again", onAction: onRetry } : undefined
+            onRetry
+              ? {
+                  label: "Try again",
+                  name: `Try again for ${who}`,
+                  onAction: onRetry,
+                }
+              : undefined
           }
         />
       ) : null}
@@ -227,7 +239,7 @@ export function SourceCard({
                   >
                     <Button
                       className="sys-stepper-button"
-                      aria-label="Fewer voices"
+                      aria-label={`Fewer voices for ${who}`}
                       aria-disabled={atFewest || undefined}
                       aria-describedby={atFewest ? reasonId : undefined}
                       onClick={
@@ -245,7 +257,7 @@ export function SourceCard({
                     </output>
                     <Button
                       className="sys-stepper-button"
-                      aria-label="More voices"
+                      aria-label={`More voices for ${who}`}
                       aria-disabled={atMost || undefined}
                       aria-describedby={atMost ? reasonId : undefined}
                       onClick={
@@ -272,7 +284,9 @@ export function SourceCard({
       ) : null}
       <div className="sys-source-actions">
         {state === "failed" && onDetails ? (
-          <Button onClick={onDetails}>Details</Button>
+          <Button onClick={onDetails} aria-label={`Details for ${who}`}>
+            Details
+          </Button>
         ) : null}
         <Button onClick={onRemove} aria-label={`Remove ${who}`}>
           <SystemIcon name="trash-2" size={14} />

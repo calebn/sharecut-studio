@@ -173,7 +173,7 @@ export const Prompt: Story = {
     await expect(
       canvas.getAllByText("One recording of several people?"),
     ).toHaveLength(1);
-    await userEvent.click(canvas.getByRole("button", { name: "More voices" }));
+    await userEvent.click(canvas.getByRole("button", { name: /^More voices/ }));
     await expect(
       canvas.getByRole("group", { name: "Number of voices" }),
     ).toHaveTextContent("4");
@@ -205,7 +205,10 @@ export const NameVoices: Story = {
     await expect(
       canvas.getByRole("button", { name: "Hear voice 2" }),
     ).toBeVisible();
-    await userEvent.type(canvas.getAllByLabelText("Speaker name")[1], "Anneke");
+    await userEvent.type(
+      canvas.getAllByLabelText(/^Speaker name/)[1],
+      "Anneke",
+    );
     await expect(
       canvas.getByRole("button", { name: "Hear Anneke" }),
     ).toBeVisible();

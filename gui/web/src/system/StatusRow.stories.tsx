@@ -73,11 +73,19 @@ export const Failed: Story = {
     state: "failed",
     title: "Upload stopped",
     detail: "Rosa, take 2",
+    details:
+      "The connection dropped at 38 percent. The file is safe on this computer.",
     action: { label: "Try again", onAction: fn() },
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Failed")).toBeInTheDocument();
+    const details = canvas.getByRole("button", {
+      name: "Details for Upload stopped",
+    });
+    await expect(details).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(details);
+    await expect(canvas.getByText(/connection dropped/)).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
     await expect(args.action?.onAction).toHaveBeenCalledOnce();
   },
