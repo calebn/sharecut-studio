@@ -1264,14 +1264,19 @@ test.describe("record lobby", () => {
           // The window is the host recording clock read before and after the press
           // (so it already widens with the measured round trip on a loaded runner),
           // plus the ±0.25 s landing contract from docs/recording-session.md.
+          const sessionPrefix = `rec-${room.session_id}-`;
+          const priorEnds = saved.timeline.clips
+            .filter((c) => !(c.source_id ?? "").startsWith(sessionPrefix))
+            .map((c) => c.timeline_start + c.source_end - c.source_start);
+          const origin = priorEnds.length ? Math.max(...priorEnds) + 2 : 0;
           const landedNear = (body: string, fromMs: number, toMs: number) => {
             const comment = byBody(body);
             expect(comment, `review comment ${body}`).toBeTruthy();
             expect(comment?.timeline_start).toBeGreaterThanOrEqual(
-              fromMs / 1000 - 0.25,
+              origin + fromMs / 1000 - 0.25,
             );
             expect(comment?.timeline_start).toBeLessThanOrEqual(
-              toMs / 1000 + 0.25,
+              origin + toMs / 1000 + 0.25,
             );
           };
           landedNear("Marker", markerFrom, markerTo);
