@@ -1622,11 +1622,10 @@ class FFmpegEngine:
     ) -> list[str]:
         """Sum each segment's ``fill_path`` under it; returns the fill inputs' ffmpeg args.
 
-        A fill input is a WAV on the audio-relative clock. It is read through a lead-free
-        ``MediaSeek`` over the same bounds and trimmed to the same range, so it lands on the
-        same samples as its media. The
-        sum is converted back to the media decoder's sample format, so where the fill
-        is digital silence every later filter sees exactly the samples it would
+        A fill input is a WAV on the audio-relative clock, so it is read through a lead-free
+        ``MediaSeek`` over the same bounds and trimmed to the same range, and both land on
+        the same samples. The sum is converted back to the media decoder's sample format, so
+        where the fill is digital silence every later filter sees exactly the samples it would
         without the fill.
         """
         groups: dict[tuple[Path, Path], list[int]] = {}
