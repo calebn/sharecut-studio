@@ -70,8 +70,7 @@ ASR_CACHE_VARIANTS = 2
 ASR_CACHE_LOCK_TIMEOUT_SEC = 10.0
 
 _T = TypeVar("_T")
-# What CTranslate2 raises when the GPU, its driver or the CUDA libraries are the problem. A bare
-# "out of memory" is left out: it is also what the host says, and the CPU needs more host memory.
+# A bare "out of memory" is left out: the host raises it too, and the CPU needs more host memory.
 _GPU_ERROR = re.compile(r"cuda|cublas|cudnn|\bgpu\b", re.IGNORECASE)
 
 # ``forced_alignment_jobs`` statuses where the aligner's times replaced Whisper's
@@ -527,7 +526,7 @@ class TranscriptionEngine:
             try:
                 self._model = self._load_model(WhisperModel, model_path, placement)
             except Exception as exc:
-                # No text gate: a compute-type ValueError names no CUDA library, and the CPU retry re-raises a real weights error.
+                # No text gate: a compute-type error names no CUDA library.
                 if placement.device == "cpu" or isinstance(exc, ModelMissing | CancelledProgress):
                     raise
                 self._fall_back_to_cpu(f"the GPU model would not load ({exc})", exc)

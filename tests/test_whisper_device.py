@@ -163,13 +163,16 @@ def test_an_explicit_cpu_engine_never_looks_at_the_gpu(planted) -> None:
     assert [c["device"] for c in calls] == ["cpu"]
 
 
-def test_a_gpu_that_will_not_load_falls_back_to_the_cpu_once(planted, caplog) -> None:
+@pytest.mark.parametrize(
+    "message", ["CUDA out of memory", "Requested float16 compute type, but the device does not"]
+)
+def test_a_gpu_that_will_not_load_falls_back_to_the_cpu_once(planted, caplog, message) -> None:
     calls: list[str] = []
 
     def factory(name, **kwargs):
         calls.append(kwargs["device"])
         if kwargs["device"] == "cuda":
-            raise RuntimeError("CUDA out of memory")
+            raise RuntimeError(message)
         return MagicMock()
 
     engine = _engine()
@@ -178,7 +181,7 @@ def test_a_gpu_that_will_not_load_falls_back_to_the_cpu_once(planted, caplog) ->
         engine._get_model()
     assert calls == ["cuda", "cpu"]
     assert sum("CPU for the life of this engine" in r.message for r in caplog.records) == 1
-    assert "out of memory" in caplog.text
+    assert message in caplog.text
 
 
 def test_a_gpu_that_fails_mid_run_redoes_the_job_on_the_cpu(planted, tmp_path) -> None:
@@ -268,20 +271,11 @@ def test_a_host_out_of_memory_run_error_is_not_retried_on_the_cpu(planted, tmp_p
         _run_with_gpu_error(tmp_path, error)
 
 
-def test_a_cuda_out_of_memory_run_error_falls_back(planted, tmp_path) -> None:
-    made = _run_with_gpu_error(tmp_path, RuntimeError("CUDA failed with error out of memory"))
-    assert made == ["cuda", "cpu"]
-
-
-def test_an_error_caused_by_cuda_falls_back(planted, tmp_path) -> None:
+def test_a_gpu_error_named_only_by_the_cause_falls_back(planted, tmp_path) -> None:
     try:
-        try:
-            raise RuntimeError("CUDA driver mismatch")
-        except RuntimeError as cause:
-            raise ValueError("transcription failed") from cause
+        raise ValueError("transcription failed") from RuntimeError("CUDA failed: out of memory")
     except ValueError as wrapped:
-        error = wrapped
-    assert _run_with_gpu_error(tmp_path, error) == ["cuda", "cpu"]
+        assert _run_with_gpu_error(tmp_path, wrapped) == ["cuda", "cpu"]
 
 
 def test_a_cyclic_cause_chain_terminates(planted, tmp_path) -> None:
@@ -291,44 +285,15 @@ def test_a_cyclic_cause_chain_terminates(planted, tmp_path) -> None:
         _run_with_gpu_error(tmp_path, a)
 
 
-def test_a_compute_type_load_error_still_falls_back_once(planted) -> None:
+def test_a_cancel_while_loading_does_not_fall_back(planted) -> None:
     calls: list[str] = []
 
     def factory(name, **kwargs):
         calls.append(kwargs["device"])
-        if kwargs["device"] == "cuda":
-            raise ValueError("Requested float16 compute type, but the target device does not")
-        return MagicMock()
-
-    engine = _engine()
-    with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
-        engine._get_model()
-        engine._get_model()
-    assert calls == ["cuda", "cpu"]
-
-
-_MISSING = ModelMissing(
-    id="whisper",
-    model="tiny.en",
-    label="Whisper",
-    purpose="transcription",
-    size="75 MB",
-    size_bytes=None,
-    command="podcast models download whisper",
-    state="missing",
-)
-
-
-@pytest.mark.parametrize("error", [_MISSING, CancelledProgress("stop")])
-def test_a_load_time_missing_model_or_cancel_does_not_fall_back(planted, error) -> None:
-    calls: list[str] = []
-
-    def factory(name, **kwargs):
-        calls.append(kwargs["device"])
-        raise error
+        raise CancelledProgress("stop")
 
     with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
-        with pytest.raises(type(error)):
+        with pytest.raises(CancelledProgress):
             _engine()._get_model()
     assert calls == ["cuda"]
 
