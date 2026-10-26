@@ -1940,3 +1940,39 @@ def test_open_old_guest_socket_closes_after_remint(
             for _ in range(200):
                 sock.receive_json()
         assert closed.value.code == 4403
+
+
+def test_room_tone_round_reaches_guests_and_guests_cannot_request_it(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    with client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as guest:
+        _join(guest, name="Ava")
+        _drain_until(guest, lambda m: m.get("type") == "Snapshot")
+        guest.send_json(
+            {
+                "type": "Record",
+                "command_type": "RoomToneCountdown",
+                "payload": {},
+                "client_seq": 2,
+            }
+        )
+        err = _drain_until(guest, lambda m: m.get("type") == "Error")
+        assert err["code"] == "forbidden"
+        posted = client.post(
+            "/api/record/command",
+            json={"path": str(ws.path), "command_type": "RoomToneCountdown", "payload": {}},
+        )
+        assert posted.status_code == 200, posted.text
+        applied = _drain_until(
+            guest,
+            lambda m: (
+                m.get("type") == "Applied"
+                and (m.get("snapshot") or {}).get("room_tone") is not None
+            ),
+        )
+        snap = applied["snapshot"]
+        assert snap["room_tone"]["round"] == 1
+        assert snap["room_tone"]["duration_ms"] == 3000
+        assert 0 < snap["countdown_left_ms"] <= 3000
+        assert snap["state"] == "lobby"

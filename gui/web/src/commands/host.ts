@@ -284,6 +284,9 @@ export function registerHostCommands(): void {
   });
 
   registerCommand("record.start", () => runRecordTransportCommand("Start"));
+  registerCommand("record.roomTone", () =>
+    runRecordTransportCommand("RoomToneCountdown"),
+  );
   registerCommand("record.pause", () => runRecordTransportCommand("Pause"));
   registerCommand("record.resume", () => runRecordTransportCommand("Resume"));
   registerCommand("record.stop", () => runRecordTransportCommand("Stop"));

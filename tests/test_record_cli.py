@@ -13,6 +13,7 @@ from podcast_mcp.mcp.tools.record import (
     record_marker_tool,
     record_pause_tool,
     record_resume_tool,
+    record_room_tone_tool,
     record_start_tool,
     record_state_tool,
     record_stop_tool,
@@ -215,3 +216,47 @@ def test_record_marker_cli_and_mcp_stamp_the_open_take(
     assert sorted(r["body"] for r in rows) == ["Marker", "Retake intro"]
     assert tool_marker["marker_id"] in {r["comment_id"] for r in rows}
     assert {r["take_index"] for r in rows} == {0}
+
+
+def test_record_room_tone_cli_and_mcp_announce_a_round(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    _consented_room(ws)
+    runner = CliRunner()
+    host = RecordSessionService(
+        ws.project, session_id=RecordSessionService.active_session_id(ws.project)
+    )
+    host.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="record-join:host",
+        connection_id="c0",
+    )
+    first = runner.invoke(cli_app, ["record", "room-tone", "--project", str(minimal_project)])
+    assert first.exit_code == 0, first.output
+    payload = json.loads(first.output)
+    assert payload["room_tone"]["round"] == 1
+    assert payload["room_tone"]["duration_ms"] == 3000
+    assert 0 < payload["countdown_left_ms"] <= 3000
+    again = json.loads(record_room_tone_tool(str(minimal_project)))
+    assert again["room_tone"]["round"] == 2
+    assert json.loads(record_state_tool(str(minimal_project)))["room_tone"]["round"] == 2
+    assert json.loads(record_start_tool(str(minimal_project)))["state"] == "recording"
+    refused = runner.invoke(cli_app, ["record", "room-tone", "--project", str(minimal_project)])
+    assert refused.exit_code == 1
+    assert "Stop the take first" in refused.output
+    with pytest.raises(RecordStateError):
+        RecordControlService(ws).room_tone_countdown()
+
+
+def test_record_room_tone_tool_is_registered() -> None:
+    from mcp.server import MCPServer
+
+    from podcast_mcp.mcp.tools import record as record_tools
+
+    mcp = MCPServer("t")
+    record_tools.register(mcp)
+    assert "record_room_tone_tool" in {t.name for t in mcp._tool_manager.list_tools()}

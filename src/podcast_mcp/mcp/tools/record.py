@@ -42,6 +42,11 @@ def record_stop_tool(project_path: str) -> str:
     return json.dumps(_ctrl(project_path).stop(), indent=2)
 
 
+def record_room_tone_tool(project_path: str) -> str:
+    """Host Room tone: tell every recorded device to capture 3 s of room tone now (lobby or stopped only)."""
+    return json.dumps(_ctrl(project_path).room_tone_countdown(), indent=2)
+
+
 def record_marker_tool(project_path: str, body: str = "Marker") -> str:
     """Host Marker: stamp the open take now; record_land_tool lands it as a comment."""
     return json.dumps(_ctrl(project_path).marker(body), indent=2)
@@ -64,6 +69,7 @@ def register(mcp: MCPServer) -> None:
     mcp.tool()(record_pause_tool)
     mcp.tool()(record_resume_tool)
     mcp.tool()(record_stop_tool)
+    mcp.tool()(record_room_tone_tool)
     mcp.tool()(record_marker_tool)
     mcp.tool()(record_land_tool)
     mcp.tool()(record_discard_take_tool)

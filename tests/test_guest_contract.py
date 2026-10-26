@@ -708,6 +708,7 @@ RECORD_WS_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
     "Pause": {},
     "Resume": {},
     "Stop": {},
+    "RoomToneCountdown": {},
     "RemoveParticipant": {"participant_id": "p1"},
     "UpdateName": {"display_name": "Guest"},
     "Comment": {"id": "live-c1", "body": "comment"},

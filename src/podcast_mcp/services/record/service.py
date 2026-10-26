@@ -48,6 +48,7 @@ from podcast_mcp.services.record.state import (
     guest_upload_consented,
     recording_ms,
     recording_ms_at,
+    room_tone_countdown_left_ms,
     start_blockers,
     take_containing_wall,
 )
@@ -456,6 +457,7 @@ class RecordSessionService:
         now_ms = now_ns // 1_000_000
         out = snap.model_dump()
         out["recording_ms"] = recording_ms(snap, now_wall_ms=now_ms)
+        out["countdown_left_ms"] = room_tone_countdown_left_ms(snap, now_wall_ms=now_ms)
         out["start_blockers"] = start_blockers(snap)
         out["server_time_ns"] = now_ns
         out["timeline_start_sec"] = None

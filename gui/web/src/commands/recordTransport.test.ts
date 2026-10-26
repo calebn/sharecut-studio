@@ -23,6 +23,7 @@ const TRANSPORT_COMMANDS = [
   ["record.pause", "Pause"],
   ["record.resume", "Resume"],
   ["record.stop", "Stop"],
+  ["record.roomTone", "RoomToneCountdown"],
 ] as const;
 
 describe("record transport command failures", () => {

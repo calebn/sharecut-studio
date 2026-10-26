@@ -479,6 +479,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["capture", "mic", "microphone"],
     when: "canManageProjects",
   },
+  "record.roomTone": {
+    id: "record.roomTone",
+    category: "ui",
+    label: "Capture room tone",
+    keywords: ["quiet", "noise", "silence"],
+    when: "canManageProjects",
+    notes: "Ask every recorded device to capture 3 s of room tone (lobby or stopped)",
+  },
   "record.pause": {
     id: "record.pause",
     category: "ui",

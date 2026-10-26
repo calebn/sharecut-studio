@@ -1592,6 +1592,36 @@
       }
     },
     {
+      "id": "daw.record.roomTone",
+      "label": "Capture room tone",
+      "effect": "project",
+      "service": "RecordSessionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.roomTone",
+        "gui": [
+          "RecordPanel"
+        ],
+        "cli": "podcast record room-tone",
+        "mcp": [
+          "record_room_tone_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Capture room tone",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.record.pause",
       "label": "Pause recording",
       "effect": "project",

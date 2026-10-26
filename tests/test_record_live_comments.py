@@ -785,6 +785,7 @@ def test_every_record_command_type_journals_inside_one_write_transaction(
     svc.submit(_cmd("HeadphonesAck", payload={"ok": True}), now_wall_ms=0)
     svc.submit(_cmd("Heartbeat"), now_wall_ms=0)
     svc.submit(_cmd("UpdateName", payload={"display_name": "Host 2"}), now_wall_ms=0)
+    svc.submit(_cmd("RoomToneCountdown"), now_wall_ms=0)
     svc.submit(_cmd("Start"), now_wall_ms=0)
     svc.submit(_guest_comment(guest, "all-types", 10_000), now_wall_ms=20_000, capabilities=caps)
     svc.submit(_cmd("Pause"), now_wall_ms=30_000)

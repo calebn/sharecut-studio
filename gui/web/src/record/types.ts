@@ -55,6 +55,13 @@ export type TakeState = {
   consented_participant_ids: string[];
 };
 
+export type RoomToneRound = {
+  round: number;
+  requested_wall_ms: number;
+  duration_ms: number;
+  participant_ids: string[];
+};
+
 /** Why host Start is refused (server `start_blockers`); the panel words each one. */
 export type StartBlocker =
   | { code: "no_recorder" }
@@ -68,6 +75,9 @@ export type RecordSnapshot = {
   /** Derived current take origin; null outside recording/paused. */
   timeline_start_sec?: number | null;
   start_blockers?: StartBlocker[];
+  room_tone?: RoomToneRound | null;
+  /** Ms left of the current room-tone round at snapshot time; count down locally from it. */
+  countdown_left_ms?: number;
   participants: RecordParticipant[];
   caps: { recorded: number; producers: number };
   server_time_ns?: number;
