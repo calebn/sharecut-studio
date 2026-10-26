@@ -90,6 +90,7 @@ export function StatusRow({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percentOf(progress)}
+          aria-valuetext={detail}
         >
           <span style={{ inlineSize: `${clampUnit(progress) * 100}%` }} />
         </div>
