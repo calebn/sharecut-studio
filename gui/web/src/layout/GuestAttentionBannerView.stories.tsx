@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { offlineConflict } from "../test/fixtures";
+import { episodeBeforeEach } from "../test/withEpisode";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { dawShellStoryDecorator } from "./dawShellStoryDecorator";
@@ -118,6 +119,10 @@ export const PhoneManyConflicts: Story = {
 };
 
 export const RefineWaiver: Story = {
+  beforeEach: episodeBeforeEach,
+  parameters: {
+    episode: { responses: { "POST /api/transcript/refine/waive": {} } },
+  },
   args: {
     refineWaiverProject: "/episodes/mira/episode.project.json",
     conflicts: [
@@ -144,6 +149,18 @@ export const RefineWaiver: Story = {
     await expect(
       await banner.findByText(
         "A reason is required to waive transcript refinement.",
+      ),
+    ).toBeVisible();
+    await userEvent.type(
+      banner.getByLabelText("Waiver reason"),
+      "Host approved the raw transcript",
+    );
+    await userEvent.click(
+      banner.getByRole("button", { name: "Waive with reason" }),
+    );
+    await expect(
+      await banner.findByText(
+        "Waiver recorded. Retry approval to apply pending edits.",
       ),
     ).toBeVisible();
   },

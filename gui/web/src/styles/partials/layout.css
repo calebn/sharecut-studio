@@ -269,9 +269,13 @@ html[data-shell="phone"] .guest-attention-dismiss {
   font-style: italic;
 }
 
-/* The danger red is 3.9:1 on the attention amber in the dark theme. */
+/* The danger red is 3.9:1 on the attention amber in the dark theme: too low
+   for text, enough for the rule that marks the line as an error. */
 .guest-attention .pipeline-error {
   color: var(--color-text-primary);
+  font-weight: 600;
+  border-inline-start: 0.1875rem solid var(--color-danger);
+  padding-inline-start: var(--space-3);
 }
 
 .daw-main {
