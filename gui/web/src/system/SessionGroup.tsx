@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { clampUnit, percentOf } from "./progress";
 import { type SessionTarget, SessionTargetChip } from "./SessionTargetChip";
 import { StageHandoff, type StageHandoffProps } from "./StageHandoff";
 import { StatusGlyph } from "./StatusGlyph";
@@ -19,7 +20,8 @@ export type SessionGroupProps = {
   progress?: number;
   /** The takes. Empty groups say so. */
   children?: ReactNode;
-  handoff: Pick<
+  /** Omit when the stage owns the one hand-off (Prepare). */
+  handoff?: Pick<
     StageHandoffProps,
     "stage" | "label" | "onActivate" | "disabledReason"
   >;
@@ -43,7 +45,7 @@ export function SessionGroup({
   children,
   handoff,
 }: SessionGroupProps) {
-  const percent = Math.round(progress * 100);
+  const percent = percentOf(progress);
   const statusText =
     status === "running"
       ? `Transcribing, ${percent}%`
@@ -65,7 +67,7 @@ export function SessionGroup({
                 ? "failed"
                 : "not-yet"
         }
-        progress={status === "running" ? progress : undefined}
+        progress={status === "running" ? clampUnit(progress) : undefined}
       />
       <span className="sys-group-status-text">{statusText}</span>
     </>
@@ -107,13 +109,15 @@ export function SessionGroup({
           <p className="sys-group-empty">No takes yet. Add audio to start.</p>
         )}
       </div>
-      <footer className="sys-group-footer">
-        <StageHandoff
-          {...handoff}
-          size={48}
-          variant={status === "done" ? "primary" : "secondary"}
-        />
-      </footer>
+      {handoff ? (
+        <footer className="sys-group-footer">
+          <StageHandoff
+            {...handoff}
+            size={48}
+            variant={status === "done" ? "primary" : "secondary"}
+          />
+        </footer>
+      ) : null}
     </section>
   );
 }

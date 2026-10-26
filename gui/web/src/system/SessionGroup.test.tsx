@@ -101,4 +101,22 @@ describe("SessionGroup", () => {
       button,
     );
   });
+
+  it("renders no footer or hand-off when the stage owns it", () => {
+    render(<Group handoff={undefined} />);
+    expect(screen.queryByRole("button", { name: "Open in Edit" })).toBeNull();
+    expect(document.querySelector("footer")).toBeNull();
+    expect(screen.getByText("Takes here")).toBeVisible();
+  });
+
+  it.each([
+    [-0.2, "0", "Transcribing, 0%"],
+    [1.4, "100", "Transcribing, 100%"],
+    [Number.NaN, "0", "Transcribing, 0%"],
+  ])("holds progress %s to 0..100", (progress, now, text) => {
+    render(<Group status="running" progress={progress} />);
+    const bar = screen.getByRole("progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", now);
+    expect(bar).toHaveAttribute("aria-valuetext", text);
+  });
 });

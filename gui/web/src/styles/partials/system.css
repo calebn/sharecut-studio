@@ -2585,3 +2585,29 @@
     min-block-size: 2.5rem;
   }
 }
+
+/* Start tile, 240 (empty Prepare) */
+
+.sys-start--240 {
+  min-block-size: 15rem;
+}
+
+/* Status list */
+
+.sys-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sys-status-item {
+  margin: 0;
+  padding: 0;
+}
+
+.sys-status-list .sys-status-list {
+  gap: 0;
+}

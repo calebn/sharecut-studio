@@ -1,6 +1,7 @@
 import { type ReactNode, useId } from "react";
 import { Button } from "../ui";
 import type { SystemIconName } from "./icons";
+import { clampUnit, percentOf } from "./progress";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
 import type { StatusState } from "./statusText";
@@ -25,7 +26,7 @@ export type StatusRowProps = {
   title: string;
   /** Numbers and plain detail: "3 of 5 sources". */
   detail?: string;
-  /** 0 to 1, shown as a 4 px bar while running. */
+  /** 0 to 1 (held to that range), shown as a 4 px bar while running. */
   progress?: number;
   /** At most one action. */
   action?: { label: string; icon?: SystemIconName; onAction: () => void };
@@ -88,9 +89,9 @@ export function StatusRow({
           aria-label={title}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(progress * 100)}
+          aria-valuenow={percentOf(progress)}
         >
-          <span style={{ inlineSize: `${progress * 100}%` }} />
+          <span style={{ inlineSize: `${clampUnit(progress) * 100}%` }} />
         </div>
       ) : null}
       {expandable && expanded ? (
