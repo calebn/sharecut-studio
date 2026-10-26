@@ -12,7 +12,15 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import cut_application, cut_policy, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
 from podcast_mcp.edits.cut_speech import LaneSourceExtent
-from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+)
 from source_review_helpers import _cut
 
 SR = 16_000
@@ -264,4 +272,16 @@ def test_the_policy_tables_are_part_of_the_key(
     kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     monkeypatch.setattr(cut_policy, "CUT_EDGE_CHECKS", {})
+    assert verdict_cache.verdict_key(project, edit, **kwargs) != base
+
+
+def test_a_changed_word_near_the_cut_changes_the_key(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hello", start=4.6, end=5.0)])
+    ]
+    edit = project.edit_decisions[0]
+    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    base = verdict_cache.verdict_key(project, edit, **kwargs)
+    project.transcripts[0].words[0].text = "hullo"
     assert verdict_cache.verdict_key(project, edit, **kwargs) != base
