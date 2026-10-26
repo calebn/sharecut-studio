@@ -1570,6 +1570,11 @@
   color: var(--color-text-primary);
 }
 
+/* The wrapper clips, so a ring drawn outside the button would vanish; keep it inside. */
+.sys-project :focus-visible {
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
 .sys-project[data-primary] {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
