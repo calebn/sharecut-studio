@@ -26,6 +26,7 @@ from podcast_mcp.util.dsp import (
     BandShape,
     frame_band_filtered_db,
 )
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import track_audio_path
 
 log = logging.getLogger(__name__)
@@ -182,10 +183,11 @@ def track_level_profile(
 
 
 def decode_track(path: Path) -> TrackAudioCache:
-    return TrackAudioCache(
-        jump=TrackRmsCache.from_timeline_stem(path, sample_rate=JUMP_SAMPLE_RATE),
-        waveform=TrackRmsCache.from_timeline_stem(path, sample_rate=WAVEFORM_SAMPLE_RATE),
+    jump, waveform = run_parallel(
+        [JUMP_SAMPLE_RATE, WAVEFORM_SAMPLE_RATE],
+        lambda rate: TrackRmsCache.from_timeline_stem(path, sample_rate=rate),
     )
+    return TrackAudioCache(jump=jump, waveform=waveform)
 
 
 def source_audio_cache(
