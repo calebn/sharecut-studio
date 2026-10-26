@@ -745,7 +745,13 @@ def test_set_target_payload_keeps_the_target_through_parse() -> None:
 def test_guest_project_view_strips_staged_session_suggestions() -> None:
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
-    staged = [{"id": "ss-a", "takes": [{"source_id": "rec-a-0-p-0"}]}]
+    staged = [
+        {
+            "id": "ss-a",
+            "anchor": {"kind": "clip", "track_id": "host", "source_id": "src-host-secret"},
+            "takes": [{"source_id": "rec-a-0-p-0"}],
+        }
+    ]
     view = {
         "project_path": "/host/ep.json",
         "session_suggestions": staged,
@@ -755,6 +761,7 @@ def test_guest_project_view_strips_staged_session_suggestions() -> None:
     assert "session_suggestions" not in out
     assert out["editorial"] == {"chapters": []}
     assert "rec-a-0-p-0" not in json.dumps(out)
+    assert "src-host-secret" not in json.dumps(out)
 
 
 def test_record_signal_fault_crosses_the_registered_socket_boundary(

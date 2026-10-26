@@ -1112,6 +1112,79 @@
           ],
           "type": "object"
         },
+        "InsertAnchor": {
+          "properties": {
+            "at_sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "enum": [
+                "clip",
+                "end"
+              ],
+              "type": "string"
+            },
+            "offset_s": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "side": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "before",
+                    "after"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "kind",
+            "at_sec"
+          ],
+          "type": "object"
+        },
         "MediaAsset": {
           "properties": {
             "channels": {
@@ -2048,6 +2121,17 @@
         },
         "SessionSuggestion": {
           "properties": {
+            "anchor": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InsertAnchor"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "at_sec": {
               "anyOf": [
                 {
@@ -2552,6 +2636,11 @@
             "recording_ms": {
               "minimum": 0,
               "type": "integer"
+            },
+            "timeline_offset_s": {
+              "default": 0.0,
+              "minimum": 0,
+              "type": "number"
             }
           },
           "required": [
@@ -4427,6 +4516,79 @@
           ],
           "type": "object"
         },
+        "InsertAnchor": {
+          "properties": {
+            "at_sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "enum": [
+                "clip",
+                "end"
+              ],
+              "type": "string"
+            },
+            "offset_s": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "side": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "before",
+                    "after"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "kind",
+            "at_sec"
+          ],
+          "type": "object"
+        },
         "MediaAsset": {
           "properties": {
             "channels": {
@@ -5363,6 +5525,17 @@
         },
         "SessionSuggestion": {
           "properties": {
+            "anchor": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InsertAnchor"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "at_sec": {
               "anyOf": [
                 {
@@ -5867,6 +6040,11 @@
             "recording_ms": {
               "minimum": 0,
               "type": "integer"
+            },
+            "timeline_offset_s": {
+              "default": 0.0,
+              "minimum": 0,
+              "type": "number"
             }
           },
           "required": [
@@ -6658,6 +6836,7 @@
     "ExactRangeTarget": "forbid",
     "GateFill": "ignore",
     "HistoryEntry": "ignore",
+    "InsertAnchor": "ignore",
     "MediaAsset": "ignore",
     "MixSection": "ignore",
     "PipelineRun": "ignore",

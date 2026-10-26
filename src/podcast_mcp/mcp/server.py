@@ -145,6 +145,7 @@ from podcast_mcp.mcp.tools.record import (  # noqa: E402, F401
     record_target_tool,
 )
 from podcast_mcp.mcp.tools.review import (  # noqa: E402, F401
+    accept_session_suggestion_tool,
     create_record_room_tool,
     create_review_share_tool,
     list_review_versions_tool,

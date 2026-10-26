@@ -65,7 +65,7 @@ def review_session_suggestions_cmd(
 ) -> None:
     """List record sessions staged for an insert or replace target.
 
-    Accept is not available yet: a staged session cannot reach the timeline.
+    Accept an insert session with accept-session-suggestion; replace sessions cannot be accepted yet.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
@@ -83,10 +83,7 @@ def review_skip_session_suggestion_cmd(
     project: Path = typer.Option(..., "--project"),
     suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
 ) -> None:
-    """Skip a pending staged session. Its recordings stay in the project.
-
-    Accept is not available yet: a staged session cannot reach the timeline.
-    """
+    """Skip a pending staged session. Its recordings stay in the project."""
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project)
@@ -96,6 +93,27 @@ def review_skip_session_suggestion_cmd(
         typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(row, indent=2))
+
+
+@review_app.command("accept-session-suggestion")
+def review_accept_session_suggestion_cmd(
+    project: Path = typer.Option(..., "--project"),
+    suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
+) -> None:
+    """Place a pending insert session on the timeline in one undo step.
+
+    Opens the session's length at its insert point on every dialogue track. Replace sessions
+    cannot be accepted yet.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project)
+    try:
+        result = SessionSuggestionService(ws).accept(suggestion_id)
+    except CodedError as exc:
+        typer.echo(describe_error(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result, indent=2))
 
 
 @review_app.command("set-active")

@@ -1824,6 +1824,32 @@
       }
     },
     {
+      "id": "daw.review.acceptSessionSuggestion",
+      "label": "Accept staged session",
+      "effect": "project",
+      "service": "SessionSuggestionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast review accept-session-suggestion",
+        "mcp": [
+          "accept_session_suggestion_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "Place a staged recorded session on the timeline",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.review.skipSessionSuggestion",
       "label": "Skip staged session",
       "effect": "project",

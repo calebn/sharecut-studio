@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
+from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.comment_remap import shift_review_anchors_for_insert
+from podcast_mcp.edits.comments import add_comment
+from podcast_mcp.edits.insert_anchor import resolve_insert_anchor
+from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip
+from podcast_mcp.edits.ripple import ripple_insert_clips, ripple_track_ids
+from podcast_mcp.engines.track_media import refresh_timeline_duration
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     EpisodeProject,
     SessionSuggestion,
     StagedComment,
     StagedRoomTone,
     StagedTake,
+    TrackRole,
 )
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 
@@ -37,6 +49,11 @@ def list_session_suggestions(
         )
     rows = project.editorial.session_suggestions
     return [row for row in rows if status is None or row.status == status]
+
+
+def staged_span_s(offsets_and_durations: Iterable[tuple[float, float]]) -> float:
+    """Length a staged insert occupies: the latest end of any segment, relative to its anchor."""
+    return max((offset + duration for offset, duration in offsets_and_durations), default=0.0)
 
 
 def staged_take_key(take: StagedTake) -> tuple[int, str, int]:
@@ -163,3 +180,138 @@ def skip_session_suggestion(project: EpisodeProject, suggestion_id: str) -> Sess
         )
     row.status = "skipped"
     return row
+
+
+def _require_pending(row: SessionSuggestion) -> None:
+    if row.status != "pending":
+        raise CodedValueError(
+            f"session suggestion {row.id} is {row.status}, not pending",
+            code="session_suggestion_not_pending",
+        )
+
+
+def _require_dialogue_tracks(project: EpisodeProject, row: SessionSuggestion) -> None:
+    staged = {take.track_id for take in row.takes} | {bed.track_id for bed in row.room_tone}
+    for track_id in sorted(staged):
+        track = project.track_by_id(track_id)
+        if track is not None and track.role != TrackRole.DIALOGUE:
+            raise CodedValueError(
+                f"track {track_id} is a {track.role.value} track, so Session {row.session_number} "
+                "cannot be placed on it. Rename or remove that track, then accept again.",
+                code="track_not_dialogue",
+            )
+
+
+def _land_staged_comment(
+    project: EpisodeProject, comment: StagedComment, at_sec: float
+) -> dict[str, Any] | None:
+    existing = next((item for item in project.comments if item.id == comment.id), None)
+    if existing is not None and existing.author != comment.author:
+        return None
+    placed = add_comment(
+        project,
+        body=comment.body,
+        author=comment.author,
+        timeline_start=at_sec + comment.timeline_offset_s + comment.recording_ms / 1000.0,
+        comment_id=comment.id,
+    )
+    return {"id": placed.id, "timeline_start": placed.timeline_start}
+
+
+def accept_session_suggestion(
+    project: EpisodeProject, suggestion_id: str, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
+    """Open the staged span at the insert point and place the staged takes in it.
+
+    The point is found again from the suggestion's anchor, so edits since staging move it
+    with the audio. Dialogue tracks ripple; other tracks stay where they are and are named in
+    ``unmoved_track_ids``.
+    """
+    row = find_session_suggestion(project, suggestion_id)
+    _require_pending(row)
+    if row.kind != "insert":
+        raise CodedValueError(
+            "Accepting a replace session is not available yet. Skip it, or record it as an insert.",
+            code="accept_replace_unavailable",
+        )
+    span = staged_span_s((take.offset_s, take.duration_s) for take in row.takes)
+    if span <= 0:
+        raise CodedValueError(
+            f"Session {row.session_number} has no recorded takes to accept.",
+            code="session_suggestion_empty",
+        )
+    _require_dialogue_tracks(project, row)
+    if row.anchor is None:
+        raise CodedValueError(
+            "This session has no recorded insert point. Record it again.", code="stale_anchor"
+        )
+    at_sec = resolve_insert_anchor(project, row.anchor)
+    ripple_ids = ripple_track_ids(project)
+    ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
+    shift_review_anchors_for_insert(project, at_sec, span)
+    unmoved = sorted(
+        {
+            clip.track_id
+            for clip in project.clips
+            if clip.track_id not in ripple_ids and clip.timeline_end > at_sec
+        }
+    )
+    placed: list[dict[str, Any]] = []
+    for take in row.takes:
+        source = project.source_by_id(take.source_id)
+        if source is None or source.sample_rate is None or source.channels is None:
+            raise CodedValueError(
+                f"The recording for take {take.take_index} is no longer in the project.",
+                code="staged_source_missing",
+            )
+        clip = place_take_clip(
+            project,
+            track_id=take.track_id,
+            label=take.track_label,
+            source_id=take.source_id,
+            rel=source.path,
+            timeline_s=at_sec + take.offset_s,
+            duration_s=take.duration_s,
+            sample_rate=source.sample_rate,
+            channels=source.channels,
+            previous_rel=None,
+            register_source=False,
+        )
+        placed.append(
+            {
+                "clip_id": clip.id,
+                "track_id": take.track_id,
+                "source_id": take.source_id,
+                "take_index": take.take_index,
+                "segment_index": take.segment_index,
+                "timeline_start": clip.timeline_start,
+                "duration_s": take.duration_s,
+            }
+        )
+    for bed in row.room_tone:
+        place_room_tone(
+            project,
+            track_id=bed.track_id,
+            label=bed.track_label,
+            rel=bed.path,
+            duration_s=bed.duration_s,
+            sample_rate=bed.sample_rate,
+            channels=bed.channels,
+        )
+    comments = [
+        landed
+        for take in row.takes
+        for comment in take.comments
+        if (landed := _land_staged_comment(project, comment, at_sec)) is not None
+    ]
+    refresh_timeline_duration(project)
+    rebuild_combined(project, defaults=defaults)
+    row.status = "accepted"
+    return {
+        "suggestion": row.model_dump(mode="json"),
+        "at_sec": at_sec,
+        "span_s": span,
+        "clips": placed,
+        "comments": comments,
+        "unmoved_track_ids": unmoved,
+    }

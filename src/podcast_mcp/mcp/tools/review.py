@@ -35,8 +35,8 @@ def list_session_suggestions_tool(project_path: str, status: str = "") -> str:
     """List record sessions staged for an insert or replace target.
 
     status: pending, skipped or accepted; empty lists all. A staged session has its recordings
-    registered as sources but nothing on the timeline. Accept is not available yet: a staged
-    session cannot reach the timeline from any surface, and the accepted status is reserved.
+    registered as sources but nothing on the timeline until accept_session_suggestion_tool places
+    it. Only insert sessions can be accepted so far.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
@@ -45,14 +45,25 @@ def list_session_suggestions_tool(project_path: str, status: str = "") -> str:
 
 
 def skip_session_suggestion_tool(project_path: str, suggestion_id: str) -> str:
-    """Skip a pending staged session (one undo step). Refuses one that is not pending.
-
-    Accept is not available yet: a skipped or pending staged session cannot reach the timeline.
-    """
+    """Skip a pending staged session (one undo step). Refuses one that is not pending."""
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project_path)
     return to_json(SessionSuggestionService(ws).skip(suggestion_id))
+
+
+def accept_session_suggestion_tool(project_path: str, suggestion_id: str) -> str:
+    """Place a pending insert session on the timeline (one undo step, "Added Session N").
+
+    Opens the session's length at its insert point on every dialogue track and places its
+    takes, room-tone beds and live comments there. Refuses a session that is not pending, a
+    replace session (not available yet) and one whose insert point is gone (stale_anchor).
+    The result lists non-dialogue tracks that did not move (unmoved_track_ids).
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(SessionSuggestionService(ws).accept(suggestion_id))
 
 
 def set_active_review_version_tool(
@@ -147,6 +158,7 @@ def revoke_record_room_tool(project_path: str, session_id: str) -> str:
 def register_core(mcp: MCPServer) -> None:
     """Local review mix freeze tools (FOSS core - no share minting)."""
     for fn in (
+        accept_session_suggestion_tool,
         publish_review_version_tool,
         list_review_versions_tool,
         list_session_suggestions_tool,

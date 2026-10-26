@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from filelock import FileLock
 
+from podcast_mcp.edits.record_placement import upsert_source
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -31,7 +32,6 @@ from podcast_mcp.services.record.landing import (
     RecordLandingError,
     RecordLandingService,
     RecordTakeOpenError,
-    _upsert_source,
     measure_keeper_drifts,
     purge_session_land_rollbacks,
     release_session_land_lock,
@@ -3900,18 +3900,18 @@ def test_upsert_source_keeps_clipping_on_none_and_clears_on_empty(minimal_projec
         "sample_rate": 48000,
         "channels": 1,
     }
-    src = _upsert_source(
+    src = upsert_source(
         project,
         clipping_regions=[SourceClippingRegion(start_s=0.1, end_s=0.2)],
         clipping_truncated=True,
         **fields,
     )
     # None means "unknown" (recovered or older segment): keep what we had.
-    _upsert_source(project, clipping_regions=None, **fields)
+    upsert_source(project, clipping_regions=None, **fields)
     assert [(r.start_s, r.end_s) for r in src.clipping_regions] == [(0.1, 0.2)]
     assert src.clipping_truncated is True
     # [] means "checked, no clipping": clear.
-    _upsert_source(project, clipping_regions=[], **fields)
+    upsert_source(project, clipping_regions=[], **fields)
     assert src.clipping_regions == []
     assert src.clipping_truncated is False
 

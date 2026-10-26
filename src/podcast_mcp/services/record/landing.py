@@ -16,6 +16,8 @@ from filelock import Timeout as FileLockTimeout
 
 from podcast_mcp.edits.clipping_regions import clipping_regions_from_ms
 from podcast_mcp.edits.comments import add_comment, delete_comment
+from podcast_mcp.edits.insert_anchor import capture_insert_anchor, pending_anchor_holder
+from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip, upsert_source
 from podcast_mcp.edits.session_suggestions import (
     drop_staged_room_tone,
     drop_staged_segment,
@@ -28,24 +30,18 @@ from podcast_mcp.edits.session_suggestions import (
     staged_comment_ids,
     upsert_staged_take,
 )
-from podcast_mcp.engines.clips_ops import new_clip_id
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.room_tone import room_tone_source_id
 from podcast_mcp.engines.track_ids import slug_track_id
 from podcast_mcp.engines.track_media import refresh_timeline_duration
 from podcast_mcp.models import (
-    Clip,
     EpisodeProject,
-    MediaAsset,
+    InsertAnchor,
     RecordSessionRecord,
     SessionSuggestion,
-    SourceClippingRegion,
-    SourceRecording,
     StagedComment,
     StagedRoomTone,
     StagedTake,
-    Track,
-    TrackRole,
 )
 from podcast_mcp.project.history.summary import record_land_title
 from podcast_mcp.services.app import ProjectWorkspace
@@ -212,6 +208,24 @@ class RecordLandingError(CodedError, ValueError):
     """Refuse to land or discard a take."""
 
     code = "record_land_refused"
+
+
+class SessionSuggestionClosedError(RecordLandingError):
+    """A land into a staged session that was accepted or skipped (``code`` ``session_suggestion_closed``)."""
+
+    code = "session_suggestion_closed"
+
+
+class InsertAnchorTakenError(RecordLandingError):
+    """A second pending insert session at one spot (``code`` ``insert_anchor_taken``)."""
+
+    code = "insert_anchor_taken"
+
+
+class TakeAlreadyPlacedError(RecordLandingError):
+    """Discard of a take an accepted session already placed (``code`` ``take_already_placed``)."""
+
+    code = "take_already_placed"
 
 
 class RecordTakeOpenError(RecordLandingError):
@@ -493,6 +507,8 @@ class RecordLandingService:
         with self._land_guard():
             try:
                 return self._land_locked(align=align, drift_ms=drift_ms)
+            except (SessionSuggestionClosedError, InsertAnchorTakenError):
+                raise
             except Exception:
                 self._mark_pending_land_failed()
                 raise
@@ -515,6 +531,7 @@ class RecordLandingService:
         align: AlignFn | None,
         drift_ms: float | None,
         reload: bool = True,
+        session_closed: bool | None = None,
     ) -> dict[str, Any]:
         if reload:
             # Land callers open their workspace before the body read / land lock wait;
@@ -566,6 +583,18 @@ class RecordLandingService:
                 not row.get("landed") or self._room_tone_missing(str(row["participant_id"]), staged)
             )
         ]
+        refuse_closed = session_closed is None
+        closed = staged and (
+            self._suggestion_closed() if session_closed is None else session_closed
+        )
+        if closed and (pending or pending_room_tone):
+            self._refuse_closed(refuse_closed)
+            pending, pending_room_tone = [], []
+        if pending and staged and isinstance(snap.target, InsertTarget):
+            self._refuse_taken_anchor(
+                self.workspace.project,
+                capture_insert_anchor(self.workspace.project, snap.target.at_sec),
+            )
         for row in pending_room_tone:
             acked = self._gate_acked(row, roles, mark=False)
             if acked is None:
@@ -693,6 +722,9 @@ class RecordLandingService:
         ]
         if staged:
             pending_comments = self._unstaged_comments(pending_comments, copied)
+            if closed and pending_comments:
+                self._refuse_closed(refuse_closed)
+                pending_comments = []
         fallback = needs_align_fallback(snap.takes, tombstoned=tombstoned, drift_ms=drift_ms)
         if not copied and not pending_comments and not room_tone_copied:
             return {
@@ -760,7 +792,7 @@ class RecordLandingService:
                 )
                 previous_rel = prior.source.path if prior.source is not None else None
                 if staged:
-                    _upsert_source(
+                    upsert_source(
                         project,
                         source_id=source_id,
                         rel=rel,
@@ -773,9 +805,15 @@ class RecordLandingService:
                     )
                     number = _number_session(project, self.session_id, snap.target)
                     session_params.update(session_number=number, session_first=not landed_before)
-                    suggestion = ensure_session_suggestion(
-                        project, _proposed_suggestion(self.session_id, number, snap.target)
-                    )
+                    suggestion = session_suggestion_for(project, self.session_id)
+                    if suggestion is None:
+                        proposed = _proposed_suggestion(
+                            project, self.session_id, number, snap.target
+                        )
+                        self._refuse_taken_anchor(project, proposed.anchor)
+                        suggestion = ensure_session_suggestion(project, proposed)
+                    elif suggestion.status != "pending":
+                        raise SessionSuggestionClosedError(_closed_message(suggestion))
                     upsert_staged_take(
                         suggestion,
                         StagedTake(
@@ -803,35 +841,21 @@ class RecordLandingService:
                         }
                     )
                     continue
-                _ensure_track(project, track_id, label=str(item["label"]))
-                _upsert_source(
+                clip = place_take_clip(
                     project,
+                    track_id=track_id,
+                    label=str(item["label"]),
                     source_id=source_id,
                     rel=rel,
-                    speaker=str(item["label"]),
+                    timeline_s=float(item["timeline_s"]),
                     duration_s=float(item["duration_s"]),
                     sample_rate=int(item["sample_rate"]),
                     channels=int(item["channels"]),
+                    previous_rel=previous_rel,
                     clipping_regions=item["clipping"],
                     clipping_truncated=bool(item["clipping_truncated"]),
                 )
-                clip = _upsert_clip(
-                    project,
-                    track_id=track_id,
-                    source_id=source_id,
-                    timeline_s=float(item["timeline_s"]),
-                    duration_s=float(item["duration_s"]),
-                )
-                track = project.track_by_id(track_id)
-                if track is not None:
-                    if track.media is None or track.media.path == previous_rel:
-                        track.media = MediaAsset(
-                            path=rel,
-                            duration_sec=float(item["duration_s"]),
-                            sample_rate=int(item["sample_rate"]),
-                            channels=int(item["channels"]),
-                        )
-                    touched.add(track_id)
+                touched.add(track_id)
                 accepted.append({**item, "prior": prior})
                 landed_clips.append(
                     {
@@ -881,18 +905,11 @@ class RecordLandingService:
                     )
                     accepted.append({**item, "prior": prior})
                     continue
-                track = _ensure_track(project, track_id, label=str(item["label"]))
-                track.room_tone = MediaAsset(
-                    path=rel,
-                    duration_sec=float(item["duration_s"]),
-                    sample_rate=int(item["sample_rate"]),
-                    channels=int(item["channels"]),
-                )
-                _upsert_source(
+                place_room_tone(
                     project,
-                    source_id=room_tone_source_id(track_id),
+                    track_id=track_id,
+                    label=str(item["label"]),
                     rel=rel,
-                    speaker=str(item["label"]),
                     duration_s=float(item["duration_s"]),
                     sample_rate=int(item["sample_rate"]),
                     channels=int(item["channels"]),
@@ -911,7 +928,7 @@ class RecordLandingService:
             elif touched:
                 record_invalidation(project, track_ids=sorted(touched), reason="other")
             if staged:
-                held = self._hold_comments(project, pending_comments)
+                held = self._hold_comments(project, pending_comments, offsets, anchor_s)
                 return {
                     "clips": [],
                     "comments": [],
@@ -1019,7 +1036,20 @@ class RecordLandingService:
         prefix = f"rec-{self.session_id}-{take}-"
         comment_ids = self._comments.ids_for_take(self.session_id, take)
 
+        was_closed = [False]
+
         def mutate(project: EpisodeProject) -> None:
+            placed = session_suggestion_for(project, self.session_id)
+            was_closed[0] = placed is not None and placed.status != "pending"
+            if (
+                placed is not None
+                and placed.status == "accepted"
+                and any(row.take_index == take for row in placed.takes)
+            ):
+                raise TakeAlreadyPlacedError(
+                    f"Take {take} is already on the timeline as part of Session "
+                    f"{placed.session_number}. Undo the accept to discard it."
+                )
             drop_ids = {src.id for src in project.sources if src.id.startswith(prefix)}
             drop_tracks = {clip.track_id for clip in project.clips if clip.source_id in drop_ids}
             project.sources = [src for src in project.sources if src.id not in drop_ids]
@@ -1044,7 +1074,9 @@ class RecordLandingService:
         self._upload.tombstone_take(self.session_id, take)
         self._comments.delete_take(self.session_id, take)
         # The discard mutation just re-read and committed the project under the land lock.
-        landed = self._land_locked(align=None, drift_ms=None, reload=False)
+        landed = self._land_locked(
+            align=None, drift_ms=None, reload=False, session_closed=was_closed[0]
+        )
         after_agent_mutation(self.workspace)
         landed["discarded_take"] = take
         return landed
@@ -1061,6 +1093,27 @@ class RecordLandingService:
         source_id = self._landed_source_id(pid, int(row["take_index"]), int(row["segment_index"]))
         return self.workspace.project.source_by_id(source_id) is None
 
+    def _suggestion_closed(self) -> bool:
+        suggestion = session_suggestion_for(self.workspace.project, self.session_id)
+        return suggestion is not None and suggestion.status != "pending"
+
+    def _refuse_closed(self, refuse: bool) -> None:
+        if not refuse:
+            return
+        suggestion = session_suggestion_for(self.workspace.project, self.session_id)
+        if suggestion is not None:
+            raise SessionSuggestionClosedError(_closed_message(suggestion))
+
+    def _refuse_taken_anchor(self, project: EpisodeProject, anchor: InsertAnchor | None) -> None:
+        holder = (
+            pending_anchor_holder(project, anchor, self.session_id) if anchor is not None else None
+        )
+        if holder is not None:
+            raise InsertAnchorTakenError(
+                f"Session {holder.session_number} is already staged at this spot. "
+                "Accept or skip it first, or record at another spot."
+            )
+
     def _unstaged_comments(
         self, rows: list[dict[str, Any]], copied: Sequence[Mapping[str, Any]]
     ) -> list[dict[str, Any]]:
@@ -1076,7 +1129,11 @@ class RecordLandingService:
         ]
 
     def _hold_comments(
-        self, project: EpisodeProject, rows: list[dict[str, Any]]
+        self,
+        project: EpisodeProject,
+        rows: list[dict[str, Any]],
+        offsets: Mapping[int, float],
+        anchor_s: float,
     ) -> list[dict[str, Any]]:
         suggestion = session_suggestion_for(project, self.session_id)
         if suggestion is None:
@@ -1093,6 +1150,9 @@ class RecordLandingService:
                         body=str(row["body"]),
                         author=str(row["author"]),
                         recording_ms=int(row["recording_ms"]),
+                        timeline_offset_s=max(
+                            offsets.get(int(row["take_index"]), 0.0) - anchor_s, 0.0
+                        ),
                     ),
                 )
                 for row in fresh
@@ -1618,6 +1678,13 @@ def _copy_room_tone(
     return rel
 
 
+def _closed_message(suggestion: SessionSuggestion) -> str:
+    return (
+        f"Session {suggestion.session_number} was {suggestion.status}, so it takes no more "
+        "recordings. Record again as a new session."
+    )
+
+
 def _land_live_comments(
     project: EpisodeProject,
     rows: list[dict[str, Any]],
@@ -1662,7 +1729,9 @@ def _number_session(project: EpisodeProject, session_id: str, target: SessionTar
     return number
 
 
-def _proposed_suggestion(session_id: str, number: int, target: SessionTarget) -> SessionSuggestion:
+def _proposed_suggestion(
+    project: EpisodeProject, session_id: str, number: int, target: SessionTarget
+) -> SessionSuggestion:
     suggestion_id = session_suggestion_id(session_id)
     if isinstance(target, InsertTarget):
         return SessionSuggestion(
@@ -1671,6 +1740,7 @@ def _proposed_suggestion(session_id: str, number: int, target: SessionTarget) ->
             session_id=session_id,
             session_number=number,
             at_sec=target.at_sec,
+            anchor=capture_insert_anchor(project, target.at_sec),
         )
     if isinstance(target, ReplaceTarget):
         return SessionSuggestion(
@@ -1683,91 +1753,3 @@ def _proposed_suggestion(session_id: str, number: int, target: SessionTarget) ->
             track_ids=list(target.track_ids),
         )
     raise RecordLandingError(f"a {target.kind} session cannot be staged")
-
-
-def _ensure_track(project: EpisodeProject, track_id: str, *, label: str) -> Track:
-    track = project.track_by_id(track_id)
-    if track is not None:
-        return track
-    track = Track(
-        id=track_id,
-        label=label,
-        role=TrackRole.DIALOGUE,
-        speaker=label,
-    )
-    project.tracks.append(track)
-    return track
-
-
-def _upsert_source(
-    project: EpisodeProject,
-    *,
-    source_id: str,
-    rel: str,
-    speaker: str,
-    duration_s: float,
-    sample_rate: int,
-    channels: int,
-    clipping_regions: list[SourceClippingRegion] | None = None,
-    clipping_truncated: bool = False,
-) -> SourceRecording:
-    existing = project.source_by_id(source_id)
-    if existing is not None:
-        if clipping_regions is not None:
-            existing.clipping_regions = list(clipping_regions)
-            existing.clipping_truncated = clipping_truncated
-        existing.path = rel
-        existing.speaker = speaker
-        existing.duration_sec = duration_s
-        existing.sample_rate = sample_rate
-        existing.channels = channels
-        return existing
-    src = SourceRecording(
-        id=source_id,
-        path=rel,
-        speaker=speaker,
-        label=source_id,
-        duration_sec=duration_s,
-        sample_rate=sample_rate,
-        channels=channels,
-        clipping_regions=list(clipping_regions or []),
-        clipping_truncated=clipping_truncated,
-    )
-    project.sources.append(src)
-    return src
-
-
-def _upsert_clip(
-    project: EpisodeProject,
-    *,
-    track_id: str,
-    source_id: str,
-    timeline_s: float,
-    duration_s: float,
-) -> Clip:
-    existing = next(
-        (
-            clip
-            for clip in project.clips
-            if clip.source_id == source_id and clip.track_id == track_id
-        ),
-        None,
-    )
-    if existing is not None:
-        existing.source_start = 0.0
-        existing.source_end = duration_s
-        existing.timeline_start = timeline_s
-        return existing
-    clip = Clip(
-        id=new_clip_id(),
-        track_id=track_id,
-        source_start=0.0,
-        source_end=duration_s,
-        timeline_start=timeline_s,
-        source_id=source_id,
-    )
-    track = project.track_by_id(track_id)
-    if track is not None:
-        track.timeline_empty = False
-    project.clips.append(clip)
-    return clip
