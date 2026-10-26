@@ -43,7 +43,6 @@ const M4A: ExportFormatSpec = {
 
 const OFFERED: readonly ExportFormatSpec[] = [M4A, FLAC];
 
-const CHOICE_NAMES: Record<string, string> = { m4a: "M4A (AAC)" };
 
 const LOSSLESS = new Set(["flac", "wav", "alac"]);
 
@@ -62,7 +61,8 @@ function asSpec(value: unknown): ExportFormatSpec | null {
 }
 
 export function formatChoiceLabel(spec: ExportFormatSpec): string {
-  const name = CHOICE_NAMES[spec.ext] ?? spec.ext.toUpperCase();
+  const aac = spec.ext === "m4a" && (spec.codec ?? "aac") === "aac";
+  const name = aac ? "M4A (AAC)" : spec.ext.toUpperCase();
   if (typeof spec.bitrate_kbps === "number") {
     return `${name} · ${spec.bitrate_kbps} kbps`;
   }

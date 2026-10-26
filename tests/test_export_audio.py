@@ -272,6 +272,7 @@ def test_a_bare_m4a_entry_expands_to_the_preset_and_a_detailed_one_does_not():
     assert specs_from_extensions(["m4a"]) == [M4A_AAC]
     assert ExportFormatSpec.from_dict({"ext": ".M4A"}) == M4A_AAC
     assert resolve_export_formats({"formats": [{"ext": "m4a"}]}) == [M4A_AAC]
+    assert ExportFormatSpec.from_dict({"ext": "m4a", "codec": None, "extra_args": []}) == M4A_AAC
     custom = ExportFormatSpec.from_dict({"ext": "m4a", "codec": "alac"})
     assert custom != M4A_AAC and custom.codec == "alac"
 
@@ -299,7 +300,7 @@ def test_a_build_without_the_preset_encoder_names_the_preset_before_encoding(tmp
 def test_an_unreadable_encoder_listing_is_not_reported_as_a_missing_encoder():
     eng = MagicMock()
     eng.supports_encode.return_value = None
-    with pytest.raises(ValueError, match=r"could not list FFmpeg's encoders"):
+    with pytest.raises(ValueError, match=r"could not read FFmpeg's encoder list"):
         require_preset_encoder(eng, M4A_AAC)
 
 
@@ -308,6 +309,9 @@ def test_a_custom_m4a_spec_is_checked_with_its_own_codec():
     eng.supports_encode.return_value = True
     require_preset_encoder(eng, ExportFormatSpec(ext="m4a", codec="alac"))
     eng.supports_encode.assert_called_once_with("alac", "ipod")
+    eng.supports_encode.reset_mock()
+    require_preset_encoder(eng, ExportFormatSpec(ext="m4a", bitrate_kbps=96))
+    eng.supports_encode.assert_called_once_with("aac", "ipod")
     other = MagicMock()
     require_preset_encoder(other, ExportFormatSpec(ext="mp3", codec="libmp3lame"))
     other.supports_encode.assert_not_called()
