@@ -303,7 +303,8 @@ def test_native_contract_readers_and_dynamic_manifest_are_classified() -> None:
             and isinstance(node.targets[0], ast.Name)
             and isinstance(node.value, ast.Constant)
         }
-        for node in ast.walk(tree):
+        nodes = tuple(ast.walk(tree))
+        for node in nodes:
             if not isinstance(node, ast.Call):
                 continue
             function = (
@@ -329,7 +330,7 @@ def test_native_contract_readers_and_dynamic_manifest_are_classified() -> None:
             assert isinstance(name, str), f"classify unresolved contract reader in {path}"
             found.add(name)
             assert native.NATIVE_CONTRACTS[name] >= native.PYTHON_NATIVE
-        for node in ast.walk(tree):
+        for node in nodes:
             if isinstance(node, ast.Constant) and node.value in native.NATIVE_CONTRACTS:
                 assert native.NATIVE_CONTRACTS[node.value] >= native.PYTHON_NATIVE, path
             if (
