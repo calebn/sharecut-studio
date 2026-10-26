@@ -212,23 +212,23 @@ def test_review_api_404s_record_token(
         assert "4403" in str(exc) or "1000" in str(exc) or "disconnect" in str(exc).lower() or True
 
 
-def test_r_prefix_404s_record_token(
+def test_r_prefix_serves_the_app_for_a_record_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
-    assert client.get(f"/r/{room['guest']['token']}").status_code == 404
+    assert client.get(f"/r/{room['guest']['token']}").status_code == 200
 
 
-def test_rec_prefix_404s_review_token(
+def test_rec_prefix_serves_the_app_for_a_review_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="mix")
     review = ShareService(ws).create(review_version_id=ver["id"])
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
-    assert client.get(f"/rec/{review['token']}").status_code == 404
+    assert client.get(f"/rec/{review['token']}").status_code == 200
     assert client.get(f"/api/rec/{review['token']}/bootstrap").status_code == 404
 
 

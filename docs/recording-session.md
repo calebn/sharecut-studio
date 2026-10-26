@@ -114,8 +114,9 @@ cooldown pools and rate limits. No third token index. See
 One **room** has a `session_id` and **two tokens** (guest and producer), both
 `kind=record` and both served at `/rec/{token}`. Caps are frozen on the token
 from `RECORD_ROLE_PRESETS` (never client-chosen). Opening the guest link is how
-a producer becomes recorded next take. Prefix ↔ kind is enforced: `/r/` 404s a
-`record` row; `/rec/` 404s a `review` row.
+a producer becomes recorded next take. Prefix ↔ kind is enforced: `/r/` with a
+`record` row and `/rec/` with a `review` row serve the app shell, whose guest
+cover says the link is invalid and to ask the host for a new link (the API stays 404).
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 (live notes — **same create path as review comments**, kind-scoped ACL: guests
@@ -1424,7 +1425,7 @@ Shipped in `feat/recording-links`:
   branches by `kind` (record shares have no review mix).
 - [x] `/rec/{token}` + `/api/rec/{token}` in the collaboration extension.
 - [x] Relay allowlist prefix `/rec/` and `/api/rec/`.
-- [x] Prefix ↔ kind: `/r/` 404s a `record` row; `/rec/` 404s a `review` row.
+- [x] Prefix ↔ kind: `/r/` with a `record` row and `/rec/` with a `review` row serve the app shell with the invalid-link cover; the API stays 404.
 - [x] `podcast review share --kind record` (room mint) and `--session-id --role guest|producer` (re-invite).
 - [x] Kind-scoped `RECORD_ROLE_PRESETS` (`guest`, `producer`) **beside** review
   `REVIEW_ROLE_CAPABILITIES`; `record_capabilities_for_role` resolves them.

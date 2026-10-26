@@ -7,7 +7,10 @@ import { useFeaturesReady, useHasFeature } from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
 import { HomeScreen } from "./home/HomeScreen";
 import { ModelsProvider } from "./models";
-import { loadOfflineSnapshot } from "./services/offlineQueue/offlineStore";
+import {
+  clearOfflineSnapshot,
+  loadOfflineSnapshot,
+} from "./services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
 import { DawProvider } from "./state/store";
@@ -113,6 +116,17 @@ function AppInner() {
           if (cancelled) {
             return;
           }
+          if (e instanceof ApiError && e.code === "share_not_found") {
+            await clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            if (cancelled) {
+              return;
+            }
+            setError({
+              message: "This link is invalid or has ended.",
+              hint: "Ask the host for a new link.",
+            });
+            return;
+          }
           const cached = await loadOfflineSnapshot(reviewToken);
           const cachedProject = cached?.project as ProjectView | undefined;
           if (cachedProject && typeof cachedProject === "object") {
@@ -122,13 +136,6 @@ function AppInner() {
             setShareCapabilities(null);
             setShareAuthor(null);
             setError(null);
-            return;
-          }
-          if (e instanceof ApiError && e.code === "share_not_found") {
-            setError({
-              message: "This link is invalid or has ended.",
-              hint: "Ask the host for a new link.",
-            });
             return;
           }
           setError({ message: errorMessage(e) });
