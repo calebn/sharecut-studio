@@ -308,8 +308,9 @@ Mint a room (`session_id` + guest + producer tokens) with
 / MCP `revoke_record_room_tool`. Remint is refused while the active room is
 `recording` or `paused` (`RecordStateError`, HTTP 409, CLI non-zero, MCP error:
 "A take is open (REC/PAUSED). Stop it before minting a new room."). Stop the
-take first, or `revoke_room` as an explicit owner action. Re-invite (`--session-id`) requires that room
-to already exist. A crash after the guest mint can leave a one-token room;
+take first. A successful remint revokes every guest and producer token of the
+earlier rooms (land rollbacks survive; land the take before minting). Re-invite
+(`--session-id`) requires a usable room that is the active one. A crash after the guest mint can leave a one-token room;
 the same revoke path still clears it. Prefix↔kind is enforced by
 `lookup_share(..., kind=)`. Recorded clients (`join`) upload full-quality recording chunks on
 `GET`/`POST /api/rec/{token}/upload` (lease + sha256 resume) and may

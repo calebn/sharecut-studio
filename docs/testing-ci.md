@@ -190,7 +190,7 @@ record plane) and the guest's `/api/rec/<token>/ws`, and it aborts the guest's
 server sees the host leave. Until restore, it refuses new sockets before they
 open. A 2 s blip must reconnect in under 9 s and stay REC with one keeper
 segment per side. A 14 s outage must show the guest "Host offline" copy
-while its keeper grows, refuse a remint (409), then force PAUSED with
+while its keeper grows, refuse a remint (409; a remint after Stop also kills the old links), then force PAUSED with
 `pause_reason: host_reconnect` on the host's return. After Resume, Stop, and
 file ACKs on the same `/rec/` token, the clips land. Auto-land does not return
 its drift report to the browser, so the drift report after a host-reconnect

@@ -21,6 +21,7 @@ from podcast_mcp.services.collaboration.review_shares import (
     effective_review_version_id,
     list_room_shares,
     list_shares,
+    list_usable_shares,
     register_share_globally,
     resolve_share,
     revoke_share,
@@ -337,6 +338,19 @@ class ShareService:
             version_id = str(ReviewService(self.ws).publish(label="Share mix")["id"])
         return str(version_id)
 
+    def _is_active_usable_room(self, session_id: str) -> bool:
+        from podcast_mcp.services.record import RecordSessionService
+        from podcast_mcp.services.record.service import invalidate_record_session_cache
+
+        project = self.ws.project
+        if not any(
+            row.get("kind") == SHARE_KIND_RECORD and share_is_usable(row)
+            for row in list_room_shares(project, session_id)
+        ):
+            return False
+        invalidate_record_session_cache(project)
+        return RecordSessionService.active_session_id(project) == session_id
+
     def create_record_token(
         self,
         *,
@@ -347,7 +361,7 @@ class ShareService:
         require_room: bool = True,
     ) -> dict[str, Any]:
         """Mint one kind=record token. No object storage upload, proxies, or mix version."""
-        if require_room and not list_room_shares(self.ws.project, session_id):
+        if require_room and not self._is_active_usable_room(session_id):
             raise KeyError(f"record room not found: {session_id}")
         caps = record_capabilities_for_role(role)
         row = create_share(
@@ -429,8 +443,10 @@ class ShareService:
             assert_no_open_take,
             begin_record_session,
         )
+        from podcast_mcp.services.record.service import invalidate_record_session_cache
 
         assert_no_open_take(self.ws.project)
+        prior_rooms = self._usable_record_room_ids()
         session_id = uuid.uuid4().hex[:12]
         try:
             guest = self.create_record_token(
@@ -447,12 +463,39 @@ class ShareService:
                 expires_at=expires_at,
             )
             begin_record_session(self.ws.project, session_id)
-            return {"session_id": session_id, "guest": guest, "producer": producer}
         except Exception:
             self._rollback_room(session_id)
             raise
+        stale: list[str] = []
+        for prior in prior_rooms:
+            try:
+                self._revoke_room_tokens(prior)
+            except KeyError:
+                log.exception("failed to revoke previous record room %s", prior)
+            stale.extend(
+                str(row.get("token"))
+                for row in list_room_shares(self.ws.project, prior)
+                if share_is_usable(row)
+            )
+        invalidate_record_session_cache(self.ws.project)
+        if stale:
+            raise RuntimeError(
+                f"new record room {session_id} is ready but {len(stale)} previous "
+                "invite link(s) could not be revoked; revoke the old room and retry"
+            )
+        return {"session_id": session_id, "guest": guest, "producer": producer}
+
+    def _usable_record_room_ids(self) -> Sequence[str]:
+        rooms: dict[str, None] = {}
+        for row in list_usable_shares(self.ws.project):
+            sid = str(row.get("session_id") or "")
+            if row.get("kind") == SHARE_KIND_RECORD and sid:
+                rooms[sid] = None
+        return list(rooms)
 
     def _rollback_room(self, session_id: str) -> None:
+        from podcast_mcp.services.record.service import invalidate_record_session_cache
+
         for row in list_room_shares(self.ws.project, session_id):
             token = str(row.get("token") or "")
             if not token:
@@ -461,9 +504,9 @@ class ShareService:
                 drop_share(self.ws.project, token)
             except Exception:
                 log.exception("failed to roll back record token %s", token)
+        invalidate_record_session_cache(self.ws.project)
 
-    def revoke_room(self, session_id: str) -> dict[str, Any]:
-        """Revoke every token in the room. KeyError if none exist."""
+    def _revoke_room_tokens(self, session_id: str) -> Sequence[str]:
         rows = list_room_shares(self.ws.project, session_id)
         if not rows:
             raise KeyError(f"record room not found: {session_id}")
@@ -479,6 +522,11 @@ class ShareService:
                 log.exception("failed to revoke record token %s", token)
         if not revoked:
             raise KeyError(f"record room not found: {session_id}")
+        return revoked
+
+    def revoke_room(self, session_id: str) -> dict[str, Any]:
+        """Revoke every token in the room. KeyError if none exist."""
+        revoked = self._revoke_room_tokens(session_id)
         from podcast_mcp.services.record import (
             purge_session_land_rollbacks,
             release_session_land_lock,

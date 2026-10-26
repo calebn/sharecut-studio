@@ -29,7 +29,7 @@ use the same path). Comments land as ordinary `review.comments[]` at
 
 | Tool | When |
 |------|------|
-| `create_record_room_tool` | Mint guest + producer links |
+| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links |
 | `record_state_tool` | Roster, take clock, `start_blockers`, consent |
 | `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
@@ -57,6 +57,7 @@ podcast record discard-take --project episode.project.json --take-index 0
 ## Workflow
 
 1. Mint a room (`create_record_room_tool` or Share dialog **Create record links**).
+   Minting ends the previous room: its links show the dead-link cover.
    Send the **guest** `/rec/` URL to talent and the **producer** URL only to the
    silent listener.
 2. Open the host **Record room** panel (Menu → Record room…, or Share →
@@ -118,7 +119,9 @@ podcast record discard-take --project episode.project.json --take-index 0
    If the tunnel drops during REC, guests keep recording on their device ("Host offline —
    still recording locally."). After ≥ 10 s the host return **pauses** the take
    (`pause_reason: host_reconnect`); Resume starts a new segment. Do not mint a
-   second room while REC/PAUSED — Stop first.
+   second room while REC/PAUSED — Stop first. Land the take before minting a
+   new room: a new room supersedes the old one and kills its links (guest and
+   producer), and landing reads only the active room.
 
 ## Rules
 
