@@ -148,7 +148,8 @@ def install_studio_handoff(server: Any) -> None:
             return CallToolResult(
                 content=[TextContent(type="text", text=str(silent))], is_error=True
             )
-        if host is None:
+        if host is None or not host.mcp:
+            # A Studio with no /mcp (non-loopback bind) cannot take the call; run it here.
             return await call_next(arguments)
         # Studio binds the project it serves; the path is not sent.
         forwarded = {

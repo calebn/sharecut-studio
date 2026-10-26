@@ -58,9 +58,8 @@ def minimal_project(tmp_workspace: Path) -> Path:
     return save_project(project)
 
 
-@pytest.fixture
-def studio(minimal_project: Path) -> Iterator[Path]:
-    run_app = create_app(served_project=minimal_project, bind_host="127.0.0.1")
+def _serve(project: Path, bind_host: str) -> Iterator[Path]:
+    run_app = create_app(served_project=project, bind_host=bind_host)
     sock = exclusive_listen_socket("127.0.0.1", 0)
     run_app.state.listen_port = sock.getsockname()[1]
     server = uvicorn.Server(uvicorn.Config(run_app, log_level="warning"))
@@ -68,11 +67,22 @@ def studio(minimal_project: Path) -> Iterator[Path]:
     thread.start()
     _wait_until(lambda: server.started, "Studio did not start")
     try:
-        yield minimal_project
+        yield project
     finally:
         server.should_exit = True
         thread.join(20)
         sock.close()
+
+
+@pytest.fixture
+def studio(minimal_project: Path) -> Iterator[Path]:
+    yield from _serve(minimal_project, "127.0.0.1")
+
+
+@pytest.fixture
+def wildcard_studio(minimal_project: Path) -> Iterator[Path]:
+    """A Studio bound to 0.0.0.0: it announces 127.0.0.1 but mounts no /mcp."""
+    yield from _serve(minimal_project, "0.0.0.0")
 
 
 def _wrapped() -> _Direct:
@@ -88,6 +98,28 @@ def test_tool_call_runs_in_the_studio_serving_the_project(studio: Path) -> None:
     assert not result.is_error
     assert server.calls == []
     assert json.loads(result.content[0].text) is not None  # type: ignore[union-attr]
+
+
+def test_a_studio_with_no_mcp_leaves_the_call_to_run_here(wildcard_studio: Path) -> None:
+    from podcast_mcp.services.app import locate_studio
+
+    host = locate_studio(wildcard_studio)
+    assert host is not None
+    assert host.mcp is False
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("list_clips_tool", {"project_path": str(wildcard_studio)})
+    )
+    assert result == "ran here"
+    assert server.calls == [("list_clips_tool", {"project_path": str(wildcard_studio)})]
+
+
+def test_a_loopback_studio_announces_its_mcp(studio: Path) -> None:
+    from podcast_mcp.services.app import locate_studio
+
+    host = locate_studio(studio)
+    assert host is not None
+    assert host.mcp is True
 
 
 def test_the_default_project_env_is_handed_off_too(

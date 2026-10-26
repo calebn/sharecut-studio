@@ -212,6 +212,7 @@ def ping(request: Request, project: str) -> JSONResponse:
             "instance": _state(request.app).instance,
             "protocol": HANDOFF_PROTOCOL,
             "serves": _serves(request, project),
+            "mcp": getattr(request.app.state, "host_mcp_session_manager", None) is not None,
             "version": __version__,
         }
     )

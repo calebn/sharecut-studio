@@ -14,6 +14,7 @@ asks the address named in it and accepts the answer only from the same run that 
 
 from __future__ import annotations
 
+import dataclasses
 import http.client
 import json
 import logging
@@ -69,6 +70,8 @@ class StudioHost:
     port: int
     token: str
     version: str
+    #: Whether the Studio mounts /mcp (a non-loopback bind does not). Never written to the file.
+    mcp: bool = True
 
 
 class HandoffRefused(Exception):
@@ -107,7 +110,7 @@ class StudioBadReply(StudioUnresponsive):
             self,
             f"Studio (pid {host.pid}) is serving this project but answered the handoff check "
             "with something that is not a Studio reply, so another program may hold its port. "
-            f"Set {DIRECT_ENV_VAR}=1 to write directly "
+            f"Nothing was run. Set {DIRECT_ENV_VAR}=1 to write directly "
             "(this may overwrite what Studio is holding).",
         )
         self.host = host
@@ -253,7 +256,8 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
         or body.get("serves") is not True
     ):
         return None
-    return host
+    # An older Studio sends no key and does mount /mcp.
+    return dataclasses.replace(host, mcp=body.get("mcp") is not False)
 
 
 def handoff_env(environ: Mapping[str, str]) -> dict[str, str]:
