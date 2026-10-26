@@ -59,8 +59,21 @@ def capture_insert_anchor(project: EpisodeProject, at_sec: float) -> InsertAncho
     return _clip_anchor(first, at_sec, side="before", source_sec=first.source_start)
 
 
+def _stale() -> CodedValueError:
+    return CodedValueError(
+        "The audio this session was staged at is no longer on the timeline, or more than one "
+        "copy of it is. Record the session again at the new spot.",
+        code="stale_anchor",
+    )
+
+
 def resolve_insert_anchor(project: EpisodeProject, anchor: InsertAnchor) -> float:
-    """The timeline second ``anchor`` is at now; ``stale_anchor`` when its audio is gone."""
+    """The timeline second ``anchor`` is at now; ``stale_anchor`` when its audio is gone or unclear.
+
+    Several clips can hold the same source second (a copy, a paste, a duplicate). They agree
+    only when they put the point at one spot, or when exactly one still puts it where it was
+    recorded; otherwise the point is not guessed.
+    """
     if anchor.kind == "end" or anchor.track_id is None or anchor.source_sec is None:
         return max((clip.timeline_end for clip in _dialogue_clips(project)), default=0.0)
     source_sec = anchor.source_sec
@@ -71,18 +84,27 @@ def resolve_insert_anchor(project: EpisodeProject, anchor: InsertAnchor) -> floa
         and clip.source_start - _EPS <= source_sec <= clip.source_end + _EPS
     ]
     if not candidates:
-        raise CodedValueError(
-            "The audio this session was staged at is no longer on the timeline. "
-            "Record the session again at the new spot.",
-            code="stale_anchor",
-        )
-    clip = min(
-        candidates,
-        key=lambda c: abs(
-            (c.source_start if anchor.side == "before" else c.source_end) - source_sec
-        ),
-    )
-    return source_sec + clip_source_to_timeline_shift(clip) + anchor.offset_s
+        raise _stale()
+    starts_here = [c for c in candidates if abs(c.source_start - source_sec) <= _EPS]
+    ends_here = [c for c in candidates if abs(c.source_end - source_sec) <= _EPS]
+    if starts_here and ends_here:
+        dropped = ends_here if anchor.side == "before" else starts_here
+        candidates = [c for c in candidates if c not in dropped] or candidates
+    spots = [
+        source_sec + clip_source_to_timeline_shift(clip) + anchor.offset_s for clip in candidates
+    ]
+    if max(spots) - min(spots) > _EPS:
+        recorded = [spot for spot in spots if abs(spot - anchor.at_sec) <= _EPS]
+        if len(recorded) != 1:
+            raise _stale()
+        spots = recorded
+    spot = spots[0]
+    if abs(anchor.offset_s) > _EPS and any(
+        clip.timeline_start + _EPS < spot < clip.timeline_end - _EPS
+        for clip in _dialogue_clips(project)
+    ):
+        raise _stale()
+    return spot
 
 
 def insert_anchor_key(anchor: InsertAnchor) -> tuple[object, ...]:
