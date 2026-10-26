@@ -248,6 +248,8 @@ def apply_record_command(
         blockers = start_blockers(out)
         if blockers:
             raise RecordStateError(describe_start_blockers(blockers))
+        if not take_consented_participant_ids(out):
+            raise RecordStateError("cannot start: nobody has accepted recording")
         take_index = out.take_index + 1
         out.take_index = take_index
         out.takes.append(

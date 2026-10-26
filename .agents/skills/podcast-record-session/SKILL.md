@@ -31,7 +31,7 @@ use the same path). Comments land as ordinary `review.comments[]` at
 |------|------|
 | `create_record_room_tool` | Mint guest + producer links |
 | `record_state_tool` | Roster, take clock, `start_blockers`, consent |
-| `record_start_tool` | Host Start (blocked until connected guests consent) |
+| `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
 | `record_marker_tool` | Stamp the open take now (`body` default `"Marker"`); lands as a timeline comment |

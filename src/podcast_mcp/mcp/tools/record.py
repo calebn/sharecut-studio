@@ -23,7 +23,7 @@ def record_state_tool(project_path: str) -> str:
 
 
 def record_start_tool(project_path: str) -> str:
-    """Host Start for the current record room (blocked until guests consent)."""
+    """Host Start for the current record room (a solo take works; blocked while a joined guest has not consented)."""
     return json.dumps(_ctrl(project_path).start(), indent=2)
 
 
