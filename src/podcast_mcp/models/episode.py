@@ -947,11 +947,23 @@ class StagedTake(BaseModel):
     comments: list[StagedComment] = Field(default_factory=list)
 
 
+class StagedRoomTone(BaseModel):
+    """A room-tone bed recorded in a staged session, held until the suggestion is accepted."""
+
+    track_id: str
+    track_label: str
+    source_id: str
+    path: str
+    duration_s: float = Field(ge=0)
+    sample_rate: int = Field(ge=1)
+    channels: int = Field(ge=1)
+
+
 class SessionSuggestion(BaseModel):
     """A record session staged for an insert or replace target, waiting for a decision.
 
-    Staging registers the takes' sources but puts nothing on the timeline: no clips, tracks
-    or comments. Insert takes concatenate; replace takes are alternatives.
+    Staging registers the takes' sources but puts nothing on the timeline: no clips, tracks,
+    room-tone beds or comments; beds are held in ``room_tone`` until Accept. Insert takes concatenate; replace takes are alternatives.
     """
 
     id: str
@@ -963,6 +975,7 @@ class SessionSuggestion(BaseModel):
     to_sec: float | None = Field(default=None, ge=0)
     track_ids: list[str] = Field(default_factory=list)
     takes: list[StagedTake] = Field(default_factory=list)
+    room_tone: list[StagedRoomTone] = Field(default_factory=list)
     selected_take: int | None = None
     status: Literal["pending", "skipped", "accepted"] = "pending"
 

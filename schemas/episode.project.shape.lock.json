@@ -2082,6 +2082,12 @@
               ],
               "type": "string"
             },
+            "room_tone": {
+              "items": {
+                "$ref": "#/$defs/StagedRoomTone"
+              },
+              "type": "array"
+            },
             "selected_take": {
               "anyOf": [
                 {
@@ -2553,6 +2559,44 @@
             "body",
             "author",
             "recording_ms"
+          ],
+          "type": "object"
+        },
+        "StagedRoomTone": {
+          "properties": {
+            "channels": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "duration_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "path": {
+              "type": "string"
+            },
+            "sample_rate": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "source_id": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "track_label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "track_label",
+            "source_id",
+            "path",
+            "duration_s",
+            "sample_rate",
+            "channels"
           ],
           "type": "object"
         },
@@ -5353,6 +5397,12 @@
               ],
               "type": "string"
             },
+            "room_tone": {
+              "items": {
+                "$ref": "#/$defs/StagedRoomTone"
+              },
+              "type": "array"
+            },
             "selected_take": {
               "anyOf": [
                 {
@@ -5824,6 +5874,44 @@
             "body",
             "author",
             "recording_ms"
+          ],
+          "type": "object"
+        },
+        "StagedRoomTone": {
+          "properties": {
+            "channels": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "duration_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "path": {
+              "type": "string"
+            },
+            "sample_rate": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "source_id": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "track_label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "track_label",
+            "source_id",
+            "path",
+            "duration_s",
+            "sample_rate",
+            "channels"
           ],
           "type": "object"
         },
@@ -6606,6 +6694,7 @@
     "SpeakerSplit": "ignore",
     "SpeakerTurnRecord": "ignore",
     "StagedComment": "ignore",
+    "StagedRoomTone": "ignore",
     "StagedTake": "ignore",
     "TimelineComment": "ignore",
     "TimelineSection": "ignore",

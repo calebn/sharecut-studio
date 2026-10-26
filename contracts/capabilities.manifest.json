@@ -2196,7 +2196,7 @@
       "id": "agent.edits",
       "label": "Edit decisions / NL cuts",
       "effect": "project",
-      "service": "SessionSuggestionService",
+      "service": "EditService",
       "industry_standard_key": false,
       "gates": [
         "host"

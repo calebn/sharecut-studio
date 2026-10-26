@@ -422,3 +422,147 @@ def test_set_target_stays_locked_after_a_staged_take(minimal_project, sample_wav
         RecordControlService(ws).set_target(
             {"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["ava"]}
         )
+
+
+def _room_tone_bed(ws, room, guest: str) -> None:
+    pcm = bytes(48_000 * 2)
+    wav = pcm_wav_header(len(pcm)) + pcm
+    RecordUploadService(ws.project).ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=sha256_hex(pcm),
+        file_sha256=sha256_hex(wav),
+        final=True,
+        kind="room_tone",
+    )
+
+
+@pytest.mark.parametrize("target", [INSERT, REPLACE], ids=["insert", "replace"])
+def test_a_staged_room_tone_bed_stays_off_the_timeline_and_is_held_on_the_suggestion(
+    minimal_project, sample_wav, tmp_workspace, target
+):
+    from podcast_mcp.engines.room_tone import room_tone_source_id
+    from podcast_mcp.engines.track_ids import slug_track_id
+
+    ws = _seed(minimal_project, sample_wav)
+    _land_end_session(ws)
+    before = _timeline(ws)
+    room = ShareService(ws).create_record_room(target=target)
+    svc, guest = _join(ws, room)
+    _room_tone_bed(ws, room, guest)
+    assert RecordLandingService(ws).land(align=lambda _p: None)["staged"] == []
+    ws.reload()
+    assert _timeline(ws) == before
+    assert ws.project.editorial.session_suggestions == []
+    _record(ws, room, svc, guest, 1)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    assert _timeline(ws) == before
+    track_id = slug_track_id(guest)
+    row = _suggestion(ws, room["session_id"])
+    [bed] = row.room_tone
+    assert (bed.track_id, bed.track_label) == (track_id, "Ava")
+    assert bed.source_id == room_tone_source_id(track_id)
+    assert bed.path == f"raw/room-tone/{room['session_id']}/{guest}.wav"
+    assert bed.duration_s == pytest.approx(1.0)
+    assert (Path(ws.project.workspace_dir) / bed.path).is_file()
+    assert ws.project.source_by_id(bed.source_id) is None
+    first = row.model_dump()
+    again = RecordLandingService(ws).land(align=lambda _p: None)
+    assert again["staged"] == []
+    ws.reload()
+    assert _timeline(ws) == before
+    assert _suggestion(ws, room["session_id"]).model_dump() == first
+    RecordLandingService(ws).delete_take(0)
+    ws.reload()
+    assert ws.project.editorial.session_suggestions == []
+    assert _timeline(ws) == before
+
+
+@pytest.mark.parametrize("at_sec", [1.0004, 12.3454, 0.30000000000000004])
+def test_insert_with_a_sub_millisecond_anchor_stages_with_exact_offsets(
+    minimal_project, sample_wav, tmp_workspace, at_sec
+):
+    ws = _seed(minimal_project, sample_wav)
+    room, _guest, _svc, _landed = _stage(ws, {"kind": "insert", "at_sec": at_sec}, takes=2)
+    row = _suggestion(ws, room["session_id"])
+    assert [t.take_index for t in row.takes] == [0, 1]
+    assert row.takes[0].offset_s == 0.0
+    assert row.takes[1].offset_s == pytest.approx(3.0)
+    assert all(t.offset_s >= 0 for t in row.takes)
+    assert row.takes[0].offset_s + row.takes[0].duration_s <= row.takes[1].offset_s + 1e-9
+
+
+@pytest.mark.parametrize("from_sec", [0.5004, 0.30000000000000004])
+def test_replace_with_a_sub_millisecond_anchor_stages_alternatives_at_zero(
+    minimal_project, sample_wav, tmp_workspace, from_sec
+):
+    ws = _seed(minimal_project, sample_wav)
+    target = {"kind": "replace", "from_sec": from_sec, "to_sec": 2.0, "track_ids": ["ava"]}
+    room, _guest, _svc, _landed = _stage(ws, target, takes=2)
+    row = _suggestion(ws, room["session_id"])
+    assert [(t.take_index, t.offset_s) for t in row.takes] == [(0, 0.0), (1, 0.0)]
+
+
+@pytest.mark.parametrize(
+    ("target", "field"),
+    [
+        ({"kind": "insert", "at_sec": 1e308}, "at_sec"),
+        ({"kind": "insert", "at_sec": -1}, "at_sec"),
+        ({"kind": "insert"}, "at_sec"),
+        ({"kind": "replace", "from_sec": 1e9, "to_sec": 1e9 + 1, "track_ids": ["a"]}, "from_sec"),
+        ({"kind": "replace", "from_sec": 1, "to_sec": float("nan"), "track_ids": ["a"]}, "to_sec"),
+        ({"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": [5]}, "track_ids"),
+    ],
+)
+def test_invalid_target_times_name_the_field(target, field):
+    from podcast_mcp.services.record.state import parse_session_target
+
+    with pytest.raises(CodedValueError) as err:
+        parse_session_target(target)
+    assert field in str(err.value)
+    assert err.value.code == "invalid_record_request"
+
+
+def test_error_codes_for_unknown_id_and_bad_status(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    service = SessionSuggestionService(ws)
+    with pytest.raises(KeyError) as missing:
+        service.skip("ss-missing")
+    assert missing.value.code == "session_suggestion_not_found"
+    with pytest.raises(CodedValueError) as bad:
+        service.list(status="done")
+    assert bad.value.code == "invalid_status"
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_target_times_are_refused(bad):
+    from podcast_mcp.services.record.state import parse_session_target
+
+    with pytest.raises(CodedValueError) as err:
+        parse_session_target({"kind": "insert", "at_sec": bad})
+    assert err.value.code == "invalid_record_request"
+    assert "at_sec" in str(err.value)
+
+
+def test_a_take_after_skip_joins_the_skipped_suggestion_and_discard_empties_it(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    room, guest, svc, _landed = _stage(ws, INSERT)
+    sid = _suggestion(ws, room["session_id"]).id
+    SessionSuggestionService(ws).skip(sid)
+    svc.submit(_cmd("Start"), now_wall_ms=20_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=23_000)
+    _ack(ws, room, guest, 1)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    row = _suggestion(ws, room["session_id"])
+    assert (row.status, [t.take_index for t in row.takes]) == ("skipped", [0, 1])
+    RecordLandingService(ws).delete_take(0)
+    RecordLandingService(ws).delete_take(1)
+    ws.reload()
+    assert ws.project.editorial.session_suggestions == []

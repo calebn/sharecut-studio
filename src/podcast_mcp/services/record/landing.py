@@ -17,9 +17,12 @@ from filelock import Timeout as FileLockTimeout
 from podcast_mcp.edits.clipping_regions import clipping_regions_from_ms
 from podcast_mcp.edits.comments import add_comment, delete_comment
 from podcast_mcp.edits.session_suggestions import (
+    drop_staged_room_tone,
     drop_staged_segment,
     drop_staged_takes,
     ensure_session_suggestion,
+    hold_room_tone,
+    session_suggestion_for,
     session_suggestion_id,
     stage_comments,
     staged_comment_ids,
@@ -39,6 +42,7 @@ from podcast_mcp.models import (
     SourceClippingRegion,
     SourceRecording,
     StagedComment,
+    StagedRoomTone,
     StagedTake,
     Track,
     TrackRole,
@@ -520,7 +524,12 @@ class RecordLandingService:
         snap = self._snapshot()
         tombstoned = self._upload.tombstoned_takes(self.session_id)
         staged = snap.target.kind in STAGED_TARGET_KINDS
-        anchor_s = session_placement(self.workspace.project.clips, self.session_id, snap.target)
+        anchor_s = (
+            round(
+                session_placement(self.workspace.project.clips, self.session_id, snap.target) * 1000
+            )
+            / 1000.0
+        )
         offsets = session_take_offsets_s(
             snap.takes,
             self.workspace.project.clips,
@@ -553,7 +562,9 @@ class RecordLandingService:
             row
             for row in self._upload.room_tone_status(session_id=self.session_id)
             if row.get("file_ack")
-            and (not row.get("landed") or self._room_tone_missing(str(row["participant_id"])))
+            and (
+                not row.get("landed") or self._room_tone_missing(str(row["participant_id"]), staged)
+            )
         ]
         for row in pending_room_tone:
             acked = self._gate_acked(row, roles, mark=False)
@@ -852,6 +863,24 @@ class RecordLandingService:
                     rel=rel,
                     room_tone=True,
                 )
+                if staged:
+                    owner = session_suggestion_for(project, self.session_id)
+                    if owner is None:
+                        continue
+                    hold_room_tone(
+                        owner,
+                        StagedRoomTone(
+                            track_id=track_id,
+                            track_label=str(item["label"]),
+                            source_id=room_tone_source_id(track_id),
+                            path=rel,
+                            duration_s=float(item["duration_s"]),
+                            sample_rate=int(item["sample_rate"]),
+                            channels=int(item["channels"]),
+                        ),
+                    )
+                    accepted.append({**item, "prior": prior})
+                    continue
                 track = _ensure_track(project, track_id, label=str(item["label"]))
                 track.room_tone = MediaAsset(
                     path=rel,
@@ -1036,14 +1065,7 @@ class RecordLandingService:
         self, rows: list[dict[str, Any]], copied: Sequence[Mapping[str, Any]]
     ) -> list[dict[str, Any]]:
         """Live comments a staged land still has to hold: their take has a staged segment, they do not."""
-        suggestion = next(
-            (
-                row
-                for row in self.workspace.project.editorial.session_suggestions
-                if row.id == session_suggestion_id(self.session_id)
-            ),
-            None,
-        )
+        suggestion = session_suggestion_for(self.workspace.project, self.session_id)
         held = staged_comment_ids(suggestion) if suggestion is not None else set()
         takes = {take.take_index for take in suggestion.takes} if suggestion is not None else set()
         takes |= {int(item["take_index"]) for item in copied}
@@ -1056,14 +1078,7 @@ class RecordLandingService:
     def _hold_comments(
         self, project: EpisodeProject, rows: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        suggestion = next(
-            (
-                row
-                for row in project.editorial.session_suggestions
-                if row.id == session_suggestion_id(self.session_id)
-            ),
-            None,
-        )
+        suggestion = session_suggestion_for(project, self.session_id)
         if suggestion is None:
             return []
         held = staged_comment_ids(suggestion)
@@ -1090,7 +1105,13 @@ class RecordLandingService:
             if str(row["comment_id"]) in after
         ]
 
-    def _room_tone_missing(self, participant_id: str) -> bool:
+    def _room_tone_missing(self, participant_id: str, staged: bool = False) -> bool:
+        if staged:
+            suggestion = session_suggestion_for(self.workspace.project, self.session_id)
+            track_id = slug_track_id(participant_id)
+            return suggestion is None or all(
+                bed.track_id != track_id for bed in suggestion.room_tone
+            )
         track = self.workspace.project.track_by_id(slug_track_id(participant_id))
         return track is None or track.room_tone is None
 
@@ -1220,6 +1241,12 @@ class RecordLandingService:
             touched: set[str] = set()
             for item in reversed(stale):
                 prior: PriorRegistration = item["prior"]
+                if (
+                    prior.room_tone
+                    and self._copied_raw_matches(project, item)
+                    and drop_staged_room_tone(project, self.session_id, prior.track_id, prior.rel)
+                ):
+                    continue
                 if not self._rollback_applies(project, item):
                     continue
                 if revert_registration(project, prior) and not drop_staged_segment(

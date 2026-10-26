@@ -6,6 +6,7 @@ from podcast_mcp.models import (
     EpisodeProject,
     SessionSuggestion,
     StagedComment,
+    StagedRoomTone,
     StagedTake,
 )
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
@@ -14,6 +15,7 @@ SUGGESTION_STATUSES = ("pending", "skipped", "accepted")
 
 
 def session_suggestion_id(session_id: str) -> str:
+    """The id of the suggestion a session stages."""
     return f"ss-{session_id}"
 
 
@@ -65,6 +67,40 @@ def upsert_staged_take(suggestion: SessionSuggestion, take: StagedTake) -> Stage
     return take
 
 
+def session_suggestion_for(project: EpisodeProject, session_id: str) -> SessionSuggestion | None:
+    """The suggestion staged for ``session_id``, if any."""
+    suggestion_id = session_suggestion_id(session_id)
+    return next(
+        (row for row in project.editorial.session_suggestions if row.id == suggestion_id), None
+    )
+
+
+def hold_room_tone(suggestion: SessionSuggestion, bed: StagedRoomTone) -> StagedRoomTone:
+    """Hold ``bed`` on ``suggestion``, replacing the one held for the same track."""
+    for i, existing in enumerate(suggestion.room_tone):
+        if existing.track_id == bed.track_id:
+            suggestion.room_tone[i] = bed
+            return bed
+    suggestion.room_tone.append(bed)
+    suggestion.room_tone.sort(key=lambda row: row.track_id)
+    return bed
+
+
+def drop_staged_room_tone(
+    project: EpisodeProject, session_id: str, track_id: str, path: str
+) -> bool:
+    """Remove the bed held for ``track_id`` at ``path``; True when one was held."""
+    suggestion = session_suggestion_for(project, session_id)
+    if suggestion is None:
+        return False
+    kept = [
+        bed for bed in suggestion.room_tone if not (bed.track_id == track_id and bed.path == path)
+    ]
+    found = len(kept) != len(suggestion.room_tone)
+    suggestion.room_tone = kept
+    return found
+
+
 def staged_comment_ids(suggestion: SessionSuggestion) -> set[str]:
     return {comment.id for take in suggestion.takes for comment in take.comments}
 
@@ -97,7 +133,7 @@ def drop_staged_segment(project: EpisodeProject, session_id: str, source_id: str
             before = len(row.takes)
             row.takes = [take for take in row.takes if take.source_id != source_id]
             found = found or len(row.takes) != before
-            if not row.takes and row.status == "pending":
+            if not row.takes:
                 continue
         kept.append(row)
     project.editorial.session_suggestions = kept
@@ -112,7 +148,7 @@ def drop_staged_takes(project: EpisodeProject, session_id: str, take_index: int)
             row.takes = [take for take in row.takes if take.take_index != take_index]
             if row.selected_take == take_index:
                 row.selected_take = None
-            if not row.takes and row.status == "pending":
+            if not row.takes:
                 continue
         kept.append(row)
     project.editorial.session_suggestions = kept

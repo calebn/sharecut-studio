@@ -539,6 +539,7 @@
         "to_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
         "track_ids": { "type": "array", "default": [], "items": { "type": "string" } },
         "takes": { "type": "array", "default": [], "items": { "$ref": "#/$defs/StagedTake" } },
+        "room_tone": { "type": "array", "default": [], "items": { "$ref": "#/$defs/StagedRoomTone" } },
         "selected_take": { "type": ["integer", "null"], "default": null },
         "status": { "enum": ["pending", "skipped", "accepted"], "default": "pending" }
       }
@@ -556,6 +557,20 @@
         "offset_s": { "type": "number", "minimum": 0 },
         "duration_s": { "type": "number", "minimum": 0 },
         "comments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/StagedComment" } }
+      }
+    },
+    "StagedRoomTone": {
+      "type": "object",
+      "description": "A room-tone bed recorded in a staged session; it is registered on its track only when the suggestion is accepted.",
+      "required": ["track_id", "track_label", "source_id", "path", "duration_s", "sample_rate", "channels"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "track_label": { "type": "string" },
+        "source_id": { "type": "string" },
+        "path": { "type": "string" },
+        "duration_s": { "type": "number", "minimum": 0 },
+        "sample_rate": { "type": "integer", "minimum": 1 },
+        "channels": { "type": "integer", "minimum": 1 }
       }
     },
     "StagedComment": {
