@@ -81,7 +81,10 @@ from podcast_mcp.services.record.state import (
     HOST_PARTICIPANT_ID,
     LAND_TAKE_OPEN_MSG,
     RECORDED_ROLES,
+    InsertTarget,
     RecordSnapshot,
+    ReplaceTarget,
+    SessionTarget,
     TakeState,
     take_recording_duration_ms,
 )
@@ -757,7 +760,7 @@ class RecordLandingService:
                         clipping_regions=item["clipping"],
                         clipping_truncated=bool(item["clipping_truncated"]),
                     )
-                    number = _number_session(project, self.session_id, snap.target.kind)
+                    number = _number_session(project, self.session_id, snap.target)
                     session_params.update(session_number=number, session_first=not landed_before)
                     suggestion = ensure_session_suggestion(
                         project, _proposed_suggestion(self.session_id, number, snap.target)
@@ -868,7 +871,7 @@ class RecordLandingService:
                 touched.add(track_id)
                 accepted.append({**item, "prior": prior})
             if landed_clips:
-                number = _number_session(project, self.session_id, snap.target.kind)
+                number = _number_session(project, self.session_id, snap.target)
                 first = not landed_before
                 session_params.update(session_number=number, session_first=first)
                 refresh_timeline_duration(project)
@@ -1622,31 +1625,37 @@ def _land_live_comments(
     return landed
 
 
-def _number_session(project: EpisodeProject, session_id: str, target_kind: str) -> int:
+def _number_session(project: EpisodeProject, session_id: str, target: SessionTarget) -> int:
     """The session's number, stored in ``record_sessions`` the first time it is asked for."""
     number = record_session_number(project, session_id)
     if not session_numbered(project, session_id):
         project.editorial.record_sessions.append(
-            RecordSessionRecord(session_id=session_id, number=number, target_kind=target_kind)
+            RecordSessionRecord(session_id=session_id, number=number, target_kind=target.kind)
         )
     return number
 
 
-def _proposed_suggestion(session_id: str, number: int, target: Any) -> SessionSuggestion:
-    base = {
-        "id": session_suggestion_id(session_id),
-        "session_id": session_id,
-        "session_number": number,
-    }
-    if target.kind == "insert":
-        return SessionSuggestion(kind="insert", at_sec=target.at_sec, **base)
-    return SessionSuggestion(
-        kind="replace",
-        from_sec=target.from_sec,
-        to_sec=target.to_sec,
-        track_ids=list(target.track_ids),
-        **base,
-    )
+def _proposed_suggestion(session_id: str, number: int, target: SessionTarget) -> SessionSuggestion:
+    suggestion_id = session_suggestion_id(session_id)
+    if isinstance(target, InsertTarget):
+        return SessionSuggestion(
+            id=suggestion_id,
+            kind="insert",
+            session_id=session_id,
+            session_number=number,
+            at_sec=target.at_sec,
+        )
+    if isinstance(target, ReplaceTarget):
+        return SessionSuggestion(
+            id=suggestion_id,
+            kind="replace",
+            session_id=session_id,
+            session_number=number,
+            from_sec=target.from_sec,
+            to_sec=target.to_sec,
+            track_ids=list(target.track_ids),
+        )
+    raise RecordLandingError(f"a {target.kind} session cannot be staged")
 
 
 def _ensure_track(project: EpisodeProject, track_id: str, *, label: str) -> Track:
