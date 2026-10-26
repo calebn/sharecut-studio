@@ -45,7 +45,7 @@ describe("HomeView", () => {
     await user.tab();
     await user.tab();
     const first = screen.getByRole("button", {
-      name: "Rosa and Maya, week 42",
+      name: /^Rosa and Maya, week 42/,
     });
     first.focus();
     await user.keyboard("{Enter}");
@@ -55,14 +55,14 @@ describe("HomeView", () => {
   it("focuses the first card on load only when asked", () => {
     setup({ autoFocusPrimary: true });
     expect(
-      screen.getByRole("button", { name: "Rosa and Maya, week 42" }),
+      screen.getByRole("button", { name: /^Rosa and Maya, week 42/ }),
     ).toHaveFocus();
   });
 
   it("starts an episode from the Import and Record tiles", async () => {
     const { user, onImport, onRecord } = setup();
-    await user.click(screen.getByRole("button", { name: "Import audio" }));
-    await user.click(screen.getByRole("button", { name: "Record" }));
+    await user.click(screen.getByRole("button", { name: /^Import audio/ }));
+    await user.click(screen.getByRole("button", { name: /^Record/ }));
     expect(onImport).toHaveBeenCalledOnce();
     expect(onRecord).toHaveBeenCalledOnce();
   });
@@ -100,10 +100,10 @@ describe("HomeView", () => {
 describe("HomeView empty, loading and drop", () => {
   it("makes Import audio the filled primary tile only when empty", () => {
     setup({ phase: "empty", projects: [] });
-    expect(screen.getByRole("button", { name: "Import audio" })).toHaveClass(
+    expect(screen.getByRole("button", { name: /^Import audio/ })).toHaveClass(
       "sys-start--primary",
     );
-    expect(screen.getByRole("button", { name: "Record" })).not.toHaveClass(
+    expect(screen.getByRole("button", { name: /^Record/ })).not.toHaveClass(
       "sys-start--primary",
     );
   });
@@ -111,7 +111,7 @@ describe("HomeView empty, loading and drop", () => {
   it("keeps Import audio default when there are recents", () => {
     setup();
     expect(
-      screen.getByRole("button", { name: "Import audio" }),
+      screen.getByRole("button", { name: /^Import audio/ }),
     ).not.toHaveClass("sys-start--primary");
   });
 
@@ -213,7 +213,7 @@ describe("OpenOther", () => {
 });
 
 describe("StartTile size 80", () => {
-  it("renders a disabled reason and describes the tile by it", () => {
+  it("renders a disabled reason as part of the tile name", () => {
     render(
       <StartTile
         kind="record"
@@ -224,8 +224,8 @@ describe("StartTile size 80", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Record" }),
-    ).toHaveAccessibleDescription("Finish the current save first.");
+      screen.getByRole("button", { name: /^Record/ }),
+    ).toHaveAccessibleName(/Finish the current save first\./);
     expect(screen.getByText("Finish the current save first.")).toBeVisible();
   });
 });
