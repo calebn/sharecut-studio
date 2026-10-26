@@ -54,6 +54,30 @@ def test_record_land_title_names_the_session_in_both_group_kinds() -> None:
     )
 
 
+def test_staged_and_skipped_session_titles() -> None:
+    staged = {
+        "session_id": "abc",
+        "session_number": 3,
+        "session_first": False,
+        "session_staged": True,
+    }
+    assert (
+        format_history_group_title(
+            kind="snapshot", label="after Staged Session 3", operation="record_land", params=staged
+        )
+        == "Staged Session 3"
+    )
+    assert (
+        format_history_group_title(
+            kind="mutation",
+            label="Skipped Session 3",
+            operation="skip_session_suggestion",
+            params={"suggestion_id": "ss-abc", "session_number": 3},
+        )
+        == "Skipped Session 3"
+    )
+
+
 def test_summarize_diff_edit_log_and_duration() -> None:
     lines = summarize_diff(
         {

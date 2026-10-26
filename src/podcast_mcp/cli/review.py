@@ -56,6 +56,42 @@ def review_list_versions_cmd(
     typer.echo(json.dumps(rows, indent=2))
 
 
+@review_app.command("session-suggestions")
+def review_session_suggestions_cmd(
+    project: Path = typer.Option(..., "--project"),
+    status: str | None = typer.Option(
+        None, "--status", help="Only suggestions that are pending, skipped or accepted"
+    ),
+) -> None:
+    """List record sessions staged for an insert or replace target."""
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project)
+    try:
+        rows = SessionSuggestionService(ws).list(status=status)
+    except CodedError as exc:
+        typer.echo(describe_error(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(rows, indent=2))
+
+
+@review_app.command("skip-session-suggestion")
+def review_skip_session_suggestion_cmd(
+    project: Path = typer.Option(..., "--project"),
+    suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
+) -> None:
+    """Skip a pending staged session. Its recordings stay in the project."""
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project)
+    try:
+        row = SessionSuggestionService(ws).skip(suggestion_id)
+    except CodedError as exc:
+        typer.echo(describe_error(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(row, indent=2))
+
+
 @review_app.command("set-active")
 def review_set_active_cmd(
     project: Path = typer.Option(..., "--project"),
@@ -206,7 +242,11 @@ def review_share_cmd(
     target: str | None = typer.Option(
         None,
         "--target",
-        help="record: where the session lands (only end, the default, is available yet)",
+        help=(
+            "record: where the session lands: end (default), or a JSON object for "
+            'insert {"kind":"insert","at_sec":12.5} or replace '
+            '{"kind":"replace","from_sec":12.5,"to_sec":20,"track_ids":["host"]}'
+        ),
     ),
 ) -> None:
     """Create a review link (Anyone with the link; login-free by default)."""

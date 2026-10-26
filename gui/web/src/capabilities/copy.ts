@@ -286,6 +286,14 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Discard recording take",
     tooltip: "Discard recording take",
   },
+  "daw.review.listSessionSuggestions": {
+    label: "List staged sessions",
+    tooltip: "List recorded sessions staged for insert or replace",
+  },
+  "daw.review.skipSessionSuggestion": {
+    label: "Skip staged session",
+    tooltip: "Skip a staged recorded session",
+  },
   "daw.record.panel": {
     label: "Record room…",
     tooltip: "Record room…",

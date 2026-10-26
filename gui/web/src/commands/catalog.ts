@@ -495,7 +495,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["end", "where", "land", "place"],
     when: "canManageProjects",
     notes:
-      "Choose where this session lands (before the first take; only the end is available yet)",
+      "Choose where this session lands (before the first take): the end, or staged as an insert or replace",
   },
   "record.pause": {
     id: "record.pause",

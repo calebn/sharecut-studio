@@ -31,6 +31,26 @@ def list_review_versions_tool(project_path: str) -> str:
     return to_json(ReviewService(ws).list_versions())
 
 
+def list_session_suggestions_tool(project_path: str, status: str = "") -> str:
+    """List record sessions staged for an insert or replace target.
+
+    status: pending, skipped or accepted; empty lists all. A staged session has its recordings
+    registered as sources but nothing on the timeline.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(SessionSuggestionService(ws).list(status=status or None))
+
+
+def skip_session_suggestion_tool(project_path: str, suggestion_id: str) -> str:
+    """Skip a pending staged session (one undo step). Refuses one that is not pending."""
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(SessionSuggestionService(ws).skip(suggestion_id))
+
+
 def set_active_review_version_tool(
     project_path: str,
     version_id: str | None = None,
@@ -97,7 +117,8 @@ def create_record_room_tool(
 ) -> str:
     """Mint a recording room: guest + producer /rec/ links; revokes earlier rooms' links (docs/recording-session.md).
 
-    ``target`` is where the session lands; only ``end`` (the default) is available.
+    ``target`` is where the session lands: ``end`` (the default), or an ``insert``/``replace`` JSON object
+    that stages the session as a suggestion.
     """
     from podcast_mcp.services.collaboration import ShareService
 
@@ -124,7 +145,9 @@ def register_core(mcp: MCPServer) -> None:
     for fn in (
         publish_review_version_tool,
         list_review_versions_tool,
+        list_session_suggestions_tool,
         set_active_review_version_tool,
+        skip_session_suggestion_tool,
     ):
         mcp.tool()(fn)
 

@@ -829,6 +829,11 @@ def sanitize_guest_project_view(
     from podcast_mcp.gui.mapper import guest_transcript
 
     out = dict(view)
+    out.pop("session_suggestions", None)
+    if isinstance(out.get("editorial"), dict):
+        out["editorial"] = {
+            key: value for key, value in out["editorial"].items() if key != "session_suggestions"
+        }
     full = _guest_view_is_full(view)
     if full or "project_path" in out:
         out["project_path"] = ""

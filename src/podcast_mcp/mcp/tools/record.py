@@ -48,7 +48,7 @@ def record_room_tone_tool(project_path: str) -> str:
 
 
 def record_target_tool(project_path: str, target: str = "end") -> str:
-    """Host Target: set where this room's session lands (only ``end`` is available; refused once a take exists)."""
+    """Host Target: set where this room's session lands (``end``, or an ``insert``/``replace`` JSON object that stages the session as a suggestion; refused once a take exists)."""
     return json.dumps(_ctrl(project_path).set_target(target), indent=2)
 
 

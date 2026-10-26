@@ -742,6 +742,21 @@ def test_set_target_payload_keeps_the_target_through_parse() -> None:
     assert parsed.payload == {"target": {"kind": "insert", "at_sec": 12.5}}
 
 
+def test_guest_project_view_strips_staged_session_suggestions() -> None:
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    staged = [{"id": "ss-a", "takes": [{"source_id": "rec-a-0-p-0"}]}]
+    view = {
+        "project_path": "/host/ep.json",
+        "session_suggestions": staged,
+        "editorial": {"session_suggestions": staged, "chapters": []},
+    }
+    out = sanitize_guest_project_view(view)
+    assert "session_suggestions" not in out
+    assert out["editorial"] == {"chapters": []}
+    assert "rec-a-0-p-0" not in json.dumps(out)
+
+
 def test_record_signal_fault_crosses_the_registered_socket_boundary(
     minimal_project: Path,
     monkeypatch: pytest.MonkeyPatch,
