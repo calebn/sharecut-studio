@@ -75,7 +75,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -85,15 +85,17 @@ check it composed, then check it in a real screen.
 
 ### Domain surfaces (Templates)
 
-Domain components get stories only when they are **props in, UI out** (scope
-rule from #172/#173): renderable from a pure prop contract alone — no store,
-socket, AudioContext or router. Domain components that still need live app,
-session or sync context (the live `TimelineView`, `inspector/`, the live
-`TransportBar`, the full DAW page) stay out of the catalog: they compose the library (see
-`gui/web/docs/ui-library.md`), stories for them would couple the catalog to app
-state, and their integration is covered by Playwright. A domain screen that
+Domain components get stories by default when they are **props in, UI out**
+(scope rule from #172/#173): renderable from a pure prop contract alone — no
+store, socket, AudioContext or router. The exception is a component that needs
+live app, session or sync context (the live `TimelineView`, `inspector/`, the
+live `TransportBar`, the full DAW page): it gets a story that hydrates the DAW
+store through `withEpisode`, as described under [Catalog
+boundary](#catalog-boundary-store-bound-components). Those components compose
+the library (see `gui/web/docs/ui-library.md`), and Playwright still covers
+their integration. A domain screen that
 renders fully state-local — per the rules under [Adding a story](#adding-a-story):
-state in the story, no app providers, no network — belongs under **Templates**,
+state in the story, no app providers, no network, no store — belongs under **Templates**,
 with its story colocated in the feature folder (for example
 `src/record/Declined.stories.tsx` → `Templates/Declined`,
 `src/record/ConsentGate.stories.tsx` → `Templates/ConsentGate`,
@@ -390,12 +392,19 @@ and cannot enter the app bundle.
 
 A store-bound component gets a story that hydrates the DAW store with the shared
 fictional episode (`src/test/episodeFixture.ts`) through the `withEpisode`
-decorator (`src/test/withEpisode.tsx`), the way `ClipInspector.stories.tsx`
-does. From `parameters.episode` the decorator takes the role (the host opens the
-project by path, a guest opens `share:episode` with that role's capabilities),
-the selection, extra store fields and canned JSON for requests. It also
-registers the app commands, replaces `fetch` and `WebSocket` with offline
-stubs, and restores the store and the stubs when the story unmounts. Titles keep
+decorator and the `episodeBeforeEach` hook (`src/test/withEpisode.tsx`), which
+a story file sets together on its meta, the way `ClipInspector.stories.tsx`
+does. From `parameters.episode` they take the role (the host opens the project
+by path, a guest opens `share:episode` with that role's capabilities), the
+feature ids the server offers (the role's defaults, so the guest banner and the
+Share item render), the selection, extra store fields and canned JSON for
+requests, matched by exact path or `METHOD /path`. `beforeEach` registers the
+app commands and replaces `fetch` and `WebSocket` with offline stubs before the
+story renders. Storybook runs its cleanup after the story unmounts: it restores
+the store, the stubs and `localStorage`, drops any open ask question and clears
+the registered commands. Storybook may start the next story's `beforeEach` before the previous cleanup
+finishes, so a hydration first resets what an earlier episode left and an older cleanup that
+finds a newer episode in place only aborts its own hanging requests. Titles keep
 the screen as a name prefix, for example `Templates/Editor · Inspector ·
 Pending edit`, because the title rule allows one segment after the level.
 
@@ -624,8 +633,9 @@ jsdom visibility checks.
 - 2026-10-26 — Every screen, dialog, panel and inspector variant in the UI
   inventory now has a story or a recorded reason it has none (#2279). The
   coverage manifest has no pending state, and `e2e-storybook/coverage.spec.ts`
-  loads every `Templates/*` story at 360 and 1280 px in both themes for
-  console errors, horizontal overflow and axe violations. Live-shell stories
+  checks every `Templates/*` story in both themes at 360 and 1280 px for console
+  errors, horizontal overflow and axe violations including color-contrast, on
+  one page per Playwright worker that moves between stories. Live-shell stories
   keep the toolbar theme because the Storybook preview now stores it.
 
 - 2026-10-25 — Catalog boundary now allows store-hydrated stories through
