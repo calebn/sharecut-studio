@@ -271,7 +271,7 @@ def _entry(
 
 
 class _Store:
-    """Evidence for one batch. When the stored size passes ``EVIDENCE_CACHE_BYTES``, the store drops the least recently used entries first."""
+    """Evidence for the batches running now, shared between them. When the stored size passes ``EVIDENCE_CACHE_BYTES``, the store drops the least recently used entries first."""
 
     def __init__(self) -> None:
         self._entries: OrderedDict[EvidenceKey, _Entry] = OrderedDict()
