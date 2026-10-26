@@ -225,10 +225,10 @@ def filter_record_event_for_guest(
 ) -> dict[str, Any] | None:
     if event.get("type") == "Signal" and event.get("to") != participant_id:
         return None
-    stripped = _strip_host_snapshot_keys(_strip_lease_keys(event))
+    stripped = _strip_lease_keys(event)
     if role != "guest":
         return stripped
-    return _filter_live_comments_for_guest(stripped, participant_id)
+    return _filter_live_comments_for_guest(_strip_host_snapshot_keys(stripped), participant_id)
 
 
 def _filter_live_comments_for_guest(obj: Any, participant_id: str) -> Any:

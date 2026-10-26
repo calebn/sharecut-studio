@@ -78,6 +78,10 @@ def parse_session_target(raw: str | dict[str, Any] | BaseModel | None) -> Sessio
             return _TARGET_ADAPTER.validate_python(raw.model_dump())
         if isinstance(raw, str):
             text = raw.strip()
+            if text == "insert":
+                return InsertTarget(at_sec=0)
+            if text == "replace":
+                return ReplaceTarget(from_sec=0, to_sec=0)
             return _TARGET_ADAPTER.validate_python(
                 json.loads(text) if text.startswith("{") else {"kind": text}
             )

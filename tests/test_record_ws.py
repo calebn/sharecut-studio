@@ -1057,6 +1057,12 @@ def test_record_service_helpers(minimal_project, sample_wav, tmp_workspace, monk
         role="guest",
     )
     assert stripped == {"keep": 1, "nested": [{}, "ok"]}
+    event = {"type": "Applied", "snapshot": {"state": "lobby", "target": {"kind": "end"}}}
+    for role in ("host", "producer"):
+        kept = filter_record_event_for_guest(event, participant_id="p", role=role)
+        assert kept is not None and kept["snapshot"]["target"] == {"kind": "end"}
+    hidden = filter_record_event_for_guest(event, participant_id="p", role="guest")
+    assert hidden is not None and "target" not in hidden["snapshot"]
     claim_connection("p_grace", "c1", hub_key=hub)
     now = time.monotonic()
     monkeypatch.setattr(
