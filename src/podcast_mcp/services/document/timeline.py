@@ -238,7 +238,13 @@ class TimelineService(CutMutatingService):
         return self.ws.mutate(
             "before insert gap",
             "after insert gap",
-            lambda p: insert_gap(p, at_time, duration_sec, defaults=self.ws.effective_config()),
+            lambda p: insert_gap(
+                p,
+                at_time,
+                duration_sec,
+                defaults=self.ws.effective_config(),
+                shift_anchors=True,
+            ),
             operation="insert_gap",
             params={"at_time": at_time, "duration_sec": duration_sec},
         )

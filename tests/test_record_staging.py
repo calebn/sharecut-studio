@@ -1437,7 +1437,7 @@ def test_not_pending_and_unknown_messages_say_what_to_do(
         service.accept(sid)
 
 
-def test_accept_shifts_pending_timeline_decisions_at_and_after_the_point(
+def test_accept_shifts_pending_timeline_decisions_on_dialogue_tracks_only(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.models import EditDecision, EditDecisionType
@@ -1446,11 +1446,15 @@ def test_accept_shifts_pending_timeline_decisions_at_and_after_the_point(
     _seed_timeline(ws)
 
     def add(project: EpisodeProject) -> None:
-        for edit_id, start in (("early", 0.25), ("late", 3.0)):
+        for edit_id, track_id, start in (
+            ("early", "host", 0.25),
+            ("late", "host", 3.0),
+            ("music", "music", 3.0),
+        ):
             project.editorial.edit_decisions.append(
                 EditDecision(
                     id=edit_id,
-                    track_id="host",
+                    track_id=track_id,
                     type=EditDecisionType.MUTE,
                     start=start,
                     end=start + 0.5,
@@ -1458,6 +1462,17 @@ def test_accept_shifts_pending_timeline_decisions_at_and_after_the_point(
                     applied=False,
                 )
             )
+        project.editorial.edit_decisions.append(
+            EditDecision(
+                id="split",
+                track_id="host",
+                type=EditDecisionType.SPLIT,
+                start=3.5,
+                end=3.5,
+                timebase="timeline",
+                applied=False,
+            )
+        )
 
     ws.mutate("seed decisions", "seeded decisions", add)
     room, _guest, _svc, _landed = _stage(ws, INSERT)
@@ -1469,3 +1484,32 @@ def test_accept_shifts_pending_timeline_decisions_at_and_after_the_point(
         pytest.approx(3.0 + result["span_s"]),
         pytest.approx(3.5 + result["span_s"]),
     )
+    assert spans["split"] == (pytest.approx(3.5 + result["span_s"]),) * 2
+    assert spans["music"] == (3.0, 3.5)
+
+
+def test_a_bed_arriving_inside_the_mutate_after_accept_is_refused_not_held(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, _svc, _landed = _stage(ws, INSERT)
+    sid = f"ss-{room['session_id']}"
+    _room_tone_bed(ws, room, guest)
+    raw = Path(ws.project.workspace_dir) / "raw"
+    files = sorted(p for p in raw.rglob("*") if p.is_file())
+    other = ProjectWorkspace.open(minimal_project)
+    original = RecordLandingService._unstaged_comments
+
+    def accept_first(self, rows, copied):
+        SessionSuggestionService(other).accept(sid)
+        return original(self, rows, copied)
+
+    monkeypatch.setattr(RecordLandingService, "_unstaged_comments", accept_first)
+    with pytest.raises(SessionSuggestionClosedError):
+        RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    assert _suggestion(ws, room["session_id"]).room_tone == []
+    rows = RecordUploadService(ws.project).room_tone_status(session_id=room["session_id"])
+    assert [bool(r.get("landed")) or bool(r.get("land_failed")) for r in rows] == [False]
+    assert sorted(p for p in raw.rglob("*") if p.is_file()) == files

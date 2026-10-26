@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import copy
 from unittest.mock import patch
 
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.comment_remap import remap_review_anchors_for_cuts
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.join_modes import (
     crossfade_joins,
@@ -146,7 +148,7 @@ def test_insert_gap_shifts_comments_and_chapters_at_or_after_the_point() -> None
         ChapterMarker(time=3.0, title="two"),
         ChapterMarker(time=5.0, title="three"),
     ]
-    insert_gap(p, 3.0, 1.0, defaults=load_defaults())
+    insert_gap(p, 3.0, 1.0, defaults=load_defaults(), shift_anchors=True)
     spans = {
         c.id: (c.timeline_start, c.timeline_end, [(r.start, r.end) for r in c.timeline_spans])
         for c in p.comments
@@ -1160,34 +1162,47 @@ def test_track_fade_max_ms_dialogue_only() -> None:
     assert track_fade_max_ms(None, cfg) is None
 
 
-def test_insert_gap_shifts_pending_timeline_decisions_only() -> None:
-    p = _two_track_project()
+def _pending_decisions() -> list[EditDecision]:
     base = {"track_id": "host", "timebase": "timeline", "applied": False}
-    p.editorial.edit_decisions = [
+    return [
         EditDecision(id="before", type=EditDecisionType.MUTE, start=1.0, end=2.0, **base),
-        EditDecision(id="after", type=EditDecisionType.MUTE, start=4.0, end=5.0, **base),
-        EditDecision(id="across", type=EditDecisionType.MUTE, start=2.0, end=4.0, **base),
-        EditDecision(id="split", type=EditDecisionType.SPLIT, start=6.0, end=6.0, **base),
+        EditDecision(id="after", type=EditDecisionType.MUTE, start=6.0, end=7.0, **base),
+        EditDecision(id="split", type=EditDecisionType.SPLIT, start=8.0, end=8.0, **base),
         EditDecision(
-            id="source", track_id="host", type=EditDecisionType.REMOVE, start=4.0, end=5.0
-        ),
-        EditDecision(
-            id="done",
-            track_id="host",
-            type=EditDecisionType.MUTE,
-            start=4.0,
-            end=5.0,
-            timebase="timeline",
-            applied=True,
+            id="source", track_id="host", type=EditDecisionType.REMOVE, start=6.0, end=7.0
         ),
     ]
+
+
+def test_insert_gap_leaves_edit_decisions_where_they_are() -> None:
+    p = _two_track_project()
+    p.editorial.edit_decisions = _pending_decisions()
+    before = [e.model_dump() for e in p.editorial.edit_decisions]
     insert_gap(p, 3.0, 1.0, defaults=load_defaults())
-    spans = {e.id: (e.start, e.end) for e in p.editorial.edit_decisions}
-    assert spans == {
-        "before": (1.0, 2.0),
-        "after": (5.0, 6.0),
-        "across": (2.0, 5.0),
-        "split": (7.0, 7.0),
-        "source": (4.0, 5.0),
-        "done": (4.0, 5.0),
-    }
+    assert [e.model_dump() for e in p.editorial.edit_decisions] == before
+
+
+def test_move_segment_remaps_comments_and_chapters_as_on_main_and_leaves_edit_decisions() -> None:
+    p = _two_track_project()
+    for comment_id, start in (("a", 1.0), ("b", 5.0), ("c", 8.0)):
+        add_comment(
+            p,
+            body=comment_id,
+            author="a",
+            timeline_start=start,
+            timeline_end=start + 0.5,
+            timeline_spans=[RangeInterval(start=start, end=start + 0.5)],
+            comment_id=comment_id,
+        )
+    p.editorial.chapters = [
+        ChapterMarker(time=1.0, title="one"),
+        ChapterMarker(time=8.0, title="two"),
+    ]
+    p.editorial.edit_decisions = _pending_decisions()
+    before = [e.model_dump() for e in p.editorial.edit_decisions]
+    expected = copy.deepcopy(p)
+    remap_review_anchors_for_cuts(expected, [(2.0, 4.0)])
+    move_segment(p, 2.0, 4.0, 6.0, defaults=load_defaults())
+    assert [c.model_dump() for c in p.comments] == [c.model_dump() for c in expected.comments]
+    assert p.editorial.chapters == expected.editorial.chapters
+    assert [e.model_dump() for e in p.editorial.edit_decisions] == before
