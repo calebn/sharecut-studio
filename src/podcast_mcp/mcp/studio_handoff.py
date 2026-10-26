@@ -19,19 +19,28 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp import settings
 from podcast_mcp.mcp.project_default import ENV_VAR as PROJECT_ENV_VAR
 from podcast_mcp.services.app import StudioHost, StudioUnresponsive, locate_studio
+from podcast_mcp.services.app.studio_host import DIRECT_ENV_VAR
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.progress import mcp_progress_sink
 
 log = logging.getLogger(__name__)
 
 HOST_MCP_PATH = "/mcp"
+
+#: How long Studio, which has answered the ping, may take to accept the MCP session.
+INITIALIZE_TIMEOUT_SEC = 10.0
+
+#: Statuses that mean the host does not serve ``/mcp`` (an older build, a non-loopback bind).
+_NO_MCP_ROUTE = (404, 405)
 
 #: Tool arguments that name a file or folder on the caller's machine. Studio's working
 #: directory is not the caller's, so a relative one is made absolute before it is sent.
@@ -61,6 +70,31 @@ def _lost_result(host: StudioHost, name: str, why: str) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
 
 
+def _declined_result(host: StudioHost) -> CallToolResult:
+    text = (
+        f"Studio (pid {host.pid}) is serving this project but did not take the call, so nothing "
+        f"was run. Try again in a moment, or set {DIRECT_ENV_VAR}=1 to write directly "
+        "(this may overwrite what Studio is holding)."
+    )
+    return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
+
+
+def _leaves(exc: BaseException) -> list[BaseException]:
+    if isinstance(exc, BaseExceptionGroup):
+        return [leaf for inner in exc.exceptions for leaf in _leaves(inner)]
+    return [exc]
+
+
+def _studio_is_not_there(exc: BaseException, status: int | None) -> bool:
+    """Whether a failure before the send shows no Studio to take the call, as opposed to one that failed."""
+    if status in _NO_MCP_ROUTE:
+        return True
+    leaves = _leaves(exc)
+    if any(isinstance(leaf, TimeoutError | httpx2.TimeoutException) for leaf in leaves):
+        return False
+    return any(isinstance(leaf, OSError | httpx2.ConnectError) for leaf in leaves)
+
+
 def _progress_relay(context: Any) -> Any:
     """Forward Studio's progress to the stdio client, only if that client asked for progress.
 
@@ -87,24 +121,40 @@ def _progress_relay(context: Any) -> Any:
 async def _run_in_studio(
     host: StudioHost, name: str, arguments: dict[str, Any], context: Any = None
 ) -> Any:
-    """Run one tool call in Studio; ``None`` means nothing was sent, so the caller runs it here."""
+    """Run one tool call in Studio; ``None`` means no Studio is there to take it, so the caller runs it here."""
     relay = _progress_relay(context)
     sent = False
+    status: int | None = None
+
+    async def note_status(response: httpx2.Response) -> None:
+        nonlocal status
+        if status is None:
+            status = response.status_code
+
     try:
         url = f"http://{host.host}:{host.port}{HOST_MCP_PATH}"
+        http_client = create_mcp_http_client()
+        http_client.event_hooks["response"].append(note_status)
         async with (
-            streamable_http_client(url) as (read, write, *_),
+            http_client,
+            streamable_http_client(url, http_client=http_client) as (read, write, *_),
             ClientSession(read, write) as session,
         ):
-            await session.initialize()
+            async with asyncio.timeout(INITIALIZE_TIMEOUT_SEC):
+                await session.initialize()
             sent = True
             if relay is None:
                 return await session.call_tool(name, arguments)
             return await session.call_tool(name, arguments, progress_callback=relay)
     except Exception as exc:
         if not sent:
-            log.debug("Studio at %s:%s did not take the call", host.host, host.port, exc_info=True)
-            return None
+            if _studio_is_not_there(exc, status):
+                log.debug("no Studio at %s:%s", host.host, host.port, exc_info=True)
+                return None
+            log.warning(
+                "Studio at %s:%s did not take the call", host.host, host.port, exc_info=True
+            )
+            return _declined_result(host)
         log.warning("Studio stopped answering %s", name, exc_info=True)
         return _lost_result(host, name, f"it stopped answering ({type(exc).__name__})")
 
@@ -147,9 +197,7 @@ def install_studio_handoff(server: Any) -> None:
 def _locate(project: str) -> StudioHost | None:
     try:
         return locate_studio(Path(project))
-    except StudioUnresponsive:
-        raise
-    except Exception:
+    except (OSError, ValueError):
         log.debug("could not look for a Studio serving %s", project, exc_info=True)
         return None
 

@@ -188,16 +188,24 @@ def _headers(host: StudioHost) -> dict[str, str]:
     return {HANDOFF_TOKEN_HEADER: host.token, "Accept": "application/json"}
 
 
-def _ping(host: StudioHost, resolved: str) -> tuple[int, dict[str, Any]]:
+def _ping(host: StudioHost, resolved: str) -> tuple[int, bytes]:
     conn = _connection(host, PING_TIMEOUT_SEC)
     try:
         conn.request(
             "GET", f"{HANDOFF_PING_PATH}?project={quote(resolved)}", headers=_headers(host)
         )
         response = conn.getresponse()
-        return response.status, json.loads(response.read().decode("utf-8"))
+        return response.status, response.read()
     finally:
         conn.close()
+
+
+def _ping_body(raw: bytes) -> dict[str, Any] | None:
+    try:
+        body = json.loads(raw.decode("utf-8"))
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None
 
 
 def locate_studio(project_path: Path | str) -> StudioHost | None:
@@ -213,17 +221,21 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
     resolved = str(resolve_project_path(project_path))
     try:
         try:
-            status, body = _ping(host, resolved)
+            status, raw = _ping(host, resolved)
         except TimeoutError:
-            status, body = _ping(host, resolved)
+            status, raw = _ping(host, resolved)
     except TimeoutError:
         raise StudioUnresponsive(host) from None
-    except (OSError, http.client.HTTPException, ValueError):
+    except (OSError, http.client.HTTPException):
         log.debug("studio announced at %s:%s did not answer", host.host, host.port)
         return None
+    if status != 200:
+        return None
+    body = _ping_body(raw)
+    if body is None:
+        raise StudioUnresponsive(host)
     if (
-        status != 200
-        or body.get("instance") != host.instance
+        body.get("instance") != host.instance
         or body.get("protocol") != HANDOFF_PROTOCOL
         or body.get("serves") is not True
     ):
