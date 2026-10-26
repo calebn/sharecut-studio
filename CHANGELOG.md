@@ -16,6 +16,8 @@
 
 ### Fixes
 
+* A live Studio that answers the handoff check with an unreadable reply, or that fails an MCP call after answering it, now stops the call or command with a message and nothing runs, instead of the call running here and writing directly (#2326).
+
 * A Whisper GPU run that fails with a host out-of-memory error is no longer retried on the CPU (#2248). Only CUDA, cuBLAS, cuDNN and GPU errors, including ones named by an error's cause, trigger a retry after a failed run; a GPU model that fails to load is still retried on the CPU.
 
 * Uploading an MPEG-TS, M2TS or MPEG-PS file whose audio starts late now says "audio starts late in an MPEG transport stream; re-encode it" to the host instead of "not a playable audio file" (#2310). Guests still see the generic copy. An upload whose probe times out now reports "not a playable audio file" instead of the raw timeout text.

@@ -96,6 +96,23 @@ class StudioUnresponsive(Exception):
         self.host = host
 
 
+class StudioBadReply(StudioUnresponsive):
+    """A Studio is announced and answered the ping with 200, but the body is not a Studio reply.
+
+    Another program may hold the port, so the caller must not write directly on its own.
+    """
+
+    def __init__(self, host: StudioHost) -> None:
+        Exception.__init__(
+            self,
+            f"Studio (pid {host.pid}) is serving this project but answered the handoff check "
+            "with something that is not a Studio reply, so another program may hold its port. "
+            f"Set {DIRECT_ENV_VAR}=1 to write directly "
+            "(this may overwrite what Studio is holding).",
+        )
+        self.host = host
+
+
 class HandoffLost(Exception):
     """Studio accepted the command, then stopped answering before it finished.
 
@@ -188,14 +205,18 @@ def _headers(host: StudioHost) -> dict[str, str]:
     return {HANDOFF_TOKEN_HEADER: host.token, "Accept": "application/json"}
 
 
-def _ping(host: StudioHost, resolved: str) -> tuple[int, dict[str, Any]]:
+def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
     conn = _connection(host, PING_TIMEOUT_SEC)
     try:
         conn.request(
             "GET", f"{HANDOFF_PING_PATH}?project={quote(resolved)}", headers=_headers(host)
         )
         response = conn.getresponse()
-        return response.status, json.loads(response.read().decode("utf-8"))
+        status = response.status
+        try:
+            return status, json.loads(response.read().decode("utf-8"))
+        except (http.client.HTTPException, ValueError):
+            return status, None
     finally:
         conn.close()
 
@@ -203,7 +224,8 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, dict[str, Any]]:
 def locate_studio(project_path: Path | str) -> StudioHost | None:
     """The Studio that is serving ``project_path`` right now, or None to write directly.
 
-    Raises ``StudioUnresponsive`` when a Studio accepts the connection but stays silent.
+    Raises ``StudioUnresponsive`` when a Studio accepts the connection but stays silent, and
+    ``StudioBadReply`` when it answers 200 with something that is not a Studio reply.
     """
     if settings.flag(DIRECT_ENV_VAR):
         return None
@@ -221,9 +243,12 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
     except (OSError, http.client.HTTPException, ValueError):
         log.debug("studio announced at %s:%s did not answer", host.host, host.port)
         return None
+    if status != 200:
+        return None
+    if not isinstance(body, dict):
+        raise StudioBadReply(host) from None
     if (
-        status != 200
-        or body.get("instance") != host.instance
+        body.get("instance") != host.instance
         or body.get("protocol") != HANDOFF_PROTOCOL
         or body.get("serves") is not True
     ):
