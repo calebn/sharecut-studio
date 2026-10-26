@@ -7,7 +7,7 @@ import {
 } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { openDialogByLauncher } from "../test/storyDialog";
-import { Button } from "../ui";
+import { Button, ToggleButton } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import { Sheet } from "./Sheet";
 
@@ -32,22 +32,23 @@ export default meta;
 type Story = StoryObj<typeof Sheet>;
 
 function Rows({ onMore }: { onMore?: () => void }) {
+  const [gain, setGain] = useState(0);
+  const [muted, setMuted] = useState(false);
   return (
     <>
-      <label className="sys-sheet-row">
-        Gain
-        <input
-          type="range"
-          min="0"
-          max="10"
-          defaultValue="5"
-          aria-label="Gain"
-        />
-      </label>
-      <label className="sys-sheet-row">
-        Mute
-        <input type="checkbox" aria-label="Mute track" />
-      </label>
+      <div className="sys-sheet-row">
+        <span>Gain {gain > 0 ? `+${gain}` : gain} dB</span>
+        <span>
+          <Button onClick={() => setGain((g) => g - 1)}>Lower gain</Button>
+          <Button onClick={() => setGain((g) => g + 1)}>Raise gain</Button>
+        </span>
+      </div>
+      <div className="sys-sheet-row">
+        <span>Track</span>
+        <ToggleButton pressed={muted} onClick={() => setMuted((m) => !m)}>
+          Mute
+        </ToggleButton>
+      </div>
       {onMore ? (
         <button type="button" className="sys-text-btn" onClick={onMore}>
           Noise reduction
@@ -58,7 +59,7 @@ function Rows({ onMore }: { onMore?: () => void }) {
 }
 
 const frame = {
-  padding: "1rem",
+  padding: "var(--space-5)",
   display: "flex",
   justifyContent: "center",
 } as const;
@@ -121,11 +122,13 @@ export const PushedStep: Story = {
     await userEvent.click(
       canvas.getByRole("button", { name: "Noise reduction" }),
     );
-    await expect(
-      canvas.getByRole("heading", { name: "Noise reduction" }),
-    ).toBeVisible();
+    const step = canvas.getByRole("heading", { name: "Noise reduction" });
+    await expect(step).toBeVisible();
+    await expect(step).toHaveFocus();
     await userEvent.click(canvas.getByRole("button", { name: "Back" }));
-    await expect(canvas.getByRole("heading", { name: "Clip" })).toBeVisible();
+    const parent = canvas.getByRole("heading", { name: "Clip" });
+    await expect(parent).toBeVisible();
+    await expect(parent).toHaveFocus();
     await expect(
       canvas.getByRole("button", { name: "Noise reduction" }),
     ).toBeVisible();

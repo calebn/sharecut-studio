@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   isolatedStoryParameters,
   menuStoryDecorator,
@@ -147,13 +147,21 @@ export const Project: Story = {
   play: ({ canvasElement }) => openMenu(canvasElement, "Episode 14"),
 };
 
+const picked = fn();
+
 export const More: Story = {
   render: () => (
     <Demo label="More" trigger="More">
       {(close) => (
         <>
           <VerbRow verb="split" onSelect={close} />
-          <VerbRow verb="mute" onSelect={close} />
+          <VerbRow
+            verb="mute"
+            onSelect={() => {
+              picked("mute");
+              close();
+            }}
+          />
           <VerbRow verb="solo" onSelect={close} />
           <VerbRow verb="inspect" onSelect={close} />
           <VerbRow verb="remove" onSelect={close} />
@@ -161,7 +169,14 @@ export const More: Story = {
       )}
     </Demo>
   ),
-  play: ({ canvasElement }) => openMenu(canvasElement, "More"),
+  play: async ({ canvasElement }) => {
+    picked.mockClear();
+    await openMenu(canvasElement, "More");
+    const body = within(document.body);
+    await userEvent.click(body.getByRole("menuitem", { name: /Mute/ }));
+    await expect(picked).toHaveBeenCalledWith("mute");
+    await waitFor(() => expect(body.queryByRole("menu")).toBeNull());
+  },
 };
 
 export const CreateHere: Story = {

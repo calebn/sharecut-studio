@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { BottomSheet, CloseButton, Dialog } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import type { SystemIconName } from "./icons";
@@ -49,14 +49,26 @@ function BackButton({ onBack }: { onBack: () => void }) {
   );
 }
 
+const FOCUSABLE = "button, input, select, textarea, a[href]";
+
 function Body({
   step,
   backInBody,
   children,
-}: Pick<SheetProps, "step" | "children"> & { backInBody: boolean }) {
-  if (!step) return <div className="sys-sheet-rows">{children}</div>;
+  rowsRef,
+}: Pick<SheetProps, "step" | "children"> & {
+  backInBody: boolean;
+  rowsRef: RefObject<HTMLDivElement | null>;
+}) {
+  if (!step) {
+    return (
+      <div ref={rowsRef} className="sys-sheet-rows">
+        {children}
+      </div>
+    );
+  }
   return (
-    <div className="sys-sheet-rows">
+    <div ref={rowsRef} className="sys-sheet-rows">
       {backInBody ? <BackButton onBack={step.onBack} /> : null}
       {step.children}
     </div>
@@ -77,8 +89,26 @@ export function Sheet({
   onDetentChange,
 }: SheetProps) {
   const heading = step ? step.title : title;
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
+  const hadStep = useRef(false);
+  const backInBody = form === "centered" || form === "bottom";
+  const pushed = Boolean(step);
+  // A push or a back replaces the body, so the focused control unmounts. Move
+  // focus to the new step's heading (static frames) or its first control.
+  useEffect(() => {
+    if (hadStep.current === pushed) return;
+    hadStep.current = pushed;
+    if (!backInBody) {
+      headingRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    rowsRef.current
+      ?.querySelector<HTMLElement>(FOCUSABLE)
+      ?.focus({ preventScroll: true });
+  }, [pushed, backInBody]);
   const body = (
-    <Body step={step} backInBody={form === "centered" || form === "bottom"}>
+    <Body step={step} backInBody={backInBody} rowsRef={rowsRef}>
       {children}
     </Body>
   );
@@ -126,7 +156,9 @@ export function Sheet({
         ) : icon ? (
           <SystemIcon name={icon} size={16} />
         ) : null}
-        <h2 className="sys-sheet-title">{heading}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="sys-sheet-title">
+          {heading}
+        </h2>
         <CloseButton onClick={onClose} />
       </div>
       <div className="sys-sheet-scroll">{body}</div>

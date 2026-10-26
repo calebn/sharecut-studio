@@ -11,7 +11,7 @@ const meta: Meta<typeof StatusRow> = {
   args: { state: "queued", title: "Clean up room noise" },
   decorators: [
     (Story) => (
-      <div style={{ padding: "1rem" }}>
+      <div style={{ padding: "var(--space-5)" }}>
         <Story />
       </div>
     ),

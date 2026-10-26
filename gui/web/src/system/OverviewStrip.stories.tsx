@@ -24,7 +24,7 @@ const meta: Meta<typeof OverviewStrip> = {
   args: { peaks, label: "Episode overview", playhead: 0.4 },
   decorators: [
     (Story) => (
-      <div style={{ padding: "1rem" }}>
+      <div style={{ padding: "var(--space-5)" }}>
         <Story />
       </div>
     ),

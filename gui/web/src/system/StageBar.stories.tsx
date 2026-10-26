@@ -27,7 +27,7 @@ type Story = StoryObj<typeof StageBar>;
 function Bar(props: Partial<StageBarProps>) {
   const [active, setActive] = useState<StageId>(props.active ?? "edit");
   return (
-    <div style={{ padding: "1rem" }}>
+    <div style={{ padding: "var(--space-5)" }}>
       <StageBar {...props} active={active} onSelect={setActive} />
     </div>
   );

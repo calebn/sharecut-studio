@@ -443,7 +443,8 @@
     min-block-size: var(--touch-min);
   }
 
-  .sys-header-left .sys-text-btn {
+  .sys-header-left .sys-text-btn,
+  .sys-header-project {
     min-block-size: var(--touch-min);
   }
 
@@ -479,6 +480,14 @@
 
 .sys-menu [role="menuitem"] svg {
   flex: none;
+}
+
+/* ui/Menu wraps a row that has a shortcut in a block label, which would drop
+   the row's gap between the icon and the text. */
+.sys-menu [role="menuitem"] .ui-menu-item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 @media (pointer: coarse) {
@@ -591,12 +600,40 @@
 }
 
 .sys-pill-x {
+  position: relative;
   display: inline-flex;
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
   cursor: pointer;
+}
+
+/* Touch targets (design system 4.4): under a coarse pointer, and in the
+   Player and header containers at phone width, the small controls reach
+   --touch-min. The pill's X grows its hit area only. */
+@media (pointer: coarse) {
+  .sys-pill-x::after {
+    content: "";
+    position: absolute;
+    inset: calc((100% - var(--touch-min)) / 2);
+  }
+
+  .sys-play .sys-play-btn {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-header-project {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-status-toggle {
+    align-items: center;
+    min-block-size: var(--touch-min);
+  }
 }
 
 .sys-play {
@@ -668,6 +705,19 @@
   }
 
   .sys-player-time {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-pill-x::after {
+    content: "";
+    position: absolute;
+    inset: calc((100% - var(--touch-min)) / 2);
+  }
+
+  .sys-play .sys-play-btn {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
   }
 
@@ -1346,4 +1396,10 @@
 
 .sys-coach-close {
   color: var(--color-text-secondary);
+}
+
+/* Focus ring (design system 4.4): 2 px accent, 2 px off, keyboard focus only. */
+:is([class*="sys-"], [class*="sys-"] *):focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
 }

@@ -29,7 +29,8 @@ function Demo({ placement }: { placement: "below" | "above" }) {
   return (
     <div
       style={{
-        padding: "4rem 1rem",
+        paddingBlock: "4rem",
+        paddingInline: "var(--space-5)",
         display: "flex",
         justifyContent: "flex-start",
       }}
@@ -53,6 +54,8 @@ export const Below: Story = {
     await expect(canvas.getByRole("note")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Dismiss hint" }));
     await expect(canvas.queryByRole("note")).toBeNull();
+    // The close button unmounted with the tip; focus goes back to the anchor.
+    await expect(canvas.getByRole("button", { name: "Solo" })).toHaveFocus();
   },
 };
 

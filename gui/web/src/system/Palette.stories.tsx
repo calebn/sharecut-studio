@@ -40,7 +40,11 @@ const meta: Meta<typeof Palette> = {
   decorators: [
     (Story) => (
       <div
-        style={{ padding: "1rem", display: "flex", justifyContent: "center" }}
+        style={{
+          padding: "var(--space-5)",
+          display: "flex",
+          justifyContent: "center",
+        }}
       >
         <Story />
       </div>
