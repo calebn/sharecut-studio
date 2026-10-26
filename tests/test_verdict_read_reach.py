@@ -22,6 +22,7 @@ from podcast_mcp.engines import align
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -33,6 +34,7 @@ from source_review_helpers import _cut
 
 SR = 16_000
 SECONDS = 80
+_INTENT = {False: {}, True: {"boundary_intent": CutIntent.HUMAN_BOUNDARIES}}
 CUT = (40.0, 40.4)
 
 
@@ -56,7 +58,13 @@ def _words(starts: list[float]) -> list[TranscriptWord]:
     return [TranscriptWord(text=f"w{i}", start=s, end=s + 0.35) for i, s in enumerate(starts)]
 
 
-def _project(tmp_path: Path, reason: str, host_starts: list[float] | None = None) -> EpisodeProject:
+def _project(
+    tmp_path: Path,
+    reason: str,
+    host_starts: list[float] | None = None,
+    joins: tuple[float, ...] = (34.0, 38.0, 43.0, 47.0, 70.0),
+    manual: bool = False,
+) -> EpisodeProject:
     host_starts = host_starts or [float(s) for s in range(30, 52, 1)]
     guest_starts = (
         [36.0, 44.0, 46.0] if reason.startswith("pause:") else [33.0, 36.5, 39.8, 41.0, 44.2, 47.0]
@@ -75,7 +83,9 @@ def _project(tmp_path: Path, reason: str, host_starts: list[float] | None = None
         )
         for tid in ("host", "guest")
     ]
-    edges = [0.0, 34.0, 38.0, 43.0, 47.0, 70.0, float(SECONDS)]
+    edges = [0.0, *joins, float(SECONDS)]
+    ramps = [0, 250, 40, 300, 20, 120, 80, 60, 100, 30, 200, 90, 70]
+    fades = [*ramps[: len(joins) + 1], 0]
     project.clips = [
         Clip(
             id=f"{tid}{i}",
@@ -83,8 +93,8 @@ def _project(tmp_path: Path, reason: str, host_starts: list[float] | None = None
             source_start=a,
             source_end=b,
             timeline_start=a,
-            fade_in_ms=[0, 250, 40, 300, 20, 120][i],
-            fade_out_ms=[250, 40, 300, 20, 120, 0][i],
+            fade_in_ms=fades[i],
+            fade_out_ms=fades[i + 1],
         )
         for tid in ("host", "guest")
         for i, (a, b) in enumerate(itertools.pairwise(edges))
@@ -96,7 +106,7 @@ def _project(tmp_path: Path, reason: str, host_starts: list[float] | None = None
     if reason.startswith("filler:"):
         project.transcripts[0].words[10].text = "um"
     project.timeline.duration_sec = SECONDS
-    project.edit_decisions = [_cut("cut", *CUT, reason=reason)]
+    project.edit_decisions = [_cut("cut", *CUT, reason=reason, **_INTENT[manual])]
     return project
 
 
@@ -140,19 +150,31 @@ def _spy_reads(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, float, float]
 
 
 LONG_SILENCE = [30.0, 31.0, 32.0, 48.0, 49.0, 50.0]
+JOINS_BEFORE = (33.0, 31.0, 28.0, 25.0, 20.0, 15.0)
+JOINS_AFTER = (47.4, 49.4, 52.4, 55.4, 60.4, 65.4)
+FAR_JOINS = tuple(sorted(JOINS_BEFORE + JOINS_AFTER))
 
 
 @pytest.mark.parametrize(
-    ("reason", "host_starts"),
-    [("nl:range", None), ("filler:um", None), ("pause:long", LONG_SILENCE)],
+    ("reason", "manual", "host_starts", "joins"),
+    [
+        ("nl:range", False, None, (34.0, 38.0, 43.0, 47.0, 70.0)),
+        ("filler:um", False, None, (34.0, 38.0, 43.0, 47.0, 70.0)),
+        ("nl:range", False, None, FAR_JOINS),
+        ("filler:um", False, None, FAR_JOINS),
+        ("nl:range", True, None, FAR_JOINS),
+        ("pause:long", False, LONG_SILENCE, (34.0, 38.0, 43.0, 47.0, 70.0)),
+    ],
 )
 def test_a_check_reads_no_further_than_the_window_around_its_cut(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     reason: str,
+    manual: bool,
     host_starts: list[float] | None,
+    joins: tuple[float, ...],
 ) -> None:
-    project = _project(tmp_path, reason, host_starts)
+    project = _project(tmp_path, reason, host_starts, joins, manual)
     defaults = load_defaults()
     reach = verdict_cache.check_reach_sec(project, project.edit_decisions[0], CUT, defaults)
     reads = _spy_reads(monkeypatch)
@@ -193,3 +215,12 @@ def test_a_clip_boundary_inside_the_observed_words_of_a_pause_changes_its_key(
     assert base is not None
     assert key(47.0) != base
     assert key(55.0) == base
+
+
+def test_a_pause_is_never_keyed_narrower_than_the_floor(tmp_path: Path) -> None:
+    project = _project(tmp_path, "pause:near", [38.0, 39.0, 41.0, 42.0])
+    defaults = load_defaults()
+    assert (
+        verdict_cache.check_reach_sec(project, project.edit_decisions[0], CUT, defaults)
+        == verdict_cache.PAUSE_REACH_FLOOR_SEC
+    )
