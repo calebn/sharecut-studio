@@ -244,6 +244,95 @@ def test_cancel_does_not_trigger_a_fallback(planted, tmp_path, error) -> None:
     assert made == ["cuda"]
 
 
+def _run_with_gpu_error(tmp_path, error) -> list[str]:
+    models = {"cuda": MagicMock(), "cpu": _words_model("hello")}
+    models["cuda"].transcribe.side_effect = error
+    made: list[str] = []
+
+    def factory(name, **kwargs):
+        made.append(kwargs["device"])
+        return models[kwargs["device"]]
+
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"x")
+    with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
+        _engine().transcribe_file(audio, language="en")
+    return made
+
+
+@pytest.mark.parametrize(
+    "error", [RuntimeError("out of memory"), MemoryError("std::bad_alloc"), MemoryError()]
+)
+def test_a_host_out_of_memory_run_error_is_not_retried_on_the_cpu(planted, tmp_path, error) -> None:
+    with pytest.raises(type(error)):
+        _run_with_gpu_error(tmp_path, error)
+
+
+def test_a_cuda_out_of_memory_run_error_falls_back(planted, tmp_path) -> None:
+    made = _run_with_gpu_error(tmp_path, RuntimeError("CUDA failed with error out of memory"))
+    assert made == ["cuda", "cpu"]
+
+
+def test_an_error_caused_by_cuda_falls_back(planted, tmp_path) -> None:
+    try:
+        try:
+            raise RuntimeError("CUDA driver mismatch")
+        except RuntimeError as cause:
+            raise ValueError("transcription failed") from cause
+    except ValueError as wrapped:
+        error = wrapped
+    assert _run_with_gpu_error(tmp_path, error) == ["cuda", "cpu"]
+
+
+def test_a_cyclic_cause_chain_terminates(planted, tmp_path) -> None:
+    a, b = RuntimeError("one"), RuntimeError("two")
+    a.__cause__, b.__cause__ = b, a
+    with pytest.raises(RuntimeError, match="one"):
+        _run_with_gpu_error(tmp_path, a)
+
+
+def test_a_compute_type_load_error_still_falls_back_once(planted) -> None:
+    calls: list[str] = []
+
+    def factory(name, **kwargs):
+        calls.append(kwargs["device"])
+        if kwargs["device"] == "cuda":
+            raise ValueError("Requested float16 compute type, but the target device does not")
+        return MagicMock()
+
+    engine = _engine()
+    with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
+        engine._get_model()
+        engine._get_model()
+    assert calls == ["cuda", "cpu"]
+
+
+_MISSING = ModelMissing(
+    id="whisper",
+    model="tiny.en",
+    label="Whisper",
+    purpose="transcription",
+    size="75 MB",
+    size_bytes=None,
+    command="podcast models download whisper",
+    state="missing",
+)
+
+
+@pytest.mark.parametrize("error", [_MISSING, CancelledProgress("stop")])
+def test_a_load_time_missing_model_or_cancel_does_not_fall_back(planted, error) -> None:
+    calls: list[str] = []
+
+    def factory(name, **kwargs):
+        calls.append(kwargs["device"])
+        raise error
+
+    with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
+        with pytest.raises(type(error)):
+            _engine()._get_model()
+    assert calls == ["cuda"]
+
+
 def test_a_missing_model_is_reported_not_retried_on_the_cpu(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("podcast_mcp.config.defaults.whisper_cache_dir", lambda: tmp_path / "none")
     audio = tmp_path / "a.wav"
