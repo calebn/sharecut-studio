@@ -242,8 +242,8 @@ flowchart TD
 5. Host Start requires a passed device storage check for the host and
    is enabled when every **recorded guest** currently in the lobby has consented
    (producers skip this gate). The host's Start lists what it waits for right
-   under it: "No guest has joined yet. Send them the guest link." with **Copy
-   guest link**, then "Waiting for Ava to accept recording." per guest. A host
+   under it: "Waiting for Ava to accept recording." per guest. The host can
+   start a solo take with nobody else in the room. A host
    with no room yet sees "No record room yet." with **Create record room**,
    which creates it in place and copies the guest link. A
    guest who rejoins before a new take must pass the device storage check again

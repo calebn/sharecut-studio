@@ -124,6 +124,15 @@ def test_join_requires_fresh_consent_even_before_disconnect_is_observed() -> Non
     ]
 
 
+def test_start_blocked_when_nobody_joined() -> None:
+    snap = empty_record_snapshot("sess")
+    assert start_blockers(snap) == [{"code": "no_recorder"}]
+    with pytest.raises(RecordStateError, match=r"^cannot start: nobody has joined the room$"):
+        apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=1)
+    producer = _join(snap, pid="p_prod", role="producer", name="Pat", now=1)
+    assert start_blockers(producer) == [{"code": "no_recorder"}]
+
+
 def test_host_alone_can_start_a_solo_take() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)

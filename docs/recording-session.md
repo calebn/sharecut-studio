@@ -1224,9 +1224,10 @@ Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop
 Start blocked until connected guests have `consented is True` (`None` pending;
 `False` declined does not block). A host alone in the room can start a solo take
 (intros, pickups, solo shows). The snapshot's `start_blockers` is a list of
-`{"code": "consent_pending", "participant_id", "display_name"}` rows; clients
-word them, and a refused Start reads "cannot start: Ava has not accepted
-recording";
+`{"code": "no_recorder"}` (nobody recorded has joined; the host's own Join
+fixes it) or `{"code": "consent_pending", "participant_id", "display_name"}`
+rows; clients word them, and a refused Start reads "cannot start: nobody has
+joined the room" or "cannot start: Ava has not accepted recording";
 room caps 4 recorded / 2 producers; host Join auto-consents as `p_host`; no host
 admit step. Each take's `consented_participant_ids` roster (set at Start,
 updated by mid-take Accept/Decline) gates that take's guest keeper uploads
