@@ -7,14 +7,18 @@ into the container.
 
 from __future__ import annotations
 
+import json
+import math
 import re
 import subprocess
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+from podcast_mcp.engines import ffmpeg as ffmpeg_module
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio import SourceAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -302,6 +306,69 @@ def test_start_gate_applies_a_real_lead_and_zeroes_priming(
 ) -> None:
     mkv = _with_video(eng, tmp_path / "gate.mkv", lead, "-c:v", "ffv1", "-c:a", "pcm_s16le")
     assert eng.probe(mkv).audio_start_sec == pytest.approx(applied, abs=0.005)
+
+
+@pytest.mark.parametrize(("lead", "applied"), [(0.01, 0.0), (0.02, 0.0), (0.05, 0.05)])
+def test_aac_priming_around_the_gate(
+    eng: FFmpegEngine, tmp_path: Path, lead: float, applied: float
+) -> None:
+    mkv = _with_video(eng, tmp_path / "aac.mkv", lead, "-c:v", "ffv1", "-c:a", "aac")
+    assert eng.probe(mkv).audio_start_sec == pytest.approx(applied, abs=0.005)
+
+
+def _probe_with_stream_start(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stream_start: float | str, decoded: float
+) -> tuple[float, list[float]]:
+    metadata = {
+        "format": {"duration": "5", "start_time": "0", "format_name": "matroska,webm"},
+        "streams": [
+            {
+                "codec_type": "audio",
+                "sample_rate": "48000",
+                "channels": 1,
+                "start_time": str(stream_start),
+                "duration": "5",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        ffmpeg_module,
+        "run",
+        lambda *_a, **_k: SimpleNamespace(stdout=json.dumps(metadata), stderr=""),
+    )
+    asked: list[float] = []
+
+    def first_decoded(*_a: object, **_k: object) -> float:
+        asked.append(decoded)
+        return decoded
+
+    monkeypatch.setattr(FFmpegEngine, "_first_decoded_pts", first_decoded)
+    info = FFmpegEngine().probe(tmp_path / "gate.mkv")
+    return info.audio_start_sec, asked
+
+
+def test_start_at_the_gate_is_priming(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    start, asked = _probe_with_stream_start(monkeypatch, tmp_path, "0.02", 0.02)
+    assert start == 0.0
+    assert asked == []
+
+
+def test_start_just_past_the_gate_is_applied(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    above = math.nextafter(0.02, math.inf)
+    start, asked = _probe_with_stream_start(monkeypatch, tmp_path, repr(above), above)
+    assert start == above
+    assert asked == [above]
+
+
+def test_decoded_start_at_the_gate_is_applied_after_a_packet_start_above_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The gate reads the packet start only; the decoded value is not gated again."""
+    start, asked = _probe_with_stream_start(monkeypatch, tmp_path, "0.05", 0.02)
+    assert start == 0.02
+    assert asked == [0.02]
 
 
 def test_forged_start_marks_the_probe_estimated(

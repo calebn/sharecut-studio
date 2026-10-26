@@ -16,6 +16,8 @@
 
 ### Fixes
 
+* Uploading an MPEG-TS, M2TS or MPEG-PS file whose audio starts late now says "audio starts late in an MPEG transport stream; re-encode it" to the host instead of "not a playable audio file" (#2310). The code is still `invalid_audio`, guests still see the generic copy, and an upload whose probe times out now gets that generic message instead of an internal error.
+
 * Audio health `peak_count` now reads the exact `Peak count` field instead of `Abs Peak count` (#2154). Counts can change on untagged files. Other health measurements and the clipping policy are unchanged.
 
 * Full mastering loudness measurements now return no measurement after a failed FFmpeg run or when the file has no audio, including with progress callbacks. Forged Summary tag keys on video-only files no longer read as -16 LUFS (#2154). Successful audio measurements and their automatic stream selection are unchanged.
