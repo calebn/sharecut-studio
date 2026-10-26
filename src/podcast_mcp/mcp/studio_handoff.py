@@ -26,8 +26,12 @@ from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp import settings
 from podcast_mcp.mcp.project_default import ENV_VAR as PROJECT_ENV_VAR
-from podcast_mcp.services.app import StudioHost, StudioUnresponsive, locate_studio
-from podcast_mcp.services.app.studio_host import DIRECT_ENV_VAR
+from podcast_mcp.services.app import (
+    DIRECT_ENV_VAR,
+    StudioHost,
+    StudioUnresponsive,
+    locate_studio,
+)
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.progress import mcp_progress_sink
 
