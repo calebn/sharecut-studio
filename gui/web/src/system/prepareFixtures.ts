@@ -13,7 +13,6 @@ export const ALIKE: readonly PickerPerson[] = [
   { id: "sam-b", name: "Sam", colorIndex: 4, detail: "Track 2, 2:40 of audio" },
 ];
 
-/** A small fixed waveform for the source cards. */
 export const VOICE_PEAKS: readonly number[] = [
   0.2, 0.5, 0.35, 0.7, 0.45, 0.9, 0.6, 0.3, 0.55, 0.8, 0.4, 0.25, 0.65, 0.5,
   0.35, 0.75, 0.3, 0.45, 0.6, 0.2,

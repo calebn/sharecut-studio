@@ -39,7 +39,6 @@ type PersonTileProps =
       state: PersonTileState;
     }
   | {
-      /** The empty tile: the only form that is a button. */
       person?: undefined;
       onInvite: () => void;
     };

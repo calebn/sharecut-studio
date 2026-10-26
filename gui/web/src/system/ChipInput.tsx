@@ -62,7 +62,6 @@ export function ChipInput({
   const announce = (message: string) =>
     setLive((current) => ({ message, seq: current.seq + 1 }));
 
-  /** Adds each comma-separated part in order; true when any was added. */
   function add(raw: string): boolean {
     const parts = raw
       .split(/[,\n]/)

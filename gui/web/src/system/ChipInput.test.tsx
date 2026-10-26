@@ -188,7 +188,6 @@ describe("ChipInput", () => {
 
   it("stops at 100 entries", async () => {
     const many = Array.from({ length: 99 }, (_, i) => String(i));
-    // 99 one to two character terms stay under budget? 10*1 + 89*2 + 98*2... too big
     render(<Harness speakers={[]} terms={many.slice(0, 5)} />);
     await userEvent.type(field(), "ok{Enter}");
     expect(removes()).toHaveLength(6);
