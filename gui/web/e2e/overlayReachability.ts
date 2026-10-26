@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openProjectMenu, openProjectMenuItem } from "./stageNav";
 
 /**
  * Shared reachability helpers for overlay viewport coverage.
@@ -25,29 +26,10 @@ export async function openHostProject(
   );
 }
 
-export async function openTransportMenu(page: Page): Promise<Locator> {
-  const menu = page.getByRole("menu", { name: "Transport menu" });
-  if (await menu.isVisible()) {
-    return menu;
-  }
-  const menuButton = page.getByRole("button", { name: "Menu", exact: true });
-  if ((await menuButton.count()) === 0) {
-    // The phone Listen mode intentionally hides transport chrome. Enter More,
-    // where the compact transport and its project menu are available.
-    await page.getByRole("button", { name: "More", exact: true }).click();
-  }
-  await menuButton.click();
-  return menu;
-}
+export const openTransportMenu = openProjectMenu;
 
 /** Open the transport Menu and choose `menuItem` (e.g. "Bounce…"). */
-export async function openDialogFromMenu(
-  page: Page,
-  menuItem: string,
-): Promise<void> {
-  await openTransportMenu(page);
-  await page.getByRole("menuitem", { name: menuItem }).click();
-}
+export const openDialogFromMenu = openProjectMenuItem;
 
 export async function expectOverflowYAuto(locator: Locator): Promise<void> {
   await expect
