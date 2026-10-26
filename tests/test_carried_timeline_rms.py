@@ -12,6 +12,7 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import cut_proof, verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_proof import CarriedTimelineRms
+from podcast_mcp.engines.play_audit import stem_path, write_stem_hash
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
 from source_review_helpers import _cut
 
@@ -111,4 +112,44 @@ def test_carrying_decides_the_same_as_building_every_time(
     _approve(fresh)
 
     assert len(built) == len(starts)
+    assert _clips(carried) == _clips(fresh)
+
+
+def _with_a_fresh_guest_stem(project: EpisodeProject) -> None:
+    raw = Path(project.workspace_dir) / "raw"
+    (raw / "guest.wav").write_bytes((raw / "host.wav").read_bytes())
+    guest = Track(
+        id="guest",
+        label="Guest",
+        role=TrackRole.DIALOGUE,
+        media=MediaAsset(path="raw/guest.wav", duration_sec=SECONDS, sample_rate=SR, channels=1),
+    )
+    project.tracks.append(guest)
+    project.clips.append(
+        Clip(id="guest", track_id="guest", source_start=0, source_end=SECONDS, timeline_start=0)
+    )
+    stem = stem_path(project, "guest")
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    stem.write_bytes((raw / "host.wav").read_bytes())
+    write_stem_hash(project, "guest", defaults=load_defaults())
+
+
+def test_a_stem_gone_stale_after_a_cut_builds_the_loudness_again_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    starts = (10.0, 40.0, 70.0, 100.0)
+    carried = _project(tmp_path / "carried", starts)
+    _with_a_fresh_guest_stem(carried)
+    built = _builds(monkeypatch)
+    _approve(carried)
+    assert len(built) == 2
+
+    monkeypatch.setattr(
+        CarriedTimelineRms,
+        "applied",
+        lambda self, timeline_start: setattr(self, "_intact_before", -1.0),
+    )
+    fresh = _project(tmp_path / "fresh", starts)
+    _with_a_fresh_guest_stem(fresh)
+    _approve(fresh)
     assert _clips(carried) == _clips(fresh)
