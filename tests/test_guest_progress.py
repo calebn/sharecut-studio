@@ -1,11 +1,11 @@
-"""Guest progress hub, MCP notifications, and review-share WS isolation."""
-
 from __future__ import annotations
 
 import asyncio
 import json
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -49,6 +49,30 @@ from podcast_mcp.util.tool_refusal import guest_failure_detail
 from sync_helpers import drain
 
 
+@contextmanager
+def _guest_payload_accepted(
+    queue: asyncio.Queue[dict], expected: dict
+) -> Iterator[asyncio.Future[dict]]:
+    accepted: asyncio.Future[dict] = asyncio.get_running_loop().create_future()
+    expected = expected.copy()
+    put_nowait = queue.put_nowait
+
+    def observe(payload: dict) -> None:
+        put_nowait(payload)
+        if not accepted.done() and all(
+            payload.get(key) == value for key, value in expected.items()
+        ):
+            accepted.set_result(payload)
+
+    try:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(queue, "put_nowait", observe)
+            yield accepted
+    finally:
+        if not accepted.done():
+            accepted.cancel()
+
+
 def _seed_premix(minimal_project, sample_wav):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
@@ -65,7 +89,7 @@ def test_guest_coalesce_matches_source_cadence():
 
 @pytest.mark.asyncio
 async def test_throttled_task_final_value_reaches_guest_ws_before_end(monkeypatch):
-    monkeypatch.setattr(task_mod, "_update_clock", lambda: 0.0)  # source throttle frozen
+    monkeypatch.setattr(task_mod, "_update_clock", lambda: 0.0)
     reset_guest_progress_hub()
     hub = guest_progress_hub()
     q = hub.subscribe("tok", asyncio.get_running_loop())
@@ -234,15 +258,18 @@ async def test_guest_hub_publishes_only_to_that_token():
     q_b = hub.subscribe("beta", loop)
     reporter = GuestWsProgressReporter(hub, "alpha")
     try:
-        reporter.start("guest_render_preview", "Render preview", total=2)
-        reporter.update(
-            "guest_render_preview",
-            1,
-            total=2,
-            message="Mixing stems",
-        )
-        reporter.end("guest_render_preview", message="done")
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(
+            q_a, {"kind": "end", "task_id": "guest_render_preview", "status": "ok"}
+        ) as accepted:
+            reporter.start("guest_render_preview", "Render preview", total=2)
+            reporter.update(
+                "guest_render_preview",
+                1,
+                total=2,
+                message="Mixing stems",
+            )
+            reporter.end("guest_render_preview", message="done")
+            await asyncio.wait_for(accepted, timeout=1)
         got_a: list[dict] = []
         while not q_a.empty():
             got_a.append(q_a.get_nowait())
@@ -408,7 +435,6 @@ async def test_handle_mcp_jsonrpc_progress_token_uses_guest_context(
 
 
 def _next_progress_frame(socket, *, limit: int = 40) -> dict:
-    """Read daw/ws frames until the progress plane delivers one."""
     for _ in range(limit):
         frame = socket.receive_json()
         if frame.get("plane") == "progress":
@@ -474,8 +500,9 @@ async def test_guest_hub_drops_oldest_on_full_queue():
     try:
         for i in range(64):
             q.put_nowait({"i": i})
-        hub.publish("tok", {"plane": "progress", "kind": "update"})
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(q, {"plane": "progress", "kind": "update"}) as accepted:
+            hub.publish("tok", {"plane": "progress", "kind": "update"})
+            await asyncio.wait_for(accepted, timeout=1)
         assert q.full()
         items = drain(q)
         assert any(item.get("kind") == "update" for item in items)
@@ -662,8 +689,11 @@ async def test_guest_hub_keeps_terminal_on_overflow():
     try:
         for i in range(64):
             q.put_nowait({"kind": "update", "task_id": "t", "i": i, "status": "running"})
-        hub.publish("tok", {"kind": "end", "task_id": "t", "status": "ok", "plane": "progress"})
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(
+            q, {"kind": "end", "task_id": "t", "status": "ok", "plane": "progress"}
+        ) as accepted:
+            hub.publish("tok", {"kind": "end", "task_id": "t", "status": "ok", "plane": "progress"})
+            await asyncio.wait_for(accepted, timeout=1)
         items = drain(q)
         assert any(item.get("kind") == "end" for item in items)
     finally:
@@ -763,7 +793,6 @@ def _guest_share(minimal_project, sample_wav, monkeypatch, label: str) -> str:
 
 
 def _failing_guest_tool(monkeypatch, exc: BaseException) -> None:
-    """Replace ``guest_get_project`` with a handler whose progress task fails on ``exc``."""
     from podcast_mcp.services.remote_mcp import tools as rt
 
     def handler():
