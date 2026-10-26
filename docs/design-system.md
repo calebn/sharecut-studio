@@ -66,7 +66,8 @@ The theme toolbar applies to this page in both light and dark modes.
 | Add or change a story | [Adding a story](#adding-a-story) and [Governance](#governance) |
 
 Stories live next to their components and are organized by Atomic Design
-level. Library stories (`src/ui/*.stories.tsx`) are atoms, molecules or
+level, plus two groups for the stage redesign: `System/<Element>` for shared
+elements and `Stages/<Stage>/<Surface>` for stage compositions. Library stories (`src/ui/*.stories.tsx`) are atoms, molecules or
 organisms; domain screens are templates, colocated with their domain component
 (`src/<area>/*.stories.tsx`, e.g. `src/record/`):
 
@@ -82,6 +83,19 @@ app; a template is one specific domain screen or panel (record room, review
 page) assembled from atoms, molecules and organisms. Atoms → molecules →
 organisms → templates is the traversal order: design the atom in isolation,
 check it composed, then check it in a real screen.
+
+**System and Stages** come from the stage redesign specs in
+[design/stages/](design/stages/design-system.md).
+
+| Group | Title | Contents |
+| ----- | ----- | -------- |
+| **System** | `System/<Element>` | Shared Frame and cross-stage elements (App header, Stage bar, Player, Palette, Sheet, Toast, Cover and so on), props in and UI out, no store |
+| **Stages** | `Stages/<Stage>/<Surface>` | One stage's compositions. Stage is one of Home, Record, Prepare, Edit, Review, Deliver or Guest |
+
+Frame elements live under `System/`, so `Frame` is not a Stage title. A System
+story follows the same rules as any other: static fixtures, 360 and 1280 px in
+both themes, `Phone` in the name of a 360-only variant, and a
+`wideOnlyReason` for a `wide-only` one. Existing `Atoms/*` stay as primitives.
 
 ### Domain surfaces (Templates)
 
@@ -530,14 +544,16 @@ jsdom visibility checks.
 1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` for the
    library, the feature folder for domain surfaces).
 2. Title every story by Atomic Design level:
-   `Atoms|Molecules|Organisms|Templates/<Name>`. Standalone orientation docs
+   `Atoms|Molecules|Organisms|Templates/<Name>`, or, for the stage redesign,
+   `System/<Element>` or `Stages/<Stage>/<Surface>`. Standalone orientation docs
    live under `Style guide/` as MDX pages, before the component catalog.
    Library components use the
    first three; **Organisms** are generic and reusable anywhere (Dialog,
    BottomSheet) and carry no domain-specific fixtures or copy. State-local
    domain screens use `Templates/<Name>`. No per-feature top-level categories
    (not `Record/…`); `storySort` in `.storybook/preview.ts` orders Atoms →
-   Molecules → Organisms → Templates — don't add new top-level groups without
+   Molecules → Organisms → Templates (with System and Stages first after
+   Style guide) — don't add new top-level groups without
    updating it and this doc.
 3. Library stories import from `./index` (the public API), not deep paths.
    Feature folders without a barrel (for example `src/record/`) import the
@@ -578,8 +594,10 @@ jsdom visibility checks.
 
 - Every `src/**/*.stories.ts(x)` file must default-export a local `const`
   metadata object with a literal `title` of the form
-  `Atoms|Molecules|Organisms|Templates/<Name>` (one nonempty name segment).
-  `gui/web/src/test/storyGovernance.test.ts` parses the metadata and checks
+  `Atoms|Molecules|Organisms|Templates/<Name>`, `System/<Element>` or
+  `Stages/<Stage>/<Surface>` with Stage one of Home, Record, Prepare, Edit,
+  Review, Deliver or Guest (one nonempty name segment each; a Stage typo
+  fails). `gui/web/src/test/storyGovernance.test.ts` parses the metadata and checks
   every story in the Vitest suite; computed, missing, blank, and later
   overridden titles fail. Keep the exported metadata object local and do not
   mutate or alias it after declaration. Local bindings named `meta` inside
@@ -629,6 +647,10 @@ jsdom visibility checks.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-10-26 — Story titles may also be `System/<Element>` and
+  `Stages/<Stage>/<Surface>` (#2291); `storySort` lists System and Stages after
+  Style guide. The stage redesign specs live in `docs/design/stages/`.
 
 - 2026-10-26 — Every screen, dialog, panel and inspector variant in the UI
   inventory now has a story or a recorded reason it has none (#2279). The

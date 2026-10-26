@@ -278,7 +278,8 @@ export function importsStorybook(text: string): boolean {
   return importSpecifiers(text).some((s) => STORYBOOK_PACKAGE_RE.test(s));
 }
 
-const STORY_TITLE_RE = /^(?:Atoms|Molecules|Organisms|Templates)\/[^/\s][^/]*$/;
+const STORY_TITLE_RE =
+  /^(?:(?:Atoms|Molecules|Organisms|Templates|System)|Stages\/(?:Home|Record|Prepare|Edit|Review|Deliver|Guest))\/[^/\s][^/]*$/;
 
 /** Return a reason when the default-exported story metadata lacks a tier title. */
 export function storyTitleViolation(text: string): string | null {
@@ -506,7 +507,7 @@ export function storyTitleViolation(text: string): string | null {
     !STORY_TITLE_RE.test(value) ||
     value.trim() !== value
   ) {
-    return "title must be Atoms|Molecules|Organisms|Templates/<Name>";
+    return "title must be Atoms|Molecules|Organisms|Templates/<Name>, System/<Element> or Stages/<Stage>/<Surface>";
   }
   return null;
 }

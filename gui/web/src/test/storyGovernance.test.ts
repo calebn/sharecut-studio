@@ -243,6 +243,44 @@ describe("Storybook title tiers", () => {
   );
 
   it.each([
+    "System/AppHeader",
+    "System/StatusRow",
+    "Stages/Home/Projects",
+    "Stages/Record/JoinSheet",
+    "Stages/Prepare/Sources",
+    "Stages/Edit/Script",
+    "Stages/Review/Queue",
+    "Stages/Deliver/Export",
+    "Stages/Guest/Lobby",
+  ])("accepts the %s title", (title) => {
+    expect(
+      storyTitleViolation(`export default { title: "${title}" };`),
+    ).toBeNull();
+  });
+
+  it.each([
+    "System",
+    "System/",
+    "System/ ",
+    " System/X",
+    "System/A/B",
+    "system/X",
+    "Stages/Edit",
+    "Stages/Edit/",
+    "Stages//X",
+    "Stages/Nope/X",
+    "Stages/Frame/X",
+    "Stages/Edit/A/B",
+    "stages/Edit/X",
+    "Stages/edit/X",
+    "Stages/Edit/ X",
+  ])("rejects the %s title", (title) => {
+    expect(
+      storyTitleViolation(`export default { title: "${title}" };`),
+    ).not.toBeNull();
+  });
+
+  it.each([
     ["unknown tier", 'export default { title: "Screens/Home" };'],
     ["empty name", 'export default { title: "Atoms/" };'],
     ["blank name", 'export default { title: "Atoms/ " };'],
