@@ -588,12 +588,7 @@ class RecordLandingService:
             self._suggestion_closed() if session_closed is None else session_closed
         )
         if closed:
-            new_beds = [
-                row
-                for row in pending_room_tone
-                if self._room_tone_missing(str(row["participant_id"]), True)
-            ]
-            if pending or new_beds:
+            if pending or pending_room_tone:
                 self._refuse_closed(refuse_closed)
             pending, pending_room_tone = [], []
         if pending and staged and isinstance(snap.target, InsertTarget):
@@ -1232,7 +1227,7 @@ class RecordLandingService:
         """
         source_id = self._landed_source_id(participant_id, take_index, segment_index)
         with project_state_lock(self.workspace.project):
-            registered = _registered_source_file(self.workspace.project, source_id)
+            registered = self._landing_file(self.workspace.project, source_id, take_index)
         revision: FileRevision | None = None
         if registered is not None:
             if verified is not None:
@@ -1241,7 +1236,7 @@ class RecordLandingService:
             else:
                 revision = _verified_file_revision(registered[0], expected_sha256)
         with self.workspace.transaction() as project:
-            current = _registered_source_file(project, source_id)
+            current = self._landing_file(project, source_id, take_index)
             present = (
                 registered is not None
                 and current is not None
@@ -1271,6 +1266,22 @@ class RecordLandingService:
                 expected_sha256=expected_sha256,
             )
             return False
+
+    def _landing_file(
+        self, project: EpisodeProject, source_id: str, take_index: int
+    ) -> tuple[Path, str] | None:
+        if take_index == ROOM_TONE_TAKE_INDEX:
+            suggestion = session_suggestion_for(project, self.session_id)
+            bed = next(
+                (bed for bed in suggestion.room_tone if bed.source_id == source_id)
+                if suggestion is not None
+                else iter(()),
+                None,
+            )
+            if bed is not None:
+                dest = (Path(project.workspace_dir) / bed.path).resolve()
+                return (dest, bed.path) if dest.is_file() else None
+        return _registered_source_file(project, source_id)
 
     def _copied_raw_matches(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
         """Check under the lock, with one stat, that the copy hashed before the lock is unchanged."""

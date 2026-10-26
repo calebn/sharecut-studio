@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool, revoke_record_room_tool
-from podcast_mcp.models import EpisodeProject, load_project, save_project
+from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.record_share import lookup_record_share, record_bootstrap
 from podcast_mcp.services.collaboration.review import ReviewService
@@ -1139,6 +1139,21 @@ def test_minting_a_room_takes_an_insert_or_replace_target(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, target, expected
 ):
     ws = _seed_premix(minimal_project, sample_wav)
+
+    def build(project):
+        project.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+        project.clips.append(
+            Clip(
+                id="base",
+                track_id="host",
+                source_id="src-base",
+                source_start=0.0,
+                source_end=10.0,
+                timeline_start=0.0,
+            )
+        )
+
+    ws.mutate("seed", "seeded", build)
     room = ShareService(ws).create_record_room(target=target)
     snap = RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()
     assert snap["target"] == expected

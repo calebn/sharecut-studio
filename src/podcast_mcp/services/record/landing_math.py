@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.models import Clip, EpisodeProject
 from podcast_mcp.services.record.state import (
     SessionTarget,
@@ -35,6 +36,32 @@ def session_origin_s(
     prefix = record_source_prefix(session_id)
     ends = [clip.timeline_end for clip in clips if not (clip.source_id or "").startswith(prefix)]
     return max(ends) + take_gap_ms / 1000.0 if ends else 0.0
+
+
+def check_target_for_project(target: SessionTarget, project: EpisodeProject) -> None:
+    """Refuse an insert or replace target the episode cannot hold, naming the field to fix.
+
+    An insert past the end is allowed: it lands at the end. A replace needs real tracks and
+    a range inside the timeline.
+    """
+    if target.kind != "replace":
+        return
+    known = {track.id for track in project.timeline.tracks}
+    missing = [track_id for track_id in target.track_ids if track_id not in known]
+    if missing:
+        names = ", ".join(sorted(known)) or "none yet"
+        raise CodedValueError(
+            f"track_ids: this episode has no track named {', '.join(missing)}. "
+            f"Pick from the tracks it has: {names}.",
+            code="invalid_record_request",
+        )
+    end = timeline_duration_sec(project)
+    if target.to_sec > end + 1e-6:
+        raise CodedValueError(
+            f"to_sec: the replace range ends at {target.to_sec:g}s but the timeline is only "
+            f"{end:g}s long. Pick a range inside the timeline.",
+            code="invalid_record_request",
+        )
 
 
 def session_placement(clips: Iterable[Clip], session_id: str, target: SessionTarget) -> float:

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import Clip, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record.commands import (
@@ -2027,3 +2027,45 @@ def test_target_is_host_only_and_hidden_from_guests(
         )
         assert refused.status_code >= 400
         assert "is not available yet" in refused.text
+
+
+def test_http_set_target_refusals_name_the_field(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, _, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+
+    def build(project):
+        project.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+        project.clips.append(
+            Clip(
+                id="base",
+                track_id="host",
+                source_id="src-base",
+                source_start=0.0,
+                source_end=10.0,
+                timeline_start=0.0,
+            )
+        )
+
+    ws.mutate("seed", "seeded", build)
+    cases = [
+        ({"kind": "insert", "at_sec": -1}, "at_sec"),
+        ({"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["ghost"]}, "track_ids"),
+        ({"kind": "replace", "from_sec": 8, "to_sec": 12, "track_ids": ["host"]}, "to_sec"),
+        ({"kind": "replace", "from_sec": 5, "to_sec": 2, "track_ids": ["host"]}, "to_sec"),
+    ]
+    for target, field in cases:
+        refused = client.post(
+            "/api/record/command",
+            json={"path": str(ws.path), "command_type": "SetTarget", "payload": {"target": target}},
+        )
+        assert refused.status_code == 400, refused.text
+        assert field in refused.text
+        assert "invalid record payload" not in refused.text
+    far = {"kind": "insert", "at_sec": 500.0}
+    ok = client.post(
+        "/api/record/command",
+        json={"path": str(ws.path), "command_type": "SetTarget", "payload": {"target": far}},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["target"] == far

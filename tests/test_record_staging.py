@@ -270,6 +270,7 @@ def test_replace_takes_are_alternatives_at_the_range_start(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
     _land_end_session(ws)
     before = _timeline(ws)
     room, _guest, _svc, landed = _stage(ws, REPLACE, takes=2)
@@ -302,6 +303,7 @@ def test_room_snapshot_shows_the_replace_overlay_at_the_range_start(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
     room = ShareService(ws).create_record_room(target=REPLACE)
     svc, guest = _join(ws, room)
     _record(ws, room, svc, guest, 1)
@@ -386,6 +388,7 @@ def test_skip_is_one_undo_step_and_refuses_a_suggestion_that_is_not_pending(
 
 def test_cli_and_mcp_list_and_skip(minimal_project, sample_wav, tmp_workspace):
     ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
     room, _guest, _svc, _landed = _stage(ws, REPLACE)
     sid = f"ss-{room['session_id']}"
     runner = CliRunner()
@@ -491,6 +494,7 @@ def test_a_staged_room_tone_bed_stays_off_the_timeline_and_is_held_on_the_sugges
 
     ws = _seed(minimal_project, sample_wav)
     _land_end_session(ws)
+    _seed_replaceable(ws)
     before = _timeline(ws)
     room = ShareService(ws).create_record_room(target=target)
     svc, guest = _join(ws, room)
@@ -543,6 +547,7 @@ def test_replace_with_a_sub_millisecond_anchor_stages_alternatives_at_zero(
     minimal_project, sample_wav, tmp_workspace, from_sec
 ):
     ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
     target = {"kind": "replace", "from_sec": from_sec, "to_sec": 2.0, "track_ids": ["ava"]}
     room, _guest, _svc, _landed = _stage(ws, target, takes=2)
     row = _suggestion(ws, room["session_id"])
@@ -1023,6 +1028,7 @@ def test_accept_refuses_a_replace_session_and_an_empty_one(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
     _seed_timeline(ws)
     room, _guest, _svc, _landed = _stage(ws, REPLACE)
     before = _everything(ws)
@@ -1217,6 +1223,23 @@ def _seed_single_clip(ws, *, start: float = 0.0, end: float = 8.0, source_id: st
                 source_start=0.0,
                 source_end=end,
                 timeline_start=start,
+            )
+        )
+
+    ws.mutate("seed", "seeded", build)
+
+
+def _seed_replaceable(ws, track_id: str = "ava") -> None:
+    def build(project: EpisodeProject) -> None:
+        project.tracks.append(Track(id=track_id, label="Ava", role=TrackRole.DIALOGUE))
+        project.clips.append(
+            Clip(
+                id="base",
+                track_id=track_id,
+                source_id="src-base",
+                source_start=0.0,
+                source_end=10.0,
+                timeline_start=0.0,
             )
         )
 
@@ -1513,3 +1536,165 @@ def test_a_bed_arriving_inside_the_mutate_after_accept_is_refused_not_held(
     rows = RecordUploadService(ws.project).room_tone_status(session_id=room["session_id"])
     assert [bool(r.get("landed")) or bool(r.get("land_failed")) for r in rows] == [False]
     assert sorted(p for p in raw.rglob("*") if p.is_file()) == files
+
+
+def _bed_rows(ws, room):
+    return RecordUploadService(ws.project).room_tone_status(session_id=room["session_id"])
+
+
+@pytest.mark.parametrize("target", [INSERT, REPLACE], ids=["insert", "replace"])
+def test_a_staged_bed_upload_row_is_landed_once_held(
+    minimal_project, sample_wav, tmp_workspace, target
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    room = ShareService(ws).create_record_room(target=target)
+    svc, guest = _join(ws, room)
+    _room_tone_bed(ws, room, guest)
+    _record(ws, room, svc, guest, 1)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    assert len(_suggestion(ws, room["session_id"]).room_tone) == 1
+    [row] = _bed_rows(ws, room)
+    assert bool(row.get("landed")) is True
+    assert bool(row.get("land_failed")) is False
+    first = _everything(ws)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    assert _everything(ws) == first
+
+
+def test_a_land_after_accept_leaves_the_bed_row_landed(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room = ShareService(ws).create_record_room(target=INSERT)
+    svc, guest = _join(ws, room)
+    _room_tone_bed(ws, room, guest)
+    _record(ws, room, svc, guest, 1)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    before = _everything(ws)
+    landed = RecordLandingService(ws).land(align=lambda _p: None)
+    assert landed["staged"] == [] and landed["clips"] == []
+    assert _everything(ws) == before
+    [row] = _bed_rows(ws, room)
+    assert (bool(row.get("landed")), bool(row.get("land_failed"))) == (True, False)
+
+
+def test_a_bed_arriving_after_close_stays_refused_and_unlanded(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, _svc, _landed = _stage(ws, INSERT)
+    SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    _room_tone_bed(ws, room, guest)
+    before = _everything(ws)
+    with pytest.raises(SessionSuggestionClosedError):
+        RecordLandingService(ws).land(align=lambda _p: None)
+    assert _everything(ws) == before
+    [row] = _bed_rows(ws, room)
+    assert (bool(row.get("landed")), bool(row.get("land_failed"))) == (False, False)
+
+
+def test_an_end_target_lands_the_bed_and_take_on_the_timeline(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines.room_tone import room_tone_source_id
+    from podcast_mcp.engines.track_ids import slug_track_id
+
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _join(ws, room)
+    _room_tone_bed(ws, room, guest)
+    _record(ws, room, svc, guest, 1)
+    landed = RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    track_id = slug_track_id(guest)
+    track = ws.project.track_by_id(track_id)
+    assert track is not None and track.room_tone is not None
+    assert ws.project.source_by_id(room_tone_source_id(track_id)) is not None
+    assert [c.timeline_start for c in ws.project.clips] == [0.0]
+    assert len(landed["clips"]) == 1
+    assert ws.project.editorial.session_suggestions == []
+    [row] = _bed_rows(ws, room)
+    assert (bool(row.get("landed")), bool(row.get("land_failed"))) == (True, False)
+
+
+def _refused_target(ws, target):
+    from podcast_mcp.services.record.control import RecordControlService
+
+    with pytest.raises(CodedValueError) as raised:
+        ShareService(ws).create_record_room(target=target)
+    assert raised.value.code == "invalid_record_request"
+    ShareService(ws).create_record_room()
+    ctrl = RecordControlService(ws)
+    with pytest.raises(CodedValueError) as via_control:
+        ctrl.set_target(target)
+    with pytest.raises(CodedValueError) as via_command:
+        ctrl.submit_host("SetTarget", {"target": target})
+    assert str(via_control.value) == str(via_command.value) == str(raised.value)
+    assert ctrl.snapshot()["target"] == {"kind": "end"}
+    return str(raised.value)
+
+
+def test_a_replace_target_with_an_unknown_track_is_refused_by_field(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    message = _refused_target(
+        ws, {"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["ava", "ghost"]}
+    )
+    assert message.startswith("track_ids:") and "ghost" in message and "ava" in message
+
+
+def test_a_replace_target_past_the_timeline_end_is_refused_by_field(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    message = _refused_target(
+        ws, {"kind": "replace", "from_sec": 8, "to_sec": 12, "track_ids": ["ava"]}
+    )
+    assert message.startswith("to_sec:") and "10s" in message
+
+
+def test_a_replace_target_with_a_reversed_range_is_refused_by_field(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    message = _refused_target(
+        ws, {"kind": "replace", "from_sec": 5, "to_sec": 2, "track_ids": ["ava"]}
+    )
+    assert "to_sec" in message
+
+
+def test_a_valid_replace_target_is_accepted_by_every_path(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.record.control import RecordControlService
+
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    target = {"kind": "replace", "from_sec": 1.0, "to_sec": 10.0, "track_ids": ["ava"]}
+    ShareService(ws).create_record_room()
+    ctrl = RecordControlService(ws)
+    assert ctrl.set_target(target)["target"] == target
+    ctrl.submit_host("SetTarget", {"target": {"kind": "end"}})
+    assert ctrl.snapshot()["target"] == {"kind": "end"}
+
+
+def test_an_insert_past_the_end_is_allowed_and_anchors_to_the_end(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.record.control import RecordControlService
+
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    far = {"kind": "insert", "at_sec": 500.0}
+    room, _guest, _svc, _landed = _stage(ws, far)
+    row = _suggestion(ws, room["session_id"])
+    assert row.anchor is not None and row.anchor.kind == "end"
+    ShareService(ws).create_record_room()
+    assert RecordControlService(ws).set_target(far)["target"] == far

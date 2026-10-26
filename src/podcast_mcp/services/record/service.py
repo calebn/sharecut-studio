@@ -22,7 +22,10 @@ from podcast_mcp.services.record.commands import (
     RecordCommand,
     authorize_record_command,
 )
-from podcast_mcp.services.record.landing_math import session_take_offsets_s
+from podcast_mcp.services.record.landing_math import (
+    check_target_for_project,
+    session_take_offsets_s,
+)
 from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     live_comment_store_for,
@@ -332,6 +335,7 @@ def begin_record_session(
     refusal = unsupported_target_message(room_target)
     if refusal is not None:
         raise RecordStateError(refusal)
+    check_target_for_project(room_target, project)
     hub = record_hub_key(project)
     store = _store_for(project)
     active = RecordSessionService.active_session_id(project)
@@ -648,6 +652,8 @@ class RecordSessionService:
         ):
             raise RecordStateError("participant removed")
         wall = time.time_ns() // 1_000_000 if now_wall_ms is None else now_wall_ms
+        if cmd.type == "SetTarget" and not self._model().takes:
+            check_target_for_project(parse_session_target(cmd.payload.get("target")), self.project)
         if cmd.type == "Comment":
             self._rewrite_comment(cmd, now_wall_ms=wall)
         stored_payload = dict(cmd.payload)
