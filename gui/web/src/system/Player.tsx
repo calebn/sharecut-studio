@@ -1,11 +1,35 @@
-import { type CSSProperties, useEffect, useId, useRef } from "react";
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { useLongPress } from "../hooks/useLongPress";
 import { presenceColorVar } from "../presence/colors";
-import { Button, Pill, SegmentedControl, ToggleButton } from "../ui";
+import {
+  Button,
+  Menu,
+  MenuSection,
+  Pill,
+  SegmentedControl,
+  ToggleButton,
+} from "../ui";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
 
 export type PlayerChapter = { title: string; time: string; at: number };
+
+/** What the A/B control plays: the full mix, the edited stems without mix processing, or the original. */
+export type HearMode = "mix" | "edited" | "original";
+
+const HEAR_MODES: readonly { id: HearMode; label: string }[] = [
+  { id: "mix", label: "Full mix" },
+  { id: "edited", label: "Without mix processing" },
+  { id: "original", label: "Original" },
+];
 
 export type PlayerProps = {
   form: "bar" | "expanded";
@@ -29,8 +53,16 @@ export type PlayerProps = {
   playhead?: number;
   onPlayPause: () => void;
   onSkip?: (seconds: number) => void;
-  /** Toggles here; the press-and-hold gesture and the held A key are wired with the app (#2292). */
+  /**
+   * A press on A hears the original at once. Released quickly it stays on
+   * (latched); held past `HOLD_MS` it returns to what was playing on release.
+   */
   onHearOriginal?: (on: boolean) => void;
+  /**
+   * The hear menu, opened by a right-click, a long press or its chevron. Omit
+   * it for a guest, who hears the mix only.
+   */
+  hearMenu?: { mode: HearMode; onMode: (mode: HearMode) => void };
   onComment?: () => void;
   onExpand?: () => void;
   onCollapse?: () => void;
@@ -179,17 +211,72 @@ function StatePills({
   );
 }
 
-/** The A/B audition control (design system 21): A is the original, B the edit. */
-function HearOriginal({ hearOriginal, onHearOriginal }: PlayerProps) {
+/** A press on A longer than this is a hold: letting go goes back to what was playing. */
+const HOLD_MS = 250;
+
+/** Hold-to-hear on A: down hears the original, a quick release latches it, a held release restores. */
+function useHoldToHear(
+  original: boolean,
+  onHearOriginal: PlayerProps["onHearOriginal"],
+) {
+  const press = useRef<{ at: number; was: boolean } | null>(null);
+  const swallowClick = useRef(false);
+  const release = (cancelled: boolean) => {
+    const current = press.current;
+    press.current = null;
+    if (!current) return;
+    const held = performance.now() - current.at >= HOLD_MS;
+    if (!current.was && (held || cancelled)) {
+      swallowClick.current = held;
+      onHearOriginal?.(false);
+    }
+  };
+  return {
+    onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return;
+      swallowClick.current = false;
+      press.current = { at: performance.now(), was: original };
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      if (!original) onHearOriginal?.(true);
+    },
+    onPointerUp: () => release(false),
+    onPointerCancel: () => release(true),
+    onClick: () => {
+      if (swallowClick.current) {
+        swallowClick.current = false;
+        return;
+      }
+      onHearOriginal?.(true);
+    },
+  };
+}
+
+/**
+ * The A/B audition control (design system 21): A is the original, B the edit.
+ * Right-click or long-press it, or use the chevron, for the hear menu.
+ */
+function HearOriginal({
+  hearOriginal,
+  onHearOriginal,
+  hearMenu,
+}: Pick<PlayerProps, "hearOriginal" | "onHearOriginal" | "hearMenu">) {
   const original = hearOriginal ?? false;
-  return (
+  const [open, setOpen] = useState(false);
+  const hold = useHoldToHear(original, onHearOriginal);
+  // A held A is the hold gesture, so a long press there never opens the menu.
+  const longPress = useLongPress((target) => {
+    if (target instanceof Element && target.closest(".sys-player-a")) return;
+    setOpen(true);
+  });
+  const group = (
     <SegmentedControl label="Audition" className="sys-player-ab">
       <ToggleButton
         quiet
+        className="sys-player-a"
         pressed={original}
         title="Hear the original (A)"
         aria-keyshortcuts="A"
-        onClick={() => onHearOriginal?.(true)}
+        {...hold}
       >
         A
       </ToggleButton>
@@ -203,6 +290,57 @@ function HearOriginal({ hearOriginal, onHearOriginal }: PlayerProps) {
         B
       </ToggleButton>
     </SegmentedControl>
+  );
+  if (!hearMenu) return group;
+  return (
+    <span
+      className="sys-player-hear"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setOpen(true);
+      }}
+      {...longPress}
+    >
+      {group}
+      <Menu
+        open={open}
+        onOpenChange={setOpen}
+        label="Hear"
+        className="ui-menu-root sys-menu sys-player-hear-menu"
+        trigger={(props) => (
+          <button
+            type="button"
+            className="sys-icon-btn sys-player-hear-more"
+            aria-label="Hear options"
+            title="Hear options"
+            {...props}
+          >
+            <SystemIcon name="chevron-down" size={16} />
+          </button>
+        )}
+      >
+        <MenuSection label="Hear">
+          <SegmentedControl role="none" className="sys-player-hear-modes">
+            {HEAR_MODES.map((entry) => (
+              <ToggleButton
+                key={entry.id}
+                quiet
+                role="menuitemradio"
+                tabIndex={-1}
+                pressed={hearMenu.mode === entry.id}
+                aria-checked={hearMenu.mode === entry.id}
+                onClick={() => {
+                  setOpen(false);
+                  hearMenu.onMode(entry.id);
+                }}
+              >
+                {entry.label}
+              </ToggleButton>
+            ))}
+          </SegmentedControl>
+        </MenuSection>
+      </Menu>
+    </span>
   );
 }
 
@@ -266,7 +404,13 @@ export function Player(props: PlayerProps) {
             <PlayCluster {...props} />
           </div>
           <div className="sys-player-right">
-            {guest ? null : <HearOriginal {...props} />}
+            {guest ? null : (
+              <HearOriginal
+                hearOriginal={props.hearOriginal}
+                onHearOriginal={props.onHearOriginal}
+                hearMenu={props.hearMenu}
+              />
+            )}
             <VerbButton verb="comment" onClick={onComment} />
             <StatePills {...props} />
           </div>
@@ -316,7 +460,13 @@ export function Player(props: PlayerProps) {
         <PlayCluster {...props} />
       </div>
       <div className="sys-player-actions">
-        {guest ? null : <HearOriginal {...props} />}
+        {guest ? null : (
+          <HearOriginal
+            hearOriginal={props.hearOriginal}
+            onHearOriginal={props.onHearOriginal}
+            hearMenu={props.hearMenu}
+          />
+        )}
         <VerbButton verb="comment" onClick={onComment} />
       </div>
       {chapters.length > 0 ? (

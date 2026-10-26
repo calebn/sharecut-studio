@@ -45,13 +45,15 @@ export function SaveIndicator({
         <button type="button" className="sys-text-btn" onClick={onRetry}>
           Retry<span className="sr-only"> saving</span>
         </button>
-        <button
-          type="button"
-          className="sys-text-btn sys-save-download"
-          onClick={onDownload}
-        >
-          Download a copy
-        </button>
+        {onDownload ? (
+          <button
+            type="button"
+            className="sys-text-btn sys-save-download"
+            onClick={onDownload}
+          >
+            Download a copy
+          </button>
+        ) : null}
       </span>
     );
   }

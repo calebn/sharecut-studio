@@ -1,77 +1,12 @@
-import { useEffect, useSyncExternalStore } from "react";
-import {
-  selectRecoveryOutcome,
-  useOfflineAttention,
-} from "../services/offlineQueue/offlineAttention";
-import { isShareProjectKey } from "../shareMode";
-import { ATTENTION_BANNER_ID } from "../stage/frame/GuestAttentionBannerView";
-import { latestSaveOutcome, saveStateOf } from "../stage/frame/saveState";
-import {
-  documentActivityBusy,
-  subscribeDocumentActivity,
-} from "../state/documentSendOrder";
-import { useDaw } from "../state/useDaw";
+import { useSaveState } from "../stage/frame/useSaveState";
 import { SaveStateDotView } from "./SaveStateDotView";
 
-function focusAttention() {
-  const banner = document.getElementById(ATTENTION_BANNER_ID);
-  banner?.querySelector("details")?.setAttribute("open", "");
-  banner?.focus();
-}
-
 /**
- * The host's project save state as a status light, from the sends this tab has in flight and the
- * offline queue and conflicts the Needs attention banner lists. Share guests
- * see none: their edits go through the review link.
+ * The host's project save state as a status light. Share guests see none:
+ * their edits go through the review link.
  */
 export function SaveStateDot() {
-  const projectPath = useDaw((s) => s.projectPath);
-  const guest = isShareProjectKey(projectPath);
-  const busy = useSyncExternalStore(subscribeDocumentActivity, () =>
-    documentActivityBusy(projectPath),
-  );
-  const attention = useOfflineAttention(
-    guest || !projectPath ? null : projectPath,
-  );
-  const state =
-    guest || !projectPath
-      ? null
-      : saveStateOf({
-          busy,
-          pending: attention.pending,
-          conflicts: attention.conflicts,
-          unreadable:
-            attention.status === "unreadable" ||
-            attention.status === "retrying",
-          loaded: attention.loaded,
-          settling: attention.settling,
-        });
-  const latest = latestSaveOutcome(attention.conflicts);
-  const showsDismissedOutcome = latest?.dismissed && latest.kind === "unknown";
-
-  useEffect(() => {
-    if (attention.recoverySelection) {
-      focusAttention();
-    }
-  }, [attention.recoverySelection]);
-
+  const { state, attention } = useSaveState();
   if (!state) return null;
-  return (
-    <SaveStateDotView
-      state={state}
-      attention={
-        state.kind === "failed" && state.cause === "unreadable"
-          ? { kind: "passive" }
-          : {
-              kind: "button",
-              activate: () => {
-                if (projectPath && latest && showsDismissedOutcome) {
-                  selectRecoveryOutcome(projectPath, latest);
-                }
-                focusAttention();
-              },
-            }
-      }
-    />
-  );
+  return <SaveStateDotView state={state} attention={attention} />;
 }

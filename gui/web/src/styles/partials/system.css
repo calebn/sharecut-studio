@@ -412,6 +412,18 @@
   margin-inline-start: calc(var(--space-1) * -1);
 }
 
+.sys-header-phone-count {
+  display: none;
+  align-items: center;
+  padding-inline: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-header-history {
+  display: inline-flex;
+}
+
 .sys-header-more {
   display: inline-flex;
   align-items: center;
@@ -428,9 +440,17 @@
     padding-inline: var(--space-3);
   }
 
-  .sys-header-stages,
-  .sys-header-people {
+  .sys-header-stages {
     display: none;
+  }
+
+  .sys-header-people li:nth-child(n + 2):not(.sys-header-phone-count),
+  .sys-header-people .sys-header-more {
+    display: none;
+  }
+
+  .sys-header-people .sys-header-phone-count {
+    display: inline-flex;
   }
 
   .sys-header-left {
@@ -787,6 +807,16 @@
 
 .sys-player--expanded .sys-player-skip {
   display: inline-flex;
+}
+
+.sys-player-hear {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sys-player-hear-more {
+  min-inline-size: var(--control-height);
 }
 
 .sys-player-actions {

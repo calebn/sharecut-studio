@@ -3,7 +3,7 @@ import { registerDawCommands } from "../commands/register";
 import { useRecordHostStore } from "../record/hostStore";
 import type { RecordSnapshot } from "../record/types";
 import { useDawStore } from "../state/dawStore";
-import type { DawState } from "../state/types";
+import type { DawStore } from "../state/types";
 import { resetFeedbackRepeatForTests } from "../state/uiSlice";
 import type { ProjectView, Selection } from "../types/project";
 import { resetQuestions } from "./ask";
@@ -23,7 +23,7 @@ export interface EpisodeParameters {
   features?: string[];
   selection?: Selection;
   /** Store fields set after hydration (active tab, layout, pipeline job). */
-  state?: Partial<DawState>;
+  state?: Partial<DawStore>;
   /** The host's record room, as the transport chip and the recording overlay read it. */
   record?: RecordSnapshot;
   /** JSON bodies by request path, or by `METHOD /path` for one method. Any other request gets a 503. */

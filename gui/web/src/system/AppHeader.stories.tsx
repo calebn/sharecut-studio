@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import {
   portaledOverlayParameters,
   viewportStoryParameters,
@@ -27,7 +27,7 @@ const meta: Meta<typeof AppHeader> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Project menu, Save indicator, Undo and Redo on the left; the Stage bar in the center; people, Invite and Palette on the right. The Stage bar and people hide when the header is narrower than 40rem: the phone has the tab bar instead.\n\n**Motion.** None in this slice. Menu opens with `--motion-hover` through `ui/Menu`; the Save check fades with `--motion-state` once the animation pass lands.",
+          "Project menu, Save indicator, Undo and Redo on the left; the Stage bar in the center; people, Invite and Palette on the right. The Stage bar hides when the header is narrower than 40rem (the phone has the tab bar instead) and people shrink to one avatar and a count. A host can slot its own people control; the Project menu ends with an Appearance row.\n\n**Motion.** None in this slice. Menu opens with `--motion-hover` through `ui/Menu`; the Save check fades with `--motion-state` once the animation pass lands.",
       },
     },
   },
@@ -57,6 +57,7 @@ function Header(
       title="Episode 14 - The long way round"
       save={{ state: "saved" }}
       recent={["Episode 13", "Episode 12", "Pilot cut"]}
+      onRename={() => undefined}
       people={people}
       stages={
         withStages
@@ -100,6 +101,60 @@ export const Host: Story = {
         name: /Rename project,\s*Episode 14 - The long way round/,
       }),
     ).toBeVisible();
+  },
+};
+
+function AppearanceHeader() {
+  const [value, setValue] = useState<"system" | "light" | "dark">("system");
+  return <Header appearance={{ value, onChange: setValue }} />;
+}
+
+export const Appearance: Story = {
+  render: () => <AppearanceHeader />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: /Episode 14/ }),
+    );
+    const body = within(document.body);
+    await userEvent.click(
+      await body.findByRole("menuitemradio", { name: "Dark" }),
+    );
+    // The menu stays open so the themes can be compared in place.
+    await expect(
+      body.getByRole("menuitemradio", { name: "Dark" }),
+    ).toHaveAttribute("aria-checked", "true");
+  },
+};
+
+export const PeopleSlot: Story = {
+  render: () => (
+    <Header
+      peopleSlot={
+        <button type="button" className="sys-text-btn">
+          People here, 3
+        </button>
+      }
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "People here, 3" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("list", { name: "People here" }),
+    ).toBeNull();
+  },
+};
+
+export const UndoHistory: Story = {
+  render: (args) => <Header onHistory={args.onHistory} />,
+  args: { onHistory: fn() },
+  play: async ({ args, canvasElement }) => {
+    await fireEvent.contextMenu(
+      within(canvasElement).getByRole("button", { name: "Undo" }),
+    );
+    await expect(args.onHistory).toHaveBeenCalledOnce();
   },
 };
 
