@@ -27,6 +27,7 @@ import type {
   HeldTrimLayer,
   HeldTrimResult,
 } from "./projectSlice";
+import type { StageSliceState } from "./stageSlice";
 
 /** Open/closed state of the app's dialogs, sheets and inline panels; only the palette and gestures sheet exclude each other. */
 export interface ChromeFlags {
@@ -639,7 +640,7 @@ export interface DawState {
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */
-export interface DawStore extends DawState {
+export interface DawStore extends DawState, StageSliceState {
   _suppressTimer: number | null;
   hydrate: (
     projectPath: string,

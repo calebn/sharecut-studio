@@ -97,6 +97,65 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control",
   },
+  "stage.record": {
+    id: "stage.record",
+    category: "navigation",
+    label: "Go to Record",
+    keywords: ["room", "take", "mic"],
+    when: "hasProject",
+    breaksFollow: true,
+    notes:
+      "Stage Record; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+  },
+  "stage.prepare": {
+    id: "stage.prepare",
+    category: "navigation",
+    label: "Go to Prepare",
+    keywords: ["import", "pipeline", "transcribe"],
+    when: "hasProject",
+    breaksFollow: true,
+    notes:
+      "Stage Prepare; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+  },
+  "stage.edit": {
+    id: "stage.edit",
+    category: "navigation",
+    label: "Go to Edit",
+    keywords: ["timeline", "script", "transcript"],
+    when: "hasProject",
+    breaksFollow: true,
+    notes:
+      "Stage Edit; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+  },
+  "stage.review": {
+    id: "stage.review",
+    category: "navigation",
+    label: "Go to Review",
+    keywords: ["comments", "suggestions", "impact", "tighten"],
+    when: "hasProject",
+    breaksFollow: true,
+    notes:
+      "Stage Review; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+  },
+  "stage.deliver": {
+    id: "stage.deliver",
+    category: "navigation",
+    label: "Go to Deliver",
+    keywords: ["export", "bounce", "share"],
+    when: "hasProject",
+    breaksFollow: true,
+    notes:
+      "Stage Deliver; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+  },
+  "project.home": {
+    id: "project.home",
+    category: "ui",
+    label: "All projects",
+    keywords: ["home", "close", "switch", "episode"],
+    when: "canManageProjects",
+    notes:
+      "Closes the project and goes Home; no key yet, Mod+O stays project.open until the shell swap",
+  },
   "layout.default": {
     id: "layout.default",
     category: "layout",

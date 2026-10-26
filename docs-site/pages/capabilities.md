@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**121** capabilities · **105** ShareCut Studio commands · **55** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
+**127** capabilities · **111** ShareCut Studio commands · **55** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -76,6 +76,11 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls` | — | — | — | — | none · look |
 | Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls` | — | — | — | — | none · look |
 | Fit session width | view | `view.fit` | `\` | — | `transport.fit`, `transport.menu` | — | — | — | — | none · look |
+| Go to Record | view | `stage.record` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Prepare | view | `stage.prepare` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Edit | view | `stage.edit` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Review | view | `stage.review` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Deliver | view | `stage.deliver` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
 | Switch editor tab | view | `view.setTab` | — (not industry-standard; tab click) | — | `tabBar` | — | — | — | — | anchor · look |
 | Switch phone mode | view | `view.setMobileMode` | — (not industry-standard; tab click) | — | `mobileNav` | — | — | — | — | anchor · look |
 | Waveform amplitude zoom in | view | `view.waveformZoomIn` | `ArrowUp` | — | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeIn` | — | — | — | — | time · look |
@@ -104,6 +109,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `transport.menu`, `ExportDialog` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | New project… | project | `project.new` | `Mod+N` | — | `transport.menu` | `episode_create` | `podcast episode init` | — | yes | none · none |
 | Open project… | session | `project.open` | `Mod+O` | — | `transport.menu` | — | — | — | yes | none · none |
+| All projects | session | `project.home` | — (no key yet; the stage shell binds it) | — | — | — | — | — | yes | none · none |
 | New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `transport.menu`, `editingToolRail`, `trackLane`, `mobileShell.more` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
 | Import audio… | project | `media.import` | `Mod+I` | — | `transport.menu`, `editingToolRail`, `drop`, `mobileShell.more` | `track_set_media_tool` | — | — | — | none · none |
 | Annotate transcript | view | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | — | `transcript.annotate` | — | — | — | — | none · none |

@@ -192,6 +192,26 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Fit session width",
     tooltip: "Fit session width",
   },
+  "daw.stage.record": {
+    label: "Go to Record",
+    tooltip: "Go to Record",
+  },
+  "daw.stage.prepare": {
+    label: "Go to Prepare",
+    tooltip: "Go to Prepare",
+  },
+  "daw.stage.edit": {
+    label: "Go to Edit",
+    tooltip: "Go to Edit",
+  },
+  "daw.stage.review": {
+    label: "Go to Review",
+    tooltip: "Go to Review",
+  },
+  "daw.stage.deliver": {
+    label: "Go to Deliver",
+    tooltip: "Go to Deliver",
+  },
   "daw.view.setTab": {
     label: "Switch editor tab",
     tooltip: "Switch editor tab",
@@ -309,6 +329,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.project.open": {
     label: "Open project…",
     tooltip: "Open project…",
+  },
+  "daw.project.home": {
+    label: "All projects",
+    tooltip: "All projects",
   },
   "daw.track.add": {
     label: "New track",

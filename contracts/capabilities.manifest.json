@@ -1159,6 +1159,116 @@
       }
     },
     {
+      "id": "daw.stage.record",
+      "label": "Go to Record",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "stage.record",
+        "gui": []
+      },
+      "omit": {
+        "keyboard_reason": "no key yet; the stage shell binds it"
+      },
+      "tooltip": "Go to Record",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.stage.prepare",
+      "label": "Go to Prepare",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "stage.prepare",
+        "gui": []
+      },
+      "omit": {
+        "keyboard_reason": "no key yet; the stage shell binds it"
+      },
+      "tooltip": "Go to Prepare",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.stage.edit",
+      "label": "Go to Edit",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "stage.edit",
+        "gui": []
+      },
+      "omit": {
+        "keyboard_reason": "no key yet; the stage shell binds it"
+      },
+      "tooltip": "Go to Edit",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.stage.review",
+      "label": "Go to Review",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "stage.review",
+        "gui": []
+      },
+      "omit": {
+        "keyboard_reason": "no key yet; the stage shell binds it"
+      },
+      "tooltip": "Go to Review",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.stage.deliver",
+      "label": "Go to Deliver",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "stage.deliver",
+        "gui": []
+      },
+      "omit": {
+        "keyboard_reason": "no key yet; the stage shell binds it"
+      },
+      "tooltip": "Go to Deliver",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
       "id": "daw.view.setTab",
       "label": "Switch editor tab",
       "effect": "view",
@@ -1967,6 +2077,29 @@
         "guest": true
       },
       "tooltip": "Open project…",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.project.home",
+      "label": "All projects",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "project.home",
+        "gui": []
+      },
+      "omit": {
+        "guest": true,
+        "keyboard_reason": "no key yet; the stage shell binds it"
+      },
+      "tooltip": "All projects",
       "presence": {
         "cursor": "none",
         "follow": "none"

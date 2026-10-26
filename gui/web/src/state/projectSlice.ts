@@ -14,6 +14,7 @@ import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { presenceProjectInitial } from "./presenceSlice";
 import { NO_SELECTION } from "./selectionSlice";
+import { stageProjectInitial } from "./stageSlice";
 import { zoomReclampPatch } from "./storeMath";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import { transportProjectInitial } from "./transportSlice";
@@ -286,6 +287,7 @@ export const createProjectSlice: StateCreator<
             ...presenceProjectInitial(),
             ...transportProjectInitial(),
             ...uiProjectInitial(),
+            ...stageProjectInitial(),
             ...NO_SELECTION,
             chrome: {
               ...get().chrome,

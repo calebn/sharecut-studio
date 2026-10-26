@@ -478,6 +478,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "the presence slice's own actions read the playhead/roster to publish state",
   },
   {
+    file: "state/stageSlice.ts",
+    reason:
+      "snapshots the live scroll into the leaving stage inside the switch action, not at render",
+  },
+  {
     file: "state/storeMath.ts",
     reason: "pure scroll/zoom math evaluated at the current scroll position",
   },

@@ -1,3 +1,4 @@
+import type { StageId } from "../types/stage";
 import type { SystemIconName } from "./icons";
 
 /**
@@ -670,13 +671,13 @@ export const STAGES = [
   { id: "review", label: "Review", icon: "inbox", key: mod("4") },
   { id: "deliver", label: "Deliver", icon: "send", key: mod("5") },
 ] as const satisfies readonly {
-  id: string;
+  id: StageId;
   label: string;
   icon: SystemIconName;
   key: KeySpec;
 }[];
 
-export type StageId = (typeof STAGES)[number]["id"];
+export type { StageId };
 
 /** The one status glyph set (section 4.6). */
 export const STATUS_GLYPHS = [

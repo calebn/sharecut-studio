@@ -1,6 +1,8 @@
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import type { DawTab, MobileMode, MoreDestination } from "../state/types";
+import { STAGE_IDS } from "../types/stage";
 import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
 
@@ -74,6 +76,20 @@ export function registerViewCommands(): void {
     }
     return { status: "ok" };
   });
+
+  for (const stage of STAGE_IDS) {
+    registerCommand(`stage.${stage}`, () => {
+      const s = useDawStore.getState();
+      if (!s.project) {
+        return { status: "disabled", reason: "No project" };
+      }
+      if (!stagesForRole(stageRoleOf(s.guestMode)).includes(stage)) {
+        return { status: "disabled", reason: "This link cannot open that" };
+      }
+      s.openStage(stage);
+      return { status: "ok" };
+    });
+  }
 
   registerCommand("view.waveformZoomIn", () => {
     const s = useDawStore.getState();
