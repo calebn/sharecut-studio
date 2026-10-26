@@ -29,19 +29,15 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `V` | Select tool (`tool.select`) | Timeline focused | When timeline is focused |
 | `C` | Blade tool (`tool.blade`) | Timeline focused + structural edits allowed | When timeline is focused — C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode |
 
-## layout
-
-| Shortcut | Command | When | Notes |
-|----------|---------|------|-------|
-| `Mod+1` | Restore layout (`layout.default`) | Desktop or tablet shell (when not typing in an input) | Mod+1; a browser tab may keep Mod+1–4 for tab switching, so use the transport Restore chip there (desktop app unaffected) |
-| `Mod+2` | Maximize timeline (`layout.timeline`) | Desktop or tablet shell (when not typing in an input) | Mod+2; a browser tab may keep Mod+1–4 for tab switching, so use the transport layout control there (desktop app unaffected) |
-| `Mod+3` | Maximize transcript (`layout.text`) | Desktop or tablet shell (when not typing in an input) | Mod+3; a browser tab may keep Mod+1–4 for tab switching, so use View › Layout there (desktop app unaffected) |
-| `Mod+4` | Review layout (`layout.review`) | Desktop or tablet shell (when not typing in an input) | Mod+4; a browser tab may keep Mod+1–4 for tab switching, so use View › Layout there (desktop app unaffected) |
-
 ## navigation
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
+| `Mod+1` | Go to Record (`stage.record`) | Project loaded | Mod+1; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+2` | Go to Prepare (`stage.prepare`) | Project loaded | Mod+2; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+3` | Go to Edit (`stage.edit`) | Project loaded | Mod+3; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+4` | Go to Review (`stage.review`) | Project loaded | Mod+4; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+5` | Go to Deliver (`stage.deliver`) | Project loaded | Mod+5; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
 | `ArrowLeft` | Nudge playhead back (`navigation.nudgePlayheadBack`) | Always (when not typing in an input) | Shift for 5 seconds |
 | `ArrowRight` | Nudge playhead forward (`navigation.nudgePlayheadForward`) | Always (when not typing in an input) | Shift for 5 seconds |
 | `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Mod+ArrowLeft: Home alias for laptops |
@@ -115,7 +111,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: bounce dialog (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
 | `Mod+N` | New project… (`project.new`) | Host project management | Mod+N |
-| `Mod+O` | Open project… (`project.open`) | Host project management | Mod+O: OS dialog via local engine; paste path fallback |
+| `Mod+O` | All projects (`project.home`) | Host project management | Mod+O: Home. Open project… is in the palette and on Home |
 
 ## presence
 
@@ -134,12 +130,10 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
-| Go to Record | `stage.record` | Project loaded | Stage Record; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
-| Go to Prepare | `stage.prepare` | Project loaded | Stage Prepare; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
-| Go to Edit | `stage.edit` | Project loaded | Stage Edit; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
-| Go to Review | `stage.review` | Project loaded | Stage Review; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
-| Go to Deliver | `stage.deliver` | Project loaded | Stage Deliver; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
-| All projects | `project.home` | Host project management | Closes the project and goes Home; no key yet, Mod+O stays project.open until the shell swap |
+| Restore layout | `layout.default` | Desktop or tablet shell (when not typing in an input) |  |
+| Maximize timeline | `layout.timeline` | Desktop or tablet shell (when not typing in an input) |  |
+| Maximize transcript | `layout.text` | Desktop or tablet shell (when not typing in an input) |  |
+| Review layout | `layout.review` | Desktop or tablet shell (when not typing in an input) |  |
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |
@@ -163,6 +157,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Manage models… | `models.open` | Host project management | Host-only dialog listing every model with its state, size and a download |
+| Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; paste path fallback |
 | Split speakers… | `track.splitSpeakers` | canSplitSpeakers | Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
 | Reorder track | `track.reorder` | Media ingest allowed | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |

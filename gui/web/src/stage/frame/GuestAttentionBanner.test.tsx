@@ -275,13 +275,9 @@ describe("GuestAttentionBanner", () => {
     expect(getActionButton("Dismiss all")).toBeInTheDocument();
   });
 
-  it.each([
-    ["the timeline layout", "timeline", "timeline"],
-    ["the text layout", "text", "text"],
-    ["the default layout", "default", "default"],
-  ] as const)(
-    "opens History on desktop from %s",
-    async (_name, layout, shown) => {
+  it.each(["edit", "review", "deliver"] as const)(
+    "opens the History sheet over Edit from %s",
+    async (from) => {
       offlineStore.loadHostConflicts.mockResolvedValue([
         offlineConflict({
           kind: "unknown",
@@ -291,37 +287,13 @@ describe("GuestAttentionBanner", () => {
         }),
       ]);
       useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-      useDawStore.getState().setLayoutMode(layout);
-      expect(useDawStore.getState().layoutMode).toBe(shown);
+      useDawStore.getState().setStage(from);
       render(<GuestAttentionBanner />);
       await act(() => vi.advanceTimersByTimeAsync(0));
       fireEvent.click(getActionButton("Inspect History"));
       const state = useDawStore.getState();
-      expect(state.activeTab).toBe("history");
-      expect(state.layoutMode).toBe("default");
-    },
-  );
-
-  it.each(["listen", "timeline", "text"] as const)(
-    "opens History on the phone from %s",
-    async (mode) => {
-      offlineStore.loadHostConflicts.mockResolvedValue([
-        offlineConflict({
-          kind: "unknown",
-          reason: "Undo or Redo may have been applied.",
-          recovery: "inspect-history",
-          command: { type: "UndoHistory" },
-        }),
-      ]);
-      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-      useDawStore.getState().setMobileMode(mode);
-      render(<GuestAttentionBanner />);
-      await act(() => vi.advanceTimersByTimeAsync(0));
-      fireEvent.click(getActionButton("Inspect History"));
-      const state = useDawStore.getState();
-      expect(state.mobileMode).toBe("more");
-      expect(state.moreDestination).toBe("history");
-      expect(state.activeTab).toBe("history");
+      expect(state.stage).toBe("edit");
+      expect(state.openSheet).toBe("history");
     },
   );
 
@@ -338,7 +310,7 @@ describe("GuestAttentionBanner", () => {
     await act(() => vi.advanceTimersByTimeAsync(0));
 
     fireEvent.click(getActionButton("Inspect History"));
-    expect(useDawStore.getState().moreDestination).toBe("history");
+    expect(useDawStore.getState().openSheet).toBe("history");
   });
 
   it("gives guests a reachable History recovery instruction", async () => {

@@ -68,7 +68,7 @@ export async function openAt(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (size.width < 768) await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
   await setTheme(page, theme);

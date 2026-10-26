@@ -43,14 +43,18 @@ describe("layout and tab commands", () => {
     expect(useDawStore.getState().layoutMode).toBe("timeline");
   });
 
-  it("tighten keys are off while the timeline layout hides the panel", () => {
-    useDawStore.setState({ activeTab: "tighten", layoutMode: "timeline" });
+  it("tighten keys are on only while Review shows the Tighten section", () => {
+    useDawStore.setState({ stage: "review", reviewSection: "tighten" });
+    expect(evaluateWhen("tightenPanelOpen", buildCommandContext()).ok).toBe(
+      true,
+    );
+    useDawStore.setState({ reviewSection: "comments" });
     expect(evaluateWhen("tightenPanelOpen", buildCommandContext()).ok).toBe(
       false,
     );
-    useDawStore.setState({ layoutMode: "default" });
+    useDawStore.setState({ stage: "edit", reviewSection: "tighten" });
     expect(evaluateWhen("tightenPanelOpen", buildCommandContext()).ok).toBe(
-      true,
+      false,
     );
   });
 });

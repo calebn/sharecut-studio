@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
+import { planFollowUi } from "../presence/followPlan";
 import {
-  planFollowUi,
   resolveFollowTarget,
   serverNowMs,
   withProgrammaticUi,
@@ -9,6 +9,7 @@ import { sessionClientList } from "../presence/roster";
 import { wireSelectionPatch } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { stageRoleOf } from "../state/stageRoutes";
 
 export function useFollowUi(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
@@ -62,6 +63,7 @@ export function useFollowUi(): void {
     const caps = {
       guestShare: guestHearsMixOnly(guestMode),
       breakpoint: shellBreakpoint,
+      role: stageRoleOf(guestMode),
     };
     const uiSig = ui
       ? JSON.stringify({
@@ -103,31 +105,27 @@ export function useFollowUi(): void {
     const s = useDawStore.getState();
     withProgrammaticUi(() => {
       if (ui && uiChanged && plan) {
-        // Apply the leader's tab on the first tick after (re)following, then
-        // only when the leader's tab changes. setActiveTab leaves a layout that
-        // hides the tab, so starting to follow always shows the leader's panel,
-        // audition/anchor ticks never undo a follower's own layout or tab, and
-        // a leader moving to a tab the follower holds behind the timeline
-        // layout still reveals it.
-        if (plan.apply.tab) {
-          const leaderTabChanged = plan.apply.tab !== lastLeaderTab.current;
-          lastLeaderTab.current = plan.apply.tab;
-          if (leaderTabChanged) {
-            s.setActiveTab(plan.apply.tab);
+        // Apply the leader's stage on the first tick after (re)following,
+        // then only when the leader's stage or section changes, so audition
+        // and anchor ticks never undo the follower's own sheet or surface.
+        if (plan.apply.stage) {
+          const { stage, section, sheet } = plan.apply.stage;
+          const key = `${stage}/${section ?? ""}/${sheet ?? ""}`;
+          const leaderMoved = key !== lastLeaderTab.current;
+          lastLeaderTab.current = key;
+          if (leaderMoved) {
+            s.openStage(stage, { section, sheet });
           }
         }
-        if (plan.apply.mobile) {
-          if (plan.apply.mobile.moreDestination) {
-            s.setMoreDestination(plan.apply.mobile.moreDestination);
-          } else {
-            s.setMobileMode(plan.apply.mobile.mobileMode);
-          }
+        if (plan.apply.editSurface) {
+          s.setEditSurface(plan.apply.editSurface);
         }
         if (plan.apply.audition) {
           s.setAuditionMode(plan.apply.audition);
         }
-        const tabNow = plan.apply.tab ?? useDawStore.getState().activeTab;
-        if (ui.transcript_anchor && tabNow === "transcript") {
+        const stageNow =
+          plan.apply.stage?.stage ?? useDawStore.getState().stage;
+        if (ui.transcript_anchor && stageNow === "edit") {
           useDawStore
             .getState()
             .setTranscriptScrollRequest(ui.transcript_anchor);

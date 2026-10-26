@@ -1,6 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildCommandContext } from "../commands/context";
 import { useDawStore } from "../state/dawStore";
 import {
   resolveLayoutMode,
@@ -46,18 +45,6 @@ describe("adaptive panel presentation", () => {
     expect(removals).not.toHaveBeenCalled();
     writes.mockRestore();
     removals.mockRestore();
-  });
-
-  it("does not treat a stowed Tighten panel as open for commands", () => {
-    stubMatchMedia(true);
-    useDawStore.setState({
-      layoutMode: "adaptive",
-      shellBreakpoint: "tablet",
-      activeTab: "tighten",
-    });
-    expect(buildCommandContext().tightenPanelOpen).toBe(false);
-    useDawStore.getState().setActiveTab("tighten");
-    expect(buildCommandContext().tightenPanelOpen).toBe(true);
   });
 
   it("subscribes to the single bounded coarse landscape query", () => {

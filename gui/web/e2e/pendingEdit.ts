@@ -48,7 +48,7 @@ export async function openSuggestedPendingEdit(
     return res.ok ? body.command?.payload?.result?.id : undefined;
   }, projectPath);
   expect(editId, "SuggestPendingEdit returned the new edit id").toBeTruthy();
-  const panels = page.getByLabel("Editor panels");
+  const panels = page.getByRole("main", { name: "Review" });
   await openPanel(page, "impact");
   await panels.locator(`[data-pending-id="${editId}"]`).click();
   await expect(

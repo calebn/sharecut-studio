@@ -45,6 +45,47 @@
   background: var(--color-bg-canvas);
 }
 
+/* The selection Inspector as a column on the inline end of a phone held
+   sideways (#1696; BottomSheet placement="column"). The sheet host slots in
+   after the body, so the column is a grid cell beside it; the header, banners,
+   Player and tab bar keep the whole width. */
+.stage-frame:has(.bottom-sheet--column) {
+  --column-floor: env(safe-area-inset-bottom);
+
+  grid-template-columns: minmax(0, 1fr) var(--inspector-column-width);
+  grid-template-areas:
+    "header header"
+    "banners banners"
+    "alerts alerts"
+    "body inspector"
+    "player player"
+    "tabs tabs";
+}
+
+.stage-frame:has(.bottom-sheet--column) > .stage-frame-header {
+  grid-area: header;
+}
+
+.stage-frame:has(.bottom-sheet--column) > .stage-frame-banners {
+  grid-area: banners;
+}
+
+.stage-frame:has(.bottom-sheet--column) > .stage-frame-alerts {
+  grid-area: alerts;
+}
+
+.stage-frame:has(.bottom-sheet--column) > .stage-frame-body {
+  grid-area: body;
+}
+
+.stage-frame:has(.bottom-sheet--column) > .stage-frame-player {
+  grid-area: player;
+}
+
+.stage-frame:has(.bottom-sheet--column) > .stage-frame-tabs {
+  grid-area: tabs;
+}
+
 /* The Player and the tab bar are the bottom chrome on a phone: tabs 56 plus
    Player 56 stay under the 176 budget. */
 .stage-frame--phone .stage-frame-tabs {

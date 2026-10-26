@@ -76,7 +76,8 @@ describe("TightenPanel on a server-side job commit", () => {
       project: minimalProject(),
     });
     useDawStore.setState({
-      activeTab: "tighten",
+      stage: "review",
+      reviewSection: "tighten",
       guestMode: null,
       shareCapabilities: [],
       pipelineJob: null,

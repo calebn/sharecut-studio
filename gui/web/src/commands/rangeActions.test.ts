@@ -225,7 +225,8 @@ describe("shared range action policy and commands", () => {
       trackIds: ["a"],
       intervals: [{ start: 11, end: 12 }],
     });
-    expect(useDawStore.getState().activeTab).toBe("comments");
+    expect(useDawStore.getState().stage).toBe("review");
+    expect(useDawStore.getState().reviewSection).toBe("comments");
   });
   it("opens Bounce configuration with a detached fixed target", async () => {
     expect(await runRangeAction("bounce")).toEqual({ status: "ok" });

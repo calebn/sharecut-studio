@@ -154,14 +154,14 @@ it.each(["draft", "mode", "epoch"] as const)(
 it("restores on unmount without undoing its initial seek or reopening Comments", () => {
   const { ruler, unmount, captured, onSeek } = setup();
   fireEvent.pointerDown(ruler, { pointerId: 1, clientX: 40, button: 0 });
-  act(() => useDawStore.getState().setActiveTab("transcript"));
+  act(() => useDawStore.getState().openStage("edit"));
   unmount();
   expect(captured.size).toBe(0);
   expect(useDawStore.getState().commentDraft).toEqual({
     startSec: 2,
     endSec: null,
   });
-  expect(useDawStore.getState().activeTab).toBe("transcript");
+  expect(useDawStore.getState().stage).toBe("edit");
   expect(onSeek).toHaveBeenCalledExactlyOnceWith(4);
 });
 

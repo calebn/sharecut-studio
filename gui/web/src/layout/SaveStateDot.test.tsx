@@ -395,7 +395,7 @@ describe("SaveStateDot", () => {
       screen.queryByRole("button", { name: "Dismiss all" }),
     ).not.toBeInTheDocument();
     fireEvent.click(getActionButton("Inspect History"));
-    expect(useDawStore.getState().moreDestination).toBe("history");
+    expect(useDawStore.getState().openSheet).toBe("history");
     expect(drain.requestHostDrain).not.toHaveBeenCalled();
   });
 

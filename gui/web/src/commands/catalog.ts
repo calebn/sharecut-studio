@@ -104,8 +104,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["room", "take", "mic"],
     when: "hasProject",
     breaksFollow: true,
-    notes:
-      "Stage Record; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+    notes: "Mod+1: the Record stage",
   },
   "stage.prepare": {
     id: "stage.prepare",
@@ -114,8 +113,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["import", "pipeline", "transcribe"],
     when: "hasProject",
     breaksFollow: true,
-    notes:
-      "Stage Prepare; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+    notes: "Mod+2: the Prepare stage",
   },
   "stage.edit": {
     id: "stage.edit",
@@ -124,8 +122,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["timeline", "script", "transcript"],
     when: "hasProject",
     breaksFollow: true,
-    notes:
-      "Stage Edit; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+    notes: "Mod+3: the Edit stage",
   },
   "stage.review": {
     id: "stage.review",
@@ -134,8 +131,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["comments", "suggestions", "impact", "tighten"],
     when: "hasProject",
     breaksFollow: true,
-    notes:
-      "Stage Review; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+    notes: "Mod+4: the Review stage",
   },
   "stage.deliver": {
     id: "stage.deliver",
@@ -144,8 +140,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["export", "bounce", "share"],
     when: "hasProject",
     breaksFollow: true,
-    notes:
-      "Stage Deliver; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
+    notes: "Mod+5: the Deliver stage",
   },
   "view.toggleScript": {
     id: "view.toggleScript",
@@ -169,32 +164,43 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "All projects",
     keywords: ["home", "close", "switch", "episode"],
     when: "canManageProjects",
-    notes:
-      "Closes the project and goes Home; no key yet, Mod+O stays project.open until the shell swap",
+    notes: "Mod+O: closes the project and goes Home",
   },
   "layout.default": {
     id: "layout.default",
     category: "layout",
     label: "Restore layout",
     when: "layoutShell",
+    paletteRunnable: false,
+    notes:
+      "Legacy dock layout, no key and no palette row; removed with the old shell",
   },
   "layout.timeline": {
     id: "layout.timeline",
     category: "layout",
     label: "Maximize timeline",
     when: "layoutShell",
+    paletteRunnable: false,
+    notes:
+      "Legacy dock layout, no key and no palette row; removed with the old shell",
   },
   "layout.text": {
     id: "layout.text",
     category: "layout",
     label: "Maximize transcript",
     when: "layoutShell",
+    paletteRunnable: false,
+    notes:
+      "Legacy dock layout, no key and no palette row; removed with the old shell",
   },
   "layout.review": {
     id: "layout.review",
     category: "layout",
     label: "Review layout",
     when: "layoutShell",
+    paletteRunnable: false,
+    notes:
+      "Legacy dock layout, no key and no palette row; removed with the old shell",
   },
   "navigation.nudgePlayheadBack": {
     id: "navigation.nudgePlayheadBack",
@@ -657,7 +663,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Open project…",
     keywords: ["load", "switch", "episode"],
     when: "canManageProjects",
-    notes: "Mod+O: OS dialog via local engine; paste path fallback",
+    notes:
+      "No key (Mod+O is project.home); OS dialog via local engine; paste path fallback",
   },
   "track.add": {
     id: "track.add",

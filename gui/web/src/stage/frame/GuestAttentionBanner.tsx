@@ -68,11 +68,7 @@ export function GuestAttentionBanner({
       onInspectHistory={
         guest
           ? undefined
-          : () =>
-              runPointerCommand("view.setMobileMode", {
-                mode: "more",
-                destination: "history",
-              })
+          : () => runPointerCommand("stage.edit", { sheet: "history" })
       }
     />
   );

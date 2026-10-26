@@ -503,10 +503,11 @@
         "command": "layout.default",
         "gui": [
           "layoutChip"
-        ],
-        "keyboard": "Mod+1"
+        ]
       },
-      "omit": {},
+      "omit": {
+        "keyboard_reason": "Mod+1 is a stage now; the layout presets go with the old shell"
+      },
       "tooltip": "Restore layout",
       "presence": {
         "cursor": "none",
@@ -526,10 +527,11 @@
         "command": "layout.timeline",
         "gui": [
           "transport.layout"
-        ],
-        "keyboard": "Mod+2"
+        ]
       },
-      "omit": {},
+      "omit": {
+        "keyboard_reason": "Mod+2 is a stage now; the layout presets go with the old shell"
+      },
       "tooltip": "Maximize timeline",
       "presence": {
         "cursor": "none",
@@ -549,10 +551,11 @@
         "command": "layout.text",
         "gui": [
           "transport.menu"
-        ],
-        "keyboard": "Mod+3"
+        ]
       },
-      "omit": {},
+      "omit": {
+        "keyboard_reason": "Mod+3 is a stage now; the layout presets go with the old shell"
+      },
       "tooltip": "Maximize transcript",
       "presence": {
         "cursor": "none",
@@ -572,10 +575,11 @@
         "command": "layout.review",
         "gui": [
           "transport.menu"
-        ],
-        "keyboard": "Mod+4"
+        ]
       },
-      "omit": {},
+      "omit": {
+        "keyboard_reason": "Mod+4 is a stage now; the layout presets go with the old shell"
+      },
       "tooltip": "Review layout",
       "presence": {
         "cursor": "none",
@@ -1179,11 +1183,12 @@
       ],
       "surfaces": {
         "command": "stage.record",
-        "gui": []
+        "gui": [
+          "stageBar"
+        ],
+        "keyboard": "Mod+1"
       },
-      "omit": {
-        "keyboard_reason": "no key yet; the stage shell binds it"
-      },
+      "omit": {},
       "tooltip": "Go to Record",
       "presence": {
         "cursor": "none",
@@ -1201,11 +1206,12 @@
       ],
       "surfaces": {
         "command": "stage.prepare",
-        "gui": []
+        "gui": [
+          "stageBar"
+        ],
+        "keyboard": "Mod+2"
       },
-      "omit": {
-        "keyboard_reason": "no key yet; the stage shell binds it"
-      },
+      "omit": {},
       "tooltip": "Go to Prepare",
       "presence": {
         "cursor": "none",
@@ -1223,11 +1229,12 @@
       ],
       "surfaces": {
         "command": "stage.edit",
-        "gui": []
+        "gui": [
+          "stageBar"
+        ],
+        "keyboard": "Mod+3"
       },
-      "omit": {
-        "keyboard_reason": "no key yet; the stage shell binds it"
-      },
+      "omit": {},
       "tooltip": "Go to Edit",
       "presence": {
         "cursor": "none",
@@ -1245,11 +1252,12 @@
       ],
       "surfaces": {
         "command": "stage.review",
-        "gui": []
+        "gui": [
+          "stageBar"
+        ],
+        "keyboard": "Mod+4"
       },
-      "omit": {
-        "keyboard_reason": "no key yet; the stage shell binds it"
-      },
+      "omit": {},
       "tooltip": "Go to Review",
       "presence": {
         "cursor": "none",
@@ -1267,11 +1275,12 @@
       ],
       "surfaces": {
         "command": "stage.deliver",
-        "gui": []
+        "gui": [
+          "stageBar"
+        ],
+        "keyboard": "Mod+5"
       },
-      "omit": {
-        "keyboard_reason": "no key yet; the stage shell binds it"
-      },
+      "omit": {},
       "tooltip": "Go to Deliver",
       "presence": {
         "cursor": "none",
@@ -2121,7 +2130,7 @@
       "label": "Open project…",
       "effect": "session",
       "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
+      "industry_standard_key": false,
       "gates": [
         "canManageProjects"
       ],
@@ -2129,11 +2138,11 @@
         "command": "project.open",
         "gui": [
           "transport.menu"
-        ],
-        "keyboard": "Mod+O"
+        ]
       },
       "omit": {
-        "guest": true
+        "guest": true,
+        "keyboard_reason": "Mod+O is All projects (project.home); open from the palette or Home"
       },
       "tooltip": "Open project…",
       "presence": {
@@ -2152,11 +2161,13 @@
       ],
       "surfaces": {
         "command": "project.home",
-        "gui": []
+        "gui": [
+          "projectMenu"
+        ],
+        "keyboard": "Mod+O"
       },
       "omit": {
-        "guest": true,
-        "keyboard_reason": "no key yet; the stage shell binds it"
+        "guest": true
       },
       "tooltip": "All projects",
       "presence": {
