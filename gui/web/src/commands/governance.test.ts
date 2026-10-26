@@ -48,6 +48,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "record/useRecordLiveComments.ts",
   // Sheets and dialogs render through portals; a native root listener keeps their keys out of the stage.
   "review/ReviewStage.tsx",
+  // Mod+E exports from anywhere on the Deliver page, including a focused chip or field.
+  "stages/deliver/DeliverStage.tsx",
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
@@ -63,6 +65,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/ChipInput.tsx",
   // Escape closes the Open other popover from its field and its buttons.
   "stages/home/OpenOther.tsx",
+  // The scrub field: arrows step, Enter commits and Escape reverts, like a spin box.
+  "system/TimeField.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",
   "inspector/views/EnvelopeWorkspaceView.tsx",
