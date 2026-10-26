@@ -40,7 +40,7 @@ export const Cards: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: "The garden episode" }),
+      canvas.getByRole("button", { name: /^The garden episode/ }),
     );
     await expect(args.onOpen).toHaveBeenCalledWith("garden", "prepare");
   },
