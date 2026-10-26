@@ -12,7 +12,7 @@
 
 ### Features
 
-* Studio's export dialog offers M4A (AAC-LC, 128 kbps) beside MP3, FLAC and the WAV master (#2260). The `m4a` extension (a bounce's `formats`, or a bare `{ext: m4a}` entry in `export.formats` or `export-audio --formats`) writes the tested pair: the aac encoder in an `ipod` (M4A) container, with title and album tags, the source's channel count and the same decoded length as the master. A build whose FFmpeg lacks the aac encoder or ipod muxer refuses the preset by name before encoding and leaves earlier exports untouched. Default exports are unchanged.
+* Studio's export dialog offers M4A (AAC-LC, 128 kbps) beside MP3, FLAC and the WAV master (#2260). `m4a` in a bounce's `formats`, or a bare `{ext: m4a}` entry in `export.formats` or `export-audio --formats`, now writes that preset (before, a bare `m4a` took FFmpeg's defaults). A build whose FFmpeg lacks the aac encoder or ipod muxer refuses it by name before encoding and leaves earlier exports untouched.
 
 ### Fixes
 

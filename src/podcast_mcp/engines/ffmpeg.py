@@ -2565,12 +2565,14 @@ class FFmpegEngine:
         run(cmd, check=True, capture_output=True)
         return output_png
 
-    def _listed_names(self, flag: str) -> set[str]:
-        """Names from ``ffmpeg -hide_banner <flag>`` (``-filters``, ``-encoders``, ``-muxers``)."""
+    def _listed_names(self, flag: str) -> set[str] | None:
+        """Names from ``ffmpeg -hide_banner <flag>`` (``-filters``, ``-encoders``, ``-muxers``).
+
+        None when the listing could not be read; only a successful read is cached.
+        """
         cached = self._listed_names_cache.get(flag)
         if cached is not None:
             return cached
-        names: set[str] = set()
         try:
             r = run(
                 [self.ffmpeg, "-hide_banner", flag],
@@ -2578,9 +2580,9 @@ class FFmpegEngine:
                 text=True,
                 timeout=10,
             )
-        except (FileNotFoundError, TimeoutExpired, CalledProcessError):
-            self._listed_names_cache[flag] = names
-            return names
+        except (FileNotFoundError, TimeoutExpired):
+            return None
+        names: set[str] = set()
         for line in (r.stdout or "").splitlines():
             parts = line.split()
             if len(parts) >= 2:
@@ -2588,12 +2590,15 @@ class FFmpegEngine:
         self._listed_names_cache[flag] = names
         return names
 
-    def supports_encode(self, codec: str, muxer: str) -> bool:
-        """Whether this build lists both the ``codec`` encoder and the ``muxer`` format."""
-        return codec in self._listed_names("-encoders") and muxer in self._listed_names("-muxers")
+    def supports_encode(self, codec: str, muxer: str) -> bool | None:
+        encoders = self._listed_names("-encoders")
+        muxers = self._listed_names("-muxers")
+        if encoders is None or muxers is None:
+            return None
+        return codec in encoders and muxer in muxers
 
     def _has_filter(self, name: str) -> bool:
-        return name in self._listed_names("-filters")
+        return name in (self._listed_names("-filters") or ())
 
     def annotate_time_marks(
         self,

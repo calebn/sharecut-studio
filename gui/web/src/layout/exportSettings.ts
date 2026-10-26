@@ -33,7 +33,7 @@ export type ExportSettings = {
 /** Offered beside the configured formats: lossless, and in every FFmpeg build. */
 const FLAC: ExportFormatSpec = { ext: "flac", codec: "flac" };
 
-/** AAC-LC in an M4A container. Pinned to `contracts/export-presets.json` and the server's `M4A_AAC`. */
+/** Pinned to `contracts/export-presets.json` and the server's `M4A_AAC`. */
 const M4A: ExportFormatSpec = {
   ext: "m4a",
   codec: "aac",
