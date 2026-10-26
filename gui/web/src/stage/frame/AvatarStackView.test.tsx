@@ -159,4 +159,40 @@ describe("AvatarStackView", () => {
     );
     expect(container.firstChild).toBeNull();
   });
+
+  it("header variant: one button names how many are here and follows from its menu", async () => {
+    const onFollow = vi.fn();
+    render(
+      <AvatarStackView
+        variant="header"
+        others={[
+          sessionClient({ client_id: "a" }),
+          sessionClient({ client_id: "b" }),
+          sessionClient({ client_id: "c" }),
+          sessionClient({ client_id: "d" }),
+        ]}
+        names={NAMES}
+        followingClientId={null}
+        onFollow={onFollow}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "People here, 4. Follow someone" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: /Ada/ }));
+    expect(onFollow).toHaveBeenCalledWith("a");
+  });
+
+  it("header variant renders nothing when alone", () => {
+    const { container } = render(
+      <AvatarStackView
+        variant="header"
+        others={[]}
+        names={NAMES}
+        followingClientId={null}
+        onFollow={vi.fn()}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
 });

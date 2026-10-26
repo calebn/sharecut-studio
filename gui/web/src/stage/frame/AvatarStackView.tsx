@@ -49,8 +49,10 @@ type Props = {
   /**
    * `inline`: the status bar's avatars. `menu`: a People section inside a menu
    * that is already open. `popup`: its own menu behind a People button.
+   * `header`: the App header's people slot, avatars as one button that opens the
+   * Follow menu; the phone shows one avatar and a count.
    */
-  variant?: "inline" | "menu" | "popup";
+  variant?: "inline" | "menu" | "popup" | "header";
   /** Class for the `popup` variant's button, so the host row can style it. */
   triggerClassName?: string;
   others: readonly SessionClient[];
@@ -71,6 +73,87 @@ export function AvatarStackView({
   onFollow,
 }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
+
+  if (variant === "header") {
+    if (others.length === 0 && (self?.followers ?? 0) === 0) {
+      return null;
+    }
+    const shownOthers = others.slice(0, 3);
+    return (
+      <div className="avatar-header">
+        {others.length > 0 ? (
+          <Menu
+            open={moreOpen}
+            onOpenChange={setMoreOpen}
+            label="People"
+            className="ui-menu-root sys-menu avatar-header-menu"
+            trigger={(t) => (
+              <button
+                type="button"
+                className="avatar-header-trigger"
+                {...t}
+                aria-label={`People here, ${others.length}. Follow someone`}
+                title="People here"
+              >
+                <span className="avatar-header-faces" aria-hidden="true">
+                  {shownOthers.map((c) => (
+                    <Avatar
+                      key={c.client_id}
+                      name={names.get(c.client_id) ?? rosterDisplayName(c)}
+                      colorIndex={c.meta?.color_index}
+                      sessionRole={c.role}
+                      size="sm"
+                      ring={
+                        followingClientId === c.client_id ? "solid" : "none"
+                      }
+                    />
+                  ))}
+                </span>
+                {others.length > 3 ? (
+                  <span className="avatar-header-extra" aria-hidden="true">
+                    +{others.length - 3}
+                  </span>
+                ) : null}
+                {others.length > 1 ? (
+                  <span
+                    className="avatar-header-phone-count"
+                    aria-hidden="true"
+                  >
+                    +{others.length - 1}
+                  </span>
+                ) : null}
+              </button>
+            )}
+          >
+            <PeopleList
+              others={others}
+              names={names}
+              followingClientId={followingClientId}
+              onFollow={onFollow}
+              onSelect={() => setMoreOpen(false)}
+            />
+          </Menu>
+        ) : null}
+        {self && (self.followers ?? 0) > 0 ? (
+          <span
+            className="avatar-stack-followers"
+            role="img"
+            aria-label={`${self.followers} following you`}
+          >
+            <span aria-hidden>
+              <Avatar
+                name={names.get(self.client_id) ?? rosterDisplayName(self)}
+                colorIndex={self.meta?.color_index}
+                sessionRole={self.role}
+                ring="dashed"
+                badge={self.followers}
+              />
+            </span>
+          </span>
+        ) : null}
+      </div>
+    );
+  }
 
   if (variant === "popup") {
     if (others.length === 0) {

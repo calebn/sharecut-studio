@@ -473,6 +473,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "publishes the live playhead and scroll position to presence",
   },
   {
+    file: "stage/frame/usePlayerProps.ts",
+    reason:
+      "the Player bar's time readout and overview position follow the live playhead; only the PlayerBar subtree renders it",
+  },
+  {
     file: "state/presenceSlice.ts",
     reason:
       "the presence slice's own actions read the playhead/roster to publish state",

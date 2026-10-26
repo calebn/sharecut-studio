@@ -9,6 +9,8 @@ import { lastPressedRect } from "../ui/pressedControl";
 const FLOOR_SELECTORS = [
   ".mobile-nav",
   ".mobile-dock",
+  ".stage-frame-tabs",
+  ".stage-frame-player",
   ".daw-shell--phone .editing-tool-rail",
   ".join-edit-rail",
   ".bottom-sheet:not(.bottom-sheet--column)",

@@ -144,3 +144,17 @@ export const PhoneWidth: Story = {
     await expect(canvas.getByRole("group", { name: "People" })).toBeTruthy();
   },
 };
+
+export const Header: Story = {
+  args: { variant: "header", others: [ADA, BO, CY, DI] },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "People here, 4. Follow someone" }),
+    );
+    await userEvent.click(
+      await within(document.body).findByRole("menuitem", { name: /Ada/ }),
+    );
+    await expect(args.onFollow).toHaveBeenCalledWith("ada");
+  },
+};

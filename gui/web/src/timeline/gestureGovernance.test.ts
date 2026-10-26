@@ -232,6 +232,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "a press on a dock button keeps the focused comment or name field focused, so the keyboard and the dock height hold through the tap; it starts no gesture",
   "layout/ListenPlayhead.tsx":
     "Listen scrub: a native range input seeks the playhead; it is not a timeline target",
+  "system/Player.tsx":
+    "hold to hear: a press on A hears the original and letting go after a hold goes back; a quick release latches it, and the A and B buttons do the same by key",
   "tracks/TrackFaderView.tsx":
     "fader: a native range input previews its gain and saves one track volume on release (useCommitRange)",
   "tracks/TrackHeaderView.tsx":

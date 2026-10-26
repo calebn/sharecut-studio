@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { viewportStoryParameters } from "../storybook/storyLayout";
+import {
+  portaledOverlayParameters,
+  viewportStoryParameters,
+} from "../storybook/storyLayout";
 import type { OverviewTick } from "./OverviewStrip";
 import { Player, type PlayerProps } from "./Player";
 
@@ -53,6 +56,7 @@ const meta: Meta<typeof Player> = {
   ],
   parameters: {
     ...viewportStoryParameters,
+    ...portaledOverlayParameters,
     docs: {
       ...viewportStoryParameters.docs,
       description: {
@@ -81,6 +85,24 @@ export const HearOriginalHeld: Story = {
     );
     await userEvent.click(canvas.getByRole("button", { name: "B" }));
     await expect(args.onHearOriginal).toHaveBeenCalledWith(false);
+  },
+};
+export const HearMenu: Story = {
+  args: { hearMenu: { mode: "mix", onMode: fn() } },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.pointer({
+      keys: "[MouseRight]",
+      target: canvas.getByRole("group", { name: "Audition" }),
+    });
+    const body = within(document.body);
+    await expect(
+      await body.findByRole("menuitemradio", { name: "Full mix" }),
+    ).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(
+      body.getByRole("menuitemradio", { name: "Original" }),
+    );
+    await expect(args.hearMenu?.onMode).toHaveBeenCalledWith("original");
   },
 };
 export const Loading: Story = { args: { state: "loading" } };

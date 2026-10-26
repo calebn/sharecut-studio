@@ -1,0 +1,111 @@
+/* The stage frame (src/stage/frame): header, banners, the stage body, the
+   Player and, on a phone, the tab bar. Rows that hold nothing collapse. */
+.stage-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  block-size: 100%;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  overflow: hidden;
+  /* Zero except on edge-to-edge screens: the rows stay clear of the notch and
+     the home indicator. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+  /* Size container for frame-local queries; never on body. */
+  container: app / size;
+}
+
+.stage-frame-header,
+.stage-frame-banners,
+.stage-frame-alerts {
+  min-inline-size: 0;
+}
+
+.stage-frame-banners {
+  display: flex;
+  flex-direction: column;
+}
+
+.stage-frame-body {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.stage-frame-player,
+.stage-frame-tabs {
+  min-inline-size: 0;
+  border-block-start: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-canvas);
+}
+
+/* The Player and the tab bar are the bottom chrome on a phone: tabs 56 plus
+   Player 56 stay under the 176 budget. */
+.stage-frame--phone .stage-frame-tabs {
+  padding-block-end: env(safe-area-inset-bottom);
+}
+
+/* The header's people button: faces and a count, one tap target. */
+.avatar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.avatar-header-menu {
+  min-inline-size: 0;
+}
+
+.avatar-header-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--control-height);
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.avatar-header-trigger:hover {
+  background: var(--color-hover);
+}
+
+.avatar-header-faces {
+  display: inline-flex;
+}
+
+.avatar-header-faces > * + * {
+  margin-inline-start: calc(var(--space-1) * -1);
+}
+
+.avatar-header-phone-count {
+  display: none;
+}
+
+@container sys-app-header (max-width: 40rem) {
+  .avatar-header-faces > :nth-child(n + 2),
+  .avatar-header-extra {
+    display: none;
+  }
+
+  .avatar-header-phone-count {
+    display: inline;
+  }
+
+  .avatar-header-trigger {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
