@@ -150,7 +150,8 @@
         "image_url": null
       }
     ],
-    "speaker_splits": []
+    "speaker_splits": [],
+    "record_sessions": []
   },
   "transcripts": {
     "per_track": [

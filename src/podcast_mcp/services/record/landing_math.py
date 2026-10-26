@@ -13,6 +13,7 @@ from podcast_mcp.services.record.state import (
     unsupported_target_message,
 )
 from podcast_mcp.services.record.upload import KEEPER_SAMPLE_RATE
+from podcast_mcp.util.coded_error import CodedValueError
 
 TAKE_GAP_MS = 2000
 _RECORD_SOURCE = re.compile(r"^rec-([0-9a-f]{12})-\d+-")
@@ -40,7 +41,7 @@ def session_placement(clips: Iterable[Clip], session_id: str, target: SessionTar
     """Where a session's first take starts for ``target``; the one place landing and the live clock agree."""
     refusal = unsupported_target_message(target)
     if refusal is not None:
-        raise ValueError(refusal)
+        raise CodedValueError(refusal, code="invalid_record_request")
     return session_origin_s(clips, session_id)
 
 
