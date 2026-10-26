@@ -339,8 +339,10 @@ class ShareService:
         return str(version_id)
 
     def _is_active_usable_room(self, session_id: str) -> bool:
-        from podcast_mcp.services.record import RecordSessionService
-        from podcast_mcp.services.record.service import invalidate_record_session_cache
+        from podcast_mcp.services.record import (
+            RecordSessionService,
+            invalidate_record_session_cache,
+        )
 
         project = self.ws.project
         if not any(
@@ -442,8 +444,8 @@ class ShareService:
         from podcast_mcp.services.record import (
             assert_no_open_take,
             begin_record_session,
+            invalidate_record_session_cache,
         )
-        from podcast_mcp.services.record.service import invalidate_record_session_cache
 
         assert_no_open_take(self.ws.project)
         prior_rooms = self._usable_record_room_ids()
@@ -494,7 +496,7 @@ class ShareService:
         return list(rooms)
 
     def _rollback_room(self, session_id: str) -> None:
-        from podcast_mcp.services.record.service import invalidate_record_session_cache
+        from podcast_mcp.services.record import invalidate_record_session_cache
 
         for row in list_room_shares(self.ws.project, session_id):
             token = str(row.get("token") or "")

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         assert_no_open_take,
         begin_record_session,
         filter_record_event_for_guest,
+        invalidate_record_session_cache,
         record_hub_key,
         route_record_ws_message,
     )
@@ -70,6 +71,7 @@ __all__ = [
     "assert_no_open_take",
     "begin_record_session",
     "filter_record_event_for_guest",
+    "invalidate_record_session_cache",
     "parse_participant_id",
     "parse_upload_kind",
     "purge_session_land_rollbacks",
@@ -103,6 +105,7 @@ _MODULE_BY_NAME = {
     "assert_no_open_take": "service",
     "begin_record_session": "service",
     "filter_record_event_for_guest": "service",
+    "invalidate_record_session_cache": "service",
     "parse_participant_id": "upload",
     "parse_upload_kind": "upload",
     "purge_session_land_rollbacks": "landing",
