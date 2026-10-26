@@ -8,7 +8,7 @@ import re
 import shutil
 import tempfile
 import threading
-from collections.abc import Callable, Generator, Iterable
+from collections.abc import Callable, Generator, Iterable, Iterator
 from contextlib import ExitStack, suppress
 from dataclasses import asdict, dataclass
 from itertools import pairwise
@@ -601,6 +601,97 @@ class FFmpegEngine:
         self.ffprobe = pair.ffprobe
         self.source = pair.source
         self._filter_names_cache: set[str] | None = None
+
+    @staticmethod
+    def resample_streams(
+        chunks: Iterator[np.ndarray], from_rate: int, to_rates: Iterable[int]
+    ) -> dict[int, np.ndarray]:
+        """Convert mono chunks to each requested rate with state across chunk edges.
+
+        Call on the class. Each converted target resolves its binary through
+        ``resolve_ffmpeg_pair``. Instance binary overrides do not apply.
+        A source-rate target retains the chunks. A failed conversion raises
+        ``CalledProcessError``, as a failed decode does.
+        """
+        rates = tuple(dict.fromkeys(to_rates))
+        converting = [rate for rate in rates if rate != from_rate]
+        if not converting:
+            return dict.fromkeys(rates, np.concatenate(list(chunks)))
+        commands = {
+            rate: [
+                resolve_ffmpeg_pair().ffmpeg,
+                "-v",
+                "error",
+                "-f",
+                "f32le",
+                "-ar",
+                str(from_rate),
+                "-ac",
+                "1",
+                "-i",
+                "pipe:0",
+                "-ar",
+                str(rate),
+                "-f",
+                "f32le",
+                "pipe:1",
+            ]
+            for rate in converting
+        }
+        processes = {
+            rate: popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            for rate, command in commands.items()
+        }
+        kept: list[np.ndarray] = []
+        failure: list[BaseException] = []
+
+        def feed() -> None:
+            open_pipes = {rate: process.stdin for rate, process in processes.items()}
+            try:
+                for chunk in chunks:
+                    data = np.ascontiguousarray(chunk, dtype="<f4")
+                    if from_rate in rates:
+                        kept.append(data)
+                    payload = data.tobytes()
+                    for rate, pipe in list(open_pipes.items()):
+                        assert pipe is not None
+                        try:
+                            pipe.write(payload)
+                        except BrokenPipeError:
+                            del open_pipes[rate]
+            except BaseException as exc:
+                failure.append(exc)
+            finally:
+                for pipe in open_pipes.values():
+                    with suppress(BrokenPipeError):
+                        assert pipe is not None
+                        pipe.close()
+
+        converted: dict[int, tuple[bytes, bytes]] = {}
+
+        def collect(rate: int) -> None:
+            process = processes[rate]
+            assert process.stdout is not None and process.stderr is not None
+            converted[rate] = (process.stdout.read(), process.stderr.read())
+
+        collectors = [
+            threading.Thread(target=collect, args=(rate,), daemon=True) for rate in converting
+        ]
+        feeder = threading.Thread(target=feed, daemon=True)
+        for thread in (*collectors, feeder):
+            thread.start()
+        for thread in (feeder, *collectors):
+            thread.join()
+        codes = {rate: process.wait() for rate, process in processes.items()}
+        if failure:
+            raise failure[0]
+        for rate, code in codes.items():
+            if code != 0:
+                raise CalledProcessError(code, commands[rate], stderr=converted[rate][1])
+        results = {rate: np.frombuffer(converted[rate][0], dtype="<f4") for rate in converting}
+        if from_rate in rates:
+            results[from_rate] = np.concatenate(kept)
+        return {rate: results[rate] for rate in rates}
 
     def decode_full_f32(self, path: Path, *, sample_rate: int, layout: list[str]) -> np.ndarray:
         """Decode the first audio stream into a nonempty flat float32 byte view."""

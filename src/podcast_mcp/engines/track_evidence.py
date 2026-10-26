@@ -34,8 +34,8 @@ from podcast_mcp.engines.audio import Audio, sources
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.audio_eval import common_rate, evaluate_resampled, single_layout
 from podcast_mcp.engines.decoded_source import decoded_sources
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE, LevelProfile, track_profile
-from podcast_mcp.engines.ungated_audio import resample_streams
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import scoped, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
@@ -252,7 +252,7 @@ def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
             reader=reader,
             sample_rate=rate,
             target_rates=_RATES,
-            resample=resample_streams,
+            resample=FFmpegEngine.resample_streams,
         )
     if samples is None or not all(array.size for array in samples.values()):
         return Declined.EVALUATOR

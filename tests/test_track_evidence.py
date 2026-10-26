@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import audio, audio_eval, timeline_render, track_evidence, ungated_audio
+from podcast_mcp.engines import audio, audio_eval, ffmpeg, timeline_render, track_evidence
 from podcast_mcp.engines.audio import (
     At,
     Audio,
@@ -25,8 +25,9 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
 )
 from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.track_evidence import Declined
-from podcast_mcp.engines.ungated_audio import load_mono_full, resample_streams
+from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import (
     ClipBleedRestore,
     ClipMuteRegion,
@@ -206,15 +207,18 @@ def test_one_chunk_stream_feeds_every_rate_as_a_resample_of_its_own(
     source = (rng.standard_normal(44100 * 3) * 0.1).astype(np.float32)
     pieces = [source[i : i + 30011] for i in range(0, source.size, 30011)]
 
-    together = resample_streams(iter(pieces), 44100, (WAVEFORM, 44100, JUMP, WAVEFORM, JUMP))
+    together = FFmpegEngine.resample_streams(
+        iter(pieces), 44100, (WAVEFORM, 44100, JUMP, WAVEFORM, JUMP)
+    )
 
     assert list(together) == [WAVEFORM, 44100, JUMP]
 
     np.testing.assert_array_equal(
-        together[JUMP], resample_streams(iter(pieces), 44100, (JUMP,))[JUMP]
+        together[JUMP], FFmpegEngine.resample_streams(iter(pieces), 44100, (JUMP,))[JUMP]
     )
     np.testing.assert_array_equal(
-        together[WAVEFORM], resample_streams(iter(pieces), 44100, (WAVEFORM,))[WAVEFORM]
+        together[WAVEFORM],
+        FFmpegEngine.resample_streams(iter(pieces), 44100, (WAVEFORM,))[WAVEFORM],
     )
     np.testing.assert_array_equal(together[44100], source)
 
@@ -226,7 +230,7 @@ def test_resampling_without_conversion_consumes_chunks_without_a_binary(
     def no_binary() -> typing.NoReturn:
         pytest.fail("no conversion needs no binary")
 
-    monkeypatch.setattr(ungated_audio, "resolve_ffmpeg_pair", no_binary)
+    monkeypatch.setattr(ffmpeg, "resolve_ffmpeg_pair", no_binary)
     visited: list[int] = []
 
     def chunks() -> typing.Iterator[np.ndarray]:
@@ -234,7 +238,7 @@ def test_resampling_without_conversion_consumes_chunks_without_a_binary(
             visited.append(index)
             yield np.arange(12, dtype=np.float64).reshape(3, 4)[:, ::2] + index * 12
 
-    result = resample_streams(chunks(), 48000, rates)
+    result = FFmpegEngine.resample_streams(chunks(), 48000, rates)
 
     assert visited == [0, 1]
     assert list(result) == list(dict.fromkeys(rates))
@@ -252,10 +256,10 @@ def test_resampling_empty_input_without_conversion_raises(
     def no_binary() -> typing.NoReturn:
         pytest.fail("no conversion needs no binary")
 
-    monkeypatch.setattr(ungated_audio, "resolve_ffmpeg_pair", no_binary)
+    monkeypatch.setattr(ffmpeg, "resolve_ffmpeg_pair", no_binary)
 
     with pytest.raises(ValueError):
-        resample_streams(iter([]), 48000, rates)
+        FFmpegEngine.resample_streams(iter([]), 48000, rates)
 
 
 def test_no_render_runs_when_an_effect_overlaps_an_accepted_mute(
@@ -542,7 +546,9 @@ def test_no_defaults_value_but_the_crossfade_curve_reaches_the_key(tmp_path: Pat
     defaults = load_defaults()
     base = _key(project, defaults)
 
-    def leaves(node: dict, prefix: tuple[str, ...] = ()):  # type: ignore[type-arg]
+    def leaves(
+        node: dict[str, typing.Any], prefix: tuple[str, ...] = ()
+    ) -> typing.Iterator[tuple[str, ...]]:
         for name, value in node.items():
             if isinstance(value, dict):
                 yield from leaves(value, (*prefix, name))
@@ -702,7 +708,7 @@ def test_threads_that_meet_in_a_batch_share_one_store(monkeypatch: pytest.Monkey
 def test_a_failing_resample_raises_what_the_old_path_did() -> None:
     _ffmpeg_or_skip()
     with pytest.raises(CalledProcessError):
-        resample_streams(iter([np.zeros(100, dtype=np.float32)]), -1, (JUMP,))
+        FFmpegEngine.resample_streams(iter([np.zeros(100, dtype=np.float32)]), -1, (JUMP,))
 
 
 def test_the_render_fallback_still_sees_the_batch_scope(
