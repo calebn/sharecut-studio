@@ -26,6 +26,13 @@ describe("startBlockerItems", () => {
     expect(startBlockerItems(snap, ready)).toEqual([]);
   });
 
+  it("says the room is still being joined before anyone is in it", () => {
+    const snap = recordSnapshot({ start_blockers: [{ code: "no_recorder" }] });
+    expect(startBlockerItems(snap, ready)).toEqual([
+      { key: "no_recorder", text: "Joining the room." },
+    ]);
+  });
+
   it("adds this device's storage and room-tone readiness after the room", () => {
     const snap = recordSnapshot({
       start_blockers: [

@@ -96,6 +96,18 @@ def test_record_cli_and_mcp_state_with_room(
     assert roster.exit_code == 0
     payload = json.loads(record_state_tool(str(minimal_project)))
     assert payload["available"] is True
+    refused = runner.invoke(cli_app, ["record", "start", "--project", str(minimal_project)])
+    assert refused.exit_code == 1
+    room = RecordSessionService(
+        ws.project, session_id=RecordSessionService.active_session_id(ws.project)
+    )
+    room.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="record-join:host",
+        connection_id="c0",
+    )
     solo = runner.invoke(cli_app, ["record", "start", "--project", str(minimal_project)])
     assert solo.exit_code == 0, solo.output
     assert json.loads(record_state_tool(str(minimal_project)))["state"] == "recording"
@@ -161,7 +173,7 @@ def test_record_state_reaches_agents_with_coded_start_blockers(
         ]
         return via_mcp, via_http
 
-    assert blockers() == ([], [])
+    assert blockers() == ([{"code": "no_recorder"}], [{"code": "no_recorder"}])
 
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(

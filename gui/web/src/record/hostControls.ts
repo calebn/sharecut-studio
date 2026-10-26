@@ -50,10 +50,13 @@ export function startBlockerItems(
   local: LocalStartReadiness,
 ): StartBlockerItem[] {
   const items: StartBlockerItem[] = (snapshot.start_blockers ?? []).map(
-    (blocker) => ({
-      key: `consent:${blocker.participant_id}`,
-      text: `Waiting for ${blocker.display_name || "a guest"} to accept recording.`,
-    }),
+    (blocker) =>
+      blocker.code === "no_recorder"
+        ? { key: "no_recorder", text: "Joining the room." }
+        : {
+            key: `consent:${blocker.participant_id}`,
+            text: `Waiting for ${blocker.display_name || "a guest"} to accept recording.`,
+          },
   );
   if (local.storageError) {
     items.push({

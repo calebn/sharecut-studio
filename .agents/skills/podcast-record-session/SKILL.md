@@ -70,12 +70,14 @@ podcast record discard-take --project episode.project.json --take-index 0
    **Join** (no mic, no room tone, no consent, no full-quality recording).
 4. `record_state_tool` / the panel: Start stays disabled while `start_blockers`
    is non-empty. Each row has a `code`:
+   - `{"code": "no_recorder"}` — nobody recorded has joined yet (the host's Join
+     fixes it). The host alone can start a solo take.
    - `{"code": "consent_pending", "participant_id", "display_name"}` — that
      person has not accepted yet (`consented` is `null`). A **declined** guest
      (`consented: false`) does **not** block Start.
    Producers never appear in `start_blockers`. A refused Start reads
-   `cannot start: Ava has not accepted recording`. The host alone can start a
-   solo take. With no room, the panel's **Create record room** mints one in
+   `cannot start: nobody has joined the room` or `cannot start: Ava has not
+   accepted recording`. With no room, the panel's **Create record room** mints one in
    place (same as `create_record_room_tool`).
 5. Start → every client shows **REC** and a recording clock; recorded clients
    show **Recording in full quality on this device.** Everyone who is connected hears
