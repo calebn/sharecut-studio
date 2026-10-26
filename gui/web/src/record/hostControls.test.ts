@@ -21,17 +21,9 @@ const segment = (fields: {
 });
 
 describe("startBlockerItems", () => {
-  it("words server blockers and offers the guest-link fix", () => {
-    const snap = recordSnapshot({
-      start_blockers: [{ code: "no_guest" }],
-    });
-    expect(startBlockerItems(snap, ready)).toEqual([
-      {
-        key: "no_guest",
-        text: "No guest has joined yet. Send them the guest link.",
-        fix: "copyGuestLink",
-      },
-    ]);
+  it("has no room blocker when only the host is in the room", () => {
+    const snap = recordSnapshot({ start_blockers: [] });
+    expect(startBlockerItems(snap, ready)).toEqual([]);
   });
 
   it("adds this device's storage and room-tone readiness after the room", () => {

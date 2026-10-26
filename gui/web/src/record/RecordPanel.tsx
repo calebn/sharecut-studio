@@ -247,7 +247,6 @@ export function RecordPanel({
       ? landGate(snapshot, hostSegments)
       : null;
   const startFixes: Record<StartFix, () => void> = {
-    copyGuestLink: () => runCommand("record.copyGuestLink"),
     retryStorage: () => {
       void retryHostKeeperStorage().catch(() => undefined);
     },

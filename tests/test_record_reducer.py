@@ -124,12 +124,13 @@ def test_join_requires_fresh_consent_even_before_disconnect_is_observed() -> Non
     ]
 
 
-def test_start_blocked_when_nobody_joined() -> None:
+def test_host_alone_can_start_a_solo_take() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
-    assert start_blockers(snap) == [{"code": "no_guest"}]
-    with pytest.raises(RecordStateError, match=r"^cannot start: no guest has joined$"):
-        apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=1)
+    assert start_blockers(snap) == []
+    started = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=1)
+    assert started.state == "recording"
+    assert started.takes[-1].consented_participant_ids == ["p_host"]
 
 
 def test_room_full_fifth_recorded_and_third_producer() -> None:

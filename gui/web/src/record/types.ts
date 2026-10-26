@@ -56,9 +56,11 @@ export type TakeState = {
 };
 
 /** Why host Start is refused (server `start_blockers`); the panel words each one. */
-export type StartBlocker =
-  | { code: "no_guest" }
-  | { code: "consent_pending"; participant_id: string; display_name: string };
+export type StartBlocker = {
+  code: "consent_pending";
+  participant_id: string;
+  display_name: string;
+};
 
 export type RecordSnapshot = {
   session_id: string;
