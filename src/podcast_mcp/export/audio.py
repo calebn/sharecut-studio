@@ -27,6 +27,8 @@ class ExportFormatSpec:
         ext = str(raw.get("ext") or raw.get("extension") or "").lstrip(".").lower()
         if not ext:
             raise ValueError("export format requires 'ext' (e.g. mp3, flac, opus)")
+        if set(raw) <= {"ext", "extension"} and ext in EXPORT_PRESETS:
+            return EXPORT_PRESETS[ext]
         extra = raw.get("extra_args") or []
         if isinstance(extra, str):
             extra = [extra]
@@ -38,6 +40,26 @@ class ExportFormatSpec:
             sample_rate=raw.get("sample_rate"),
             channels=raw.get("channels"),
             extra_args=tuple(str(a) for a in extra),
+        )
+
+
+M4A_AAC = ExportFormatSpec(ext="m4a", codec="aac", format="ipod", bitrate_kbps=128)
+"""AAC-LC in an M4A container, the tested pair offered beside MP3, FLAC and WAV.
+
+``contracts/export-presets.json`` pins it to the Studio export dialog's choice.
+"""
+
+EXPORT_PRESETS: dict[str, ExportFormatSpec] = {M4A_AAC.ext: M4A_AAC}
+
+
+def require_preset_encoder(eng: FFmpegEngine, spec: ExportFormatSpec) -> None:
+    """Refuse a preset whose encoder or muxer this FFmpeg build does not list."""
+    if spec != EXPORT_PRESETS.get(spec.ext):
+        return
+    if not (spec.codec and spec.format and eng.supports_encode(spec.codec, spec.format)):
+        raise ValueError(
+            f"The {spec.ext} export needs the {spec.codec} encoder and {spec.format} muxer, "
+            "which this FFmpeg build does not have."
         )
 
 
@@ -68,6 +90,8 @@ def specs_from_extensions(formats: list[str] | None) -> list[ExportFormatSpec]:
             specs.append(ExportFormatSpec(ext="wav"))
         elif ext == "mp3":
             specs.append(ExportFormatSpec(ext="mp3", codec="libmp3lame", bitrate_kbps=192))
+        elif ext in EXPORT_PRESETS:
+            specs.append(EXPORT_PRESETS[ext])
         else:
             specs.append(ExportFormatSpec.from_dict({"ext": ext}))
     if not specs:
@@ -128,6 +152,7 @@ def render_audio_formats(
     """Copy or encode into caller-owned paths without publishing them."""
     encodes: list[tuple[ExportFormatSpec, Path]] = []
     for spec, output in outputs:
+        require_preset_encoder(eng, spec)
         if spec.ext == "wav" and spec.codec is None:
             raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
             shutil.copy(source_wav, output)

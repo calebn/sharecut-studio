@@ -1,0 +1,8 @@
+{
+  "m4a": {
+    "ext": "m4a",
+    "codec": "aac",
+    "format": "ipod",
+    "bitrate_kbps": 128
+  }
+}

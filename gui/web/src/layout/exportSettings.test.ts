@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SRC_ROOT } from "../test/sourceFiles";
 import {
   exportResultCopy,
   exportSettingsFromConfig,
@@ -7,8 +10,15 @@ import {
   selectedFormats,
 } from "./exportSettings";
 
+const M4A_PRESET = JSON.parse(
+  readFileSync(
+    join(SRC_ROOT, "../../../contracts/export-presets.json"),
+    "utf-8",
+  ),
+).m4a;
+
 describe("exportSettingsFromConfig", () => {
-  it("lists configured formats first, checked, then offers FLAC", () => {
+  it("lists configured formats first, checked, then offers M4A and FLAC", () => {
     const settings = exportSettingsFromConfig({
       export: {
         wav: true,
@@ -33,6 +43,11 @@ describe("exportSettingsFromConfig", () => {
           spec: { ext: "opus", codec: "libopus", bitrate_kbps: 96 },
         },
         {
+          key: "m4a",
+          label: "M4A (AAC) · 128 kbps",
+          spec: M4A_PRESET,
+        },
+        {
           key: "flac",
           label: "FLAC · lossless",
           spec: { ext: "flac", codec: "flac" },
@@ -51,6 +66,7 @@ describe("exportSettingsFromConfig", () => {
     expect(settings.configured).toEqual(["mp3"]);
     expect(settings.choices.map((c) => c.label)).toEqual([
       "MP3 · 192 kbps",
+      "M4A (AAC) · 128 kbps",
       "FLAC · lossless",
     ]);
     expect(settings.target).toBeNull();
@@ -60,7 +76,23 @@ describe("exportSettingsFromConfig", () => {
     const settings = exportSettingsFromConfig({
       export: { formats: [{ ext: "flac", codec: "flac" }] },
     });
-    expect(settings.choices.map((c) => c.key)).toEqual(["flac"]);
+    expect(settings.choices.map((c) => c.key)).toEqual(["flac", "m4a"]);
+  });
+
+  it("does not offer M4A twice, and keeps the configured M4A spec", () => {
+    const configured = { ext: "m4a", codec: "alac" };
+    const settings = exportSettingsFromConfig({
+      export: { formats: [configured] },
+    });
+    expect(settings.choices.map((c) => c.key)).toEqual(["m4a", "flac"]);
+    expect(settings.choices[0].spec).toEqual(configured);
+  });
+
+  it("offers the M4A spec the server pins in contracts/export-presets.json", () => {
+    const settings = exportSettingsFromConfig({ export: { formats: [] } });
+    expect(settings.choices.find((c) => c.key === "m4a")?.spec).toEqual(
+      M4A_PRESET,
+    );
   });
 });
 

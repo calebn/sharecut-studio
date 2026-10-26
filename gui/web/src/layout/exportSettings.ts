@@ -33,6 +33,18 @@ export type ExportSettings = {
 /** Offered beside the configured formats: lossless, and in every FFmpeg build. */
 const FLAC: ExportFormatSpec = { ext: "flac", codec: "flac" };
 
+/** AAC-LC in an M4A container. Pinned to `contracts/export-presets.json` and the server's `M4A_AAC`. */
+const M4A: ExportFormatSpec = {
+  ext: "m4a",
+  codec: "aac",
+  format: "ipod",
+  bitrate_kbps: 128,
+};
+
+const OFFERED: readonly ExportFormatSpec[] = [M4A, FLAC];
+
+const CHOICE_NAMES: Record<string, string> = { m4a: "M4A (AAC)" };
+
 const LOSSLESS = new Set(["flac", "wav", "alac"]);
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -50,7 +62,7 @@ function asSpec(value: unknown): ExportFormatSpec | null {
 }
 
 export function formatChoiceLabel(spec: ExportFormatSpec): string {
-  const name = spec.ext.toUpperCase();
+  const name = CHOICE_NAMES[spec.ext] ?? spec.ext.toUpperCase();
   if (typeof spec.bitrate_kbps === "number") {
     return `${name} · ${spec.bitrate_kbps} kbps`;
   }
@@ -74,9 +86,12 @@ export function exportSettingsFromConfig(
             bitrate_kbps: Number(exportCfg.mp3_bitrate_kbps ?? 128),
           },
         ];
-  const specs = configuredSpecs.some((spec) => spec.ext === FLAC.ext)
-    ? configuredSpecs
-    : [...configuredSpecs, FLAC];
+  const specs = [
+    ...configuredSpecs,
+    ...OFFERED.filter(
+      (offered) => !configuredSpecs.some((spec) => spec.ext === offered.ext),
+    ),
+  ];
   const master = asRecord(config.master);
   const lufs = master.integrated_lufs;
   const truePeakDb = master.true_peak_db;
