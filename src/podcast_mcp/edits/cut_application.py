@@ -22,7 +22,11 @@ from podcast_mcp.edits import (
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.cut_placement import CutScopeHold, pending_pad_source_spans
-from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
+from podcast_mcp.edits.cut_proof import (
+    CarriedTimelineRms,
+    shared_source_audio_caches,
+    shared_timeline_rms_caches,
+)
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
@@ -520,6 +524,7 @@ def _apply_source_remove(
     record_log: bool = False,
     override_peer_holds: set[str] | None = None,
     measured: cut_safety.MeasuredSources | None = None,
+    timeline: CarriedTimelineRms | None = None,
 ) -> _Decided:
     """Assess and write an ordinary source removal against current playback.
 
@@ -552,6 +557,7 @@ def _apply_source_remove(
                 record_log=record_log,
                 override_peer_holds=override_peer_holds,
                 measured=measured,
+                timeline=timeline,
                 placed=placed,
                 key=key,
                 cached=entry,
@@ -568,6 +574,7 @@ def _apply_source_remove(
         record_log=record_log,
         override_peer_holds=override_peer_holds,
         measured=measured,
+        timeline=timeline,
         placed=placed,
         key=key,
         cached=None,
@@ -608,6 +615,7 @@ def precompute_verdicts(
     batch = _source_extents(removes)
     working = _cut_copy(project)
     measured: cut_safety.MeasuredSources = {}
+    timeline = CarriedTimelineRms()
     checked = 0
     # Its own scope, never the caller's: what a check parks there (a consumed room-tone bed,
     # pad origins) belongs to one batch and must not leak from a trial into the real one.
@@ -625,12 +633,14 @@ def precompute_verdicts(
                 application_intent=application_intent,
                 batch=tuple(batch.values()),
                 measured=measured,
+                timeline=timeline,
             )
             if isinstance(applied, (CutSpeechConfirmation, CutScopeHold)):
                 batch.pop(edit.id)  # held: the approval drops it from the batch too
                 continue
             working = applied[0]
             measured.clear()
+            timeline.applied(applied[1][0])
     return checked
 
 
@@ -644,6 +654,7 @@ def _check_source_remove(
     record_log: bool,
     override_peer_holds: set[str] | None,
     measured: cut_safety.MeasuredSources | None,
+    timeline: CarriedTimelineRms | None,
     placed: tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]],
     key: str | None,
     cached: verdict_cache.CachedVerdict | None,
@@ -674,7 +685,16 @@ def _check_source_remove(
                 manual=manual,
                 batch=batch,
                 audio_caches=caches,
-                timeline_caches=shared_timeline_rms_caches(project, defaults=defaults),
+                timeline_caches=(
+                    timeline.caches_for(
+                        project,
+                        placed[1],
+                        reach=verdict_cache.WINDOW_SEC + verdict_cache.FADE_REACH_SEC,
+                        defaults=defaults,
+                    )
+                    if timeline is not None
+                    else shared_timeline_rms_caches(project, defaults=defaults)
+                ),
                 placed=placed,
             )
         )
@@ -1147,6 +1167,7 @@ def approve_edits(
         newly_held: set[str] = set()
         # Cleared after each apply: the applied candidate is then written in place.
         measured: cut_safety.MeasuredSources = {}
+        timeline = CarriedTimelineRms()
         for edit in sorted(survivors, key=lambda e: e.start, reverse=True):
             previous = project
             applied = _apply_source_remove(
@@ -1158,6 +1179,7 @@ def approve_edits(
                 record_log=False,
                 override_peer_holds=override_peer_holds,
                 measured=measured,
+                timeline=timeline,
             )
             if isinstance(applied, CutSpeechConfirmation):
                 asked.append(applied)
@@ -1193,6 +1215,7 @@ def approve_edits(
                 continue
             applied_ids.add(edit.id)
             applied_removes.append(edit.id)
+            timeline.applied(tl_start)
         # Only a cut applied before the hold was found counted that edit as removed;
         # one further away is unchanged by running the pass again.
         excluded.update(newly_held)
