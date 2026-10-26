@@ -6,14 +6,25 @@ from collections.abc import Iterable
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.audio_check_override import active_override
 from podcast_mcp.edits.comment_remap import (
+    pending_decisions_in_range,
+    remap_review_anchors_for_replace,
     shift_pending_decisions_for_insert,
+    shift_pending_decisions_for_replace,
     shift_review_anchors_for_insert,
 )
 from podcast_mcp.edits.comments import add_comment
-from podcast_mcp.edits.insert_anchor import resolve_insert_anchor
+from podcast_mcp.edits.cut_speech import (
+    UnconfirmedCutSpeech,
+    assess_cut_speech,
+    replace_confirmation_for,
+)
+from podcast_mcp.edits.decisions import unplayed_pending_ids
+from podcast_mcp.edits.insert_anchor import resolve_insert_anchor, resolve_range
 from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip
 from podcast_mcp.edits.ripple import ripple_insert_clips, ripple_track_ids
+from podcast_mcp.edits.timeline_ops import plan_ripple_delete, ripple_delete_range
 from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.track_media import refresh_timeline_duration
 from podcast_mcp.engines.transcript_sync import rebuild_combined
@@ -202,8 +213,11 @@ def _require_pending(row: SessionSuggestion) -> None:
         )
 
 
-def _require_dialogue_tracks(project: EpisodeProject, row: SessionSuggestion) -> None:
-    staged = {take.track_id for take in row.takes} | {bed.track_id for bed in row.room_tone}
+def _require_dialogue_tracks(
+    project: EpisodeProject, row: SessionSuggestion, staged: set[str] | None = None
+) -> None:
+    if staged is None:
+        staged = {take.track_id for take in row.takes} | {bed.track_id for bed in row.room_tone}
     for track_id in sorted(staged):
         track = project.track_by_id(track_id)
         if track is not None and track.role != TrackRole.DIALOGUE:
@@ -230,55 +244,11 @@ def _land_staged_comment(
     return {"id": placed.id, "timeline_start": placed.timeline_start}
 
 
-def accept_session_suggestion(
-    project: EpisodeProject, suggestion_id: str, *, defaults: EffectiveConfig
-) -> dict[str, Any]:
-    """Open the staged span at the insert point and place the staged takes in it.
-
-    The point is found again from the suggestion's anchor, so edits since staging move it
-    with the audio. Dialogue tracks ripple; other tracks stay where they are and are named in
-    ``unmoved_track_ids``.
-    """
-    row = find_session_suggestion(project, suggestion_id)
-    _require_pending(row)
-    if row.kind != "insert":
-        raise CodedValueError(
-            "Accepting a replace session is not available yet. Skip it, or record it as an insert.",
-            code="accept_replace_unavailable",
-        )
-    span = staged_span_s((take.offset_s, take.duration_s) for take in row.takes)
-    if span <= 0:
-        raise CodedValueError(
-            f"Session {row.session_number} has no recorded takes to accept. "
-            "Record it again, or skip it.",
-            code="session_suggestion_empty",
-        )
-    _require_dialogue_tracks(project, row)
-    if row.anchor is None:
-        raise CodedValueError(
-            "This session has no recorded insert point. Record it again.", code="stale_anchor"
-        )
-    at_sec = resolve_insert_anchor(project, row.anchor)
-    if at_sec < -SPAN_EPS_S:
-        raise CodedValueError(
-            "The audio this session was staged at has moved before the start of the episode. "
-            "Record the session again at the new spot.",
-            code="stale_anchor",
-        )
-    at_sec = max(at_sec, 0.0)
-    ripple_ids = ripple_track_ids(project)
-    ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
-    shift_review_anchors_for_insert(project, at_sec, span)
-    shift_pending_decisions_for_insert(project, at_sec, span, set(ripple_ids))
-    unmoved = sorted(
-        {
-            clip.track_id
-            for clip in project.clips
-            if clip.track_id not in ripple_ids and clip.timeline_end > at_sec
-        }
-    )
+def _place_takes(
+    project: EpisodeProject, takes: list[StagedTake], at_sec: float
+) -> list[dict[str, Any]]:
     placed: list[dict[str, Any]] = []
-    for take in row.takes:
+    for take in takes:
         source = project.source_by_id(take.source_id)
         if source is None or source.sample_rate is None or source.channels is None:
             raise CodedValueError(
@@ -310,6 +280,88 @@ def accept_session_suggestion(
                 "duration_s": take.duration_s,
             }
         )
+    return placed
+
+
+def _place_comments(
+    project: EpisodeProject, takes: list[StagedTake], at_sec: float
+) -> list[dict[str, Any]]:
+    return [
+        landed
+        for take in takes
+        for comment in take.comments
+        if (landed := _land_staged_comment(project, comment, at_sec)) is not None
+    ]
+
+
+def accept_session_suggestion(
+    project: EpisodeProject,
+    suggestion_id: str,
+    *,
+    take_index: int | None = None,
+    override_audio_checks: bool = False,
+    defaults: EffectiveConfig,
+) -> dict[str, Any]:
+    """Place a staged session on the timeline: an insert opens its span, a replace swaps a range.
+
+    Both find their place again from the suggestion's anchors, so edits since staging move it
+    with the audio. Dialogue tracks ripple; other tracks stay where they are and are named in
+    ``unmoved_track_ids``. ``take_index`` picks the take of a replace.
+    """
+    row = find_session_suggestion(project, suggestion_id)
+    _require_pending(row)
+    if row.kind == "replace":
+        return _accept_replace(
+            project,
+            row,
+            take_index=take_index,
+            override_audio_checks=override_audio_checks,
+            defaults=defaults,
+        )
+    if take_index is not None:
+        raise CodedValueError(
+            f"Session {row.session_number} is an insert, whose takes play one after another, so "
+            "a take cannot be chosen. Accept it without a take.",
+            code="take_not_applicable",
+        )
+    return _accept_insert(project, row, defaults=defaults)
+
+
+def _accept_insert(
+    project: EpisodeProject, row: SessionSuggestion, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
+    span = staged_span_s((take.offset_s, take.duration_s) for take in row.takes)
+    if span <= 0:
+        raise CodedValueError(
+            f"Session {row.session_number} has no recorded takes to accept. "
+            "Record it again, or skip it.",
+            code="session_suggestion_empty",
+        )
+    _require_dialogue_tracks(project, row)
+    if row.anchor is None:
+        raise CodedValueError(
+            "This session has no recorded insert point. Record it again.", code="stale_anchor"
+        )
+    at_sec = resolve_insert_anchor(project, row.anchor)
+    if at_sec < -SPAN_EPS_S:
+        raise CodedValueError(
+            "The audio this session was staged at has moved before the start of the episode. "
+            "Record the session again at the new spot.",
+            code="stale_anchor",
+        )
+    at_sec = max(at_sec, 0.0)
+    ripple_ids = ripple_track_ids(project)
+    ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
+    shift_review_anchors_for_insert(project, at_sec, span)
+    shift_pending_decisions_for_insert(project, at_sec, span, set(ripple_ids))
+    unmoved = sorted(
+        {
+            clip.track_id
+            for clip in project.clips
+            if clip.track_id not in ripple_ids and clip.timeline_end > at_sec
+        }
+    )
+    placed = _place_takes(project, row.takes, at_sec)
     for bed in row.room_tone:
         place_room_tone(
             project,
@@ -320,12 +372,7 @@ def accept_session_suggestion(
             sample_rate=bed.sample_rate,
             channels=bed.channels,
         )
-    comments = [
-        landed
-        for take in row.takes
-        for comment in take.comments
-        if (landed := _land_staged_comment(project, comment, at_sec)) is not None
-    ]
+    comments = _place_comments(project, row.takes, at_sec)
     refresh_timeline_duration(project)
     rebuild_combined(project, defaults=defaults)
     row.status = "accepted"
@@ -335,5 +382,141 @@ def accept_session_suggestion(
         "span_s": span,
         "clips": placed,
         "comments": comments,
+        "unmoved_track_ids": unmoved,
+    }
+
+
+def _chosen_take(row: SessionSuggestion, take_index: int | None) -> int:
+    available = sorted({take.take_index for take in row.takes})
+    if not available:
+        raise CodedValueError(
+            f"Session {row.session_number} has no recorded takes to accept. "
+            "Record it again, or skip it.",
+            code="session_suggestion_empty",
+        )
+    if take_index is not None:
+        if take_index not in available:
+            raise CodedValueError(
+                f"Session {row.session_number} has no take {take_index}. "
+                f"Pick one of: {', '.join(str(i) for i in available)}.",
+                code="take_not_found",
+            )
+        return take_index
+    if row.selected_take is not None and row.selected_take in available:
+        return row.selected_take
+    return available[-1]
+
+
+def _accept_replace(
+    project: EpisodeProject,
+    row: SessionSuggestion,
+    *,
+    take_index: int | None,
+    override_audio_checks: bool,
+    defaults: EffectiveConfig,
+) -> dict[str, Any]:
+    chosen = _chosen_take(row, take_index)
+    takes = [take for take in row.takes if take.take_index == chosen]
+    length = staged_span_s((take.offset_s, take.duration_s) for take in takes)
+    if length <= 0:
+        raise CodedValueError(
+            f"Take {chosen} of Session {row.session_number} has no recorded audio. "
+            "Pick another take, or record it again.",
+            code="session_suggestion_empty",
+        )
+    recorded = sorted({take.track_id for take in takes})
+    missing = [tid for tid in row.track_ids if tid not in recorded]
+    if missing:
+        raise CodedValueError(
+            f"Take {chosen} did not record {', '.join(missing)}, which this pickup was set to "
+            "replace. Pick a take that recorded every track, or record the session again.",
+            code="track_not_recorded",
+        )
+    _require_dialogue_tracks(project, row, {*recorded, *row.track_ids})
+    for take in takes:
+        source = project.source_by_id(take.source_id)
+        if source is None or source.sample_rate is None or source.channels is None:
+            raise CodedValueError(
+                f"The recording for take {take.take_index} is no longer in the project. "
+                "Record the session again.",
+                code="staged_source_missing",
+            )
+    from_sec, to_sec = resolve_range(project, row)
+    ripple_ids = ripple_track_ids(project)
+    held = pending_decisions_in_range(project, from_sec, to_sec, set(ripple_ids))
+    if held:
+        raise CodedValueError(
+            f"{len(held)} pending edit{'s' if len(held) != 1 else ''} sit inside the range this "
+            "session replaces. Approve or reject them first, then accept again.",
+            code="pending_edits_in_range",
+        )
+    removal = plan_ripple_delete(
+        project,
+        from_sec,
+        to_sec,
+        edited_track_ids=recorded,
+        use_inaudible_opt=False,
+        defaults=defaults,
+    )
+    speech = assess_cut_speech(project, removal, defaults=defaults)
+    if speech is not None and not (override_audio_checks or active_override() is not None):
+        raise UnconfirmedCutSpeech(replace_confirmation_for(speech))
+    removed = to_sec - from_sec
+    delta = length - removed
+    unplayed_before = set(unplayed_pending_ids(project))
+    clamped = remap_review_anchors_for_replace(project, from_sec, to_sec, length)
+    shift_pending_decisions_for_replace(project, to_sec, delta, set(ripple_ids))
+    ripple_delete_range(
+        project,
+        removal,
+        record_log=True,
+        params={
+            "use_inaudible_opt": False,
+            "replace": {
+                "session_id": row.session_id,
+                "suggestion_id": row.id,
+                "session_number": row.session_number,
+                "take_index": chosen,
+                "inserted_s": length,
+            },
+        },
+        cut_speech=speech,
+        defaults=defaults,
+    )
+    ripple_insert_clips(project, from_sec, length, ripple_ids, defaults=defaults)
+    unmoved = (
+        sorted(
+            {
+                clip.track_id
+                for clip in project.clips
+                if clip.track_id not in ripple_ids and clip.timeline_end > from_sec
+            }
+        )
+        if abs(delta) > SPAN_EPS_S
+        else []
+    )
+    placed = _place_takes(project, takes, from_sec)
+    comments = _place_comments(project, takes, from_sec)
+    refresh_timeline_duration(project)
+    rebuild_combined(project, defaults=defaults)
+    row.selected_take = chosen
+    row.status = "accepted"
+    return {
+        "suggestion": row.model_dump(mode="json"),
+        "at_sec": from_sec,
+        "from_sec": from_sec,
+        "to_sec": to_sec,
+        "removed_s": removed,
+        "span_s": length,
+        "delta_s": delta,
+        "take_index": chosen,
+        "clips": placed,
+        "comments": comments,
+        "comments_not_placed": sum(
+            len(take.comments) for take in row.takes if take.take_index != chosen
+        ),
+        "room_tone_not_placed": len(row.room_tone),
+        "clamped_comment_ids": clamped,
+        "retired_decision_ids": sorted(set(unplayed_pending_ids(project)) - unplayed_before),
         "unmoved_track_ids": unmoved,
     }

@@ -295,6 +295,18 @@ def cut_speech_message(speech: CutSpeech, *, owned: bool = True) -> str:
     return f"This cuts {phrases}. Review this cut in Studio, or choose which tracks to cut."
 
 
+def replace_confirmation_for(speech: CutSpeech) -> CutSpeechConfirmation:
+    """The hold for a pickup that would also replace speech of a track it did not record."""
+    phrases = _join([_track_phrase(t) for t in sorted(speech.tracks, key=_first_time)])
+    return CutSpeechConfirmation(
+        message=(
+            f"Replacing this range also removes {phrases}, which this pickup did not record. "
+            "Replace anyway to apply it; undo brings it back."
+        ),
+        speech=speech,
+    )
+
+
 def merge_cut_speech(speeches: Sequence[CutSpeech]) -> CutSpeech:
     """One report for several edits' cut speech, one row per track."""
     tracks: dict[str, CutSpeechTrack] = {}

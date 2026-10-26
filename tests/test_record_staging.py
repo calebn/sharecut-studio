@@ -1024,7 +1024,7 @@ def test_accept_refusals(minimal_project, sample_wav, tmp_workspace):
     assert skipped.value.code == "session_suggestion_not_pending"
 
 
-def test_accept_refuses_a_replace_session_and_an_empty_one(
+def test_accept_refuses_a_replace_over_an_unrecorded_track_and_an_empty_session(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
@@ -1032,9 +1032,9 @@ def test_accept_refuses_a_replace_session_and_an_empty_one(
     _seed_timeline(ws)
     room, _guest, _svc, _landed = _stage(ws, REPLACE)
     before = _everything(ws)
-    with pytest.raises(CodedValueError, match="not available yet") as replace:
+    with pytest.raises(CodedValueError, match="did not record ava") as replace:
         SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
-    assert replace.value.code == "accept_replace_unavailable"
+    assert replace.value.code == "track_not_recorded"
     assert _everything(ws) == before
 
     from podcast_mcp.models import SessionSuggestion
