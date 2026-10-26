@@ -44,7 +44,10 @@ HANDOFF_CANCEL_PATH = "/api/handoff/cancel"
 #: Opt out of the handoff and write directly (the command then races Studio for the lock).
 DIRECT_ENV_VAR = "PODCAST_NO_STUDIO_HANDOFF"
 
-PING_TIMEOUT_SEC = 1.0
+#: A Studio under load can be slow to answer. A ping is retried once, and a Studio that is
+#: still silent is never bypassed: a direct write would race the Studio that holds the project.
+PING_TIMEOUT_SEC = 5.0
+_PING_ATTEMPTS = 2
 #: Studio sends a heartbeat every few seconds; silence for this long means it is wedged.
 STREAM_SILENCE_TIMEOUT_SEC = 30.0
 CANCEL_GRACE_SEC = 30.0
@@ -77,6 +80,22 @@ class HandoffRefused(Exception):
         super().__init__(detail)
         self.code = code
         self.detail = detail
+
+
+class StudioUnresponsive(Exception):
+    """A Studio is announced for the project and accepts connections, but did not answer.
+
+    Nothing was run. The caller must not write the project directly, which could clobber
+    what Studio holds.
+    """
+
+    def __init__(self, host: StudioHost) -> None:
+        super().__init__(
+            f"Studio (pid {host.pid}) is serving this project but did not answer in time. "
+            f"Try again in a moment, or set {DIRECT_ENV_VAR}=1 to write directly "
+            "(this may overwrite what Studio is holding)."
+        )
+        self.host = host
 
 
 class HandoffLost(Exception):
@@ -172,26 +191,37 @@ def _headers(host: StudioHost) -> dict[str, str]:
 
 
 def locate_studio(project_path: Path | str) -> StudioHost | None:
-    """The Studio that is serving ``project_path`` right now, or None to write directly."""
+    """The Studio that is serving ``project_path`` right now, or None to write directly.
+
+    Raises ``StudioUnresponsive`` when a Studio accepts the connection but stays silent.
+    """
     if settings.flag(DIRECT_ENV_VAR):
         return None
     host = read_studio_host(project_path)
     if host is None:
         return None
     resolved = str(resolve_project_path(project_path))
-    try:
-        conn = _connection(host, PING_TIMEOUT_SEC)
+    for attempt in range(_PING_ATTEMPTS):
         try:
-            conn.request(
-                "GET", f"{HANDOFF_PING_PATH}?project={quote(resolved)}", headers=_headers(host)
-            )
-            response = conn.getresponse()
-            body = json.loads(response.read().decode("utf-8"))
-        finally:
-            conn.close()
-    except (OSError, http.client.HTTPException, ValueError):
-        log.debug("studio announced at %s:%s did not answer", host.host, host.port)
-        return None
+            conn = _connection(host, PING_TIMEOUT_SEC)
+            try:
+                conn.request(
+                    "GET",
+                    f"{HANDOFF_PING_PATH}?project={quote(resolved)}",
+                    headers=_headers(host),
+                )
+                response = conn.getresponse()
+                body = json.loads(response.read().decode("utf-8"))
+            finally:
+                conn.close()
+        except TimeoutError:
+            if attempt + 1 < _PING_ATTEMPTS:
+                continue
+            raise StudioUnresponsive(host) from None
+        except (OSError, http.client.HTTPException, ValueError):
+            log.debug("studio announced at %s:%s did not answer", host.host, host.port)
+            return None
+        break
     if (
         response.status != 200
         or body.get("instance") != host.instance
