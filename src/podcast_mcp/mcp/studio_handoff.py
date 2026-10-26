@@ -99,6 +99,12 @@ def _progress_relay(context: Any) -> Any:
     return relay
 
 
+def _studio_mcp_url(host: StudioHost) -> str:
+    """The Studio's MCP endpoint; an IPv6 literal such as ``::1`` needs brackets in a URL."""
+    name = f"[{host.host}]" if ":" in host.host else host.host
+    return f"http://{name}:{host.port}{HOST_MCP_PATH}"
+
+
 async def _run_in_studio(
     host: StudioHost, name: str, arguments: dict[str, Any], context: Any = None
 ) -> Any:
@@ -110,7 +116,7 @@ async def _run_in_studio(
     relay = _progress_relay(context)
     sent = False
     try:
-        url = f"http://{host.host}:{host.port}{HOST_MCP_PATH}"
+        url = _studio_mcp_url(host)
         async with (
             streamable_http_client(url) as (read, write, *_),
             ClientSession(read, write) as session,

@@ -291,6 +291,20 @@ def test_a_ping_answered_200_with_a_body_that_is_not_a_studio_reply_is_never_byp
     assert caught.value.host.port == port
 
 
+@pytest.mark.parametrize(
+    "body",
+    [b"[" * 100000 + b"]" * 100000, b" " * (studio_host_module.PING_BODY_MAX_BYTES + 1)],
+    ids=["deeply-nested", "over-the-cap"],
+)
+def test_a_ping_body_that_is_too_deep_or_too_long_is_never_bypassed(
+    project: Path, body: bytes
+) -> None:
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply"):
+            locate_studio(project)
+
+
 @pytest.mark.parametrize(("status", "body"), [(503, b""), (503, b"[]"), (404, b"not json")])
 def test_a_ping_that_is_not_200_is_a_direct_write(project: Path, status: int, body: bytes) -> None:
     with ping_answering(status, body) as port:
