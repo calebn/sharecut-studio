@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -1032,5 +1032,353 @@ describe("what the status rows say", () => {
     });
     expect(screen.getByText("Mastering 60%")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
+});
+
+describe("the right item gets the action", () => {
+  it("approves only the clip whose button was pressed", async () => {
+    setup();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve The boat was still there" }),
+    );
+    expect(
+      screen.queryByRole("button", {
+        name: "Approve The boat was still there",
+      }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Approve Nobody asked the river" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Approved")).toHaveLength(2);
+  });
+
+  it("trims and plays the clip whose menu or button was used", async () => {
+    const { all } = setup();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for The boat was still there" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "In of The boat was still there" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "In of Nobody asked the river" }),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for The boat was still there" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Open in Edit" }),
+    );
+    expect(all.onOpenClipInEdit).toHaveBeenCalledWith("k2");
+  });
+});
+
+describe("a stale export still has its files", () => {
+  it("lists them with working Reveal and Download buttons", async () => {
+    const stale = { ...DONE, phase: "stale" } as ExportState;
+    const app = setup({ exportState: stale });
+    expect(screen.getByText("field-notes.wav")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Reveal" })[1] as HTMLElement,
+    );
+    expect(app.all.onReveal).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "field-notes.wav" }),
+    );
+    app.unmount();
+    const browser = setup({ exportState: stale, env: "browser" });
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Download" })[0] as HTMLElement,
+    );
+    expect(browser.all.onDownload).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "field-notes.mp3" }),
+    );
+  });
+});
+
+describe("Mod+E on other platforms with both modifiers", () => {
+  it("needs Ctrl without Cmd", () => {
+    const { stage, all } = setup();
+    fireEvent.keyDown(stage(), { key: "e", ctrlKey: true, metaKey: true });
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+});
+
+describe("state edits build on each other", () => {
+  it("keeps every chapter and clip edit made one after the other", async () => {
+    setup();
+    await userEvent.type(chapterTitle("Cold open"), "!");
+    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
+    await userEvent.clear(time);
+    await userEvent.type(time, "6:00{Enter}");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add at playhead" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove Listener mail" }),
+    );
+    const titles = screen
+      .getAllByRole("textbox")
+      .filter((el) => el.classList.contains("dv-chapter-title"))
+      .map((el) => (el as HTMLInputElement).value);
+    expect(titles).toEqual([
+      "Cold open!",
+      "The old mill",
+      "Chapter 5",
+      "What the river wanted",
+    ]);
+    await userEvent.type(clipTitle("Nobody asked the river"), "?");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve The boat was still there" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Cold open" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "0:20{Enter}");
+    expect(clipTitle("Nobody asked the river?")).toBeInTheDocument();
+    expect(screen.getAllByText("Approved")).toHaveLength(2);
+    expect(screen.getByText("20.0 s")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for The boat was still there" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove" }),
+    );
+    expect(clipTitle("Nobody asked the river?")).toBeInTheDocument();
+    expect(screen.getByText("20.0 s")).toBeInTheDocument();
+    expect(chapterTitle("Cold open!")).toBeInTheDocument();
+  });
+
+  it("holds a chapter time at the end of the episode", async () => {
+    setup();
+    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
+    await userEvent.clear(time);
+    await userEvent.type(time, "99:00{Enter}");
+    expect(
+      screen.getByRole("textbox", { name: "Time of The old mill" }),
+    ).toHaveValue("52:00.0");
+  });
+});
+
+describe("export settings reach the stage", () => {
+  it("blocks Export once every format is off, and says why", async () => {
+    const { stage, all } = setup();
+    await userEvent.click(screen.getByRole("button", { name: /^MP3/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^WAV/ }));
+    const button = screen.getByRole("button", { name: /^Export/ });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", "Choose a format first.");
+    modE(stage());
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+
+  it("brings Export back in the phone foot when the export goes stale", async () => {
+    setup({ exportState: DONE, layout: "phone" });
+    expect(screen.queryByRole("button", { name: /^Export/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
+    expect(screen.getByRole("button", { name: /^Export/ })).toBeEnabled();
+  });
+
+  it("shows In and Out only for a Part", () => {
+    setup();
+    expect(screen.queryByRole("textbox", { name: "In" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Out" })).toBeNull();
+  });
+
+  it("lets In and Out reach the end of the episode, not just the part length", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    const start = screen.getByRole("textbox", { name: "In" });
+    await userEvent.clear(start);
+    await userEvent.type(start, "10:00{Enter}");
+    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("10:00.0");
+    const out = screen.getByRole("textbox", { name: "Out" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "99:00{Enter}");
+    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("52:00.0");
+  });
+});
+
+describe("the model row", () => {
+  it("shows only while the model is missing, with its size and a working Get", async () => {
+    const never = setup();
+    expect(screen.queryByText(/^Needs the/)).toBeNull();
+    never.unmount();
+    const missing = setup({ exportState: NEEDS_MODEL });
+    expect(
+      screen.getByText("Needs the transcription model"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1.6 GB")).toBeInTheDocument();
+    missing.unmount();
+    setup({ exportState: NEEDS_MODEL, onGetModel: undefined });
+    expect(screen.queryByRole("button", { name: "Get" })).toBeNull();
+  });
+});
+
+describe("files of an export", () => {
+  const stale = { ...DONE, phase: "stale" } as ExportState;
+
+  it("each row names its own file and size and acts on that file", async () => {
+    const app = setup({ exportState: stale });
+    expect(screen.getByText("field-notes.mp3")).toBeInTheDocument();
+    const files = within(
+      app.container.querySelector(".dv-files") as HTMLElement,
+    );
+    expect(files.getByText("50 MB")).toBeInTheDocument();
+    expect(files.getByText("550 MB")).toBeInTheDocument();
+    app.unmount();
+    const browser = setup({ exportState: stale, env: "browser" });
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Download" })[1] as HTMLElement,
+    );
+    expect(browser.all.onDownload).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "field-notes.wav" }),
+    );
+  });
+});
+
+describe("the phone layout", () => {
+  it("shows chapters and clips once, and Share instead of Copy", () => {
+    setup({ layout: "phone" });
+    expect(screen.getAllByRole("heading", { name: "Chapters" })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("heading", { name: "Clips" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+    expect(screen.queryByText("Viewer")).toBeNull();
+  });
+
+  it("shows chapters and clips once on desktop too, with the word Viewer", () => {
+    setup();
+    expect(screen.getAllByRole("heading", { name: "Chapters" })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("heading", { name: "Clips" })).toHaveLength(1);
+    expect(screen.getByText("Viewer")).toBeInTheDocument();
+    expect(screen.getByText("Pinned to Rough cut")).toBeInTheDocument();
+  });
+});
+
+describe("Mod+E on Apple without a modifier", () => {
+  it("does not export on a plain E", () => {
+    platform.apple = true;
+    const { stage, all } = setup();
+    fireEvent.keyDown(stage(), { key: "e" });
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+});
+
+describe("the error cover without a retry", () => {
+  it("offers no button when the host gave no way to retry", () => {
+    setup({ state: "error", onRetry: undefined });
+    expect(screen.getByText("Could not load Deliver")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});
+
+describe("the toast and the Player", () => {
+  it("keeps the Undo toast for the time the host asked for", () => {
+    vi.useFakeTimers();
+    try {
+      setup({ toastMs: 5000 });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove The old mill" }),
+      );
+      expect(screen.getByText("Removed The old mill")).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(4000);
+      });
+      expect(screen.getByText("Removed The old mill")).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(screen.queryByText("Removed The old mill")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the time and the total in the right places", () => {
+    setup({ clock: { time: "12:04", total: "52:00" } });
+    expect(screen.getByText("12:04")).toBeInTheDocument();
+    expect(screen.getByText(/52:00/)).toBeInTheDocument();
+    expect(screen.getByText("12:04").textContent).not.toContain("52:00");
+  });
+});
+
+describe("rendering the whole page", () => {
+  it("raises no React warnings, such as repeated keys", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      setup({
+        exportState: DONE,
+        link: {
+          url: "https://x.example/abc",
+          openedBy: [{ name: "Rosa" }, { name: "Jon" }],
+        },
+      });
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("shows each readiness row with its own title and detail", () => {
+    setup({ facts: { ...OPEN_FACTS, mixUpToDate: false, truePeak: -2.1 } });
+    const text = document.body.textContent ?? "";
+    for (const part of [
+      "Suggestions decided",
+      "14 of 14",
+      "Comments resolved",
+      "2 of 3",
+      "Unsure words checked",
+      "2 left",
+      "Edited since the last mix",
+      "−2.1 dBTP",
+      "23.6 s",
+    ]) {
+      expect(text).toContain(part);
+    }
+  });
+});
+
+describe("more of what the page shows", () => {
+  it("gives each readiness row its own state", () => {
+    const { container } = setup({ facts: OPEN_FACTS });
+    const states = [
+      ...container.querySelectorAll(".dv-readiness-list [data-state]"),
+    ].map((el) => el.getAttribute("data-state"));
+    expect(states).toEqual([
+      "done",
+      "needs-you",
+      "needs-you",
+      "done",
+      "done",
+      "done",
+      "done",
+      "done",
+    ]);
+  });
+
+  it("goes stale when one format is swapped for another", async () => {
+    setup({ exportState: DONE });
+    await userEvent.click(screen.getByRole("button", { name: /^WAV/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+  });
+
+  it("explains an empty chapter list", () => {
+    setup({ initialChapters: [] });
+    expect(
+      screen.getByText(/Chapters help listeners skip around/),
+    ).toBeInTheDocument();
   });
 });

@@ -454,3 +454,119 @@ describe("clip file names", () => {
     expect(file?.bytes).toBe(estimateBytes("wav", 10));
   });
 });
+
+describe("readiness fixes", () => {
+  it("one open suggestion is still needs-you and the summary says so", () => {
+    const rows = readinessRows({
+      ...CLEAR_FACTS,
+      suggestions: { decided: 13, total: 14 },
+    });
+    expect(rows.find((r) => r.id === "suggestions")?.state).toBe("needs-you");
+    expect(readinessSummary(rows)).toBe("1 thing left. You can still export.");
+  });
+
+  it("sends every open row to its own stage and item", () => {
+    const rows = readinessRows({
+      ...CLEAR_FACTS,
+      suggestions: { decided: 13, total: 14 },
+      comments: { resolved: 2, total: 3 },
+      unsureWordsLeft: 1,
+      mixUpToDate: false,
+      truePeak: -1,
+    });
+    expect(
+      rows
+        .filter((r) => r.fix)
+        .map((r) => [r.id, r.fix?.label, r.fix?.stage, r.fix?.target]),
+    ).toEqual([
+      ["suggestions", "Review", "review", "suggestions"],
+      ["comments", "Resolve", "review", "comments"],
+      ["unsure", "Check", "review", "unsure-words"],
+      ["mix", "Refresh mix", "edit", "mix"],
+      ["peaks", "Fix", "edit", "peaks"],
+    ]);
+    expect(readinessRows(CLEAR_FACTS).filter((r) => r.fix)).toEqual([]);
+  });
+});
+
+describe("readiness rows say what they mean", () => {
+  const row = (id: string, facts = CLEAR_FACTS) =>
+    readinessRows(facts).find((r) => r.id === id);
+
+  it("mix, peaks, chapters and edits saved", () => {
+    expect(row("mix")?.state).toBe("done");
+    expect(row("mix")?.detail).toBe("Current");
+    const stale = row("mix", { ...CLEAR_FACTS, mixUpToDate: false });
+    expect(stale?.state).toBe("needs-you");
+    expect(stale?.detail).toBe("Edited since the last mix");
+    expect(row("peaks")?.detail).toBe("Checked on export");
+    expect(row("peaks", { ...CLEAR_FACTS, truePeak: -2.1 })?.detail).toBe(
+      "−2.1 dBTP",
+    );
+    expect(row("chapters", { ...CLEAR_FACTS, chapters: 7 })?.detail).toBe("7");
+    expect(row("saved", { ...CLEAR_FACTS, editsSaved: 4.5 })?.detail).toBe(
+      "4.5 s",
+    );
+    expect(row("unsure", { ...CLEAR_FACTS, unsureWordsLeft: 3 })?.detail).toBe(
+      "3 left",
+    );
+  });
+});
+
+describe("comparing what an export wrote", () => {
+  it("does not depend on the order clips were approved in", () => {
+    const two = [
+      { id: "a", start: 0, end: 5, title: "A" },
+      { id: "b", start: 6, end: 9, title: "B" },
+    ];
+    const one = { ...REQUEST, clips: two };
+    expect(coversRequest(one, { ...one, clips: [...two].reverse() })).toBe(
+      true,
+    );
+  });
+
+  it("ignores approval order for any number of clips", () => {
+    const ids = ["c", "a", "d", "b"];
+    const list = ids.map((id, i) => ({ id, start: i, end: i + 5, title: id }));
+    const base = { ...REQUEST, clips: list };
+    for (const order of [
+      [...list].reverse(),
+      [list[1]!, list[3]!, list[0]!, list[2]!],
+    ]) {
+      expect(coversRequest(base, { ...base, clips: order })).toBe(true);
+    }
+  });
+
+  it("tells a whole-episode export from a ranged one in either direction", () => {
+    const ranged = { ...REQUEST, range: { start: 1, end: 5 } };
+    expect(coversRequest(REQUEST, ranged)).toBe(false);
+    expect(coversRequest(ranged, REQUEST)).toBe(false);
+    expect(
+      coversRequest(ranged, { ...REQUEST, range: { start: 2, end: 5 } }),
+    ).toBe(false);
+    expect(
+      coversRequest(ranged, { ...REQUEST, range: { start: 1, end: 6 } }),
+    ).toBe(false);
+  });
+
+  it("notices a clip or chapter that is a different one with the same content", () => {
+    const clip = REQUEST.clips[0]!;
+    expect(
+      coversRequest(REQUEST, { ...REQUEST, clips: [{ ...clip, id: "other" }] }),
+    ).toBe(false);
+    const first = CHAPTERS[0]!;
+    expect(
+      coversRequest(REQUEST, {
+        ...REQUEST,
+        chapters: [{ ...first, id: "other" }, ...CHAPTERS.slice(1)],
+      }),
+    ).toBe(false);
+  });
+
+  it("sizes each approved clip file from its own length", () => {
+    const all = CLIPS.map((c) => ({ ...c, approved: true }));
+    expect(clipFiles(all).map((f) => f.bytes)).toEqual(
+      all.map((c) => estimateBytes("wav", c.end - c.start)),
+    );
+  });
+});
