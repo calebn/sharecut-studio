@@ -329,6 +329,23 @@ describe("PrepareView live region", () => {
     expect(live(container)).toBe("Drop to add 3 files.");
   });
 
+  it("goes quiet instead of repeating the phase when a drag is cancelled", () => {
+    const { container, rerender } = render(<PrepareView {...props(DONE)} />);
+    expect(live(container)).toBe("Done. Review 14 suggestions.");
+    rerender(
+      <PrepareView {...props({ ...DONE, dropActive: true, dropCount: 1 })} />,
+    );
+    expect(live(container)).toBe("Drop to add 1 file.");
+    rerender(<PrepareView {...props(DONE)} />);
+    expect(live(container)).toBe("");
+    rerender(
+      <PrepareView
+        {...props({ ...DONE, phase: "transcribing", rows: ROWS.running })}
+      />,
+    );
+    expect(live(container)).toBe("Transcribing started.");
+  });
+
   it("has one polite status, and its text is a pure function of the phase", () => {
     expect(
       prepareAnnouncement({ phase: "needs-model", handoffLabel: "x" }),
@@ -375,5 +392,90 @@ describe("PrepareView focus", () => {
     expect(
       screen.getAllByRole("heading", { name: "Help the transcriber" }),
     ).toHaveLength(1);
+  });
+
+  const named = (...ids: string[]) =>
+    NAMED_TAKES.filter((take) => ids.includes(take.id));
+
+  it("moves focus to the next card when the focused card is removed", () => {
+    const { rerender } = render(
+      <PrepareView
+        {...props({
+          sessions: [session({ sources: named("maya", "anneke", "joss") })],
+        })}
+      />,
+    );
+    screen.getByRole("button", { name: "Remove Anneke" }).focus();
+    rerender(
+      <PrepareView
+        {...props({ sessions: [session({ sources: named("maya", "joss") })] })}
+      />,
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("region", { name: "Voice 2, Joss" }),
+    );
+  });
+
+  it("moves focus to the previous card when the last card is removed", () => {
+    const { rerender } = render(
+      <PrepareView
+        {...props({
+          sessions: [session({ sources: named("maya", "anneke") })],
+        })}
+      />,
+    );
+    screen.getByRole("button", { name: "Remove Anneke" }).focus();
+    rerender(
+      <PrepareView
+        {...props({ sessions: [session({ sources: named("maya") })] })}
+      />,
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("region", { name: "Voice 1, Maya" }),
+    );
+  });
+
+  it("moves focus to the Import tile when the only card is removed", () => {
+    const { rerender } = render(
+      <PrepareView
+        {...props({ sessions: [session({ sources: named("maya") })] })}
+      />,
+    );
+    screen.getByRole("button", { name: "Remove Maya" }).focus();
+    rerender(
+      <PrepareView {...props({ sessions: [session({ sources: [] })] })} />,
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: /Import audio/ }),
+    );
+  });
+
+  it("reaches the Import tile when removing the last card empties the stage", () => {
+    const { rerender } = render(
+      <PrepareView
+        {...props({ sessions: [session({ sources: named("maya") })] })}
+      />,
+    );
+    screen.getByRole("button", { name: "Remove Maya" }).focus();
+    rerender(
+      <PrepareView {...props({ phase: "empty", sessions: [], rows: [] })} />,
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: /Import audio/ }),
+    );
+  });
+
+  it("opens the Getting ready summary when a row needs you after mount, and keeps a manual close", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<PrepareView {...props()} />);
+    const summary = screen.getByRole("button", { name: /Transcribing 2 of 3/ });
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+    rerender(<PrepareView {...props({ rows: ROWS.failed })} />);
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+    await user.click(summary);
+    rerender(
+      <PrepareView {...props({ rows: ROWS.failed, readySummary: "x" })} />,
+    );
+    expect(summary).toHaveAttribute("aria-expanded", "false");
   });
 });

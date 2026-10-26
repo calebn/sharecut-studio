@@ -1,10 +1,11 @@
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { DropOverlay } from "../../system/DropOverlay";
 import { StageHandoff } from "../../system/StageHandoff";
 import { StartTile } from "../../system/StartTile";
 import { StatusGlyph } from "../../system/StatusGlyph";
 import type { StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
+import { useFocusRescue } from "../../system/useFocusRescue";
 import { Button, SegmentedControl, ToggleButton } from "../../ui";
 import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
@@ -127,10 +128,33 @@ export function PrepareView({
   onHandoff,
 }: PrepareViewProps) {
   // On a phone the rows fold behind the summary, but a row that needs you or
-  // failed has a button the person must reach, so those start open.
-  const [readyOpen, setReadyOpen] = useState(() =>
-    ["failed", "needs-you"].includes(summaryState(rows)),
-  );
+  // failed has a button the person must reach, so the summary opens when one
+  // is there at the start or turns up later. Closing it by hand sticks until
+  // another row needs attention.
+  const attention = rows
+    .filter((row) => row.state === "failed" || row.state === "needs-you")
+    .map((row) => row.id);
+  const [readyOpen, setReadyOpen] = useState(attention.length > 0);
+  const [seen, setSeen] = useState(attention);
+  if (attention.join() !== seen.join()) {
+    setSeen(attention);
+    if (attention.some((id) => !seen.includes(id))) setReadyOpen(true);
+  }
+  const root = useRef<HTMLDivElement>(null);
+  useFocusRescue(root, (target) => {
+    const cards = [
+      ...(root.current?.querySelectorAll<HTMLElement>(".sys-source") ?? []),
+    ];
+    const at = cards.findIndex((card) => card.contains(target));
+    if (at < 0) return () => null;
+    return () =>
+      cards.slice(at + 1).find((card) => card.isConnected) ??
+      cards
+        .slice(0, at)
+        .reverse()
+        .find((card) => card.isConnected) ??
+      root.current?.querySelector<HTMLElement>(".sys-start--import");
+  });
   const ids = {
     sources: useId(),
     ready: useId(),
@@ -158,7 +182,7 @@ export function PrepareView({
 
   if (phase === "empty") {
     return (
-      <div className="sys-prepare" data-phase="empty">
+      <div ref={root} className="sys-prepare" data-phase="empty">
         <div className="sys-prepare-layout">
           <section className="sys-prepare-empty" aria-labelledby={ids.sources}>
             <h2 id={ids.sources} className="sr-only">
@@ -197,7 +221,7 @@ export function PrepareView({
     ).values(),
   ];
   return (
-    <div className="sys-prepare" data-phase={phase}>
+    <div ref={root} className="sys-prepare" data-phase={phase}>
       <div className="sys-prepare-layout">
         <section className="sys-prepare-ready" aria-labelledby={ids.ready}>
           <div className="sys-prepare-head">

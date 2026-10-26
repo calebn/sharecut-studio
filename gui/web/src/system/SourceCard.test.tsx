@@ -134,7 +134,9 @@ describe("SourceCard", () => {
     expect(
       screen.getByRole("menuitem", { name: "Replace audio for Maya" }),
     ).toBeVisible();
-    await userEvent.click(screen.getByRole("menuitem", { name: "Merge" }));
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Merge for Maya" }),
+    );
     expect(onMerge).toHaveBeenCalled();
   });
 
@@ -304,5 +306,85 @@ describe("SourceCard", () => {
       "aria-valuenow",
       now,
     );
+  });
+
+  it("tells two cards with one name apart in every control name", async () => {
+    render(<Card name="Sam" sameNameAs="Sam" onMerge={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /^Hear/ })).toHaveAccessibleName(
+      "Hear Sam, voice 2",
+    );
+    expect(
+      screen.getByRole("button", { name: "Remove Sam, voice 2" }),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Sam, voice 2" }),
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Merge for Sam, voice 2" }),
+    ).toBeVisible();
+  });
+
+  it("caps the speaker name at what the server accepts", () => {
+    render(<Card />);
+    expect(screen.getByLabelText(/^Speaker name/)).toHaveAttribute(
+      "maxlength",
+      "80",
+    );
+  });
+});
+
+describe("SourceCard focus", () => {
+  function Stage({ state }: { state: SourceCardProps["state"] }) {
+    return (
+      <SourceCard
+        state={state}
+        index={1}
+        name=""
+        onName={vi.fn()}
+        fileName="a.wav"
+        onRemove={vi.fn()}
+        onSplit={vi.fn()}
+        onCancelSplit={vi.fn()}
+        onRetry={vi.fn()}
+        progress={0.2}
+        splitDetail="1 of 9"
+      />
+    );
+  }
+
+  it("stays in the card when Split replaces the controls", async () => {
+    const { rerender } = render(<Stage state="split-prompt" />);
+    const card = screen.getByRole("region", { name: "Voice 1" });
+    screen.getByRole("button", { name: "Split voice 1" }).focus();
+    await userEvent.keyboard("{Enter}");
+    rerender(<Stage state="splitting" />);
+    expect(document.activeElement).toBe(card);
+  });
+
+  it("stays in the card when Cancel splitting returns to the prompt", async () => {
+    const { rerender } = render(<Stage state="splitting" />);
+    const card = screen.getByRole("region", { name: "Voice 1" });
+    screen.getByRole("button", { name: "Cancel splitting voice 1" }).focus();
+    await userEvent.keyboard("{Enter}");
+    rerender(<Stage state="split-prompt" />);
+    expect(document.activeElement).toBe(card);
+  });
+
+  it("stays in the card when Try again starts checking the file", async () => {
+    const { rerender } = render(<Stage state="failed" />);
+    const card = screen.getByRole("region", { name: "Voice 1" });
+    screen.getByRole("button", { name: "Try again for voice 1" }).focus();
+    await userEvent.keyboard("{Enter}");
+    rerender(<Stage state="probing" />);
+    expect(document.activeElement).toBe(card);
+  });
+
+  it("leaves focus alone when it is on a control that stays", () => {
+    const { rerender } = render(<Stage state="split-prompt" />);
+    screen.getByRole("button", { name: "Remove voice 1" }).focus();
+    rerender(<Stage state="splitting" />);
+    expect(
+      screen.getByRole("button", { name: "Remove voice 1" }),
+    ).toHaveFocus();
   });
 });

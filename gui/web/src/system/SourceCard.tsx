@@ -1,9 +1,10 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { percentOf } from "./progress";
 import { StatusRow } from "./StatusRow";
 import { SystemIcon } from "./SystemIcon";
+import { useFocusRescue } from "./useFocusRescue";
 
 type SourceCardState =
   | "uploading"
@@ -16,6 +17,7 @@ type SourceCardState =
 
 const MIN_VOICES = 2;
 const MAX_VOICES = 8;
+const MAX_NAME = 80;
 
 export type SourceCardProps = {
   state: SourceCardState;
@@ -106,10 +108,16 @@ export function SourceCard({
   sameNameAs,
 }: SourceCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const card = useRef<HTMLElement>(null);
+  useFocusRescue(card, () => () => card.current);
   const stepperId = useId();
   const reasonId = useId();
   const named = name.trim();
-  const who = named || `voice ${index}`;
+  const who = !named
+    ? `voice ${index}`
+    : sameNameAs
+      ? `${named}, voice ${index}`
+      : named;
   const splittable = canSplit ?? state === "split-prompt";
   const atFewest = voices <= MIN_VOICES;
   const atMost = voices >= MAX_VOICES;
@@ -120,6 +128,8 @@ export function SourceCard({
       : null;
   return (
     <section
+      ref={card}
+      tabIndex={-1}
       className="sys-source"
       aria-label={named ? `Voice ${index}, ${named}` : `Voice ${index}`}
       data-state={state}
@@ -137,6 +147,7 @@ export function SourceCard({
             type="text"
             aria-label={`Speaker name for voice ${index}`}
             autoComplete="off"
+            maxLength={MAX_NAME}
             value={name}
             onChange={(event) => onName(event.target.value)}
           />
@@ -318,7 +329,7 @@ export function SourceCard({
                 onMerge?.();
               }}
             >
-              Merge
+              <Named label="Merge" who={who} />
             </MenuItem>
             {onMoveUp ? (
               <MenuItem

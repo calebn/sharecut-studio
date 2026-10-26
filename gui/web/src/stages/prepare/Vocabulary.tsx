@@ -11,8 +11,6 @@ export type VocabularyProps = {
   /** Transcription has already run, so a new term needs another pass. */
   needsRetranscribe?: boolean;
   onRetranscribe?: () => void;
-  /** Characters already spent elsewhere, such as the show title. */
-  reservedChars?: number;
   /** Render the "Help the transcriber" h2. Prepare draws its own, so it turns this off. */
   heading?: boolean;
 };
@@ -29,7 +27,6 @@ export function Vocabulary({
   onTermsChange,
   needsRetranscribe = false,
   onRetranscribe,
-  reservedChars,
   heading = true,
 }: VocabularyProps) {
   const titleId = useId();
@@ -39,7 +36,6 @@ export function Vocabulary({
         speakers={speakers}
         terms={terms}
         onTermsChange={onTermsChange}
-        reservedChars={reservedChars}
       />
       {needsRetranscribe ? (
         <div className="sys-vocab-again">

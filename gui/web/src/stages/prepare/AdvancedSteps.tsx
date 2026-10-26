@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
+import { useFocusRescue } from "../../system/useFocusRescue";
 import { Button, Menu, MenuItem } from "../../ui";
 
 type ScrubParam = {
@@ -70,9 +71,15 @@ export type AdvancedStepsProps = {
 
 const BUSY = "Steps cannot change while one is running.";
 
+function clampedValue(param: ScrubParam): number {
+  const value = Number.isFinite(param.value) ? param.value : param.defaultValue;
+  return Math.min(param.max, Math.max(param.min, value));
+}
+
 function valueText(param: ScrubParam): string {
   const [one, many] = param.unit;
-  return `${param.value} ${param.value === 1 ? one : many}`;
+  const value = clampedValue(param);
+  return `${value} ${value === 1 ? one : many}`;
 }
 
 function Help({ id, children }: { id: string; children: ReactNode }) {
@@ -87,16 +94,35 @@ type FieldProps = {
   stepId: string;
   param: StepParam;
   locked: boolean;
+  /** Set while a step runs: the visible line that says why nothing changes. */
+  busyId?: string;
   onParam: AdvancedStepsProps["onParam"];
   onReset: AdvancedStepsProps["onReset"];
 };
 
-function ParamField({ stepId, param, locked, onParam, onReset }: FieldProps) {
+function ParamField({
+  stepId,
+  param,
+  locked,
+  busyId,
+  onParam,
+  onReset,
+}: FieldProps) {
   const id = useId();
   const helpId = `${id}-help`;
-  const changed = param.value !== param.defaultValue;
+  const describedBy = busyId ? `${helpId} ${busyId}` : helpId;
+  const field = useRef<HTMLDivElement>(null);
+  useFocusRescue(
+    field,
+    () => () => field.current?.querySelector<HTMLElement>("input, select"),
+  );
+  const shown = param.kind === "scrub" ? clampedValue(param) : param.value;
+  const changed = shown !== param.defaultValue;
+  const known =
+    param.kind === "language" &&
+    param.options.some((option) => option.value === param.value);
   return (
-    <div className="sys-adv-field">
+    <div ref={field} className="sys-adv-field">
       <div className="sys-adv-field-head">
         <label className="sys-adv-label" htmlFor={id}>
           {param.label}
@@ -112,6 +138,7 @@ function ParamField({ stepId, param, locked, onParam, onReset }: FieldProps) {
             className="sys-adv-reset"
             aria-label={`Reset to default: ${param.label}`}
             disabled={locked}
+            aria-describedby={locked ? busyId : undefined}
             onClick={() => onReset(stepId, param.id)}
           >
             <span className="sys-adv-reset-dot" aria-hidden="true" />
@@ -126,10 +153,10 @@ function ParamField({ stepId, param, locked, onParam, onReset }: FieldProps) {
           min={param.min}
           max={param.max}
           step={param.step}
-          value={param.value}
+          value={shown}
           disabled={locked}
           aria-valuetext={valueText(param)}
-          aria-describedby={helpId}
+          aria-describedby={describedBy}
           onChange={(event) =>
             onParam(stepId, param.id, Number(event.target.value))
           }
@@ -140,9 +167,14 @@ function ParamField({ stepId, param, locked, onParam, onReset }: FieldProps) {
           className="sys-adv-select"
           value={param.value}
           disabled={locked}
-          aria-describedby={helpId}
+          aria-describedby={describedBy}
           onChange={(event) => onParam(stepId, param.id, event.target.value)}
         >
+          {known ? null : (
+            <option value={param.value} disabled>
+              {param.value ? `Custom (${param.value})` : "Custom"}
+            </option>
+          )}
           {param.options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -247,7 +279,7 @@ export function AdvancedSteps({
           </Button>
         </div>
         {status}
-        <h2 ref={heading} tabIndex={-1} id={titleId} className="sys-adv-title">
+        <h2 ref={heading} tabIndex={-1} className="sys-adv-title">
           {selected.name}
         </h2>
         {selected.result ? (
@@ -275,6 +307,7 @@ export function AdvancedSteps({
                 stepId={selected.id}
                 param={param}
                 locked={locked || off}
+                busyId={locked ? reasonId : undefined}
                 onParam={onParam}
                 onReset={onReset}
               />

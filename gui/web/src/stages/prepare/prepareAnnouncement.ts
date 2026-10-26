@@ -65,24 +65,28 @@ export function prepareAnnouncement({
   }
 }
 
-function transition({ phase, dropActive, failure }: AnnouncementInput): string {
-  if (dropActive) return "drop";
+function phaseKey({ phase, failure }: AnnouncementInput): string {
   return phase === "failed" ? `failed:${failure?.step ?? ""}` : phase;
 }
 
 /**
  * The live region's text. It is composed once when the stage enters a phase
  * and kept until the next one, so a count that grows inside a phase ("Adding
- * 3 files" then 4) is not spoken again.
+ * 3 files" then 4) is not spoken again. A drag that is cancelled leaves the
+ * phase as it was, so the region goes quiet instead of repeating it.
  */
 export function useAnnouncement(input: AnnouncementInput): string {
-  const key = transition(input);
+  const key = phaseKey(input);
+  const drop = Boolean(input.dropActive);
   const [spoken, setSpoken] = useState(() => ({
     key,
+    drop,
+    said: key,
     text: prepareAnnouncement(input),
   }));
-  if (spoken.key === key) return spoken.text;
-  const next = { key, text: prepareAnnouncement(input) };
-  setSpoken(next);
-  return next.text;
+  if (spoken.key === key && spoken.drop === drop) return spoken.text;
+  const quiet = !drop && key === spoken.said;
+  const text = quiet ? "" : prepareAnnouncement(input);
+  setSpoken({ key, drop, said: drop ? spoken.said : key, text });
+  return text;
 }

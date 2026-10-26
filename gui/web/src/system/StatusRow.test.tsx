@@ -124,4 +124,42 @@ describe("StatusGlyph progress", () => {
     render(<StatusGlyph state="needs-you" />);
     expect(screen.getByText("Needs you")).toHaveClass("sr-only");
   });
+
+  it("shows no Details button for a cause that is only spaces", () => {
+    render(<StatusRow state="failed" title="Transcribe" details="   " />);
+    expect(screen.queryByRole("button", { name: /^Details/ })).toBeNull();
+  });
+
+  it("trims the cause and closes Details when the row leaves failed", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <StatusRow
+        state="failed"
+        title="Transcribe"
+        details="  Out of memory  "
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Details for Transcribe" }),
+    );
+    expect(screen.getByText("Out of memory").textContent).toBe("Out of memory");
+    rerender(
+      <StatusRow
+        state="running"
+        title="Transcribe"
+        details="  Out of memory  "
+      />,
+    );
+    rerender(
+      <StatusRow
+        state="failed"
+        title="Transcribe"
+        details="  Out of memory  "
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Details for Transcribe" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Out of memory")).toBeNull();
+  });
 });
