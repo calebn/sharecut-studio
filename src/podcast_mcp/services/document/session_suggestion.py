@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.edits.audio_check_override import audio_check_override
+from podcast_mcp.edits.cut_speech import APPLY_ANYWAY
 from podcast_mcp.edits.session_suggestions import (
     accept_session_suggestion,
     find_session_suggestion,
@@ -87,3 +89,24 @@ class SessionSuggestionService:
                 "session_number": row.session_number,
             },
         )
+
+    def accept_naming_override(
+        self,
+        suggestion_id: str,
+        *,
+        take_index: int | None = None,
+        override_audio_checks: bool = False,
+    ) -> dict[str, Any]:
+        """``accept`` for a caller that has no flag help of its own (an agent tool), under the MCP host's override surface.
+
+        A held replace's message also names how to apply it, so the person is not left
+        guessing the parameter. The CLI and HTTP surfaces use ``accept`` and add their own.
+        """
+        with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+            result = self.accept(
+                suggestion_id, take_index=take_index, override_audio_checks=override_audio_checks
+            )
+        held = result.get("needs_confirmation")
+        if isinstance(held, dict) and isinstance(held.get("message"), str):
+            held["message"] = f"{held['message']} {APPLY_ANYWAY}"
+        return result

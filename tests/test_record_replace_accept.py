@@ -980,3 +980,24 @@ def test_replace_hold_counts_what_it_does_not_quote() -> None:
 def test_replace_hold_names_sound_without_words() -> None:
     message = _hold_message(("t1", "Daniela", [], 1.0, True))
     assert message == "Replacing this range also removes sound from Daniela." + _TAIL
+
+
+def test_the_refine_gate_refuses_a_replace_accept_in_plain_words(ws) -> None:
+    from podcast_mcp.edits.transcript_refine_status import (
+        REFINE_GATE,
+        TranscriptRefineRequiredError,
+    )
+
+    sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)]})
+    before = _everything(ws)
+    with (
+        patch.object(
+            REFINE_GATE, "assert_clear", side_effect=TranscriptRefineRequiredError("jargon")
+        ),
+        pytest.raises(TranscriptRefineRequiredError) as gated,
+    ):
+        SessionSuggestionService(ws).accept(sid)
+    assert gated.value.code == "transcript_refine_required"
+    assert "The transcript clean-up needs to finish first" in str(gated.value)
+    assert "focus/tighten" not in str(gated.value)
+    assert _everything(ws) == before
