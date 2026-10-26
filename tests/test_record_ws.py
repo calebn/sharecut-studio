@@ -124,6 +124,11 @@ def test_producer_consent_and_guest_start_forbidden(
 def test_host_start_blocked_until_consent(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
+    pre_join = client.post(
+        "/api/record/command",
+        json={"path": str(ws.path), "command_type": "Start", "payload": {}},
+    )
+    assert pre_join.status_code == 400
     with client.websocket_connect(f"/api/rec/{token}/ws") as guest:
         _join(guest, name="Ava")
         _drain_until(guest, lambda m: m.get("type") == "Snapshot")

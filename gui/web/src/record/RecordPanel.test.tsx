@@ -176,18 +176,6 @@ describe("RecordPanel", () => {
   });
 
   it("does not make a host alone in the room wait for a guest", async () => {
-    useRecordHostStore.getState().setSnapshot(lobby);
-    const { baseElement: container } = render(<RecordPanel />);
-    const start = screen.getByRole("button", { name: "Start" });
-    expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
-    expect(start).not.toHaveAccessibleDescription(/guest/i);
-    expect(
-      screen.queryByRole("button", { name: "Copy guest link" }),
-    ).not.toBeInTheDocument();
-    await expectNoA11yViolations(container);
-  });
-
-  it("enables Start for a host alone once storage is ready", async () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       participants: [
@@ -198,10 +186,30 @@ describe("RecordPanel", () => {
         }),
       ],
     });
-    render(<RecordPanel />);
+    const { baseElement: container } = render(<RecordPanel />);
     const start = screen.getByRole("button", { name: "Start" });
     await waitFor(() => expect(start).toBeEnabled());
+    expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
     expect(start).not.toHaveAccessibleDescription(/guest/i);
+    expect(
+      screen.queryByRole("button", { name: "Copy guest link" }),
+    ).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("disables Start with Joining the room while nobody recorded is in", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      participants: [],
+      start_blockers: [{ code: "no_recorder" }],
+    });
+    render(<RecordPanel />);
+    const start = screen.getByRole("button", { name: "Start" });
+    expect(start).toBeDisabled();
+    await waitFor(() =>
+      expect(start).toHaveAccessibleDescription("Joining the room."),
+    );
+    expect(screen.getByText("Joining the room.")).toBeInTheDocument();
   });
 
   it("names each guest Start is waiting for", async () => {
