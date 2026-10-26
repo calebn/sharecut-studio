@@ -59,5 +59,10 @@ export const Plain: Story = {
     await userEvent.clear(input);
     await userEvent.type(input, "3{Escape}");
     await expect(input).toHaveValue("24");
+    await userEvent.clear(input);
+    await userEvent.type(input, "-30{Enter}");
+    await expect(input).toHaveValue("-24");
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(input).toHaveValue("-24");
   },
 };

@@ -195,6 +195,7 @@ export function ClipsRow({
                   ) : (
                     <Button
                       data-focus-key={`clip:${clip.id}:approve`}
+                      aria-label={`Approve ${name}`}
                       onClick={() => onApprove(clip.id)}
                     >
                       <SystemIcon name={iconOf("approve")} size={14} />
