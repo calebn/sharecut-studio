@@ -392,3 +392,21 @@ def test_a_stdio_mutation_appears_on_an_open_studio_socket(
 
     assert frame["type"] == "Applied"
     assert frame["command"]["type"] == "AddChapter"
+
+
+def test_a_studio_that_stays_silent_is_reported_not_bypassed(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+    from podcast_mcp.services.app import StudioHost, StudioUnresponsive
+
+    def silent(_project: Path) -> None:
+        raise StudioUnresponsive(StudioHost("a", 4321, "127.0.0.1", 9, "t", "0"))
+
+    monkeypatch.setattr(handoff, "locate_studio", silent)
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    assert "did not answer in time" in result.content[0].text  # type: ignore[union-attr]
+    assert server.calls == []

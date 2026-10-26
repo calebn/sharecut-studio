@@ -25,7 +25,7 @@ from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp import settings
 from podcast_mcp.mcp.project_default import ENV_VAR as PROJECT_ENV_VAR
-from podcast_mcp.services.app import StudioHost, locate_studio
+from podcast_mcp.services.app import StudioHost, StudioUnresponsive, locate_studio
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.progress import mcp_progress_sink
 
@@ -123,7 +123,12 @@ def install_studio_handoff(server: Any) -> None:
         )
         if requested is None:
             return await call_next(arguments)
-        host = await asyncio.to_thread(_locate, requested)
+        try:
+            host = await asyncio.to_thread(_locate, requested)
+        except StudioUnresponsive as silent:
+            return CallToolResult(
+                content=[TextContent(type="text", text=str(silent))], is_error=True
+            )
         if host is None:
             return await call_next(arguments)
         # Studio binds the project it serves; the path is not sent.
@@ -142,6 +147,8 @@ def install_studio_handoff(server: Any) -> None:
 def _locate(project: str) -> StudioHost | None:
     try:
         return locate_studio(Path(project))
+    except StudioUnresponsive:
+        raise
     except Exception:
         log.debug("could not look for a Studio serving %s", project, exc_info=True)
         return None

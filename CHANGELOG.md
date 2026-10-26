@@ -28,6 +28,8 @@
 * `check_loudness`, `measure_astats` and the speech-gated loudness blocks no longer read a file's metadata tags as measurements (#2143); mastering's loudness measurement ignores tag text on our own renders. A tagged file with no audio stream used to pass `check_loudness`; `check_loudness` and `measure_astats` now give `null` for it or for a failed FFmpeg run, and tags that are not valid UTF-8 no longer crash them. Untagged files measure the same as before.
 * `load_profile` no longer falls back to a stale speaker profile (stem hash mismatch).
 
+* A CLI command or stdio MCP tool call no longer writes the project directly when the Studio serving it is slow to answer (#2318). The Studio ping now waits 5 s and is tried twice; a Studio that accepts the connection but stays silent stops the command with "Studio (pid N) is serving this project but did not answer in time" and writes nothing.
+
 ## [0.1.1](https://github.com/calebn/sharecut-studio/compare/v0.1.0...v0.1.1) (2026-10-18)
 
 

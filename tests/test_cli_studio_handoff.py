@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import socket
 import stat
 import subprocess
 import sys
@@ -43,6 +44,8 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.services.app import (
     HANDOFF_TOKEN_HEADER,
+    StudioHost,
+    announce_studio_host,
     read_studio_host,
     studio_host_path,
 )
@@ -201,9 +204,10 @@ def test_failure_message_and_exit_code_come_back_unchanged(studio: StudioRun) ->
         "comment", "add", "--project", str(studio.project), "--body", "x", "--author", "a",
         "--start", "5", "--end", "1",
     )  # fmt: skip
-    assert direct.returncode == handed.returncode == 1
-    assert handed.stderr == direct.stderr != ""
-    assert len(studio.commands) == 1
+    assert direct.returncode == handed.returncode == 1, (direct.stderr, handed.stderr)
+    # A handed-off call that Studio never saw ran directly: the stderr names why.
+    assert handed.stderr == direct.stderr != "", handed.stderr
+    assert len(studio.commands) == 1, f"the CLI did not reach Studio: {handed.stderr!r}"
 
 
 def test_relative_paths_resolve_against_the_callers_directory(
@@ -506,3 +510,33 @@ def test_plan_leaves_commands_that_are_not_project_edits_alone(
 ) -> None:
     root = typer.main.get_command(cli_app)
     assert plan_handoff(root, argv, tmp_path) is None
+
+
+def test_a_studio_that_stays_silent_stops_the_command_instead_of_writing_directly(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.services.app import studio_host as studio_host_module
+
+    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.2)
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(8)
+    try:
+        announce_studio_host(
+            minimal_project,
+            StudioHost("silent", os.getpid(), "127.0.0.1", sock.getsockname()[1], "tok", "0"),
+        )
+        result = CliRunner().invoke(
+            cli_app,
+            [
+                "comment", "add", "--project", str(minimal_project), "--body", "x",
+                "--author", "a", "--start", "1",
+            ],
+        )  # fmt: skip
+    finally:
+        sock.close()
+    assert result.exit_code == 1
+    assert "did not answer in time" in result.output
+    assert comment_bodies(minimal_project) == []

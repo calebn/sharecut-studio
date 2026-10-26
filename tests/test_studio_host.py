@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import socket
 import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -14,6 +18,7 @@ from podcast_mcp.models import EpisodeProject, save_project
 from podcast_mcp.services.app import (
     DIRECT_ENV_VAR,
     StudioHost,
+    StudioUnresponsive,
     announce_studio_host,
     env_differences,
     locate_studio,
@@ -21,7 +26,13 @@ from podcast_mcp.services.app import (
     studio_host_path,
     withdraw_studio_host,
 )
-from podcast_mcp.services.app.studio_host import handoff_env
+from podcast_mcp.services.app import studio_host as studio_host_module
+from podcast_mcp.services.app.studio_host import (
+    HANDOFF_PROTOCOL,
+    HandoffLost,
+    hand_off,
+    handoff_env,
+)
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     project_commit_lock,
@@ -176,3 +187,90 @@ def test_workspace_folder_finds_the_same_announcement_as_the_project_file(projec
     announce_studio_host(project, _host())
     assert studio_host_path(project.parent) == studio_host_path(project)
     assert read_studio_host(project.parent) is not None
+
+
+@pytest.fixture
+def quick_ping(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
+
+
+@pytest.fixture
+def silent_listener() -> Iterator[int]:
+    """Something that accepts connections on loopback and never answers."""
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(8)
+    yield sock.getsockname()[1]
+    sock.close()
+
+
+def test_a_studio_that_accepts_and_stays_silent_is_never_bypassed(
+    project: Path, silent_listener: int, quick_ping: None
+) -> None:
+    announce_studio_host(project, _host(port=silent_listener))
+    with pytest.raises(StudioUnresponsive, match="did not answer in time"):
+        locate_studio(project)
+
+
+def test_a_studio_that_goes_silent_after_the_ping_is_lost_not_bypassed(
+    project: Path, silent_listener: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(studio_host_module, "STREAM_SILENCE_TIMEOUT_SEC", 0.2)
+    host = _host(port=silent_listener)
+    with pytest.raises(HandoffLost, match="did not answer in time"):
+        hand_off(
+            host,
+            argv=["status"],
+            project=str(project),
+            cwd=str(project),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+
+
+def test_a_studio_nothing_listens_for_is_a_stale_announcement(project: Path) -> None:
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    announce_studio_host(project, _host(port=port))
+    assert locate_studio(project) is None
+
+
+def test_a_studio_slow_to_answer_once_is_pinged_again(project: Path, quick_ping: None) -> None:
+    pings = {"count": 0}
+    second_arrived = threading.Event()
+    instance = "slow-once"
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            pings["count"] += 1
+            if pings["count"] == 1:
+                second_arrived.wait(10)
+                return
+            second_arrived.set()
+            body = json.dumps(
+                {"instance": instance, "protocol": HANDOFF_PROTOCOL, "serves": True}
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args: object) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        announce_studio_host(project, _host(instance, port=server.server_address[1]))
+        located = locate_studio(project)
+    finally:
+        second_arrived.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(10)
+    assert located is not None
+    assert located.instance == instance
+    assert pings["count"] == 2
