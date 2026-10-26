@@ -274,12 +274,17 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
     assert done.exit_code == 0, done.output
     assert json.loads(done.output)["target"] == {"kind": "end"}
     assert json.loads(record_target_tool(str(minimal_project)))["target"] == {"kind": "end"}
-    for later in ("start", "insert"):
-        refused = runner.invoke(
-            cli_app, ["record", "target", later, "--project", str(minimal_project)]
+    refused = runner.invoke(
+        cli_app, ["record", "target", "start", "--project", str(minimal_project)]
+    )
+    assert refused.exit_code == 1, refused.output
+    assert "the start target is not available yet" in refused.output
+    for bare in ("insert", "replace"):
+        needs_time = runner.invoke(
+            cli_app, ["record", "target", bare, "--project", str(minimal_project)]
         )
-        assert refused.exit_code == 1, refused.output
-        assert f"the {later} target is not available yet" in refused.output
+        assert needs_time.exit_code == 1, needs_time.output
+        assert f"the {bare} target needs a time" in needs_time.output
     bad = runner.invoke(cli_app, ["record", "target", "middle", "--project", str(minimal_project)])
     assert bad.exit_code == 1
     assert "invalid session target" in bad.output

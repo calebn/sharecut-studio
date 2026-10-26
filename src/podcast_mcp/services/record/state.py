@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -53,53 +53,74 @@ class StartTarget(BaseModel):
 
 class InsertTarget(BaseModel):
     kind: Literal["insert"] = "insert"
-    at_sec: float = Field(ge=0)
+    at_sec: float = Field(ge=0, allow_inf_nan=False)
 
 
 class ReplaceTarget(BaseModel):
     kind: Literal["replace"] = "replace"
-    from_sec: float = Field(ge=0)
-    to_sec: float = Field(ge=0)
+    from_sec: float = Field(ge=0, allow_inf_nan=False)
+    to_sec: float = Field(ge=0, allow_inf_nan=False)
     track_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _range_and_tracks(self) -> ReplaceTarget:
+        if self.to_sec <= self.from_sec:
+            raise ValueError("replace needs to_sec after from_sec")
+        if not self.track_ids:
+            raise ValueError("replace needs at least one track id")
+        return self
 
 
 SessionTarget = Annotated[
     EndTarget | StartTarget | InsertTarget | ReplaceTarget, Field(discriminator="kind")
 ]
 _TARGET_ADAPTER: TypeAdapter[SessionTarget] = TypeAdapter(SessionTarget)
+_BARE_TARGET_HINTS = {
+    "insert": 'the insert target needs a time: pass {"kind": "insert", "at_sec": <seconds>}',
+    "replace": (
+        "the replace target needs a time range and tracks: "
+        'pass {"kind": "replace", "from_sec": <seconds>, "to_sec": <seconds>, "track_ids": [...]}'
+    ),
+}
 
 
 def parse_session_target(raw: str | dict[str, Any] | BaseModel | None) -> SessionTarget:
     """Parse a target from a bare kind (``end``), a JSON object string or a dict; ``None`` is end."""
     if raw is None:
         return EndTarget()
+    if isinstance(raw, str) and raw.strip() in _BARE_TARGET_HINTS:
+        raise CodedValueError(_BARE_TARGET_HINTS[raw.strip()], code="invalid_record_request")
     try:
         if isinstance(raw, BaseModel):
             return _TARGET_ADAPTER.validate_python(raw.model_dump())
         if isinstance(raw, str):
             text = raw.strip()
-            if text == "insert":
-                return InsertTarget(at_sec=0)
-            if text == "replace":
-                return ReplaceTarget(from_sec=0, to_sec=0)
             return _TARGET_ADAPTER.validate_python(
                 json.loads(text) if text.startswith("{") else {"kind": text}
             )
         return _TARGET_ADAPTER.validate_python(raw)
     except (ValidationError, ValueError) as exc:
+        detail = "use end, start, insert or replace"
+        if isinstance(exc, ValidationError):
+            reasons = [
+                str(err["msg"]).removeprefix("Value error, ")
+                for err in exc.errors()
+                if str(err["msg"]).startswith("Value error, ")
+            ]
+            if reasons:
+                detail = "; ".join(reasons)
         raise CodedValueError(
-            "invalid session target: use end, start, insert or replace",
-            code="invalid_record_request",
+            f"invalid session target: {detail}", code="invalid_record_request"
         ) from exc
 
 
 def unsupported_target_message(target: SessionTarget) -> str | None:
-    """Why ``target`` cannot be used yet; ``None`` for ``end``, the only landable target."""
-    if target.kind == "end":
+    """Why ``target`` cannot be used yet; ``None`` unless it is ``start``."""
+    if target.kind != "start":
         return None
     return (
-        f"the {target.kind} target is not available yet: sessions can only be added at the end "
-        "of the episode"
+        "the start target is not available yet: sessions can only be added at the end of the "
+        "episode or staged as an insert or replace"
     )
 
 

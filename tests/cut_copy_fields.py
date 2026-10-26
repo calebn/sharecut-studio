@@ -69,6 +69,10 @@ SHARED_FIELDS: dict[str, str] = {
     "SavedDocumentCommand": (
         "base_server_seq causation_id client_id client_seq command_id payload role type"
     ),
+    "SessionSuggestion": (
+        "at_sec from_sec id kind selected_take session_id session_number status takes to_sec "
+        "track_ids"
+    ),
     "SocialClipCandidate": (
         "approved caption_suggestion end exported_path id reasons review_required score "
         "speaker start title_suggestion track_id transcript_excerpt"
@@ -84,6 +88,10 @@ SHARED_FIELDS: dict[str, str] = {
     "SpeakerIngestAlignment": ("align_method content_align_sec session_start_in_file_sec"),
     "SpeakerSplit": ("backend crosstalk_lane crosstalk_mode id lanes media_path method turns"),
     "SpeakerTurnRecord": ("confidence end_s speakers start_s"),
+    "StagedComment": ("author body id recording_ms"),
+    "StagedTake": (
+        "comments duration_s offset_s segment_index source_id take_index track_id track_label"
+    ),
     "TimelineComment": (
         "action_items author body created_at edit_decision_id id replies resolved resolved_at "
         "resolved_by review_version_id timeline_end timeline_spans timeline_start track_ids "

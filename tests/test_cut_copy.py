@@ -121,6 +121,7 @@ NESTED: dict[str, dict[str, str]] = {
         "sound_actions": "shared",
         "speaker_splits": "shared",
         "record_sessions": "shared",
+        "session_suggestions": "shared",
     },
     "transcript_data": {"per_track": "items", "combined": "shared"},
     "review": {"comments": "list", "versions": "shared", "active_version_id": "scalar"},

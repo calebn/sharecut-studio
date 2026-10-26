@@ -16,6 +16,15 @@ from filelock import Timeout as FileLockTimeout
 
 from podcast_mcp.edits.clipping_regions import clipping_regions_from_ms
 from podcast_mcp.edits.comments import add_comment, delete_comment
+from podcast_mcp.edits.session_suggestions import (
+    drop_staged_segment,
+    drop_staged_takes,
+    ensure_session_suggestion,
+    session_suggestion_id,
+    stage_comments,
+    staged_comment_ids,
+    upsert_staged_take,
+)
 from podcast_mcp.engines.clips_ops import new_clip_id
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.room_tone import room_tone_source_id
@@ -26,8 +35,11 @@ from podcast_mcp.models import (
     EpisodeProject,
     MediaAsset,
     RecordSessionRecord,
+    SessionSuggestion,
     SourceClippingRegion,
     SourceRecording,
+    StagedComment,
+    StagedTake,
     Track,
     TrackRole,
 )
@@ -48,7 +60,7 @@ from podcast_mcp.services.record.landing_math import (
     session_numbered,
     session_placement,
     session_start_present,
-    take_offsets_s,
+    session_take_offsets_s,
 )
 from podcast_mcp.services.record.landing_rollback import (
     PriorRegistration,
@@ -105,6 +117,8 @@ _LAND_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 # A land includes WAV hashing, copies, and drift measurement, so allow more than the
 # 30 s project commit lock, but never wait forever on a hung process (#503).
 RECORD_LAND_LOCK_TIMEOUT_SEC = 120.0
+
+STAGED_TARGET_KINDS = ("insert", "replace")
 
 RECORD_LAND_ROLLBACK_RETRY_BASE_SEC = 30
 RECORD_LAND_ROLLBACK_RETRY_MAX_SEC = 1800
@@ -502,10 +516,14 @@ class RecordLandingService:
         self._retry_deferred_rollbacks()
         snap = self._snapshot()
         tombstoned = self._upload.tombstoned_takes(self.session_id)
-        offsets = take_offsets_s(
+        staged = snap.target.kind in STAGED_TARGET_KINDS
+        anchor_s = session_placement(self.workspace.project.clips, self.session_id, snap.target)
+        offsets = session_take_offsets_s(
             snap.takes,
+            self.workspace.project.clips,
+            self.session_id,
+            snap.target,
             tombstoned=tombstoned,
-            origin_s=session_placement(self.workspace.project.clips, self.session_id, snap.target),
         )
         names = {
             person.participant_id: person.display_name
@@ -518,8 +536,8 @@ class RecordLandingService:
             row
             for row in status["segments"]
             if row.get("file_ack")
-            and not row.get("landed")
             and int(row["take_index"]) not in tombstoned
+            and (not row.get("landed") or (staged and self._staged_source_missing(row, roles)))
         ]
         pending.sort(
             key=lambda row: (
@@ -613,6 +631,7 @@ class RecordLandingService:
                         "segment_index": segment,
                         "join_offset_ms": join_ms,
                         "timeline_s": clip_timeline_s(take_offset, join_ms),
+                        "staged_offset_s": clip_timeline_s(take_offset - anchor_s, join_ms),
                         "duration_s": duration_s(samples, sample_rate),
                         "sample_rate": sample_rate,
                         "channels": channels,
@@ -658,6 +677,8 @@ class RecordLandingService:
             for row in self._comments.list_unlanded(self.session_id)
             if int(row["take_index"]) not in tombstoned
         ]
+        if staged:
+            pending_comments = self._unstaged_comments(pending_comments, copied)
         fallback = needs_align_fallback(snap.takes, tombstoned=tombstoned, drift_ms=drift_ms)
         if not copied and not pending_comments and not room_tone_copied:
             return {
@@ -669,6 +690,7 @@ class RecordLandingService:
                 "drift_ms": drift_ms,
                 "drift": drift_rows,
                 "deferred_rollbacks_pending": self._deferred_rollbacks_pending(),
+                "staged": [],
             }
 
         # Hash each copy once, before any project lock (#365); under it only a stat runs.
@@ -688,7 +710,9 @@ class RecordLandingService:
             label = record_land_title(
                 record_session_number(planning_project, self.session_id),
                 first=not session_landed_before(planning_project, self.session_id),
+                staged=staged,
             )
+            session_params["session_staged"] = staged
 
         # ``mutate`` runs on the project it re-reads under the cross-process
         # project lock. It can be newer than the copy planned from above when a
@@ -704,6 +728,7 @@ class RecordLandingService:
         def mutate(project: EpisodeProject) -> dict[str, Any]:
             landed_before = session_landed_before(project, self.session_id)
             landed_clips: list[dict[str, Any]] = []
+            staged_takes: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
             touched: set[str] = set()
             for item in copied:
@@ -720,6 +745,50 @@ class RecordLandingService:
                     project, track_id=track_id, source_id=source_id, rel=rel, room_tone=False
                 )
                 previous_rel = prior.source.path if prior.source is not None else None
+                if staged:
+                    _upsert_source(
+                        project,
+                        source_id=source_id,
+                        rel=rel,
+                        speaker=str(item["label"]),
+                        duration_s=float(item["duration_s"]),
+                        sample_rate=int(item["sample_rate"]),
+                        channels=int(item["channels"]),
+                        clipping_regions=item["clipping"],
+                        clipping_truncated=bool(item["clipping_truncated"]),
+                    )
+                    number = _number_session(project, self.session_id, snap.target.kind)
+                    session_params.update(session_number=number, session_first=not landed_before)
+                    suggestion = ensure_session_suggestion(
+                        project, _proposed_suggestion(self.session_id, number, snap.target)
+                    )
+                    upsert_staged_take(
+                        suggestion,
+                        StagedTake(
+                            take_index=int(item["take_index"]),
+                            track_id=track_id,
+                            track_label=str(item["label"]),
+                            segment_index=int(item["segment_index"]),
+                            source_id=source_id,
+                            offset_s=float(item["staged_offset_s"]),
+                            duration_s=float(item["duration_s"]),
+                        ),
+                    )
+                    accepted.append({**item, "prior": prior})
+                    staged_takes.append(
+                        {
+                            "suggestion_id": suggestion.id,
+                            "track_id": track_id,
+                            "source_id": source_id,
+                            "participant_id": item["participant_id"],
+                            "take_index": item["take_index"],
+                            "segment_index": item["segment_index"],
+                            "offset_s": float(item["staged_offset_s"]),
+                            "duration_s": float(item["duration_s"]),
+                            "raw_path": rel,
+                        }
+                    )
+                    continue
                 _ensure_track(project, track_id, label=str(item["label"]))
                 _upsert_source(
                     project,
@@ -799,16 +868,8 @@ class RecordLandingService:
                 touched.add(track_id)
                 accepted.append({**item, "prior": prior})
             if landed_clips:
-                number = record_session_number(project, self.session_id)
+                number = _number_session(project, self.session_id, snap.target.kind)
                 first = not landed_before
-                if not session_numbered(project, self.session_id):
-                    project.editorial.record_sessions.append(
-                        RecordSessionRecord(
-                            session_id=self.session_id,
-                            number=number,
-                            target_kind=snap.target.kind,
-                        )
-                    )
                 session_params.update(session_number=number, session_first=first)
                 refresh_timeline_duration(project)
                 if touched:
@@ -817,8 +878,22 @@ class RecordLandingService:
                     align(project)
             elif touched:
                 record_invalidation(project, track_ids=sorted(touched), reason="other")
+            if staged:
+                held = self._hold_comments(project, pending_comments)
+                return {
+                    "clips": [],
+                    "comments": [],
+                    "accepted": accepted,
+                    "staged": staged_takes,
+                    "staged_comments": held,
+                }
             landed_comments = _land_live_comments(project, pending_comments, offsets)
-            return {"clips": landed_clips, "comments": landed_comments, "accepted": accepted}
+            return {
+                "clips": landed_clips,
+                "comments": landed_comments,
+                "accepted": accepted,
+                "staged": [],
+            }
 
         with self.workspace.transaction():
             try:
@@ -863,6 +938,12 @@ class RecordLandingService:
             in confirmed
         ]
         comments = list(landed["comments"])
+        staged_takes = [
+            item
+            for item in landed["staged"]
+            if (str(item["participant_id"]), int(item["take_index"]), int(item["segment_index"]))
+            in confirmed
+        ]
         self._comments.mark_landed(
             self.session_id,
             [str(row["id"]) for row in comments],
@@ -879,6 +960,7 @@ class RecordLandingService:
             "session_id": self.session_id,
             "clips": clips,
             "comments": comments,
+            "staged": staged_takes,
             "align_fallback": fallback,
             "ingest_suggest": False,
             "drift_ms": drift_ms,
@@ -910,6 +992,7 @@ class RecordLandingService:
             drop_tracks = {clip.track_id for clip in project.clips if clip.source_id in drop_ids}
             project.sources = [src for src in project.sources if src.id not in drop_ids]
             project.clips = [clip for clip in project.clips if clip.source_id not in drop_ids]
+            drop_staged_takes(project, self.session_id, take)
             kept = {clip.track_id for clip in project.clips}
             project.tracks = [
                 track for track in project.tracks if track.id not in drop_tracks or track.id in kept
@@ -933,6 +1016,76 @@ class RecordLandingService:
         after_agent_mutation(self.workspace)
         landed["discarded_take"] = take
         return landed
+
+    def _staged_source_missing(self, row: Mapping[str, Any], roles: Mapping[str, str]) -> bool:
+        """A landed keeper of a staged session whose source the project no longer holds.
+
+        Undoing the staging land removes the source but leaves the upload row landed; staging
+        again re-registers it.
+        """
+        pid = str(row["participant_id"])
+        if roles.get(pid) == "producer":
+            return False
+        source_id = self._landed_source_id(pid, int(row["take_index"]), int(row["segment_index"]))
+        return self.workspace.project.source_by_id(source_id) is None
+
+    def _unstaged_comments(
+        self, rows: list[dict[str, Any]], copied: Sequence[Mapping[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Live comments a staged land still has to hold: their take has a staged segment, they do not."""
+        suggestion = next(
+            (
+                row
+                for row in self.workspace.project.editorial.session_suggestions
+                if row.id == session_suggestion_id(self.session_id)
+            ),
+            None,
+        )
+        held = staged_comment_ids(suggestion) if suggestion is not None else set()
+        takes = {take.take_index for take in suggestion.takes} if suggestion is not None else set()
+        takes |= {int(item["take_index"]) for item in copied}
+        return [
+            row
+            for row in rows
+            if str(row["comment_id"]) not in held and int(row["take_index"]) in takes
+        ]
+
+    def _hold_comments(
+        self, project: EpisodeProject, rows: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        suggestion = next(
+            (
+                row
+                for row in project.editorial.session_suggestions
+                if row.id == session_suggestion_id(self.session_id)
+            ),
+            None,
+        )
+        if suggestion is None:
+            return []
+        held = staged_comment_ids(suggestion)
+        fresh = [row for row in rows if str(row["comment_id"]) not in held]
+        stage_comments(
+            suggestion,
+            [
+                (
+                    int(row["take_index"]),
+                    StagedComment(
+                        id=str(row["comment_id"]),
+                        body=str(row["body"]),
+                        author=str(row["author"]),
+                        recording_ms=int(row["recording_ms"]),
+                    ),
+                )
+                for row in fresh
+            ],
+        )
+        after = staged_comment_ids(suggestion)
+        return [
+            {"id": str(row["comment_id"]), "take_index": int(row["take_index"])}
+            for row in fresh
+            if str(row["comment_id"]) in after
+        ]
 
     def _room_tone_missing(self, participant_id: str) -> bool:
         track = self.workspace.project.track_by_id(slug_track_id(participant_id))
@@ -1066,7 +1219,9 @@ class RecordLandingService:
                 prior: PriorRegistration = item["prior"]
                 if not self._rollback_applies(project, item):
                     continue
-                if revert_registration(project, prior):
+                if revert_registration(project, prior) and not drop_staged_segment(
+                    project, self.session_id, prior.source_id
+                ):
                     touched.add(prior.track_id)
             if touched:
                 refresh_timeline_duration(project)
@@ -1465,6 +1620,33 @@ def _land_live_comments(
             }
         )
     return landed
+
+
+def _number_session(project: EpisodeProject, session_id: str, target_kind: str) -> int:
+    """The session's number, stored in ``record_sessions`` the first time it is asked for."""
+    number = record_session_number(project, session_id)
+    if not session_numbered(project, session_id):
+        project.editorial.record_sessions.append(
+            RecordSessionRecord(session_id=session_id, number=number, target_kind=target_kind)
+        )
+    return number
+
+
+def _proposed_suggestion(session_id: str, number: int, target: Any) -> SessionSuggestion:
+    base = {
+        "id": session_suggestion_id(session_id),
+        "session_id": session_id,
+        "session_number": number,
+    }
+    if target.kind == "insert":
+        return SessionSuggestion(kind="insert", at_sec=target.at_sec, **base)
+    return SessionSuggestion(
+        kind="replace",
+        from_sec=target.from_sec,
+        to_sec=target.to_sec,
+        track_ids=list(target.track_ids),
+        **base,
+    )
 
 
 def _ensure_track(project: EpisodeProject, track_id: str, *, label: str) -> Track:

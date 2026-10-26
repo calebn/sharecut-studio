@@ -126,7 +126,8 @@
     "retained_bleed_alignments": [],
     "sound_actions": [],
     "speaker_splits": [],
-    "record_sessions": []
+    "record_sessions": [],
+    "session_suggestions": []
   },
   "transcripts": {
     "per_track": [

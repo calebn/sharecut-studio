@@ -69,6 +69,7 @@ from podcast_mcp.services.record.state import (
     EndTarget,
     InsertTarget,
     PauseEntry,
+    ReplaceTarget,
     StartTarget,
     TakeState,
     take_recording_duration_ms,
@@ -390,7 +391,7 @@ def _land_groups(ws) -> list:
     return [g for g in HistoryService(ws).list_entries().groups if g.operation == "record_land"]
 
 
-def test_session_placement_is_the_end_origin_and_refuses_later_targets() -> None:
+def test_session_placement_is_the_end_origin_and_refuses_start() -> None:
     def clip(source_id: str, start: float, length: float) -> Clip:
         return Clip(
             id=f"c-{source_id}",
@@ -404,9 +405,11 @@ def test_session_placement_is_the_end_origin_and_refuses_later_targets() -> None
     clips = [clip("episode", 0.0, 60.0), clip("pickup", 70.0, 10.0)]
     assert session_placement(clips, "abc", EndTarget()) == session_origin_s(clips, "abc")
     assert session_placement([], "abc", EndTarget()) == 0.0
-    for target in (StartTarget(), InsertTarget(at_sec=3.0)):
-        with pytest.raises(ValueError, match="is not available yet"):
-            session_placement(clips, "abc", target)
+    with pytest.raises(ValueError, match="is not available yet"):
+        session_placement(clips, "abc", StartTarget())
+    assert session_placement(clips, "abc", InsertTarget(at_sec=3.0)) == 3.0
+    replace = ReplaceTarget(from_sec=5.0, to_sec=9.0, track_ids=["host"])
+    assert session_placement(clips, "abc", replace) == 5.0
 
 
 def test_session_number_is_one_past_every_other_session_on_the_timeline(minimal_project) -> None:
