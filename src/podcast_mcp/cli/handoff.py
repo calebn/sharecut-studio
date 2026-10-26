@@ -34,6 +34,7 @@ from podcast_mcp.services.app import (
     HandoffLost,
     HandoffRefused,
     StudioHost,
+    StudioUnresponsive,
     hand_off,
     locate_studio,
 )
@@ -238,7 +239,11 @@ def try_hand_off(root: Command, ctx: Any) -> int | None:
     plan = plan_handoff(root, [*_root_flags(ctx), *sub_tokens], Path.cwd())
     if plan is None:
         return None
-    host = locate_studio(plan.project)
+    try:
+        host = locate_studio(plan.project)
+    except StudioUnresponsive as silent:
+        typer.echo(f"Error: {silent}", err=True)
+        return 1
     if host is None:
         return None
     try:
