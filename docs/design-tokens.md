@@ -391,6 +391,31 @@ outline) and `--save-dot-box` (the layout box) size the save-state light. Its
 dot adds no row height. Colours are `--color-success`, `--color-warning`,
 `--color-danger` and `--color-text-secondary`; shape carries the state too.
 
+### Stage layout tokens
+
+The stage redesign adds one block to `tokens.css`, headed "Stage layout", from
+[section 4 of the stage design system](design/stages/design-system.md). It is
+additive: no existing declaration changes, and `src/system/tokens.test.ts`
+freezes the existing values. All values are rem or a percentage.
+
+| Family | Tokens |
+| ------ | ------ |
+| Regions | `--app-header-height`, `--app-header-height-phone`, `--alert-slot-height`, `--rail-width`, `--script-pane-width` (+ `-min`, `-max`, `-wide`), `--action-bar-height` (+ `-touch`), `--action-dock-height`, `--record-dock-height`, `--tab-bar-height` |
+| Spacing | `--space-7` (2rem), `--space-8` (3rem), `--content-max-wide`, `--content-max-narrow` |
+| Sheets and widths | `--sheet-peek-min/max`, `--sheet-detent-half/full`, `--sheet-grip-width/height`, `--menu-width`, `--anchored-card-width`, `--side-panel-width`, `--centered-card-width`, `--palette-width` |
+| Targets | `--target-dock-button`, `--target-dock-primary`, `--target-primary-phone/desktop/page`, `--handle-visual-width/height` |
+| Type | `--font-size-card-title`, `--font-size-page-title`, `--font-size-reading-phone` |
+| Selection | `--selection-outline-width`, `--selection-row-edge-width`, `--selection-remote-width` |
+
+The Player bar reuses `--transport-height`, touch targets reuse `--touch-min`,
+the desktop icon button reuses `--control-height`, and keyboard focus keeps
+`--focus-ring-width` and `--focus-ring-offset`. `--mobile-nav-height` (3.25rem)
+stays until the phone tab bar (`--tab-bar-height`, 3.5rem) is wired.
+
+`--color-record` is the one new colour role, declared in all three theme views
+next to `--color-danger` and starting on the same primitive. Record red marks
+things that record; danger red marks failures.
+
 ### Top layer
 
 One model orders floating UI. Fixed layers (sheets, dialogs, the command

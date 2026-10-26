@@ -10,7 +10,7 @@ Lint: Stylelint in `gui/web` (`meowtec/no-px`, `declaration-strict-value`, viewp
 | ----- | ----- |
 | Shared type / space / brand color | `deploy/brand/brand-tokens.css` (synced to Studio theme + public dirs) |
 | Primitive color values (raw literals, no `var()`) | `gui/web/src/styles/theme/primitives.css` |
-| Studio density (`--space-*`, `--font-size-*`, `--radius-xs/sm/xl`, `--focus-ring-*`, `--z-*`) | `gui/web/src/styles/theme/tokens.css` |
+| Studio density (`--space-*`, `--font-size-*`, `--radius-xs/sm/xl`, `--focus-ring-*`, `--z-*`, stage layout: regions, sheets, targets) | `gui/web/src/styles/theme/tokens.css` |
 | Light / dark functional colors (semantic roles mapped onto primitives) | `theme-dark.css` / `theme-light.css` |
 | Theme-invariant color roles (the fixed-dark transport strip and Listen card) | `theme-fixed.css` |
 
