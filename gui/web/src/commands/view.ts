@@ -91,6 +91,26 @@ export function registerViewCommands(): void {
     });
   }
 
+  registerCommand("view.toggleScript", () => {
+    const s = useDawStore.getState();
+    if (!s.project) {
+      return { status: "disabled", reason: "No project" };
+    }
+    s.setScriptCollapsed(!s.scriptCollapsed);
+    s.announceStatus(s.scriptCollapsed ? "Script shown" : "Script hidden");
+    return { status: "ok" };
+  });
+
+  registerCommand("view.scriptFocus", () => {
+    const s = useDawStore.getState();
+    if (!s.project) {
+      return { status: "disabled", reason: "No project" };
+    }
+    s.setScriptFocus(!s.scriptFocus);
+    s.announceStatus(s.scriptFocus ? "Script focus off" : "Script focus on");
+    return { status: "ok" };
+  });
+
   registerCommand("view.waveformZoomIn", () => {
     const s = useDawStore.getState();
     if (!s.project) {

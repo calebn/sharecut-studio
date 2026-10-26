@@ -226,6 +226,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "reopen swipe: a drag up on the collapsed drawer handle reopens the drawer, and a press does the same",
   "layout/BottomTabsSplitterView.tsx":
     "splitter: a drag resizes the bottom tabs; arrow keys and the size buttons do the same by key",
+  "stage/edit/ScriptDivider.tsx":
+    "divider: a drag resizes the Script pane beside the timeline; the arrow keys, Enter and double-click do the same by key",
   "layout/useRailLabelPeek.ts":
     "rail label: a touch long press on an icon-only rail control names it for a moment without activating it (useLongPress timing)",
   "layout/ListenCommentComposer.tsx":
@@ -271,6 +273,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
   "keymap/registry.ts": "the keymap rows that bind the arrows",
   "system/SuggestionWaveform.tsx":
     "a focused suggestion handle moves its edge with the arrows, 0.05 s and 0.5 s with Shift, like a slider",
+  "stage/edit/ScriptDivider.tsx":
+    "the separator pattern: Left and Right move the divider between the timeline and the Script pane",
   "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",
   "ui/useMenuKeyboard.ts": "arrows step through the items of an open menu",
 };

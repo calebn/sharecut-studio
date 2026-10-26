@@ -115,6 +115,8 @@ function clearClearance(): void {
 export function useCompactInspector(
   shell: "phone" | "tablet" | null,
   column: boolean,
+  /** The Edit stage's own answer to "is the timeline on screen"; the phone's mobile mode otherwise. */
+  timelineShown?: boolean,
 ): CompactInspector | null {
   const {
     project,
@@ -141,7 +143,9 @@ export function useCompactInspector(
   const applies =
     !column &&
     !rangeArmed &&
-    (shell === "phone" ? mobileMode === "timeline" : shell === "tablet");
+    (shell === "phone"
+      ? (timelineShown ?? mobileMode === "timeline")
+      : shell === "tablet");
   const candidate =
     applies && project ? peekTarget(project, selection, hit) : null;
   const [seen, setSeen] = useState<{

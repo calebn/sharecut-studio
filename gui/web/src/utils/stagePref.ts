@@ -33,3 +33,16 @@ export const writeScriptCollapsed = (on: boolean) =>
 export const readScriptFocus = () => readFlag(SCRIPT_FOCUS_STORAGE_KEY);
 export const writeScriptFocus = (on: boolean) =>
   writeFlag(SCRIPT_FOCUS_STORAGE_KEY, on);
+
+export const SCRIPT_WIDTH_STORAGE_KEY = "sharecut.scriptWidth";
+
+/** The Script pane's width in rem, or null before the person has dragged it. */
+export function readScriptWidth(): number | null {
+  const n = Number(readLocal(SCRIPT_WIDTH_STORAGE_KEY));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function writeScriptWidth(rem: number | null): void {
+  if (rem == null) removeLocal(SCRIPT_WIDTH_STORAGE_KEY);
+  else writeLocal(SCRIPT_WIDTH_STORAGE_KEY, rem.toFixed(2));
+}

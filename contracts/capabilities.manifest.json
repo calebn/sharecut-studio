@@ -188,7 +188,8 @@
       "surfaces": {
         "command": "tool.select",
         "gui": [
-          "toolModeToggle"
+          "toolModeToggle",
+          "editToolStrip"
         ],
         "keyboard": "V"
       },
@@ -211,7 +212,8 @@
       "surfaces": {
         "command": "tool.blade",
         "gui": [
-          "toolModeToggle"
+          "toolModeToggle",
+          "editToolStrip"
         ],
         "keyboard": "C"
       },
@@ -282,7 +284,8 @@
       "surfaces": {
         "command": "review.toggleCommentMode",
         "gui": [
-          "transport.comment"
+          "transport.comment",
+          "editToolStrip"
         ],
         "keyboard": "Mod+Shift+C"
       },
@@ -656,7 +659,8 @@
           "editingToolRail",
           "timeline",
           "timeline.createMenu",
-          "transport.menu"
+          "transport.menu",
+          "editToolStrip"
         ],
         "keyboard": "Mod+K",
         "mcp": [
@@ -1092,7 +1096,9 @@
         "gui": [
           "editingToolRail",
           "transport.menu",
-          "transport.editControls"
+          "transport.editControls",
+          "editCorner",
+          "viewSheet"
         ],
         "keyboard": "=",
         "touch": [
@@ -1120,7 +1126,9 @@
         "gui": [
           "editingToolRail",
           "transport.menu",
-          "transport.editControls"
+          "transport.editControls",
+          "editCorner",
+          "viewSheet"
         ],
         "keyboard": "-",
         "touch": [
@@ -1147,7 +1155,9 @@
         "command": "view.fit",
         "gui": [
           "transport.fit",
-          "transport.menu"
+          "transport.menu",
+          "editCorner",
+          "viewSheet"
         ],
         "keyboard": "\\"
       },
@@ -1269,6 +1279,50 @@
       }
     },
     {
+      "id": "daw.view.toggleScript",
+      "label": "Show or hide Script",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.toggleScript",
+        "gui": [
+          "editCorner"
+        ],
+        "keyboard": "T"
+      },
+      "omit": {},
+      "tooltip": "Show or hide Script",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.view.scriptFocus",
+      "label": "Script focus",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.scriptFocus",
+        "gui": [],
+        "keyboard": "Shift+T"
+      },
+      "omit": {},
+      "tooltip": "Script focus",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.view.setTab",
       "label": "Switch editor tab",
       "effect": "view",
@@ -1332,7 +1386,8 @@
         "command": "view.waveformZoomIn",
         "gui": [
           "timeline.waveform",
-          "transport.viewMenu.waveformAmplitudeIn"
+          "transport.viewMenu.waveformAmplitudeIn",
+          "viewSheet"
         ],
         "keyboard": "ArrowUp"
       },
@@ -1356,7 +1411,8 @@
         "command": "view.waveformZoomOut",
         "gui": [
           "timeline.waveform",
-          "transport.viewMenu.waveformAmplitudeOut"
+          "transport.viewMenu.waveformAmplitudeOut",
+          "viewSheet"
         ],
         "keyboard": "ArrowDown"
       },
@@ -1407,7 +1463,8 @@
       "surfaces": {
         "command": "view.trackHeightIncrease",
         "gui": [
-          "transport.menu"
+          "transport.menu",
+          "viewSheet"
         ],
         "keyboard": "Alt+="
       },
@@ -1430,7 +1487,8 @@
       "surfaces": {
         "command": "view.trackHeightDecrease",
         "gui": [
-          "transport.menu"
+          "transport.menu",
+          "viewSheet"
         ],
         "keyboard": "Alt+-"
       },
@@ -1999,7 +2057,8 @@
         "gui": [
           "RecordPanel",
           "transport.menu",
-          "transport.recChip"
+          "transport.recChip",
+          "editPlusMenu"
         ],
         "cli": "podcast record state",
         "mcp": [
@@ -2255,7 +2314,8 @@
           "transport.menu",
           "editingToolRail",
           "trackLane",
-          "mobileShell.more"
+          "mobileShell.more",
+          "editPlusMenu"
         ],
         "keyboard": "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
         "mcp": [
@@ -2285,7 +2345,8 @@
           "transport.menu",
           "editingToolRail",
           "drop",
-          "mobileShell.more"
+          "mobileShell.more",
+          "editPlusMenu"
         ],
         "keyboard": "Mod+I",
         "mcp": [
@@ -3104,7 +3165,8 @@
         "gui": [
           "transport.menu",
           "mobileShell.more",
-          "timeline.createMenu"
+          "timeline.createMenu",
+          "editPlusMenu"
         ],
         "mcp": [
           "add_chapter_tool"
@@ -3532,7 +3594,8 @@
         "command": "range.arm",
         "gui": [
           "EditingToolRail",
-          "transport.menu"
+          "transport.menu",
+          "editToolStrip"
         ]
       },
       "omit": {
