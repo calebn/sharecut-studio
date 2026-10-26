@@ -57,4 +57,37 @@ describe("App review route", () => {
       ),
     ).toBe(false);
   });
+
+  it("tells a guest with a dead link to ask the host for a new one", async () => {
+    window.history.pushState({}, "", "/r/gone");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = urlOf(input);
+        if (url.includes("/features")) {
+          return new Response(
+            JSON.stringify({
+              api_version: 1,
+              features: ["share.ui.routes", "share.ui.banner", "share.ui.menu"],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({ detail: "invalid or revoked share token" }),
+          {
+            status: 404,
+            headers: { "X-Sharecut-Error-Code": "share_not_found" },
+          },
+        );
+      }),
+    );
+    render(<App />);
+    expect(
+      await screen.findByText("This link is invalid or has ended."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Ask the host for a new link.",
+    );
+  });
 });
