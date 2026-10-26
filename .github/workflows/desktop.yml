@@ -8,6 +8,16 @@ on:
   pull_request:
     paths:
       - "**"
+      - "!contracts/bootstrap-assets.schema.json"
+      - "!contracts/capabilities.manifest.json"
+      - "!contracts/caps.json"
+      - "!contracts/distribution-profile.schema.json"
+      - "!contracts/docs-sync.json"
+      - "!contracts/export-presets.json"
+      - "!contracts/pipeline-params.json"
+      - "!contracts/progress-exemptions.json"
+      - "!contracts/progress-richness.json"
+      - "!contracts/roll-join-limits.json"
       - "!contracts/test-wait-allowlist.json"
   push:
     branches: [main]

@@ -787,12 +787,26 @@ uses NUL-delimited paths and disables rename detection so deletions and both
 rename directions remain visible. A filename containing a newline stays one
 path and requests full native coverage.
 
-Desktop PR event paths are exactly `['**', '!contracts/test-wait-allowlist.json']`.
-An allowlist-only PR starts no desktop workflow jobs. Other docs PRs start cheap
-planners but no expensive native jobs. Registry PR events remain broad. Neither
-workflow excludes broad docs patterns at the event boundary. Every main push,
-nightly, and manual dispatch runs all native workloads. Proven release-only PRs
-skip all native families.
+Desktop PR events include `**` and exclude the exact paths of known contracts
+with no native consumers. `DESKTOP_PR_EXCLUSIONS` derives those paths from empty
+`NATIVE_CONTRACTS` entries. The eleven current exclusions under `contracts/` are
+`bootstrap-assets.schema.json`, `capabilities.manifest.json`, `caps.json`,
+`distribution-profile.schema.json`, `docs-sync.json`, `export-presets.json`,
+`pipeline-params.json`, `progress-exemptions.json`, `progress-richness.json`,
+`roll-join-limits.json`, and `test-wait-allowlist.json`.
+`desktop.yml` lists these literal exclusions. Ordinary CI tests require its
+complete PR path list to equal `DESKTOP_PR_PATHS`.
+
+A PR changing only excluded contracts starts no desktop workflow jobs. Ordinary
+CI still runs full pytest for every excluded contract. The ten exclusions other
+than `test-wait-allowlist.json` also retain frontend and browser validation.
+Unknown contracts, nested contract paths, and all seven contracts with native
+consumers remain admitted. Any additional admitted path starts the desktop
+planner and contributes its native consumers. This changes workflow admission,
+while these known empty contracts already selected no native workloads.
+Other docs PRs start cheap planners but no expensive native jobs. Registry PR
+events remain broad. Every main push, nightly, and manual dispatch runs all
+native workloads. Proven release-only PRs skip all native families.
 
 Six Python contracts plus the FFmpeg artifact catalog are native inputs.
 `tests/test_native_ci_plan.py` checks contract inventory, literal readers, the

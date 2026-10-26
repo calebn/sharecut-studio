@@ -18,26 +18,39 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize(
-    "paths,families",
+    "paths,families,admitted",
     [
-        (["docs/testing.md"], set()),
-        (["gui/web/src/App.tsx"], {"web"}),
-        (["gui/desktop/src-tauri/src/main.rs"], {"cargo"}),
-        (["src/podcast_mcp/edits/tighten/propose.py"], {"pinned", "resolver", "lock", "registry"}),
+        (["docs/testing.md"], set(), True),
+        (["gui/web/src/App.tsx"], {"web"}, True),
+        (["gui/desktop/src-tauri/src/main.rs"], {"cargo"}, True),
+        (
+            ["src/podcast_mcp/edits/tighten/propose.py"],
+            {"pinned", "resolver", "lock", "registry"},
+            True,
+        ),
         (
             ["src/podcast_mcp/config/distribution.py"],
             {"cargo", "pinned", "resolver", "lock", "registry"},
+            True,
         ),
-        (["scripts/build_sidecar.py"], {"cargo", "payload", "lock", "registry"}),
-        (["contracts/ffmpeg-artifacts.json"], {"payload", "lock", "registry"}),
-        (["contracts/test-wait-allowlist.json"], set()),
-        (["contracts/test-wait-allowlist.json", "gui/web/src/App.tsx"], {"web"}),
-        (["contracts/trim-edge-limits.json"], {"pinned", "resolver", "lock", "registry"}),
+        (["scripts/build_sidecar.py"], {"cargo", "payload", "lock", "registry"}, True),
+        (["contracts/ffmpeg-artifacts.json"], {"payload", "lock", "registry"}, True),
+        (["contracts/test-wait-allowlist.json"], set(), False),
+        (["contracts/export-presets.json"], set(), False),
+        (["contracts/test-wait-allowlist.json", "gui/web/src/App.tsx"], {"web"}, True),
+        (["contracts/trim-edge-limits.json"], {"pinned", "resolver", "lock", "registry"}, True),
+        (["tests/test_pinned_media.py"], {"pinned", "resolver", "lock", "registry"}, True),
     ],
 )
-def test_pr_selection_unions_every_consumer(paths, families) -> None:
+def test_pr_selection_unions_every_consumer(paths, families, admitted) -> None:
     result = cp.plan("pull_request", paths)
     assert {family.value for family in result.native.required} == families
+    mixed = [*native.DESKTOP_PR_EXCLUSIONS, *paths]
+    workflow_paths = load_github_yaml(ROOT / ".github/workflows/desktop.yml")["on"]["pull_request"][
+        "paths"
+    ]
+    assert any(f"!{path}" not in workflow_paths for path in mixed) is admitted
+    assert cp.plan("pull_request", mixed).native.required == result.native.required
     assert {
         key
         for key, value in result.outputs().items()
@@ -50,6 +63,7 @@ def test_pr_selection_unions_every_consumer(paths, families) -> None:
     [
         "new/source.py",
         "contracts/new.json",
+        "contracts/nested/export-presets.json",
         "scripts/ci_native.py",
         "tests/test_native_ci_plan.py",
         "",
@@ -164,12 +178,28 @@ def test_workflow_inventory_forwarding_roots_and_predicates_match_policy() -> No
             assert all(command in commands for command in workload.command_roots)
 
 
-def test_full_event_coverage_and_single_exact_desktop_exclusion() -> None:
-    assert native.DESKTOP_PR_EXCLUSIONS == ("contracts/test-wait-allowlist.json",)
-    assert native.DESKTOP_PR_PATHS == ("**", "!contracts/test-wait-allowlist.json")
+def test_full_event_coverage_and_exact_desktop_exclusions() -> None:
+    expected_exclusions = (
+        "contracts/bootstrap-assets.schema.json",
+        "contracts/capabilities.manifest.json",
+        "contracts/caps.json",
+        "contracts/distribution-profile.schema.json",
+        "contracts/docs-sync.json",
+        "contracts/export-presets.json",
+        "contracts/pipeline-params.json",
+        "contracts/progress-exemptions.json",
+        "contracts/progress-richness.json",
+        "contracts/roll-join-limits.json",
+        "contracts/test-wait-allowlist.json",
+    )
+    assert expected_exclusions == native.DESKTOP_PR_EXCLUSIONS
+    expected_paths = ("**", *(f"!{path}" for path in expected_exclusions))
+    assert expected_paths == native.DESKTOP_PR_PATHS
     for path in native.DESKTOP_PR_EXCLUSIONS:
+        assert re.fullmatch(r"contracts/[a-z.-]+\.json", path)
+        assert not native.NATIVE_CONTRACTS[Path(path).name]
         assert not native.select_native([path]).required
-    for name in ("desktop.yml", "registry-backup-windows.yml"):
+    for name in ("desktop.yml", "registry-backup-windows.yml", "test.yml"):
         events = load_github_yaml(ROOT / ".github/workflows" / name)["on"]
         assert events["push"] == {"branches": ["main"]}
         assert events["schedule"] and "workflow_dispatch" in events
@@ -177,6 +207,19 @@ def test_full_event_coverage_and_single_exact_desktop_exclusion() -> None:
             assert events["pull_request"] == {"paths": list(native.DESKTOP_PR_PATHS)}
         else:
             assert events["pull_request"] == {"branches": ["main"]}
+
+
+@pytest.mark.parametrize(
+    "path",
+    [f"contracts/{name}" for name, consumers in native.NATIVE_CONTRACTS.items() if not consumers],
+)
+def test_excluded_contracts_keep_ordinary_ci_protections(path) -> None:
+    result = cp.plan("pull_request", [path])
+    gui = path != "contracts/test-wait-allowlist.json"
+    assert result.pytest == "full"
+    assert result.gui is gui
+    assert bool(result.e2e) is gui
+    assert not result.native.required
 
 
 def test_actual_predicates_case_fold_outputs_and_preserve_payload_producer_success() -> None:
@@ -225,11 +268,26 @@ def test_contract_inventory_is_explicit_and_unknown_additions_run_full() -> None
         "timeline-zoom.json",
         "trim-edge-limits.json",
     }
+    excluded = set(native.DESKTOP_PR_EXCLUSIONS)
+    consumers = {
+        f"contracts/{name}" for name, families in native.NATIVE_CONTRACTS.items() if families
+    }
+    assert excluded.isdisjoint(consumers)
+    workflow_paths = load_github_yaml(ROOT / ".github/workflows/desktop.yml")["on"]["pull_request"][
+        "paths"
+    ]
+    for path in consumers:
+        assert f"!{path}" not in workflow_paths
+        assert native.select_native([path]).required == native.NATIVE_CONTRACTS[Path(path).name]
     assert not native.select_native(native.DESKTOP_PR_EXCLUSIONS).required
     for paths in (
         ["contracts/added.json"],
+        ["contracts/nested/export-presets.json"],
+        ["contracts/export-presets.json", "contracts/renamed.json"],
+        ["contracts/renamed.json", "contracts/export-presets.json"],
         ["contracts/test-wait-allowlist.json", "contracts/renamed.json"],
     ):
+        assert any(f"!{path}" not in workflow_paths for path in paths)
         assert native.select_native(paths).required == native.ALL_NATIVE
 
 
