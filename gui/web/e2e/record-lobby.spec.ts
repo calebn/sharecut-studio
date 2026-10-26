@@ -216,16 +216,11 @@ test.describe("record lobby", () => {
 
           const roomDlg = await openHostRecordRoom(host);
           await expect(
-            roomDlg.getByRole("button", { name: "Start", exact: true }),
-          ).toBeDisabled();
-          await expect(
-            roomDlg.getByText(
-              "No guest has joined yet. Send them the guest link.",
-            ),
-          ).toBeVisible();
+            roomDlg.getByText(/No guest has joined yet/),
+          ).toHaveCount(0);
           await expect(
             roomDlg.getByRole("button", { name: "Copy guest link" }),
-          ).toBeVisible();
+          ).toHaveCount(0);
 
           await markSharecutE2e(guest);
           const heldRoomFrames: Array<string | Buffer> = [];
