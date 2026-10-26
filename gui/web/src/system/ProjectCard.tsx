@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useId, useRef, useState } from "react";
+import { type KeyboardEvent, useRef, useState } from "react";
 import { Button } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { StatusPill } from "./StatusPill";
@@ -47,9 +47,6 @@ function ProjectCard({
   onKeyDown,
   onFocus,
 }: ProjectCardProps) {
-  const nameId = useId();
-  const metaId = useId();
-  const chipId = useId();
   const missing = project.folderMissing === true;
   const chip = missing
     ? { text: "Folder moved", state: "needs-you" as const }
@@ -65,8 +62,6 @@ function ProjectCard({
         className="sys-project-open"
         tabIndex={tabIndex}
         aria-disabled={missing || undefined}
-        aria-labelledby={nameId}
-        aria-describedby={`${metaId} ${chipId}`}
         data-project-open=""
         onClick={missing ? undefined : () => onOpen(project.id, project.stage)}
         onKeyDown={onKeyDown}
@@ -79,13 +74,9 @@ function ProjectCard({
             label={`${project.name} overview`}
           />
         </span>
-        <span id={nameId} className="sys-project-name">
-          {project.name}
-        </span>
-        <span id={metaId} className="sys-project-meta">
-          {project.meta}
-        </span>
-        <span id={chipId} className="sys-project-chip">
+        <span className="sys-project-name">{project.name}</span>
+        <span className="sys-project-meta">{project.meta}</span>
+        <span className="sys-project-chip">
           <StatusPill state={chip.state} text={chip.text} />
         </span>
       </button>

@@ -16,7 +16,7 @@ function setup(projects = PROJECTS) {
     />,
   );
   const cards = projects.map((project) =>
-    screen.getByRole("button", { name: project.name }),
+    screen.getByRole("button", { name: new RegExp(`^${project.name}`) }),
   );
   return { cards, onOpen, onFind, user: userEvent.setup() };
 }
@@ -60,11 +60,9 @@ describe("ProjectCardList", () => {
     expect(onOpen).toHaveBeenLastCalledWith("audit", "edit");
   });
 
-  it("describes a card by its meta and chip", () => {
+  it("names a card by its visible name, meta and chip", () => {
     const { cards } = setup();
-    expect(cards[0]).toHaveAccessibleDescription(
-      /52:10 · edited 2 h ago.*Review 6/,
-    );
+    expect(cards[0]).toHaveAccessibleName(/52:10 · edited 2 h ago.*Review 6/);
   });
 
   it("rings the first card without giving it focus", () => {
@@ -78,7 +76,9 @@ describe("ProjectCardList", () => {
 
   it("offers Find beside a missing folder and does not open", async () => {
     const { onOpen, onFind, user } = setup([PROJECTS[0], MISSING]);
-    const card = screen.getByRole("button", { name: MISSING.name });
+    const card = screen.getByRole("button", {
+      name: new RegExp(`^${MISSING.name}`),
+    });
     expect(card).toHaveAttribute("aria-disabled", "true");
     await user.click(
       screen.getByRole("button", { name: `Find ${MISSING.name}` }),

@@ -1,4 +1,3 @@
-import { useId } from "react";
 import { KeyCaps } from "./KeyCaps";
 import { SystemIcon } from "./SystemIcon";
 import { verbOf } from "./verbDisplay";
@@ -32,8 +31,6 @@ export function StartTile({
   dragCount,
   onActivate,
 }: StartTileProps) {
-  const titleId = useId();
-  const noteId = useId();
   const disabled = state === "disabled";
   const { title, line } = COPY[kind];
   const dragging = state === "drag-hover";
@@ -53,8 +50,6 @@ export function StartTile({
       className={`sys-start sys-start--${kind} sys-start--${size}${variant === "primary" ? " sys-start--primary" : ""}`}
       data-state={state}
       aria-disabled={disabled || undefined}
-      aria-labelledby={titleId}
-      aria-describedby={showNote ? noteId : undefined}
       onClick={disabled ? undefined : onActivate}
     >
       <span className="sys-start-icon">
@@ -64,14 +59,8 @@ export function StartTile({
         />
       </span>
       <span className="sys-start-text">
-        <span id={titleId} className="sys-start-title">
-          {title}
-        </span>
-        {showNote ? (
-          <span id={noteId} className="sys-start-line">
-            {note}
-          </span>
-        ) : null}
+        <span className="sys-start-title">{title}</span>
+        {showNote ? <span className="sys-start-line">{note}</span> : null}
       </span>
       {size === "phone-bar" || compact ? null : (
         <KeyCaps chords={verbOf(kind).keys.slice(0, 1)} />
