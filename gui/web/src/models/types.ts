@@ -1,8 +1,8 @@
-import type { BootstrapFailureKind, WhisperModelChoice } from "../api";
+import type { BootstrapFailure, WhisperModelChoice } from "../api";
 
 export type ModelFailure = {
   /** Null for untyped plain text (an unexpected error). */
-  kind: BootstrapFailureKind | null;
+  kind: BootstrapFailure["kind"] | null;
   /** Plain text safe to show: it names no path, URL or environment variable. */
   plain: string;
 };

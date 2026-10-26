@@ -6,6 +6,24 @@ export const viewportStoryParameters = {
   docs: { canvas: { className: "studio-story-viewport" } },
 } satisfies Parameters;
 
+export const studioViewports = {
+  desktop: {
+    name: "Desktop 1440",
+    styles: { width: "1440px", height: "900px" },
+    type: "desktop",
+  },
+  tablet: {
+    name: "Tablet 834",
+    styles: { width: "834px", height: "1112px" },
+    type: "tablet",
+  },
+  mobile360: {
+    name: "Phone 360",
+    styles: { width: "360px", height: "740px" },
+    type: "mobile",
+  },
+} as const;
+
 export const isolatedStoryParameters = {
   ...viewportStoryParameters,
   docs: {

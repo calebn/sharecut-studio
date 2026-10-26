@@ -2,25 +2,15 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { StudioShell } from "../layout/StudioShell";
 import type { FeedbackToast as FeedbackToastState } from "../state/types";
-import { viewportStoryParameters } from "../storybook/storyLayout";
+import {
+  studioViewports,
+  viewportStoryParameters,
+} from "../storybook/storyLayout";
 import { episode } from "../test/episodeFixture";
 import { withEpisode } from "../test/withEpisode";
 import { FeedbackToast } from "./FeedbackToast";
 
 const head = episode().history?.head_id ?? null;
-
-const viewports = {
-  desktop: {
-    name: "Desktop 1440",
-    styles: { width: "1440px", height: "900px" },
-    type: "desktop",
-  },
-  mobile360: {
-    name: "Phone 360",
-    styles: { width: "360px", height: "740px" },
-    type: "mobile",
-  },
-} as const;
 
 const toast = (over: Partial<FeedbackToastState>): FeedbackToastState => ({
   id: 41,
@@ -52,7 +42,7 @@ const meta: Meta<typeof FeedbackToast> = {
   render: () => <ToastOverShell />,
   parameters: {
     ...viewportStoryParameters,
-    viewport: { options: viewports },
+    viewport: { options: studioViewports },
     episode: { state: { feedbackToast: toast({}) } },
   },
   globals: { viewport: { value: "desktop", isRotated: false } },

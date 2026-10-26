@@ -65,7 +65,7 @@ export function registryModels(
   ];
 }
 
-export function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
+function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
   const models = over.models === undefined ? registryModels() : over.models;
   return {
     models,

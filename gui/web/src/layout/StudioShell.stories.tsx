@@ -1,27 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import { viewportStoryParameters } from "../storybook/storyLayout";
+import {
+  studioViewports,
+  viewportStoryParameters,
+} from "../storybook/storyLayout";
 import { episode } from "../test/episodeFixture";
 import { withEpisode } from "../test/withEpisode";
 import { StudioShell } from "./StudioShell";
-
-const viewports = {
-  desktop: {
-    name: "Desktop 1440",
-    styles: { width: "1440px", height: "900px" },
-    type: "desktop",
-  },
-  tablet: {
-    name: "Tablet 834",
-    styles: { width: "834px", height: "1112px" },
-    type: "tablet",
-  },
-  mobile360: {
-    name: "Phone 360",
-    styles: { width: "360px", height: "740px" },
-    type: "mobile",
-  },
-} as const;
 
 const meta: Meta<typeof StudioShell> = {
   title: "Templates/Shell",
@@ -36,7 +21,7 @@ const meta: Meta<typeof StudioShell> = {
   ],
   parameters: {
     ...viewportStoryParameters,
-    viewport: { options: viewports },
+    viewport: { options: studioViewports },
     episode: {},
   },
   globals: { viewport: { value: "desktop", isRotated: false } },
