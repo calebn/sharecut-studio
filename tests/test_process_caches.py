@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
+from pathlib import Path
 from unittest.mock import patch
 
 from podcast_mcp.config.defaults import repo_root
@@ -18,28 +20,39 @@ def _decorator_name(node: ast.expr) -> str:
     return node.id if isinstance(node, ast.Name) else ""
 
 
-def _cached_functions() -> set[str]:
-    src = repo_root() / "src"
-    found: set[str] = set()
+def _parsed_modules(src: Path) -> Iterator[tuple[str, ast.Module]]:
     for path in sorted(src.rglob("*.py")):
         module = ".".join(path.relative_to(src).with_suffix("").parts)
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        yield module, ast.parse(path.read_text(encoding="utf-8"))
+
+
+def _bounded_cache_names(module: str, tree: ast.Module) -> set[str]:
+    found: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign | ast.Assign) and _is_bounded_cache(node.value):
+            targets = [node.target] if isinstance(node, ast.AnnAssign) else node.targets
+            found.update(f"{module}:{t.id}" for t in targets if isinstance(t, ast.Name))
+    return found
+
+
+def _source_caches() -> set[str]:
+    src = repo_root() / "src"
+    found: set[str] = set()
+    for module, tree in _parsed_modules(src):
+        for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and any(
                 _decorator_name(d) in _CACHE_DECORATORS for d in node.decorator_list
             ):
                 found.add(f"{module}:{node.name}")
+        found.update(_bounded_cache_names(module, tree))
     return found
 
 
 def _bounded_caches() -> set[str]:
     src = repo_root() / "src"
     found: set[str] = set()
-    for path in sorted(src.rglob("*.py")):
-        module = ".".join(path.relative_to(src).with_suffix("").parts)
-        for node in ast.parse(path.read_text(encoding="utf-8")).body:
-            if isinstance(node, ast.AnnAssign | ast.Assign) and _is_bounded_cache(node.value):
-                targets = [node.target] if isinstance(node, ast.AnnAssign) else node.targets
-                found.update(f"{module}:{t.id}" for t in targets if isinstance(t, ast.Name))
+    for module, tree in _parsed_modules(src):
+        found.update(_bounded_cache_names(module, tree))
     return found
 
 
@@ -49,7 +62,7 @@ def _is_bounded_cache(value: ast.expr | None) -> bool:
 
 def test_every_cache_is_classified_for_test_isolation() -> None:
     classified = set(ISOLATED) | set(SHARED)
-    assert _cached_functions() | _bounded_caches() == classified
+    assert _source_caches() == classified
 
 
 def test_bounded_caches_are_found_by_the_scan() -> None:
