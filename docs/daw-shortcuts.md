@@ -99,6 +99,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `=` | Zoom in (`view.zoomIn`) | Timeline focused | Timeline focused; also numpad + |
 | `-` | Zoom out (`view.zoomOut`) | Timeline focused | Timeline focused; also numpad - |
 | `\` | Fit session width (`view.fit`) | Timeline focused | Timeline focused |
+| `T` | Show or hide Script (`view.toggleScript`) | Project loaded | Edit stage; Mod+Shift+T is New track |
+| `Shift+T` | Script focus (`view.scriptFocus`) | Project loaded | Shift+T: Edit stage |
 | `Shift+ArrowUp` | Waveform amplitude zoom in (`view.waveformZoomIn`) | Timeline focused | Shift+ArrowUp: timeline focused |
 | `Shift+ArrowDown` | Waveform amplitude zoom out (`view.waveformZoomOut`) | Timeline focused | Shift+ArrowDown: timeline focused |
 | `Alt+=` | Increase track height (`view.trackHeightIncrease`) | Timeline focused | Alt+=: timeline focused; 72 / 104 / 144 / 192 / 240 px |
@@ -132,6 +134,12 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
+| Go to Record | `stage.record` | Project loaded | Stage Record; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
+| Go to Prepare | `stage.prepare` | Project loaded | Stage Prepare; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
+| Go to Edit | `stage.edit` | Project loaded | Stage Edit; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
+| Go to Review | `stage.review` | Project loaded | Stage Review; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
+| Go to Deliver | `stage.deliver` | Project loaded | Stage Deliver; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap |
+| All projects | `project.home` | Host project management | Closes the project and goes Home; no key yet, Mod+O stays project.open until the shell swap |
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useViewportClass } from "../../hooks/useViewportClass";
+import { useViewportPan } from "../../hooks/useViewportPan";
 import { useDawStore } from "../../state/dawStore";
 import type { ShellBreakpoint } from "../../state/types";
 
@@ -10,6 +11,7 @@ import type { ShellBreakpoint } from "../../state/types";
  */
 export function useShellAttributes(): ShellBreakpoint {
   const shell = useViewportClass();
+  useViewportPan();
   const setShellBreakpoint = useDawStore((s) => s.setShellBreakpoint);
   useEffect(() => {
     setShellBreakpoint(shell);

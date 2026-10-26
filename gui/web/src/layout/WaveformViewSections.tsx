@@ -6,18 +6,8 @@ import {
   ToggleButton,
 } from "../ui";
 import { formatWaveformAmp } from "../utils/zoom";
-import type { WaveformScaleMode } from "../waveform/types";
 import { LegendCheckbox } from "./OverlayLegendView";
-
-const SCALES: { id: WaveformScaleMode; label: string; title: string }[] = [
-  {
-    id: "auto",
-    label: "Auto",
-    title: "Decibel scale for dialogue tracks, linear for music and effects",
-  },
-  { id: "linear", label: "Linear", title: "Linear amplitude on every track" },
-  { id: "log", label: "Log (dB)", title: "Decibel scale on every track" },
-];
+import { WAVEFORM_SCALES } from "./waveformScales";
 
 /** View › Waveform scale radios, amplitude −/+ with its readout, and post-fader drawing (#530). */
 export function WaveformViewSections() {
@@ -34,7 +24,7 @@ export function WaveformViewSections() {
     <>
       <MenuSection label="Waveform scale">
         <SegmentedControl role="none" className="waveform-scales">
-          {SCALES.map((m) => (
+          {WAVEFORM_SCALES.map((m) => (
             <ToggleButton
               key={m.id}
               quiet

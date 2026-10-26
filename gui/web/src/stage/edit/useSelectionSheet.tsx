@@ -55,10 +55,13 @@ export interface SheetOpenState {
   layoutMode: LayoutMode;
   mobileMode: MobileMode;
   moreDestination: MoreDestination;
+  /** The screen the Edit stage shows; replaces the layout and mobile mode when given. */
+  screen?: SheetScreen;
 }
 
 /** The screen the shell shows: the phone's mode, the tablet's layout. */
 function shownScreen(s: SheetOpenState): SheetScreen | null {
+  if (s.screen) return s.screen;
   return s.shell === "phone"
     ? sheetScreen(s.mobileMode, s.moreDestination)
     : layoutScreen(s.layoutMode);
@@ -103,9 +106,16 @@ const readLandscape = () =>
   globalThis.matchMedia(LANDSCAPE_MQ).matches;
 
 /** The selection sheet for `shell`; closed for a shell without one. */
-export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
+export function useSelectionSheet(
+  shell: SheetShell | null,
+  screen?: SheetScreen,
+): SelectionSheet {
   const column = useInspectorColumn();
-  const compact = useCompactInspector(shell, column);
+  const compact = useCompactInspector(
+    shell,
+    column,
+    screen ? screen === "timeline" : undefined,
+  );
   const {
     selection,
     rangeArmed,
@@ -138,6 +148,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       layoutMode,
       mobileMode,
       moreDestination,
+      screen,
     });
   const landscape = useMediaQueryStore(
     subscribeLandscape,

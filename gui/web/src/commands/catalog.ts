@@ -147,6 +147,22 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Stage Deliver; no key yet, Mod+1 to Mod+4 stay on layout.* until the shell swap",
   },
+  "view.toggleScript": {
+    id: "view.toggleScript",
+    category: "view",
+    label: "Show or hide Script",
+    keywords: ["transcript", "text", "pane"],
+    when: "hasProject",
+    notes: "T: the Script pane beside the timeline in Edit",
+  },
+  "view.scriptFocus": {
+    id: "view.scriptFocus",
+    category: "view",
+    label: "Script focus",
+    keywords: ["writer", "text only", "collapse timeline"],
+    when: "hasProject",
+    notes: "Shift+T: collapses the timeline to its strip so Script fills Edit",
+  },
   "project.home": {
     id: "project.home",
     category: "ui",

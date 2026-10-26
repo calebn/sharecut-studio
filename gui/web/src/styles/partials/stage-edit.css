@@ -1,0 +1,268 @@
+/* The Edit stage host (src/stage/edit): the timeline, the Script pane, the
+   Inspector and the controls that hang off the timeline. */
+.edit-workspace {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: var(--color-bg-canvas);
+}
+
+.edit-workspace--stacked {
+  flex-direction: column;
+}
+
+.edit-timeline-col {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.edit-timeline-col[hidden] {
+  display: none;
+}
+
+.edit-timeline-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.edit-timeline-main > .timeline-area {
+  flex: 1 1 auto;
+}
+
+.edit-workspace--stacked .edit-timeline-col,
+.edit-workspace--stacked .edit-script {
+  flex-basis: 50%;
+}
+
+.edit-script {
+  display: flex;
+  flex: 0 0 var(--script-width);
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  border-inline-start: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+}
+
+.edit-workspace--stacked .edit-script {
+  border-inline-start: 0;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.edit-workspace--script-focus .edit-script,
+.edit-workspace--stacked .edit-script {
+  flex: 1 1 0;
+}
+
+.edit-script-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.edit-inspector {
+  display: flex;
+  flex: 0 0 var(--inspector-width);
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+  border-inline-start: 1px solid var(--color-border);
+}
+
+/* The slot only carries the divider's focus region. */
+.edit-divider-slot {
+  display: contents;
+}
+
+/* The divider: a 0.5 rem hit area over a 1 px rule. */
+.script-divider {
+  display: flex;
+  flex: 0 0 var(--space-3);
+  align-items: center;
+  justify-content: center;
+  margin-inline: calc(var(--space-1) * -1);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: var(--z-content);
+}
+
+.script-divider:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
+.script-divider-grip {
+  inline-size: 1px;
+  block-size: 2rem;
+  background: var(--color-text-secondary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .script-divider:hover .script-divider-grip {
+    background: var(--color-accent);
+  }
+}
+
+/* The tool strip fills the corner box above the track headers. */
+.track-headers-chrome:has(> .edit-tool-strip) {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.edit-tool-strip {
+  position: relative;
+  z-index: var(--z-content);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.edit-tool-strip .tool-mode-toggle {
+  flex: 0 0 auto;
+}
+
+.edit-tool-strip-range,
+.edit-tool-strip-cut {
+  min-inline-size: var(--control-height);
+  min-block-size: var(--control-height);
+}
+
+/* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */
+.edit-corner {
+  position: absolute;
+  inset-block-end: var(--space-3);
+  inset-inline-end: var(--space-4);
+  z-index: var(--z-timeline-chrome);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+.edit-corner-btn {
+  min-inline-size: var(--control-height);
+  min-block-size: var(--control-height);
+}
+
+@media (pointer: coarse) {
+  .edit-corner-btn,
+  .edit-tool-strip-range,
+  .edit-tool-strip-cut {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+.plus-menu {
+  display: block;
+}
+
+.plus-menu-trigger {
+  text-align: center;
+}
+
+/* The View sheet. */
+.view-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.view-sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.view-sheet-heading {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+
+.view-sheet-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The phone's Edit: a bar with the surface switch, then lanes or Script. */
+.edit-workspace--phone {
+  flex-direction: column;
+}
+
+.phone-edit {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.phone-edit-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.phone-edit-mix {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
+.phone-edit-timeline {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.phone-edit .edit-tool-strip {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.phone-edit-lanes {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.phone-edit-lanes > .timeline-area {
+  flex: 1 1 auto;
+}
+
+.phone-edit-script {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  background: var(--color-bg-base);
+}

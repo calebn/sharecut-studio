@@ -191,7 +191,7 @@ export const RecordNoPlayer: Story = {
 };
 
 export const RecordingLive: Story = {
-  tags: WIDE_ONLY.tags,
+  tags: ["wide-only"],
   parameters: {
     wideOnlyReason: WIDE_ONLY_REASON,
     episode: {
