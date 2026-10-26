@@ -101,9 +101,7 @@ export const IgnoredWords: Story = {
     const restore = await within(canvasElement).findByRole("button", {
       name: /^Restore ignored:/,
     });
-    const turn = restore.closest(".utterance-turn");
-    if (!(turn instanceof HTMLElement)) throw new Error("No utterance turn");
-    await userEvent.hover(turn);
+    restore.focus();
     await waitFor(() => expect(restore).toBeVisible());
   },
 };
