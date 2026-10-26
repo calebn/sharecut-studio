@@ -107,7 +107,19 @@ export const Empty: Story = {
       ...i,
       result: "applied" as const,
     })),
+    initialSelectedId: undefined,
   },
+  play: playInCanvas(async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.getAllByText("Nothing to decide").length).toBeGreaterThan(
+      0,
+    );
+    await expect(
+      view.getByRole("button", { name: "Go to Deliver" }),
+    ).toBeInTheDocument();
+    await expect(view.queryByRole("button", { name: "Cut" })).toBeNull();
+    await expect(canvasElement.querySelector(".sys-decision-title")).toBeNull();
+  }),
 };
 
 export const Loading: Story = { args: { state: "loading" } };
