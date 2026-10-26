@@ -623,8 +623,8 @@ Approving a source remove observes the cut's neighbourhood (peer speech, acousti
 and then checks the written result; that is nearly all of an approval's cost. With
 `PODCAST_VERDICT_CACHE=1`, the host's idle background warm (`/api/pending-preview/warm`) checks the
 pending cuts on a copy, at low priority, with the interactive intent Approve all uses (the intent
-is part of the check, so a check made for another intent is never reused), and an approval
-reuses the check of every cut whose neighbourhood is unchanged. The key
+is part of the check, so a check made for another intent is never reused), stopping as soon as
+an approval starts, and an approval reuses the check of every cut whose neighbourhood is unchanged. The key
 (`edits/verdict_cache.py`) hashes the cut, the intent, the whole settings mapping, what every
 track plays within 12 s of the cut (not clip ids or ends outside that window), the words there,
 the recordings' file revisions, the policy tables and the speaker-profile files. The cheap,

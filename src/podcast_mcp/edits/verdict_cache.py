@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import threading
 from collections.abc import Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -54,6 +55,27 @@ class CachedVerdict:
 
 _STORE: BoundedCache[str, CachedVerdict] = BoundedCache(_ENTRIES)
 _unstable: ContextVar[list[bool] | None] = ContextVar("verdict_unstable", default=None)
+
+
+_approving = 0
+_approving_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def approving() -> Iterator[None]:
+    """Marks an approval as running, so a background warm stops and leaves the rest to it."""
+    global _approving
+    with _approving_lock:
+        _approving += 1
+    try:
+        yield
+    finally:
+        with _approving_lock:
+            _approving -= 1
+
+
+def approval_running() -> bool:
+    return _approving > 0
 
 
 def enabled() -> bool:
