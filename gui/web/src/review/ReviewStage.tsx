@@ -112,6 +112,10 @@ export function ReviewStage({
       return item !== undefined && isCut(item);
     });
 
+  const pendingKind = pending
+    ? items.find((i) => i.id === pending.ids[0])?.kind
+    : undefined;
+
   const select = (id: string | null) => {
     setSelectedId(id);
     setPending(null);
@@ -296,9 +300,9 @@ export function ReviewStage({
             audition={wave ? { side, onSide: setSide } : undefined}
             unsure={unsure}
             prompt={
-              pending && selected
+              pending && pendingKind
                 ? {
-                    verb: KIND_META[selected.kind].verb,
+                    verb: KIND_META[pendingKind].verb,
                     checkLabel: `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`,
                     onConfirm: confirmAnyway,
                     onCheck: checkWords,
