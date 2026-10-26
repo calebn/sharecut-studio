@@ -1108,18 +1108,40 @@ def test_overlay_png_returns_false_on_bad_filter(sample_wav: Path, tmp_path: Pat
     assert eng._overlay_png(png, tmp_path / "out.png", "not_a_real_filter") is False
 
 
-def test_filter_names_cached_and_empty_on_error():
+def test_listed_names_are_cached_and_a_failed_listing_is_not():
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
     if not ok:
         pytest.skip("ffmpeg not available")
     first = eng._listed_names("-filters")
-    assert "drawbox" in first
+    assert first is not None and "drawbox" in first
     assert eng._listed_names("-filters") is first
     broken = FFmpegEngine()
     with patch("podcast_mcp.engines.ffmpeg.run", side_effect=FileNotFoundError):
-        assert broken._listed_names("-filters") == set()
+        assert broken._listed_names("-filters") is None
         assert broken._has_filter("drawbox") is False
+    assert broken._listed_names("-filters") == first
+
+
+def test_supports_encode_needs_the_encoder_and_the_muxer_and_a_readable_listing():
+    listings = {
+        "-encoders": " A....D aac                  AAC (Advanced Audio Coding)\n",
+        "-muxers": " E  ipod            iPod H.264 MP4\n",
+    }
+
+    def fake_run(cmd, **_kwargs):
+        return MagicMock(stdout=listings[cmd[-1]])
+
+    eng = FFmpegEngine()
+    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake_run):
+        assert eng.supports_encode("aac", "ipod") is True
+        assert eng.supports_encode("aac", "ogg") is False
+        assert eng.supports_encode("libopus", "ipod") is False
+    broken = FFmpegEngine()
+    with patch(
+        "podcast_mcp.engines.ffmpeg.run", side_effect=subprocess.TimeoutExpired("ffmpeg", 10)
+    ):
+        assert broken.supports_encode("aac", "ipod") is None
 
 
 def test_annotate_retries_boxes_when_drawtext_overlay_fails(sample_wav: Path, tmp_path: Path):

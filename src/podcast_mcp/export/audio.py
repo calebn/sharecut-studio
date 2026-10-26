@@ -43,22 +43,27 @@ class ExportFormatSpec:
         )
 
 
+# Pinned to contracts/export-presets.json, the Studio dialog's M4A choice.
 M4A_AAC = ExportFormatSpec(ext="m4a", codec="aac", format="ipod", bitrate_kbps=128)
-"""AAC-LC in an M4A container, the tested pair offered beside MP3, FLAC and WAV.
-
-``contracts/export-presets.json`` pins it to the Studio export dialog's choice.
-"""
 
 EXPORT_PRESETS: dict[str, ExportFormatSpec] = {M4A_AAC.ext: M4A_AAC}
 
 
 def require_preset_encoder(eng: FFmpegEngine, spec: ExportFormatSpec) -> None:
-    """Refuse a preset whose encoder or muxer this FFmpeg build does not list."""
-    if spec != EXPORT_PRESETS.get(spec.ext):
+    """Refuse an export of a preset extension the FFmpeg build cannot encode, by name."""
+    preset = EXPORT_PRESETS.get(spec.ext)
+    if preset is None:
         return
-    if not (spec.codec and spec.format and eng.supports_encode(spec.codec, spec.format)):
+    codec = spec.codec or preset.codec
+    muxer = spec.format or preset.format
+    if not (codec and muxer):
+        return
+    supported = eng.supports_encode(codec, muxer)
+    if supported is None:
+        raise ValueError(f"The {spec.ext} export could not list FFmpeg's encoders. Try again.")
+    if not supported:
         raise ValueError(
-            f"The {spec.ext} export needs the {spec.codec} encoder and {spec.format} muxer, "
+            f"The {spec.ext} export needs the {codec} encoder and {muxer} muxer, "
             "which this FFmpeg build does not have."
         )
 

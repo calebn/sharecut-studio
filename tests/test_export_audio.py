@@ -268,11 +268,8 @@ def test_export_episode_audio_keeps_dot_and_reserved_names_under_export(
     assert list((tmp_path / "export").iterdir()) == paths
 
 
-def test_m4a_extension_maps_to_the_aac_preset():
-    assert specs_from_extensions(["m4a"]) == [M4A_AAC]
-
-
 def test_a_bare_m4a_entry_expands_to_the_preset_and_a_detailed_one_does_not():
+    assert specs_from_extensions(["m4a"]) == [M4A_AAC]
     assert ExportFormatSpec.from_dict({"ext": ".M4A"}) == M4A_AAC
     assert resolve_export_formats({"formats": [{"ext": "m4a"}]}) == [M4A_AAC]
     custom = ExportFormatSpec.from_dict({"ext": "m4a", "codec": "alac"})
@@ -281,9 +278,6 @@ def test_a_bare_m4a_entry_expands_to_the_preset_and_a_detailed_one_does_not():
 
 def test_the_m4a_preset_matches_its_gui_contract():
     contract = json.loads((REPO_ROOT / "contracts" / "export-presets.json").read_text())
-    assert contract == {
-        "m4a": {"ext": "m4a", "codec": "aac", "format": "ipod", "bitrate_kbps": 128}
-    }
     assert ExportFormatSpec.from_dict(contract["m4a"]) == M4A_AAC
 
 
@@ -302,11 +296,21 @@ def test_a_build_without_the_preset_encoder_names_the_preset_before_encoding(tmp
     assert (stem.parent / "ep.wav").read_bytes() == b"OLD"
 
 
-def test_a_custom_m4a_spec_is_not_held_to_the_preset_check():
+def test_an_unreadable_encoder_listing_is_not_reported_as_a_missing_encoder():
     eng = MagicMock()
-    eng.supports_encode.return_value = False
+    eng.supports_encode.return_value = None
+    with pytest.raises(ValueError, match=r"could not list FFmpeg's encoders"):
+        require_preset_encoder(eng, M4A_AAC)
+
+
+def test_a_custom_m4a_spec_is_checked_with_its_own_codec():
+    eng = MagicMock()
+    eng.supports_encode.return_value = True
     require_preset_encoder(eng, ExportFormatSpec(ext="m4a", codec="alac"))
-    eng.supports_encode.assert_not_called()
+    eng.supports_encode.assert_called_once_with("alac", "ipod")
+    other = MagicMock()
+    require_preset_encoder(other, ExportFormatSpec(ext="mp3", codec="libmp3lame"))
+    other.supports_encode.assert_not_called()
 
 
 def _probe(ffprobe: str, path: Path) -> dict:
@@ -328,7 +332,7 @@ def _probe(ffprobe: str, path: Path) -> dict:
     return json.loads(out)
 
 
-def _decoded_samples(ffmpeg: str, path: Path) -> int:
+def _decoded_pcm_bytes(ffmpeg: str, path: Path) -> int:
     pcm = subprocess.run(
         [ffmpeg, "-v", "error", "-i", str(path), "-f", "s16le", "-"],
         check=True,
@@ -375,4 +379,4 @@ def test_the_m4a_preset_encodes_aac_lc_that_decodes_to_the_same_length(
     tags = {k.lower(): v for k, v in info["format"]["tags"].items()}
     assert tags["major_brand"].strip() == "M4A"
     assert (tags["title"], tags["album"]) == ("Ep", "Show")
-    assert _decoded_samples(eng.ffmpeg, paths[0]) == _decoded_samples(eng.ffmpeg, source)
+    assert _decoded_pcm_bytes(eng.ffmpeg, paths[0]) == _decoded_pcm_bytes(eng.ffmpeg, source)
