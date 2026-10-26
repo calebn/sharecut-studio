@@ -50,8 +50,10 @@ export type BootstrapDownload = {
   total: number | null;
 };
 
+export type BootstrapFailureKind = "http" | "pin_mismatch" | "network" | "disk";
+
 export type BootstrapFailure = {
-  kind: "http" | "pin_mismatch" | "network" | "disk";
+  kind: BootstrapFailureKind;
   status: number | null;
   /** Plain text safe to show: it names no path, URL or environment variable. */
   plain: string;
