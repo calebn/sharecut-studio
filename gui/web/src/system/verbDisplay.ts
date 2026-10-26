@@ -1,3 +1,4 @@
+import { isApplePlatform } from "../utils/platform";
 import { type KeySpec, VERBS, type VerbDef, type VerbId } from "./verbs";
 
 export function verbOf(id: VerbId): VerbDef {
@@ -15,11 +16,17 @@ const CAP_NAMES: Record<string, string> = {
   Space: "Space",
 };
 
-/** Key caps for one chord, one string per cap: `Mod+Shift+Z` is `⌘ ⇧ Z`. */
-export function capsOf(spec: KeySpec): string[] {
+/**
+ * Key caps for one chord, one string per cap: `Mod+Shift+Z` is `⌘ ⇧ Z` on
+ * Apple platforms and `Ctrl ⇧ Z` elsewhere.
+ */
+export function capsOf(
+  spec: KeySpec,
+  apple: boolean = isApplePlatform(),
+): string[] {
   return [
-    spec.mod ? "⌘" : "",
-    spec.alt ? "⌥" : "",
+    spec.mod ? (apple ? "⌘" : "Ctrl") : "",
+    spec.alt ? (apple ? "⌥" : "Alt") : "",
     spec.shift ? "⇧" : "",
     CAP_NAMES[spec.key] ?? spec.key,
   ].filter(Boolean);
