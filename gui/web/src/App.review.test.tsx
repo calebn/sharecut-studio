@@ -4,8 +4,24 @@ import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
 import { urlOf } from "./test/urlOf";
 
+const offline = vi.hoisted(() => ({
+  load: vi.fn(),
+  clear: vi.fn(),
+}));
+
+vi.mock("./services/offlineQueue/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("./services/offlineQueue/offlineStore")
+  >()),
+  loadOfflineSnapshot: offline.load,
+  clearOfflineSnapshot: offline.clear,
+}));
+
 describe("App review route", () => {
   beforeEach(() => {
+    offline.load.mockReset();
+    offline.clear.mockReset();
+    offline.clear.mockResolvedValue(undefined);
     resetFeaturesCache();
     window.history.pushState({}, "", "/r/no-view");
   });
@@ -89,5 +105,40 @@ describe("App review route", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Ask the host for a new link.",
     );
+  });
+
+  it("drops a cached snapshot and shows the cover for a revoked link", async () => {
+    window.history.pushState({}, "", "/r/revoked");
+    offline.load.mockResolvedValue({
+      project: { meta: { name: "Stale episode" } },
+      saved_at: 1,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/features")) {
+          return new Response(
+            JSON.stringify({
+              api_version: 1,
+              features: ["share.ui.routes", "share.ui.banner", "share.ui.menu"],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({ detail: "invalid or revoked share token" }),
+          {
+            status: 404,
+            headers: { "X-Sharecut-Error-Code": "share_not_found" },
+          },
+        );
+      }),
+    );
+    render(<App />);
+    expect(
+      await screen.findByText("This link is invalid or has ended."),
+    ).toBeInTheDocument();
+    expect(offline.clear).toHaveBeenCalledWith("revoked");
+    expect(screen.queryByText("Stale episode")).not.toBeInTheDocument();
   });
 });

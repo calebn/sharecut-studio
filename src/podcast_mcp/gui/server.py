@@ -72,6 +72,8 @@ __all__ = ["apply_ws_client_message", "apply_ws_viewer_state", "create_app"]
 
 log = logging.getLogger(__name__)
 
+_DEAD_SHARE_HEAD = '<title>ShareCut Studio</title>\n    <meta name="robots" content="noindex" />'
+
 
 CORS_ORIGINS_ENV = "PODCAST_REVIEW_CORS_ORIGINS"
 
@@ -425,12 +427,22 @@ def create_app(
             def _serve_share_spa(token: str, request: Request, *, kind: str) -> Any:
                 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
                 from podcast_mcp.services.collaboration import lookup_share
+                from podcast_mcp.services.collaboration.share_page import (
+                    inject_share_document_head,
+                )
 
                 index_path = static_root / "index.html"
                 try:
                     lookup_share(token, kind=kind)
                 except KeyError:
-                    return FileResponse(index_path, headers={"Cache-Control": "no-cache"})
+                    with guest_boundary(log, "share page"):
+                        shell = inject_share_document_head(
+                            index_path.read_text(encoding="utf-8"), _DEAD_SHARE_HEAD
+                        )
+                    return HTMLResponse(
+                        shell,
+                        headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"},
+                    )
                 except Exception as exc:
                     raise guest_http_error(exc, logger=log, operation="share page") from exc
                 with guest_boundary(log, "share page"):

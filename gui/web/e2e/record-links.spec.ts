@@ -58,17 +58,22 @@ test.describe("record links", () => {
           ).toBe(false);
 
           const recAsReview = await pageA.request.get(`/r/${guest}`);
-          expect(recAsReview.status()).toBe(404);
+          expect(recAsReview.status()).toBe(200);
 
           const reviewToken = await createReviewShare(host, projectPath);
           const reviewAsRec = await pageA.request.get(`/rec/${reviewToken}`);
-          expect(reviewAsRec.status()).toBe(404);
+          expect(reviewAsRec.status()).toBe(200);
 
           await expectReadingSurfaceAxeClean(pageA);
           await expectReadingSurfaceAxeClean(pageB);
 
           await pageA.goto(`/r/${guest}`);
-          await expect(pageA.locator("body")).toContainText(/not found|404/i);
+          await expect(pageA.locator("body")).toContainText(
+            "This link is invalid or has ended.",
+          );
+          await expect(pageA.locator("body")).toContainText(
+            "Ask the host for a new link.",
+          );
 
           const ended = await host.request.post(
             `/api/shares/rooms/${room.session_id}/revoke`,

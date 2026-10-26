@@ -247,10 +247,10 @@ def test_create_app_review_spa_when_collaboration(
     (dist / "favicon.svg").write_text("<svg/>", encoding="utf-8")
     app = create_app(static_dir=dist)
     client = TestClient(app)
-    # Unknown tokens 404 after prefix↔kind lookup (same as a revoked share).
     res = client.get("/r/not-a-real-token")
-    assert res.status_code == 404
-    assert client.get("/rec/not-a-real-token").status_code == 404
+    assert res.status_code == 200
+    assert "text/html" in res.headers["content-type"]
+    assert client.get("/rec/not-a-real-token").status_code == 200
 
 
 def test_empty_extensions_omit_share_mcp(

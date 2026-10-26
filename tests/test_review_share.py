@@ -2647,7 +2647,9 @@ def _shell_client(tmp_path):
     dist = tmp_path / "dist"
     dist.mkdir()
     (dist / "index.html").write_text(
-        "<!DOCTYPE html><html><head><title>ShareCut Studio</title></head>"
+        "<!DOCTYPE html><html><head><title>ShareCut Studio</title>"
+        '<script type="module" src="./assets/index.js"></script>'
+        '<link rel="stylesheet" href="./assets/index.css"></head>'
         '<body><div id="root"></div></body></html>',
         encoding="utf-8",
     )
@@ -2660,6 +2662,9 @@ def _assert_shell(response):
     assert response.headers["cache-control"] == "no-cache"
     assert '<div id="root"></div>' in response.text
     assert "og:audio" not in response.text
+    assert '<base href="/" />' in response.text
+    assert response.text.index("<base") < response.text.index("./assets/index.js")
+    assert response.headers["x-robots-tag"] == "noindex"
 
 
 @pytest.mark.parametrize("prefix", ["r", "rec"])
@@ -2681,7 +2686,9 @@ def test_revoked_share_page_matches_the_unknown_one(
     revoked = client.get(f"/r/{token}")
     _assert_shell(revoked)
     assert revoked.text == client.get("/r/definitely-missing").text
-    assert client.get(f"/api/review/{token}/project").status_code == 404
+    dead_api = client.get(f"/api/review/{token}/project")
+    assert dead_api.status_code == 404
+    assert dead_api.headers["x-sharecut-error-code"] == "share_not_found"
 
 
 def test_revoked_record_room_page_serves_the_app(
@@ -2693,7 +2700,9 @@ def test_revoked_record_room_page_serves_the_app(
     client = _shell_client(tmp_path)
     service.revoke(token)
     _assert_shell(client.get(f"/rec/{token}"))
-    assert client.get(f"/api/rec/{token}/bootstrap").status_code in (404, 403)
+    dead_api = client.get(f"/api/rec/{token}/bootstrap")
+    assert dead_api.status_code == 404
+    assert dead_api.headers["x-sharecut-error-code"] == "share_not_found"
 
 
 def test_review_token_on_the_record_page_serves_the_app(
@@ -2703,3 +2712,23 @@ def test_review_token_on_the_record_page_serves_the_app(
     version = ReviewService(ws).publish(label="Kind")
     token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])["token"]
     _assert_shell(_shell_client(tmp_path).get(f"/rec/{token}"))
+
+
+def test_expired_share_pages_serve_the_app(minimal_project, sample_wav, tmp_path, tmp_workspace):
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Expired")
+    service = ShareService(ws)
+    review = service.create(review_version_id=version["id"], capabilities=["view"])["token"]
+    record = service.create_record_room()["guest"]["token"]
+    client = _shell_client(tmp_path)
+    with patch("podcast_mcp.services.collaboration.share.share_hard_expired", return_value=True):
+        _assert_shell(client.get(f"/r/{review}"))
+        _assert_shell(client.get(f"/rec/{record}"))
+
+
+def test_record_token_on_the_review_page_serves_the_app(
+    minimal_project, sample_wav, tmp_path, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    token = ShareService(ws).create_record_room()["guest"]["token"]
+    _assert_shell(_shell_client(tmp_path).get(f"/r/{token}"))
