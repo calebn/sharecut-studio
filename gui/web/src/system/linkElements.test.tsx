@@ -115,6 +115,27 @@ describe("TimeField", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
+  it("holds at the lower bound as well as the upper", async () => {
+    const { onChange, input } = setup();
+    await userEvent.clear(input);
+    await userEvent.type(input, "-5{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it("does not report a step that stays at the bound", () => {
+    const { onChange, input } = setup({ value: 0 });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("commits what was typed when focus leaves", async () => {
+    const { onChange, input } = setup();
+    await userEvent.clear(input);
+    await userEvent.type(input, "15");
+    await userEvent.tab();
+    expect(onChange).toHaveBeenLastCalledWith(15);
+  });
+
   it("rejects text it cannot read", async () => {
     const { onChange, input } = setup();
     await userEvent.clear(input);

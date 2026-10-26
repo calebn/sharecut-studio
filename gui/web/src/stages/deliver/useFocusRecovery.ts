@@ -44,14 +44,20 @@ export function useFocusRecovery(root: HTMLElement | null): void {
       !lost.el.isConnected ||
       (lost.el instanceof HTMLButtonElement && lost.el.disabled);
     const active = root.ownerDocument.activeElement;
-    if (!gone || (active && active !== root.ownerDocument.body)) return;
+    const stranded =
+      !active || active === root.ownerDocument.body || active === lost.el;
+    if (!gone || !stranded) return;
     last.current = null;
     const byKey = lost.key
-      ? root.querySelector<HTMLElement>(`[data-focus-key="${lost.key}"]`)
+      ? ([...root.querySelectorAll<HTMLElement>("[data-focus-key]")].find(
+          (el) => el.getAttribute("data-focus-key") === lost.key,
+        ) ?? null)
       : null;
     if (byKey) return byKey.focus({ preventScroll: true });
     const list = lost.list
-      ? root.querySelector(`[data-focus-list="${lost.list}"]`)
+      ? ([...root.querySelectorAll("[data-focus-list]")].find(
+          (el) => el.getAttribute("data-focus-list") === lost.list,
+        ) ?? null)
       : null;
     const items = list ? [...list.children] : [];
     const near = items[Math.min(lost.index, items.length - 1)];

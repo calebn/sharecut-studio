@@ -64,7 +64,7 @@ export const Suggested: Story = {
     const view = within(canvasElement);
     await expect(view.getAllByRole("img", { name: /clip$/ })).toHaveLength(3);
     await userEvent.click(
-      view.getAllByRole("button", { name: "Approve" })[0] as HTMLElement,
+      view.getAllByRole("button", { name: /^Approve/ })[0] as HTMLElement,
     );
     await expect(view.getAllByText("Approved")).toHaveLength(2);
     await userEvent.click(
@@ -97,7 +97,7 @@ export const Approved: Story = {
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
     await expect(view.getAllByText("Approved")).toHaveLength(3);
-    await expect(view.queryByRole("button", { name: "Approve" })).toBeNull();
+    await expect(view.queryByRole("button", { name: /^Approve/ })).toBeNull();
   },
 };
 

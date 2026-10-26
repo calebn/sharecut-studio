@@ -5,6 +5,7 @@ import { Player } from "../../system/Player";
 import { Skeleton } from "../../system/Skeleton";
 import { type StageId, VERBS } from "../../system/verbs";
 import { Toast, type ToastState } from "../../ui";
+import { isApplePlatform } from "../../utils/platform";
 import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import {
@@ -167,7 +168,9 @@ export function DeliverStage({
     if (!rootEl || !EXPORT_KEY) return;
     const listener = (event: KeyboardEvent) => {
       if (
-        (event.metaKey || event.ctrlKey) &&
+        (isApplePlatform()
+          ? event.metaKey && !event.ctrlKey
+          : event.ctrlKey && !event.metaKey) &&
         !event.shiftKey &&
         !event.altKey &&
         !event.repeat &&

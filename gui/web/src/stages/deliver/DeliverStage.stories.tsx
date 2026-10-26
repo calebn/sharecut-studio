@@ -28,6 +28,7 @@ import {
   TOTAL,
 } from "./deliverFixture";
 
+const MOD_E = isApplePlatform() ? "{Meta>}e{/Meta}" : "{Control>}e{/Control}";
 const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
 
 /** Exports and copies in place, as the app will once it is wired. */
@@ -113,10 +114,10 @@ export const Ready: Story = {
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByText("Ready to export")).toBeInTheDocument();
-    await userEvent.keyboard("{Control>}e{/Control}");
+    await userEvent.keyboard(MOD_E);
     await expect(args.onExport).not.toHaveBeenCalled();
     canvasElement.querySelector<HTMLElement>(".dv-stage")?.focus();
-    await userEvent.keyboard("{Control>}e{/Control}");
+    await userEvent.keyboard(MOD_E);
     await expect(args.onExport).toHaveBeenCalledOnce();
     await expect(
       await view.findByRole("button", { name: REVEAL }),

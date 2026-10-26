@@ -1,8 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { isApplePlatform } from "../../utils/platform";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
@@ -19,7 +18,16 @@ import {
 } from "./deliverFixture";
 import type { ExportState } from "./deliverLogic";
 
-const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
+const platform = vi.hoisted(() => ({ apple: false }));
+vi.mock("../../utils/platform", () => ({
+  isApplePlatform: () => platform.apple,
+}));
+
+afterEach(() => {
+  platform.apple = false;
+});
+
+const REVEAL = "Show in folder";
 
 function handlers() {
   return {
@@ -72,8 +80,6 @@ describe("Mod+E", () => {
   it("exports once with the chosen settings, clips and range", () => {
     const { stage, all } = setup();
     modE(stage());
-    modE(stage(), { repeat: true });
-    modE(stage());
     expect(all.onExport).toHaveBeenCalledOnce();
     expect(all.onExport).toHaveBeenCalledWith({
       settings: SETTINGS,
@@ -81,6 +87,46 @@ describe("Mod+E", () => {
       chapters: CHAPTERS,
       range: null,
     });
+  });
+
+  it("ignores a held key even once the double-export guard has released", () => {
+    vi.useFakeTimers();
+    try {
+      const { stage, all } = setup();
+      modE(stage());
+      act(() => {
+        vi.advanceTimersByTime(2500);
+      });
+      modE(stage(), { repeat: true });
+      expect(all.onExport).toHaveBeenCalledOnce();
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("needs the bare chord: Shift or Alt with it does nothing", () => {
+    const { stage, all } = setup();
+    modE(stage(), { shiftKey: true });
+    modE(stage(), { altKey: true });
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+
+  it("is Cmd on Apple platforms and Ctrl elsewhere", () => {
+    platform.apple = true;
+    const apple = setup();
+    modE(apple.stage());
+    expect(apple.all.onExport).not.toHaveBeenCalled();
+    fireEvent.keyDown(apple.stage(), { key: "e", metaKey: true });
+    expect(apple.all.onExport).toHaveBeenCalledOnce();
+    apple.unmount();
+    platform.apple = false;
+    const other = setup();
+    fireEvent.keyDown(other.stage(), { key: "e", metaKey: true });
+    expect(other.all.onExport).not.toHaveBeenCalled();
+    modE(other.stage());
+    expect(other.all.onExport).toHaveBeenCalledOnce();
   });
 
   it("exports a range passed in from Edit instead of the Deliver part", () => {
@@ -263,7 +309,7 @@ describe("stale after an export", () => {
     setup({ exportState: exported });
     expect(screen.queryByText("clips/cold-open.wav")).toBeNull();
     await userEvent.click(
-      screen.getAllByRole("button", { name: "Approve" })[0] as HTMLElement,
+      screen.getAllByRole("button", { name: /^Approve/ })[0] as HTMLElement,
     );
     expect(screen.getByText("Edited since export")).toBeInTheDocument();
     expect(screen.queryByText("clips/nobody-asked-the-river.wav")).toBeNull();
@@ -335,6 +381,29 @@ describe("stale after an export", () => {
     expect(screen.queryByText("Edited since export")).toBeNull();
   });
 
+  it("stays done when loudness or Part is changed and changed back", async () => {
+    setup({ exportState: DONE });
+    const stale = () => screen.queryByText("Edited since export") !== null;
+    await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
+    expect(stale()).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: /^Podcast/ }));
+    expect(stale()).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    expect(stale()).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Whole episode" }));
+    expect(stale()).toBe(false);
+  });
+
+  it("keeps a chosen In and Out when Part… is clicked again", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    const out = screen.getByRole("textbox", { name: "Out" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "0:30{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("0:30.0");
+  });
+
   it("lists the clips an export did include", () => {
     setup({ exportState: DONE });
     expect(screen.getByText("clips/cold-open.wav")).toBeInTheDocument();
@@ -387,10 +456,10 @@ describe("chapters", () => {
     const button = screen.getByRole("button", { name: "Remove The old mill" });
     button.focus();
     fireEvent.click(button);
-    const next = document.activeElement as HTMLElement;
-    expect(next.closest("li")?.textContent).toContain("");
-    expect(next).not.toBe(document.body);
-    expect(next.closest(".dv-chapter")).not.toBeNull();
+    const row = (document.activeElement as HTMLElement).closest(".dv-chapter");
+    expect(
+      row?.querySelector<HTMLInputElement>(".dv-chapter-title")?.value,
+    ).toBe("What the river wanted");
   });
 });
 
@@ -419,7 +488,7 @@ describe("clips", () => {
   it("keeps focus on the clip after Approve", () => {
     setup();
     const approve = screen.getAllByRole("button", {
-      name: "Approve",
+      name: /^Approve/,
     })[0] as HTMLElement;
     approve.focus();
     fireEvent.click(approve);
@@ -468,7 +537,9 @@ describe("focus after Export", () => {
     act(() => {
       rerender(<DeliverStage {...all} exportState={running} />);
     });
-    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toBe(
+      document.querySelector(".dv-stage") as HTMLElement,
+    );
   });
 });
 
