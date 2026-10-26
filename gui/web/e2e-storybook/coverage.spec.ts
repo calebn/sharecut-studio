@@ -30,7 +30,7 @@ const THEMES: StoryTheme[] = ["light", "dark"];
  * is checked at 1280 only and must say why in `parameters.wideOnlyReason`. A story named for a phone width is checked at
  * 360 only, and never carries `wide-only`.
  */
-const isPhoneStory = (story: IndexEntry) => /phone/i.test(story.name);
+const isPhoneStory = (story: IndexEntry) => /\bphone\b/i.test(story.name);
 const widthsFor = (story: IndexEntry) =>
   story.tags?.includes("wide-only")
     ? [WIDE]
