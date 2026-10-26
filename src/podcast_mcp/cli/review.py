@@ -60,7 +60,7 @@ def review_list_versions_cmd(
 def review_session_suggestions_cmd(
     project: Path = typer.Option(..., "--project"),
     status: str | None = typer.Option(
-        None, "--status", help="Only suggestions that are pending or skipped (accepted is reserved)"
+        None, "--status", help="Only suggestions that are pending, skipped or accepted"
     ),
 ) -> None:
     """List record sessions staged for an insert or replace target.

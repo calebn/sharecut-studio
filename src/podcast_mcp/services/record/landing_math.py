@@ -71,11 +71,6 @@ def session_take_offsets_s(
     )
 
 
-def staged_span_s(offsets_and_durations: Iterable[tuple[float, float]]) -> float:
-    """Length a staged insert occupies: the latest end of any segment, relative to its anchor."""
-    return max((offset + duration for offset, duration in offsets_and_durations), default=0.0)
-
-
 def session_numbered(project: EpisodeProject, session_id: str) -> bool:
     return any(row.session_id == session_id for row in project.editorial.record_sessions)
 

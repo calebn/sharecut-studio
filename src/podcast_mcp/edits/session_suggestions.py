@@ -11,6 +11,7 @@ from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.insert_anchor import resolve_insert_anchor
 from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip
 from podcast_mcp.edits.ripple import ripple_insert_clips, ripple_track_ids
+from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.track_media import refresh_timeline_duration
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
@@ -36,7 +37,8 @@ def find_session_suggestion(project: EpisodeProject, suggestion_id: str) -> Sess
         if row.id == suggestion_id:
             return row
     raise CodedKeyError(
-        f"unknown session suggestion: {suggestion_id}", code="session_suggestion_not_found"
+        f"unknown session suggestion: {suggestion_id}. List the staged sessions to see their ids.",
+        code="session_suggestion_not_found",
     )
 
 
@@ -171,11 +173,18 @@ def drop_staged_takes(project: EpisodeProject, session_id: str, take_index: int)
     project.editorial.session_suggestions = kept
 
 
+def _not_pending_message(row: SessionSuggestion) -> str:
+    return (
+        f"Session {row.session_number} was already {row.status}, so it cannot be changed again. "
+        "Undo that step first if you want it back, or record a new session."
+    )
+
+
 def skip_session_suggestion(project: EpisodeProject, suggestion_id: str) -> SessionSuggestion:
     row = find_session_suggestion(project, suggestion_id)
     if row.status != "pending":
         raise CodedValueError(
-            f"session suggestion {suggestion_id} is {row.status}, not pending",
+            _not_pending_message(row),
             code="session_suggestion_not_pending",
         )
     row.status = "skipped"
@@ -185,7 +194,7 @@ def skip_session_suggestion(project: EpisodeProject, suggestion_id: str) -> Sess
 def _require_pending(row: SessionSuggestion) -> None:
     if row.status != "pending":
         raise CodedValueError(
-            f"session suggestion {row.id} is {row.status}, not pending",
+            _not_pending_message(row),
             code="session_suggestion_not_pending",
         )
 
@@ -237,7 +246,8 @@ def accept_session_suggestion(
     span = staged_span_s((take.offset_s, take.duration_s) for take in row.takes)
     if span <= 0:
         raise CodedValueError(
-            f"Session {row.session_number} has no recorded takes to accept.",
+            f"Session {row.session_number} has no recorded takes to accept. "
+            "Record it again, or skip it.",
             code="session_suggestion_empty",
         )
     _require_dialogue_tracks(project, row)
@@ -246,6 +256,13 @@ def accept_session_suggestion(
             "This session has no recorded insert point. Record it again.", code="stale_anchor"
         )
     at_sec = resolve_insert_anchor(project, row.anchor)
+    if at_sec < -SPAN_EPS_S:
+        raise CodedValueError(
+            "The audio this session was staged at has moved before the start of the episode. "
+            "Record the session again at the new spot.",
+            code="stale_anchor",
+        )
+    at_sec = max(at_sec, 0.0)
     ripple_ids = ripple_track_ids(project)
     ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
     shift_review_anchors_for_insert(project, at_sec, span)
@@ -261,7 +278,8 @@ def accept_session_suggestion(
         source = project.source_by_id(take.source_id)
         if source is None or source.sample_rate is None or source.channels is None:
             raise CodedValueError(
-                f"The recording for take {take.take_index} is no longer in the project.",
+                f"The recording for take {take.take_index} is no longer in the project. "
+                "Record the session again.",
                 code="staged_source_missing",
             )
         clip = place_take_clip(
