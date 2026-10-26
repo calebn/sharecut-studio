@@ -576,7 +576,11 @@ def test_measure_loudness_full_reports_progress(tmp_path: Path):
             eng,
             "probe",
             return_value=AudioProbe(
-                duration_sec=3.0, sample_rate=44100, channels=1, audio_start_sec=0.0
+                duration_sec=3.0,
+                sample_rate=44100,
+                channels=1,
+                audio_start_sec=0.0,
+                rebases_audio_reads=False,
             ),
         ),
         patch.object(eng, "_run_with_progress", return_value=summary) as run_with_progress,
@@ -635,7 +639,11 @@ def test_master_loudness_probes_input_once_for_both_passes(tmp_path: Path):
             eng,
             "probe",
             return_value=AudioProbe(
-                duration_sec=2.0, sample_rate=48000, channels=2, audio_start_sec=0.0
+                duration_sec=2.0,
+                sample_rate=48000,
+                channels=2,
+                audio_start_sec=0.0,
+                rebases_audio_reads=False,
             ),
         ) as probe,
         patch.object(
@@ -665,7 +673,11 @@ def test_master_loudness_forwards_measure_progress(tmp_path: Path):
             eng,
             "probe",
             return_value=AudioProbe(
-                duration_sec=1.0, sample_rate=48000, channels=2, audio_start_sec=0.0
+                duration_sec=1.0,
+                sample_rate=48000,
+                channels=2,
+                audio_start_sec=0.0,
+                rebases_audio_reads=False,
             ),
         ),
         patch.object(eng, "loudnorm_input_stats", return_value=None) as stats,
@@ -689,7 +701,11 @@ def test_master_loudness_two_pass_uses_measured_values(tmp_path: Path):
             eng,
             "probe",
             return_value=AudioProbe(
-                duration_sec=1.0, sample_rate=44100, channels=1, audio_start_sec=0.0
+                duration_sec=1.0,
+                sample_rate=44100,
+                channels=1,
+                audio_start_sec=0.0,
+                rebases_audio_reads=False,
             ),
         ),
         patch("podcast_mcp.engines.ffmpeg.run") as run,
@@ -724,7 +740,11 @@ def test_master_loudness_falls_back_when_measure_fails(tmp_path: Path):
             eng,
             "probe",
             return_value=AudioProbe(
-                duration_sec=1.0, sample_rate=48000, channels=2, audio_start_sec=0.0
+                duration_sec=1.0,
+                sample_rate=48000,
+                channels=2,
+                audio_start_sec=0.0,
+                rebases_audio_reads=False,
             ),
         ),
         patch.object(eng, "loudnorm_input_stats", return_value=None),

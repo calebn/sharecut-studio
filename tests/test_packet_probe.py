@@ -219,7 +219,9 @@ def test_packet_deadline_kills_and_reaps_stalled_or_busy_child(packet_probe, mon
 @pytest.mark.parametrize("duration", [0, -1, float("nan"), float("inf")])
 def test_writer_duration_gate_rejects_invalid_extent(duration):
     with pytest.raises(CodedValueError):
-        AudioProbe(duration, 48000, 1, audio_start_sec=0.0).require_duration_sec()
+        AudioProbe(
+            duration, 48000, 1, audio_start_sec=0.0, rebases_audio_reads=False
+        ).require_duration_sec()
 
 
 @pytest.mark.parametrize("declaration", ["nan", "inf", "-inf"])

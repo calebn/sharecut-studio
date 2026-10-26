@@ -63,7 +63,14 @@ def test_consolidate_never_extracts_using_unverified_extent(sample_wav, tmp_path
     monkeypatch.setattr(
         FFmpegEngine,
         "probe",
-        lambda *_: AudioProbe(700002, 48000, 1, duration_estimated=True, audio_start_sec=0.0),
+        lambda *_: AudioProbe(
+            700002,
+            48000,
+            1,
+            duration_estimated=True,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
+        ),
     )
     with (
         patch(

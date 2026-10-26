@@ -293,6 +293,7 @@ def test_reads_of_a_late_mpeg_transport_fail_loudly(
 def test_on_time_mpeg_transport_is_accepted(eng: FFmpegEngine, tmp_path: Path) -> None:
     ts = _with_video(eng, tmp_path / "on_time.ts", 0.0, "-c:v", "mpeg2video", "-c:a", "mp2")
     assert not eng.probe(ts).duration_estimated
+    assert not eng.probe(ts).rebases_audio_reads
 
 
 @pytest.mark.parametrize(("lead", "applied"), [(0.05, 0.05), (0.01, 0.0)])

@@ -278,7 +278,13 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
         session_start_in_file_sec={"Host": 1.0},
         cross_speaker_align_method={"Host": "audio"},
     )
-    probe = AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1, audio_start_sec=0.0)
+    probe = AudioProbe(
+        duration_sec=2.0,
+        sample_rate=48000,
+        channels=1,
+        audio_start_sec=0.0,
+        rebases_audio_reads=False,
+    )
     with (
         patch("podcast_mcp.engines.track_media.FFmpegEngine") as eng_cls,
         patch("podcast_mcp.services.media.ingest.schedule_track_waveforms") as waveforms,
@@ -326,7 +332,12 @@ def test_apply_preflights_all_required_extents_before_mutating(
     def probe(_self, path):
         uncertain = path == (source if uncertain_source else rendered)
         return AudioProbe(
-            700002 if uncertain else 2, 48000, 1, duration_estimated=uncertain, audio_start_sec=0.0
+            700002 if uncertain else 2,
+            48000,
+            1,
+            duration_estimated=uncertain,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
         )
 
     monkeypatch.setattr(FFmpegEngine, "probe", probe)
@@ -369,7 +380,13 @@ def test_apply_consolidated_extra_clips_sequential(minimal_project: Path, sample
         session_start_in_file_sec={"Host": 0.0},
         cross_speaker_align_method={"Host": "audio"},
     )
-    probe = AudioProbe(duration_sec=3.0, sample_rate=48000, channels=1, audio_start_sec=0.0)
+    probe = AudioProbe(
+        duration_sec=3.0,
+        sample_rate=48000,
+        channels=1,
+        audio_start_sec=0.0,
+        rebases_audio_reads=False,
+    )
     with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
         IngestService(ws).apply_consolidated_tracks(result)
@@ -599,7 +616,13 @@ def test_apply_consolidated_tracks_absolute_paths(
         ],
         cross_speaker_offsets={"Host": 0.0},
     )
-    probe = AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1, audio_start_sec=0.0)
+    probe = AudioProbe(
+        duration_sec=2.0,
+        sample_rate=48000,
+        channels=1,
+        audio_start_sec=0.0,
+        rebases_audio_reads=False,
+    )
     with patch("podcast_mcp.engines.track_media.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
         track_ids = IngestService(ws).apply_consolidated_tracks(result).track_ids
@@ -706,7 +729,13 @@ def _apply_placed(
         cross_speaker_align_method={"Guest": "audio"},
         session_trimmed=trimmed,
     )
-    probe = AudioProbe(duration_sec=dur, sample_rate=48000, channels=1, audio_start_sec=0.0)
+    probe = AudioProbe(
+        duration_sec=dur,
+        sample_rate=48000,
+        channels=1,
+        audio_start_sec=0.0,
+        rebases_audio_reads=False,
+    )
     with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
         applied = IngestService(ws).apply_consolidated_tracks(result)
@@ -753,7 +782,13 @@ def test_apply_multi_source_only_primary_placed(minimal_project: Path, sample_wa
         session_start_in_file_sec={"Guest": 4.0},
         cross_speaker_align_method={"Guest": "audio"},
     )
-    probe = AudioProbe(duration_sec=10.0, sample_rate=48000, channels=1, audio_start_sec=0.0)
+    probe = AudioProbe(
+        duration_sec=10.0,
+        sample_rate=48000,
+        channels=1,
+        audio_start_sec=0.0,
+        rebases_audio_reads=False,
+    )
     with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
         applied = IngestService(ws).apply_consolidated_tracks(result)

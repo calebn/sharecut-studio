@@ -382,6 +382,9 @@ def _annotate_vf(
     return ",".join(filters)
 
 
+LATE_MPEG_AUDIO_MESSAGE = "audio starts late in an MPEG transport stream; re-encode it"
+
+
 @dataclass
 class AudioProbe:
     # Length of the first audio stream, counted from its first sample.
@@ -390,6 +393,9 @@ class AudioProbe:
     channels: int
     # How far that first sample sits past the container start; 0.0 at or below codec priming.
     audio_start_sec: float = field(kw_only=True)
+    # True when ffmpeg rebases this file's audio-only reads while `-ss` keeps the container clock,
+    # so a nonzero ``audio_start_sec`` cannot place a windowed read (MPEG-TS and MPEG-PS).
+    rebases_audio_reads: bool = field(kw_only=True)
     duration_estimated: bool = False
     audio_duration_sec: float | None = None
     # The decoder's sample format (``s16``, ``fltp``, ...), when ffprobe reports one.
@@ -411,7 +417,10 @@ class AudioProbe:
             or (maximum_sec is not None and self.duration_sec > maximum_sec)
         ):
             raise CodedValueError(
-                "audio duration is unavailable or outside its bound", code="invalid_audio"
+                LATE_MPEG_AUDIO_MESSAGE
+                if self.rebases_audio_reads
+                else "audio duration is unavailable or outside its bound",
+                code="invalid_audio",
             )
         return self.duration_sec
 
@@ -824,6 +833,7 @@ class FFmpegEngine:
         if bitrate_estimated:
             audio_duration = None
         scan_failed = False
+        rebases_reads = False
         audio_start = 0.0
         scan_end: float | None = None
         if audio_streams:
@@ -855,14 +865,14 @@ class FFmpegEngine:
                 duration = scan_end - container_start - audio_start
             # A forged start would push every seek out of range, like a forged extent.
             scan_failed = scan_failed or audio_start > MAX_PROBED_AUDIO_EXTENT_SEC
-            scan_failed = scan_failed or (
-                audio_start > _AUDIO_START_GAP_SEC and _rebases_audio_only_reads(data)
-            )
+            rebases_reads = audio_start > _AUDIO_START_GAP_SEC and _rebases_audio_only_reads(data)
+            scan_failed = scan_failed or rebases_reads
         return AudioProbe(
             duration_sec=duration,
             sample_rate=int(stream.get("sample_rate") or 48000),
             channels=int(stream.get("channels") or 1),
             audio_start_sec=audio_start,
+            rebases_audio_reads=rebases_reads,
             duration_estimated=not audio_streams or scan_failed or not math.isfinite(duration),
             audio_duration_sec=audio_duration,
             sample_fmt=stream.get("sample_fmt") or None,
@@ -1500,7 +1510,9 @@ class FFmpegEngine:
                             silence_probe = (
                                 self.probe(source_paths[0])
                                 if source_paths
-                                else AudioProbe(0.0, 48000, 2, audio_start_sec=0.0)
+                                else AudioProbe(
+                                    0.0, 48000, 2, audio_start_sec=0.0, rebases_audio_reads=False
+                                )
                             )
                         probe = silence_probe
                         layout = f"{probe.channels}c"

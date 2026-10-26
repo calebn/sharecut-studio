@@ -6,7 +6,7 @@ from functools import lru_cache
 from math import isfinite
 from pathlib import Path
 
-from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
+from podcast_mcp.engines.ffmpeg import LATE_MPEG_AUDIO_MESSAGE, AudioProbe, FFmpegEngine
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import FileRevision, file_revision
 
@@ -54,6 +54,8 @@ def audio_start_sec(path: Path) -> float:
     info = probe_media(path)
     if info is None:
         raise CodedValueError(f"cannot probe {path.name} for its audio start", code="invalid_audio")
+    if info.rebases_audio_reads:
+        raise CodedValueError(LATE_MPEG_AUDIO_MESSAGE, code="invalid_audio")
     return info.audio_start_sec
 
 
