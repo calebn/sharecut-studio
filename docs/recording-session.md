@@ -964,9 +964,7 @@ cannot. Every button runs the same `record.*` command as the palette.
   room **Pause**, a paused room **Resume** (`TAKE_CONTROL` in
   `record/hostControls.ts`). Pause and Resume are never shown together.
 - **Start blockers.** A disabled Start lists its reasons right under it
-  (`aria-describedby`): "No guest has joined yet. Send them the guest link." with
-  **Copy guest link** (`record.copyGuestLink`, the room's live guest link),
-  "Waiting for {name} to accept recording.", the device storage check (with
+  (`aria-describedby`): "Waiting for {name} to accept recording.", the device storage check (with
   **Retry storage check** when it failed) and "Recording room tone. Start is
   available when it finishes."
 - **Stop.** Stop sits alone at the end of the controls behind a divider and asks
@@ -1224,10 +1222,10 @@ row; `mutate_snapshot` and `reset` are transactional too (#332).
 
 Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop;
 Start blocked until connected guests have `consented is True` (`None` pending;
-`False` declined does not block). The snapshot's `start_blockers` is a list of
-`{"code": "no_guest"}` (no connected guest) or `{"code": "consent_pending",
-"participant_id", "display_name"}` rows; clients word them, and a refused Start
-reads "cannot start: no guest has joined" or "cannot start: Ava has not accepted
+`False` declined does not block). A host alone in the room can start a solo take
+(intros, pickups, solo shows). The snapshot's `start_blockers` is a list of
+`{"code": "consent_pending", "participant_id", "display_name"}` rows; clients
+word them, and a refused Start reads "cannot start: Ava has not accepted
 recording";
 room caps 4 recorded / 2 producers; host Join auto-consents as `p_host`; no host
 admit step. Each take's `consented_participant_ids` roster (set at Start,

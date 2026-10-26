@@ -117,7 +117,7 @@ const lobby = recordSnapshot({
   state: "lobby",
   take_index: -1,
   recording_ms: 0,
-  start_blockers: [{ code: "no_guest" }],
+  start_blockers: [],
 });
 
 /** The dialog moves focus to Close one frame after it opens; wait so it cannot land later. */
@@ -175,25 +175,15 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setTakeClipping(null);
   });
 
-  it("lists who Start waits for under it, with the guest-link fix", async () => {
+  it("does not make a host alone in the room wait for a guest", async () => {
     useRecordHostStore.getState().setSnapshot(lobby);
     const { baseElement: container } = render(<RecordPanel />);
     const start = screen.getByRole("button", { name: "Start" });
-    expect(start).toBeDisabled();
-    await waitFor(() =>
-      expect(start).toHaveAccessibleDescription(
-        "No guest has joined yet. Send them the guest link. Copy guest link",
-      ),
-    );
     expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Copy guest link" }),
-    );
-    expect(exec).toHaveBeenCalledWith(
-      "record.copyGuestLink",
-      {},
-      { skipWhen: true },
-    );
+    expect(start).not.toHaveAccessibleDescription(/guest/i);
+    expect(
+      screen.queryByRole("button", { name: "Copy guest link" }),
+    ).not.toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 
