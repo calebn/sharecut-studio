@@ -194,3 +194,127 @@ def _shifted_decision(edit: EditDecision, at_time: float, duration_sec: float) -
             else _start_after_insert(edit.end, at_time, duration_sec),
         }
     )
+
+
+def remap_interval_for_replace(
+    start: float,
+    end: float | None,
+    from_sec: float,
+    to_sec: float,
+    new_length: float,
+) -> RemappedInterval:
+    """Where an interval goes when ``[from_sec, to_sec)`` is replaced by ``new_length`` of audio.
+
+    Nothing is dropped. At or before ``from_sec`` stays; at or after ``to_sec`` moves by the
+    length difference. Inside, a point goes to ``from_sec`` and an interval that covers the
+    whole range becomes the new audio's span. An interval that starts before the range and
+    ends inside it ends at ``from_sec``; one that starts inside and ends after starts where
+    the new audio ends.
+    """
+    delta = new_length - (to_sec - from_sec)
+    if end is None or end <= start:
+        if start <= from_sec + _EPS:
+            return RemappedInterval(start=start, end=end)
+        if start >= to_sec - _EPS:
+            return RemappedInterval(start=start + delta, end=end)
+        return RemappedInterval(start=from_sec, end=end)
+    if end <= from_sec + _EPS:
+        return RemappedInterval(start=start, end=end)
+    if start >= to_sec - _EPS:
+        return RemappedInterval(start=start + delta, end=end + delta)
+    if start < from_sec - _EPS:
+        return RemappedInterval(start=start, end=end + delta if end >= to_sec - _EPS else from_sec)
+    if end >= to_sec - _EPS:
+        if start <= from_sec + _EPS:
+            return RemappedInterval(start=from_sec, end=end + delta)
+        if end <= to_sec + _EPS:
+            return RemappedInterval(start=from_sec, end=from_sec + new_length)
+        return RemappedInterval(start=from_sec + new_length, end=end + delta)
+    return RemappedInterval(start=from_sec, end=None)
+
+
+def remap_review_anchors_for_replace(
+    project: EpisodeProject,
+    from_sec: float,
+    to_sec: float,
+    new_length: float,
+) -> list[str]:
+    """Move comments (with their spans) and chapters for a replaced range (mutates project).
+
+    Every item is kept. Returns the ids of comments that started inside the range and were
+    moved to its start.
+    """
+    clamped: list[str] = []
+    comments: list[TimelineComment] = []
+    for comment in project.review.comments:
+        moved = remap_interval_for_replace(
+            comment.timeline_start, comment.timeline_end, from_sec, to_sec, new_length
+        )
+        if from_sec + _EPS < comment.timeline_start < to_sec - _EPS:
+            clamped.append(comment.id)
+        spans: list[RangeInterval] = []
+        for span in comment.timeline_spans:
+            span_moved = remap_interval_for_replace(
+                span.start, span.end, from_sec, to_sec, new_length
+            )
+            if span_moved.end is not None and span_moved.end > span_moved.start + _EPS:
+                spans.append(RangeInterval(start=span_moved.start, end=span_moved.end))
+        comments.append(
+            comment.model_copy(
+                update={
+                    "timeline_start": moved.start,
+                    "timeline_end": moved.end,
+                    "timeline_spans": spans,
+                }
+            )
+        )
+    project.review.comments = comments
+    project.editorial.chapters = [
+        chapter.model_copy(
+            update={
+                "time": remap_interval_for_replace(
+                    chapter.time, None, from_sec, to_sec, new_length
+                ).start
+            }
+        )
+        for chapter in project.editorial.chapters
+    ]
+    return clamped
+
+
+def _movable_decision(edit: EditDecision, track_ids: set[str]) -> bool:
+    return (
+        not edit.applied
+        and edit.timebase == "timeline"
+        and edit.exact_range is None
+        and set(edit.track_ids or [edit.track_id]) <= track_ids
+    )
+
+
+def pending_decisions_in_range(
+    project: EpisodeProject, from_sec: float, to_sec: float, track_ids: set[str]
+) -> list[str]:
+    """Ids of pending timeline decisions on ``track_ids`` that overlap the inside of the range."""
+    found: list[str] = []
+    for edit in project.editorial.edit_decisions:
+        if not _movable_decision(edit, track_ids):
+            continue
+        if edit.end > edit.start:
+            overlaps = edit.start < to_sec - _EPS and edit.end > from_sec + _EPS
+        else:
+            overlaps = from_sec + _EPS < edit.start < to_sec - _EPS
+        if overlaps:
+            found.append(edit.id)
+    return found
+
+
+def shift_pending_decisions_for_replace(
+    project: EpisodeProject, to_sec: float, delta: float, track_ids: set[str]
+) -> None:
+    """Move pending timeline decisions on ``track_ids`` that start at or after ``to_sec`` by ``delta``."""
+    project.editorial.edit_decisions = [
+        edit.model_copy(update={"start": edit.start + delta, "end": edit.end + delta})
+        if _movable_decision(edit, track_ids) and edit.start >= to_sec - _EPS
+        else edit
+        for edit in project.editorial.edit_decisions
+    ]

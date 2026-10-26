@@ -57,22 +57,33 @@ class CutMutatingService(WorkspaceService):
         mutate: Callable[[EpisodeProject], dict],
         params: dict[str, Any],
     ) -> dict:
-        restored = False
+        return mutate_unless_cut_speech_held(self.ws, label, operation, mutate, params)
 
-        def on_failure(outcome: RollbackOutcome) -> None:
-            nonlocal restored
-            restored = outcome is RollbackOutcome.RESTORED
 
-        try:
-            return self.ws.mutate(
-                f"before {label}",
-                f"after {label}",
-                mutate,
-                operation=operation,
-                params=params or {},
-                on_failure=on_failure,
-            )
-        except UnconfirmedCutSpeech as asked:
-            if restored:
-                return asked.confirmation.result(operation)
-            raise
+def mutate_unless_cut_speech_held(
+    ws: ProjectWorkspace,
+    label: str,
+    operation: str,
+    mutate: Callable[[EpisodeProject], dict],
+    params: dict[str, Any],
+) -> dict:
+    """Run ``mutate`` as one history step; a held cut returns its confirmation and changes nothing."""
+    restored = False
+
+    def on_failure(outcome: RollbackOutcome) -> None:
+        nonlocal restored
+        restored = outcome is RollbackOutcome.RESTORED
+
+    try:
+        return ws.mutate(
+            f"before {label}",
+            f"after {label}",
+            mutate,
+            operation=operation,
+            params=params or {},
+            on_failure=on_failure,
+        )
+    except UnconfirmedCutSpeech as asked:
+        if restored:
+            return asked.confirmation.result(operation)
+        raise

@@ -10,7 +10,9 @@ from podcast_mcp.edits.session_suggestions import (
     list_session_suggestions,
     skip_session_suggestion,
 )
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.service_base import mutate_unless_cut_speech_held
 
 
 class SessionSuggestionService:
@@ -36,22 +38,37 @@ class SessionSuggestionService:
             params={"suggestion_id": suggestion_id, "session_number": number},
         )
 
-    def accept(self, suggestion_id: str) -> dict[str, Any]:
-        """Place a pending insert session on the timeline (one undo step titled "Added Session N").
+    def accept(
+        self,
+        suggestion_id: str,
+        take_index: int | None = None,
+        override_audio_checks: bool = False,
+    ) -> dict[str, Any]:
+        """Place a pending staged session on the timeline (one undo step titled "Added Session N").
 
-        Opens the session's span at its insert point on every dialogue track, places the
-        staged takes, room-tone beds and live comments in it, and marks the suggestion accepted.
+        An insert opens the session's span at its insert point on every dialogue track and
+        places the staged takes, room-tone beds and live comments in it. A replace removes its
+        range on every dialogue track and puts one take (``take_index``, else the selected or
+        last one) in its place. A replace that also removes speech of a track the take did not
+        record changes nothing and returns ``needs_confirmation``; repeat with
+        ``override_audio_checks=true`` to apply it. Marks the suggestion accepted.
         """
         row = find_session_suggestion(self.ws.project, suggestion_id)
+        if row.kind == "replace":
+            REFINE_GATE.assert_clear(self.ws.project, defaults=self.ws.effective_config())
         title = f"Added Session {row.session_number}"
-        return self.ws.mutate(
-            f"before {title}",
-            f"after {title}",
+        return mutate_unless_cut_speech_held(
+            self.ws,
+            title,
+            "accept_session_suggestion",
             lambda p: accept_session_suggestion(
-                p, suggestion_id, defaults=self.ws.effective_config()
+                p,
+                suggestion_id,
+                take_index=take_index,
+                override_audio_checks=override_audio_checks,
+                defaults=self.ws.effective_config(),
             ),
-            operation="accept_session_suggestion",
-            params={
+            {
                 "suggestion_id": suggestion_id,
                 "session_id": row.session_id,
                 "session_number": row.session_number,

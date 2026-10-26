@@ -170,6 +170,8 @@ def _write_ripple_delete(
     params: dict | None = None,
     cut_speech: CutSpeech | None = None,
     defaults: EffectiveConfig,
+    remap_anchors: bool = True,
+    rebuild: bool = True,
 ) -> dict:
     """Ripple-remove ``removal`` on every :func:`ripple_track_ids` track.
 
@@ -178,15 +180,20 @@ def _write_ripple_delete(
     the first span's ``timeline_start``/``timeline_end`` and ``per_track_source``
     (``{track_id: [pre, post]}`` seam clocks from :func:`seam_source_by_track`), even
     with ``record_log=False``: approve/prefix removals archive them from this report.
-    Add the key to any schema or typed output built over it.
+    Add the key to any schema or typed output built over it. ``remap_anchors=False`` leaves
+    comments and chapters where they are and ``rebuild=False`` leaves the combined transcript
+    for the caller to rebuild.
     """
     tracks = ripple_track_ids(project, removal.edited_track_ids)
     seams: list[dict[str, list[float]]] = []
     for start, end in reversed(removal.spans):
         bounds = [(start, end)]
         clips_before = ripple_remove_clips(project, bounds, tracks, defaults=defaults)
-        apply_batch_transcript_removes(project, bounds, clips_before, defaults=defaults)
-        remap_review_anchors_for_cuts(project, bounds)
+        apply_batch_transcript_removes(
+            project, bounds, clips_before, rebuild=rebuild, defaults=defaults
+        )
+        if remap_anchors:
+            remap_review_anchors_for_cuts(project, bounds)
         per_track_source = seam_source_by_track(clips_before, start, end)
         seams.append(per_track_source)
         if record_log:
@@ -216,6 +223,30 @@ def _write_ripple_delete(
             "per_track_source": seams[-1],
             **cut_speech_params(cut_speech),
         },
+    )
+
+
+def ripple_delete_range(
+    project: EpisodeProject,
+    removal: RippleRemoval,
+    *,
+    record_log: bool = True,
+    params: dict | None = None,
+    cut_speech: CutSpeech | None = None,
+    defaults: EffectiveConfig,
+    remap_anchors: bool = False,
+    rebuild: bool = False,
+) -> dict:
+    """Ripple-remove ``removal`` for a caller that remaps comments and rebuilds on its own."""
+    return _write_ripple_delete(
+        project,
+        removal,
+        record_log=record_log,
+        params=params,
+        cut_speech=cut_speech,
+        defaults=defaults,
+        remap_anchors=remap_anchors,
+        rebuild=rebuild,
     )
 
 
