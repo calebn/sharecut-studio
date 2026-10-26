@@ -70,7 +70,12 @@ from podcast_mcp.models import (
     Track,
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
-from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError, resolve_ffmpeg_pair
+from podcast_mcp.util.binaries import (
+    FFmpegPair,
+    FFmpegPairResolutionError,
+    resolve_ffmpeg,
+    resolve_ffmpeg_pair,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
@@ -601,6 +606,56 @@ class FFmpegEngine:
         self.ffprobe = pair.ffprobe
         self.source = pair.source
         self._filter_names_cache: set[str] | None = None
+
+    @staticmethod
+    def astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float | int | None]:
+        """Objective per-file health stats via ffmpeg's astats filter.
+
+        Call on the class. Instance binary overrides do not apply.
+
+        Some fields (e.g. Crest factor, Dynamic range) are only printed once in the
+        per-channel section for mono audio, not repeated under "Overall" - we take the
+        last occurrence of each label across the filter's own lines rather than slicing
+        to the "Overall" section, so both kinds of fields are captured correctly.
+        """
+        cmd = [
+            ffmpeg or resolve_ffmpeg(),
+            "-i",
+            str(path),
+            "-map",
+            "0:a:0",
+            "-af",
+            "astats=metadata=1:reset=0",
+            "-f",
+            "null",
+            "-",
+        ]
+        r = run(cmd, capture_output=True)
+        ok = r.returncode == 0 and not decoded_no_frames(r.stderr)
+        text = filter_log_text(r.stderr, "astats") if ok else ""
+
+        def _grab(label: str) -> float | None:
+            matches = re.findall(
+                rf"^[ \t]*{re.escape(label)}:\s*(-?inf|-?[\d.]+)", text, re.MULTILINE
+            )
+            if not matches:
+                return None
+            val = matches[-1]
+            if val in ("inf", "-inf"):
+                return None
+            return float(val)
+
+        peak_count = _grab("Peak count")
+        return {
+            "dc_offset": _grab("DC offset"),
+            "peak_level_db": _grab("Peak level dB"),
+            "rms_level_db": _grab("RMS level dB"),
+            "crest_factor": _grab("Crest factor"),
+            "flat_factor": _grab("Flat factor"),
+            "peak_count": round(peak_count) if peak_count is not None else None,
+            "noise_floor_db": _grab("Noise floor dB"),
+            "dynamic_range_db": _grab("Dynamic range"),
+        }
 
     @staticmethod
     def resample_streams(
