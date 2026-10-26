@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**129** capabilities · **113** ShareCut Studio commands · **57** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
+**129** capabilities · **113** ShareCut Studio commands · **58** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -48,10 +48,10 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Change an applied sound | project | `tighten.reviseSuggested` | — (per-sound select in the last applied batch) | — | `tightenPanel` | `apply_suggested_actions_tool` | `podcast edit apply-suggested` | `podcast-tighten-dialogue` | — | none · none |
 | Preview tighten hit | session | `tighten.previewHit` | `P` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Go to tighten hit | session | `tighten.goToHit` | — (pointer/row action; seek+select) | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |
-| Restore layout | view | `layout.default` | `Mod+1` | — | `layoutChip` | — | — | — | — | none · none |
-| Maximize timeline | view | `layout.timeline` | `Mod+2` | — | `transport.layout` | — | — | — | — | none · none |
-| Maximize transcript | view | `layout.text` | `Mod+3` | — | `transport.menu` | — | — | — | — | none · none |
-| Review layout | view | `layout.review` | `Mod+4` | — | `transport.menu` | — | — | — | — | none · none |
+| Restore layout | view | `layout.default` | — (Mod+1 is a stage now; the layout presets go with the old shell) | — | `layoutChip` | — | — | — | — | none · none |
+| Maximize timeline | view | `layout.timeline` | — (Mod+2 is a stage now; the layout presets go with the old shell) | — | `transport.layout` | — | — | — | — | none · none |
+| Maximize transcript | view | `layout.text` | — (Mod+3 is a stage now; the layout presets go with the old shell) | — | `transport.menu` | — | — | — | — | none · none |
+| Review layout | view | `layout.review` | — (Mod+4 is a stage now; the layout presets go with the old shell) | — | `transport.menu` | — | — | — | — | none · none |
 | Nudge playhead back | session | `navigation.nudgePlayheadBack` | `ArrowLeft` | — | — | — | — | — | — | — |
 | Nudge playhead forward | session | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — | — |
 | Go to start | session | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
@@ -76,11 +76,11 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Fit session width | view | `view.fit` | `\` | — | `transport.fit`, `transport.menu`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
-| Go to Record | view | `stage.record` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
-| Go to Prepare | view | `stage.prepare` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
-| Go to Edit | view | `stage.edit` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
-| Go to Review | view | `stage.review` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
-| Go to Deliver | view | `stage.deliver` | — (no key yet; the stage shell binds it) | — | — | — | — | — | — | none · look |
+| Go to Record | view | `stage.record` | `Mod+1` | — | `stageBar` | — | — | — | — | none · look |
+| Go to Prepare | view | `stage.prepare` | `Mod+2` | — | `stageBar` | — | — | — | — | none · look |
+| Go to Edit | view | `stage.edit` | `Mod+3` | — | `stageBar` | — | — | — | — | none · look |
+| Go to Review | view | `stage.review` | `Mod+4` | — | `stageBar` | — | — | — | — | none · look |
+| Go to Deliver | view | `stage.deliver` | `Mod+5` | — | `stageBar` | — | — | — | — | none · look |
 | Show or hide Script | view | `view.toggleScript` | `T` | — | `editCorner` | — | — | — | — | none · none |
 | Script focus | view | `view.scriptFocus` | `Shift+T` | — | — | — | — | — | — | none · none |
 | Switch editor tab | view | `view.setTab` | — (not industry-standard; tab click) | — | `tabBar` | — | — | — | — | anchor · look |
@@ -110,8 +110,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsDialog` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
 | Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `transport.menu`, `ExportDialog` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | New project… | project | `project.new` | `Mod+N` | — | `transport.menu` | `episode_create` | `podcast episode init` | — | yes | none · none |
-| Open project… | session | `project.open` | `Mod+O` | — | `transport.menu` | — | — | — | yes | none · none |
-| All projects | session | `project.home` | — (no key yet; the stage shell binds it) | — | — | — | — | — | yes | none · none |
+| Open project… | session | `project.open` | — (Mod+O is All projects (project.home); open from the palette or Home) | — | `transport.menu` | — | — | — | yes | none · none |
+| All projects | session | `project.home` | `Mod+O` | — | `projectMenu` | — | — | — | yes | none · none |
 | New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `transport.menu`, `editingToolRail`, `trackLane`, `mobileShell.more`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
 | Import audio… | project | `media.import` | `Mod+I` | — | `transport.menu`, `editingToolRail`, `drop`, `mobileShell.more`, `editPlusMenu` | `track_set_media_tool` | — | — | — | none · none |
 | Annotate transcript | view | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | — | `transcript.annotate` | — | — | — | — | none · none |

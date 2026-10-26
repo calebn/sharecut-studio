@@ -59,7 +59,7 @@ describe("paletteCommands", () => {
   });
 
   it("treats focus-only gates as met, as a pointer click does", () => {
-    useDawStore.setState({ timelineFocused: false, activeTab: "comments" });
+    useDawStore.setState({ timelineFocused: false, stage: "review" });
     const play = rowsNow().find((r) => r.id === "transport.togglePlay");
     expect(play?.disabledReason).toBeNull();
   });

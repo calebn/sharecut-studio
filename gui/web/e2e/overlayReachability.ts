@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { e2eProjectPath } from "./env";
-import { openProjectMenu, openProjectMenuItem } from "./stageNav";
+import { goToStage, openProjectMenu, openProjectMenuItem } from "./stageNav";
 
 /**
  * Shared reachability helpers for overlay viewport coverage.
@@ -24,6 +24,8 @@ export async function openHostProject(
     heading,
     options,
   );
+  // A project opens on the stage it needs next; the specs start in Edit.
+  await goToStage(page, "edit");
 }
 
 export const openTransportMenu = openProjectMenu;

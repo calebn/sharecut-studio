@@ -13,7 +13,6 @@ import { usePipelineJob } from "./hooks/usePipelineJob";
 import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
 import { useDawKeymapListener } from "./keymap/listener";
-import { StudioShell } from "./layout/StudioShell";
 import { ModelsDialog } from "./models";
 import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
@@ -27,6 +26,10 @@ import { ExportDialog } from "./stage/dialogs/ExportDialog";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { ShareDialog } from "./stage/dialogs/ShareDialog";
 import { SplitSpeakersDialog } from "./stage/dialogs/SplitSpeakersDialog";
+import { EDIT_SHEETS } from "./stage/edit/editSheets";
+import { StageFrame } from "./stage/frame/StageFrame";
+import { useLandingStage } from "./stage/frame/useLandingStage";
+import { StageHost } from "./stage/hosts/StageHost";
 import { useDawStore } from "./state/dawStore";
 import { selectPublishKey } from "./state/publishKey";
 import type { DawState } from "./state/types";
@@ -122,6 +125,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   usePendingMixWarm(syncEnabled);
   usePointerType();
   usePressedControl();
+  useLandingStage();
 
   useEffect(() => {
     if (!commandsRegistered) {
@@ -167,6 +171,17 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     };
   }, [projectName]);
 
+  const loadFailure =
+    bootstrapRecovering && hasProject
+      ? {
+          message: "The server is still working. Retrying…",
+          onRetry: retryBootstrap,
+          recovering: true,
+        }
+      : bootstrapError
+        ? { message: bootstrapError, onRetry: retryBootstrap }
+        : null;
+
   const engines = (
     <>
       <TransportEngine />
@@ -178,22 +193,18 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     <>
       {engines}
       <div data-daw-app-chrome>
-        <StudioShell
+        <StageFrame
           guestShare={guestShare}
-          loadFailure={
-            bootstrapRecovering && hasProject
-              ? {
-                  message: "The server is still working. Retrying…",
-                  onRetry: retryBootstrap,
-                  recovering: true,
-                }
-              : bootstrapError
-                ? { message: bootstrapError, onRetry: retryBootstrap }
-                : null
-          }
-          feedbackHostRef={setFeedbackHost}
+          loadFailure={loadFailure}
           attentionHost={feedbackHost}
-        />
+          sheets={EDIT_SHEETS}
+        >
+          <StageHost
+            guestShare={guestShare}
+            loadFailure={loadFailure}
+            feedbackHostRef={setFeedbackHost}
+          />
+        </StageFrame>
       </div>
       <CheatsheetDialogs />
       <BounceDialog />

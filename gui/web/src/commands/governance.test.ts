@@ -103,7 +103,7 @@ describe("command bus", () => {
     registerDawCommands();
     useDawStore.setState({
       timelineFocused: true,
-      activeTab: "transcript",
+      stage: "edit",
       commentMode: false,
       projectPath: "/tmp/ep",
       guestMode: null,
@@ -124,7 +124,7 @@ describe("command bus", () => {
   });
 
   it("disables tool.select when timeline not focused", async () => {
-    useDawStore.setState({ timelineFocused: false, activeTab: "history" });
+    useDawStore.setState({ timelineFocused: false, stage: "review" });
     const r = await execute("tool.select");
     expect(r.status).toBe("disabled");
   });
@@ -132,7 +132,7 @@ describe("command bus", () => {
   it("runs pointer commands past keyboard gates and applies their effect", async () => {
     useDawStore.setState({
       timelineFocused: false,
-      activeTab: "history",
+      stage: "review",
       toolMode: "blade",
     });
     expect((await execute("tool.select")).status).toBe("disabled");
@@ -477,7 +477,7 @@ describe("command governance", () => {
   });
 
   it("evaluateWhen editorFocused matches buildCommandContext", () => {
-    useDawStore.setState({ timelineFocused: false, activeTab: "history" });
+    useDawStore.setState({ timelineFocused: false, stage: "review" });
     const ctx = buildCommandContext();
     expect(evaluateWhen("editorFocused", ctx).ok).toBe(false);
     useDawStore.setState({ timelineFocused: true });

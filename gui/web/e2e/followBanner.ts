@@ -48,9 +48,9 @@ export async function followUntilBannerVisible(
   const menuItems = follower.getByRole("menuitem", { name: /Follow/ });
   // Tablet and phone shells collapse the transport: peers are in the menu's
   // People section. Only the desktop shell shows the avatar stack.
-  const shell = follower.locator(".daw-shell");
-  await expect(shell).toHaveClass(/\bdaw-shell--(desktop|tablet|phone)\b/);
-  const isCompactShell = !/\bdaw-shell--desktop\b/.test(
+  const shell = follower.locator(".stage-frame");
+  await expect(shell).toHaveClass(/\bstage-frame--(desktop|tablet|phone)\b/);
+  const isCompactShell = !/\bstage-frame--desktop\b/.test(
     (await shell.getAttribute("class")) ?? "",
   );
   if (isCompactShell) {

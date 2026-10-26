@@ -759,7 +759,7 @@ export function PipelinePanel() {
       }, needs);
       if (result.kind === "ran" && result.value) {
         setPipelineJob(result.value);
-        runPointerCommand("view.setTab", { tab: "pipeline" });
+        runPointerCommand("stage.prepare");
       }
     } catch (e) {
       setError(errorMessage(e));

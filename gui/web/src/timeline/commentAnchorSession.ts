@@ -1,4 +1,4 @@
-import type { DawState } from "../state/types";
+import type { DawStore } from "../state/types";
 
 export type CommentAnchor = Readonly<{
   startSec: number;
@@ -16,13 +16,13 @@ export interface CommentAnchorGesture {
 }
 
 type AnchorState = Pick<
-  DawState,
+  DawStore,
   | "projectPath"
   | "projectEpoch"
   | "commentMode"
   | "commentDraft"
   | "setCommentDraft"
-  | "setActiveTab"
+  | "openStage"
 >;
 
 type AnchorStore = {
@@ -61,12 +61,15 @@ export function beginCommentAnchorSession(
     }
     ownedDraft = { ...anchor };
     state.setCommentDraft(ownedDraft);
-    if (!ended) store.getState().setActiveTab("comments");
   };
   return {
     preview,
     finish(anchor) {
       preview(anchor);
+      // Leaving Edit mid-drag would unmount the ruler being dragged.
+      if (!ended) {
+        store.getState().openStage("review", { section: "comments" });
+      }
       ended = true;
       unsubscribe();
     },

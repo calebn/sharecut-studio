@@ -929,7 +929,8 @@ html[data-shell="phone"] .ui-toast-region--app {
 
 /* The Inspector column (#1696) owns the inline end of a phone held sideways,
    so the toast centres over the timeline beside it, not over the column. */
-html:has(.daw-shell--inspector-column) .ui-toast-region--app {
+html:has(.daw-shell--inspector-column) .ui-toast-region--app,
+html:has(.stage-frame .bottom-sheet--column) .ui-toast-region--app {
   inset-inline-end: calc(
     var(--inspector-column-width) +
     env(safe-area-inset-right) +

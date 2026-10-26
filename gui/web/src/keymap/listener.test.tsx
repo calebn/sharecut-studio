@@ -448,11 +448,11 @@ async function pressOnCanvas(key: string, code: string): Promise<string[]> {
 
 it("runs the Tighten hit on Backspace while the panel is open, and the clip delete once it closes", async () => {
   render(<KeymapHost />);
-  useDawStore.setState({ activeTab: "tighten", layoutMode: "default" });
+  useDawStore.setState({ stage: "review", reviewSection: "tighten" });
   expect(await pressOnCanvas("Backspace", "Backspace")).toEqual([
     "tighten.skipHit",
   ]);
-  useDawStore.setState({ activeTab: "transcript" });
+  useDawStore.setState({ stage: "edit" });
   expect(await pressOnCanvas("Backspace", "Backspace")).toEqual([
     "edit.delete",
   ]);

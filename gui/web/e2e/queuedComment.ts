@@ -39,7 +39,7 @@ export async function interceptCommentCommands(page: Page): Promise<{
 export async function postHostComment(page: Page, body: string): Promise<void> {
   await openPanel(page, "comments");
   await page
-    .getByLabel("Editor panels")
+    .getByRole("main", { name: "Review" })
     .getByRole("button", { name: "Toggle comment mode", exact: true })
     .click();
   await page.getByRole("slider", { name: "Comment time" }).click();

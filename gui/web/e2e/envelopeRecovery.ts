@@ -73,7 +73,7 @@ export async function exerciseEnvelopeRecovery(
         width < 720 ? "phone" : width <= 1194 ? "tablet" : "desktop";
       if (shell !== "desktop") await rememberInspectorDetent(page, "half");
       await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
+      await expect(page.locator(`.stage-frame--${shell}`)).toBeVisible();
       if (shell === "phone") await openPhoneTimeline(page);
       await layer(page, "Volume envelope", true);
       const lane = page.locator(".lane-row").first();

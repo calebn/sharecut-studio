@@ -133,7 +133,7 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
   ).toHaveAttribute("aria-pressed", "true");
   expect(await savedMix(page, projectPath)).toEqual(saved);
   await page.reload();
-  await expect(page.locator(".daw-shell--phone")).toBeVisible();
+  await expect(page.locator(".stage-frame--phone")).toBeVisible();
   await expect(
     page.getByRole("dialog", { name: "Mix", exact: true }),
   ).toHaveCount(0);

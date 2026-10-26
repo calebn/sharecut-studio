@@ -65,7 +65,7 @@ export async function exerciseCommentUndo(
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
     const phone = (page.viewportSize()?.width ?? 0) < 720;
     await expect(
-      page.locator(`.daw-shell--${phone ? "phone" : "desktop"}`),
+      page.locator(`.stage-frame--${phone ? "phone" : "desktop"}`),
     ).toBeVisible();
     await openPanel(page, "comments");
     const panel = page.locator(".comments-panel");
@@ -99,7 +99,7 @@ export async function exerciseCommentUndo(
     await expect(panel).toBeFocused();
     await expect(
       page
-        .locator('.daw-shell .sr-only[role="status"]')
+        .locator('.stage-frame .sr-only[role="status"]')
         .filter({ hasText: "Comment reopened" }),
     ).toHaveText("Comment reopened");
     await expect.poll(savedResolved).toBe(false);
@@ -228,7 +228,7 @@ export async function exerciseCommentUndo(
     await expect.poll(savedResolved).toBe(false);
     await expect(
       page
-        .locator('.daw-shell .sr-only[role="status"]')
+        .locator('.stage-frame .sr-only[role="status"]')
         .filter({ hasText: "Comment reopened" }),
     ).toHaveText("Comment reopened");
     await page.unrouteAll({ behavior: "wait" });

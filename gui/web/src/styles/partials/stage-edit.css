@@ -118,15 +118,18 @@
 .track-headers-chrome:has(> .edit-tool-strip) {
   flex-direction: column;
   align-items: stretch;
-  justify-content: flex-end;
+  justify-content: center;
   gap: var(--space-1);
+  padding-inline: var(--space-1);
 }
 
+/* The corner is one ruler row tall and as wide as the track headers, so the
+   tools stay in one row and give up padding, not controls. */
 .edit-tool-strip {
   position: relative;
   z-index: var(--z-content);
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-1);
 }
@@ -135,10 +138,13 @@
   flex: 0 0 auto;
 }
 
-.edit-tool-strip-range,
-.edit-tool-strip-cut {
-  min-inline-size: var(--control-height);
-  min-block-size: var(--control-height);
+.track-headers-chrome > .edit-tool-strip .tool-mode-toggle > .ui-control,
+.track-headers-chrome > .edit-tool-strip .edit-tool-strip-range,
+.track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut {
+  padding-inline: var(--space-1);
+  min-inline-size: 1.75rem;
+  min-block-size: 1.75rem;
+  block-size: 1.75rem;
 }
 
 /* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */

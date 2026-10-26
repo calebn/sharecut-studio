@@ -190,7 +190,7 @@ export async function openTimeline(
 ): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
   await setTheme(page, theme);

@@ -101,7 +101,8 @@ describe("tighten commands", () => {
       }),
     );
     useDawStore.setState({
-      activeTab: "tighten",
+      stage: "review",
+      reviewSection: "tighten",
       guestMode: null,
       shareCapabilities: [],
     });

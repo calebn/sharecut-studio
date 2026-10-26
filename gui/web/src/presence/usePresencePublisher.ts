@@ -2,15 +2,12 @@ import { useEffect, useRef } from "react";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { selectionToWire } from "../session/wire";
 import { useDawStore } from "../state/dawStore";
+import { mobileModeForStage, tabForStage } from "../state/stageRoutes";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
-import type { DawState } from "../state/types";
+import type { DawStore } from "../state/types";
 import type { PresenceCursor } from "../types/session";
 import { timelineTimeViewportWidth } from "../utils/timelineViewport";
-import {
-  mobileModeForTab,
-  setPresenceCursorSink,
-  zoomScrollToViewport,
-} from "./followSync";
+import { setPresenceCursorSink, zoomScrollToViewport } from "./followSync";
 import { createPresenceThrottle, type PresenceSend } from "./publisher";
 
 type PresenceThrottle = ReturnType<typeof createPresenceThrottle>;
@@ -19,15 +16,16 @@ const KEEPALIVE_MS = 10_000;
 
 /** Store fields the `ui` frame is built from. */
 const UI_KEYS = [
-  "activeTab",
-  "mobileMode",
+  "stage",
+  "reviewSection",
+  "editSurface",
   "shellBreakpoint",
   "pointerKind",
   "auditionMode",
   "viewerMute",
   "soloTracks",
   "transcriptViewAnchor",
-] as const satisfies readonly (keyof DawState)[];
+] as const satisfies readonly (keyof DawStore)[];
 
 export function usePresencePublisher(
   send: PresenceSend | null,
@@ -101,7 +99,7 @@ export function usePresencePublisher(
       meta: Parameters<PresenceThrottle["push"]>[0],
       immediate = false,
     ) => throttleRef.current.push(meta, immediate);
-    const publishFollowing = (s: DawState) => {
+    const publishFollowing = (s: DawStore) => {
       if (s.followingClientId) {
         push({
           following: s.followingClientId,
@@ -112,7 +110,7 @@ export function usePresencePublisher(
       }
       push({ following: null });
     };
-    const publishTransport = (s: DawState, immediate = false, seek = false) => {
+    const publishTransport = (s: DawStore, immediate = false, seek = false) => {
       if (s.followingClientId) {
         return;
       }
@@ -130,10 +128,10 @@ export function usePresencePublisher(
         immediate,
       );
     };
-    const publishSelection = (s: DawState) => {
+    const publishSelection = (s: DawStore) => {
       push({ selection: selectionToWire(s.selection, s.project?.envelopes) });
     };
-    const publishViewport = (s: DawState) => {
+    const publishViewport = (s: DawStore) => {
       if (s.followingClientId) {
         return;
       }
@@ -147,18 +145,15 @@ export function usePresencePublisher(
         ),
       });
     };
-    const publishUi = (s: DawState) => {
+    const publishUi = (s: DawStore) => {
       push({
         ui: {
-          tab: s.activeTab,
+          tab: tabForStage(s.stage, s.reviewSection),
           mobile_mode:
-            s.shellBreakpoint === "phone"
-              ? s.mobileMode
-              : s.pointerKind === "coarse"
-                ? mobileModeForTab(s.activeTab).mobileMode
-                : null,
-          transcript_anchor:
-            s.activeTab === "transcript" ? s.transcriptViewAnchor : null,
+            s.shellBreakpoint === "phone" || s.pointerKind === "coarse"
+              ? mobileModeForStage(s.stage, s.editSurface)
+              : null,
+          transcript_anchor: s.stage === "edit" ? s.transcriptViewAnchor : null,
           audition: s.auditionMode,
           viewer_mute: Object.keys(s.viewerMute)
             .filter((k) => s.viewerMute[k])

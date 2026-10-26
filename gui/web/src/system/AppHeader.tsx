@@ -196,11 +196,14 @@ export function AppHeader({
   const canEdit = !guest || guest.role === "Editor";
   return (
     <header className="sys-app-header-host" aria-busy={loading || undefined}>
+      <h1 className="sr-only">{title}</h1>
       <div className="sys-app-header">
         <div className="sys-header-left">
           {guest ? (
             <div className="sys-header-guest">
-              <span className="sys-header-title">{title}</span>
+              <span className="sys-header-title" aria-hidden="true">
+                {title}
+              </span>
               <span className="sys-header-sub">
                 <span className="sys-mono">{guest.version}</span>
                 <Pill>{guest.role}</Pill>

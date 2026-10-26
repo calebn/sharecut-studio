@@ -2,9 +2,14 @@ import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import type { DawTab, MobileMode, MoreDestination } from "../state/types";
-import { STAGE_IDS } from "../types/stage";
+import { type ReviewSection, STAGE_IDS, type StageSheet } from "../types/stage";
 import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
+
+const isReviewSection = (v: unknown): v is ReviewSection =>
+  v === "impact" || v === "comments" || v === "tighten";
+const isStageSheet = (v: unknown): v is StageSheet =>
+  v === "history" || v === "view" || v === "mix";
 
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
@@ -78,7 +83,7 @@ export function registerViewCommands(): void {
   });
 
   for (const stage of STAGE_IDS) {
-    registerCommand(`stage.${stage}`, () => {
+    registerCommand(`stage.${stage}`, (args) => {
       const s = useDawStore.getState();
       if (!s.project) {
         return { status: "disabled", reason: "No project" };
@@ -86,7 +91,14 @@ export function registerViewCommands(): void {
       if (!stagesForRole(stageRoleOf(s.guestMode)).includes(stage)) {
         return { status: "disabled", reason: "This link cannot open that" };
       }
-      s.openStage(stage);
+      const section = args.section;
+      const sheet = args.sheet;
+      const options = {
+        ...(isReviewSection(section) ? { section } : {}),
+        ...(isStageSheet(sheet) ? { sheet } : {}),
+      };
+      if (Object.keys(options).length > 0) s.openStage(stage, options);
+      else s.openStage(stage);
       return { status: "ok" };
     });
   }
@@ -173,7 +185,8 @@ export function registerTranscriptViewCommands(): void {
     const state = useDawStore.getState();
     if (!state.project || isShareProjectKey(state.projectPath))
       return { status: "disabled", reason: "Host project required" };
-    state.setActiveTab("transcript");
+    state.openStage("edit");
+    state.setScriptCollapsed(false);
     useDawStore
       .getState()
       .setTranscriptFindReplaceOpen(!state.chrome.transcriptFindReplaceOpen);

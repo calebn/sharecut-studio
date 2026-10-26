@@ -27,7 +27,7 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
   useDawStore.getState().hydrate("/tmp/tighten.json", project);
-  useDawStore.setState({ activeTab: "tighten" });
+  useDawStore.setState({ stage: "review", reviewSection: "tighten" });
   answerQuestions(true);
 });
 
