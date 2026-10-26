@@ -89,6 +89,15 @@ describe("exportSettingsFromConfig", () => {
     expect(settings.choices[0].label).toBe("M4A");
   });
 
+  it("labels M4A as AAC only when the codec is AAC", () => {
+    const label = (spec: { ext: string; codec?: string }) =>
+      exportSettingsFromConfig({ export: { formats: [spec] } }).choices[0]
+        .label;
+    expect(label({ ext: "m4a" })).toBe("M4A (AAC)");
+    expect(label({ ext: "flac", codec: "aac" })).toBe("FLAC · lossless");
+    expect(label({ ext: "mp3", codec: "aac" })).toBe("MP3");
+  });
+
   it("sends every checked format, M4A and FLAC together", () => {
     const settings = exportSettingsFromConfig({ export: { formats: [] } });
     expect(selectedFormats(settings, ["m4a", "flac"])).toEqual([

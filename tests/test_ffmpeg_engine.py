@@ -1120,7 +1120,9 @@ def test_listed_names_are_cached_and_a_failed_listing_is_not():
     with patch("podcast_mcp.engines.ffmpeg.run", side_effect=FileNotFoundError):
         assert broken._listed_names("-filters") is None
         assert broken._has_filter("drawbox") is False
-    assert broken._listed_names("-filters") == first
+        assert broken._has_filter("drawbox") is False
+        assert broken._has_filter("drawtext") is False
+        assert broken._listed_names("-filters") == set()
 
 
 def test_supports_encode_needs_the_encoder_and_the_muxer_and_a_readable_listing():

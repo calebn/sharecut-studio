@@ -271,6 +271,7 @@ def test_export_episode_audio_keeps_dot_and_reserved_names_under_export(
 def test_a_bare_m4a_entry_expands_to_the_preset_and_a_detailed_one_does_not():
     assert specs_from_extensions(["m4a"]) == [M4A_AAC]
     assert ExportFormatSpec.from_dict({"ext": ".M4A"}) == M4A_AAC
+    assert ExportFormatSpec.from_dict({"extension": "m4a"}) == M4A_AAC
     assert resolve_export_formats({"formats": [{"ext": "m4a"}]}) == [M4A_AAC]
     assert ExportFormatSpec.from_dict({"ext": "m4a", "codec": None, "extra_args": []}) == M4A_AAC
     custom = ExportFormatSpec.from_dict({"ext": "m4a", "codec": "alac"})

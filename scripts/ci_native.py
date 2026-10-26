@@ -145,6 +145,7 @@ NATIVE_CONTRACTS = {
             "caps.json",
             "distribution-profile.schema.json",
             "docs-sync.json",
+            "export-presets.json",
             "pipeline-params.json",
             "progress-exemptions.json",
             "progress-richness.json",
