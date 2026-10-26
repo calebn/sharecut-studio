@@ -4,7 +4,10 @@ import { expectPageAxeClean } from "../e2e/axe";
 import { bouncedWavs } from "../e2e/exportFiles";
 import { keeperContextSource, RECORDER_CONTEXT } from "../e2e/keeperContexts";
 import { keeperWavBytes, ONE_SECOND_KEEPER_WAV_BYTES } from "../e2e/keeperOpfs";
-import { openDialogFromMenu } from "../e2e/overlayReachability";
+import {
+  openDialogFromMenu,
+  openTransportMenu,
+} from "../e2e/overlayReachability";
 import { expectPlaybackAdvancesThenHolds, playButton } from "../e2e/playback";
 import {
   clickHostTransport,
@@ -28,6 +31,7 @@ import {
 } from "../e2e/transcriptEdit";
 import { withBrowserPages } from "../e2e/twoBrowserPages";
 import { wavPeak } from "../e2e/wavPeak";
+import { AUTO_MIX_PREF_KEY } from "../src/hooks/autoMixPref";
 
 /**
  * Landed and bounced audio must carry signal, not silence (−40 dBFS). The
@@ -66,6 +70,9 @@ test.describe("core flow", () => {
           if (!host || !guest || !reviewer) return;
 
           await test.step("record: keeper capture, upload and landing", async () => {
+            await host.addInitScript((key) => {
+              window.localStorage.setItem(key, "off");
+            }, AUTO_MIX_PREF_KEY);
             await markSharecutE2e(host);
             await host.goto(
               `/?project=${encodeURIComponent(projectPath)}&e2e=1`,
@@ -191,14 +198,12 @@ test.describe("core flow", () => {
           });
 
           await test.step("share: a viewer plays the per-track MP3 proxies", async () => {
-            const refresh = host.getByRole("button", {
-              name: /^Mix out of date\. .*\. Refresh mix\.$/,
-            });
-            await expect(refresh).toBeEnabled();
-            await refresh.click();
+            await host.keyboard.press("ControlOrMeta+b");
+            await openTransportMenu(host);
             await expect(
               host.getByText("Mix up to date", { exact: true }),
             ).toBeVisible({ timeout: 60_000 });
+            await host.keyboard.press("Escape");
             const token = await createReviewShare(host, projectPath);
             const chunkPrefix = `/api/review/${token}/daw/proxy/`;
             const isChunk = (url: string) => {
