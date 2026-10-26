@@ -27,7 +27,6 @@ export type PrepareSession = {
   /** "14:20". */
   duration: string;
   target: SessionTarget;
-  targetLocked?: boolean;
   status: "idle" | "running" | "done" | "failed";
   progress?: number;
   sources: readonly PrepareSource[];

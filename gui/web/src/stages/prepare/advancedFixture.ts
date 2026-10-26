@@ -9,7 +9,7 @@ const LANGUAGES = [
   { value: "nl", label: "Dutch" },
 ] as const;
 
-export const TRANSCRIBE: AdvancedStep = {
+const TRANSCRIBE: AdvancedStep = {
   id: "transcribe",
   name: "Transcribe each track",
   result: "3 speakers, 2 hours of audio",
@@ -50,7 +50,7 @@ export const ALIGN: AdvancedStep = {
   ],
 };
 
-export const FILL_GAPS: AdvancedStep = {
+const FILL_GAPS: AdvancedStep = {
   id: "fill-gaps",
   name: "Fill gaps from the recorder's noise gate",
   result: "12 gaps filled",
@@ -72,7 +72,7 @@ export const FILL_GAPS: AdvancedStep = {
   ],
 };
 
-export const FILLERS: AdvancedStep = {
+const FILLERS: AdvancedStep = {
   id: "fillers",
   name: "Find fillers and pauses",
   result: "41 fillers, 18 long pauses",
