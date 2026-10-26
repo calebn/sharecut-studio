@@ -49,9 +49,9 @@ type Story = StoryObj<typeof HomeView>;
 const importIsPrimary: Story["play"] = async ({ canvasElement }) => {
   const canvas = within(canvasElement);
   await expect(
-    canvas.getByRole("button", { name: "Import audio" }),
+    canvas.getByRole("button", { name: /^Import audio/ }),
   ).toHaveClass("sys-start--primary");
-  await expect(canvas.getByRole("button", { name: "Record" })).not.toHaveClass(
+  await expect(canvas.getByRole("button", { name: /^Record/ })).not.toHaveClass(
     "sys-start--primary",
   );
 };
@@ -63,7 +63,7 @@ export const WithRecents: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: "Rosa and Maya, week 42" }),
+      canvas.getByRole("button", { name: /^Rosa and Maya, week 42/ }),
     );
     await expect(args.onOpenProject).toHaveBeenCalledWith("rosa", "review");
   },

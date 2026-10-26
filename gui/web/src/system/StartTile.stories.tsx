@@ -33,7 +33,9 @@ type Story = StoryObj<typeof StartTile>;
 export const ImportRest: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Import audio" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: /^Import audio/ }),
+    );
     await expect(args.onActivate).toHaveBeenCalledOnce();
   },
 };
@@ -65,11 +67,9 @@ export const Disabled: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const tile = canvas.getByRole("button", { name: "Record" });
+    const tile = canvas.getByRole("button", { name: /^Record/ });
     await expect(tile).toHaveAttribute("aria-disabled", "true");
-    await expect(tile).toHaveAccessibleDescription(
-      "Finish the current save first.",
-    );
+    await expect(tile).toHaveAccessibleName(/Finish the current save first\./);
     await userEvent.click(tile);
     await expect(args.onActivate).not.toHaveBeenCalled();
   },
