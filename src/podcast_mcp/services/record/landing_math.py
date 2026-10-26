@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
+from podcast_mcp.models import Clip
 from podcast_mcp.services.record.state import TakeState, take_recording_duration_ms
 from podcast_mcp.services.record.upload import KEEPER_SAMPLE_RATE
 
 TAKE_GAP_MS = 2000
 ALIGN_DRIFT_MS = 50
 DRIFT_WINDOW_S = 60.0
+
+
+def record_source_prefix(session_id: str) -> str:
+    return f"rec-{session_id}-"
+
+
+def session_origin_s(
+    clips: Iterable[Clip],
+    session_id: str,
+    *,
+    take_gap_ms: int = TAKE_GAP_MS,
+) -> float:
+    """Where a session's first take starts: after everything the session did not land."""
+    prefix = record_source_prefix(session_id)
+    ends = [clip.timeline_end for clip in clips if not (clip.source_id or "").startswith(prefix)]
+    return max(ends) + take_gap_ms / 1000.0 if ends else 0.0
 
 
 def pad_samples(join_offset_ms: int, sample_rate: int = KEEPER_SAMPLE_RATE) -> int:
@@ -65,11 +84,12 @@ def take_offsets_s(
     *,
     tombstoned: set[int] | frozenset[int] | None = None,
     take_gap_ms: int = TAKE_GAP_MS,
+    origin_s: float = 0.0,
 ) -> dict[int, float]:
-    """Sequential take origins. Tombstoned takes do not consume timeline."""
+    """Sequential take origins from ``origin_s``. Tombstoned takes do not consume timeline."""
     skipped = tombstoned or set()
     offsets: dict[int, float] = {}
-    acc_ms = 0
+    acc_ms = round(origin_s * 1000)
     alive = [
         take
         for take in sorted(takes, key=lambda row: row.take_index)
