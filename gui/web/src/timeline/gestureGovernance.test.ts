@@ -256,6 +256,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the Record button: a 600 ms press-and-hold stops a live take, and Enter or Space asks first; it is not a timeline target",
   "system/ScrubField.tsx":
     "the scrub field: a horizontal drag previews a number and saves one value on release; it is an inspector field, not a timeline target",
+  "system/TimeField.tsx":
+    "a number field's grip drags its own value, 4 px to start; a field edit, not a timeline target",
   "system/useHoverTip.ts":
     "a hover tip opens for a mouse or pen and never for a touch; it starts no gesture",
   "system/useSwipeDecision.ts":
