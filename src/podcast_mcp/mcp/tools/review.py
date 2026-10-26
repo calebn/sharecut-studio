@@ -35,7 +35,8 @@ def list_session_suggestions_tool(project_path: str, status: str = "") -> str:
     """List record sessions staged for an insert or replace target.
 
     status: pending, skipped or accepted; empty lists all. A staged session has its recordings
-    registered as sources but nothing on the timeline.
+    registered as sources but nothing on the timeline. Accept is not available yet: a staged
+    session cannot reach the timeline from any surface, and the accepted status is reserved.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
@@ -44,7 +45,10 @@ def list_session_suggestions_tool(project_path: str, status: str = "") -> str:
 
 
 def skip_session_suggestion_tool(project_path: str, suggestion_id: str) -> str:
-    """Skip a pending staged session (one undo step). Refuses one that is not pending."""
+    """Skip a pending staged session (one undo step). Refuses one that is not pending.
+
+    Accept is not available yet: a skipped or pending staged session cannot reach the timeline.
+    """
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project_path)

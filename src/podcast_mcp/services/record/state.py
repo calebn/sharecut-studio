@@ -51,15 +51,18 @@ class StartTarget(BaseModel):
     kind: Literal["start"] = "start"
 
 
+MAX_TARGET_SEC = 1_000_000.0
+
+
 class InsertTarget(BaseModel):
     kind: Literal["insert"] = "insert"
-    at_sec: float = Field(ge=0, allow_inf_nan=False)
+    at_sec: float = Field(ge=0, le=MAX_TARGET_SEC, allow_inf_nan=False)
 
 
 class ReplaceTarget(BaseModel):
     kind: Literal["replace"] = "replace"
-    from_sec: float = Field(ge=0, allow_inf_nan=False)
-    to_sec: float = Field(ge=0, allow_inf_nan=False)
+    from_sec: float = Field(ge=0, le=MAX_TARGET_SEC, allow_inf_nan=False)
+    to_sec: float = Field(ge=0, le=MAX_TARGET_SEC, allow_inf_nan=False)
     track_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -102,11 +105,14 @@ def parse_session_target(raw: str | dict[str, Any] | BaseModel | None) -> Sessio
     except (ValidationError, ValueError) as exc:
         detail = "use end, start, insert or replace"
         if isinstance(exc, ValidationError):
-            reasons = [
-                str(err["msg"]).removeprefix("Value error, ")
-                for err in exc.errors()
-                if str(err["msg"]).startswith("Value error, ")
-            ]
+            reasons = []
+            for err in exc.errors():
+                msg = str(err["msg"])
+                loc = err["loc"]
+                if msg.startswith("Value error, "):
+                    reasons.append(msg.removeprefix("Value error, "))
+                elif len(loc) >= 2 and isinstance(loc[1], str):
+                    reasons.append(f"{loc[1]}: {msg[:1].lower()}{msg[1:]}")
             if reasons:
                 detail = "; ".join(reasons)
         raise CodedValueError(

@@ -60,10 +60,13 @@ def review_list_versions_cmd(
 def review_session_suggestions_cmd(
     project: Path = typer.Option(..., "--project"),
     status: str | None = typer.Option(
-        None, "--status", help="Only suggestions that are pending, skipped or accepted"
+        None, "--status", help="Only suggestions that are pending or skipped (accepted is reserved)"
     ),
 ) -> None:
-    """List record sessions staged for an insert or replace target."""
+    """List record sessions staged for an insert or replace target.
+
+    Accept is not available yet: a staged session cannot reach the timeline.
+    """
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project)
@@ -80,7 +83,10 @@ def review_skip_session_suggestion_cmd(
     project: Path = typer.Option(..., "--project"),
     suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
 ) -> None:
-    """Skip a pending staged session. Its recordings stay in the project."""
+    """Skip a pending staged session. Its recordings stay in the project.
+
+    Accept is not available yet: a staged session cannot reach the timeline.
+    """
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project)
