@@ -192,6 +192,8 @@ There are three overlay primitives.
    look. `announceStatus` takes `tone: "error"`; the toast replaces an
    environment variable name, a path or an id in the message with the next
    step.
+   `ui/Toast` takes an optional decorative `icon` before the message and an
+   `undoLabel` when "Undo" alone is unclear ("Undo all" on a merged toast).
 4. **Feedback belongs to its surface.** A message about a gesture, a selection
    or a panel clears when that gesture ends, that selection changes or that
    panel closes. A gesture's message passes `gesture: true`, and ending the
