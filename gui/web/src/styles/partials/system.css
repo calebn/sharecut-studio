@@ -1521,7 +1521,7 @@
 
 .sys-start--primary .sys-keys,
 .sys-start--primary .sys-keys * {
-  border-color: currentcolor;
+  border-color: var(--color-accent-on-solid);
   background: transparent;
   color: var(--color-accent-on-solid);
 }
