@@ -25,6 +25,7 @@ from podcast_mcp.services.collaboration.review_shares import (
     list_shares,
 )
 from podcast_mcp.services.collaboration.share import (
+    RecordStaleLinksError,
     ShareService,
     lookup_share,
     open_share_workspace,
@@ -733,10 +734,15 @@ def test_create_record_room_revoke_failure_keeps_new_room_usable(
         return real(self, token)
 
     monkeypatch.setattr(ShareService, "revoke", flaky)
-    with pytest.raises(RuntimeError, match="could not be revoked"):
+    with pytest.raises(RecordStaleLinksError) as stale:
         svc.create_record_room()
     monkeypatch.setattr(ShareService, "revoke", real)
     newest = RecordSessionService.active_session_id(ws.project)
+    assert stale.value.code == "record_stale_links"
+    assert stale.value.session_id == newest
+    assert stale.value.stale_session_ids == [old["session_id"]]
+    assert stale.value.room["guest"]["url"] in str(stale.value)
+    assert old["session_id"] in str(stale.value)
     assert newest != old["session_id"]
     assert lookup_share(bad, kind="record")["session_id"] == old["session_id"]
     with pytest.raises(KeyError):
@@ -818,6 +824,195 @@ def test_cli_share_session_id_of_superseded_room_is_refused(
         ],
     )
     assert result.exit_code != 0
+    assert f"record room not found: {old['session_id']}" in result.output
+
+
+def _fail_revoke_of(monkeypatch, token: str):
+    real = ShareService.revoke
+
+    def flaky(self, tok):
+        if tok == token:
+            raise RuntimeError("boom")
+        return real(self, tok)
+
+    monkeypatch.setattr(ShareService, "revoke", flaky)
+    return lambda: monkeypatch.setattr(ShareService, "revoke", real)
+
+
+def test_create_record_token_refuses_usable_but_superseded_room(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    heal = _fail_revoke_of(monkeypatch, old["guest"]["token"])
+    with pytest.raises(RecordStaleLinksError):
+        svc.create_record_room()
+    heal()
+    assert lookup_share(old["guest"]["token"], kind="record")
+    with pytest.raises(KeyError, match="record room not found"):
+        svc.create_record_token(role="guest", session_id=old["session_id"])
+
+
+def test_retry_mint_heals_stale_links(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    heal = _fail_revoke_of(monkeypatch, old["guest"]["token"])
+    with pytest.raises(RecordStaleLinksError):
+        svc.create_record_room()
+    heal()
+    third = svc.create_record_room()
+    with pytest.raises(KeyError):
+        lookup_share(old["guest"]["token"], kind="record")
+    assert RecordSessionService.active_session_id(ws.project) == third["session_id"]
+
+
+def test_failing_demote_after_sidecar_saved_is_reported_and_healed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    bad = old["guest"]["token"]
+    registry = get_share_registry()
+    real = type(registry).demote_to_cooldown
+
+    def flaky(self, token, **kwargs):
+        if token == bad:
+            raise OSError("sqlite busy")
+        return real(self, token, **kwargs)
+
+    monkeypatch.setattr(type(registry), "demote_to_cooldown", flaky)
+    with pytest.raises(RecordStaleLinksError) as stale:
+        svc.create_record_room()
+    assert stale.value.stale_session_ids == [old["session_id"]]
+    assert lookup_share(bad, kind="record")["session_id"] == old["session_id"]
+    monkeypatch.setattr(type(registry), "demote_to_cooldown", real)
+    svc.create_record_room()
+    with pytest.raises(KeyError):
+        lookup_share(bad, kind="record")
+
+
+def test_non_keyerror_in_one_room_does_not_skip_the_rest(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    first = svc.create_record_room()
+    heal = _fail_revoke_of(monkeypatch, first["guest"]["token"])
+    with pytest.raises(RecordStaleLinksError):
+        svc.create_record_room()
+    heal()
+    real = ShareService._revoke_room_tokens
+
+    def flaky(self, sid):
+        if sid == first["session_id"]:
+            raise OSError("disk")
+        return real(self, sid)
+
+    monkeypatch.setattr(ShareService, "_revoke_room_tokens", flaky)
+    with pytest.raises(RecordStaleLinksError) as stale:
+        svc.create_record_room()
+    assert stale.value.stale_session_ids == [first["session_id"]]
+    monkeypatch.setattr(ShareService, "_revoke_room_tokens", real)
+    live_rooms = {
+        row["session_id"]
+        for row in list_shares(ws.project)
+        if row.get("kind") == "record" and row.get("token")
+    }
+    assert live_rooms == {first["session_id"], stale.value.session_id}
+
+
+def test_concurrent_mints_leave_one_usable_room(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import threading
+
+    import podcast_mcp.services.record as record_pkg
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    svc.create_record_room()
+    real_begin = record_pkg.begin_record_session
+    inside = threading.Event()
+    release = threading.Event()
+    calls: list[int] = []
+
+    def gated(project, session_id):
+        calls.append(1)
+        if len(calls) == 1:
+            inside.set()
+            assert release.wait(10)
+        return real_begin(project, session_id)
+
+    monkeypatch.setattr(record_pkg, "begin_record_session", gated)
+    results: dict[str, dict] = {}
+
+    def mint(name):
+        results[name] = ShareService(ws).create_record_room()
+
+    a = threading.Thread(target=mint, args=("a",))
+    b = threading.Thread(target=mint, args=("b",))
+    a.start()
+    assert inside.wait(10)
+    b.start()
+    b.join(0.5)
+    assert b.is_alive()
+    release.set()
+    a.join(10)
+    b.join(10)
+    live_rooms = {
+        row["session_id"]
+        for row in list_shares(ws.project)
+        if row.get("kind") == "record" and row.get("token")
+    }
+    assert live_rooms == {results["b"]["session_id"]}
+    assert RecordSessionService.active_session_id(ws.project) == results["b"]["session_id"]
+    for token in (results["a"]["guest"]["token"], results["a"]["producer"]["token"]):
+        with pytest.raises(KeyError):
+            lookup_share(token, kind="record")
+
+
+def test_stale_links_error_surfaces_on_gui_cli_and_mcp(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.util.tool_refusal import tool_refusal
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    real = ShareService.revoke
+
+    def flaky(self, tok):
+        if tok == old["guest"]["token"]:
+            raise RuntimeError("boom")
+        return real(self, tok)
+
+    monkeypatch.setattr(ShareService, "revoke", flaky)
+
+    client = TestClient(create_app())
+    resp = client.post("/api/shares/record", json={"path": str(ws.path)})
+    assert resp.status_code == 409
+    assert resp.headers["x-sharecut-error-code"] == "record_stale_links"
+    detail = resp.json()["detail"]
+    assert detail["stale_session_ids"] == [old["session_id"]]
+    assert detail["room"]["session_id"] in detail["message"]
+
+    result = CliRunner().invoke(
+        cli_app, ["review", "share", "--project", str(ws.path), "--kind", "record"]
+    )
+    assert result.exit_code != 0
+    assert "record_stale_links" in result.output
+    assert old["session_id"] in result.output
+
+    with pytest.raises(RecordStaleLinksError) as raised:
+        create_record_room_tool(str(ws.path))
+    refusal = tool_refusal(raised.value)
+    assert refusal is not None
+    assert refusal.code == "record_stale_links"
+    assert old["session_id"] in refusal.message
+    assert raised.value.session_id in refusal.message
 
 
 def test_drop_share_releases_claim_without_cooldown(

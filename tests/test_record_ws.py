@@ -1922,3 +1922,21 @@ def test_guest_record_busy_command_keeps_socket_usable(
             _drain_until(socket, lambda msg: msg.get("command_type") == "Heartbeat")["type"]
             == "Echo"
         )
+
+
+def test_open_old_guest_socket_closes_after_remint(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
+        _join(sock, name="Ava")
+        _drain_until(sock, lambda m: m.get("type") == "Echo")
+        ShareService(ws).create_record_room()
+        with pytest.raises(WebSocketDisconnect) as closed:
+            for _ in range(200):
+                sock.receive_json()
+        assert closed.value.code == 4403

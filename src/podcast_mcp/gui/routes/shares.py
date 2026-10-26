@@ -22,6 +22,7 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     MixUnavailableError,
+    RecordStaleLinksError,
     ShareService,
     share_public_origin,
 )
@@ -114,6 +115,14 @@ def create_host_record_room(
             public_base_url=origin,
             expires_at=body.expires_at,
         )
+    except RecordStaleLinksError as exc:
+        detail = {
+            "error": exc.code,
+            "message": str(exc),
+            "room": exc.room,
+            "stale_session_ids": exc.stale_session_ids,
+        }
+        raise coded_http_error(409, detail, code=exc.code) from exc
     except RecordStateError as exc:
         raise coded_exception_error(409, exc, code="record_room_unavailable") from exc
     except ValueError as exc:

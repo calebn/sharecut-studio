@@ -123,9 +123,14 @@ Minting a new room **ends the previous one**: after the new room and its
 `begin_record_session` succeed, every guest and producer token of earlier rooms
 is revoked, so an old link can never admit anyone into today's room and shows
 the same dead-link cover. Revoking on mint does not purge land rollbacks or the
-land lock, so undo for takes already landed survives. If revoking an old token
-fails, the new room stays usable and the mint call raises so the host sees that
-a stale link is still live. Re-invite (`--session-id`) only mints into the
+land lock, so undo for takes already landed survives. Mints are serialized per
+process, so at most one record room is usable. If an old token cannot be
+revoked, the new room stays usable and the call fails with `record_stale_links`
+(GUI 409, CLI and MCP refusal), carrying the new session id and links and the
+old session ids still live; minting again retries the revoke, or revoke those
+session ids. An old guest's open socket is closed by the periodic share
+recheck (within about 5 s while active, 30 s idle), and a joined old guest also
+fails `participant_active` after the remint. Re-invite (`--session-id`) only mints into the
 active room. **Land before minting**: landing reads only the active room, so a
 stopped, not-yet-landed take in the old room is orphaned once a new room is
 minted and its guests lose upload resume on the old link. The mint guard blocks

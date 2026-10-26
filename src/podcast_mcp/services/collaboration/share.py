@@ -21,7 +21,6 @@ from podcast_mcp.services.collaboration.review_shares import (
     effective_review_version_id,
     list_room_shares,
     list_shares,
-    list_usable_shares,
     register_share_globally,
     resolve_share,
     revoke_share,
@@ -66,6 +65,7 @@ from podcast_mcp.services.media import (
 from podcast_mcp.services.session_sync import guest_display_name
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.coded_error import (
+    CodedError,
     CodedFileNotFoundError,
     CodedKeyError,
     CodedPermissionError,
@@ -101,6 +101,31 @@ _GUEST_PROSODY_SEGMENT_KEYS = frozenset(
 )
 _DEFAULT_SHARE_ORIGIN = "http://127.0.0.1:8765"
 _create_for_host_lock = threading.Lock()
+_record_room_lock = threading.RLock()
+
+
+def _row_live(row: dict[str, Any]) -> bool:
+    return bool(row.get("token")) and not share_hard_expired(row)
+
+
+class RecordStaleLinksError(CodedError):
+    """A new record room is live but links of earlier rooms could not be revoked."""
+
+    code = "record_stale_links"
+
+    def __init__(
+        self, session_id: str, room: dict[str, Any], stale_session_ids: Sequence[str]
+    ) -> None:
+        self.session_id = session_id
+        self.room = room
+        self.stale_session_ids = list(stale_session_ids)
+        old = ", ".join(self.stale_session_ids)
+        super().__init__(
+            f"New record room {session_id} is ready "
+            f"(guest {room['guest'].get('url')}, producer {room['producer'].get('url')}), "
+            f"but invite links of earlier room(s) {old} are still live. "
+            "Minting another room retries the revoke, or revoke each of those session ids."
+        )
 
 
 def _latest_review_version_id(versions: Sequence[dict[str, Any]]) -> str | None:
@@ -346,7 +371,7 @@ class ShareService:
 
         project = self.ws.project
         if not any(
-            row.get("kind") == SHARE_KIND_RECORD and share_is_usable(row)
+            row.get("kind") == SHARE_KIND_RECORD and _row_live(row)
             for row in list_room_shares(project, session_id)
         ):
             return False
@@ -363,19 +388,20 @@ class ShareService:
         require_room: bool = True,
     ) -> dict[str, Any]:
         """Mint one kind=record token. No object storage upload, proxies, or mix version."""
-        if require_room and not self._is_active_usable_room(session_id):
-            raise KeyError(f"record room not found: {session_id}")
         caps = record_capabilities_for_role(role)
-        row = create_share(
-            self.ws.project,
-            review_version_id=RECORD_REVIEW_VERSION_SENTINEL,
-            capabilities=caps,
-            expires_at=expires_at,
-            kind=SHARE_KIND_RECORD,
-            role=role,
-            session_id=session_id,
-        )
-        register_share_globally(row)
+        with _record_room_lock:
+            if require_room and not self._is_active_usable_room(session_id):
+                raise KeyError(f"record room not found: {session_id}")
+            row = create_share(
+                self.ws.project,
+                review_version_id=RECORD_REVIEW_VERSION_SENTINEL,
+                capabilities=caps,
+                expires_at=expires_at,
+                kind=SHARE_KIND_RECORD,
+                role=role,
+                session_id=session_id,
+            )
+            register_share_globally(row)
         return present_share(
             row,
             public_base_url=public_base_url,
@@ -447,51 +473,58 @@ class ShareService:
             invalidate_record_session_cache,
         )
 
-        assert_no_open_take(self.ws.project)
-        prior_rooms = self._usable_record_room_ids()
-        session_id = uuid.uuid4().hex[:12]
-        try:
-            guest = self.create_record_token(
-                role="guest",
-                session_id=session_id,
-                public_base_url=public_base_url,
-                expires_at=expires_at,
-                require_room=False,
-            )
-            producer = self.create_record_token(
-                role="producer",
-                session_id=session_id,
-                public_base_url=public_base_url,
-                expires_at=expires_at,
-            )
-            begin_record_session(self.ws.project, session_id)
-        except Exception:
-            self._rollback_room(session_id)
-            raise
-        stale: list[str] = []
-        for prior in prior_rooms:
+        with _record_room_lock:
+            assert_no_open_take(self.ws.project)
+            session_id = uuid.uuid4().hex[:12]
             try:
-                self._revoke_room_tokens(prior)
-            except KeyError:
-                log.exception("failed to revoke previous record room %s", prior)
-            stale.extend(
-                str(row.get("token"))
-                for row in list_room_shares(self.ws.project, prior)
-                if share_is_usable(row)
-            )
-        invalidate_record_session_cache(self.ws.project)
-        if stale:
-            raise RuntimeError(
-                f"new record room {session_id} is ready but {len(stale)} previous "
-                "invite link(s) could not be revoked; revoke the old room and retry"
-            )
-        return {"session_id": session_id, "guest": guest, "producer": producer}
+                guest = self.create_record_token(
+                    role="guest",
+                    session_id=session_id,
+                    public_base_url=public_base_url,
+                    expires_at=expires_at,
+                    require_room=False,
+                )
+                producer = self.create_record_token(
+                    role="producer",
+                    session_id=session_id,
+                    public_base_url=public_base_url,
+                    expires_at=expires_at,
+                )
+                begin_record_session(self.ws.project, session_id)
+            except Exception:
+                self._rollback_room(session_id)
+                raise
+            room = {"session_id": session_id, "guest": guest, "producer": producer}
+            attempted: Sequence[str] = []
+            try:
+                attempted = self._live_other_record_rooms(session_id)
+            except Exception:
+                log.exception("failed to list previous record rooms")
+            for prior in attempted:
+                try:
+                    self._revoke_room_tokens(prior)
+                except Exception:
+                    log.exception("failed to revoke previous record room %s", prior)
+            try:
+                stale = self._live_other_record_rooms(session_id)
+            except Exception:
+                log.exception("failed to verify previous record rooms")
+                stale = attempted
+            invalidate_record_session_cache(self.ws.project)
+            if stale:
+                raise RecordStaleLinksError(session_id, room, stale)
+            return room
 
-    def _usable_record_room_ids(self) -> Sequence[str]:
+    def _live_other_record_rooms(self, session_id: str) -> Sequence[str]:
         rooms: dict[str, None] = {}
-        for row in list_usable_shares(self.ws.project):
+        for row in list_shares(self.ws.project):
             sid = str(row.get("session_id") or "")
-            if row.get("kind") == SHARE_KIND_RECORD and sid:
+            if (
+                row.get("kind") == SHARE_KIND_RECORD
+                and sid
+                and sid != session_id
+                and _row_live(row)
+            ):
                 rooms[sid] = None
         return list(rooms)
 
@@ -515,7 +548,7 @@ class ShareService:
         revoked: list[str] = []
         for row in rows:
             token = str(row.get("token") or "")
-            if not token or row.get("revoked"):
+            if not token:
                 continue
             try:
                 self.revoke(token)
