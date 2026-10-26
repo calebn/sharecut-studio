@@ -20,7 +20,7 @@ import { OpenOther, type OpenOtherProps } from "./OpenOther";
 import { SetupCard, type SetupCardProps } from "./SetupCard";
 
 /** What the Setup card needs from the caller: state and numbers, no callbacks. */
-export type SetupData = Pick<
+type SetupData = Pick<
   SetupCardProps,
   "state" | "progress" | "detail" | "sizeLabel"
 >;
@@ -37,8 +37,6 @@ export type HomeViewProps = {
   autoFocusPrimary?: boolean;
   /** Freezes the skeleton at a time (stories). */
   loadingElapsedMs?: number;
-  /** Why the tiles cannot start anything now: "Finish the current save first." */
-  startDisabledReason?: string;
   openOther?: Omit<OpenOtherProps, "onChooseFolder">;
   onOpenProject: (id: string, stage: ProjectCardData["stage"]) => void;
   onFindProject: (id: string) => void;
@@ -174,8 +172,7 @@ function HomeHeader({
 /**
  * Home: two Source tiles over the recent episodes, with the Setup card and the
  * Add to Home Screen hint when they apply. Presentational: data in, callbacks
- * out. The context menu and the phone swipe-to-remove are not here; wiring adds
- * them with the real remove-from-list action.
+ * out.
  */
 export function HomeView({
   phase,
@@ -185,7 +182,6 @@ export function HomeView({
   dropActive,
   autoFocusPrimary = false,
   loadingElapsedMs,
-  startDisabledReason,
   openOther = NO_OPEN_OTHER,
   onOpenProject,
   onFindProject,
@@ -212,24 +208,16 @@ export function HomeView({
       ?.querySelector<HTMLButtonElement>("[data-project-open]")
       ?.focus();
   }, [autoFocusPrimary, phase]);
-  const disabled = startDisabledReason ? "disabled" : undefined;
   const tileSize = narrow ? "phone-bar" : empty ? 220 : 160;
   const tiles = (
     <>
       <StartTile
         kind="import"
         size={tileSize}
-        state={disabled ?? (dropActive ? "drag-hover" : "rest")}
-        disabledReason={startDisabledReason}
+        state={dropActive ? "drag-hover" : "rest"}
         onActivate={onImport}
       />
-      <StartTile
-        kind="record"
-        size={tileSize}
-        state={disabled}
-        disabledReason={startDisabledReason}
-        onActivate={onRecord}
-      />
+      <StartTile kind="record" size={tileSize} onActivate={onRecord} />
     </>
   );
 

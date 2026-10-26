@@ -1690,6 +1690,8 @@
 
 .sys-card--hint {
   background: var(--color-bg-sunken);
+  min-block-size: 6rem;
+  justify-content: center;
 }
 
 .sys-card-head {
@@ -1844,11 +1846,6 @@
 .sys-home-share {
   flex: none;
   color: var(--color-accent-text);
-}
-
-.sys-card--hint {
-  min-block-size: 6rem;
-  justify-content: center;
 }
 
 .sys-card-body:empty {

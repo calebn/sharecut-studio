@@ -32,8 +32,6 @@ export function StartTile({
   const { title, line } = COPY[kind];
   const note = disabled && disabledReason ? disabledReason : line;
   const compact = size === 80;
-  const keys =
-    kind === "import" ? verbOf("import").keys : verbOf("record").keys;
   return (
     <button
       type="button"
@@ -61,7 +59,7 @@ export function StartTile({
         )}
       </span>
       {size === "phone-bar" || compact ? null : (
-        <KeyCaps chords={keys.slice(0, 1)} />
+        <KeyCaps chords={verbOf(kind).keys.slice(0, 1)} />
       )}
     </button>
   );

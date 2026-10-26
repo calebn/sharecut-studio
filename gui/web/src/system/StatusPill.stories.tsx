@@ -21,7 +21,7 @@ const meta: Meta<typeof StatusPill> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'A short persistent state: a status glyph and a few words, 28 px. The glyph shape differs per state, and its name is read aloud, so colour is never the only cue. It names where a Project card opens ("Review 6").\n\n**Motion.** The text swaps without animation; a running glyph turns with `--motion-loop-pipeline`. Not implemented in this slice.',
+          'A short persistent state: a status glyph and a few words, 28 px. The glyph shape differs per state, and its name is read aloud, so colour is never the only cue. It names where a Project card opens ("Review 6").\n\n**Motion.** The text swaps without animation; a running glyph turns with `--motion-loop-pipeline`.',
       },
     },
   },
