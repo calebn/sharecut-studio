@@ -6,7 +6,10 @@ from collections.abc import Iterable
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.comment_remap import shift_review_anchors_for_insert
+from podcast_mcp.edits.comment_remap import (
+    shift_pending_decisions_for_insert,
+    shift_review_anchors_for_insert,
+)
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.insert_anchor import resolve_insert_anchor
 from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip
@@ -266,6 +269,7 @@ def accept_session_suggestion(
     ripple_ids = ripple_track_ids(project)
     ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
     shift_review_anchors_for_insert(project, at_sec, span)
+    shift_pending_decisions_for_insert(project, at_sec, span, set(ripple_ids))
     unmoved = sorted(
         {
             clip.track_id

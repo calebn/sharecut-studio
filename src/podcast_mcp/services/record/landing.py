@@ -900,6 +900,8 @@ class RecordLandingService:
                     owner = session_suggestion_for(project, self.session_id)
                     if owner is None:
                         continue
+                    if owner.status != "pending":
+                        raise SessionSuggestionClosedError(_closed_message(owner))
                     hold_room_tone(
                         owner,
                         StagedRoomTone(

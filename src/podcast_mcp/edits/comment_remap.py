@@ -135,13 +135,8 @@ def shift_review_anchors_for_insert(
 ) -> None:
     """Move comments (with their spans) and chapters for a gap opened at ``at_time`` (mutates project).
 
-    An interval starting at or after the point moves; one the point falls inside grows. Pending
-    timeline-timebase edit decisions without an exact range move the same way; source-timebase
-    ones follow their clips, exact ranges are re-checked at approval, and applied records stay.
+    An interval starting at or after the point moves; one the point falls inside grows.
     """
-    project.editorial.edit_decisions = [
-        _shifted_decision(edit, at_time, duration_sec) for edit in project.editorial.edit_decisions
-    ]
     project.review.comments = [
         c.model_copy(
             update={
@@ -165,6 +160,26 @@ def shift_review_anchors_for_insert(
     project.editorial.chapters = [
         ch.model_copy(update={"time": _start_after_insert(ch.time, at_time, duration_sec)})
         for ch in project.editorial.chapters
+    ]
+
+
+def shift_pending_decisions_for_insert(
+    project: EpisodeProject,
+    at_time: float,
+    duration_sec: float,
+    track_ids: set[str],
+) -> None:
+    """Move pending timeline-timebase edit decisions for a gap opened on ``track_ids`` (mutates project).
+
+    Only decisions whose tracks are all among them move; an interval starting at or
+    after the point moves and one the point falls inside grows. Source-timebase decisions
+    follow their clips, exact ranges are re-checked at approval, and applied records stay.
+    """
+    project.editorial.edit_decisions = [
+        _shifted_decision(edit, at_time, duration_sec)
+        if set(edit.track_ids or [edit.track_id]) <= track_ids
+        else edit
+        for edit in project.editorial.edit_decisions
     ]
 
 

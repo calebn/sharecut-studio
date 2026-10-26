@@ -306,10 +306,12 @@ def insert_gap(
     duration_sec: float,
     *,
     defaults: EffectiveConfig,
+    shift_anchors: bool = False,
 ) -> dict:
     tracks = ripple_track_ids(project)
     ripple_insert_clips(project, at_time, duration_sec, tracks, defaults=defaults)
-    shift_review_anchors_for_insert(project, at_time, duration_sec)
+    if shift_anchors:
+        shift_review_anchors_for_insert(project, at_time, duration_sec)
     # Words stay in source coordinates; only clip placement moves.
     rebuild_combined(project, defaults=defaults)
     return change_summary(
