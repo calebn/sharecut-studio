@@ -10,7 +10,10 @@ from pydantic import ValidationError
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipping_truncated
-from podcast_mcp.edits.comment_remap import remap_review_anchors_for_cuts
+from podcast_mcp.edits.comment_remap import (
+    remap_review_anchors_for_cuts,
+    shift_review_anchors_for_insert,
+)
 from podcast_mcp.edits.cut_speech import cut_speech_params
 from podcast_mcp.edits.edit_log import archive_timeline_op, seam_source_by_track
 from podcast_mcp.edits.inaudible_cuts import (
@@ -306,6 +309,7 @@ def insert_gap(
 ) -> dict:
     tracks = ripple_track_ids(project)
     ripple_insert_clips(project, at_time, duration_sec, tracks, defaults=defaults)
+    shift_review_anchors_for_insert(project, at_time, duration_sec)
     # Words stay in source coordinates; only clip placement moves.
     rebuild_combined(project, defaults=defaults)
     return change_summary(

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.join_modes import (
     crossfade_joins,
     fade_joins,
@@ -27,6 +28,7 @@ from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
 from podcast_mcp.engines.room_tone import OwnQuietSample, Sample
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
+    ChapterMarker,
     Clip,
     ClipJoinMode,
     CombinedTranscript,
@@ -39,6 +41,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.models.episode import RangeInterval
 from ripple_helpers import ripple_cut, shorten_gaps
 
 
@@ -112,6 +115,45 @@ def test_insert_gap_shifts_clips() -> None:
     assert host[1].timeline_start == pytest.approx(4.0)
     assert host[1].source_start == pytest.approx(3.0)
     assert host[1].source_end == pytest.approx(10.0)
+
+
+def test_insert_gap_shifts_comments_and_chapters_at_or_after_the_point() -> None:
+    p = _two_track_project()
+    add_comment(p, body="early", author="a", timeline_start=1.0, comment_id="early")
+    add_comment(p, body="at", author="a", timeline_start=3.0, comment_id="at")
+    add_comment(
+        p,
+        body="late",
+        author="a",
+        timeline_start=5.0,
+        timeline_end=6.0,
+        timeline_spans=[RangeInterval(start=5.0, end=6.0)],
+        comment_id="late",
+    )
+    add_comment(
+        p,
+        body="across",
+        author="a",
+        timeline_start=2.0,
+        timeline_end=4.0,
+        timeline_spans=[RangeInterval(start=2.0, end=3.5), RangeInterval(start=3.75, end=4.0)],
+        comment_id="across",
+    )
+    p.editorial.chapters = [
+        ChapterMarker(time=1.0, title="one"),
+        ChapterMarker(time=3.0, title="two"),
+        ChapterMarker(time=5.0, title="three"),
+    ]
+    insert_gap(p, 3.0, 1.0, defaults=load_defaults())
+    spans = {
+        c.id: (c.timeline_start, c.timeline_end, [(r.start, r.end) for r in c.timeline_spans])
+        for c in p.comments
+    }
+    assert spans["early"][:2] == (1.0, None)
+    assert spans["at"][:2] == (4.0, None)
+    assert spans["late"] == (6.0, 7.0, [(6.0, 7.0)])
+    assert spans["across"] == (2.0, 5.0, [(2.0, 4.5), (4.75, 5.0)])
+    assert [c.time for c in p.editorial.chapters] == [1.0, 4.0, 6.0]
 
 
 def test_insert_gap_at_clip_boundary_only_shifts_later() -> None:

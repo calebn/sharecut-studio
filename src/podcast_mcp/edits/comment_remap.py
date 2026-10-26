@@ -1,7 +1,7 @@
-"""Remap timeline-anchored intervals after a ripple cut.
+"""Remap timeline-anchored intervals after a ripple cut or an insert.
 
 Used for review comments and chapter markers so absolute timeline times stay
-aligned with what guests hear after material is removed.
+aligned with what guests hear after material is removed or opened.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from podcast_mcp.models import ChapterMarker, EpisodeProject, TimelineComment
+from podcast_mcp.models.episode import RangeInterval
 
 _EPS = 1e-9
 
@@ -116,3 +117,47 @@ def remap_review_anchors_for_cuts(
         chapters = remap_chapters_for_cut(chapters, cut_start, cut_end)
     project.review.comments = comments
     project.editorial.chapters = chapters
+
+
+def _start_after_insert(start: float, at_time: float, duration_sec: float) -> float:
+    return start + duration_sec if start >= at_time - _EPS else start
+
+
+def _end_after_insert(start: float, end: float, at_time: float, duration_sec: float) -> float:
+    moved = start >= at_time - _EPS or end > at_time + _EPS
+    return end + duration_sec if moved else end
+
+
+def shift_review_anchors_for_insert(
+    project: EpisodeProject,
+    at_time: float,
+    duration_sec: float,
+) -> None:
+    """Move comments (with their spans) and chapters for a gap opened at ``at_time`` (mutates project).
+
+    An interval starting at or after the point moves; one the point falls inside grows.
+    """
+    project.review.comments = [
+        c.model_copy(
+            update={
+                "timeline_start": _start_after_insert(c.timeline_start, at_time, duration_sec),
+                "timeline_end": (
+                    None
+                    if c.timeline_end is None
+                    else _end_after_insert(c.timeline_start, c.timeline_end, at_time, duration_sec)
+                ),
+                "timeline_spans": [
+                    RangeInterval(
+                        start=_start_after_insert(span.start, at_time, duration_sec),
+                        end=_end_after_insert(span.start, span.end, at_time, duration_sec),
+                    )
+                    for span in c.timeline_spans
+                ],
+            }
+        )
+        for c in project.review.comments
+    ]
+    project.editorial.chapters = [
+        ch.model_copy(update={"time": _start_after_insert(ch.time, at_time, duration_sec)})
+        for ch in project.editorial.chapters
+    ]
