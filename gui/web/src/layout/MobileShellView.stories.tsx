@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { FollowBannerView } from "../stage/frame/FollowBannerView";
 import { transportAvailability } from "../state/transportAvailability";
 import type { MobileMode, MoreDestination } from "../state/types";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { TrackMixView } from "../tracks/TrackMixView";
 import { Timecode } from "../ui/Timecode";
-import { FollowBannerView } from "./FollowBannerView";
 import { ListenHero } from "./ListenHero";
 import { type MobileScreen, MobileShellView } from "./MobileShellView";
 import { shellProject, shellTime } from "./shellStoryData";

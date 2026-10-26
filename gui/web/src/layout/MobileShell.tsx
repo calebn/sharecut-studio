@@ -33,6 +33,22 @@ import {
   canManageProjects,
   guestShareBannerLabel,
 } from "../shareMode";
+import { useSelectionSheet } from "../stage/edit/useSelectionSheet";
+import { AvatarStack } from "../stage/frame/AvatarStack";
+import { FollowBanner } from "../stage/frame/FollowBanner";
+import { GuestAttentionBanner } from "../stage/frame/GuestAttentionBanner";
+import { GuestVersionNotice } from "../stage/frame/GuestVersionNotice";
+import { HomeScreenHint } from "../stage/frame/HomeScreenHint";
+import {
+  type LoadFailure,
+  LoadFailureBanner,
+} from "../stage/frame/LoadFailureBanner";
+import {
+  LISTEN_SKIP_SEC,
+  seekListen,
+  skipListen,
+} from "../stage/frame/listenSeek";
+import { TAB_LABELS } from "../stage/frame/tabLabels";
 import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
@@ -51,17 +67,10 @@ import {
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { staleMixLabel } from "../utils/staleRender";
 import { formatTimecodePair, transportTimecode } from "../utils/time";
-import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
-import { FollowBanner } from "./FollowBanner";
-import { GuestAttentionBanner } from "./GuestAttentionBanner";
-import { GuestVersionNotice } from "./GuestVersionNotice";
-import { HomeScreenHint } from "./HomeScreenHint";
 import { ListenCommentComposer } from "./ListenCommentComposer";
 import { ListenHero } from "./ListenHero";
 import { ListenScrubber } from "./ListenPlayhead";
-import { type LoadFailure, LoadFailureBanner } from "./LoadFailureBanner";
-import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
 import {
   type MobileScreen,
   type MobileSheet,
@@ -73,9 +82,7 @@ import { SaveStateDot } from "./SaveStateDot";
 import { TransportBar } from "./TransportBar";
 import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
-import { TAB_LABELS } from "./tabLabels";
 import { transportPlayHandlers } from "./transportPlay";
-import { useSelectionSheet } from "./useSelectionSheet";
 
 function MoreHub({
   guestShare,

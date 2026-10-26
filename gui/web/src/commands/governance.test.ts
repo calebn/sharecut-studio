@@ -81,7 +81,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // Enter saves and Escape cancels the comment name and comment time fields.
   "comments/InlineEditInput.tsx",
   // Palette search: Enter runs the top match and arrows step through results.
-  "layout/CommandPaletteView.tsx",
+  "stage/dialogs/CommandPaletteView.tsx",
   // Enter sends the note and Shift+Enter adds a line, as in the Composer.
   "system/ActionBarInline.tsx",
   // A focused suggestion handle moves with the arrow keys, 0.5 s with Shift.

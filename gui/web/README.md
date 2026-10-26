@@ -244,7 +244,7 @@ or `{ status: "unknown" }` when the command is unavailable. Disabled replies
 preserve command metadata such as `announced`, and command errors reject the
 tool promise unchanged. DAW transport seeking uses
 `src/commands/seek.ts`, which returns the pointer command result for callers
-that need to await it. Listen skip math stays in `src/layout/listenSeek.ts`;
+that need to await it. Listen skip math stays in `src/stage/frame/listenSeek.ts`;
 timeline callers keep their selection and blade actions after the seek
 dispatch, and WebMCP awaits the shared helper.
 `commands/governance.test.ts` rejects inline `skipWhen: true` outside the pointer

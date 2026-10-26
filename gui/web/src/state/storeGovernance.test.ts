@@ -431,11 +431,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "computes snap ticks from the live playhead and blade hover position",
   },
   {
-    file: "layout/AvatarStack.tsx",
+    file: "stage/frame/AvatarStack.tsx",
     reason: "leaf that reads the presence roster itself",
   },
   {
-    file: "layout/FollowBanner.tsx",
+    file: "stage/frame/FollowBanner.tsx",
     reason: "leaf that reads the presence roster itself",
   },
   {

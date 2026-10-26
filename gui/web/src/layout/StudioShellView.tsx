@@ -1,6 +1,7 @@
 import type { DragEventHandler, ReactNode, Ref, RefCallback } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab, studioTabIds } from "../presence/followSync";
+import { TAB_LABELS } from "../stage/frame/tabLabels";
 import type { EffectiveLayoutMode } from "../state/layoutPresentation";
 import type { PresenceTab } from "../types/session";
 import { BottomSheet } from "../ui/BottomSheet";
@@ -12,7 +13,6 @@ import {
   type ShellAppearance,
   type ShellNotices,
 } from "./shellPresentation";
-import { TAB_LABELS } from "./tabLabels";
 
 const PANEL_TAB_ID = "studio-panel-tab";
 const PANEL_TABPANEL_ID = "studio-panel";

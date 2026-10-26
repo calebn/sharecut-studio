@@ -1,5 +1,5 @@
+import { seekListen } from "../stage/frame/listenSeek";
 import { useDawStore } from "../state/dawStore";
-import { seekListen } from "./listenSeek";
 
 /**
  * Listen mode's playhead scrubber. It selects the playhead itself, so a tick

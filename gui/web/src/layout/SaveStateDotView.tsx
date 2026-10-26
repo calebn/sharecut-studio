@@ -1,4 +1,4 @@
-import { type SaveState, saveStateText } from "./saveState";
+import { type SaveState, saveStateText } from "../stage/frame/saveState";
 
 type AttentionControl =
   | { kind: "passive" }

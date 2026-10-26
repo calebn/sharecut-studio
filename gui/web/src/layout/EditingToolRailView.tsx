@@ -1,12 +1,12 @@
 import { type ReactNode } from "react";
 import { commandLabel } from "../commands/labels";
+import type { ZoomAvailability } from "../stage/edit/useZoomControls";
+import { HistoryControls } from "../stage/frame/HistoryControls";
+import type { HistoryAvailability } from "../stage/frame/useHistoryControls";
 import type { ToolMode } from "../state/types";
 import { Button } from "../ui";
-import { HistoryControls } from "./HistoryControls";
 import { RailLabelPeek } from "./RailLabelPeek";
-import type { HistoryAvailability } from "./useHistoryControls";
 import { useRailLabelPeek } from "./useRailLabelPeek";
-import type { ZoomAvailability } from "./useZoomControls";
 import { ZoomControls } from "./ZoomControls";
 
 export interface EditingToolRailViewProps {

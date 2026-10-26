@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useRecordHostStore } from "../record/hostStore";
+import { CheatsheetDialogs } from "../stage/dialogs/CheatsheetDialogs";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -24,7 +25,6 @@ import {
 } from "../test/fixtures";
 import { defaultModelsWrapper } from "../test/renderWithModels";
 import { wordSelection } from "../utils/rangeSelect";
-import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
 function render(ui: ReactElement) {

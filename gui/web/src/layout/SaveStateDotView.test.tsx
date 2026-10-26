@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { SaveState } from "../stage/frame/saveState";
 import { expectNoA11yViolations } from "../test/a11y";
 import { SaveStateDotView } from "./SaveStateDotView";
-import type { SaveState } from "./saveState";
 
 function setup(state: SaveState) {
   const onShowAttention = vi.fn();

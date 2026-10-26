@@ -31,6 +31,10 @@ import {
   canSuggestStructuralOnProject,
   guestHearsMixOnly,
 } from "../shareMode";
+import { useZoomControls } from "../stage/edit/useZoomControls";
+import { AvatarStack } from "../stage/frame/AvatarStack";
+import { HistoryControls } from "../stage/frame/HistoryControls";
+import { useHistoryControls } from "../stage/frame/useHistoryControls";
 import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
 import type { AuditionMode } from "../types/session";
@@ -61,9 +65,7 @@ import {
   MIX_FRESH_LABEL,
   staleMixLabel,
 } from "../utils/staleRender";
-import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
-import { HistoryControls } from "./HistoryControls";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 import { LAYOUT_MODES, layoutModeCopy } from "./layoutModes";
 import { OverlayLegend } from "./OverlayLegend";
@@ -75,8 +77,6 @@ import { TransportTimecode } from "./TransportTimecode";
 import { transportMenuTitle } from "./transportMenuTitle";
 import { transportPlayHandlers } from "./transportPlay";
 import { useEffectiveLayout } from "./useEffectiveLayout";
-import { useHistoryControls } from "./useHistoryControls";
-import { useZoomControls } from "./useZoomControls";
 import { WaveformViewSections } from "./WaveformViewSections";
 import { ZoomControls } from "./ZoomControls";
 

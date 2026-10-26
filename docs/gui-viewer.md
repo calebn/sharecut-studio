@@ -333,7 +333,7 @@ Host and guest shells reserve a banner row for offline command attention on all 
 
 ## Project save state
 
-A host project shows one save state, so "did that save?" never needs the History tab. It is derived, not tracked: `layout/saveState.ts` (`saveStateOf`) reads three facts the editor already holds, and `SaveStateDot` renders the result as a status light with no visible text. The text lives in the dot's accessible name and `title`, and in the **Needs attention** banner.
+A host project shows one save state, so "did that save?" never needs the History tab. It is derived, not tracked: `stage/frame/saveState.ts` (`saveStateOf`) reads three facts the editor already holds, and `SaveStateDot` renders the result as a status light with no visible text. The text lives in the dot's accessible name and `title`, and in the **Needs attention** banner.
 
 | State | Read from | Light (shape, colour token) | Name and `title` |
 | --- | --- | --- | --- |
@@ -713,7 +713,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/health` | Smoke check |
-| `GET /api/document/state?path=` | Atomic bootstrap/recovery envelope with `server_seq`, `state_token`, and named projection. `phase=shell` is the default; `detail` hydrates words; `full` provides all fields. Loopback pins `served_project` for host MCP. The client gives up on a state load the server has not answered in 30 s (`withAbortTimeout`, which takes the caller's cancel signal as its last argument rather than merging signals with `AbortSignal.any`, because on WebKit a merged signal stops forwarding the timeout to `fetch` and the load never ends). The shell load's failure shows the "Could not load transcript and history" banner (it says "The server didn't answer.") with **Retry** on Chromium and WebKit (`e2e-compat/initial-load-recovery.spec.ts`). The banner (`layout/LoadFailureBanner`) renders in the shell's banner row; the touch shells are fixed to the viewport and cover anything placed above them. |
+| `GET /api/document/state?path=` | Atomic bootstrap/recovery envelope with `server_seq`, `state_token`, and named projection. `phase=shell` is the default; `detail` hydrates words; `full` provides all fields. Loopback pins `served_project` for host MCP. The client gives up on a state load the server has not answered in 30 s (`withAbortTimeout`, which takes the caller's cancel signal as its last argument rather than merging signals with `AbortSignal.any`, because on WebKit a merged signal stops forwarding the timeout to `fetch` and the load never ends). The shell load's failure shows the "Could not load transcript and history" banner (it says "The server didn't answer.") with **Retry** on Chromium and WebKit (`e2e-compat/initial-load-recovery.spec.ts`). The banner (`stage/frame/LoadFailureBanner`) renders in the shell's banner row; the touch shells are fixed to the viewport and cover anything placed above them. |
 | `GET /api/project?path=` | Compatibility projection API without a document sequence. The DAW uses the atomic state endpoint. |
 | `POST /api/project/close` | Loopback — unpin `served_project` (Studio New project) |
 | `GET /api/handoff/ping?project=`, `POST /api/handoff/run`, `POST /api/handoff/cancel?run=` | Local CLI handoff (#1733): does this run serve the project, run a CLI command and stream its output, cancel it. Token from `artifacts/studio-host.json` required; see [CLI commands while Studio is open](#cli-commands-while-studio-is-open-1733) |
