@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -14,6 +15,7 @@ from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
 from podcast_mcp.edits.cut_speech import LaneSourceExtent
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -309,3 +311,43 @@ def test_key_parts_name_the_input_that_moved_the_key(tmp_path: Path) -> None:
     moved = verdict_cache.key_parts(project, edit, **kwargs)
     assert moved is not None
     assert {name for name in base if base[name] != moved[name]} == {"heard"}
+
+
+def test_the_host_approval_reuses_the_checks_warmed_in_the_background(
+    tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.document.edit import EditService
+
+    project = _project(tmp_path)
+    for edit in project.edit_decisions:
+        edit.review_required = True
+    ws = SimpleNamespace(project=project, effective_config=load_defaults)
+    assert EditService(ws).warm_approval_checks() == 2  # type: ignore[arg-type]
+    seen = _spy_observations(monkeypatch)
+    approve_edits(
+        project,
+        IDS,
+        defaults=load_defaults(),
+        held_out=[],
+        asked_out=[],
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
+    )
+    assert seen == []
+
+
+def test_a_programmatic_check_is_not_reused_by_the_host_approval(
+    tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The intent decides how a cut is checked, so a check made for one is never served to the other.
+    project = _project(tmp_path)
+    precompute_verdicts(project, IDS, defaults=load_defaults())
+    seen = _spy_observations(monkeypatch)
+    approve_edits(
+        project,
+        IDS,
+        defaults=load_defaults(),
+        held_out=[],
+        asked_out=[],
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
+    )
+    assert sorted(seen) == sorted(IDS)

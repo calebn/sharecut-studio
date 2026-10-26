@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
+import threading
 from typing import Any, Literal
 
 from fastapi import APIRouter, Header, Query, Request
@@ -157,6 +159,45 @@ def range_audio(
         raise coded_exception_error(409, exc, code="range_changed") from exc
 
 
+log = logging.getLogger(__name__)
+_warming_checks: set[str] = set()
+_warming_lock = threading.Lock()
+
+
+def _warm_approval_checks(project_path: Any) -> None:
+    """Check the pending cuts in the background so the host's Approve all reuses the checks.
+
+    One thread per project at a time, at a lower CPU priority, off the request: the checks run
+    on a copy and save nothing, and an approval that starts meanwhile simply checks for itself.
+    Does nothing while the verdict cache is off (#1958).
+    """
+    from podcast_mcp.edits import verdict_cache
+
+    if not verdict_cache.enabled():
+        return
+    key = str(project_path)
+    with _warming_lock:
+        if key in _warming_checks:
+            return
+        _warming_checks.add(key)
+
+    def run() -> None:
+        from podcast_mcp.services.app import ProjectWorkspace
+        from podcast_mcp.services.document import EditService
+        from podcast_mcp.util.process import low_priority
+
+        try:
+            with low_priority():
+                EditService(ProjectWorkspace.open(project_path)).warm_approval_checks()
+        except Exception:  # advisory: an approval checks for itself
+            log.warning("could not warm the approval checks", exc_info=True)
+        finally:
+            with _warming_lock:
+                _warming_checks.discard(key)
+
+    threading.Thread(target=run, name="approval-check-warm", daemon=True).start()
+
+
 @router.post("/api/pending-preview/warm")
 def pending_preview_warm(
     request: Request,
@@ -187,9 +228,11 @@ def pending_preview_warm(
     try:
         if background:
             with low_priority():
-                return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
+                warmed = PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
                     None, lock_timeout=BACKGROUND_RENDER_LOCK_TIMEOUT_SEC
                 )
+            _warm_approval_checks(project_path)
+            return warmed
         # The edit's renders read the sources and write content-addressed files atomically,
         # so a render or approve the user starts meanwhile is not queued behind them; only
         # each stale stem's own render takes the lock.

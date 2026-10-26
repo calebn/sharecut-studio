@@ -487,3 +487,42 @@ def test_host_pending_preview_warm_requires_host(minimal_project, monkeypatch):
         headers={"x-sharecut-relayed": "1"},
     )
     assert response.status_code in (401, 403)
+
+
+def test_background_warm_checks_the_pending_cuts_once_at_a_time(minimal_project, monkeypatch):
+    import threading
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.edits import verdict_cache
+    from podcast_mcp.gui.routes import document as route
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.document import EditService, PlayService
+
+    monkeypatch.setattr(PlayService, "warm_pending_preview", lambda self, *a, **k: {})
+    started, release = threading.Event(), threading.Event()
+    calls: list[int] = []
+
+    def warm(self):
+        calls.append(1)
+        started.set()
+        release.wait(5)
+        return 0
+
+    monkeypatch.setattr(EditService, "warm_approval_checks", warm)
+    client = TestClient(create_app())
+    params = {"path": str(minimal_project), "background": "true"}
+
+    assert client.post("/api/pending-preview/warm", params=params).status_code == 200
+    assert calls == []  # the verdict cache is off
+
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    assert client.post("/api/pending-preview/warm", params=params).status_code == 200
+    assert started.wait(5)
+    assert client.post("/api/pending-preview/warm", params=params).status_code == 200
+    release.set()
+    for thread in threading.enumerate():
+        if thread.name == "approval-check-warm":
+            thread.join(5)
+    assert calls == [1]
+    assert not route._warming_checks
