@@ -1798,6 +1798,58 @@
       }
     },
     {
+      "id": "daw.review.listSessionSuggestions",
+      "label": "List staged sessions",
+      "effect": "project",
+      "service": "SessionSuggestionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast review session-suggestions",
+        "mcp": [
+          "list_session_suggestions_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "List recorded sessions staged for insert or replace",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.review.skipSessionSuggestion",
+      "label": "Skip staged session",
+      "effect": "project",
+      "service": "SessionSuggestionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast review skip-session-suggestion",
+        "mcp": [
+          "skip_session_suggestion_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "Skip a staged recorded session",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.record.panel",
       "label": "Record room…",
       "effect": "view",
@@ -2144,7 +2196,7 @@
       "id": "agent.edits",
       "label": "Edit decisions / NL cuts",
       "effect": "project",
-      "service": "EditService",
+      "service": "SessionSuggestionService",
       "industry_standard_key": false,
       "gates": [
         "host"

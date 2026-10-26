@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         PopulatedHistoryDiffResult,
     )
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
+    from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.transcript import TranscriptService
 
@@ -62,6 +63,7 @@ __all__ = [
     "PlayService",
     "PopulatedHistoryDiffResult",
     "RollBoundaryTarget",
+    "SessionSuggestionService",
     "TimelineService",
     "TranscriptService",
     "TransportPath",
@@ -103,6 +105,7 @@ _MODULE_BY_NAME = {
     "PlayRequest": "play",
     "PlayService": "play",
     "TransportPath": "play",
+    "SessionSuggestionService": "session_suggestion",
     "TimelineService": "timeline",
     "TranscriptService": "transcript",
 }

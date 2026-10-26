@@ -95,7 +95,12 @@ def record_room_tone(project: Path = typer.Option(..., "--project")) -> None:
 def record_target(
     project: Path = typer.Option(..., "--project"),
     target: str = typer.Argument(
-        "end", help="Where the session lands: end (the only target available yet)"
+        "end",
+        help=(
+            "Where the session lands: end, or a JSON object for insert "
+            '({"kind":"insert","at_sec":12.5}) or replace '
+            '({"kind":"replace","from_sec":12.5,"to_sec":20,"track_ids":["host"]})'
+        ),
     ),
 ) -> None:
     """Set where this room's session lands (before the first take)."""
