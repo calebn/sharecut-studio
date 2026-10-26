@@ -49,17 +49,21 @@ def check_target_for_project(target: SessionTarget, project: EpisodeProject) -> 
     known = {track.id for track in project.timeline.tracks}
     missing = [track_id for track_id in target.track_ids if track_id not in known]
     if missing:
-        names = ", ".join(sorted(known)) or "none yet"
+        if not known:
+            raise CodedValueError(
+                "track_ids: this episode has no tracks yet, so a replace target cannot be set.",
+                code="invalid_record_request",
+            )
         raise CodedValueError(
             f"track_ids: this episode has no track named {', '.join(missing)}. "
-            f"Pick from the tracks it has: {names}.",
+            f"Pick from the tracks it has: {', '.join(sorted(known))}.",
             code="invalid_record_request",
         )
     end = timeline_duration_sec(project)
-    if target.to_sec > end + 1e-6:
+    if target.to_sec > end + 1e-3:
         raise CodedValueError(
-            f"to_sec: the replace range ends at {target.to_sec:g}s but the timeline is only "
-            f"{end:g}s long. Pick a range inside the timeline.",
+            f"to_sec: the replace range ends at {target.to_sec:.3f}s but the timeline is only "
+            f"{end:.3f}s long. Pick a range inside the timeline.",
             code="invalid_record_request",
         )
 

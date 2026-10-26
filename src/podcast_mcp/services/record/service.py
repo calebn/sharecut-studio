@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.collaboration import (
     SHARE_KIND_RECORD,
     drop_absolute_path_strings,
@@ -394,6 +395,13 @@ class RecordSessionService:
         _SID_CACHE.put(cache_key, (now, last))
         return last
 
+    def _saved_project(self) -> EpisodeProject:
+        """The project as saved now, so edits made after this service was built are seen."""
+        try:
+            return ProjectStore(self.project.workspace_path()).load()
+        except FileNotFoundError:
+            return self.project
+
     def _empty(self) -> dict[str, Any]:
         return empty_record_snapshot(self.session_id).model_dump()
 
@@ -653,7 +661,9 @@ class RecordSessionService:
             raise RecordStateError("participant removed")
         wall = time.time_ns() // 1_000_000 if now_wall_ms is None else now_wall_ms
         if cmd.type == "SetTarget" and not self._model().takes:
-            check_target_for_project(parse_session_target(cmd.payload.get("target")), self.project)
+            check_target_for_project(
+                parse_session_target(cmd.payload.get("target")), self._saved_project()
+            )
         if cmd.type == "Comment":
             self._rewrite_comment(cmd, now_wall_ms=wall)
         stored_payload = dict(cmd.payload)

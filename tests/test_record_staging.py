@@ -1656,7 +1656,72 @@ def test_a_replace_target_past_the_timeline_end_is_refused_by_field(
     message = _refused_target(
         ws, {"kind": "replace", "from_sec": 8, "to_sec": 12, "track_ids": ["ava"]}
     )
-    assert message.startswith("to_sec:") and "10s" in message
+    assert message.startswith("to_sec:") and "10.000s" in message
+
+
+def test_a_replace_target_over_a_track_added_after_connect_is_accepted(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _join(ws, room)
+    target = {"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["music"]}
+    with pytest.raises(CodedValueError, match="music"):
+        svc.submit(_cmd("SetTarget", payload={"target": target}), now_wall_ms=0)
+
+    def add_music(project: EpisodeProject) -> None:
+        project.tracks.append(Track(id="music", label="Music", role=TrackRole.MUSIC))
+
+    ProjectWorkspace.open(ws.path).mutate("add", "added", add_music)
+    assert ws.project.track_by_id("music") is None
+    svc.submit(_cmd("SetTarget", payload={"target": target}), now_wall_ms=0)
+    assert svc.snapshot()["target"]["track_ids"] == ["music"]
+
+
+def test_a_replace_target_overshooting_by_a_hair_is_accepted_and_a_real_overshoot_reads_clearly(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.record.control import RecordControlService
+
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    ShareService(ws).create_record_room()
+    ctrl = RecordControlService(ws)
+    hair = {"kind": "replace", "from_sec": 1, "to_sec": 10.00001, "track_ids": ["ava"]}
+    assert ctrl.set_target(hair)["target"]["to_sec"] == 10.00001
+    near = {"kind": "replace", "from_sec": 1, "to_sec": 10.004, "track_ids": ["ava"]}
+    with pytest.raises(CodedValueError) as raised:
+        ctrl.set_target(near)
+    assert "10.004s" in str(raised.value) and "10.000s" in str(raised.value)
+
+
+def test_a_replace_target_in_an_episode_without_tracks_says_so(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    message = _refused_target(
+        ws, {"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["ava"]}
+    )
+    assert message == (
+        "track_ids: this episode has no tracks yet, so a replace target cannot be set."
+    )
+
+
+def test_set_target_without_an_object_target_is_refused_naming_the_field():
+    from podcast_mcp.services.record.commands import validate_record_payload
+
+    for payload in ({}, {"target": None}, {"target": "end"}):
+        with pytest.raises(CodedValueError, match=r"^target:") as raised:
+            validate_record_payload("SetTarget", payload)
+        assert raised.value.code == "invalid_record_request"
+    for kind in ("end", "insert", "replace"):
+        target = {
+            "end": {"kind": "end"},
+            "insert": {"kind": "insert", "at_sec": 1.0},
+            "replace": {"kind": "replace", "from_sec": 1.0, "to_sec": 2.0, "track_ids": ["a"]},
+        }[kind]
+        assert validate_record_payload("SetTarget", {"target": target})["target"]["kind"] == kind
 
 
 def test_a_replace_target_with_a_reversed_range_is_refused_by_field(
