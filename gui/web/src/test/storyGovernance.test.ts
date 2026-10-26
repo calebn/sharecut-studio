@@ -380,3 +380,18 @@ describe("Storybook title tiers", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("hydrated story files", () => {
+  it("never take the autodocs tag", () => {
+    const offenders = walkTsFiles(SRC_ROOT)
+      .filter((file) => /\.stories\.(?:ts|tsx)$/.test(file))
+      .filter((file) => {
+        const source = readFileSync(file, "utf8");
+        return (
+          source.includes("episodeBeforeEach") && source.includes('"autodocs"')
+        );
+      })
+      .map(srcRelative);
+    expect(offenders).toEqual([]);
+  });
+});

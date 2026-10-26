@@ -19,7 +19,6 @@ const region = (canvasElement: HTMLElement, name: string) =>
 const meta: Meta<typeof GuestAttentionBannerView> = {
   title: "Templates/GuestAttentionBanner",
   component: GuestAttentionBannerView,
-  tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
