@@ -100,7 +100,7 @@ const meta: Meta<typeof RecordPanelView> = {
     startBlocked: false,
     blockers: [],
     blockersId: "record-blockers",
-    startFixes: { retryStorage: fn() },
+    startFixes: { copyGuestLink: fn(), retryStorage: fn() },
     doneNotice: null,
     capture: null,
     offline: false,
@@ -214,15 +214,24 @@ export const LookupFailed: Story = {
 export const LobbyBlocked: Story = {
   args: {
     startBlocked: true,
-    blockers: [{ key: "no_recorder", text: "Joining the room." }],
+    blockers: [
+      {
+        key: "no_guest",
+        text: "No guest has joined yet. Send them the guest link.",
+        fix: "copyGuestLink",
+      },
+    ],
   },
-  play: async ({ canvasElement, viewMode }) => {
+  play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
     await expect(
       within(dialog).getByRole("button", { name: "Start" }),
     ).toBeDisabled();
-    await expect(within(dialog).getByText("Joining the room.")).toBeVisible();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Copy guest link" }),
+    );
+    await expect(args.startFixes.copyGuestLink).toHaveBeenCalledOnce();
   },
 };
 
