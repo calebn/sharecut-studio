@@ -79,7 +79,7 @@ const meta: Meta<typeof PrepareView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Prepare stage inside the shell: Sources, Getting ready, Help the transcriber and Cleanup, then the one Stage hand-off. It is a plain div with h2 sections; the shell owns main and the page heading. The DOM order is the same at every width, so Tab follows what is on screen: Add audio and Record, the sessions and their cards, the Getting ready rows, vocabulary, Cleanup, hand-off. From 60rem wide (a container query) it is three columns (Sources 22.5rem, Getting ready, then the help column with the hand-off at its foot); narrower it is one column, the Getting ready rows fold behind a one-line summary button, and the hand-off sticks to the bottom at 48 px. Work starts by itself after import, so the hand-off is secondary and says why it waits until everything is done, then becomes the one primary. One polite status line speaks the phase when it changes ("Adding 3 files.", "Transcribing started.", "Done. Review 14 suggestions.", or the failed step and its cause), never a progress tick. A drag over the window shows the drop frame and says the same words. The keyboard way to add audio is the Add audio tile. Presentational: data in, callbacks out; the vocabulary field is the Vocabulary surface, with the speaker chips taken from the named Source cards.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; bars grow with `--motion-state`; the phone summary opens with `--motion-panel`. Under reduced motion the spinner stops and the bar stays.',
+          'The Prepare stage inside the shell: Getting ready, Sources, Help the transcriber and Cleanup, then the one Stage hand-off. It is a plain div with h2 sections; the shell owns main and the page heading. The DOM order is the phone order from the spec (the Getting ready summary first, so progress is above the Source cards), and Tab follows it: Advanced, the summary, Add audio and Record, the sessions and their cards, vocabulary, Cleanup, hand-off. From 60rem wide (a container query) grid areas set three columns (Sources 22.5rem on the left, Getting ready in the middle, then the help column with the hand-off at its foot), so on desktop Tab reaches Getting ready before the Sources column that sits to its left; narrower it is one column in DOM order, the Getting ready rows fold behind a one-line summary button, and the hand-off sticks to the bottom at 48 px. Work starts by itself after import, so the hand-off is secondary and says why it waits until everything is done, then becomes the one primary. One polite status line speaks the phase when it changes ("Adding 3 files.", "Transcribing started.", "Done. Review 14 suggestions.", or the failed step and its cause), never a progress tick. A drag over the window shows the drop frame and says the same words. The keyboard way to add audio is the Add audio tile. Presentational: data in, callbacks out; the vocabulary field is the Vocabulary surface, with the speaker chips taken from the named Source cards.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; bars grow with `--motion-state`; the phone summary opens with `--motion-panel`. Under reduced motion the spinner stops and the bar stays.',
       },
     },
   },
@@ -204,7 +204,7 @@ export const NeedsSpeakerNames: Story = {
   render: live,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const names = canvas.getAllByLabelText("Speaker name");
+    const names = canvas.getAllByLabelText(/^Speaker name/);
     await userEvent.type(names[0], "Maya");
     await expect(
       canvas.getByRole("button", { name: "Hear Maya" }),
@@ -283,7 +283,7 @@ export const StepFailed: Story = {
       "Transcribing failed. Try again. The computer ran out of memory.",
     );
     await openReady(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await userEvent.click(canvas.getByRole("button", { name: /^Try again/ }));
     await expect(args.onRowAction).toHaveBeenCalledWith(
       "transcribe",
       "try-again",

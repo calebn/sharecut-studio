@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { SystemIconName } from "../../system/icons";
 import { StatusList } from "../../system/StatusList";
 import { StatusRow, type StatusRowState } from "../../system/StatusRow";
@@ -17,7 +17,7 @@ export type ReadyAction =
   | "keep-fixes"
   | "replace";
 
-export type ReadyBody =
+type ReadyBody =
   | {
       /** A large alignment move that needs a look. */
       kind: "align";
@@ -26,11 +26,6 @@ export type ReadyBody =
   | {
       /** Re-transcribing would overwrite hand-corrected words. */
       kind: "keep-fixes";
-      text: string;
-    }
-  | {
-      /** The plain cause of a failure. */
-      kind: "details";
       text: string;
     };
 
@@ -43,21 +38,15 @@ export type ReadyRowData = {
   progress?: number;
   /** The row's one primary action. */
   action?: { label: string; icon?: SystemIconName; run: ReadyAction };
+  /** The technical cause of a failure, behind the row's Details button. */
+  details?: string;
   body?: ReadyBody;
 };
 
-export type ReadyListProps = {
+type ReadyListProps = {
   rows: readonly ReadyRowData[];
   onAction: (row: ReadyRowId, action: ReadyAction) => void;
 };
-
-/** A row that needs you comes first; the rest keep the pipeline order. */
-function orderRows(rows: readonly ReadyRowData[]): ReadyRowData[] {
-  return [
-    ...rows.filter((row) => row.state === "needs-you"),
-    ...rows.filter((row) => row.state !== "needs-you"),
-  ];
-}
 
 function defaultExpanded(row: ReadyRowData): boolean {
   return row.state === "needs-you" && row.body !== undefined;
@@ -65,17 +54,20 @@ function defaultExpanded(row: ReadyRowData): boolean {
 
 function BodyButtons({
   row,
+  focusKeep,
   onAction,
 }: {
   row: ReadyRowData;
+  focusKeep: boolean;
   onAction: ReadyListProps["onAction"];
 }) {
   const textId = useId();
+  const keep = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (focusKeep) keep.current?.focus();
+  }, [focusKeep]);
   const body = row.body;
   if (!body) return null;
-  if (body.kind === "details") {
-    return <p className="sys-ready-text">{body.text}</p>;
-  }
   const run = (action: ReadyAction) => () => onAction(row.id, action);
   return (
     <>
@@ -97,10 +89,14 @@ function BodyButtons({
           </>
         ) : (
           <>
-            <Button variant="primary" onClick={run("keep-fixes")}>
+            <Button ref={keep} variant="primary" onClick={run("keep-fixes")}>
               Keep my fixes
             </Button>
-            <Button variant="danger" onClick={run("replace")}>
+            <Button
+              variant="danger"
+              className="sys-danger-outline"
+              onClick={run("replace")}
+            >
               Replace
             </Button>
           </>
@@ -112,8 +108,10 @@ function BodyButtons({
 
 /**
  * The Getting ready rows: what is done, what runs, what needs you. A thin map
- * onto the Status list. A row with a body opens and closes with its own
- * button; a row that needs you starts open, and opening never moves focus.
+ * onto the Status list, in the order given, so a row that changes state never
+ * moves in the DOM and drops focus. A row with a body opens and closes with its
+ * own button; a row that needs you starts open and never takes focus by
+ * itself. Opening Keep my fixes by hand puts focus on Keep, never on Replace.
  */
 export function ReadyList({ rows, onAction }: ReadyListProps) {
   const [toggled, setToggled] = useState<Partial<Record<ReadyRowId, boolean>>>(
@@ -121,7 +119,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
   );
   return (
     <StatusList label="Getting ready">
-      {orderRows(rows).map((row) => {
+      {rows.map((row) => {
         const expanded = toggled[row.id] ?? defaultExpanded(row);
         const action = row.action;
         return (
@@ -131,6 +129,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
             title={row.title}
             detail={row.detail}
             progress={row.progress}
+            details={row.details}
             action={
               action
                 ? {
@@ -146,7 +145,11 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
             }
           >
             {row.body ? (
-              <BodyButtons row={row} onAction={onAction} />
+              <BodyButtons
+                row={row}
+                focusKeep={toggled[row.id] === true}
+                onAction={onAction}
+              />
             ) : undefined}
           </StatusRow>
         );

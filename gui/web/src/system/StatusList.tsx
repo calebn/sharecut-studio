@@ -1,6 +1,6 @@
-import { Children, type ReactNode } from "react";
+import { Children, isValidElement, type ReactNode } from "react";
 
-export type StatusListProps = {
+type StatusListProps = {
   /** Names the list for assistive tech: "Getting ready". */
   label: string;
   /** StatusRow elements. Each sits in its own list item. */
@@ -15,8 +15,13 @@ export type StatusListProps = {
 export function StatusList({ label, children }: StatusListProps) {
   return (
     <ul className="sys-status-list" aria-label={label}>
-      {Children.map(children, (child) => (
-        <li className="sys-status-item">{child}</li>
+      {Children.toArray(children).map((child) => (
+        <li
+          key={isValidElement(child) ? (child.key ?? undefined) : undefined}
+          className="sys-status-item"
+        >
+          {child}
+        </li>
       ))}
     </ul>
   );

@@ -68,7 +68,7 @@ export const NeedsAlignCheck: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const items = canvas.getAllByRole("listitem");
-    await expect(within(items[0]).getByText("Line up tracks")).toBeVisible();
+    await expect(within(items[2]).getByText("Line up tracks")).toBeVisible();
     const group = canvas.getByRole("group", { name: /Listen to the move/ });
     await userEvent.click(
       within(group).getByRole("button", { name: "Looks right" }),
@@ -81,7 +81,7 @@ export const NeedsModel: Story = {
   args: { rows: ROWS.needsModel },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("listitem")[0]).toHaveTextContent(
+    await expect(canvas.getAllByRole("listitem")[1]).toHaveTextContent(
       "Transcribe",
     );
     await userEvent.click(
@@ -98,11 +98,21 @@ export const KeepMyFixes: Story = {
   args: { rows: ROWS.keepFixes },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const keep = canvas.getByRole("button", { name: "Keep my fixes" });
-    await expect(keep).not.toHaveFocus();
+    await expect(
+      canvas.getByRole("button", { name: "Keep my fixes" }),
+    ).not.toHaveFocus();
     await expect(canvas.getByRole("button", { name: "Replace" })).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Replace" }));
-    await expect(args.onAction).toHaveBeenCalledWith("transcribe", "replace");
+    const row = canvas.getByRole("button", { name: /Transcribe/ });
+    await userEvent.click(row);
+    await userEvent.click(row);
+    await expect(
+      canvas.getByRole("button", { name: "Keep my fixes" }),
+    ).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onAction).toHaveBeenCalledWith(
+      "transcribe",
+      "keep-fixes",
+    );
   },
 };
 
@@ -112,7 +122,10 @@ export const Failed: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
     await expect(args.onAction).toHaveBeenCalledWith("transcribe", "try-again");
-    const details = canvas.getByRole("button", { name: /Transcribe/ });
+    await expect(canvas.getByText("Not enough memory to finish")).toBeVisible();
+    const details = canvas.getByRole("button", {
+      name: "Details for Transcribe",
+    });
     await expect(details).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(details);
     await expect(canvas.getByText(/ran out of memory/)).toBeVisible();

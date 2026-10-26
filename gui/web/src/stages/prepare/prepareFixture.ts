@@ -175,10 +175,8 @@ export const ROWS = {
       title: "Transcribe",
       detail: "Not enough memory to finish",
       action: { label: "Try again", run: "try-again" },
-      body: {
-        kind: "details",
-        text: "The computer ran out of memory while it listened to the longest track. Close other apps and try again. The full log is in the Help bundle.",
-      },
+      details:
+        "The computer ran out of memory while it listened to the longest track. Close other apps and try again. The full log is in the Help bundle.",
     },
     ALIGN,
     CLEAN,

@@ -2,7 +2,7 @@ import { KeyCaps } from "./KeyCaps";
 import { SystemIcon } from "./SystemIcon";
 import { verbOf } from "./verbDisplay";
 
-export type StartTileProps = {
+type StartTileProps = {
   kind: "import" | "record";
   /** Tile height in px; `phone-bar` is the 72 px half of the thumb-zone bar. */
   size: 240 | 220 | 160 | 80 | "phone-bar";

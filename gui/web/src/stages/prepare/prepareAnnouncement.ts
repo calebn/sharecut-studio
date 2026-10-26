@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 /**
  * Where the stage is, in the words the live region needs. The region speaks
  * only when this changes, never on a progress tick.
@@ -11,7 +13,7 @@ export type PreparePhase =
   | "done"
   | "failed";
 
-export type AnnouncementInput = {
+type AnnouncementInput = {
   phase: PreparePhase;
   /** Files being added or just added. */
   addCount?: number;
@@ -61,4 +63,26 @@ export function prepareAnnouncement({
         ? `${failure.step} failed. Try again. ${failure.cause}`
         : "A step failed. Try again.";
   }
+}
+
+function transition({ phase, dropActive, failure }: AnnouncementInput): string {
+  if (dropActive) return "drop";
+  return phase === "failed" ? `failed:${failure?.step ?? ""}` : phase;
+}
+
+/**
+ * The live region's text. It is composed once when the stage enters a phase
+ * and kept until the next one, so a count that grows inside a phase ("Adding
+ * 3 files" then 4) is not spoken again.
+ */
+export function useAnnouncement(input: AnnouncementInput): string {
+  const key = transition(input);
+  const [spoken, setSpoken] = useState(() => ({
+    key,
+    text: prepareAnnouncement(input),
+  }));
+  if (spoken.key === key) return spoken.text;
+  const next = { key, text: prepareAnnouncement(input) };
+  setSpoken(next);
+  return next.text;
 }

@@ -69,17 +69,17 @@ describe("PrepareView structure", () => {
     expect(container.querySelector("h1, main")).toBeNull();
     expect(
       screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
-    ).toEqual(["Sources", "Getting ready", "Help the transcriber"]);
+    ).toEqual(["Getting ready", "Sources", "Help the transcriber"]);
     expect(
       screen.getByRole("heading", { level: 3, name: "Cleanup" }),
     ).toBeVisible();
   });
 
-  it("keeps the DOM order: Sources, Getting ready, Help, Cleanup, then the hand-off", () => {
+  it("keeps the DOM order of the phone: Getting ready, Sources, Help, Cleanup, then the hand-off", () => {
     render(<PrepareView {...props()} />);
     const order = [
-      screen.getByRole("heading", { name: "Sources" }),
       screen.getByRole("heading", { name: "Getting ready" }),
+      screen.getByRole("heading", { name: "Sources" }),
       screen.getByRole("heading", { name: "Help the transcriber" }),
       screen.getByRole("heading", { name: "Cleanup" }),
       screen.getByRole("button", { name: /Review suggestions/ }),
@@ -104,8 +104,8 @@ describe("PrepareView structure", () => {
     }
     const at = (pattern: RegExp) =>
       seen.findIndex((name) => pattern.test(name));
-    expect(at(/Add audio|Import audio/)).toBeLessThan(at(/Advanced/));
-    expect(at(/Advanced/)).toBeLessThan(at(/Light/));
+    expect(at(/Advanced/)).toBeLessThan(at(/Add audio|Import audio/));
+    expect(at(/Add audio|Import audio/)).toBeLessThan(at(/Light/));
     expect(at(/Light/)).toBeLessThan(at(/Podcast/));
     expect(at(/Podcast/)).toBeLessThan(at(/Review suggestions/));
   });
@@ -279,11 +279,54 @@ describe("PrepareView live region", () => {
     );
     expect(live(container)).toBe("Drop to add 3 files.");
     rerender(
+      <PrepareView {...props({ phase: "empty", sessions: [], rows: [] })} />,
+    );
+    rerender(
       <PrepareView
         {...props({ phase: "empty", sessions: [], rows: [], dropActive: true })}
       />,
     );
     expect(live(container)).toBe("Drop to add audio.");
+  });
+
+  it("keeps the words of a phase while its counts change", () => {
+    const { container, rerender } = render(
+      <PrepareView
+        {...props({ phase: "adding", addCount: 3, rows: ROWS.queued })}
+      />,
+    );
+    expect(live(container)).toBe("Adding 3 files.");
+    rerender(
+      <PrepareView
+        {...props({ phase: "adding", addCount: 4, rows: ROWS.queued })}
+      />,
+    );
+    expect(live(container)).toBe("Adding 3 files.");
+    rerender(
+      <PrepareView
+        {...props({ phase: "checking", addCount: 4, rows: ROWS.queued })}
+      />,
+    );
+    expect(live(container)).toBe("4 files added. Checking audio.");
+  });
+
+  it("does not speak a changed suggestion count or drop count again", () => {
+    const { container, rerender } = render(<PrepareView {...props(DONE)} />);
+    rerender(
+      <PrepareView
+        {...props({ ...DONE, handoff: { label: "Review 15 suggestions" } })}
+      />,
+    );
+    expect(live(container)).toBe("Done. Review 14 suggestions.");
+    const drop = { phase: "empty", sessions: [], rows: [] } as const;
+    rerender(
+      <PrepareView {...props({ ...drop, dropActive: true, dropCount: 3 })} />,
+    );
+    expect(live(container)).toBe("Drop to add 3 files.");
+    rerender(
+      <PrepareView {...props({ ...drop, dropActive: true, dropCount: 4 })} />,
+    );
+    expect(live(container)).toBe("Drop to add 3 files.");
   });
 
   it("has one polite status, and its text is a pure function of the phase", () => {

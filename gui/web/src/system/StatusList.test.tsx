@@ -18,6 +18,17 @@ describe("StatusList", () => {
     expect(within(list).getAllByRole("listitem")).toHaveLength(3);
   });
 
+  it("skips children that are false or null", () => {
+    render(
+      <StatusList label="Getting ready">
+        {false}
+        {null}
+        <StatusRow state="done" title="Add audio" />
+      </StatusList>,
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+  });
+
   it("names each row's state in text, not colour alone", () => {
     render(
       <StatusList label="Getting ready">

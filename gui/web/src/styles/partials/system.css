@@ -1358,6 +1358,35 @@
   padding-inline-start: var(--space-6);
 }
 
+.sys-status[data-state="needs-you"] {
+  border-inline-start: 0.1875rem solid var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.sys-status[data-state="failed"] {
+  border: 1px solid var(--color-danger-subtle);
+  background: var(--color-danger-muted);
+}
+
+.sys-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline-start: auto;
+}
+
+.sys-status-cause {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.modifier-action.danger.sys-danger-outline {
+  border-color: var(--color-danger);
+  background: transparent;
+}
+
 /* Coach tip */
 
 .sys-coach {
@@ -2457,7 +2486,6 @@
 }
 
 .sys-chip-remove {
-  position: relative;
   inline-size: 1.25rem;
   block-size: 1.25rem;
   min-block-size: 0;
@@ -2466,11 +2494,11 @@
 }
 
 @media (pointer: coarse) {
-  .sys-chip-remove::after {
-    content: "";
-    position: absolute;
-    inset-block: calc((var(--touch-min) - 1.25rem) / -2);
-    inset-inline: calc((var(--touch-min) - 1.25rem) / -2);
+  .sys-chip-remove {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+    margin: calc((1.25rem - var(--touch-min)) / 2);
   }
 }
 
@@ -3132,6 +3160,23 @@
   flex: 1 1 12rem;
 }
 
-.sys-status-line > .ui-control {
-  margin-inline-start: auto;
+/* Touch targets (design system 4.4): list and alert rows are 48 tall, so their
+   buttons are 44 at every width; the rest of Prepare follows. */
+:is(
+    .sys-status--list,
+    .sys-status--alert,
+    .sys-source .sys-status--inline,
+    .sys-ready-actions,
+    .sys-prepare-head,
+    .sys-adv-bar,
+    .sys-adv-row,
+    .sys-vocab-again
+  )
+  .ui-control {
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+}
+
+.sys-source-actions .ui-control {
+  min-inline-size: var(--touch-min);
 }

@@ -79,7 +79,7 @@ describe("SplitSpeakers", () => {
     });
     expect(screen.getByText("About 1 min left")).toBeVisible();
     expect(screen.queryByRole("button", { name: /^Split/ })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Cancel splitting" }));
+    await user.click(screen.getByRole("button", { name: /^Cancel splitting/ }));
     expect(handlers.onCancelSplit).toHaveBeenCalledWith("both");
   });
 
@@ -101,7 +101,7 @@ describe("SplitSpeakers", () => {
     const user = userEvent.setup();
     const { handlers } = setup({ phase: "failed" });
     expect(screen.getByText("Could not tell the voices apart.")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("button", { name: /^Try again/ }));
     expect(handlers.onRetry).toHaveBeenCalledWith("both");
   });
 });
