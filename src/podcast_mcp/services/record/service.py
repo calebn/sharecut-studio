@@ -22,7 +22,7 @@ from podcast_mcp.services.record.commands import (
     RecordCommand,
     authorize_record_command,
 )
-from podcast_mcp.services.record.landing_math import take_offsets_s
+from podcast_mcp.services.record.landing_math import session_origin_s, take_offsets_s
 from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     live_comment_store_for,
@@ -461,9 +461,11 @@ class RecordSessionService:
         out["timeline_start_sec"] = None
         if snap.state in ("recording", "paused"):
             tombstoned = RecordUploadService(self.project).tombstoned_takes(self.session_id)
-            out["timeline_start_sec"] = take_offsets_s(snap.takes, tombstoned=tombstoned).get(
-                snap.take_index
-            )
+            out["timeline_start_sec"] = take_offsets_s(
+                snap.takes,
+                tombstoned=tombstoned,
+                origin_s=session_origin_s(self.project.clips, self.session_id),
+            ).get(snap.take_index)
         out["comments"] = [
             {
                 "id": row["comment_id"],

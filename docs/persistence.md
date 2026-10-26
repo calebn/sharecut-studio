@@ -64,7 +64,7 @@ media metadata or constructing clips.
 An uncertain probe fallback cannot become a numeric source or media duration.
 Consolidation checks source and rendered-track extents before changing project
 state. Packet scans use a bounded process-local revision cache, described in
-[architecture.md](architecture.md#audio-extent-admission), with no new sidecar
+[audio-engineering.md](audio-engineering.md#audio-extent-admission), with no new sidecar
 or project schema field.
 
 ## Balance measurement provenance

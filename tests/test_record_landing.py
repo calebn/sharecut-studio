@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from filelock import FileLock
 
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import SourceClippingRegion, load_project, save_project
+from podcast_mcp.models import Clip, SourceClippingRegion, load_project, save_project
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
@@ -46,6 +46,8 @@ from podcast_mcp.services.record.landing_math import (
     origin_pad_samples,
     overlap_window_s,
     pad_samples,
+    record_source_prefix,
+    session_origin_s,
     take_offsets_s,
 )
 from podcast_mcp.services.record.service import (
@@ -277,6 +279,74 @@ def test_take_offsets_include_gap_and_skip_tombstones() -> None:
     assert offsets[1] == pytest.approx(5.0 + TAKE_GAP_MS / 1000)
     skipped = take_offsets_s(takes, tombstoned={0})
     assert skipped[1] == 0.0
+
+
+def test_session_origin_starts_after_clips_the_session_did_not_land() -> None:
+    def clip(source_id: str, start: float, length: float) -> Clip:
+        return Clip(
+            id=f"c-{source_id}",
+            track_id="t",
+            source_id=source_id,
+            source_start=0.0,
+            source_end=length,
+            timeline_start=start,
+        )
+
+    mine = f"{record_source_prefix('abc')}0-p_host-0"
+    clips = [clip("episode", 0.0, 60.0), clip("pickup", 70.0, 10.0), clip(mine, 90.0, 30.0)]
+    assert session_origin_s(clips, "abc") == pytest.approx(80.0 + TAKE_GAP_MS / 1000)
+    assert session_origin_s([clip(mine, 0.0, 30.0)], "abc") == 0.0
+    assert session_origin_s([], "abc") == 0.0
+    takes = [
+        TakeState(
+            consented_participant_ids=[],
+            take_index=0,
+            session_start_wall_ms=0,
+            session_start_iso="t0",
+            stopped_wall_ms=4_000,
+        )
+    ]
+    assert take_offsets_s(takes, origin_s=82.0)[0] == 82.0
+
+
+def test_second_session_lands_after_the_existing_episode(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    ws.mutate(
+        "seed episode",
+        "seeded episode",
+        lambda p: p.clips.append(
+            Clip(
+                id="c-existing",
+                track_id="existing",
+                source_id="existing-episode",
+                source_start=0.0,
+                source_end=30.0,
+                timeline_start=10.0,
+            )
+        ),
+    )
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    expected = 40.0 + TAKE_GAP_MS / 1000
+    assert svc.snapshot()["timeline_start_sec"] == pytest.approx(expected)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    first = RecordLandingService(ws).land(align=lambda _p: None)
+    assert first["clips"][0]["timeline_start"] == pytest.approx(expected)
+    again = RecordLandingService(ws).land(align=lambda _p: None)
+    assert again["clips"] == []
+    assert {c.id: c.timeline_start for c in ws.project.clips}["c-existing"] == 10.0
 
 
 def test_paused_span_does_not_consume_take_offset() -> None:

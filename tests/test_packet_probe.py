@@ -250,3 +250,50 @@ def test_video_matroska_scan_retains_declared_pcm_shortfall_check(packet_probe, 
     assert engine.probe(path).audio_duration_sec == 4
     with pytest.raises(RuntimeError, match="ended short"):
         list(engine.stream_pcm_f32(path)[2])
+
+
+def _first_pts_run(monkeypatch, *, returncode=0, stdout="0.021333,\n0.042667,\n"):
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return SimpleNamespace(returncode=returncode, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(module, "run", fake_run)
+    return calls
+
+
+def test_first_decoded_pts_argv_and_timeout(tmp_path, monkeypatch):
+    path = tmp_path / "a.mkv"
+    calls = _first_pts_run(monkeypatch)
+    engine = FFmpegEngine()
+    assert engine._first_decoded_pts(path, untrusted=False) == pytest.approx(0.021333)
+    assert engine._first_decoded_pts(path, untrusted=True) == pytest.approx(0.021333)
+    trusted, untrusted = calls
+    assert trusted[0] == [
+        engine.ffprobe,
+        "-v",
+        "error",
+        "-select_streams",
+        "a:0",
+        "-read_intervals",
+        "%+#4",
+        "-show_entries",
+        "frame=pts_time",
+        "-of",
+        "csv=p=0",
+        str(path),
+    ]
+    assert "-protocol_whitelist" not in trusted[0]
+    assert untrusted[0][-3:] == ["-protocol_whitelist", "file,crypto,data", str(path)]
+    assert untrusted[0][:-3] == trusted[0][:-1]
+    for _cmd, kwargs in calls:
+        assert kwargs["timeout"] == module._PACKET_SCAN_TIMEOUT_SEC == 120.0
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout"), [(1, "0.021333,\n"), (0, "N/A,\n"), (0, "")], ids=str
+)
+def test_first_decoded_pts_unknown_is_none(tmp_path, monkeypatch, returncode, stdout):
+    _first_pts_run(monkeypatch, returncode=returncode, stdout=stdout)
+    assert FFmpegEngine()._first_decoded_pts(tmp_path / "a.mkv", untrusted=False) is None

@@ -18,6 +18,8 @@
 
 * A CLI command or stdio MCP tool call no longer writes the project directly when the Studio serving it is slow to answer (#2318). The Studio ping now waits 5 s and is tried twice; a Studio that accepts the connection but stays silent stops the command with "Studio (pid N) is serving this project but did not answer in time" and writes nothing.
 
+* Uploading an MPEG-TS, M2TS or MPEG-PS file whose audio starts late now says "audio starts late in an MPEG transport stream; re-encode it" to the host instead of "not a playable audio file" (#2310). Guests still see the generic copy. An upload whose probe times out now reports "not a playable audio file" instead of the raw timeout text.
+
 * Audio health `peak_count` now reads the exact `Peak count` field instead of `Abs Peak count` (#2154). Counts can change on untagged files. Other health measurements and the clipping policy are unchanged.
 
 * Full mastering loudness measurements now return no measurement after a failed FFmpeg run or when the file has no audio, including with progress callbacks. Forged Summary tag keys on video-only files no longer read as -16 LUFS (#2154). Successful audio measurements and their automatic stream selection are unchanged.

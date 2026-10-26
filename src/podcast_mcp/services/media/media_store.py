@@ -10,11 +10,15 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.engines.ffmpeg import MAX_PROBED_AUDIO_EXTENT_SEC, FFmpegEngine
+from podcast_mcp.engines.ffmpeg import (
+    MAX_PROBED_AUDIO_EXTENT_SEC,
+    FFmpegEngine,
+    LateMpegAudioError,
+)
 from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.body_limits import env_max_bytes
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.process import CalledProcessError
+from podcast_mcp.util.process import CalledProcessError, TimeoutExpired
 
 log = logging.getLogger(__name__)
 
@@ -181,8 +185,10 @@ def _finalize_upload(workspace_dir: Path, dest: Path) -> dict[str, Any]:
     try:
         probe = FFmpegEngine().probe(dest, untrusted=True)
         duration = probe.require_duration_sec(maximum_sec=MAX_PROBED_AUDIO_EXTENT_SEC)
-    except (CalledProcessError, ValueError) as exc:
+    except (CalledProcessError, TimeoutExpired, ValueError) as exc:
         dest.unlink(missing_ok=True)
+        if isinstance(exc, LateMpegAudioError):
+            raise
         # ffprobe's own error names the upload's host path; keep it in the log.
         log.info("Rejected upload %s: ffprobe could not read it", dest.name, exc_info=True)
         raise CodedValueError("not a playable audio file", code="invalid_audio") from exc
