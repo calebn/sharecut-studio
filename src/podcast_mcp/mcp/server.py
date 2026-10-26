@@ -138,6 +138,7 @@ from podcast_mcp.mcp.tools.record import (  # noqa: E402, F401
     record_land_tool,
     record_pause_tool,
     record_resume_tool,
+    record_room_tone_tool,
     record_start_tool,
     record_state_tool,
     record_stop_tool,

@@ -29,6 +29,7 @@ RecordCommandType = Literal[
     "Pause",
     "Resume",
     "Stop",
+    "RoomToneCountdown",
     "RemoveParticipant",
     "UpdateName",
     "Comment",
@@ -46,13 +47,16 @@ COMMAND_TYPES: frozenset[str] = frozenset(
         "Pause",
         "Resume",
         "Stop",
+        "RoomToneCountdown",
         "RemoveParticipant",
         "UpdateName",
         "Comment",
     }
 )
 
-HOST_ONLY: frozenset[str] = frozenset({"Start", "Pause", "Resume", "Stop", "RemoveParticipant"})
+HOST_ONLY: frozenset[str] = frozenset(
+    {"Start", "Pause", "Resume", "Stop", "RoomToneCountdown", "RemoveParticipant"}
+)
 REQUIRES_JOIN_CAP: frozenset[str] = frozenset({"Consent", "SetMuted"})
 REQUIRES_COMMENT_CAP: frozenset[str] = frozenset({"Comment"})
 

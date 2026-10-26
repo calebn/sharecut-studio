@@ -34,6 +34,7 @@ use the same path). Comments land as ordinary `review.comments[]` at
 | `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
+| `record_room_tone_tool` | Ask every recorded device to capture 3 s of room tone now (lobby or stopped; refused while a take is open or when nobody has joined). Sets `room_tone` and `countdown_left_ms` in the snapshot; Start stays legal during the countdown |
 | `record_marker_tool` | Stamp the open take now (`body` default `"Marker"`); lands as a timeline comment |
 | `record_land_tool` | Land saved full-quality recordings into `raw/` + clips (idempotent; also runs on file ACK). Refused with "Stop the take to land it on the timeline." while a take is recording or paused |
 | `record_discard_take_tool` | Delete a terminal take (refused while its recordings are still saving) |
@@ -49,6 +50,7 @@ podcast record start --project episode.project.json
 podcast record pause --project episode.project.json
 podcast record resume --project episode.project.json
 podcast record stop --project episode.project.json
+podcast record room-tone --project episode.project.json
 podcast record marker --project episode.project.json --body "Retake intro"
 podcast record land --project episode.project.json
 podcast record discard-take --project episode.project.json --take-index 0

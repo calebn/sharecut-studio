@@ -17,6 +17,7 @@ from podcast_mcp.services.record.state import (
     find_participant,
     guest_upload_consented,
     recording_ms,
+    room_tone_countdown_left_ms,
     start_blockers,
 )
 
@@ -861,3 +862,118 @@ def test_start_roster_keeps_consented_guest_who_disconnected() -> None:
     out = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
     assert out.takes[0].consented_participant_ids == ["p_host", "p_b", "p_g"]
     assert guest_upload_consented(out, "p_g", take_index=0) is True
+
+
+def _room_tone_room():
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    return apply_record_command(
+        snap,
+        _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3),
+        now_wall_ms=2,
+    )
+
+
+def _room_tone(snap, *, now: int, role: str = "host", pid: str = "p_host"):
+    return apply_record_command(
+        snap, _cmd("RoomToneCountdown", role=role, pid=pid), now_wall_ms=now
+    )
+
+
+def test_room_tone_round_records_consented_recorded_participants() -> None:
+    snap = _room_tone_room()
+    assert snap.room_tone is None
+    out = _room_tone(snap, now=100)
+    assert out.room_tone is not None
+    assert out.room_tone.model_dump() == {
+        "round": 1,
+        "requested_wall_ms": 100,
+        "duration_ms": 3000,
+        "participant_ids": ["p_host", "p_g"],
+    }
+    assert out.state == "lobby"
+    assert out.takes == []
+    assert out.take_index == snap.take_index
+    assert start_blockers(out) == start_blockers(snap)
+
+
+def test_room_tone_redo_increments_round() -> None:
+    snap = _room_tone(_room_tone(_room_tone_room(), now=100), now=5000)
+    assert snap.room_tone is not None
+    assert (snap.room_tone.round, snap.room_tone.requested_wall_ms) == (2, 5000)
+
+
+def test_room_tone_is_host_only_in_the_command_catalog() -> None:
+    from podcast_mcp.services.record.commands import (
+        HOST_ONLY,
+        RecordAuthzError,
+        authorize_record_command,
+    )
+
+    assert "RoomToneCountdown" in HOST_ONLY
+    with pytest.raises(RecordAuthzError):
+        authorize_record_command(
+            role="guest", capabilities=["join"], command_type="RoomToneCountdown"
+        )
+    authorize_record_command(role="host", capabilities=[], command_type="RoomToneCountdown")
+
+
+def test_room_tone_refused_while_recording_or_paused() -> None:
+    snap = apply_record_command(
+        _room_tone_room(), _cmd("Start", role="host", pid="p_host"), now_wall_ms=10
+    )
+    with pytest.raises(RecordStateError, match="Stop the take first"):
+        _room_tone(snap, now=20)
+    paused = apply_record_command(snap, _cmd("Pause", role="host", pid="p_host"), now_wall_ms=30)
+    with pytest.raises(RecordStateError, match="Stop the take first"):
+        _room_tone(paused, now=40)
+
+
+def test_room_tone_allowed_after_stop_and_keeps_the_take() -> None:
+    snap = apply_record_command(
+        _room_tone_room(), _cmd("Start", role="host", pid="p_host"), now_wall_ms=10
+    )
+    snap = apply_record_command(snap, _cmd("Stop", role="host", pid="p_host"), now_wall_ms=20)
+    out = _room_tone(snap, now=30)
+    assert out.state == "stopped"
+    assert out.takes == snap.takes
+    assert out.room_tone is not None and out.room_tone.round == 1
+
+
+def test_room_tone_refused_with_no_recorder_but_not_for_pending_consent() -> None:
+    with pytest.raises(RecordStateError, match="nobody has joined"):
+        _room_tone(empty_record_snapshot("sess"), now=1)
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    assert start_blockers(snap)[0]["code"] == "consent_pending"
+    out = _room_tone(snap, now=2)
+    assert out.room_tone is not None
+    assert out.room_tone.participant_ids == ["p_host"]
+
+
+def test_start_stays_legal_during_the_countdown() -> None:
+    snap = _room_tone(_room_tone_room(), now=100)
+    out = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=200)
+    assert out.state == "recording"
+    assert out.room_tone == snap.room_tone
+
+
+def test_room_tone_countdown_left_elapses_to_zero() -> None:
+    snap = empty_record_snapshot("sess")
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=5) == 0
+    snap = _room_tone(_room_tone_room(), now=1000)
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=1000) == 3000
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=2200) == 1800
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=4000) == 0
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=9000) == 0
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=0) == 3000
+
+
+def test_snapshot_without_room_tone_still_loads() -> None:
+    from podcast_mcp.services.record.state import RecordSnapshot
+
+    old = empty_record_snapshot("sess").model_dump()
+    old.pop("room_tone")
+    assert RecordSnapshot.model_validate(old).room_tone is None

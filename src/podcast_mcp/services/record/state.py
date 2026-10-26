@@ -18,6 +18,7 @@ HOST_OFFLINE_PAUSE_MS = 10_000
 HOST_HEARTBEAT_STALE_MS = 7_500
 TAKE_OPEN_REMINT_MSG = "A take is open (REC/PAUSED). Stop it before minting a new room."
 #: Host land is refused while a take is open; ShareCut Studio words the same reason in `landGate`.
+ROOM_TONE_COUNTDOWN_MS = 3000
 LAND_TAKE_OPEN_MSG = "Stop the take to land it on the timeline."
 
 
@@ -37,6 +38,14 @@ class TakeState(BaseModel):
     stopped_wall_ms: int | None = None
     pauses: list[PauseEntry] = Field(default_factory=list)
     consented_participant_ids: list[str]
+
+
+class RoomToneRound(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    round: int
+    requested_wall_ms: int
+    duration_ms: int = ROOM_TONE_COUNTDOWN_MS
+    participant_ids: list[str] = Field(default_factory=list)
 
 
 class ParticipantState(BaseModel):
@@ -72,6 +81,7 @@ class RecordSnapshot(BaseModel):
     host_last_beat_wall_ms: int | None = None
     pause_reason: PauseReason | None = None
     host_offline_gap_ms: int | None = None
+    room_tone: RoomToneRound | None = None
 
 
 def empty_record_snapshot(session_id: str) -> RecordSnapshot:
@@ -135,6 +145,14 @@ def recording_ms(snap: RecordSnapshot, *, now_wall_ms: int) -> int:
     if take is None:
         return 0
     return recording_ms_at(take, wall_ms=now_wall_ms)
+
+
+def room_tone_countdown_left_ms(snap: RecordSnapshot, *, now_wall_ms: int) -> int:
+    """Milliseconds until the current room-tone round ends; 0 with no round."""
+    if snap.room_tone is None:
+        return 0
+    end = snap.room_tone.requested_wall_ms + snap.room_tone.duration_ms
+    return min(snap.room_tone.duration_ms, max(0, end - now_wall_ms))
 
 
 def _live(p: ParticipantState) -> bool:

@@ -258,6 +258,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Start recording",
     tooltip: "Start recording",
   },
+  "daw.record.roomTone": {
+    label: "Capture room tone",
+    tooltip: "Capture room tone",
+  },
   "daw.record.pause": {
     label: "Pause recording",
     tooltip: "Pause recording",

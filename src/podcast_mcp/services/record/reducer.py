@@ -13,6 +13,7 @@ from podcast_mcp.services.record.state import (
     PauseEntry,
     PauseReason,
     RecordSnapshot,
+    RoomToneRound,
     TakeState,
     describe_start_blockers,
     find_participant,
@@ -264,6 +265,17 @@ def apply_record_command(
         out.host_offline_since_wall_ms = None
         out.host_last_beat_wall_ms = now_wall_ms
         _clear_live_pause_reason(out)
+        return out
+    if ctype == "RoomToneCountdown":
+        if out.state not in ("lobby", "stopped"):
+            raise RecordStateError("Stop the take first")
+        if any(row["code"] == "no_recorder" for row in start_blockers(out)):
+            raise RecordStateError("cannot capture room tone: nobody has joined the room")
+        out.room_tone = RoomToneRound(
+            round=(out.room_tone.round if out.room_tone else 0) + 1,
+            requested_wall_ms=now_wall_ms,
+            participant_ids=take_consented_participant_ids(out),
+        )
         return out
     if ctype == "Pause":
         if out.state != "recording":

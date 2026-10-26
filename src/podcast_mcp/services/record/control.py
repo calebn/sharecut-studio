@@ -39,6 +39,9 @@ class RecordControlService:
     def stop(self) -> dict[str, Any]:
         return self._host("Stop")
 
+    def room_tone_countdown(self) -> dict[str, Any]:
+        return self._host("RoomToneCountdown")
+
     def marker(self, body: str = "Marker") -> dict[str, Any]:
         """Drop a live comment at this moment of the open take; it lands as a comment."""
         marker_id = f"{LIVE_COMMENT_ID_PREFIX}{uuid4().hex}"
