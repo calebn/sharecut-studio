@@ -35,7 +35,9 @@ use the same path). Comments land as ordinary `review.comments[]` at
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
 | `record_room_tone_tool` | Ask every recorded device to capture 3 s of room tone now (lobby or stopped; refused while a take is open or when nobody has joined). Sets `room_tone` and `countdown_left_ms` in the snapshot; Start stays legal during the countdown |
-| `record_target_tool` | Set where this room's session lands (`end`, the default and only target available; `start`, `insert` and `replace` parse but are refused). Refused once any take exists. The first land numbers the session and its undo step reads "Added Session N" |
+| `record_target_tool` | Set where this room's session lands (`end`, the default; `insert` with `{"kind": "insert", "at_sec": 12.5}` or `replace` with `{"kind": "replace", "from_sec": 12.5, "to_sec": 20, "track_ids": ["host"]}` stage the session as a suggestion instead of landing it; `start` is refused). Refused once any take exists. The first land numbers the session and its undo step reads "Added Session N" ("Staged Session N" for insert and replace) |
+| `list_session_suggestions_tool` | List staged insert and replace sessions (`status` pending, skipped or accepted). Staged recordings are registered sources with nothing on the timeline |
+| `skip_session_suggestion_tool` | Skip a pending staged session (one undo step "Skipped Session N") |
 | `record_marker_tool` | Stamp the open take now (`body` default `"Marker"`); lands as a timeline comment |
 | `record_land_tool` | Land saved full-quality recordings into `raw/` + clips (idempotent; also runs on file ACK). Refused with "Stop the take to land it on the timeline." while a take is recording or paused |
 | `record_discard_take_tool` | Delete a terminal take (refused while its recordings are still saving) |
@@ -53,6 +55,8 @@ podcast record resume --project episode.project.json
 podcast record stop --project episode.project.json
 podcast record room-tone --project episode.project.json
 podcast record target end --project episode.project.json
+podcast review session-suggestions --project episode.project.json   # optional: --status pending
+podcast review skip-session-suggestion --project episode.project.json --id ss-<session_id>
 podcast record marker --project episode.project.json --body "Retake intro"
 podcast record land --project episode.project.json
 podcast record discard-take --project episode.project.json --take-index 0
