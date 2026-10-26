@@ -373,7 +373,10 @@ def test_another_speakers_words_in_the_range_hold_the_accept_until_it_is_confirm
     assert held["unchanged"] is True
     confirmation = held["needs_confirmation"]
     assert confirmation["reason"] == "cuts_other_speech"
-    assert "Replacing this range also removes Guest's speech at 0:02.5" in confirmation["message"]
+    assert confirmation["message"] == (
+        'Replacing this range also removes 2 words from Guest: "so plan". '
+        "Replace anyway to apply it; undo brings it back."
+    )
     assert "override_audio_checks=true" in held["apply_anyway"]
     assert _everything(ws) == before
     ws.reload()
@@ -730,7 +733,7 @@ def test_pending_timeline_edits_inside_the_range_hold_the_accept(ws, window) -> 
     ws.mutate("decision", "decided", add)
     sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)]})
     before = _everything(ws)
-    with pytest.raises(CodedValueError, match="1 pending edit sit inside") as refused:
+    with pytest.raises(CodedValueError, match="1 pending edit sits inside") as refused:
         SessionSuggestionService(ws).accept(sid)
     assert refused.value.code == "pending_edits_in_range"
     assert _everything(ws) == before
@@ -887,7 +890,7 @@ def test_cli_and_mcp_choose_a_take_and_confirm_a_hold(ws, minimal_project) -> No
     base = ["review", "accept-session-suggestion", "--project", str(minimal_project), "--id", sid]
     held = runner.invoke(cli_app, [*base, "--take", "0"])
     assert held.exit_code == 1
-    assert "Replacing this range also removes Guest's speech" in held.output
+    assert 'Replacing this range also removes 1 word from Guest: "so".' in held.output
     assert "--override-audio-checks" in held.output
     ws.reload()
     assert _suggestion_row(ws).status == "pending"
@@ -900,9 +903,80 @@ def test_cli_and_mcp_choose_a_take_and_confirm_a_hold(ws, minimal_project) -> No
     HistoryService(ProjectWorkspace.open(minimal_project)).undo()
     asked = json.loads(accept_session_suggestion_tool(str(minimal_project), sid, take_index=1))
     assert asked["unchanged"] is True
+    assert "override_audio_checks=true" in asked["needs_confirmation"]["message"]
     applied = json.loads(
         accept_session_suggestion_tool(
             str(minimal_project), sid, take_index=1, override_audio_checks=True
         )
     )
     assert applied["take_index"] == 1
+
+
+def _speech(*tracks):
+    from podcast_mcp.models import CutSpeech, CutSpeechTrack, CutSpeechWord
+    from podcast_mcp.models.episode import RangeInterval
+
+    return CutSpeech(
+        spans=[RangeInterval(start=0.0, end=9.0)],
+        tracks=[
+            CutSpeechTrack(
+                track_id=tid,
+                speaker=speaker,
+                words=[
+                    CutSpeechWord(
+                        text=w, timeline_start=start + i * 0.1, timeline_end=start + i * 0.1 + 0.05
+                    )
+                    for i, w in enumerate(words)
+                ],
+                sound_spans=[RangeInterval(start=start, end=start + 1.0)] if sound else [],
+            )
+            for tid, speaker, words, start, sound in tracks
+        ],
+    )
+
+
+def _hold_message(*tracks) -> str:
+    from podcast_mcp.edits.cut_speech import replace_confirmation_for
+
+    return replace_confirmation_for(_speech(*tracks)).message
+
+
+_TAIL = " Replace anyway to apply it; undo brings it back."
+
+
+def test_replace_hold_names_one_track_and_quotes_its_words() -> None:
+    message = _hold_message(("t1", "Daniela", ["and", "I", "think", "that"], 1.0, False))
+    assert message == (
+        'Replacing this range also removes 4 words from Daniela: "and I think that".' + _TAIL
+    )
+
+
+def test_replace_hold_joins_tracks_in_time_order() -> None:
+    message = _hold_message(
+        ("t2", "Guest", ["so", "plan"], 3.0, False),
+        ("t1", "Daniela", ["hi"], 1.0, False),
+    )
+    assert message == (
+        'Replacing this range also removes 1 word from Daniela: "hi" and '
+        '2 words from Guest: "so plan".' + _TAIL
+    )
+    three = _hold_message(
+        ("t1", "A", ["a"], 1.0, False),
+        ("t2", "B", ["b"], 2.0, False),
+        ("t3", "C", ["c"], 3.0, False),
+    )
+    assert 'from A: "a", 1 word from B: "b" and 1 word from C: "c".' in three
+
+
+def test_replace_hold_counts_what_it_does_not_quote() -> None:
+    words = list("abcdefghijklmnopqrst")
+    message = _hold_message(("t1", "Daniela", words, 1.0, False))
+    assert message == (
+        'Replacing this range also removes 20 words from Daniela: "a b c d e f g h" '
+        "…and 12 more." + _TAIL
+    )
+
+
+def test_replace_hold_names_sound_without_words() -> None:
+    message = _hold_message(("t1", "Daniela", [], 1.0, True))
+    assert message == "Replacing this range also removes sound from Daniela." + _TAIL

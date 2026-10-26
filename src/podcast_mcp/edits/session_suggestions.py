@@ -446,8 +446,8 @@ def _accept_replace(
     held = pending_decisions_in_range(project, from_sec, to_sec, set(ripple_ids))
     if held:
         raise CodedValueError(
-            f"{len(held)} pending edit{'s' if len(held) != 1 else ''} sit inside the range this "
-            "session replaces. Approve or reject them first, then accept again.",
+            f"{len(held)} pending edit{'s sit' if len(held) != 1 else ' sits'} inside the range "
+            "this session replaces. Approve or reject them first, then accept again.",
             code="pending_edits_in_range",
         )
     removal = plan_ripple_delete(

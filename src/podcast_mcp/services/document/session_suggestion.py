@@ -10,9 +10,19 @@ from podcast_mcp.edits.session_suggestions import (
     list_session_suggestions,
     skip_session_suggestion,
 )
-from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
+from podcast_mcp.edits.transcript_refine_status import (
+    REFINE_GATE,
+    TranscriptRefineRequiredError,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import mutate_unless_cut_speech_held
+
+REPLACE_REFINE_HINT = (
+    "The transcript clean-up needs to finish first, so the words this replace removes are "
+    "the right ones. Finish it with `podcast transcript refine-done` / "
+    "`transcript_refine_done_tool`, or skip it with `podcast transcript refine-waive "
+    "--reason ...` / `transcript_refine_waive_tool`, then accept again."
+)
 
 
 class SessionSuggestionService:
@@ -55,7 +65,10 @@ class SessionSuggestionService:
         """
         row = find_session_suggestion(self.ws.project, suggestion_id)
         if row.kind == "replace":
-            REFINE_GATE.assert_clear(self.ws.project, defaults=self.ws.effective_config())
+            try:
+                REFINE_GATE.assert_clear(self.ws.project, defaults=self.ws.effective_config())
+            except TranscriptRefineRequiredError as gated:
+                raise TranscriptRefineRequiredError(REPLACE_REFINE_HINT) from gated
         title = f"Added Session {row.session_number}"
         return mutate_unless_cut_speech_held(
             self.ws,

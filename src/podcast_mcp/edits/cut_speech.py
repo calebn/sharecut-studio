@@ -295,12 +295,24 @@ def cut_speech_message(speech: CutSpeech, *, owned: bool = True) -> str:
     return f"This cuts {phrases}. Review this cut in Studio, or choose which tracks to cut."
 
 
+def _replace_track_phrase(track: CutSpeechTrack) -> str:
+    """One track's clause for the replace hold: count and speaker, then the words quoted."""
+    if not track.words:
+        return f"sound from {track.speaker}"
+    count = len(track.words)
+    noun = "word" if count == 1 else "words"
+    quoted = " ".join(w.text for w in track.words[:_QUOTED_WORDS_MAX])
+    more = count - _QUOTED_WORDS_MAX
+    tail = f" …and {more} more" if more > 0 else ""
+    return f'{count} {noun} from {track.speaker}: "{quoted}"{tail}'
+
+
 def replace_confirmation_for(speech: CutSpeech) -> CutSpeechConfirmation:
     """The hold for a pickup that would also replace speech of a track it did not record."""
-    phrases = _join([_track_phrase(t) for t in sorted(speech.tracks, key=_first_time)])
+    phrases = _join([_replace_track_phrase(t) for t in sorted(speech.tracks, key=_first_time)])
     return CutSpeechConfirmation(
         message=(
-            f"Replacing this range also removes {phrases}, which this pickup did not record. "
+            f"Replacing this range also removes {phrases}. "
             "Replace anyway to apply it; undo brings it back."
         ),
         speech=speech,

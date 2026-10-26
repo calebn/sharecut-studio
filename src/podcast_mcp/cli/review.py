@@ -287,7 +287,7 @@ def review_share_cmd(
         help=(
             "record: where the session lands: end (default), or a JSON object for "
             'insert {"kind":"insert","at_sec":12.5} or replace '
-            '{"kind":"replace","from_sec":12.5,"to_sec":20,"track_ids":["host"]}'
+            '{"kind":"replace","from_sec":12.5,"to_sec":20,"track_ids":["p_host"]}'
         ),
     ),
 ) -> None:
