@@ -47,6 +47,8 @@ DIRECT_ENV_VAR = "PODCAST_NO_STUDIO_HANDOFF"
 
 #: A ping that times out is retried once; a Studio still silent is never bypassed.
 PING_TIMEOUT_SEC = 5.0
+#: A Studio ping reply is a few dozen bytes; a longer body is not a Studio reply.
+PING_BODY_MAX_BYTES = 1 << 20
 #: Studio sends a heartbeat every few seconds; silence for this long means it is wedged.
 STREAM_SILENCE_TIMEOUT_SEC = 30.0
 CANCEL_GRACE_SEC = 30.0
@@ -217,8 +219,11 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
         response = conn.getresponse()
         status = response.status
         try:
-            return status, json.loads(response.read().decode("utf-8"))
-        except (http.client.HTTPException, ValueError):
+            raw = response.read(PING_BODY_MAX_BYTES + 1)
+            if len(raw) > PING_BODY_MAX_BYTES:
+                return status, None
+            return status, json.loads(raw.decode("utf-8"))
+        except (http.client.HTTPException, ValueError, RecursionError):
             return status, None
     finally:
         conn.close()

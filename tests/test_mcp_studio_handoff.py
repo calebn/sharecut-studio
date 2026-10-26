@@ -506,3 +506,13 @@ def test_a_studio_that_stays_silent_is_reported_not_bypassed(
     assert result.is_error
     assert "did not answer in time" in result.content[0].text  # type: ignore[union-attr]
     assert server.calls == []
+
+
+@pytest.mark.parametrize(
+    ("address", "expected"),
+    [("::1", "http://[::1]:8818/mcp"), ("127.0.0.1", "http://127.0.0.1:8818/mcp")],
+)
+def test_the_studio_mcp_url_brackets_an_ipv6_address(address: str, expected: str) -> None:
+    from podcast_mcp.mcp.studio_handoff import _studio_mcp_url
+
+    assert _studio_mcp_url(StudioHost("i", 1, address, 8818, "t", "v")) == expected
