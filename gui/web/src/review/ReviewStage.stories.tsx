@@ -135,7 +135,7 @@ export const Processing: Story = {
 };
 
 export const RefineCheck: Story = {
-  args: { initialItems: QUEUE_ITEMS, initialSelectedId: "f3" },
+  args: { initialItems: QUEUE_ITEMS },
   play: playInCanvas(async ({ canvasElement }) => {
     await press(canvasElement, "{Enter}");
     await expect(
