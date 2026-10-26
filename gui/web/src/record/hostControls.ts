@@ -20,10 +20,9 @@ export const STOP_CONFIRM_COPY =
   "Stop this take? Recording ends for everyone in the room.";
 
 /** Fixes the host can apply from the panel; RecordPanel maps each to its action. */
-export type StartFix = "copyGuestLink" | "retryStorage";
+export type StartFix = "retryStorage";
 
 export const START_FIX_LABEL = {
-  copyGuestLink: "Copy guest link",
   retryStorage: "Retry storage check",
 } as const satisfies Record<StartFix, string>;
 
@@ -52,12 +51,8 @@ export function startBlockerItems(
 ): StartBlockerItem[] {
   const items: StartBlockerItem[] = (snapshot.start_blockers ?? []).map(
     (blocker) =>
-      blocker.code === "no_guest"
-        ? {
-            key: "no_guest",
-            text: "No guest has joined yet. Send them the guest link.",
-            fix: "copyGuestLink",
-          }
+      blocker.code === "no_recorder"
+        ? { key: "no_recorder", text: "Joining the room." }
         : {
             key: `consent:${blocker.participant_id}`,
             text: `Waiting for ${blocker.display_name || "a guest"} to accept recording.`,

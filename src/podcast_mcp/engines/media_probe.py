@@ -6,7 +6,8 @@ from functools import lru_cache
 from math import isfinite
 from pathlib import Path
 
-from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
+from podcast_mcp.engines.ffmpeg import LATE_MPEG_AUDIO_MESSAGE, AudioProbe, FFmpegEngine
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import FileRevision, file_revision
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,28 @@ def probe_media(path: Path) -> AudioProbe | None:
     except Exception as exc:
         log.debug("probe failed for %s: %s", path, exc)
         return None
+
+
+def _is_riff_wave(path: Path) -> bool:
+    try:
+        with path.open("rb") as stream:
+            head = stream.read(12)
+    except OSError:
+        return False
+    return head[:4] in (b"RIFF", b"RF64") and head[8:12] == b"WAVE"
+
+
+def audio_start_sec(path: Path) -> float:
+    """How far ``path``'s first audio sample sits past its container start, from the probe cache."""
+    # A WAV has no container start to lag behind, and its render path must not spawn a probe.
+    if _is_riff_wave(path):
+        return 0.0
+    info = probe_media(path)
+    if info is None:
+        raise CodedValueError(f"cannot probe {path.name} for its audio start", code="invalid_audio")
+    if info.rebases_audio_reads:
+        raise CodedValueError(LATE_MPEG_AUDIO_MESSAGE, code="invalid_audio")
+    return info.audio_start_sec
 
 
 def has_several_audio_streams(path: Path) -> bool:

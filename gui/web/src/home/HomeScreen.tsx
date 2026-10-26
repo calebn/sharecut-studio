@@ -7,13 +7,12 @@ import {
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { ModelsDialog, useModels } from "../models";
-import { BrandLockup, Button, Field } from "../ui";
-import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { projectUrl } from "../utils/projectUrl";
 import { readLocal, writeLocal } from "../utils/storage";
 import { BootstrapWizard } from "./BootstrapWizard";
 import { HelpDialog } from "./HelpDialog";
+import { HomeScreenView } from "./HomeScreenView";
 
 const SKIP_KEY = "sharecut.bootstrap.skip";
 
@@ -39,7 +38,6 @@ export function HomeScreen() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const { models, ready } = useModels();
-  const busy = busyAction !== null;
 
   const markReady = useCallback(() => {
     setSetupDone(true);
@@ -123,162 +121,46 @@ export function HomeScreen() {
     }
   };
 
-  if (!setupDone) {
-    return (
-      <main className="cover home-screen">
-        <div className="cover-center center stack">
-          <BootstrapWizard onReady={markReady} onSkip={onSkip} />
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="cover home-screen">
-      <div className="cover-center center stack" data-daw-app-chrome>
-        <header className="stack">
-          <h1 className="wordmark">
-            <BrandLockup name="ShareCut Studio" />
-          </h1>
-          <p className="lede">
-            Create or open an episode project to start arranging.
-          </p>
-        </header>
-        {error ? (
-          <p className="home-screen-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {mode === "idle" ? (
-          <div className="cluster">
-            <Button variant="primary" onClick={() => setMode("new")}>
-              New project…
-            </Button>
-            <Button onClick={() => setMode("open")}>Open project…</Button>
-            <Button onClick={() => setMcpOpen(true)}>Connect agent…</Button>
-            <Button onClick={() => setModelsOpen(true)}>
-              {models === null || ready
-                ? "Models"
-                : "Models · setup incomplete"}
-            </Button>
-            <Button onClick={() => setHelpOpen(true)}>Help</Button>
-          </div>
-        ) : null}
-        {mode === "new" ? (
-          <form
-            className="box elevated stack"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void onCreate();
-            }}
-          >
-            <Field label="Name">
-              {(control) => (
-                <input
-                  {...control}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="off"
-                  required
-                />
-              )}
-            </Field>
-            <Field label="Workspace directory">
-              {(control) => (
-                <input
-                  {...control}
-                  value={dir}
-                  onChange={(e) => setDir(e.target.value)}
-                  placeholder="/path/to/my_episode"
-                  autoComplete="off"
-                  required
-                />
-              )}
-            </Field>
-            <div className="cluster">
-              <Button
-                type="submit"
-                variant="primary"
-                disabledReason={
-                  busy
-                    ? BUSY_REASON
-                    : !dir.trim()
-                      ? "Enter a workspace directory to create."
-                      : undefined
-                }
-              >
-                {busyAction === "create" ? "Creating…" : "Create"}
-              </Button>
-              <Button
-                type="button"
-                disabledReason={busy ? BUSY_REASON : undefined}
-                onClick={() => setMode("idle")}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        ) : null}
-        {mode === "open" ? (
-          <form
-            className="box elevated stack"
-            aria-busy={busyAction === "browse" || undefined}
-            onSubmit={(e) => {
-              e.preventDefault();
-              void onOpen();
-            }}
-          >
-            <Field label="episode.project.json">
-              {(control) => (
-                <input
-                  {...control}
-                  value={path}
-                  onChange={(e) => setPath(e.target.value)}
-                  placeholder="/path/to/episode.project.json"
-                  autoComplete="off"
-                  required
-                />
-              )}
-            </Field>
-            <div className="cluster">
-              <Button
-                type="button"
-                disabledReason={busy ? BUSY_REASON : undefined}
-                onClick={() => void onBrowse()}
-              >
-                {busyAction === "browse" ? "Browsing…" : "Browse…"}
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                disabledReason={
-                  busy
-                    ? BUSY_REASON
-                    : !path.trim()
-                      ? "Enter a project file path to open."
-                      : undefined
-                }
-              >
-                {busyAction === "open" ? "Opening…" : "Open"}
-              </Button>
-              <Button
-                type="button"
-                disabledReason={busy ? BUSY_REASON : undefined}
-                onClick={() => setMode("idle")}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </div>
-      <HostMcpDialog
-        open={mcpOpen}
-        onClose={() => setMcpOpen(false)}
-        hasProject={false}
-      />
-      <ModelsDialog open={modelsOpen} onClose={() => setModelsOpen(false)} />
-      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
-    </main>
+    <HomeScreenView
+      wizard={
+        setupDone ? null : (
+          <BootstrapWizard onReady={markReady} onSkip={onSkip} />
+        )
+      }
+      mode={mode}
+      name={name}
+      dir={dir}
+      path={path}
+      busyAction={busyAction}
+      error={error}
+      modelsIncomplete={models !== null && !ready}
+      dialogs={
+        <>
+          <HostMcpDialog
+            open={mcpOpen}
+            onClose={() => setMcpOpen(false)}
+            hasProject={false}
+          />
+          <ModelsDialog
+            open={modelsOpen}
+            onClose={() => setModelsOpen(false)}
+          />
+          <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+        </>
+      }
+      onNameChange={setName}
+      onDirChange={setDir}
+      onPathChange={setPath}
+      onNewMode={() => setMode("new")}
+      onOpenMode={() => setMode("open")}
+      onCancel={() => setMode("idle")}
+      onCreate={() => void onCreate()}
+      onOpen={() => void onOpen()}
+      onBrowse={() => void onBrowse()}
+      onConnectAgent={() => setMcpOpen(true)}
+      onModels={() => setModelsOpen(true)}
+      onHelp={() => setHelpOpen(true)}
+    />
   );
 }

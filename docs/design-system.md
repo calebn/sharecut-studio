@@ -75,7 +75,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -85,15 +85,17 @@ check it composed, then check it in a real screen.
 
 ### Domain surfaces (Templates)
 
-Domain components get stories only when they are **props in, UI out** (scope
-rule from #172/#173): renderable from a pure prop contract alone — no store,
-socket, AudioContext or router. Domain components that still need live app,
-session or sync context (the live `TimelineView`, `inspector/`, the live
-`TransportBar`, the full DAW page) stay out of the catalog: they compose the library (see
-`gui/web/docs/ui-library.md`), stories for them would couple the catalog to app
-state, and their integration is covered by Playwright. A domain screen that
+Domain components get stories by default when they are **props in, UI out**
+(scope rule from #172/#173): renderable from a pure prop contract alone — no
+store, socket, AudioContext or router. The exception is a component that needs
+live app, session or sync context (the live `TimelineView`, `inspector/`, the
+live `TransportBar`, the full DAW page): it gets a story that hydrates the DAW
+store through `withEpisode`, as described under [Catalog
+boundary](#catalog-boundary-store-bound-components). Those components compose
+the library (see `gui/web/docs/ui-library.md`), and Playwright still covers
+their integration. A domain screen that
 renders fully state-local — per the rules under [Adding a story](#adding-a-story):
-state in the story, no app providers, no network — belongs under **Templates**,
+state in the story, no app providers, no network, no store — belongs under **Templates**,
 with its story colocated in the feature folder (for example
 `src/record/Declined.stories.tsx` → `Templates/Declined`,
 `src/record/ConsentGate.stories.tsx` → `Templates/ConsentGate`,
@@ -388,24 +390,41 @@ and cannot enter the app bundle.
 
 ### Catalog boundary (store-bound components)
 
-Per sync rule 6 (#172/#173), a component that cannot render from props alone
-gets a refactor issue, not a story. The shell chrome catalog from
-[#616](https://github.com/calebn/sharecut-studio/issues/616) uses the production
-props-only `MobileShellView` and `StudioShellView` rendered by their live adapters.
-The live `TransportBar`, full Listen and More bodies, connected panels, and full
-DAW page remain outside this catalog. Their store subscriptions and commands stay
-in the runtime adapters.
+A store-bound component gets a story that hydrates the DAW store with the shared
+fictional episode (`src/test/episodeFixture.ts`) through the `withEpisode`
+decorator and the `episodeBeforeEach` hook (`src/test/withEpisode.tsx`), which
+a story file sets together on its meta, the way `ClipInspector.stories.tsx`
+does. From `parameters.episode` they take the role (the host opens the project
+by path, a guest opens `share:episode` with that role's capabilities), the
+feature ids the server offers (the role's defaults, so the guest banner and the
+Share item render), the selection, extra store fields and canned JSON for
+requests, matched by exact path or `METHOD /path`. `beforeEach` registers the
+app commands and replaces `fetch` and `WebSocket` with offline stubs before the
+story renders. Storybook runs its cleanup after the story unmounts: it restores
+the store, the stubs and `localStorage`, drops any open ask question and clears
+the registered commands. Storybook may start the next story's `beforeEach` before the previous cleanup
+finishes, so a hydration first resets what an earlier episode left and an older cleanup that
+finds a newer episode in place only aborts its own hanging requests. Titles keep
+the screen as a name prefix, for example `Templates/Editor · Inspector ·
+Pending edit`, because the title rule allows one segment after the level.
+
+A component splits into a props-only `XView` rendered by its live adapter only
+where its render path crosses an I/O seam that store state cannot fake: `api.ts`
+calls, a provider such as `useModels`, timers or media. The shell chrome catalog
+from [#616](https://github.com/calebn/sharecut-studio/issues/616) uses the
+production props-only `MobileShellView` and `StudioShellView` rendered by
+their live adapters. Hydrated stories share one store, so a hydrated story
+file never takes the `autodocs` tag: autodocs renders every story of a file on
+one page and the stories would overwrite each other's hydration.
 
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
-and `MenuItem`, which already have stories; they are not on this list and get
-no separate refactor issue. A component leaves this list only once its
-production view is extracted into a props-only `XView` rendered by the live
-adapter, the way `TrackHeaderView`, `TimeRulerView`, `TranscriptTurnView`,
-`FollowBannerView`, `GuestAttentionBannerView`, `ShareDialogView`,
-`BounceDialogView`, `ToolModeToggleView`, `EditingToolRailView`,
-`CommandPaletteView`, `ClipBlockView`, `MarkerLaneView`,
-`PendingEditOverlayView`, `EditBoundaryMarkView`, `InspectorSeekFooterView`
-and `BottomTabsSplitterView` already were.
+and `MenuItem`, which already have stories and need none of their own. Views
+extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
+examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
+`GuestAttentionBannerView`, `ShareDialogView`, `BounceDialogView`,
+`ToolModeToggleView`, `EditingToolRailView`, `CommandPaletteView`,
+`ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
+`EditBoundaryMarkView`, `InspectorSeekFooterView` and `BottomTabsSplitterView`.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -610,6 +629,19 @@ jsdom visibility checks.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-10-26 — Every screen, dialog, panel and inspector variant in the UI
+  inventory now has a story or a recorded reason it has none (#2279). The
+  coverage manifest has no pending state, and `e2e-storybook/coverage.spec.ts`
+  checks every story, Atoms to Templates, in both themes at 360 and 1280 px for
+  console errors, horizontal overflow and axe violations including
+  color-contrast, on one page per Playwright worker that moves between stories.
+  A story that cannot render at 360 px carries the `wide-only` tag and must set
+  `parameters.wideOnlyReason`; the sweep fails without it. Live-shell stories
+  keep the toolbar theme because the Storybook preview now stores it.
+
+- 2026-10-25 — Catalog boundary now allows store-hydrated stories through
+  `withEpisode` (#2279); a view split is required only at an I/O seam.
 
 - 2026-09-27 — Closed #614: added `Templates/ClipBlock`,
   `Templates/MarkerLane`, `Templates/PendingEditOverlay` and

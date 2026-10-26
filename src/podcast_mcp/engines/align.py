@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.engines.media_probe import audio_start_sec
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -288,7 +289,7 @@ def load_mono_window(
         samples = np.zeros(0, dtype=np.float64)
     if samples.size:
         return np.asarray(samples, dtype=np.float32)
-    seek = MediaSeek.at(max(0.0, start_sec))
+    seek = MediaSeek.at(max(0.0, start_sec), lead_sec=audio_start_sec(path))
     cmd = [
         ffmpeg or resolve_ffmpeg(),
         "-v",

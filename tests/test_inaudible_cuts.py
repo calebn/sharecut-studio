@@ -414,7 +414,9 @@ def test_strip_silence_ignores_inaudible_opt_flag(tmp_path):
         patch("podcast_mcp.edits.strip_silence.file_level_profile", return_value=SILENT),
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
     ):
-        eng_cls.return_value.probe.return_value = AudioProbe(2.0, 16000, 1)
+        eng_cls.return_value.probe.return_value = AudioProbe(
+            2.0, 16000, 1, audio_start_sec=0.0, rebases_audio_reads=False
+        )
         out_default = strip_silence(p, "host", defaults=load_defaults())
         out_false = strip_silence(p, "host", use_inaudible_opt=False, defaults=load_defaults())
         out_true = strip_silence(p, "host", use_inaudible_opt=True, defaults=load_defaults())

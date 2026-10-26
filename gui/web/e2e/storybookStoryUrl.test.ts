@@ -4,9 +4,14 @@ import { describe, expect, it } from "vitest";
 import { storyUrl } from "../e2e-storybook/storyUrl";
 
 const storybookDir = path.join(__dirname, "..", "e2e-storybook");
-const specs = fs
-  .readdirSync(storybookDir)
-  .filter((name) => name.endsWith(".spec.ts"));
+const files = fs.readdirSync(storybookDir);
+const specs = files.filter((name) => name.endsWith(".spec.ts"));
+const read = (name: string) =>
+  fs.readFileSync(path.join(storybookDir, name), "utf8");
+const storyOpeners = files
+  .filter((name) => name.endsWith(".ts") && !name.endsWith(".spec.ts"))
+  .filter((name) => name !== "storyUrl.ts" && read(name).includes("storyUrl("))
+  .map((name) => `"./${name.replace(/\.ts$/, "")}"`);
 
 describe("storyUrl", () => {
   it("keeps the Storybook a11y addon idle in the story frame", () => {
@@ -38,13 +43,16 @@ describe("Storybook specs", () => {
   });
 
   it.each(specs)("%s opens story frames only through storyUrl", (spec) => {
-    const source = fs.readFileSync(path.join(storybookDir, spec), "utf8");
+    const source = read(spec);
     expect(source).not.toContain("iframe.html");
   });
 
   it.each(specs)("%s scans with axe only on storyUrl pages", (spec) => {
-    const source = fs.readFileSync(path.join(storybookDir, spec), "utf8");
+    const source = read(spec);
     const scansWithAxe = /expectPageAxeClean|AxeBuilder/.test(source);
-    if (scansWithAxe) expect(source).toContain("storyUrl(");
+    const opensThroughStoryUrl =
+      source.includes("storyUrl(") ||
+      storyOpeners.some((opener) => source.includes(`from ${opener}`));
+    if (scansWithAxe) expect(opensThroughStoryUrl).toBe(true);
   });
 });

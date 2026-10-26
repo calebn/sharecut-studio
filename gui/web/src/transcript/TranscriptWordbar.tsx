@@ -422,7 +422,11 @@ function TimingEditor({
           end={window.end}
         />
       </div>
-      <div className="wordbar-neighbors" aria-label="Neighboring words">
+      <div
+        className="wordbar-neighbors"
+        role="group"
+        aria-label="Neighboring words"
+      >
         {context.neighbors
           .filter(
             (neighbor) =>

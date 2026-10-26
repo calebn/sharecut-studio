@@ -1,9 +1,26 @@
 import { composeStories, setProjectAnnotations } from "@storybook/react-vite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import preview from "../../.storybook/preview";
-import { expectNoA11yViolations } from "./a11y";
+import { type A11yRule, expectNoA11yViolations } from "./a11y";
 
 setProjectAnnotations(preview);
+
+// jsdom has no layout: every observed element counts as fully on screen.
+vi.stubGlobal(
+  "IntersectionObserver",
+  class {
+    callback: (
+      entries: { isIntersecting: boolean; intersectionRatio: number }[],
+    ) => void;
+    constructor(callback: typeof this.callback) {
+      this.callback = callback;
+    }
+    observe() {
+      this.callback([{ isIntersecting: true, intersectionRatio: 1 }]);
+    }
+    disconnect() {}
+  },
+);
 
 const modules = import.meta.glob(
   ["../**/*.stories.ts", "../**/*.stories.tsx"],
@@ -19,6 +36,7 @@ const stories = Object.entries(modules).flatMap(([path, module]) =>
     name,
     Story: Story as {
       run: (options: { canvasElement: HTMLElement }) => Promise<void>;
+      parameters: { a11y?: { config?: { rules?: A11yRule[] } } };
     },
   })),
 );
@@ -40,7 +58,10 @@ describe("all Storybook stories", () => {
           canvasElement.setAttribute("role", "main");
         }
         // Some stories render overlays into document.body via React portals.
-        await expectNoA11yViolations(document.body);
+        await expectNoA11yViolations(
+          document.body,
+          Story.parameters.a11y?.config?.rules,
+        );
       } finally {
         canvasElement.remove();
       }

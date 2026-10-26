@@ -410,7 +410,7 @@ The stem duration check (`probe_wav_duration_sec`, used by `stem_is_fresh`,
 `engines.media_probe` cache. It stores successful `AudioProbe` metadata per resolved
 path and `file_revision`, up to 1024 file revisions per process across every open
 project. Returned metadata is copied so callers cannot change cached values.
-Rendered-media checks use `AudioProbe.duration_sec`, where the first audio stream ends on the container timeline. MPEG-TS, Matroska/WebM with video, and streams without a trustworthy duration use a packet scan; the container duration is kept only for files with no audio or, flagged `duration_estimated`, when the scan fails. Reviewed
+Rendered-media checks use `AudioProbe.duration_sec`, the first audio stream's length from its first sample; a late audio start is `AudioProbe.audio_start_sec` and the renderer adds it at each seek. MPEG-TS, Matroska/WebM with video, and streams without a trustworthy duration use a packet scan; the container duration is kept only for files with no audio or, flagged `duration_estimated`, when the scan fails. Reviewed
 bleed discovery uses the same metadata with a separate strict first-audio-stream
 duration policy that refuses unknown, nonfinite, estimated or multiple-audio-stream
 extents. Every document snapshot that carries
@@ -535,7 +535,7 @@ path and file stamp until the file changes, or until it is the least recently us
 answers. The analysis decoders map `0:a:0` the same way (#2110): `load_mono_full`,
 `load_channels_full`, the decoded-source spool, the `load_mono_window` fallback,
 `stream_pcm_f32`, `stream_mono_f32`, `decode_window_f32`, `extract_segment`,
-`measure_loudness_blocks`, `measure_loudness` (`check_loudness`), `measure_astats` (#2131) and the join-continuity click batches read the first audio
+`measure_loudness_blocks`, `measure_loudness` (`check_loudness`), `FFmpegEngine.astats` (#2131) and the join-continuity click batches read the first audio
 stream, as the render graph's `[i:a]` does, so a file with several audio streams is
 judged on the stream it plays. `check_loudness`, the `astats` reader and the loudness blocks read only the filter's own stderr lines, so tag text such as a title of `I: -16.0 LUFS` is not taken as a measurement (#2143). A graph over 8,000 characters goes to `-/filter_complex <file>` (and
 `-graph_file <file> -i dummy` for the dry run) so it does not count against the command line.
@@ -627,7 +627,9 @@ the recordings' file revisions, the policy tables and the speaker-profile files.
 timeline-dependent part always runs again: the placement, the written cut, and the room-tone
 pads, which must equal what the entry recorded or the full check runs. A check that read an
 unreadable file is never stored. `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
-hit and fails if it differs; the approve and cut tests pass in that mode. Off by default.
+hit and fails if it differs; the approve and cut tests pass in that mode except nine that count
+checks (named in `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
+which set the flags themselves. Off by default.
 
 ### Which fingerprint answers which question
 

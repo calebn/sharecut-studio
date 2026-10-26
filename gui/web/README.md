@@ -202,8 +202,7 @@ and the exit/enter transition. `Templates/PipelineStatusChip`'s `Stalled`
 story previews the stall copy against a fixed `nowSec` so it renders
 deterministically instead of depending on a ticking clock — see
 [design-system.md § Catalog boundary](../../docs/design-system.md#catalog-boundary-store-bound-components)
-for which remaining components are store-bound and tracked as refactor
-follow-ups instead of stories.
+for how store-bound components get hydrated stories.
 
 `Templates/MobileShell` and `Templates/StudioShell` compose the props-only
 production `MobileShellView` and `StudioShellView`. The mobile frame is 360 CSS

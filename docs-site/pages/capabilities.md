@@ -90,7 +90,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Bounce… | project | `export.bounce` | `Mod+Shift+B` | — | `transport.menu`, `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | project | `share.manage` | — (dialog from Menu) | — | `transport.menu`, `ShareDialog` | — | `podcast review share` | — | yes | none · none |
 | Create record room | project | `record.createRoom` | — (empty-state action in the Record room panel) | — | `RecordPanel` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
-| Copy guest link | session | `record.copyGuestLink` | — (Start blocker fix in the Record room panel) | — | `RecordPanel` | — | — | — | yes | none · none |
+| Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
 | Start recording | project | `record.start` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
 | Pause recording | project | `record.pause` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_pause_tool` | `podcast record pause` | `podcast-record-session` | yes | none · none |
 | Resume recording | project | `record.resume` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |

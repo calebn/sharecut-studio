@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { act } from "react";
 import {
   expect,
   fireEvent,
@@ -47,10 +46,12 @@ const split = pendingEditView({
   timeline_spans: [{ start: 7, end: 7 }],
 });
 
+const projectPath = "/tmp/story.project.json";
+const snapFetch = fn();
+
 const meta: Meta<typeof PendingEditOverlayView> = {
   title: "Templates/PendingEditOverlay",
   component: PendingEditOverlayView,
-  tags: ["autodocs"],
   parameters: {
     ...isolatedStoryParameters,
     layout: "fullscreen",
@@ -63,7 +64,7 @@ const meta: Meta<typeof PendingEditOverlayView> = {
     zoomPxPerSec: 40,
     timelineWidthPx: 10000,
     selectedId: null,
-    projectPath: "/tmp/story.project.json",
+    projectPath,
     clipsByTrack: {},
     canAdjust: true,
     canApply: true,
@@ -112,11 +113,10 @@ export const DragEndHandle: Story = {
     clipsByTrack: { "mira-voice": [clipRow()] },
     selectedId: "pending-remove",
   },
-  play: async ({ canvasElement, args }) => {
-    const path = "/tmp/story.project.json";
+  beforeEach: () => {
     const previousFetch = globalThis.fetch;
     const previousState = useDawStore.getState();
-    const snapFetch = fn();
+    snapFetch.mockClear();
     globalThis.fetch = async (input, init) => {
       const requestUrl =
         typeof input === "string"
@@ -130,18 +130,25 @@ export const DragEndHandle: Story = {
       }
       return previousFetch(input, init);
     };
-    await act(async () => {
-      useDawStore.getState().hydrate(
-        path,
-        minimalProject({
-          pending_edits: [remove],
-          clips: {
-            tracks: { "mira-voice": [clipRow()] },
-            clip_count: 1,
-          },
-        }),
-      );
-    });
+    useDawStore.getState().hydrate(
+      projectPath,
+      minimalProject({
+        pending_edits: [remove],
+        clips: {
+          tracks: { "mira-voice": [clipRow()] },
+          clip_count: 1,
+        },
+      }),
+    );
+    return () => {
+      globalThis.fetch = previousFetch;
+      useDawStore.setState(previousState);
+    };
+  },
+  play: async ({ canvasElement, args }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".pending-handle.end")).not.toBeNull(),
+    );
     let handle: HTMLElement | null = null;
     let originalCapture: PropertyDescriptor | undefined;
     try {
@@ -165,7 +172,7 @@ export const DragEndHandle: Story = {
       await waitFor(() => expect(snapFetch).toHaveBeenCalled());
       await waitFor(() =>
         expect(args.onCommitSpan).toHaveBeenCalledWith(
-          path,
+          projectPath,
           useDawStore.getState().projectEpoch,
           "pending-remove",
           2,
@@ -182,8 +189,6 @@ export const DragEndHandle: Story = {
           Reflect.deleteProperty(handle, "setPointerCapture");
         }
       }
-      globalThis.fetch = previousFetch;
-      useDawStore.setState(previousState);
     }
   },
 };

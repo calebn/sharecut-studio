@@ -10,7 +10,7 @@ import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety
+from podcast_mcp.edits import cut_effects, cut_placement, cut_policy, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
@@ -1489,6 +1489,8 @@ def test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor(
         return ResolvedCutScope("session_clear")
 
     monkeypatch.setattr("podcast_mcp.edits.cut_safety.resolve_cut_scope", scope)
+    # the patch changes what a check decides for the same inputs, so entries from before it are stale
+    verdict_cache._STORE.clear()
     assert EditService(ws).apply_auto() == 2
     saved = load_project(ws.path)
     assert adopted_clips == [[c.model_dump(mode="json") for c in saved.clips]]

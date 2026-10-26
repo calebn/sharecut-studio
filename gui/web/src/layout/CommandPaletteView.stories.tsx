@@ -177,14 +177,23 @@ export const ShowRemaps: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await userEvent.click(
-      within(dialog).getByRole("checkbox", { name: "Show remaps" }),
+      await within(dialog).findByRole("checkbox", { name: "Show remaps" }),
     );
-    const input = within(dialog).getByRole("textbox", {
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("checkbox", { name: "Show remaps" }),
+      ).toBeChecked(),
+    );
+    const input = await within(dialog).findByRole("textbox", {
       name: "Remap Blade tool",
     });
+    await userEvent.click(input);
+    await waitFor(() => expect(input).toHaveFocus());
     await userEvent.type(input, " B ");
     await userEvent.tab();
-    await expect(args.onRemap).toHaveBeenCalledWith("tool.blade", "B");
+    await waitFor(() =>
+      expect(args.onRemap).toHaveBeenCalledWith("tool.blade", "B"),
+    );
   },
 };
 

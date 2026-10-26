@@ -378,7 +378,13 @@ def test_wav_duration_probe_is_cached_per_file_revision(tmp_path, sample_wav, mo
 
     def fake(self, path, **_k):
         calls.append(path)
-        return AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
+        return AudioProbe(
+            duration_sec=2.0,
+            sample_rate=48000,
+            channels=1,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
+        )
 
     monkeypatch.setattr(FFmpegEngine, "probe", fake)
 
@@ -429,7 +435,13 @@ def test_render_status_reuses_the_stem_probe(tmp_path, sample_wav, monkeypatch) 
 
     def fake(self, path, **_k):
         calls.append(path)
-        return AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
+        return AudioProbe(
+            duration_sec=2.0,
+            sample_rate=48000,
+            channels=1,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
+        )
 
     monkeypatch.setattr(FFmpegEngine, "probe", fake)
 

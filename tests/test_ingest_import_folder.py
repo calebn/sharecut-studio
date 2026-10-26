@@ -114,7 +114,13 @@ def test_scan_duration_bound(tmp_path: Path) -> None:
     class _HugeProbe:
         def probe(self, path: Path, *, untrusted: bool = False) -> AudioProbe:
             assert untrusted is True
-            return AudioProbe(duration_sec=10_000, sample_rate=48000, channels=1)
+            return AudioProbe(
+                duration_sec=10_000,
+                sample_rate=48000,
+                channels=1,
+                audio_start_sec=0.0,
+                rebases_audio_reads=False,
+            )
 
     with pytest.raises(ValueError, match="exceeds bound"):
         scan_recorder_folder(
@@ -131,7 +137,14 @@ def test_unverified_folder_extent_writes_no_manifest(tmp_path, monkeypatch):
     monkeypatch.setattr(
         FFmpegEngine,
         "probe",
-        lambda *_args, **_kwargs: AudioProbe(700002, 48000, 1, duration_estimated=True),
+        lambda *_args, **_kwargs: AudioProbe(
+            700002,
+            48000,
+            1,
+            duration_estimated=True,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
+        ),
     )
     with pytest.raises(ValueError, match="duration is unavailable"):
         scan_recorder_folder(audio)

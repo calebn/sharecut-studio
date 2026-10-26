@@ -117,7 +117,7 @@ const lobby = recordSnapshot({
   state: "lobby",
   take_index: -1,
   recording_ms: 0,
-  start_blockers: [{ code: "no_guest" }],
+  start_blockers: [],
 });
 
 /** The dialog moves focus to Close one frame after it opens; wait so it cannot land later. */
@@ -175,26 +175,41 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setTakeClipping(null);
   });
 
-  it("lists who Start waits for under it, with the guest-link fix", async () => {
-    useRecordHostStore.getState().setSnapshot(lobby);
+  it("does not make a host alone in the room wait for a guest", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      participants: [
+        recordParticipant({
+          participant_id: "p_host",
+          role: "host",
+          display_name: "Host",
+        }),
+      ],
+    });
     const { baseElement: container } = render(<RecordPanel />);
+    const start = screen.getByRole("button", { name: "Start" });
+    await waitFor(() => expect(start).toBeEnabled());
+    expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
+    expect(start).not.toHaveAccessibleDescription(/guest/i);
+    expect(
+      screen.queryByRole("button", { name: "Copy guest link" }),
+    ).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("disables Start with Joining the room while nobody recorded is in", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      participants: [],
+      start_blockers: [{ code: "no_recorder" }],
+    });
+    render(<RecordPanel />);
     const start = screen.getByRole("button", { name: "Start" });
     expect(start).toBeDisabled();
     await waitFor(() =>
-      expect(start).toHaveAccessibleDescription(
-        "No guest has joined yet. Send them the guest link. Copy guest link",
-      ),
+      expect(start).toHaveAccessibleDescription("Joining the room."),
     );
-    expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Copy guest link" }),
-    );
-    expect(exec).toHaveBeenCalledWith(
-      "record.copyGuestLink",
-      {},
-      { skipWhen: true },
-    );
-    await expectNoA11yViolations(container);
+    expect(screen.getByText("Joining the room.")).toBeInTheDocument();
   });
 
   it("names each guest Start is waiting for", async () => {

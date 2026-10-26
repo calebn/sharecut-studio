@@ -126,10 +126,33 @@ def test_join_requires_fresh_consent_even_before_disconnect_is_observed() -> Non
 
 def test_start_blocked_when_nobody_joined() -> None:
     snap = empty_record_snapshot("sess")
-    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
-    assert start_blockers(snap) == [{"code": "no_guest"}]
-    with pytest.raises(RecordStateError, match=r"^cannot start: no guest has joined$"):
+    assert start_blockers(snap) == [{"code": "no_recorder"}]
+    with pytest.raises(RecordStateError, match=r"^cannot start: nobody has joined the room$"):
         apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=1)
+    producer = _join(snap, pid="p_prod", role="producer", name="Pat", now=1)
+    assert start_blockers(producer) == [{"code": "no_recorder"}]
+
+
+def test_start_refused_when_the_host_declined_and_nobody_else_is_recorded() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    declined = apply_record_command(
+        snap,
+        _cmd("Consent", role="host", pid="p_host", payload={"accepted": False}),
+        now_wall_ms=1,
+    )
+    assert start_blockers(declined) == []
+    with pytest.raises(RecordStateError, match=r"^cannot start: nobody has accepted recording$"):
+        apply_record_command(declined, _cmd("Start", role="host", pid="p_host"), now_wall_ms=2)
+
+
+def test_host_alone_can_start_a_solo_take() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    assert start_blockers(snap) == []
+    started = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=1)
+    assert started.state == "recording"
+    assert started.takes[-1].consented_participant_ids == ["p_host"]
 
 
 def test_room_full_fifth_recorded_and_third_producer() -> None:

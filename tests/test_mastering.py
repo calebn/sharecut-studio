@@ -100,6 +100,8 @@ def test_peaky_premix_is_limited_onto_the_target_under_the_ceiling(
         channels=1,
         audio_duration_sec=6.0,
         sample_fmt="s16",
+        audio_start_sec=0.0,
+        rebases_audio_reads=False,
     )
     assert [p.name for p in out.parent.iterdir()] == ["mastered.wav"]
 

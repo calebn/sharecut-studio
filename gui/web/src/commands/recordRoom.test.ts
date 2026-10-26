@@ -29,7 +29,7 @@ const room = recordSnapshot({
   session_id: "room1",
   state: "lobby",
   take_index: -1,
-  start_blockers: [{ code: "no_guest" }],
+  start_blockers: [],
 });
 
 const guestRow = (fields: Partial<HostShareRow>): HostShareRow => ({

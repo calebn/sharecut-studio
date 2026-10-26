@@ -492,7 +492,11 @@ def test_write_complete_rejects_zero_duration(minimal_project, sample_wav, monke
     monkeypatch.setattr(
         "podcast_mcp.services.media.media_store.FFmpegEngine.probe",
         lambda self, path, untrusted=False: AudioProbe(
-            duration_sec=0, sample_rate=48000, channels=1
+            duration_sec=0,
+            sample_rate=48000,
+            channels=1,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
         ),
     )
     ws = ProjectWorkspace.open(minimal_project)

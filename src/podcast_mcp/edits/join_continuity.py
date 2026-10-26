@@ -38,6 +38,7 @@ from podcast_mcp.edits.join_speech import find_speech_crossings
 from podcast_mcp.engines.align import read_open_wav_mono_window
 from podcast_mcp.engines.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.engines.level_profile import LevelProfile
+from podcast_mcp.engines.media_probe import audio_start_sec
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
@@ -756,8 +757,9 @@ def _score_highrate_batches(
                     for i in range(len(batch))
                 ]
                 command = [resolve_ffmpeg(), "-v", "error", "-y"]
+                lead_sec = audio_start_sec(path)
                 seeks = [
-                    MediaSeek.at(max(0.0, start))
+                    MediaSeek.at(max(0.0, start), lead_sec=lead_sec)
                     for left_end, right_start in batch
                     for start in (left_end - side_sec, right_start)
                 ]

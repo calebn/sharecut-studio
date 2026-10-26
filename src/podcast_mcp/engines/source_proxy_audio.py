@@ -350,7 +350,7 @@ def _room_filters(
     for path, leaves in groups.items():
         start = min(leaf.src_start for _, leaf in leaves)
         end = max(leaf.src_end for _, leaf in leaves)
-        seek = MediaSeek.at(start)
+        seek = MediaSeek.at(start, lead_sec=engine.audio_start_sec(path))
         source_index = len(inputs)
         inputs.append(_SourceInput(path, seek, end))
         split_labels = "".join(f"[room_in{index}]" for index, _ in leaves)
@@ -413,10 +413,15 @@ def _prepare_graph(
     native_rate, rate = native.audio.sample_rate, producer.sample_rate
     mapping = SourceFrameMapping(native_rate, 0, (FrameTransform(native_rate, rate),))
     first = rescale_frames(
-        MediaSeek.at(0).first_sample(spec.source_start, native_rate), native_rate, rate
+        MediaSeek.at(0, lead_sec=0.0).first_sample(spec.source_start, native_rate),
+        native_rate,
+        rate,
     )
     last = rescale_frames(
-        min(MediaSeek.at(0).first_sample(spec.source_end, native_rate), native.audio.frames),
+        min(
+            MediaSeek.at(0, lead_sec=0.0).first_sample(spec.source_end, native_rate),
+            native.audio.frames,
+        ),
         native_rate,
         rate,
     )
@@ -548,9 +553,10 @@ def _combine(
         ) != (rate, frames):
             raise clock_error()
         native_rate = clock.native.audio.sample_rate
-        first = MediaSeek.at(0).first_sample(spec.source_start, native_rate)
+        first = MediaSeek.at(0, lead_sec=0.0).first_sample(spec.source_start, native_rate)
         last = min(
-            MediaSeek.at(0).first_sample(spec.source_end, native_rate), clock.native.audio.frames
+            MediaSeek.at(0, lead_sec=0.0).first_sample(spec.source_end, native_rate),
+            clock.native.audio.frames,
         )
         supports = tuple(
             RestoreSupport(

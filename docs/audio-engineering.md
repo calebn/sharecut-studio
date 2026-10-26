@@ -48,7 +48,7 @@ What to look for:
 - **A hard flat ceiling at the very top of the plot for long stretches** — clipping;
   cross-check with `astats.peak_count`/`flat_factor` from the same window.
 
-## Objective health stats (`measure_astats`)
+## Objective health stats (`FFmpegEngine.astats`)
 
 Parses FFmpeg's `astats` filter on the file's first audio stream (`-map 0:a:0`), the one the render plays (#2131). Each field uses the last exact label across channel and `Overall` output. This retains fields FFmpeg prints only in a channel section, such as `Crest factor`.
 
@@ -1062,7 +1062,7 @@ peer's quiet room from a remark when the owner's bleed fills its reference
 the default stays unchanged for the voiced runs tighten reads.
 
 `clipping_in_window` ignores `flat_factor` below a -20 dBFS peak
-(`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-measure_astats).
+(`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-ffmpegengineastats).
 
 The owner golden-ear harness requests this context without track DSP so its
 captions and timing cannot be mistaken for measurements of a proposed cut. It
@@ -1082,6 +1082,20 @@ hypothetical FX graph without mutating the project. Share guests do not get
 host `audition_context_tool` / `play_compose_tool` — see
 [host-online-relay.md](host-online-relay.md) (`guest_audition_context` is the
 review-window twin).
+
+## Late-start audio (#2175)
+
+Source time 0 is the first audio stream's first sample, the clock
+every whole-file decode, ASR window, waveform and transcript already uses. A file whose audio starts
+late in its container (video first, or `-itsoffset`) reports that lead as `AudioProbe.audio_start_sec`,
+zero at or below `_AUDIO_START_GAP_SEC` (0.02 s) so codec priming never counts. Above the gate the
+lead is the first decoded frame's pts (one extra `ffprobe`), because a packet pts includes AAC priming
+the decoder drops. The length is measured from the applied lead, so a file at or below the gate keeps
+its container-clock extent. ffmpeg's `-ss` and
+`atrim` count from the container start, so `MediaSeek.at(start_sec, lead_sec)` adds the lead on the
+way in. Every windowed read of a media file passes `FFmpegEngine.audio_start_sec(path)`, which reads
+the shared `probe_media` cache. A WAV, a fill or a native decode starts at its audio and passes 0.
+`tests/test_timebase_guards.py` and `tests/test_late_start_clock.py` keep a call from omitting it. ffmpeg rebases an audio-only read of MPEG transport and program streams (`mpegts`, `mpeg`) to pts 0 while input `-ss` keeps the container clock, so no lead is right for both. `probe` sets `rebases_audio_reads` (and `duration_estimated`) when such a file's audio starts above the gate. Ingest refuses it, and `audio_start_sec` raises `invalid_audio` so no read of an already-saved source lands on a misplaced clock.
 
 ## Not yet implemented (see `ROADMAP.md`)
 

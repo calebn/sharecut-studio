@@ -122,12 +122,13 @@ export const PhoneWidth: Story = {
   render: (args) => <PreviewModesPreview {...args} />,
   play: async ({ canvasElement }) => {
     const inspector = canvasElement.querySelector(".modifier-inspector");
-    await expect(inspector).toHaveStyle({ width: "360px", maxWidth: "100%" });
-    if (inspector instanceof HTMLElement) {
-      await expect(inspector.scrollWidth).toBeLessThanOrEqual(
-        inspector.clientWidth,
-      );
-    }
+    if (!(inspector instanceof HTMLElement))
+      throw new Error("The inspector did not render.");
+    await expect(inspector.style.width).toBe("360px");
+    await expect(inspector.style.maxWidth).toBe("100%");
+    await expect(inspector.scrollWidth).toBeLessThanOrEqual(
+      inspector.clientWidth,
+    );
     await expect(
       within(canvasElement).getByRole("group", { name: "Preview mode" }),
     ).toBeVisible();
