@@ -313,10 +313,14 @@ export function RecordApp({ token }: { token: string }) {
   }, [error, me, producer, snapshot]);
 
   if (bootError) {
-    const message = isNotFound(bootError)
-      ? "This recording link is invalid or has ended."
-      : bootError;
-    return <ErrorScreen message={message} />;
+    return isNotFound(bootError) ? (
+      <ErrorScreen
+        message="This recording link is invalid or has ended."
+        hint="Ask the host for a new link."
+      />
+    ) : (
+      <ErrorScreen message={bootError} />
+    );
   }
   if (accessEnded) {
     return (
