@@ -365,3 +365,62 @@ def test_the_background_warm_stops_when_an_approval_is_running(
     assert not verdict_cache.approval_running()
     precompute_verdicts(project, IDS, defaults=load_defaults(), yield_to_approval=True)
     assert len(verdict_cache._STORE) == 2
+
+
+def test_an_approval_starting_mid_warm_stops_the_warm_and_reuses_what_it_finished(
+    tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    from podcast_mcp.models import save_project
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import EditService
+
+    ids = [f"c{i}" for i in range(12)]
+    cuts = tuple((3.0 + 2.5 * i, 3.4 + 2.5 * i) for i in range(12))
+    base = _project(tmp_path)
+    base.edit_decisions = [_cut(i, a, b) for i, (a, b) in zip(ids, cuts, strict=True)]
+    for edit in base.edit_decisions:
+        edit.review_required = True
+    path = save_project(base)
+    monkeypatch.setattr(EditService, "_require_refine_clear", lambda self: None)
+
+    calls: list[tuple[str, str]] = []
+    two_warmed, approval_began = threading.Event(), threading.Event()
+    real_observe = cut_safety.observe_source_cut
+    real_approving = verdict_cache.approving
+
+    def approving():
+        approval_began.set()
+        return real_approving()
+
+    def spy(project, edit, **kwargs):
+        who = threading.current_thread().name
+        calls.append((who, edit.id))
+        if who == "warm" and sum(1 for n, _ in calls if n == "warm") == 2:
+            two_warmed.set()
+            approval_began.wait(5)  # the approval is under way before the warm's next cut
+        return real_observe(project, edit, **kwargs)
+
+    monkeypatch.setattr(cut_safety, "observe_source_cut", spy)
+    monkeypatch.setattr(verdict_cache, "approving", approving)
+    result: dict[str, int] = {}
+
+    def warm() -> None:
+        result["warmed"] = EditService(ProjectWorkspace.open(path)).warm_approval_checks()
+
+    thread = threading.Thread(target=warm, name="warm")
+    thread.start()
+    assert two_warmed.wait(10)
+    ws = ProjectWorkspace.open(path)
+    EditService(ws).approve(
+        ids, application_intent=CutIntent.HUMAN_BOUNDARIES, held_out=[], asked_out=[]
+    )
+    thread.join(10)
+
+    by_warm = [i for n, i in calls if n == "warm"]
+    by_approval = [i for n, i in calls if n != "warm"]
+    assert len(by_warm) <= 3  # it stopped once the approval was running
+    assert len(set(by_warm) | set(by_approval)) == len(ids)
+    assert len(by_warm) + len(by_approval) <= len(ids) + 1  # at most the cut in flight twice
+    assert result["warmed"] <= 3
