@@ -54,14 +54,15 @@ export async function expectSurfaceAxeClean(
 }
 
 /**
- * Storybook stories render one component, not a page. This keeps the WCAG A
- * and AA rules the Storybook addon runs and leaves the page-level best
- * practices (one main landmark, one h1) to the page specs.
+ * Storybook stories render one component, not a page. This runs the WCAG 2.0
+ * A and AA rules the Storybook addon runs, color-contrast included, and leaves the page-level
+ * best practices (one main landmark, one h1) to the page specs.
  */
+export const STORY_AXE_TAGS = ["wcag2a", "wcag2aa"] as const;
+
 export async function expectStoryAxeClean(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa"])
-    .disableRules(["color-contrast"])
+    .withTags([...STORY_AXE_TAGS])
     .analyze();
   expect(
     results.violations,
