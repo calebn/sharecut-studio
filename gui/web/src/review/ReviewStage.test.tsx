@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { reviewContent } from "../storybook/reviewContent";
@@ -101,7 +101,7 @@ describe("ReviewStage", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 
-  it("words the prompt for the group's verb when its header is clicked", async () => {
+  it("words the prompt for the group's verb, not the selection's, when its header is clicked", async () => {
     setup({ initialItems: QUEUE_ITEMS, initialSelectedId: "p1" });
     await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     expect(
@@ -111,15 +111,15 @@ describe("ReviewStage", () => {
     expect(screen.getByText(/^Cut 3 · saves/)).toBeInTheDocument();
   });
 
-  it("asks for Cut anyway on an unsure cut while the check is open", () => {
-    const { press } = setup({
+  it("never cuts an unresolved unsure item, even through Cut anyway", () => {
+    const { decided, press } = setup({
       initialItems: QUEUE_ITEMS,
       initialSelectedId: "f3",
     });
+    const before = decided();
     press("Enter");
-    expect(
-      screen.getByRole("button", { name: "Cut anyway" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+    expect(decided()).toBe(before);
   });
 
   it("does not cut a blocked suggestion and says why", () => {
@@ -153,6 +153,16 @@ describe("ReviewStage", () => {
     expect(decided()).toBe(before);
   });
 
+  it("shows a non-guest the unsure-word controls", () => {
+    setup({ initialItems: QUEUE_ITEMS, initialSelectedId: "f3" });
+    expect(
+      screen.getByRole("button", { name: /Fix text/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Looks right/ }),
+    ).toBeInTheDocument();
+  });
+
   it("gives a guest no unsure-word controls and no decision", () => {
     const { decided } = setup({
       initialItems: QUEUE_ITEMS,
@@ -163,6 +173,16 @@ describe("ReviewStage", () => {
     expect(screen.queryByRole("button", { name: /Fix text/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
     expect(decided()).toBe(before);
+  });
+
+  it("opens Edit and comments on the selected item", () => {
+    const onOpenInEdit = vi.fn();
+    const onComment = vi.fn();
+    const { press } = setup({ onOpenInEdit, onComment });
+    press("e");
+    press("c");
+    expect(onOpenInEdit).toHaveBeenCalledWith("f1");
+    expect(onComment).toHaveBeenCalledWith("f1");
   });
 
   it("gives a guest no Open in Edit key", () => {
@@ -181,6 +201,56 @@ describe("ReviewStage", () => {
     const before = decided();
     await userEvent.keyboard("x");
     expect(decided()).not.toBe(before);
+  });
+
+  it("derives saved seconds from the range, not from a stale render", () => {
+    const saves = () => screen.getByText(/^Saves /).textContent;
+    const nudge = (times: number) =>
+      act(() => {
+        const handle = screen.getAllByRole("slider")[1] as HTMLElement;
+        for (let i = 0; i < times; i++) {
+          fireEvent.keyDown(handle, { key: "ArrowRight", shiftKey: true });
+        }
+      });
+    const first = setup();
+    const original = saves();
+    nudge(1);
+    const once = saves();
+    first.unmount();
+    setup();
+    nudge(3);
+    expect(saves()).toBe(once);
+    expect(once).not.toBe(original);
+    act(() => {
+      fireEvent.keyDown(screen.getAllByRole("slider")[1] as HTMLElement, {
+        key: "ArrowLeft",
+        shiftKey: true,
+      });
+    });
+    expect(saves()).toBe(original);
+  });
+
+  it("returns focus to the stage after Undo removes the toast", async () => {
+    const { stage, press } = setup();
+    stage.focus();
+    press("x");
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(document.activeElement).toBe(stage);
+  });
+
+  it("returns focus to the stage after the prompt's Check button", async () => {
+    const { stage, press } = setup({ initialItems: QUEUE_ITEMS });
+    stage.focus();
+    press("Enter");
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Check 1 word/ }),
+    );
+    expect(document.activeElement).toBe(stage);
+  });
+
+  it("does not take focus before anything in the stage was used", () => {
+    setup();
+    expect(document.activeElement).toBe(document.body);
   });
 
   it("does not start a second bulk while one runs", () => {

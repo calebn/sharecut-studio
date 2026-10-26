@@ -101,7 +101,7 @@ export function ReviewStage({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  const refocus = useRef(false);
+  const engaged = useRef(false);
 
   const phone = layout === "phone";
   const selected = items.find((item) => item.id === selectedId) ?? null;
@@ -122,10 +122,8 @@ export function ReviewStage({
     setPending(null);
     setSide("B");
   };
-  const step = (direction: "forward" | "backward") => {
-    refocus.current = true;
+  const step = (direction: "forward" | "backward") =>
     select(stepUndecided(items, selectedId, direction, filter));
-  };
 
   const apply = (
     ids: readonly string[],
@@ -133,7 +131,6 @@ export function ReviewStage({
     waive = false,
   ) => {
     const plan = planDecision(items, ids, result, { filter, waive });
-    refocus.current = true;
     setItems(plan.items);
     select(plan.selectedId);
     const first = items.find((i) => i.id === ids[0]);
@@ -156,15 +153,20 @@ export function ReviewStage({
     });
   };
 
-  const verb = (id: string) => {
+  const cuttable = (id: string) => {
     const item = items.find((i) => i.id === id);
-    if (!item || item.result || item.blocked || guest) return;
-    if (holdsGate([id])) {
-      setPending({ ids: [id] });
-      return;
-    }
-    if (item.unsure && !resolved.has(id)) return;
-    apply([id], "applied");
+    return (
+      item !== undefined &&
+      !item.result &&
+      !item.blocked &&
+      !(item.unsure && !resolved.has(id))
+    );
+  };
+
+  const verb = (id: string) => {
+    if (guest || !cuttable(id)) return;
+    if (holdsGate([id])) setPending({ ids: [id] });
+    else apply([id], "applied");
   };
 
   const keep = (id: string) => {
@@ -172,8 +174,9 @@ export function ReviewStage({
     if (item && !item.result && !guest) apply([id], "kept");
   };
 
-  const bulk = (ids: readonly string[] | undefined) => {
-    if (guest || bulkRunning || !ids?.length) return;
+  const bulk = (all: readonly string[] | undefined) => {
+    const ids = all?.filter(cuttable) ?? [];
+    if (guest || bulkRunning || !ids.length) return;
     if (holdsGate(ids)) setPending({ ids });
     else apply(ids, "applied");
   };
@@ -184,10 +187,11 @@ export function ReviewStage({
     );
 
   const confirmAnyway = (note?: string) => {
-    if (!pending) return;
+    const ids = pending?.ids.filter(cuttable) ?? [];
+    if (guest || bulkRunning || !ids.length) return;
     setConfirmed(true);
     onWaive?.(note);
-    apply(pending.ids, "applied", true);
+    apply(ids, "applied", true);
   };
 
   const checkWords = () => {
@@ -215,14 +219,29 @@ export function ReviewStage({
   });
   useLayoutEffect(() => {
     const el = root.current;
-    if (refocus.current) {
-      refocus.current = false;
-      const active = document.activeElement;
-      if (el && (!active || active === document.body)) {
-        el.focus({ preventScroll: true });
-      }
+    const active = document.activeElement;
+    if (engaged.current && el && (!active || active === document.body)) {
+      el.focus({ preventScroll: true });
     }
   });
+
+  useLayoutEffect(() => {
+    const el = root.current;
+    const enter = () => {
+      engaged.current = true;
+    };
+    const leave = (event: FocusEvent) => {
+      if (event.relatedTarget && !el?.contains(event.relatedTarget as Node)) {
+        engaged.current = false;
+      }
+    };
+    el?.addEventListener("focusin", enter);
+    el?.addEventListener("focusout", leave);
+    return () => {
+      el?.removeEventListener("focusin", enter);
+      el?.removeEventListener("focusout", leave);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const el = root.current;
@@ -237,15 +256,17 @@ export function ReviewStage({
     : undefined;
   const adjust = (next: TimeRange) => {
     if (!selected || !wave) return;
-    const delta = next.end - next.start - (wave.end - wave.start);
     const id = selected.id;
+    const origin = initialItems.find((i) => i.id === id);
+    const first = origin ? content(origin).card.waveform : undefined;
+    if (!origin || !first) return;
+    const saved = Math.max(
+      0,
+      origin.savedSeconds + (next.end - next.start) - (first.end - first.start),
+    );
     setRanges((current) => ({ ...current, [id]: next }));
     setItems((current) =>
-      current.map((i) =>
-        i.id === id
-          ? { ...i, savedSeconds: Math.max(0, i.savedSeconds + delta) }
-          : i,
-      ),
+      current.map((i) => (i.id === id ? { ...i, savedSeconds: saved } : i)),
     );
   };
   const card = body?.card ?? EMPTY_CARD;
@@ -255,7 +276,7 @@ export function ReviewStage({
           ...body.card.unsure,
           resolved: resolved.has(selected.id),
           onFix: () => {
-            if (guest) return;
+            if (guest || selected.result) return;
             setResolved(new Set(resolved).add(selected.id));
             if (selected.kind === "unsure-word")
               apply([selected.id], "applied");

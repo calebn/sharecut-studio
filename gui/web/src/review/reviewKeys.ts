@@ -63,8 +63,15 @@ function matches(spec: KeySpec, event: KeyInput): boolean {
 const CONTROL =
   "button, a, summary, [role='slider'], [tabindex]:not([tabindex='-1'])";
 
-const isControl = (target: EventTarget | null | undefined) =>
-  target instanceof Element && target.closest(CONTROL) !== null;
+const isControl = (
+  target: EventTarget | null | undefined,
+  root?: Element | null,
+) => {
+  const control = target instanceof Element ? target.closest(CONTROL) : null;
+  return (
+    control !== null && (!root || (control !== root && root.contains(control)))
+  );
+};
 
 /**
  * Keys typed into a field belong to the field. Enter on a control is the
@@ -89,20 +96,20 @@ export function stageActionFor(
   if (event.repeat && DECIDES.includes(action)) return null;
   if (
     (event.key === "Backspace" || event.key === "Delete") &&
-    isControl(event.target)
+    isControl(event.target, context.root)
   ) {
     return null;
   }
   if (
     event.key === "Tab" &&
-    (event.target === context.root || isControl(event.target))
+    (event.target === context.root || isControl(event.target, context.root))
   ) {
     return null;
   }
   if (
     (action === "verb" || action === "applyAll") &&
     event.key === "Enter" &&
-    isControl(event.target)
+    isControl(event.target, context.root)
   ) {
     return null;
   }
