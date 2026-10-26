@@ -121,7 +121,9 @@ function AppInner() {
             (e.code === "share_not_found" ||
               (e.code === null && e.status === 404))
           ) {
-            void clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            if (e.code === "share_not_found") {
+              void clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            }
             setError({
               message: "This link is invalid or has ended.",
               hint: "Ask the host for a new link.",

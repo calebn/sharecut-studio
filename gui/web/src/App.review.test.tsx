@@ -1,8 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
 import { urlOf } from "./test/urlOf";
+
+vi.mock("./dawApp", () => ({
+  DawApp: () => <div>Cached guest studio</div>,
+}));
 
 const offline = vi.hoisted(() => ({
   load: vi.fn(),
@@ -160,7 +164,7 @@ describe("App review route", () => {
     );
   }
 
-  it("shows the cover for a 404 that lost its error-code header", async () => {
+  it("shows the cover without dropping the snapshot for a 404 with no error code", async () => {
     window.history.pushState({}, "", "/r/stripped");
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
@@ -179,7 +183,7 @@ describe("App review route", () => {
     expect(
       await screen.findByText("This link is invalid or has ended."),
     ).toBeInTheDocument();
-    expect(offline.clear).toHaveBeenCalledWith("stripped");
+    expect(offline.clear).not.toHaveBeenCalled();
   });
 
   it("shows the cover even when clearing the snapshot never settles", async () => {
@@ -224,10 +228,31 @@ describe("App review route", () => {
       throw new TypeError("Failed to fetch");
     });
     render(<App />);
-    await waitFor(() => expect(offline.load).toHaveBeenCalledWith("offline"));
+    expect(await screen.findByText("Cached guest studio")).toBeInTheDocument();
     expect(
       screen.queryByText("This link is invalid or has ended."),
     ).not.toBeInTheDocument();
+    expect(offline.clear).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a coded project_not_found 404", 404, "project_not_found"],
+    ["a 5xx", 503, null],
+  ])("keeps the cached snapshot for %s", async (_name, status, code) => {
+    window.history.pushState({}, "", "/r/cached");
+    offline.load.mockResolvedValue({
+      project: { meta: { name: "Stale episode" } },
+      saved_at: 1,
+    });
+    stubBootstrapFailure(
+      () =>
+        new Response(JSON.stringify({ detail: "x" }), {
+          status,
+          headers: code ? { "X-Sharecut-Error-Code": code } : {},
+        }),
+    );
+    render(<App />);
+    expect(await screen.findByText("Cached guest studio")).toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
   });
 });
