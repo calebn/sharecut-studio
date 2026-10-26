@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import math
+
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import frozen
+from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 
@@ -36,3 +39,33 @@ def shared_source_audio_caches(project: EpisodeProject) -> dict[str, TrackAudioC
         lambda: build_track_audio_caches(project, tracks),
         keep=project,
     )
+
+
+class CarriedTimelineRms:
+    """The dialogue tracks' timeline loudness, built once for a batch applied from the end backward.
+
+    A cut moves only what plays after it, so a stem built before a later cut was applied is
+    still what plays before that cut. A check that reads within ``reach`` of its cut uses the
+    carried stems while every applied cut lies beyond that reach, and builds them again from
+    the current project when one does not. ``applied`` is told where each kept cut began.
+    """
+
+    def __init__(self) -> None:
+        self._caches: TrackRmsCacheSet | None = None
+        self._intact_before = math.inf
+
+    def caches_for(
+        self,
+        project: EpisodeProject,
+        span: tuple[TimelineSec, TimelineSec],
+        *,
+        reach: float,
+        defaults: EffectiveConfig,
+    ) -> TrackRmsCacheSet:
+        if self._caches is None or float(span[1]) + reach >= self._intact_before:
+            self._caches = shared_timeline_rms_caches(project, defaults=defaults)
+            self._intact_before = math.inf
+        return self._caches
+
+    def applied(self, timeline_start: float) -> None:
+        self._intact_before = min(self._intact_before, timeline_start)
