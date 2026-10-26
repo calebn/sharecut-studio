@@ -1113,12 +1113,12 @@ def test_filter_names_cached_and_empty_on_error():
     ok, _ = eng.check_available()
     if not ok:
         pytest.skip("ffmpeg not available")
-    first = eng._filter_names()
+    first = eng._listed_names("-filters")
     assert "drawbox" in first
-    assert eng._filter_names() is first
+    assert eng._listed_names("-filters") is first
     broken = FFmpegEngine()
     with patch("podcast_mcp.engines.ffmpeg.run", side_effect=FileNotFoundError):
-        assert broken._filter_names() == set()
+        assert broken._listed_names("-filters") == set()
         assert broken._has_filter("drawbox") is False
 
 

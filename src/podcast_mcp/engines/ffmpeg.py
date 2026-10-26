@@ -625,7 +625,7 @@ class FFmpegEngine:
         self.ffmpeg = pair.ffmpeg
         self.ffprobe = pair.ffprobe
         self.source = pair.source
-        self._filter_names_cache: set[str] | None = None
+        self._listed_names_cache: dict[str, set[str]] = {}
 
     @staticmethod
     def astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float | int | None]:
@@ -2565,29 +2565,35 @@ class FFmpegEngine:
         run(cmd, check=True, capture_output=True)
         return output_png
 
-    def _filter_names(self) -> set[str]:
-        if self._filter_names_cache is not None:
-            return self._filter_names_cache
+    def _listed_names(self, flag: str) -> set[str]:
+        """Names from ``ffmpeg -hide_banner <flag>`` (``-filters``, ``-encoders``, ``-muxers``)."""
+        cached = self._listed_names_cache.get(flag)
+        if cached is not None:
+            return cached
         names: set[str] = set()
         try:
             r = run(
-                [self.ffmpeg, "-hide_banner", "-filters"],
+                [self.ffmpeg, "-hide_banner", flag],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
         except (FileNotFoundError, TimeoutExpired, CalledProcessError):
-            self._filter_names_cache = names
+            self._listed_names_cache[flag] = names
             return names
         for line in (r.stdout or "").splitlines():
             parts = line.split()
             if len(parts) >= 2:
                 names.add(parts[1])
-        self._filter_names_cache = names
+        self._listed_names_cache[flag] = names
         return names
 
+    def supports_encode(self, codec: str, muxer: str) -> bool:
+        """Whether this build lists both the ``codec`` encoder and the ``muxer`` format."""
+        return codec in self._listed_names("-encoders") and muxer in self._listed_names("-muxers")
+
     def _has_filter(self, name: str) -> bool:
-        return name in self._filter_names()
+        return name in self._listed_names("-filters")
 
     def annotate_time_marks(
         self,

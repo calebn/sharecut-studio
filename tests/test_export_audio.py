@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -9,8 +10,10 @@ import pytest
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.export.audio import (
+    M4A_AAC,
     ExportFormatSpec,
     export_wav_enabled,
+    require_preset_encoder,
     resolve_export_formats,
     specs_from_extensions,
     write_audio_formats,
@@ -20,6 +23,7 @@ from podcast_mcp.export.names import MAX_EXPORT_STEM_BYTES, sanitize_export_stem
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.progress import CancelledProgress
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 PREVIOUS_EXPORT = {"ep.wav": b"OLD-WAV", "ep.mp3": b"OLD-MP3"}
 MP3 = {"wav": True, "formats": [{"ext": "mp3", "codec": "libmp3lame", "bitrate_kbps": 128}]}
 
@@ -262,3 +266,113 @@ def test_export_episode_audio_keeps_dot_and_reserved_names_under_export(
     assert paths == [tmp_path / "export" / filename]
     assert paths[0].is_file()
     assert list((tmp_path / "export").iterdir()) == paths
+
+
+def test_m4a_extension_maps_to_the_aac_preset():
+    assert specs_from_extensions(["m4a"]) == [M4A_AAC]
+
+
+def test_a_bare_m4a_entry_expands_to_the_preset_and_a_detailed_one_does_not():
+    assert ExportFormatSpec.from_dict({"ext": ".M4A"}) == M4A_AAC
+    assert resolve_export_formats({"formats": [{"ext": "m4a"}]}) == [M4A_AAC]
+    custom = ExportFormatSpec.from_dict({"ext": "m4a", "codec": "alac"})
+    assert custom != M4A_AAC and custom.codec == "alac"
+
+
+def test_the_m4a_preset_matches_its_gui_contract():
+    contract = json.loads((REPO_ROOT / "contracts" / "export-presets.json").read_text())
+    assert contract == {
+        "m4a": {"ext": "m4a", "codec": "aac", "format": "ipod", "bitrate_kbps": 128}
+    }
+    assert ExportFormatSpec.from_dict(contract["m4a"]) == M4A_AAC
+
+
+def test_a_build_without_the_preset_encoder_names_the_preset_before_encoding(tmp_path: Path):
+    source = tmp_path / "src.wav"
+    source.write_bytes(b"RIFFSRC")
+    eng = MagicMock()
+    eng.supports_encode.return_value = False
+    stem = tmp_path / "out" / "ep"
+    stem.parent.mkdir()
+    (stem.parent / "ep.wav").write_bytes(b"OLD")
+    with pytest.raises(ValueError, match=r"m4a export needs the aac encoder and ipod muxer"):
+        write_audio_formats(eng, source, stem, specs_from_extensions(["wav", "m4a"]))
+    eng.export_audio.assert_not_called()
+    assert sorted(p.name for p in stem.parent.iterdir()) == ["ep.wav"]
+    assert (stem.parent / "ep.wav").read_bytes() == b"OLD"
+
+
+def test_a_custom_m4a_spec_is_not_held_to_the_preset_check():
+    eng = MagicMock()
+    eng.supports_encode.return_value = False
+    require_preset_encoder(eng, ExportFormatSpec(ext="m4a", codec="alac"))
+    eng.supports_encode.assert_not_called()
+
+
+def _probe(ffprobe: str, path: Path) -> dict:
+    out = subprocess.run(
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-show_entries",
+            "format_tags:stream=codec_name,profile,channels,sample_rate",
+            "-of",
+            "json",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return json.loads(out)
+
+
+def _decoded_samples(ffmpeg: str, path: Path) -> int:
+    pcm = subprocess.run(
+        [ffmpeg, "-v", "error", "-i", str(path), "-f", "s16le", "-"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    return len(pcm)
+
+
+@pytest.mark.parametrize("channels", [1, 2])
+def test_the_m4a_preset_encodes_aac_lc_that_decodes_to_the_same_length(
+    tmp_path: Path, channels: int
+):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    source = tmp_path / "src.wav"
+    subprocess.run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=d=3:c=pink:r=44100:a=0.3",
+            "-ac",
+            str(channels),
+            str(source),
+        ],
+        check=True,
+    )
+    paths = write_audio_formats(
+        eng,
+        source,
+        tmp_path / "out" / "ep",
+        specs_from_extensions(["m4a"]),
+        metadata={"title": "Ep", "album": "Show"},
+    )
+    assert [p.name for p in paths] == ["ep.m4a"]
+    info = _probe(eng.ffprobe, paths[0])
+    stream = info["streams"][0]
+    assert (stream["codec_name"], stream["profile"]) == ("aac", "LC")
+    assert (stream["channels"], stream["sample_rate"]) == (channels, "44100")
+    tags = {k.lower(): v for k, v in info["format"]["tags"].items()}
+    assert tags["major_brand"].strip() == "M4A"
+    assert (tags["title"], tags["album"]) == ("Ep", "Show")
+    assert _decoded_samples(eng.ffmpeg, paths[0]) == _decoded_samples(eng.ffmpeg, source)
