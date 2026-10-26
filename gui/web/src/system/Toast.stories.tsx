@@ -54,6 +54,7 @@ function ToastOverPlayer({
       <div style={{ flex: 1, padding: "var(--space-5)" }}>
         <button
           type="button"
+          style={{ minBlockSize: "var(--touch-min)" }}
           onClick={() => {
             setUndone(false);
             setToast((t) => ({ id: (t?.id ?? 0) + 1, message, tone }));

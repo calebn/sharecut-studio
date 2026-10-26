@@ -1,4 +1,4 @@
-import { type CSSProperties, useId } from "react";
+import { type CSSProperties, useEffect, useId, useRef } from "react";
 import { presenceColorVar } from "../presence/colors";
 import { Button, Pill, SegmentedControl, ToggleButton } from "../ui";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
@@ -209,6 +209,9 @@ function HearOriginal({ hearOriginal, onHearOriginal }: PlayerProps) {
 /** The Player in its 56 px bar form and its expanded form. Props only. */
 export function Player(props: PlayerProps) {
   const headingId = useId();
+  const barToggleRef = useRef<HTMLButtonElement>(null);
+  const collapseRef = useRef<HTMLButtonElement>(null);
+  const lastForm = useRef(props.form);
   const {
     form,
     time,
@@ -226,6 +229,17 @@ export function Player(props: PlayerProps) {
     onCollapse,
     onChapter,
   } = props;
+  // Expanding or collapsing swaps the control that was focused for its twin;
+  // when focus was lost with it, put it on the toggle for the new state.
+  useEffect(() => {
+    if (lastForm.current === form) return;
+    lastForm.current = form;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    (form === "bar" ? barToggleRef : collapseRef).current?.focus({
+      preventScroll: true,
+    });
+  }, [form]);
   if (form === "bar") {
     return (
       <div
@@ -237,6 +251,7 @@ export function Player(props: PlayerProps) {
         <div className="sys-player">
           <div className="sys-player-left">
             <button
+              ref={barToggleRef}
               type="button"
               className="sys-player-time"
               aria-label={`${time} / ${total}. Expand player`}
@@ -274,6 +289,7 @@ export function Player(props: PlayerProps) {
           ) : null}
         </div>
         <button
+          ref={collapseRef}
           type="button"
           className="sys-icon-btn"
           aria-label="Collapse player"

@@ -124,25 +124,38 @@ test("System/Menu rows with a shortcut set the icon apart from the label", async
     const range = document.createRange();
     range.selectNodeContents(text);
     const box = range.getBoundingClientRect();
+    const rowBox = el.getBoundingClientRect();
     return {
       apart: box.left - icon.right,
       iconMid: icon.top + icon.height / 2,
       textMid: box.top + box.height / 2,
+      rowMid: rowBox.top + rowBox.height / 2,
     };
   });
   if (!gap) throw new Error("Menu row did not render");
   expect(gap.apart).toBeGreaterThanOrEqual(8);
   expect(Math.abs(gap.iconMid - gap.textMid)).toBeLessThanOrEqual(2);
+  expect(Math.abs(gap.iconMid - gap.rowMid)).toBeLessThanOrEqual(2);
+  expect(Math.abs(gap.textMid - gap.rowMid)).toBeLessThanOrEqual(2);
 });
 
 test("System controls show the 2 px accent focus ring", async ({ page }) => {
   await open(page, "system-cover--empty", 1280);
-  await page.keyboard.press("Tab");
-  const ring = await page.evaluate(() => {
-    const style = getComputedStyle(document.activeElement as Element);
-    return { width: style.outlineWidth, offset: style.outlineOffset };
-  });
-  expect(ring).toEqual({ width: "2px", offset: "2px" });
+  await expect(page.locator("#storybook-root button").first()).toBeVisible();
+  // Tab can land on the preview body while the story is still mounting, so
+  // press it until a button inside the story holds focus.
+  await expect(async () => {
+    await page.keyboard.press("Tab");
+    const ring = await page.evaluate(() => {
+      const active = document.activeElement;
+      if (!active?.closest("#storybook-root") || active.tagName !== "BUTTON") {
+        return null;
+      }
+      const style = getComputedStyle(active);
+      return { width: style.outlineWidth, offset: style.outlineOffset };
+    });
+    expect(ring).toEqual({ width: "2px", offset: "2px" });
+  }).toPass();
 });
 
 test("System/Player follow pill X has a 44 px hit area at 360", async ({

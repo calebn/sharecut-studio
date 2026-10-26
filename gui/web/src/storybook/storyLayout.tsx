@@ -58,6 +58,7 @@ export const menuStoryDecorator: Decorator = (Story) => (
       display: "flex",
       alignItems: "flex-start",
       justifyContent: "flex-end",
+      paddingInline: "var(--space-5)",
       minBlockSize: "18rem",
     }}
   >
