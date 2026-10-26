@@ -633,9 +633,11 @@ jsdom visibility checks.
 - 2026-10-26 — Every screen, dialog, panel and inspector variant in the UI
   inventory now has a story or a recorded reason it has none (#2279). The
   coverage manifest has no pending state, and `e2e-storybook/coverage.spec.ts`
-  checks every `Templates/*` story in both themes at 360 and 1280 px for console
-  errors, horizontal overflow and axe violations including color-contrast, on
-  one page per Playwright worker that moves between stories. Live-shell stories
+  checks every story, Atoms to Templates, in both themes at 360 and 1280 px for
+  console errors, horizontal overflow and axe violations including
+  color-contrast, on one page per Playwright worker that moves between stories.
+  A story that cannot render at 360 px carries the `wide-only` tag and must set
+  `parameters.wideOnlyReason`; the sweep fails without it. Live-shell stories
   keep the toolbar theme because the Storybook preview now stores it.
 
 - 2026-10-25 — Catalog boundary now allows store-hydrated stories through
