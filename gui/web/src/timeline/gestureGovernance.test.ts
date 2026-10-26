@@ -248,6 +248,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the transcript edit-boundary mark drags a cut's gap with pointer capture, the same roll as edit.rollClipJoin",
   "transcript/TranscriptWordbar.tsx":
     "the word-boundary sliders preview a word's timing and save one adjustment on release",
+  "stages/prepare/AdvancedSteps.tsx":
+    "a step's seconds setting is a native range input beside its value; it is a setting, not a timeline target",
   "system/SuggestionWaveform.tsx":
     "a suggestion's edge handles move a control inside one Decision card, not a timeline target; they preview the range and the card saves on decision",
   "system/useSwipeDecision.ts":
