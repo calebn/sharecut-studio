@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import LATE_MPEG_AUDIO_MESSAGE, FFmpegEngine, LateMpegAudioError
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
@@ -484,6 +484,89 @@ def test_write_complete_rejects_unreadable_audio(minimal_project):
     raw = root / "raw"
     if raw.is_dir():
         assert list(raw.glob("bad*.wav")) == []
+
+
+@pytest.fixture
+def late_ts_bytes(tmp_path):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    path = tmp_path / "late.ts"
+    subprocess.run(
+        [
+            eng.ffmpeg,
+            *["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=64x64:rate=10:duration=8"],
+            *["-itsoffset", "0.5", "-f", "lavfi", "-i", "sine=f=440:r=44100:duration=2"],
+            *["-map", "0:v", "-map", "1:a", "-c:v", "mpeg2video", "-c:a", "mp2", str(path)],
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return path.read_bytes()
+
+
+def test_write_complete_names_a_late_mpeg_transport_stream(minimal_project, late_ts_bytes):
+    root = ProjectWorkspace.open(minimal_project).project.workspace_path()
+    with pytest.raises(LateMpegAudioError) as exc:
+        write_complete_upload(root, filename="late.mp3", data=late_ts_bytes)
+    assert str(exc.value) == LATE_MPEG_AUDIO_MESSAGE
+    assert exc.value.code == "invalid_audio"
+    raw = root / "raw"
+    if raw.is_dir():
+        assert list(raw.glob("late*")) == []
+
+
+def test_host_upload_of_a_late_mpeg_transport_stream_says_to_re_encode(
+    minimal_project, late_ts_bytes
+):
+    client = TestClient(create_app(served_project=None))
+    res = client.post(
+        f"/api/media/upload?path={minimal_project}&filename=late.mp3",
+        content=late_ts_bytes,
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"] == LATE_MPEG_AUDIO_MESSAGE
+    assert res.headers["x-sharecut-error-code"] == "invalid_audio"
+    raw = ProjectWorkspace.open(minimal_project).project.workspace_path() / "raw"
+    if raw.is_dir():
+        assert list(raw.glob("late*")) == []
+
+
+def test_guest_upload_of_a_late_mpeg_transport_stream_stays_generic(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, late_ts_bytes
+):
+    client, _view, _comment, edit_tok = _guest_share_client(
+        minimal_project, sample_wav, tmp_workspace, monkeypatch
+    )
+    res = client.post(
+        f"/api/review/{edit_tok}/daw/media/upload?filename=late.mp3",
+        content=late_ts_bytes,
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert res.status_code == 400
+    assert res.json() == {
+        "detail": "This upload is not a playable audio file. Choose a supported audio file and try again."
+    }
+    assert "MPEG" not in res.text
+    assert res.headers["x-sharecut-error-code"] == "invalid_audio"
+
+
+def test_write_complete_maps_a_probe_timeout_to_the_generic_message(
+    minimal_project, sample_wav, monkeypatch
+):
+    def hang(self, path, untrusted=False):
+        raise subprocess.TimeoutExpired([str(path), "-private"], 120.0)
+
+    monkeypatch.setattr("podcast_mcp.services.media.media_store.FFmpegEngine.probe", hang)
+    root = ProjectWorkspace.open(minimal_project).project.workspace_path()
+    with pytest.raises(CodedValueError, match=r"^not a playable audio file$") as exc:
+        write_complete_upload(root, filename="slow.wav", data=sample_wav.read_bytes())
+    assert exc.value.code == "invalid_audio"
+    assert isinstance(exc.value.__cause__, subprocess.TimeoutExpired)
+    raw = root / "raw"
+    if raw.is_dir():
+        assert list(raw.glob("slow*")) == []
 
 
 def test_write_complete_rejects_zero_duration(minimal_project, sample_wav, monkeypatch):

@@ -385,6 +385,11 @@ def _annotate_vf(
 LATE_MPEG_AUDIO_MESSAGE = "audio starts late in an MPEG transport stream; re-encode it"
 
 
+class LateMpegAudioError(CodedValueError):
+    def __init__(self) -> None:
+        super().__init__(LATE_MPEG_AUDIO_MESSAGE, code="invalid_audio")
+
+
 @dataclass
 class AudioProbe:
     # Length of the first audio stream, counted from its first sample.
@@ -416,11 +421,10 @@ class AudioProbe:
             or self.duration_sec <= 0
             or (maximum_sec is not None and self.duration_sec > maximum_sec)
         ):
+            if self.rebases_audio_reads:
+                raise LateMpegAudioError
             raise CodedValueError(
-                LATE_MPEG_AUDIO_MESSAGE
-                if self.rebases_audio_reads
-                else "audio duration is unavailable or outside its bound",
-                code="invalid_audio",
+                "audio duration is unavailable or outside its bound", code="invalid_audio"
             )
         return self.duration_sec
 

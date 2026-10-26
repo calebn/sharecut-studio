@@ -1097,6 +1097,14 @@ way in. Every windowed read of a media file passes `FFmpegEngine.audio_start_sec
 the shared `probe_media` cache. A WAV, a fill or a native decode starts at its audio and passes 0.
 `tests/test_timebase_guards.py` and `tests/test_late_start_clock.py` keep a call from omitting it. ffmpeg rebases an audio-only read of MPEG transport and program streams (`mpegts`, `mpeg`) to pts 0 while input `-ss` keeps the container clock, so no lead is right for both. `probe` sets `rebases_audio_reads` (and `duration_estimated`) when such a file's audio starts above the gate. Ingest refuses it, and `audio_start_sec` raises `invalid_audio` so no read of an already-saved source lands on a misplaced clock.
 
+### Audio extent admission
+
+`FFmpegEngine.probe` reports the selected first audio stream's length, counted from its first sample, as `duration_sec`, and the lead between the container origin and that first sample as `audio_start_sec` (see [Late-start audio](#late-start-audio-2175)). A late audio start no longer lengthens the extent. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.
+
+`AudioProbe.require_duration_sec()` rejects uncertain, nonpositive, non-finite, and missing-audio results before source and media duration writes, source edits, or implicit full-span render bounds. Pipeline ingest preflights every track before metadata updates or dialogue clip creation. Strip silence admits extent before rebuilding clips. Full-track and segment renderers admit implicit clip extent before rendering. These boundaries return `invalid_audio` without changing project state or existing output. Upload finalization additionally caps known extents at seven days and removes rejected files. A late-start MPEG-TS, M2TS or MPEG-PS upload is refused with `LATE_MPEG_AUDIO_MESSAGE`, which says to re-encode it, to the host; a guest sees the generic "not a playable audio file" copy. Any other probe failure, including a probe timeout, keeps that generic text.
+
+Packet recovery scans Ogg, MPEG-TS, and other containers whose declarations cannot establish extent. It reads bounded records under one 120-second deadline, discards stderr, and kills and reaps the child on incomplete scans. Backward or repeated timestamps remain uncertain. A complete scan can verify a bitrate-derived estimate. `audio_duration_sec` remains available for PCM shortfall checks unless bitrate estimation invalidates it. Declaration consumers require exactly one audio stream and known extent.
+
 ## Not yet implemented (see `ROADMAP.md`)
 
 - Applying the same Silero VAD signal to the pause-floor logic in
