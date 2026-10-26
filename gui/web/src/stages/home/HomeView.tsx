@@ -1,6 +1,7 @@
 import {
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -15,7 +16,7 @@ import {
 import { Skeleton } from "../../system/Skeleton";
 import { StartTile } from "../../system/StartTile";
 import { SystemIcon } from "../../system/SystemIcon";
-import { BrandLockup, Menu, MenuItem } from "../../ui";
+import { BrandLockup, Menu, MenuItem, useResizeObserver } from "../../ui";
 import { OpenOther, type OpenOtherProps } from "./OpenOther";
 import { SetupCard, type SetupCardProps } from "./SetupCard";
 
@@ -73,19 +74,14 @@ const PHONE_MAX_PX = 640;
 /** True while the host is narrower than the phone breakpoint. */
 function useNarrow(host: RefObject<HTMLElement | null>): boolean {
   const [narrow, setNarrow] = useState(false);
-  useLayoutEffect(() => {
+  const measure = useCallback(() => {
     const el = host.current;
     if (!el) return;
-    const measure = () => {
-      const width = el.getBoundingClientRect().width;
-      setNarrow(width > 0 && width < PHONE_MAX_PX);
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const watcher = new ResizeObserver(measure);
-    watcher.observe(el);
-    return () => watcher.disconnect();
+    const width = el.getBoundingClientRect().width;
+    setNarrow(width > 0 && width < PHONE_MAX_PX);
   }, [host]);
+  useLayoutEffect(measure, [measure]);
+  useResizeObserver(host, measure);
   return narrow;
 }
 

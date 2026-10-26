@@ -55,6 +55,10 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "timeline/EnvelopeOverlayView.tsx",
   // The ARIA tablist pattern: arrows, Home and End move among the tabs.
   "ui/Tabs.tsx",
+  // Arrows, Home and End move the one tab stop among the cards.
+  "system/ProjectCard.tsx",
+  // Escape closes the Open other popover from its field and its buttons.
+  "stages/home/OpenOther.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",
   "inspector/views/EnvelopeWorkspaceView.tsx",
