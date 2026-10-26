@@ -40,6 +40,8 @@ from podcast_mcp.services.record.landing_math import (
     expected_span_s,
     needs_align_fallback,
     overlap_window_s,
+    record_source_prefix,
+    session_origin_s,
     session_start_present,
     take_offsets_s,
 )
@@ -198,7 +200,7 @@ class RecordTakeOpenError(RecordLandingError):
 def record_source_id(
     session_id: str, take_index: int, participant_id: str, segment_index: int
 ) -> str:
-    return f"rec-{session_id}-{take_index}-{participant_id}-{segment_index}"
+    return f"{record_source_prefix(session_id)}{take_index}-{participant_id}-{segment_index}"
 
 
 def wav_pcm_info(path: Path) -> tuple[int, int, int]:
@@ -495,7 +497,11 @@ class RecordLandingService:
         self._retry_deferred_rollbacks()
         snap = self._snapshot()
         tombstoned = self._upload.tombstoned_takes(self.session_id)
-        offsets = take_offsets_s(snap.takes, tombstoned=tombstoned)
+        offsets = take_offsets_s(
+            snap.takes,
+            tombstoned=tombstoned,
+            origin_s=session_origin_s(self.workspace.project.clips, self.session_id),
+        )
         names = {
             person.participant_id: person.display_name
             for person in snap.participants
