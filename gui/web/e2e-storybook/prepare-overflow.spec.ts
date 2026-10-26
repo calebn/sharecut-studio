@@ -80,7 +80,7 @@ for (const width of [320, 360]) {
       await page.goto(storyUrl(id, { theme: "light" }));
       await page.locator("#storybook-root > *").first().waitFor();
       await page.waitForLoadState("networkidle");
-      await page.waitForTimeout(200);
+      await page.evaluate(() => document.fonts.ready);
       const wide = await page.evaluate(
         ({ long, copy }) => {
           const root = document.querySelector("#storybook-root");
