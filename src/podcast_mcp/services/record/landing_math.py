@@ -42,7 +42,38 @@ def session_placement(clips: Iterable[Clip], session_id: str, target: SessionTar
     refusal = unsupported_target_message(target)
     if refusal is not None:
         raise CodedValueError(refusal, code="invalid_record_request")
+    if target.kind == "insert":
+        return target.at_sec
+    if target.kind == "replace":
+        return target.from_sec
     return session_origin_s(clips, session_id)
+
+
+def session_take_offsets_s(
+    takes: list[TakeState],
+    clips: Iterable[Clip],
+    session_id: str,
+    target: SessionTarget,
+    *,
+    tombstoned: set[int] | frozenset[int] | None = None,
+) -> dict[int, float]:
+    """Each live take's origin on the timeline for ``target``; landing and the live clock share it.
+
+    End takes follow each other with the take gap. Insert takes concatenate with no gap. Replace
+    takes are alternatives, so each starts at the range start.
+    """
+    return take_offsets_s(
+        takes,
+        tombstoned=tombstoned,
+        take_gap_ms=0 if target.kind == "insert" else TAKE_GAP_MS,
+        origin_s=session_placement(clips, session_id, target),
+        alternatives=target.kind == "replace",
+    )
+
+
+def staged_span_s(offsets_and_durations: Iterable[tuple[float, float]]) -> float:
+    """Length a staged insert occupies: the latest end of any segment, relative to its anchor."""
+    return max((offset + duration for offset, duration in offsets_and_durations), default=0.0)
 
 
 def session_numbered(project: EpisodeProject, session_id: str) -> bool:
@@ -131,8 +162,12 @@ def take_offsets_s(
     tombstoned: set[int] | frozenset[int] | None = None,
     take_gap_ms: int = TAKE_GAP_MS,
     origin_s: float = 0.0,
+    alternatives: bool = False,
 ) -> dict[int, float]:
-    """Sequential take origins from ``origin_s``. Tombstoned takes do not consume timeline."""
+    """Sequential take origins from ``origin_s``; with ``alternatives`` every take starts there.
+
+    Tombstoned takes do not consume timeline.
+    """
     skipped = tombstoned or set()
     offsets: dict[int, float] = {}
     acc_ms = round(origin_s * 1000)
@@ -141,6 +176,8 @@ def take_offsets_s(
         for take in sorted(takes, key=lambda row: row.take_index)
         if take.take_index not in skipped
     ]
+    if alternatives:
+        return {take.take_index: acc_ms / 1000.0 for take in alive}
     for i, take in enumerate(alive):
         offsets[take.take_index] = acc_ms / 1000.0
         acc_ms += take_recording_duration_ms(take)

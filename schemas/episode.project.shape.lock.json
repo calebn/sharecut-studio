@@ -879,6 +879,12 @@
               },
               "type": "array"
             },
+            "session_suggestions": {
+              "items": {
+                "$ref": "#/$defs/SessionSuggestion"
+              },
+              "type": "array"
+            },
             "sound_actions": {
               "items": {
                 "$ref": "#/$defs/SoundActionRecord"
@@ -2040,6 +2046,102 @@
           ],
           "type": "object"
         },
+        "SessionSuggestion": {
+          "properties": {
+            "at_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "from_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "insert",
+                "replace"
+              ],
+              "type": "string"
+            },
+            "selected_take": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "session_number": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "status": {
+              "default": "pending",
+              "enum": [
+                "pending",
+                "skipped",
+                "accepted"
+              ],
+              "type": "string"
+            },
+            "takes": {
+              "items": {
+                "$ref": "#/$defs/StagedTake"
+              },
+              "type": "array"
+            },
+            "to_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "session_id",
+            "session_number"
+          ],
+          "type": "object"
+        },
         "SnapshotMeta": {
           "properties": {
             "ingest_alignment": {
@@ -2427,6 +2529,75 @@
             "end_s",
             "speakers",
             "confidence"
+          ],
+          "type": "object"
+        },
+        "StagedComment": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "recording_ms": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "body",
+            "author",
+            "recording_ms"
+          ],
+          "type": "object"
+        },
+        "StagedTake": {
+          "properties": {
+            "comments": {
+              "items": {
+                "$ref": "#/$defs/StagedComment"
+              },
+              "type": "array"
+            },
+            "duration_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "offset_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "segment_index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "source_id": {
+              "type": "string"
+            },
+            "take_index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "track_label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "take_index",
+            "track_id",
+            "track_label",
+            "segment_index",
+            "source_id",
+            "offset_s",
+            "duration_s"
           ],
           "type": "object"
         },
@@ -3979,6 +4150,12 @@
               },
               "type": "array"
             },
+            "session_suggestions": {
+              "items": {
+                "$ref": "#/$defs/SessionSuggestion"
+              },
+              "type": "array"
+            },
             "sound_actions": {
               "items": {
                 "$ref": "#/$defs/SoundActionRecord"
@@ -5140,6 +5317,102 @@
           ],
           "type": "object"
         },
+        "SessionSuggestion": {
+          "properties": {
+            "at_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "from_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "insert",
+                "replace"
+              ],
+              "type": "string"
+            },
+            "selected_take": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "session_number": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "status": {
+              "default": "pending",
+              "enum": [
+                "pending",
+                "skipped",
+                "accepted"
+              ],
+              "type": "string"
+            },
+            "takes": {
+              "items": {
+                "$ref": "#/$defs/StagedTake"
+              },
+              "type": "array"
+            },
+            "to_sec": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "session_id",
+            "session_number"
+          ],
+          "type": "object"
+        },
         "SnapshotMeta": {
           "properties": {
             "ingest_alignment": {
@@ -5527,6 +5800,75 @@
             "end_s",
             "speakers",
             "confidence"
+          ],
+          "type": "object"
+        },
+        "StagedComment": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "recording_ms": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "body",
+            "author",
+            "recording_ms"
+          ],
+          "type": "object"
+        },
+        "StagedTake": {
+          "properties": {
+            "comments": {
+              "items": {
+                "$ref": "#/$defs/StagedComment"
+              },
+              "type": "array"
+            },
+            "duration_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "offset_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "segment_index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "source_id": {
+              "type": "string"
+            },
+            "take_index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "track_label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "take_index",
+            "track_id",
+            "track_label",
+            "segment_index",
+            "source_id",
+            "offset_s",
+            "duration_s"
           ],
           "type": "object"
         },
@@ -6252,6 +6594,7 @@
     "ReviewSection": "ignore",
     "RoomToneFill": "ignore",
     "SavedDocumentCommand": "ignore",
+    "SessionSuggestion": "ignore",
     "SnapshotMeta": "ignore",
     "SocialClipCandidate": "ignore",
     "SocialSection": "ignore",
@@ -6262,6 +6605,8 @@
     "SpeakerIngestAlignment": "ignore",
     "SpeakerSplit": "ignore",
     "SpeakerTurnRecord": "ignore",
+    "StagedComment": "ignore",
+    "StagedTake": "ignore",
     "TimelineComment": "ignore",
     "TimelineSection": "ignore",
     "Track": "ignore",

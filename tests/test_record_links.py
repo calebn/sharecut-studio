@@ -1115,22 +1115,42 @@ def test_room_target_defaults_to_end_and_is_set_at_mint(
     }
 
 
-@pytest.mark.parametrize(
-    "target",
-    [
-        "start",
-        "insert",
-        "replace",
-        {"kind": "insert", "at_sec": 4.0},
-        '{"kind": "replace", "from_sec": 1, "to_sec": 2}',
-    ],
-)
-def test_minting_a_room_refuses_targets_that_are_not_available_yet(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch, target
+def test_minting_a_room_refuses_the_start_target_until_its_slice(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_premix(minimal_project, sample_wav)
     first = ShareService(ws).create_record_room()
     with pytest.raises(RecordStateError, match="is not available yet"):
+        ShareService(ws).create_record_room(target="start")
+    assert RecordSessionService.active_session_id(ws.project) == first["session_id"]
+
+
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        ({"kind": "insert", "at_sec": 4.0}, {"kind": "insert", "at_sec": 4.0}),
+        (
+            '{"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["host"]}',
+            {"kind": "replace", "from_sec": 1.0, "to_sec": 2.0, "track_ids": ["host"]},
+        ),
+    ],
+)
+def test_minting_a_room_takes_an_insert_or_replace_target(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, target, expected
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room(target=target)
+    snap = RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()
+    assert snap["target"] == expected
+
+
+@pytest.mark.parametrize("target", ["insert", "replace"])
+def test_minting_a_room_with_a_bare_insert_or_replace_needs_a_time(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, target
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    first = ShareService(ws).create_record_room()
+    with pytest.raises(ValueError, match=f"the {target} target needs a time"):
         ShareService(ws).create_record_room(target=target)
     assert RecordSessionService.active_session_id(ws.project) == first["session_id"]
 

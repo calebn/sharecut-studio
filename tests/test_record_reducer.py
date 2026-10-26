@@ -999,19 +999,43 @@ def test_set_target_end_is_stored_before_the_first_take() -> None:
     assert out.state == "lobby"
 
 
+def test_set_target_refuses_start_until_its_slice() -> None:
+    snap = _room_tone_room()
+    with pytest.raises(RecordStateError, match="the start target is not available yet"):
+        _set_target(snap, {"kind": "start"})
+    assert snap.target.kind == "end"
+
+
 @pytest.mark.parametrize(
     "target",
     [
-        {"kind": "start"},
         {"kind": "insert", "at_sec": 12.5},
         {"kind": "replace", "from_sec": 3.0, "to_sec": 9.0, "track_ids": ["host"]},
     ],
 )
-def test_set_target_parses_later_kinds_but_refuses_them(target: dict) -> None:
-    snap = _room_tone_room()
-    with pytest.raises(RecordStateError, match=f"the {target['kind']} target is not available yet"):
-        _set_target(snap, target)
-    assert snap.target.kind == "end"
+def test_set_target_accepts_insert_and_replace(target: dict) -> None:
+    snap = _set_target(_room_tone_room(), target)
+    assert snap.target.model_dump() == target
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"kind": "insert", "at_sec": -1},
+        {"kind": "replace", "from_sec": 9.0, "to_sec": 9.0, "track_ids": ["host"]},
+        {"kind": "replace", "from_sec": 9.0, "to_sec": 3.0, "track_ids": ["host"]},
+        {"kind": "replace", "from_sec": 3.0, "to_sec": 9.0, "track_ids": []},
+        {"kind": "replace", "from_sec": 3.0, "to_sec": 9.0},
+        "insert",
+        "replace",
+    ],
+)
+def test_set_target_validates_insert_and_replace_values(target: object) -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    with pytest.raises(CodedValueError) as raised:
+        _cmd("SetTarget", role="host", pid="p_host", payload={"target": target})
+    assert raised.value.code == "invalid_record_request"
 
 
 def test_set_target_rejects_an_unknown_or_incomplete_target() -> None:

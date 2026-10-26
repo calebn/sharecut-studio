@@ -921,6 +921,52 @@ class RecordSessionRecord(BaseModel):
     target_kind: Literal["start", "end", "insert", "replace"] = "end"
 
 
+class StagedComment(BaseModel):
+    """A live record-room comment held on a staged take until the suggestion is accepted."""
+
+    id: str
+    body: str
+    author: str
+    recording_ms: int = Field(ge=0)
+
+
+class StagedTake(BaseModel):
+    """One landed keeper segment of a suggestion; its source is registered, its clip is not.
+
+    ``offset_s`` is where the segment starts relative to the suggestion's anchor
+    (insert: ``at_sec``; replace: ``from_sec``), join offset included.
+    """
+
+    take_index: int = Field(ge=0)
+    track_id: str
+    track_label: str
+    segment_index: int = Field(ge=0)
+    source_id: str
+    offset_s: float = Field(ge=0)
+    duration_s: float = Field(ge=0)
+    comments: list[StagedComment] = Field(default_factory=list)
+
+
+class SessionSuggestion(BaseModel):
+    """A record session staged for an insert or replace target, waiting for a decision.
+
+    Staging registers the takes' sources but puts nothing on the timeline: no clips, tracks
+    or comments. Insert takes concatenate; replace takes are alternatives.
+    """
+
+    id: str
+    kind: Literal["insert", "replace"]
+    session_id: str
+    session_number: int = Field(ge=1)
+    at_sec: float | None = Field(default=None, ge=0)
+    from_sec: float | None = Field(default=None, ge=0)
+    to_sec: float | None = Field(default=None, ge=0)
+    track_ids: list[str] = Field(default_factory=list)
+    takes: list[StagedTake] = Field(default_factory=list)
+    selected_take: int | None = None
+    status: Literal["pending", "skipped", "accepted"] = "pending"
+
+
 class EditorialSection(BaseModel):
     edit_decisions: list[EditDecision] = Field(default_factory=list)
     edit_log: list[AppliedEditRecord] = Field(default_factory=list)
@@ -929,6 +975,7 @@ class EditorialSection(BaseModel):
     sound_actions: list[SoundActionRecord] = Field(default_factory=list)
     speaker_splits: list[SpeakerSplit] = Field(default_factory=list)
     record_sessions: list[RecordSessionRecord] = Field(default_factory=list)
+    session_suggestions: list[SessionSuggestion] = Field(default_factory=list)
 
 
 class TranscriptsSection(BaseModel):

@@ -521,7 +521,52 @@
         "retained_bleed_alignments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RetainedBleedAlignmentDecision" } },
         "sound_actions": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SoundActionRecord" } },
         "speaker_splits": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SpeakerSplit" } },
-        "record_sessions": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RecordSessionRecord" } }
+        "record_sessions": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RecordSessionRecord" } },
+        "session_suggestions": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SessionSuggestion" } }
+      }
+    },
+    "SessionSuggestion": {
+      "type": "object",
+      "description": "A record session staged for an insert or replace target: its sources are registered but nothing is on the timeline. Insert takes concatenate; replace takes are alternatives (#2296).",
+      "required": ["id", "kind", "session_id", "session_number"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["insert", "replace"] },
+        "session_id": { "type": "string" },
+        "session_number": { "type": "integer", "minimum": 1 },
+        "at_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
+        "from_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
+        "to_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
+        "track_ids": { "type": "array", "default": [], "items": { "type": "string" } },
+        "takes": { "type": "array", "default": [], "items": { "$ref": "#/$defs/StagedTake" } },
+        "selected_take": { "type": ["integer", "null"], "default": null },
+        "status": { "enum": ["pending", "skipped", "accepted"], "default": "pending" }
+      }
+    },
+    "StagedTake": {
+      "type": "object",
+      "description": "One landed keeper segment of a suggestion; offset_s is relative to the suggestion's anchor (at_sec or from_sec), join offset included.",
+      "required": ["take_index", "track_id", "track_label", "segment_index", "source_id", "offset_s", "duration_s"],
+      "properties": {
+        "take_index": { "type": "integer", "minimum": 0 },
+        "track_id": { "type": "string" },
+        "track_label": { "type": "string" },
+        "segment_index": { "type": "integer", "minimum": 0 },
+        "source_id": { "type": "string" },
+        "offset_s": { "type": "number", "minimum": 0 },
+        "duration_s": { "type": "number", "minimum": 0 },
+        "comments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/StagedComment" } }
+      }
+    },
+    "StagedComment": {
+      "type": "object",
+      "description": "A live record-room comment held on a staged take; it joins the timeline comments only when the suggestion is accepted.",
+      "required": ["id", "body", "author", "recording_ms"],
+      "properties": {
+        "id": { "type": "string" },
+        "body": { "type": "string" },
+        "author": { "type": "string" },
+        "recording_ms": { "type": "integer", "minimum": 0 }
       }
     },
     "RecordSessionRecord": {
