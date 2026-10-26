@@ -66,7 +66,11 @@ function ChooserPreview({
   }));
   return (
     <>
-      <div ref={lane} className="lane-row" style={{ inlineSize: "40rem" }}>
+      <div
+        ref={lane}
+        className="lane-row"
+        style={{ inlineSize: "min(40rem, 100%)" }}
+      >
         {used.map((spec) => (
           <span
             key={spec.id + spec.kind}

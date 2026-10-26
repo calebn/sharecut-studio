@@ -116,6 +116,7 @@ export const SkipUnavailable: Story = {
 };
 
 export const PhoneWidth: Story = {
+  tags: ["wide-only"],
   parameters: { ...recordMobileViewport.parameters, footerPhone: true },
   globals: recordMobileViewport.globals,
   args: { previewMode: "suggested", onPreviewModeChange: fn() },

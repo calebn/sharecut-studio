@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { useDawStore } from "../state/dawStore";
 import { episode, selections } from "../test/episodeFixture";
 import { panelFrame } from "../test/panelFrame";
@@ -98,11 +98,13 @@ export const SelectRange: Story = {
 export const IgnoredWords: Story = {
   parameters: { episode: { project: withIgnoredPhrase(episode()) } },
   play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("button", {
-        name: /^Restore ignored:/,
-      }),
-    ).toBeVisible();
+    const restore = await within(canvasElement).findByRole("button", {
+      name: /^Restore ignored:/,
+    });
+    const turn = restore.closest(".utterance-turn");
+    if (!(turn instanceof HTMLElement)) throw new Error("No utterance turn");
+    await userEvent.hover(turn);
+    await waitFor(() => expect(restore).toBeVisible());
   },
 };
 

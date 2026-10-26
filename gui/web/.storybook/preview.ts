@@ -1,10 +1,11 @@
 import type { Preview } from "@storybook/react-vite";
 import { createElement } from "react";
 import "../src/styles/daw.css";
-import { THEME_OPTIONS } from "../src/hooks/useTheme";
+import { THEME_OPTIONS, THEME_STORAGE_KEY } from "../src/hooks/useTheme";
 import { themePreferenceFromGlobals } from "../src/storybook/docsThemeGlobal";
 import { StudioDocsContainer } from "../src/storybook/StudioDocsContainer";
 import { StudioStoryTheme } from "../src/storybook/StudioStoryTheme";
+import { writeLocal } from "../src/utils/storage";
 
 const preview: Preview = {
   parameters: {
@@ -34,6 +35,11 @@ const preview: Preview = {
         dynamicTitle: true,
       },
     },
+  },
+  // The live TransportBar re-applies the stored preference when it mounts, so
+  // the toolbar choice has to be the stored one or shell stories lose it.
+  beforeEach: ({ globals }) => {
+    writeLocal(THEME_STORAGE_KEY, themePreferenceFromGlobals(globals));
   },
   decorators: [
     (Story, context) => {

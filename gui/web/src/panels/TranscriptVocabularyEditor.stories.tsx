@@ -21,7 +21,7 @@ const meta: Meta<typeof TranscriptVocabularyEditor> = {
   decorators: [
     withEpisode,
     (Story) => (
-      <div className="daw-shell" style={{ inlineSize: "28rem" }}>
+      <div className="daw-shell" style={{ inlineSize: "min(28rem, 100%)" }}>
         <Story />
       </div>
     ),

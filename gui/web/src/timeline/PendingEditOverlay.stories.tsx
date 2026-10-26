@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { act } from "react";
 import {
   expect,
   fireEvent,
@@ -107,6 +106,7 @@ export const Selected: Story = {
 };
 
 export const DragEndHandle: Story = {
+  tags: ["wide-only"],
   args: {
     edits: [remove],
     clipsByTrack: { "mira-voice": [clipRow()] },
@@ -130,18 +130,19 @@ export const DragEndHandle: Story = {
       }
       return previousFetch(input, init);
     };
-    await act(async () => {
-      useDawStore.getState().hydrate(
-        path,
-        minimalProject({
-          pending_edits: [remove],
-          clips: {
-            tracks: { "mira-voice": [clipRow()] },
-            clip_count: 1,
-          },
-        }),
-      );
-    });
+    useDawStore.getState().hydrate(
+      path,
+      minimalProject({
+        pending_edits: [remove],
+        clips: {
+          tracks: { "mira-voice": [clipRow()] },
+          clip_count: 1,
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".pending-handle.end")).not.toBeNull(),
+    );
     let handle: HTMLElement | null = null;
     let originalCapture: PropertyDescriptor | undefined;
     try {

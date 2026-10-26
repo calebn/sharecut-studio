@@ -177,7 +177,7 @@ export const PhoneWidth: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: "Open comments" }).className,
+      canvas.getByText("Open comments", { selector: "button" }).className,
     ).toContain("status-bar-secondary");
   },
 };

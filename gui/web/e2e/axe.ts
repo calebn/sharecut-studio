@@ -52,3 +52,19 @@ export async function expectSurfaceAxeClean(
     JSON.stringify(results.violations, null, 2),
   ).toEqual([]);
 }
+
+/**
+ * Storybook stories render one component, not a page. This keeps the WCAG A
+ * and AA rules the Storybook addon runs and leaves the page-level best
+ * practices (one main landmark, one h1) to the page specs.
+ */
+export async function expectStoryAxeClean(page: Page): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .disableRules(["color-contrast"])
+    .analyze();
+  expect(
+    results.violations,
+    JSON.stringify(results.violations, null, 2),
+  ).toEqual([]);
+}
