@@ -5,6 +5,7 @@ import math
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
+from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.timebase import TimelineSec
@@ -47,12 +48,15 @@ class CarriedTimelineRms:
     A cut moves only what plays after it, so a stem built before a later cut was applied is
     still what plays before that cut. A check that reads within ``reach`` of its cut uses the
     carried stems while every applied cut lies beyond that reach, and builds them again from
-    the current project when one does not. ``applied`` is told where each kept cut began.
+    the current project when one does not, or when a track's rendered stem has gone stale
+    since (the loudness then comes from its clips, not the stem). ``applied`` is told where
+    each kept cut began.
     """
 
     def __init__(self) -> None:
         self._caches: TrackRmsCacheSet | None = None
         self._intact_before = math.inf
+        self._stems_fresh: tuple[bool, ...] = ()
 
     def caches_for(
         self,
@@ -62,9 +66,18 @@ class CarriedTimelineRms:
         reach: float,
         defaults: EffectiveConfig,
     ) -> TrackRmsCacheSet:
-        if self._caches is None or float(span[1]) + reach >= self._intact_before:
+        fresh = tuple(
+            stem_is_fresh(project, tid, defaults=defaults)
+            for tid in sorted(dialogue_track_ids(project))
+        )
+        if (
+            self._caches is None
+            or fresh != self._stems_fresh
+            or float(span[1]) + reach >= self._intact_before
+        ):
             self._caches = shared_timeline_rms_caches(project, defaults=defaults)
             self._intact_before = math.inf
+            self._stems_fresh = fresh
         return self._caches
 
     def applied(self, timeline_start: float) -> None:
