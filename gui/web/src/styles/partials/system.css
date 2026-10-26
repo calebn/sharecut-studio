@@ -1332,13 +1332,17 @@
 }
 
 .sys-status-title {
+  min-inline-size: 0;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .sys-status-detail {
+  min-inline-size: 0;
   color: var(--color-text-secondary);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
 }
 
 .sys-status-bar {
@@ -2401,6 +2405,14 @@
   min-block-size: var(--touch-min);
 }
 
+.sys-source-hear {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .sys-stepper {
   display: inline-flex;
   align-items: center;
@@ -2558,7 +2570,9 @@
 }
 
 .sys-group-title {
+  min-inline-size: 0;
   margin: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-size-emphasis);
   font-weight: 600;
 }
@@ -2737,6 +2751,7 @@
   flex: 1;
   min-inline-size: 0;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .sys-prepare-chevron {
@@ -2887,7 +2902,9 @@
 
 .sys-adv-title,
 .sys-adv-group-title {
+  min-inline-size: 0;
   margin: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-size-emphasis);
   font-weight: 600;
 }
@@ -3054,7 +3071,9 @@
 
 .sys-adv-label {
   flex: 1;
+  min-inline-size: 0;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .sys-adv-value {
@@ -3179,4 +3198,30 @@
 
 .sys-source-actions .ui-control {
   min-inline-size: var(--touch-min);
+}
+
+@media (pointer: coarse) {
+  .sys-adv-reset {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+  }
+}
+
+/* Forced colors repaint backgrounds as the page colour and keep borders, so the fill and the dot are drawn as borders. */
+@media (forced-colors: active) {
+  .sys-status-bar {
+    border: 1px solid var(--color-border);
+  }
+
+  .sys-status-bar span {
+    box-sizing: border-box;
+    border-block-end: 0.25rem solid var(--color-accent);
+  }
+
+  .sys-adv-reset-dot {
+    box-sizing: border-box;
+    border-width: 0.25rem;
+    border-style: solid;
+    border-color: var(--color-accent);
+  }
 }

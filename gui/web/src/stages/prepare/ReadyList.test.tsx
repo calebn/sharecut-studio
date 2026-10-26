@@ -2,7 +2,24 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ROWS } from "./prepareFixture";
-import { ReadyList } from "./ReadyList";
+import { ReadyList, type ReadyRowData } from "./ReadyList";
+
+function settle(
+  rows: readonly ReadyRowData[],
+  state: ReadyRowData["state"],
+): ReadyRowData[] {
+  return rows.map((row) =>
+    row.action || row.body
+      ? {
+          ...row,
+          state,
+          action: undefined,
+          body: undefined,
+          details: undefined,
+        }
+      : row,
+  );
+}
 
 describe("ReadyList", () => {
   it("lists the five rows in a named list", () => {
@@ -139,5 +156,67 @@ describe("ReadyList", () => {
     expect(
       screen.getByRole("progressbar", { name: "Transcribe" }),
     ).toHaveAttribute("aria-valuetext", "2 of 3 speakers · about 1 min left");
+  });
+
+  it("keeps focus in the row when Try again removes its own button", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
+    );
+    const item = screen.getAllByRole("listitem")[1];
+    screen.getByRole("button", { name: "Try again" }).focus();
+    await user.keyboard("{Enter}");
+    rerender(
+      <ReadyList rows={settle(ROWS.failed, "running")} onAction={vi.fn()} />,
+    );
+    expect(document.activeElement).toBe(item);
+  });
+
+  it("keeps focus in the row when Download starts the work", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.needsModel} onAction={vi.fn()} />,
+    );
+    const item = screen.getAllByRole("listitem")[1];
+    screen.getByRole("button", { name: "Download 1.6 GB" }).focus();
+    await user.keyboard("{Enter}");
+    rerender(
+      <ReadyList
+        rows={settle(ROWS.needsModel, "running")}
+        onAction={vi.fn()}
+      />,
+    );
+    expect(document.activeElement).toBe(item);
+  });
+
+  it("keeps focus in the row when Keep my fixes closes the body", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />,
+    );
+    const item = screen.getAllByRole("listitem")[1];
+    await user.click(screen.getByRole("button", { name: /Transcribe/ }));
+    await user.click(screen.getByRole("button", { name: /Transcribe/ }));
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    rerender(
+      <ReadyList rows={settle(ROWS.keepFixes, "done")} onAction={vi.fn()} />,
+    );
+    expect(document.activeElement).toBe(item);
+  });
+
+  it("does not take focus that went somewhere else", () => {
+    const { rerender } = render(
+      <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
+    );
+    screen.getByRole("button", { name: "Try again" }).focus();
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    rerender(
+      <ReadyList rows={settle(ROWS.failed, "running")} onAction={vi.fn()} />,
+    );
+    expect(outside).toHaveFocus();
+    outside.remove();
   });
 });

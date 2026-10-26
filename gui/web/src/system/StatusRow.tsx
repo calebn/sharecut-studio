@@ -64,7 +64,9 @@ export function StatusRow({
   const childrenId = useId();
   const detailsId = useId();
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const showDetails = state === "failed" && Boolean(details);
+  const cause = details?.trim();
+  const showDetails = state === "failed" && Boolean(cause);
+  if (!showDetails && detailsOpen) setDetailsOpen(false);
   const expandable = children !== undefined && children !== null;
   const text = (
     <>
@@ -118,7 +120,7 @@ export function StatusRow({
       </div>
       {showDetails && detailsOpen ? (
         <p id={detailsId} className="sys-status-cause">
-          {details}
+          {cause}
         </p>
       ) : null}
       {state === "running" && progress !== undefined ? (

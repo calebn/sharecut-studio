@@ -422,13 +422,17 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **38. Source card**
 - One audio source: speaker swatch (Person), name field, file and duration, mini waveform, Hear (4 s of the voice), inline prompts (Split speakers, Replace audio by dropping on it), Person picker for mapping.
-- States: uploading, probing, ready, needs name, failed.
+- States: uploading, probing, ready, needs name, failed, the split prompt ("One recording of several people?") and splitting ("Finding voices", plain progress, Cancel splitting).
+- The voice-count stepper (2 to 8) and Split show only on the split prompt (`canSplit`); every other card is one voice. The stepper stops at its limits with a written reason and keeps focus.
+- The More menu has Replace audio and Merge, plus Move up and Move down so reordering never depends on dragging; the ends of a session omit the one that cannot apply. Every control name carries the card's name, and two cards with one name read "Name, voice N".
+- When the control that has focus goes away with a state change (Split, Cancel splitting, Try again), focus moves to the card; when the card itself is removed, to the next card, else the previous, else the Import tile.
 - Used: SCR-PREPARE, DLG-SPLIT, landed takes.
 - Story: `System/SourceCard`.
 
 **39. Session group**
 - Header: session name (Fix text), Session target chip (locked after landing), stats ("3 people · 2 takes · 14:20"), Status ring. Body: Source cards (and, while recording, Take Status rows).
-- Footer: the Stage hand-off ("Edit Session 2", or "Review pickup").
+- Footer: the Stage hand-off ("Edit Session 2", or "Review pickup"). It is optional: Prepare omits it and draws the one Stage hand-off for the whole stage instead.
+- Prepare order: the DOM is the phone order (Getting ready, Sources, Help the transcriber, Cleanup, hand-off). At 60 rem and wider a grid moves Sources to the left column, so Tab reaches Getting ready before Sources; that is the cost of keeping one DOM order and no script-driven reordering.
 - Used: the Prepare Sources column, the Record Takes rail.
 - Replaces: Session summary card, Takes tray grouping (record); the Prepare session grouping (rdp).
 - Story: `System/SessionGroup`.

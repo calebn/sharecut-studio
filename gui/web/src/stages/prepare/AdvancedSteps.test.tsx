@@ -153,4 +153,115 @@ describe("AdvancedSteps", () => {
     );
     expect(onRunFromHere).toHaveBeenCalledWith("align");
   });
+
+  it("moves focus to the setting's own control when Reset takes the dot away", async () => {
+    const user = userEvent.setup();
+    render(<Host selected="fill-gaps" />);
+    screen
+      .getByRole("button", { name: "Reset to default: Longest gap to fill" })
+      .focus();
+    await user.keyboard("{Enter}");
+    expect(
+      screen.queryByRole("button", { name: /^Reset to default/ }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("slider", { name: "Longest gap to fill" }),
+    ).toHaveFocus();
+  });
+
+  it("points the disabled setting controls at the busy reason too", () => {
+    render(<Host selected="fill-gaps" running={RUNNING} />);
+    const reason = "Steps cannot change while one is running.";
+    expect(
+      screen.getByRole("slider", { name: "Longest gap to fill" }),
+    ).toHaveAccessibleDescription(new RegExp(reason));
+    expect(
+      screen.getByRole("button", {
+        name: "Reset to default: Longest gap to fill",
+      }),
+    ).toHaveAccessibleDescription(reason);
+  });
+
+  describe("values it cannot trust", () => {
+    const base = {
+      onSelect: vi.fn(),
+      onBack: vi.fn(),
+      onToggle: vi.fn(),
+      onParam: vi.fn(),
+      onReset: vi.fn(),
+      onRunFromHere: vi.fn(),
+      onCancel: vi.fn(),
+    };
+    const scrub = (value: number) => ({
+      kind: "scrub" as const,
+      id: "p",
+      label: "Largest move",
+      help: "help",
+      value,
+      defaultValue: 5,
+      min: 1,
+      max: 30,
+      step: 1,
+      unit: ["second", "seconds"] as const,
+    });
+    const view = (
+      param: AdvancedStepsProps["groups"][number]["steps"][number]["params"][number],
+    ) => (
+      <AdvancedSteps
+        {...base}
+        selectedId="s"
+        groups={[
+          {
+            id: "g",
+            title: "G",
+            steps: [
+              {
+                id: "s",
+                name: "Step",
+                optional: false,
+                enabled: true,
+                params: [param],
+              },
+            ],
+          },
+        ]}
+      />
+    );
+
+    it("reads a range value past the end as the end", () => {
+      render(view(scrub(99)));
+      const slider = screen.getByRole("slider", { name: "Largest move" });
+      expect(slider).toHaveAttribute("aria-valuetext", "30 seconds");
+      expect(screen.getByText("30 seconds")).toBeInTheDocument();
+    });
+
+    it("falls back to the default for a value that is not a number", () => {
+      render(view(scrub(Number.NaN)));
+      expect(
+        screen.getByRole("slider", { name: "Largest move" }),
+      ).toHaveAttribute("aria-valuetext", "5 seconds");
+      expect(
+        screen.queryByRole("button", { name: /^Reset to default/ }),
+      ).toBeNull();
+    });
+
+    it("shows a value the list does not know as Custom, not as the first option", () => {
+      render(
+        view({
+          kind: "language",
+          id: "l",
+          label: "Language",
+          help: "help",
+          value: "xx",
+          defaultValue: "auto",
+          options: [{ value: "auto", label: "Detect automatically" }],
+        }),
+      );
+      const select = screen.getByRole("combobox", { name: "Language" });
+      expect(select).toHaveDisplayValue("Custom (xx)");
+      expect(
+        within(select).getByRole("option", { name: "Custom (xx)" }),
+      ).toBeDisabled();
+    });
+  });
 });
