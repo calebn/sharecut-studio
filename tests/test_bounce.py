@@ -72,7 +72,11 @@ def _ffmpeg_mock(*, mix_duration: float = 2.0) -> MagicMock:
     eng.render_dialogue_track.side_effect = _render
     eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(b"RIFFMIX") or out
     eng.probe.return_value = AudioProbe(
-        duration_sec=mix_duration, sample_rate=48000, channels=1, audio_start_sec=0.0
+        duration_sec=mix_duration,
+        sample_rate=48000,
+        channels=1,
+        audio_start_sec=0.0,
+        rebases_audio_reads=False,
     )
     eng.export_audio.side_effect = lambda *a, **k: Path(a[1])
     eng.extract_segment.side_effect = lambda src, out, start, end: (

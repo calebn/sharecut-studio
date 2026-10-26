@@ -25,6 +25,7 @@ def test_first_audio_duration_has_no_container_fallback(
             channels=1,
             audio_duration_sec=audio_duration,
             audio_start_sec=0.0,
+            rebases_audio_reads=False,
         ),
     )
     assert probe_wav_duration_sec(path) == 3
@@ -46,6 +47,7 @@ def test_duration_policies_share_successful_revision_cache(
             channels=1,
             audio_duration_sec=0.7,
             audio_start_sec=0.0,
+            rebases_audio_reads=False,
         )
 
     monkeypatch.setattr(FFmpegEngine, "probe", probe)
@@ -78,6 +80,7 @@ def test_estimated_audio_extent_refuses_after_cached_container_lookup(
             audio_duration_sec=3,
             duration_estimated=True,
             audio_start_sec=0.0,
+            rebases_audio_reads=False,
         ),
     )
     assert probe_wav_duration_sec(path) == 3
@@ -91,7 +94,13 @@ def test_multistream_declared_extent_remains_conservative(tmp_path, monkeypatch)
         FFmpegEngine,
         "probe",
         lambda *_: AudioProbe(
-            3, 48000, 1, audio_duration_sec=3, audio_stream_count=2, audio_start_sec=0.0
+            3,
+            48000,
+            1,
+            audio_duration_sec=3,
+            audio_stream_count=2,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
         ),
     )
     assert probe_media(path).require_duration_sec() == 3
@@ -111,7 +120,12 @@ def test_failed_shared_probe_retries_on_later_calls(
         if calls == 1:
             raise RuntimeError("unavailable media")
         return AudioProbe(
-            duration_sec=3, sample_rate=48000, channels=1, audio_duration_sec=3, audio_start_sec=0.0
+            duration_sec=3,
+            sample_rate=48000,
+            channels=1,
+            audio_duration_sec=3,
+            audio_start_sec=0.0,
+            rebases_audio_reads=False,
         )
 
     monkeypatch.setattr(FFmpegEngine, "probe", probe)

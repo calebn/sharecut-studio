@@ -776,6 +776,7 @@ def test_review_refuses_unknown_or_estimated_selected_extent(
                 audio_duration_sec=None if extent == "unknown" else 3,
                 duration_estimated=extent == "estimated",
                 audio_start_sec=0.0,
+                rebases_audio_reads=False,
             )
         return original(engine, path)
 
