@@ -591,7 +591,7 @@ def test_plain_render_spawn_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     compressed = MixAudio(At(0.0, head), (At(0.3, first), At(0.6, second)))
     engine = FFmpegEngine()
     engine.render_timeline(tmp_path / "first.wav", compressed, "anull")
-    assert len(spawned) == 4
+    assert len(spawned) == 6
     spawned.clear()
     engine.render_timeline(tmp_path / "second.wav", compressed, "anull")
     assert len(spawned) == 2
@@ -599,7 +599,7 @@ def test_plain_render_spawn_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     stamp = first.path.stat()
     os.utime(first.path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000_000))
     engine.render_timeline(tmp_path / "third.wav", compressed, "anull")
-    assert len(spawned) == 3
+    assert len(spawned) == 4
 
 
 def _failing_run(

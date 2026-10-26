@@ -136,7 +136,7 @@ def plan_audio(
 ) -> Piece | None:
     if crossfade_curve != "tri" or _rereads_earlier_source(audio):
         return None
-    seek = MediaSeek.at(0)
+    seek = MediaSeek.at(0, lead_sec=0.0)
     stack: list[Piece] = []
     for node in postorder(audio):
         match node:

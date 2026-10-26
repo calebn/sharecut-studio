@@ -61,7 +61,9 @@ def test_consolidate_full_file_without_extract_window(
 def test_consolidate_never_extracts_using_unverified_extent(sample_wav, tmp_path, monkeypatch):
     audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
     monkeypatch.setattr(
-        FFmpegEngine, "probe", lambda *_: AudioProbe(700002, 48000, 1, duration_estimated=True)
+        FFmpegEngine,
+        "probe",
+        lambda *_: AudioProbe(700002, 48000, 1, duration_estimated=True, audio_start_sec=0.0),
     )
     with (
         patch(

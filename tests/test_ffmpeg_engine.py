@@ -313,7 +313,10 @@ def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_pa
         commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    with (
+        patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
+        patch.object(ff, "run", side_effect=capture_run),
+    ):
         eng.render_timeline(
             out,
             SourceAudio(sample_wav, 0.0, 0.5, fade_in_sec=0.05, fade_out_sec=0.05),
@@ -570,7 +573,11 @@ def test_measure_loudness_full_reports_progress(tmp_path: Path):
     cb = MagicMock()
     with (
         patch.object(
-            eng, "probe", return_value=AudioProbe(duration_sec=3.0, sample_rate=44100, channels=1)
+            eng,
+            "probe",
+            return_value=AudioProbe(
+                duration_sec=3.0, sample_rate=44100, channels=1, audio_start_sec=0.0
+            ),
         ),
         patch.object(eng, "_run_with_progress", return_value=summary) as run_with_progress,
     ):
@@ -625,7 +632,11 @@ def test_master_loudness_probes_input_once_for_both_passes(tmp_path: Path):
     out = tmp_path / "mastered.wav"
     with (
         patch.object(
-            eng, "probe", return_value=AudioProbe(duration_sec=2.0, sample_rate=48000, channels=2)
+            eng,
+            "probe",
+            return_value=AudioProbe(
+                duration_sec=2.0, sample_rate=48000, channels=2, audio_start_sec=0.0
+            ),
         ) as probe,
         patch.object(
             eng, "_run_with_progress", side_effect=[_EBUR128_SUMMARY, _LOUDNORM_JSON_STDERR]
@@ -653,7 +664,9 @@ def test_master_loudness_forwards_measure_progress(tmp_path: Path):
         patch.object(
             eng,
             "probe",
-            return_value=AudioProbe(duration_sec=1.0, sample_rate=48000, channels=2),
+            return_value=AudioProbe(
+                duration_sec=1.0, sample_rate=48000, channels=2, audio_start_sec=0.0
+            ),
         ),
         patch.object(eng, "loudnorm_input_stats", return_value=None) as stats,
         patch("podcast_mcp.engines.ffmpeg.run") as run,
@@ -675,7 +688,9 @@ def test_master_loudness_two_pass_uses_measured_values(tmp_path: Path):
         patch.object(
             eng,
             "probe",
-            return_value=AudioProbe(duration_sec=1.0, sample_rate=44100, channels=1),
+            return_value=AudioProbe(
+                duration_sec=1.0, sample_rate=44100, channels=1, audio_start_sec=0.0
+            ),
         ),
         patch("podcast_mcp.engines.ffmpeg.run") as run,
     ):
@@ -708,7 +723,9 @@ def test_master_loudness_falls_back_when_measure_fails(tmp_path: Path):
         patch.object(
             eng,
             "probe",
-            return_value=AudioProbe(duration_sec=1.0, sample_rate=48000, channels=2),
+            return_value=AudioProbe(
+                duration_sec=1.0, sample_rate=48000, channels=2, audio_start_sec=0.0
+            ),
         ),
         patch.object(eng, "loudnorm_input_stats", return_value=None),
     ):
@@ -822,7 +839,10 @@ def test_visual_diagnostics_bound_ffmpeg_threads(sample_wav: Path, tmp_path: Pat
 def test_extract_segment(sample_wav: Path, tmp_path: Path):
     eng = FFmpegEngine()
     out = tmp_path / "clip.wav"
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with (
+        patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
+        patch("podcast_mcp.engines.ffmpeg.run") as run,
+    ):
         run.return_value = MagicMock(returncode=0)
         result = eng.extract_segment(sample_wav, out, 0.5, 1.0)
     assert result == out
@@ -1317,7 +1337,10 @@ def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
         SourceAudio(other, 0.3, 0.4),
         SourceAudio(sample_wav, 0.4, 0.5),
     ]
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with (
+        patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
+        patch("podcast_mcp.engines.ffmpeg.run") as run,
+    ):
         engine.render_timeline(
             tmp_path / "out.wav", SequenceAudio(placed[0], tuple(placed[1:])), "anull"
         )

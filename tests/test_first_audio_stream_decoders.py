@@ -218,7 +218,7 @@ def test_single_stream_decodes_match_a_default_pick(
     streamed = np.concatenate(list(engine.stream_mono_f32(single, sample_rate=RATE)))
     assert np.array_equal(streamed, expected)
     if single.suffix != ".wav":
-        seek = MediaSeek.at(0.25)
+        seek = MediaSeek.at(0.25, lead_sec=0.0)
         raw = _ffmpeg_bytes(
             single, *seek.input_args(), *seek.output_args(0.5), *layout,
             "-ar", str(RATE), "-f", "f32le",
@@ -244,7 +244,7 @@ def _without_map(real: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def _extract_without_map(source: Path, target: Path, start: float, end: float) -> None:
-    seek = MediaSeek.at(start)
+    seek = MediaSeek.at(start, lead_sec=0.0)
     subprocess.run(
         [
             FFmpegEngine().ffmpeg, "-y", "-threads", "1", *seek.input_args(), "-i", str(source),

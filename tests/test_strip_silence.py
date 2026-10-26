@@ -113,7 +113,9 @@ def _strip(tmp_path, samples: np.ndarray) -> dict:
         patch("podcast_mcp.edits.strip_silence.load_mono_full", return_value=samples),
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
     ):
-        eng_cls.return_value.probe.return_value = AudioProbe(duration, _RATE, 1)
+        eng_cls.return_value.probe.return_value = AudioProbe(
+            duration, _RATE, 1, audio_start_sec=0.0
+        )
         return strip_silence(p, "host", defaults=load_defaults())
 
 

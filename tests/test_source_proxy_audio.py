@@ -499,9 +499,9 @@ def test_grouped_room_seek_matches_decode_from_zero(tmp_path, monkeypatch, effec
         assert "asplit=6" in command[command.index("-filter_complex") + 1]
     at = proxy.MediaSeek.at
 
-    def from_zero(seconds):
-        seek = at(seconds)
-        return proxy.MediaSeek(seek.start_us, 0)
+    def from_zero(seconds, lead_sec):
+        seek = at(seconds, lead_sec)
+        return proxy.MediaSeek(seek.start_us, 0, seek.lead_us)
 
     monkeypatch.setattr(proxy.MediaSeek, "at", from_zero)
     reference = tmp_path / "reference.wav"

@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import re
 import subprocess
+import wave
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio import SourceAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
@@ -104,6 +106,37 @@ def test_render_keep_window_is_the_slice_of_the_whole_decode(
     assert len(rendered) == SR
     assert np.abs(rendered).max() > 0.1
     np.testing.assert_allclose(rendered, whole[SR // 2 : SR // 2 + SR], atol=PCM_TOLERANCE)
+
+
+def test_fill_wav_stays_on_the_audio_clock(eng: FFmpegEngine, late: Path, tmp_path: Path) -> None:
+    whole = _whole(eng, late)
+    fill = tmp_path / "fill.wav"
+    with wave.open(str(fill), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes(np.full(2 * SR, 8192, dtype="<i2").tobytes())
+    out = tmp_path / "filled.wav"
+    eng.render_timeline(out, SourceAudio(late, 0.5, 1.5, fill_path=fill), "anull")
+    rendered = _read(eng, out)
+    np.testing.assert_allclose(rendered, whole[SR // 2 : SR // 2 + SR] + 0.25, atol=PCM_TOLERANCE)
+
+
+def test_extract_segment_is_the_slice_of_the_whole_decode(
+    eng: FFmpegEngine, late: Path, tmp_path: Path
+) -> None:
+    whole = _whole(eng, late)
+    out = tmp_path / "segment.wav"
+    eng.extract_segment(late, out, 0.5, 1.5)
+    extracted = _read(eng, out)
+    assert len(extracted) == SR
+    np.testing.assert_allclose(extracted, whole[SR // 2 : SR // 2 + SR], atol=PCM_TOLERANCE)
+
+
+def test_alignment_window_is_the_slice_of_the_whole_decode(eng: FFmpegEngine, late: Path) -> None:
+    whole = _whole(eng, late)
+    window = load_mono_window(late, start_sec=0.5, duration_sec=1.0, sample_rate=SR)
+    np.testing.assert_allclose(window, whole[SR // 2 : SR // 2 + SR], atol=PCM_TOLERANCE)
 
 
 def test_whole_clip_render_keeps_the_decoded_length(

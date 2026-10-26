@@ -20,7 +20,11 @@ def test_first_audio_duration_has_no_container_fallback(
         FFmpegEngine,
         "probe",
         lambda *_: AudioProbe(
-            duration_sec=3, sample_rate=48000, channels=1, audio_duration_sec=audio_duration
+            duration_sec=3,
+            sample_rate=48000,
+            channels=1,
+            audio_duration_sec=audio_duration,
+            audio_start_sec=0.0,
         ),
     )
     assert probe_wav_duration_sec(path) == 3
@@ -36,7 +40,13 @@ def test_duration_policies_share_successful_revision_cache(
 
     def probe(_engine: FFmpegEngine, selected: Path) -> AudioProbe:
         calls.append(selected)
-        return AudioProbe(duration_sec=3, sample_rate=48000, channels=1, audio_duration_sec=0.7)
+        return AudioProbe(
+            duration_sec=3,
+            sample_rate=48000,
+            channels=1,
+            audio_duration_sec=0.7,
+            audio_start_sec=0.0,
+        )
 
     monkeypatch.setattr(FFmpegEngine, "probe", probe)
     assert probe_wav_duration_sec(path) == 3
@@ -67,6 +77,7 @@ def test_estimated_audio_extent_refuses_after_cached_container_lookup(
             channels=1,
             audio_duration_sec=3,
             duration_estimated=True,
+            audio_start_sec=0.0,
         ),
     )
     assert probe_wav_duration_sec(path) == 3
@@ -79,7 +90,9 @@ def test_multistream_declared_extent_remains_conservative(tmp_path, monkeypatch)
     monkeypatch.setattr(
         FFmpegEngine,
         "probe",
-        lambda *_: AudioProbe(3, 48000, 1, audio_duration_sec=3, audio_stream_count=2),
+        lambda *_: AudioProbe(
+            3, 48000, 1, audio_duration_sec=3, audio_stream_count=2, audio_start_sec=0.0
+        ),
     )
     assert probe_media(path).require_duration_sec() == 3
     assert probe_first_audio_duration_sec(path) is None
@@ -97,7 +110,9 @@ def test_failed_shared_probe_retries_on_later_calls(
         calls += 1
         if calls == 1:
             raise RuntimeError("unavailable media")
-        return AudioProbe(duration_sec=3, sample_rate=48000, channels=1, audio_duration_sec=3)
+        return AudioProbe(
+            duration_sec=3, sample_rate=48000, channels=1, audio_duration_sec=3, audio_start_sec=0.0
+        )
 
     monkeypatch.setattr(FFmpegEngine, "probe", probe)
     assert probe_first_audio_duration_sec(path) is None

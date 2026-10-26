@@ -170,6 +170,15 @@ merge. An unmuted continuation or replay retains its own words. Positive mute fa
 wings retain kept words, while a mix listening mute retains the lane's turn evidence.
 The renderer and placement masks share source sample rounding and short-fade behavior.
 
+**Audio-relative source clock** (#2175). Source time 0 is the first audio stream's first sample, the clock
+every whole-file decode, ASR window, waveform and transcript already uses. A file whose audio starts
+late in its container (video first, or `-itsoffset`) reports that lead as `AudioProbe.audio_start_sec`,
+zero at or below `_AUDIO_START_GAP_SEC` (0.02 s) so codec priming never counts. ffmpeg's `-ss` and
+`atrim` count from the container start, so `MediaSeek.at(start_sec, lead_sec)` adds the lead on the
+way in. Every windowed read of a media file passes `FFmpegEngine.audio_start_sec(path)`, which reads
+the shared `probe_media` cache. A WAV, a fill or a native decode starts at its audio and passes 0.
+`tests/test_timebase_guards.py` and `tests/test_late_start_clock.py` keep a call from omitting it.
+
 **Native sample grid** (`engines/sample_grid.py`, #1258). Every reader that turns clips into
 samples asks one function. At a reader's rate `r` a clip piece plays source samples
 `[round(source_start * r), round(source_end * r))`. Its edges round in the source clock, as
@@ -319,7 +328,7 @@ than its timeline after applied edits; an overlong stem is stale.
 
 ### Audio extent admission
 
-`FFmpegEngine.probe` reports the selected first audio stream's endpoint on the container timeline, including leading gaps after subtracting the container origin. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.
+`FFmpegEngine.probe` reports the selected first audio stream's length, counted from its first sample, as `duration_sec`, and the lead between the container origin and that first sample as `audio_start_sec` (see Timebase, audio-relative source clock). A late audio start no longer lengthens the extent. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.
 
 `AudioProbe.require_duration_sec()` rejects uncertain, nonpositive, non-finite, and missing-audio results before source and media duration writes, source edits, or implicit full-span render bounds. Pipeline ingest preflights every track before metadata updates or dialogue clip creation. Strip silence admits extent before rebuilding clips. Full-track and segment renderers admit implicit clip extent before rendering. These boundaries return `invalid_audio` without changing project state or existing output. Upload finalization additionally caps known extents at seven days and removes rejected files.
 

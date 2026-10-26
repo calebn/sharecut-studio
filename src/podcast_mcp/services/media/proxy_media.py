@@ -74,7 +74,7 @@ def _encode_chunk(
     bitrate_kbps: int = PROXY_BITRATE_KBPS,
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    seek = MediaSeek.at(max(0.0, start_sec))
+    seek = MediaSeek.at(max(0.0, start_sec), lead_sec=0.0)
     cmd = [
         eng.ffmpeg,
         "-y",
