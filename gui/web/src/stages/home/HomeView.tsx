@@ -37,7 +37,10 @@ export type HomeViewProps = {
   autoFocusPrimary?: boolean;
   /** Freezes the skeleton at a time (stories). */
   loadingElapsedMs?: number;
-  openOther?: Omit<OpenOtherProps, "onChooseFolder">;
+  /** Files being dragged over Home; worded in the Import tile's drop line. */
+  dropCount?: number;
+  /** The skeleton's Retry, shown once loading runs long. */
+  onRetryLoad?: () => void;
   onOpenProject: (id: string, stage: ProjectCardData["stage"]) => void;
   onFindProject: (id: string) => void;
   onImport: () => void;
@@ -55,6 +58,7 @@ export type HomeViewProps = {
   onSettings: () => void;
 };
 
+/** The picker form: the path fallback needs wiring, so Home shows the picker. */
 const NO_OPEN_OTHER: Omit<OpenOtherProps, "onChooseFolder"> = {
   mode: "picker",
   path: "",
@@ -123,7 +127,9 @@ function HomeHeader({
   };
   return (
     <header className="sys-home-header">
-      <BrandLockup name="ShareCut" className="sys-home-lockup" />
+      <h1 className="sys-home-wordmark">
+        <BrandLockup name="ShareCut" className="sys-home-lockup" />
+      </h1>
       <div className="sys-home-header-actions">
         <button
           type="button"
@@ -182,7 +188,8 @@ export function HomeView({
   dropActive,
   autoFocusPrimary = false,
   loadingElapsedMs,
-  openOther = NO_OPEN_OTHER,
+  dropCount,
+  onRetryLoad,
   onOpenProject,
   onFindProject,
   onImport,
@@ -215,6 +222,8 @@ export function HomeView({
         kind="import"
         size={tileSize}
         state={dropActive ? "drag-hover" : "rest"}
+        variant={empty ? "primary" : "default"}
+        dragCount={dropCount}
         onActivate={onImport}
       />
       <StartTile kind="record" size={tileSize} onActivate={onRecord} />
@@ -228,6 +237,7 @@ export function HomeView({
         layout={narrow ? "list" : "cards"}
         rows={narrow ? 4 : 6}
         elapsedMs={loadingElapsedMs}
+        onRetry={onRetryLoad}
       />
     );
   } else if (empty) {
@@ -275,7 +285,7 @@ export function HomeView({
               <h2 id="home-recent" className="sys-home-recent-title">
                 Recent
               </h2>
-              <OpenOther {...openOther} onChooseFolder={onOpenOther} />
+              <OpenOther {...NO_OPEN_OTHER} onChooseFolder={onOpenOther} />
             </div>
             {showInstallHint ? (
               <Card
