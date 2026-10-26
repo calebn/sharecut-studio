@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INVENTORY_IDS } from "./storyInventory";
 
 /**
  * Every non-interaction surface in the UI inventory and the story titles that
@@ -186,25 +187,40 @@ const NOT_A_SURFACE: Record<string, string> = {
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const storyModules = import.meta.glob("../**/*.stories.tsx", {
-  eager: true,
-  import: "default",
-}) as Record<string, { title?: string }>;
+const storyModules = import.meta.glob(
+  ["../**/*.stories.ts", "../**/*.stories.tsx"],
+  {
+    eager: true,
+    import: "default",
+  },
+) as Record<string, { title?: string }>;
 const titles = new Set(Object.values(storyModules).map((meta) => meta.title));
 
 describe("story coverage manifest", () => {
+  const ids = [
+    ...Object.keys(COVERED),
+    ...Object.keys(NOT_A_SURFACE),
+    ...OUTSIDE_APP,
+  ];
+
   it("lists each surface once", () => {
-    const ids = [
-      ...Object.keys(COVERED),
-      ...Object.keys(NOT_A_SURFACE),
-      ...OUTSIDE_APP,
-    ];
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+  });
+
+  it("lists exactly the surfaces in the inventory", () => {
+    expect(INVENTORY_IDS).toHaveLength(154);
+    expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
+    expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
+  });
+
+  it("finds the story files", () => {
+    expect(titles.size).toBeGreaterThan(0);
   });
 
   it.each(Object.entries(COVERED))(
     "%s names stories that exist",
     (_id, storyTitles) => {
+      expect(storyTitles).not.toHaveLength(0);
       expect(storyTitles.filter((title) => !titles.has(title))).toEqual([]);
     },
   );
