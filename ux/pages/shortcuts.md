@@ -149,6 +149,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Create record room | `record.createRoom` | Loaded host project | Mint guest + producer links in place and copy the guest link |
 | Copy guest link | `record.copyGuestLink` | Loaded host project | Copy the open record room's guest link |
 | Start recording | `record.start` | Host project management |  |
+| Capture room tone | `record.roomTone` | Host project management | Ask every recorded device to capture 3 s of room tone (lobby or stopped) |
 | Pause recording | `record.pause` | Host project management |  |
 | Resume recording | `record.resume` | Host project management |  |
 | Stop recording | `record.stop` | Host project management |  |
