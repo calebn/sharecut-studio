@@ -332,6 +332,24 @@ class EditService(CutMutatingService):
             )
         return held, asked
 
+    def warm_approval_checks(self) -> int:
+        """Check the pending cuts now, as the host's Approve all will, so that approval reuses them.
+
+        Nothing is saved. Uses the interactive intent the host approves with, which is part of
+        the check; returns how many cuts were checked, 0 while the verdict cache is off (#1958).
+        """
+        from podcast_mcp.edits.cut_application import precompute_verdicts
+
+        ids = [
+            e.id for e in list_edit_decisions(self.ws.project, applied=False, review_required=True)
+        ]
+        return precompute_verdicts(
+            self.ws.project,
+            ids,
+            defaults=self.ws.effective_config(),
+            application_intent=CutIntent.HUMAN_BOUNDARIES,
+        )
+
     def _all_unplayed(self, ids: list[str], held_out: list[HeldEdit]) -> bool:
         """True (after listing them as held) when every selected proposal's audio is cut away."""
         from podcast_mcp.edits.decisions import unplayed_pending_ids
