@@ -116,11 +116,12 @@ function AppInner() {
           if (cancelled) {
             return;
           }
-          if (e instanceof ApiError && e.code === "share_not_found") {
-            await clearOfflineSnapshot(reviewToken).catch(() => undefined);
-            if (cancelled) {
-              return;
-            }
+          if (
+            e instanceof ApiError &&
+            (e.code === "share_not_found" ||
+              (e.code === null && e.status === 404))
+          ) {
+            void clearOfflineSnapshot(reviewToken).catch(() => undefined);
             setError({
               message: "This link is invalid or has ended.",
               hint: "Ask the host for a new link.",

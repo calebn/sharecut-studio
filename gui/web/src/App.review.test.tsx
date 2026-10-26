@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
@@ -140,5 +140,94 @@ describe("App review route", () => {
     ).toBeInTheDocument();
     expect(offline.clear).toHaveBeenCalledWith("revoked");
     expect(screen.queryByText("Stale episode")).not.toBeInTheDocument();
+  });
+
+  function stubBootstrapFailure(response: () => Response) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/features")) {
+          return new Response(
+            JSON.stringify({
+              api_version: 1,
+              features: ["share.ui.routes", "share.ui.banner", "share.ui.menu"],
+            }),
+            { status: 200 },
+          );
+        }
+        return response();
+      }),
+    );
+  }
+
+  it("shows the cover for a 404 that lost its error-code header", async () => {
+    window.history.pushState({}, "", "/r/stripped");
+    offline.load.mockResolvedValue({
+      project: { meta: { name: "Stale episode" } },
+      saved_at: 1,
+    });
+    stubBootstrapFailure(
+      () =>
+        new Response(
+          JSON.stringify({ detail: "invalid or revoked share token" }),
+          {
+            status: 404,
+          },
+        ),
+    );
+    render(<App />);
+    expect(
+      await screen.findByText("This link is invalid or has ended."),
+    ).toBeInTheDocument();
+    expect(offline.clear).toHaveBeenCalledWith("stripped");
+  });
+
+  it("shows the cover even when clearing the snapshot never settles", async () => {
+    window.history.pushState({}, "", "/r/hung");
+    offline.clear.mockReturnValue(new Promise(() => {}));
+    stubBootstrapFailure(
+      () =>
+        new Response(JSON.stringify({ detail: "x" }), {
+          status: 404,
+          headers: { "X-Sharecut-Error-Code": "share_not_found" },
+        }),
+    );
+    render(<App />);
+    expect(
+      await screen.findByText("This link is invalid or has ended."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the cover when clearing the snapshot rejects", async () => {
+    window.history.pushState({}, "", "/r/rejects");
+    offline.clear.mockRejectedValue(new Error("idb down"));
+    stubBootstrapFailure(
+      () =>
+        new Response(JSON.stringify({ detail: "x" }), {
+          status: 404,
+          headers: { "X-Sharecut-Error-Code": "share_not_found" },
+        }),
+    );
+    render(<App />);
+    expect(
+      await screen.findByText("This link is invalid or has ended."),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the cached snapshot when the server is unreachable", async () => {
+    window.history.pushState({}, "", "/r/offline");
+    offline.load.mockResolvedValue({
+      project: { meta: { name: "Stale episode" } },
+      saved_at: 1,
+    });
+    stubBootstrapFailure(() => {
+      throw new TypeError("Failed to fetch");
+    });
+    render(<App />);
+    await waitFor(() => expect(offline.load).toHaveBeenCalledWith("offline"));
+    expect(
+      screen.queryByText("This link is invalid or has ended."),
+    ).not.toBeInTheDocument();
+    expect(offline.clear).not.toHaveBeenCalled();
   });
 });
