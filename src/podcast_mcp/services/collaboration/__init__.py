@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.collaboration.session_control import SessionControlService
     from podcast_mcp.services.collaboration.share import (
+        RecordStaleLinksError,
         ShareService,
         drop_absolute_path_strings,
         guest_selects_transcript_words,
@@ -118,6 +119,7 @@ __all__ = [
     "SHARE_KIND_RECORD",
     "SHARE_KIND_REVIEW",
     "MixUnavailableError",
+    "RecordStaleLinksError",
     "ReviewRole",
     "ReviewService",
     "SessionControlService",
@@ -192,6 +194,7 @@ __all__ = [
 _MODULE_BY_NAME = {
     "ReviewService": "review",
     "SessionControlService": "session_control",
+    "RecordStaleLinksError": "share",
     "ShareService": "share",
     "TunnelError": "tunnel_failure",
     "build_share_head_tags": "share_page",

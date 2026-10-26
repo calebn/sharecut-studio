@@ -6,7 +6,12 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration import ReviewService, ShareService, capabilities_for_role
+from podcast_mcp.services.collaboration import (
+    RecordStaleLinksError,
+    ReviewService,
+    ShareService,
+    capabilities_for_role,
+)
 from podcast_mcp.util.coded_error import CodedError, describe_error
 
 review_app = typer.Typer(
@@ -116,6 +121,9 @@ def _cli_create_record_share(
             public_base_url=base_url,
             expires_at=expires_at,
         )
+    except RecordStaleLinksError as exc:
+        typer.echo(json.dumps(exc.room, indent=2))
+        raise
     except (KeyError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
