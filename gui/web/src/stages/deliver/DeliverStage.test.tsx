@@ -390,7 +390,9 @@ describe("stale after an export", () => {
     expect(stale()).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
     expect(stale()).toBe(true);
-    await userEvent.click(screen.getByRole("button", { name: "Whole episode" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Whole episode" }),
+    );
     expect(stale()).toBe(false);
   });
 
