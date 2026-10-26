@@ -288,7 +288,7 @@
 
   /* Selection look (4.8) */
   --selection-outline-width: 0.125rem;
-  --selection-row-edge-width: 0.1875rem;
+  --selection-row-edge-width: 0.125rem;
   --selection-remote-width: 0.0625rem;
 }
 

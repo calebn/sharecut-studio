@@ -5,6 +5,33 @@ import { describe, expect, it } from "vitest";
 import { themeTokens } from "../test/themeTokens";
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), "../styles/theme");
+const spec = readFileSync(
+  join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../../docs/design/stages/design-system.md",
+  ),
+  "utf8",
+);
+
+/** A pixel size written in the design system, as rem at a 16px root. */
+function specRem(pattern: RegExp): string {
+  const match = pattern.exec(spec);
+  if (!match) throw new Error(`design-system.md no longer says ${pattern}`);
+  return `${Number(match[1]) / 16}rem`;
+}
+
+/** How selection looks (design system 4.8), read from the spec, not from the CSS. */
+const SELECTION_FROM_SPEC: Readonly<Record<string, string>> = {
+  "--selection-outline-width": specRem(
+    /Selected object[^|]*\|\s*(\d+) px accent outline/,
+  ),
+  "--selection-row-edge-width": specRem(
+    /accent-subtle fill[^|]*? with (\d+) px accent edges/,
+  ),
+  "--selection-remote-width": specRem(
+    /Remote person's selection \|\s*(\d+) px outline/,
+  ),
+};
 
 function declarations(file: string): Map<string, string[]> {
   const text = readFileSync(join(dir, file), "utf8").replace(
@@ -232,9 +259,7 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--font-size-card-title": "1.25rem",
   "--font-size-page-title": "1.75rem",
   "--font-size-reading-phone": "1.0625rem",
-  "--selection-outline-width": "0.125rem",
-  "--selection-row-edge-width": "0.1875rem",
-  "--selection-remote-width": "0.0625rem",
+  ...SELECTION_FROM_SPEC,
 };
 
 describe("theme tokens.css", () => {
@@ -246,6 +271,17 @@ describe("theme tokens.css", () => {
         JSON.stringify(current.get(name)) !== JSON.stringify(values),
     ).map(([name]) => name);
     expect(changed).toEqual([]);
+  });
+
+  it("sizes the selection look as design system 4.8 says: 2, 2 and 1 px", () => {
+    expect(SELECTION_FROM_SPEC).toEqual({
+      "--selection-outline-width": "0.125rem",
+      "--selection-row-edge-width": "0.125rem",
+      "--selection-remote-width": "0.0625rem",
+    });
+    for (const [name, value] of Object.entries(SELECTION_FROM_SPEC)) {
+      expect(current.get(name), name).toEqual([value]);
+    }
   });
 
   it("declares each stage layout token once, in rem or percent", () => {

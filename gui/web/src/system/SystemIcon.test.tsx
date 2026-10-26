@@ -1,19 +1,25 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SYSTEM_ICON_NAMES } from "./icons";
-import { SYSTEM_ICON_STROKE, SystemIcon } from "./SystemIcon";
+import { DS_ICON_STROKE, SYSTEM_ICON_STROKE, SystemIcon } from "./SystemIcon";
 
 const dir = dirname(fileURLToPath(import.meta.url));
+const spec = readFileSync(
+  join(dir, "../../../../docs/design/stages/design-system.md"),
+  "utf8",
+);
+
+const DRAWING = "path, circle, rect, line, polyline, polygon, ellipse, text";
 
 describe("SystemIcon", () => {
   it.each(SYSTEM_ICON_NAMES)("renders the %s glyph", (name) => {
     const { container } = render(<SystemIcon name={name} />);
     const svg = container.querySelector("svg");
     expect(svg).not.toBeNull();
-    expect(svg?.children.length).toBeGreaterThan(0);
+    expect(svg?.querySelector(DRAWING)).not.toBeNull();
   });
 
   it("has no duplicate names", () => {
@@ -34,8 +40,14 @@ describe("SystemIcon", () => {
     expect(lucide.querySelector("svg title")?.textContent).toBe("Hear");
   });
 
-  it("matches the 20px set's on-screen stroke weight", () => {
-    expect(SYSTEM_ICON_STROKE).toBeCloseTo((1.75 * 24) / 20, 5);
+  it("keeps the stroke the design system names, scaled to Lucide's grid", () => {
+    expect(spec).toMatch(new RegExp(`stroke ${DS_ICON_STROKE}[,)]`));
+    expect(spec).toContain(
+      `Decision (owner): \`SystemIcon\` stroke ${SYSTEM_ICON_STROKE}.`,
+    );
+  });
+
+  it("applies the one exported stroke constant", () => {
     const { container } = render(<SystemIcon name="check" size={20} />);
     const svg = container.querySelector("svg");
     expect(svg?.getAttribute("stroke-width")).toBe(String(SYSTEM_ICON_STROKE));
@@ -54,14 +66,15 @@ describe("SystemIcon", () => {
   });
 
   it("names lucide-react only in icons.ts, with named imports", () => {
-    const offenders = ["SystemIcon.tsx", "verbs.ts", "layout.ts"].filter(
-      (file) => {
-        try {
-          return readFileSync(join(dir, file), "utf8").includes("lucide-react");
-        } catch {
-          return false;
-        }
-      },
+    const files = readdirSync(dir).filter(
+      (file) =>
+        /\.(ts|tsx)$/.test(file) &&
+        file !== "icons.ts" &&
+        file !== "SystemIcon.test.tsx",
+    );
+    expect(files.length).toBeGreaterThan(10);
+    const offenders = files.filter((file) =>
+      readFileSync(join(dir, file), "utf8").includes("lucide-react"),
     );
     expect(offenders).toEqual([]);
     expect(readFileSync(join(dir, "icons.ts"), "utf8")).not.toMatch(
