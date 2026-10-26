@@ -776,3 +776,261 @@ describe("Mod+E on Apple with both modifiers", () => {
     expect(all.onExport).not.toHaveBeenCalled();
   });
 });
+
+describe("Mod+E only for E", () => {
+  it("ignores other chords and plain E, and takes the browser's Ctrl+E", () => {
+    const { stage, all } = setup();
+    for (const key of ["c", "v", "z", "a", "s"]) modE(stage(), { key });
+    fireEvent.keyDown(stage(), { key: "e" });
+    expect(all.onExport).not.toHaveBeenCalled();
+    const event = new KeyboardEvent("keydown", {
+      key: "e",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    stage().dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(all.onExport).toHaveBeenCalledOnce();
+  });
+
+  it("leaves typing in a title alone but still exports with the chord", async () => {
+    const { all } = setup();
+    const title = chapterTitle("The old mill");
+    await userEvent.type(title, "e");
+    expect(all.onExport).not.toHaveBeenCalled();
+    expect(title).toHaveValue("The old mille");
+    fireEvent.keyDown(title, { key: "c", ctrlKey: true });
+    expect(all.onExport).not.toHaveBeenCalled();
+    fireEvent.keyDown(title, { key: "e", ctrlKey: true });
+    expect(all.onExport).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Export button range", () => {
+  it("writes the Deliver range, not the Edit selection", async () => {
+    const { all } = setup({ selection: { start: 40, end: 90 } });
+    await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
+    expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toBeNull();
+  });
+});
+
+describe("primary buttons after an export", () => {
+  it("Reveal calls onReveal and Download calls onDownload, with no file", async () => {
+    const app = setup({ exportState: DONE });
+    await userEvent.click(screen.getByRole("button", { name: REVEAL }));
+    expect(app.all.onReveal).toHaveBeenCalledWith();
+    expect(app.all.onDownload).not.toHaveBeenCalled();
+    app.unmount();
+    const browser = setup({ exportState: DONE, env: "browser" });
+    await userEvent.click(screen.getByRole("button", { name: "Download all" }));
+    expect(browser.all.onDownload).toHaveBeenCalledWith();
+    expect(browser.all.onReveal).not.toHaveBeenCalled();
+  });
+
+  it("says Reveal in Finder on Apple platforms", () => {
+    platform.apple = true;
+    setup({ exportState: DONE });
+    expect(
+      screen.getByRole("button", { name: "Reveal in Finder" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("host callbacks", () => {
+  it("Cancel, Copy, Change, Play, Find clips and Refresh mix reach the host", async () => {
+    const running = setup({
+      exportState: { phase: "running", progress: 0.3, detail: "x" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(running.all.onCancel).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(running.all.onChangeFolder).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(running.all.onCopyLink).toHaveBeenCalledOnce();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Play from The old mill" }),
+    );
+    expect(running.all.onPlayFrom).toHaveBeenCalledWith(312.4);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Play The boat was still there" }),
+    );
+    expect(running.all.onPlayClip).toHaveBeenCalledWith("k2");
+    await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+    expect(running.all.onFindClips).toHaveBeenCalledOnce();
+    running.unmount();
+    const noMix = setup({ link: { url: null, noMix: true } });
+    await userEvent.click(screen.getByRole("button", { name: "Refresh mix" }));
+    expect(noMix.all.onRefreshMix).toHaveBeenCalledOnce();
+  });
+});
+
+describe("empty lists", () => {
+  it("lets you add the first chapter", async () => {
+    setup({ initialChapters: [] });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add at playhead" }),
+    );
+    expect(
+      screen.getAllByRole("textbox", {
+        name: /^Title of chapter|Title of Chapter/,
+      }),
+    ).toHaveLength(1);
+  });
+
+  it("offers Find clips when there are no clips", async () => {
+    const { all } = setup({ initialClips: [] });
+    expect(screen.getByText("No clip ideas yet.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+    expect(all.onFindClips).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Part range", () => {
+  const field = (name: string) =>
+    screen.getByRole("textbox", { name }) as HTMLInputElement;
+  const type = async (name: string, text: string) => {
+    await userEvent.clear(field(name));
+    await userEvent.type(field(name), `${text}{Enter}`);
+  };
+
+  it("starts at the beginning and runs a minute", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    expect(field("In")).toHaveValue("0:00.0");
+    expect(field("Out")).toHaveValue("1:00.0");
+  });
+
+  it("never starts past the end of a short episode", async () => {
+    setup({ total: 45 });
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    expect(field("Out")).toHaveValue("0:45.0");
+  });
+
+  it("moves In and Out independently and keeps them apart", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    await type("Out", "0:30");
+    expect(field("In")).toHaveValue("0:00.0");
+    expect(field("Out")).toHaveValue("0:30.0");
+    await type("In", "0:10");
+    expect(field("In")).toHaveValue("0:10.0");
+    expect(field("Out")).toHaveValue("0:30.0");
+    await type("In", "0:45");
+    expect(field("Out")).toHaveValue("0:46.0");
+  });
+
+  it("sizes each format chip from the part, not the episode", async () => {
+    setup();
+    expect(screen.getByRole("button", { name: /^MP3/ })).toHaveTextContent(
+      "50 MB",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    expect(screen.getByRole("button", { name: /^MP3/ })).toHaveTextContent(
+      "960 KB",
+    );
+  });
+});
+
+describe("clip Undo", () => {
+  const order = () =>
+    screen
+      .getAllByRole("textbox")
+      .filter((el) => el.classList.contains("dv-clip-title"))
+      .map((el) => (el as HTMLInputElement).value);
+
+  it("puts the clip back where it was and dismisses the toast", async () => {
+    setup();
+    const before = order();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for The boat was still there" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove" }),
+    );
+    expect(
+      screen.getByText("Removed The boat was still there"),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(order()).toEqual(before);
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+});
+
+describe("trimming a clip", () => {
+  const open = async () => {
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Cold open" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+  };
+
+  it("moves Out and In separately and shows the new length", async () => {
+    setup();
+    await open();
+    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "0:20{Enter}");
+    expect(
+      screen.getByRole("textbox", { name: "In of Cold open" }),
+    ).toHaveValue("0:00.0");
+    expect(screen.getByText("20.0 s")).toBeInTheDocument();
+    const start = screen.getByRole("textbox", { name: "In of Cold open" });
+    await userEvent.clear(start);
+    await userEvent.type(start, "0:05{Enter}");
+    expect(out).toHaveValue("0:20.0");
+    expect(screen.getByText("15.0 s")).toBeInTheDocument();
+  });
+
+  it("stops at the end of the episode and closes again from the menu", async () => {
+    setup();
+    await open();
+    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "99:00{Enter}");
+    expect(out).toHaveValue("52:00.0");
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Cold open" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Done trimming" }),
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "In of Cold open" }),
+    ).toBeNull();
+  });
+});
+
+describe("the listen link follows what is shown", () => {
+  it("loses its mark when the export goes stale", async () => {
+    const { container } = setup({ exportState: DONE });
+    expect(container.querySelector("[data-highlight]")).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
+    expect(container.querySelector("[data-highlight]")).toBeNull();
+  });
+});
+
+describe("what the status rows say", () => {
+  it("shows the file list, folder and times", () => {
+    setup({ exportState: DONE });
+    expect(screen.getByText("Field Notes/export")).toBeInTheDocument();
+    expect(screen.getByText("Last export 2 h ago")).toBeInTheDocument();
+    expect(screen.getByText("field-notes.wav")).toBeInTheDocument();
+    expect(screen.getByText("clips/cold-open.wav")).toBeInTheDocument();
+  });
+
+  it("shows why an export failed and what is running", () => {
+    const failed = setup({
+      exportState: { phase: "failed", cause: "The disk is full." },
+    });
+    expect(screen.getByText("The disk is full.")).toBeInTheDocument();
+    failed.unmount();
+    setup({
+      exportState: { phase: "running", progress: 0.6, detail: "Mastering 60%" },
+    });
+    expect(screen.getByText("Mastering 60%")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
+});

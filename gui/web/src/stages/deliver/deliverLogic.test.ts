@@ -95,17 +95,17 @@ describe("export settings", () => {
   });
 
   it("keeps In and Out inside the episode and apart", () => {
-    expect(clampPart({ start: -5, end: 30 }, 100, "start")).toEqual({
+    expect(clampPart({ start: -5, end: 30 }, 100)).toEqual({
       mode: "part",
       start: 0,
       end: 30,
     });
-    expect(clampPart({ start: 90, end: 50 }, 100, "start")).toEqual({
+    expect(clampPart({ start: 90, end: 50 }, 100)).toEqual({
       mode: "part",
       start: 90,
       end: 91,
     });
-    expect(clampPart({ start: 10, end: 5 }, 100, "end")).toEqual({
+    expect(clampPart({ start: 10, end: 5 }, 100)).toEqual({
       mode: "part",
       start: 10,
       end: 11,
@@ -113,17 +113,17 @@ describe("export settings", () => {
   });
 
   it("holds both ends inside the episode", () => {
-    expect(clampPart({ start: 99.5, end: 200 }, 100, "end")).toEqual({
+    expect(clampPart({ start: 99.5, end: 200 }, 100)).toEqual({
       mode: "part",
       start: 99,
       end: 100,
     });
-    expect(clampPart({ start: 200, end: 300 }, 100, "start")).toEqual({
+    expect(clampPart({ start: 200, end: 300 }, 100)).toEqual({
       mode: "part",
       start: 99,
       end: 100,
     });
-    expect(clampPart({ start: 0, end: 0.2 }, 0.5, "end")).toEqual({
+    expect(clampPart({ start: 0, end: 0.2 }, 0.5)).toEqual({
       mode: "part",
       start: 0,
       end: 0.5,
@@ -417,5 +417,40 @@ describe("what makes a finished export current", () => {
         clips: [...REQUEST.clips, { id: "zz", start: 0, end: 5, title: "x" }],
       }),
     ).toBe(false);
+  });
+});
+
+describe("part mode in the stale check", () => {
+  it("is stale when a whole-episode export becomes a Part with the same range", () => {
+    const range = { start: 10, end: 20 };
+    const whole = { ...REQUEST, range };
+    const part = {
+      ...REQUEST,
+      settings: {
+        ...SETTINGS,
+        part: { mode: "part" as const, start: 10, end: 20 },
+      },
+      range,
+    };
+    expect(coversRequest(whole, part)).toBe(false);
+    expect(coversRequest(part, whole)).toBe(false);
+  });
+});
+
+describe("clip file names", () => {
+  const named = (title: string) =>
+    clipFiles([{ ...CLIPS[0]!, title, approved: true }]).map((f) => f.name);
+
+  it("trim and collapse punctuation", () => {
+    expect(named("!Hook")).toEqual(["clips/hook.wav"]);
+    expect(named("A: B")).toEqual(["clips/a-b.wav"]);
+    expect(named("  --Hook!!  ")).toEqual(["clips/hook.wav"]);
+  });
+
+  it("size each file from the clip's length", () => {
+    const [file] = clipFiles([
+      { ...CLIPS[0]!, start: 10, end: 20, approved: true },
+    ]);
+    expect(file?.bytes).toBe(estimateBytes("wav", 10));
   });
 });
