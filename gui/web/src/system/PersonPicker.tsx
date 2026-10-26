@@ -9,6 +9,8 @@ export type PickerPerson = PersonData & {
   detail?: string;
 };
 
+const LABEL = "Who is this voice?";
+
 export type PersonPickerProps = {
   people: readonly PickerPerson[];
   /** The chosen person; none yet when absent. */
@@ -16,7 +18,6 @@ export type PersonPickerProps = {
   onPick: (id: string) => void;
   /** Adds a "Fix text" button beside each radio. */
   onRename?: (id: string) => void;
-  label?: string;
 };
 
 /**
@@ -29,13 +30,12 @@ export function PersonPicker({
   currentId,
   onPick,
   onRename,
-  label = "Who is this voice?",
 }: PersonPickerProps) {
   const group = useId();
   return (
-    <div className="sys-picker" role="radiogroup" aria-label={label}>
+    <div className="sys-picker" role="radiogroup" aria-label={LABEL}>
       <p className="sys-picker-label" aria-hidden="true">
-        {label}
+        {LABEL}
       </p>
       {people.map((person) => (
         <div key={person.id} className="sys-picker-row">
