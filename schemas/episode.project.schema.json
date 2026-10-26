@@ -536,6 +536,7 @@
         "session_number": { "type": "integer", "minimum": 1 },
         "at_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
         "anchor": { "anyOf": [{ "$ref": "#/$defs/InsertAnchor" }, { "type": "null" }], "default": null },
+        "end_anchor": { "anyOf": [{ "$ref": "#/$defs/InsertAnchor" }, { "type": "null" }], "default": null },
         "from_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
         "to_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
         "track_ids": { "type": "array", "default": [], "items": { "type": "string" } },

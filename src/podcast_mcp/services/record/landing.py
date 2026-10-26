@@ -16,7 +16,11 @@ from filelock import Timeout as FileLockTimeout
 
 from podcast_mcp.edits.clipping_regions import clipping_regions_from_ms
 from podcast_mcp.edits.comments import add_comment, delete_comment
-from podcast_mcp.edits.insert_anchor import capture_insert_anchor, pending_anchor_holder
+from podcast_mcp.edits.insert_anchor import (
+    capture_insert_anchor,
+    capture_range_anchors,
+    pending_anchor_holder,
+)
 from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip, upsert_source
 from podcast_mcp.edits.session_suggestions import (
     drop_staged_room_tone,
@@ -1776,6 +1780,9 @@ def _proposed_suggestion(
             anchor=capture_insert_anchor(project, target.at_sec),
         )
     if isinstance(target, ReplaceTarget):
+        anchor, end_anchor = capture_range_anchors(
+            project, target.from_sec, target.to_sec, list(target.track_ids)
+        )
         return SessionSuggestion(
             id=suggestion_id,
             kind="replace",
@@ -1784,5 +1791,7 @@ def _proposed_suggestion(
             from_sec=target.from_sec,
             to_sec=target.to_sec,
             track_ids=list(target.track_ids),
+            anchor=anchor,
+            end_anchor=end_anchor,
         )
     raise RecordLandingError(f"a {target.kind} session cannot be staged")

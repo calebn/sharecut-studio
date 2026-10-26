@@ -2144,6 +2144,17 @@
               ],
               "default": null
             },
+            "end_anchor": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InsertAnchor"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "from_sec": {
               "anyOf": [
                 {
@@ -5541,6 +5552,17 @@
                 {
                   "minimum": 0,
                   "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end_anchor": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InsertAnchor"
                 },
                 {
                   "type": "null"

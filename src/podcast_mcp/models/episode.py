@@ -993,6 +993,8 @@ class SessionSuggestion(BaseModel):
 
     Staging registers the takes' sources but puts nothing on the timeline: no clips, tracks,
     room-tone beds or comments; beds are held in ``room_tone`` until Accept. Insert takes concatenate; replace takes are alternatives.
+    ``anchor`` is the insert point, or the start of a replace range; ``end_anchor`` is the end of
+    a replace range. Both are ``None`` for a replace whose range did not start and end on audio.
     """
 
     id: str
@@ -1001,6 +1003,7 @@ class SessionSuggestion(BaseModel):
     session_number: int = Field(ge=1)
     at_sec: float | None = Field(default=None, ge=0)
     anchor: InsertAnchor | None = None
+    end_anchor: InsertAnchor | None = None
     from_sec: float | None = Field(default=None, ge=0)
     to_sec: float | None = Field(default=None, ge=0)
     track_ids: list[str] = Field(default_factory=list)
