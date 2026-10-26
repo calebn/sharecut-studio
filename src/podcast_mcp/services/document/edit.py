@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import asdict, replace
+from pathlib import Path
 from typing import Any, TypeVar
 
 from podcast_mcp.edits import (
@@ -83,6 +85,8 @@ from .boundary import (
 
 log = logging.getLogger(__name__)
 T = TypeVar("T")
+_warming_checks: set[str] = set()
+_warming_lock = threading.Lock()
 
 
 class EditService(CutMutatingService):
@@ -349,6 +353,39 @@ class EditService(CutMutatingService):
             defaults=self.ws.effective_config(),
             application_intent=CutIntent.HUMAN_BOUNDARIES,
         )
+
+    @staticmethod
+    def warm_approval_checks_in_background(project_path: Path) -> None:
+        """Check the pending cuts in the background so the host's Approve all reuses the checks.
+
+        One thread per project at a time, at a lower CPU priority, off the caller: the checks run
+        on a copy and save nothing, and an approval that starts meanwhile simply checks for
+        itself. Does nothing while the verdict cache is off (#1958).
+        """
+        from podcast_mcp.edits import verdict_cache
+
+        if not verdict_cache.enabled():
+            return
+        key = str(project_path)
+        with _warming_lock:
+            if key in _warming_checks:
+                return
+            _warming_checks.add(key)
+
+        def run() -> None:
+            from podcast_mcp.services.app import ProjectWorkspace
+            from podcast_mcp.util.process import low_priority
+
+            try:
+                with low_priority():
+                    EditService(ProjectWorkspace.open(project_path)).warm_approval_checks()
+            except Exception:  # advisory: an approval checks for itself
+                log.warning("could not warm the approval checks", exc_info=True)
+            finally:
+                with _warming_lock:
+                    _warming_checks.discard(key)
+
+        threading.Thread(target=run, name="approval-check-warm", daemon=True).start()
 
     def _all_unplayed(self, ids: list[str], held_out: list[HeldEdit]) -> bool:
         """True (after listing them as held) when every selected proposal's audio is cut away."""
