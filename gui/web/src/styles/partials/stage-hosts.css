@@ -1,0 +1,124 @@
+/* The Prepare, Review, Deliver and Record stage hosts (src/stage/hosts).
+   One scrolling column per stage; wider screens add columns, never new chrome. */
+.stage-host {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+  min-inline-size: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+  background: var(--color-bg-canvas);
+}
+
+.stage-host--phone {
+  padding: var(--space-3);
+}
+
+.stage-host-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+
+.stage-host--phone .stage-host-columns {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.stage-host-section {
+  display: flex;
+  flex: 0 1 22rem;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.stage-host-section--wide {
+  flex: 1 1 28rem;
+}
+
+.stage-host-title {
+  margin: 0;
+  font-size: var(--font-size-heading);
+  color: var(--color-text-primary);
+}
+
+.stage-host-note {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+.stage-host-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.stage-host-handoff {
+  display: flex;
+  justify-content: flex-end;
+  padding-block-start: var(--space-3);
+}
+
+.stage-host--phone .stage-host-handoff {
+  justify-content: stretch;
+}
+
+.stage-host-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: 40rem;
+}
+
+.stage-host-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  inline-size: 100%;
+  max-inline-size: 65rem;
+}
+
+.stage-host-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-host-launcher {
+  flex-basis: auto;
+  max-inline-size: 32rem;
+}
+
+.stage-host-launcher[data-record-state="live"] .stage-host-title {
+  color: var(--color-record);
+}
+
+.stage-host-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  border-block-end: 1px solid var(--color-border-subtle);
+}
+
+.stage-host-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+.stage-host--review {
+  overflow: hidden;
+}
+
+.stage-host-panel {
+  overflow-y: auto;
+}
