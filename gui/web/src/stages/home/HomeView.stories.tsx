@@ -73,4 +73,6 @@ export const DropHover: Story = { args: { dropActive: true } };
 export const Loading: Story = {
   args: { phase: "loading", projects: [], loadingElapsedMs: 1000 },
 };
+export const Phone: Story = {};
+export const PhoneEmpty: Story = { args: { phase: "empty", projects: [] } };
 export const PhoneInstallHint: Story = { args: { showInstallHint: true } };
