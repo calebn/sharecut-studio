@@ -742,7 +742,8 @@ Guests receive the result as the normal `Applied` snapshot; a guest sending it g
 `room_tone.requested_wall_ms + duration_ms` and the server clock, and is never stored.
 Nothing ticks it: the `Applied` event carries it once (about 3000), and clients count down locally from it.
 A round with no Start leaves the bed to land with the next land. Orchestration (auto-capture on a new
-`round`, sending Start after 3 s) is client work; this command only announces the round.
+`round`, sending Start after 3 s) is client work, and `room_tone` stays in the snapshot after Start, so consumers
+should show a countdown only while the state is `lobby` or `stopped`; this command only announces the round.
 
 Rollback note: a build older than this command cannot replay a `RoomToneCountdown` ledger row.
 

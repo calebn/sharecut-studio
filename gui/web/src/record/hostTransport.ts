@@ -21,6 +21,12 @@ export async function submitHostRecordTransport(
   if (!path) {
     return;
   }
+  if (commandType === "RoomToneCountdown") {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(await postHostRecordCommand(path, commandType, payload));
+    return;
+  }
   const token = ++transportEpoch;
   if (commandType === "Start") {
     await prepareHostKeeperStorage();
