@@ -387,9 +387,9 @@ describe("hydrated story files", () => {
       .filter((file) => /\.stories\.(?:ts|tsx)$/.test(file))
       .filter((file) => {
         const source = readFileSync(file, "utf8");
-        return (
-          source.includes("episodeBeforeEach") && source.includes('"autodocs"')
-        );
+        const hydrates =
+          source.includes("episodeBeforeEach") || source.includes(".hydrate(");
+        return hydrates && source.includes('"autodocs"');
       })
       .map(srcRelative);
     expect(offenders).toEqual([]);
