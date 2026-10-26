@@ -264,6 +264,32 @@ def test_late_mpeg_transport_is_refused(
     assert info.duration_estimated
 
 
+@pytest.mark.parametrize(
+    ("name", "codecs"),
+    [
+        ("late.ts", ["-c:v", "mpeg2video", "-c:a", "mp2"]),
+        ("late.m2ts", ["-c:v", "mpeg2video", "-c:a", "mp2"]),
+        ("late.mpg", ["-f", "mpeg", "-c:v", "mpeg2video", "-c:a", "mp2"]),
+    ],
+)
+def test_reads_of_a_late_mpeg_transport_fail_loudly(
+    eng: FFmpegEngine, tmp_path: Path, name: str, codecs: list[str]
+) -> None:
+    """A source that already reached a project must not be read on a misplaced clock."""
+    late_ts = _with_video(eng, tmp_path / name, 0.5, *codecs)
+    reads = {
+        "extract_segment": lambda: eng.extract_segment(late_ts, tmp_path / "seg.wav", 0.0, 1.0),
+        "render_timeline": lambda: eng.render_timeline(
+            tmp_path / "tl.wav", SourceAudio(late_ts, 0.0, 1.0), "anull"
+        ),
+        "decode_window_f32": lambda: eng.decode_window_f32(late_ts, 0, SR, SR, 1),
+    }
+    for read in reads.values():
+        with pytest.raises(CodedValueError, match="MPEG transport stream") as raised:
+            read()
+        assert raised.value.code == "invalid_audio"
+
+
 def test_on_time_mpeg_transport_is_accepted(eng: FFmpegEngine, tmp_path: Path) -> None:
     ts = _with_video(eng, tmp_path / "on_time.ts", 0.0, "-c:v", "mpeg2video", "-c:a", "mp2")
     assert not eng.probe(ts).duration_estimated
