@@ -1155,3 +1155,52 @@ def test_cli_and_mcp_accept(minimal_project, sample_wav, tmp_workspace):
     HistoryService(ProjectWorkspace.open(minimal_project)).undo()
     result = json.loads(accept_session_suggestion_tool(str(minimal_project), sid))
     assert result["suggestion"]["status"] == "accepted"
+
+
+def test_accept_refuses_a_session_without_an_anchor_or_a_recording_and_changes_nothing(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT)
+    sid = f"ss-{room['session_id']}"
+    staged = _suggestion(ws, room["session_id"])
+    service = SessionSuggestionService(ws)
+
+    def drop_source(project: EpisodeProject) -> None:
+        project.sources = [s for s in project.sources if s.id != staged.takes[0].source_id]
+
+    ws.mutate("drop source", "dropped source", drop_source)
+    before = _everything(ws)
+    with pytest.raises(CodedValueError) as missing:
+        service.accept(sid)
+    assert missing.value.code == "staged_source_missing"
+    assert _everything(ws) == before
+    HistoryService(ws).undo()
+
+    def drop_anchor(project: EpisodeProject) -> None:
+        project.editorial.session_suggestions[0].anchor = None
+
+    ws.mutate("drop anchor", "dropped anchor", drop_anchor)
+    with pytest.raises(CodedValueError) as unanchored:
+        service.accept(sid)
+    assert unanchored.value.code == "stale_anchor"
+
+
+def test_accept_leaves_a_live_comment_whose_id_belongs_to_another_author(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT, comment_in_take=0)
+    ws.mutate(
+        "taken id",
+        "taken id",
+        lambda p: add_comment(
+            p, body="mine", author="someone-else", timeline_start=0.1, comment_id="live-note"
+        ),
+    )
+    result = SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    assert result["comments"] == []
+    ws.reload()
+    assert [c.body for c in ws.project.comments if c.id == "live-note"] == ["mine"]
