@@ -2,20 +2,16 @@ import type { ReactNode } from "react";
 import { Avatar, Button } from "../ui";
 import type { LinkRole } from "./linkRoles";
 import { middleTruncate } from "./linkText";
-import { RoleChip, RolePicker } from "./RoleChip";
+import { RoleChip } from "./RoleChip";
 import { SystemIcon } from "./SystemIcon";
-import { VerbButton } from "./VerbButton";
 import { capsOf, iconOf } from "./verbDisplay";
 
 export type LinkCopyState = "idle" | "copied" | "blocked";
 
 export type LinkRowProps = {
   access: LinkRole;
-  /** Set when the role can change; otherwise the role is a chip. */
-  onAccess?: (access: LinkRole) => void;
   /** Null until the first Copy mints it. */
   link: string | null;
-  /** Who opened it. */
   openedBy?: readonly { name: string; colorIndex?: number }[];
   copyState?: LinkCopyState;
   /** Phone: Copy hands the link to the system share sheet. */
@@ -28,15 +24,10 @@ export type LinkRowProps = {
   note?: ReactNode;
   compact?: boolean;
   onCopy: () => void;
-  onMore?: () => void;
 };
 
-/** Cut the middle out of a long link so both ends stay readable. */
-
-/** A link and what it allows: role, link, who opened it, Copy and More. */
 export function LinkRow({
   access,
-  onAccess,
   link,
   openedBy = [],
   copyState = "idle",
@@ -46,7 +37,6 @@ export function LinkRow({
   note,
   compact = false,
   onCopy,
-  onMore,
 }: LinkRowProps) {
   if (noMix) {
     return (
@@ -59,7 +49,7 @@ export function LinkRow({
   const label =
     copyState === "copied"
       ? "Copied"
-      : copyState === "blocked"
+      : copyState === "blocked" && !share
         ? `Press ${capsOf({ key: "C", mod: true }).join(" ")}`
         : share
           ? "Share"
@@ -71,11 +61,7 @@ export function LinkRow({
       data-highlight={highlight ? "true" : undefined}
     >
       <div className="sys-link-main">
-        {onAccess ? (
-          <RolePicker access={access} onChange={onAccess} compact={compact} />
-        ) : (
-          <RoleChip access={access} compact={compact} />
-        )}
+        <RoleChip access={access} compact={compact} />
         <span
           className="sys-link-text sys-mono"
           data-selected={copyState === "blocked" || undefined}
@@ -106,7 +92,6 @@ export function LinkRow({
           <SystemIcon name={iconOf("copyLink")} size={14} />
           {label}
         </Button>
-        {onMore ? <VerbButton verb="more" onClick={onMore} /> : null}
       </div>
     </div>
   );

@@ -41,7 +41,6 @@ const meta: Meta<typeof ChaptersList> = {
     onPlayFrom: fn(),
     onRemove: fn(),
     onAdd: fn(),
-    onRetry: fn(),
   },
   decorators: [
     (Story) => (
@@ -56,7 +55,7 @@ const meta: Meta<typeof ChaptersList> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Chapters as 44 px rows: a time you can scrub or type, a title edited in place, play from here and delete. Add at playhead sits at the end. In Edit the same chapters stay draggable markers.\n\n**Motion.** Animations come later: a new row slides in and a deleted one collapses with `--motion-panel`.",
+          "Chapters as 44 px rows: a time you can scrub or type, a title edited in place, play from here and remove. Add at playhead sits at the end. In Edit the same chapters stay draggable markers.\n\n**Motion.** Animations come later: a new row slides in and a deleted one collapses with `--motion-panel`.",
       },
     },
   },
@@ -77,7 +76,7 @@ export const List: Story = {
     );
     await expect(view.getAllByRole("listitem")).toHaveLength(5);
     await userEvent.click(
-      view.getByRole("button", { name: "Delete Listener mail" }),
+      view.getByRole("button", { name: "Remove Listener mail" }),
     );
     await expect(view.getAllByRole("listitem")).toHaveLength(4);
   },
@@ -107,8 +106,6 @@ export const Empty: Story = {
 };
 
 export const Loading: Story = { args: { state: "loading" } };
-
-export const LoadError: Story = { name: "Error", args: { state: "error" } };
 
 export const Phone: Story = {
   decorators: [

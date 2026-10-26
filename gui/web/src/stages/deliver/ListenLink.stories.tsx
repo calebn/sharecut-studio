@@ -44,33 +44,13 @@ export const Default: Story = {
   },
 };
 
-export const Copied: Story = {
-  args: { link: LINK, copyState: "copied", openedBy: OPENED_BY },
-};
-
-export const ClipboardBlocked: Story = {
-  args: { link: LINK, copyState: "blocked" },
-};
-
-export const AfterExport: Story = { args: { link: null, highlight: true } };
-
-export const NoMix: Story = {
-  args: { noMix: { onRefresh: fn() } },
-  play: async ({ canvasElement, args }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Refresh mix" }),
-    );
-    await expect(args.noMix?.onRefresh).toHaveBeenCalledOnce();
+export const Pinned: Story = {
+  args: { link: LINK, openedBy: OPENED_BY, pinnedTo: "Final mix" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Pinned to Final mix"),
+    ).toBeInTheDocument();
   },
 };
 
-export const Phone: Story = {
-  args: { link: LINK, share: true, compact: true, openedBy: OPENED_BY },
-  decorators: [
-    (Story) => (
-      <div style={{ inlineSize: "22.5rem", maxInlineSize: "100%" }}>
-        <Story />
-      </div>
-    ),
-  ],
-};
+export const AfterExport: Story = { args: { link: null, highlight: true } };

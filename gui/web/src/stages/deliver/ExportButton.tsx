@@ -1,11 +1,11 @@
 import { SystemIcon } from "../../system/SystemIcon";
 import { hintOf, iconOf, verbOf } from "../../system/verbDisplay";
 import { Button } from "../../ui";
+import { isApplePlatform } from "../../utils/platform";
 import type { primaryAction } from "./deliverLogic";
 
 type Props = {
   action: ReturnType<typeof primaryAction>;
-  /** Why Export cannot start. */
   blocker?: string;
   onExport: () => void;
   onReveal: () => void;
@@ -26,7 +26,7 @@ export function ExportButton({
       {action === "reveal" ? (
         <Button variant="primary" className="dv-export" onClick={onReveal}>
           <SystemIcon name="folder-open" size={18} />
-          Reveal in Finder
+          {isApplePlatform() ? "Reveal in Finder" : "Show in folder"}
         </Button>
       ) : action === "download" ? (
         <Button variant="primary" className="dv-export" onClick={onDownload}>

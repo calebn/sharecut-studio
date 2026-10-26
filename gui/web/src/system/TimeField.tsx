@@ -1,21 +1,11 @@
-import {
-  type KeyboardEvent,
-  type PointerEvent,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, type PointerEvent, useRef, useState } from "react";
 
 export type TimeFieldProps = {
   label: string;
   value: number;
-  /** Shown after the value: "s", "dB". */
-  unit?: string;
   min?: number;
   max?: number;
   step?: number;
-  /** The value a reset dot returns to. No dot without it. */
-  defaultValue?: number;
   format?: (value: number) => string;
   /** Null leaves the typed text rejected and the value unchanged. */
   parse?: (text: string) => number | null;
@@ -31,20 +21,17 @@ const parseNumber = (text: string) => {
 /** Pixels of drag per step. */
 const DRAG_PX = 4;
 
-/** A number with its unit: drag, type, or step with the arrows. One gesture is one change. */
+/** One gesture is one change. */
 export function TimeField({
   label,
   value,
-  unit,
   min = Number.NEGATIVE_INFINITY,
   max = Number.POSITIVE_INFINITY,
   step = 1,
-  defaultValue,
   format = plain,
   parse = parseNumber,
   onChange,
 }: TimeFieldProps) {
-  const id = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const drag = useRef<{ x: number; from: number } | null>(null);
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
@@ -97,7 +84,6 @@ export function TimeField({
         {label}
       </span>
       <input
-        id={id}
         className="sys-time-input sys-mono"
         aria-label={label}
         inputMode="decimal"
@@ -110,16 +96,6 @@ export function TimeField({
         }}
         onKeyDown={onKey}
       />
-      {unit ? <span className="sys-time-unit">{unit}</span> : null}
-      {defaultValue !== undefined && value !== defaultValue ? (
-        <button
-          type="button"
-          className="sys-time-reset"
-          aria-label={`Reset ${label}`}
-          title={`Reset ${label}`}
-          onClick={() => onChange(defaultValue)}
-        />
-      ) : null}
     </span>
   );
 }

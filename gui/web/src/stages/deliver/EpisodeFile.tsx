@@ -1,3 +1,4 @@
+import { formatBytes } from "../../models";
 import { TimeField } from "../../system/TimeField";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
@@ -13,10 +14,8 @@ import {
   exportBlocker,
   FORMATS,
   type FormatId,
-  formatBytes,
   formatClock,
   LOUDNESS,
-  type LoudnessId,
   parseClock,
   partSeconds,
   primaryAction,
@@ -37,12 +36,12 @@ type Props = {
   onSettings: (next: EpisodeSettings) => void;
   onChangeFolder: () => void;
   onExport: () => void;
+  onGetModel?: () => void;
   onCancel: () => void;
   onReveal: (file?: ExportFile) => void;
   onDownload: (file?: ExportFile) => void;
 };
 
-/** What to write, how loud, and the one filled button on the page. */
 export function EpisodeFile({
   settings,
   total,
@@ -54,6 +53,7 @@ export function EpisodeFile({
   onSettings,
   onChangeFolder,
   onExport,
+  onGetModel,
   onCancel,
   onReveal,
   onDownload,
@@ -66,7 +66,7 @@ export function EpisodeFile({
     );
   }
   const seconds = partSeconds(settings.part, total);
-  const blocker = exportBlocker(settings);
+  const blocker = exportBlocker(settings, exportState);
   const action = primaryAction(exportState, env);
   const toggleFormat = (id: FormatId) =>
     onSettings({
@@ -108,9 +108,7 @@ export function EpisodeFile({
               key={entry.id}
               quiet
               pressed={settings.loudness === entry.id}
-              onClick={() =>
-                onSettings({ ...settings, loudness: entry.id as LoudnessId })
-              }
+              onClick={() => onSettings({ ...settings, loudness: entry.id })}
             >
               {entry.label}
               <span className="sys-mono dv-chip-size">
@@ -135,10 +133,12 @@ export function EpisodeFile({
             quiet
             pressed={settings.part.mode === "part"}
             onClick={() =>
-              onSettings({
-                ...settings,
-                part: { mode: "part", start: 0, end: Math.min(total, 60) },
-              })
+              settings.part.mode === "part"
+                ? undefined
+                : onSettings({
+                    ...settings,
+                    part: { mode: "part", start: 0, end: Math.min(total, 60) },
+                  })
             }
           >
             Part…
@@ -197,6 +197,22 @@ export function EpisodeFile({
         </Button>
       </p>
 
+      {exportState.phase === "needs-model" ? (
+        <StatusRow
+          state="needs-you"
+          title={`Needs the ${exportState.model}`}
+          detail={exportState.size}
+          action={
+            onGetModel
+              ? {
+                  label: "Get",
+                  icon: "cloud-download",
+                  onAction: onGetModel,
+                }
+              : undefined
+          }
+        />
+      ) : null}
       {exportState.phase === "running" ? (
         <StatusRow
           state="running"
@@ -211,7 +227,6 @@ export function EpisodeFile({
           state="failed"
           title="Export failed"
           detail={exportState.cause}
-          action={{ label: "Try again", onAction: onExport }}
         />
       ) : null}
       {exportState.phase === "stale" ? (
@@ -219,7 +234,6 @@ export function EpisodeFile({
           state="needs-you"
           title="Edited since export"
           detail={`Last export ${exportState.when}`}
-          action={{ label: "Export again", onAction: onExport }}
         />
       ) : null}
       {exportState.phase === "done" ? (

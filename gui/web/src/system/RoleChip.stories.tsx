@@ -1,9 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
-import type { LinkRole } from "./linkRoles";
-import { RoleChip, RolePicker } from "./RoleChip";
+import { RoleChip } from "./RoleChip";
 
 const meta: Meta<typeof RoleChip> = {
   title: "System/RoleChip",
@@ -23,7 +21,7 @@ const meta: Meta<typeof RoleChip> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "What a link lets someone do: listen (`ear`), comment (`message-square`) or edit (the Edit stage icon). A chip where the role is fixed, a segmented control where it can change, icon only on phone with the role as its accessible name.\n\n**Motion.** Animations come later: the pressed segment slides with `--motion-hover`.",
+          "What a link lets someone do: listen (`ear`), comment (`message-square`) or edit (the Edit stage icon). Icon only on phone, with the role as its accessible name.\n\n**Motion.** Animations come later.",
       },
     },
   },
@@ -53,22 +51,5 @@ export const Compact: Story = {
       }),
     ).toBeInTheDocument();
     await expect(within(canvasElement).queryByText("Commenter")).toBeNull();
-  },
-};
-
-function Picker() {
-  const [role, setRole] = useState<LinkRole>("commenter");
-  return <RolePicker access={role} onChange={setRole} />;
-}
-
-export const Picked: Story = {
-  render: () => <Picker />,
-  play: async ({ canvasElement }) => {
-    const view = within(canvasElement);
-    await userEvent.click(view.getByRole("button", { name: /^Editor/ }));
-    await expect(view.getByRole("button", { name: /^Editor/ })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
   },
 };

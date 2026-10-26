@@ -1,6 +1,5 @@
 import { TimeField } from "../../system/TimeField";
 import { Skeleton } from "../../system/Skeleton";
-import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { VerbButton } from "../../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../../system/verbDisplay";
@@ -12,16 +11,15 @@ type Props = {
   chapters: readonly Chapter[];
   /** Episode length in seconds. */
   total: number;
-  state?: "ready" | "loading" | "error";
+  state?: "ready" | "loading";
   onRetitle: (id: string, title: string) => void;
   onRetime: (id: string, at: number) => void;
   onPlayFrom: (at: number) => void;
   onRemove: (id: string) => void;
   onAdd: () => void;
-  onRetry?: () => void;
 };
 
-/** The episode's chapters as a list. In Edit they stay markers you can move. */
+/** In Edit they stay markers you can move. */
 export function ChaptersList({
   chapters,
   total,
@@ -31,7 +29,6 @@ export function ChaptersList({
   onPlayFrom,
   onRemove,
   onAdd,
-  onRetry,
 }: Props) {
   const add = verbOf("addChapter");
   const addButton = (
@@ -47,19 +44,6 @@ export function ChaptersList({
       </DeliverSection>
     );
   }
-  if (state === "error") {
-    return (
-      <DeliverSection title="Chapters">
-        <StatusRow
-          state="failed"
-          title="Could not load the chapters"
-          action={
-            onRetry ? { label: "Try again", onAction: onRetry } : undefined
-          }
-        />
-      </DeliverSection>
-    );
-  }
   return (
     <DeliverSection title="Chapters">
       {chapters.length === 0 ? (
@@ -69,7 +53,7 @@ export function ChaptersList({
         </EmptyState>
       ) : (
         <>
-          <ul className="dv-chapters">
+          <ul className="dv-chapters" data-focus-list="chapters">
             {chapters.map((chapter) => (
               <li key={chapter.id} className="dv-chapter">
                 <TimeField
@@ -97,7 +81,7 @@ export function ChaptersList({
                 />
                 <VerbButton
                   verb="remove"
-                  label={`Delete ${chapter.title}`}
+                  label={`Remove ${chapter.title}`}
                   onClick={() => onRemove(chapter.id)}
                 />
               </li>
