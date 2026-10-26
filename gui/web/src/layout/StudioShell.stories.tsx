@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { useDawStore } from "../state/dawStore";
 import {
   studioViewports,
@@ -47,10 +47,21 @@ const layoutPlay =
   async ({ canvasElement }) => {
     await expect(await mainLandmark(canvasElement)).toHaveLength(1);
     await expect(useDawStore.getState().layoutMode).toBe(mode);
-    if (!canvasElement.querySelector(".daw-shell--phone"))
-      await expect(canvasElement.querySelector(".daw-shell")).toHaveClass(
-        `daw-shell--layout-${mode}`,
-      );
+    if (canvasElement.querySelector(".daw-shell--phone")) return;
+    await expect(canvasElement.querySelector(".daw-shell")).toHaveClass(
+      `daw-shell--layout-${mode}`,
+    );
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".layout-chip")).toHaveTextContent(
+        "Restore",
+      ),
+    );
+    if (mode === "timeline")
+      await expect(
+        await within(canvasElement).findByRole("button", {
+          name: "Show editor panels",
+        }),
+      ).toBeVisible();
   };
 
 const guestPlay =

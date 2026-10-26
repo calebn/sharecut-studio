@@ -85,7 +85,7 @@ const COVERED: Record<string, string[]> = {
   "SHEET-PHONE-MIX": ["Templates/MobileShell", "Templates/TrackMix"],
   "SHEET-PHONE-INSPECTOR": ["Templates/MobileShell"],
   "SCR-GUEST-LINK-INVALID": ["Organisms/ErrorScreen"],
-  "SCR-GUEST-OFFLINE": ["Templates/GuestAttentionBanner"],
+  "SCR-GUEST-OFFLINE": ["Templates/Shell", "Templates/GuestAttentionBanner"],
   "BAN-GUEST-ATTENTION": ["Templates/GuestAttentionBanner"],
   "BAN-FOLLOW": ["Templates/FollowBanner"],
   "SCR-REC-LOADING": ["Organisms/LoadingScreen"],
