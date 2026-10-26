@@ -74,6 +74,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "comments/InlineEditInput.tsx",
   // Palette search: Enter runs the top match and arrows step through results.
   "layout/CommandPaletteView.tsx",
+  // The Stage design system palette: same search-field keys, props only.
+  "system/Palette.tsx",
   "commands/governance.test.ts",
 ]);
 
