@@ -891,9 +891,10 @@ def _restricted_cut_access(code: str, *, caller: str = "") -> set[str]:
             )
         )
     tree = ast.parse(code)
+    nodes = tuple(ast.walk(tree))
     aliases: dict[str, str] = {}
     found: set[str] = set()
-    for node in ast.walk(tree):
+    for node in nodes:
         if isinstance(node, ast.ImportFrom) and node.module:
             for alias in node.names:
                 qualified = f"{node.module}.{alias.name}"
@@ -913,7 +914,7 @@ def _restricted_cut_access(code: str, *, caller: str = "") -> set[str]:
             return f"{qualified_name(node.value)}.{node.attr}"
         return ""
 
-    for node in ast.walk(tree):
+    for node in nodes:
         if isinstance(node, ast.Attribute):
             qualified = qualified_name(node)
             if qualified in restricted:
