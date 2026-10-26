@@ -4,7 +4,7 @@ import { OverviewStrip } from "./OverviewStrip";
 import { StatusRow } from "./StatusRow";
 import { SystemIcon } from "./SystemIcon";
 
-export type SourceCardState =
+type SourceCardState =
   | "uploading"
   | "probing"
   | "ready"

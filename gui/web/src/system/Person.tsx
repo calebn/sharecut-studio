@@ -11,22 +11,13 @@ export type PersonData = {
 
 export type PersonAvatarSize = 20 | 24 | 28 | 32;
 
-export type PersonAvatarProps = {
+type PersonAvatarProps = {
   person: PersonData;
   size?: PersonAvatarSize;
-  /**
-   * `true` when the name is printed beside the avatar (the usual case): the
-   * avatar is hidden from assistive tech. `false` names it on its own.
-   */
-  decorative?: boolean;
 };
 
-/** Initials on the person's colour. The colour is never the only cue: the name is printed too. */
-export function PersonAvatar({
-  person,
-  size = 24,
-  decorative = true,
-}: PersonAvatarProps) {
+/** Initials on the person's colour. Hidden from assistive tech: the name is always printed beside it. */
+export function PersonAvatar({ person, size = 24 }: PersonAvatarProps) {
   return (
     <span
       className={`sys-person-avatar sys-person-avatar--${size}`}
@@ -35,16 +26,14 @@ export function PersonAvatar({
           "--sys-person-color": presenceColorVar(person.colorIndex),
         } as CSSProperties
       }
-      aria-hidden={decorative ? true : undefined}
-      role={decorative ? undefined : "img"}
-      aria-label={decorative ? undefined : person.name}
+      aria-hidden="true"
     >
       {initials(person.name)}
     </span>
   );
 }
 
-export type PersonTileProps =
+type PersonTileProps =
   | {
       person: PersonData;
       state: PersonTileState;

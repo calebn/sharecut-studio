@@ -18,6 +18,7 @@ const BUDGET = 372;
 const MAX_ENTRIES = 100;
 const MAX_ENTRY_CHARS = 100;
 const WARN_AT = 40;
+const LABEL = "Names and terms";
 const LIMIT_TEXT = "That is the limit. Remove a term to add more.";
 
 export type ChipInputProps = {
@@ -27,7 +28,6 @@ export type ChipInputProps = {
   onTermsChange: (terms: string[]) => void;
   /** Characters already spent elsewhere, such as the show title. */
   reservedChars?: number;
-  label?: string;
 };
 
 function used(entries: readonly string[]): number {
@@ -49,7 +49,6 @@ export function ChipInput({
   terms,
   onTermsChange,
   reservedChars = 0,
-  label = "Names and terms",
 }: ChipInputProps) {
   const [text, setText] = useState("");
   const [note, setNote] = useState<Note | null>(null);
@@ -151,10 +150,10 @@ export function ChipInput({
   const seenSpeakers = new Map<string, number>();
   return (
     <div className="sys-chipinput">
-      <Field label={label} hint="Press Enter or a comma to add.">
+      <Field label={LABEL} hint="Press Enter or a comma to add.">
         {(control) => (
           <div className="sys-chips">
-            <ul className="sys-chips-list" aria-label={`${label} added`}>
+            <ul className="sys-chips-list" aria-label={`${LABEL} added`}>
               {speakers.map((speaker) => {
                 const nth = (seenSpeakers.get(speaker) ?? 0) + 1;
                 seenSpeakers.set(speaker, nth);

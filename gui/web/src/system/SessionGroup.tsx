@@ -3,7 +3,7 @@ import { type SessionTarget, SessionTargetChip } from "./SessionTargetChip";
 import { StageHandoff, type StageHandoffProps } from "./StageHandoff";
 import { StatusGlyph } from "./StatusGlyph";
 
-export type SessionGroupStatus = "idle" | "running" | "done" | "failed";
+type SessionGroupStatus = "idle" | "running" | "done" | "failed";
 
 export type SessionGroupProps = {
   title: string;
@@ -19,9 +19,10 @@ export type SessionGroupProps = {
   progress?: number;
   /** The takes. Empty groups say so. */
   children?: ReactNode;
-  handoff: Pick<StageHandoffProps, "stage" | "label" | "onActivate"> & {
-    disabledReason?: string;
-  };
+  handoff: Pick<
+    StageHandoffProps,
+    "stage" | "label" | "onActivate" | "disabledReason"
+  >;
 };
 
 function plural(count: number, one: string, many: string): string {
@@ -108,12 +109,9 @@ export function SessionGroup({
       </div>
       <footer className="sys-group-footer">
         <StageHandoff
-          stage={handoff.stage}
-          label={handoff.label}
+          {...handoff}
           size={48}
           variant={status === "done" ? "primary" : "secondary"}
-          disabledReason={handoff.disabledReason}
-          onActivate={handoff.onActivate}
         />
       </footer>
     </section>
