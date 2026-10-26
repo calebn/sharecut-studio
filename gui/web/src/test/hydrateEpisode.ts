@@ -107,11 +107,11 @@ function snapshotLocalStorage(): () => void {
  * one episode, and return the cleanup. Run it from a story's `beforeEach` so
  * Storybook calls the cleanup after the story unmounts.
  *
- * Storybook starts the next story's `beforeEach` before it runs the previous
- * story's cleanup. A hydration therefore first resets the state an earlier
- * episode left, keeping the stubs in place so a late request still meets one,
- * and a cleanup that finds a newer episode in place only aborts its own
- * hanging requests.
+ * Storybook may start the next story's `beforeEach` before the previous
+ * cleanup has finished. A hydration therefore first resets the state an
+ * earlier episode left, keeping the stubs in place so a late request still
+ * meets one, and a cleanup that finds a newer episode in place only aborts its
+ * own hanging requests.
  */
 export function hydrateEpisode(
   config: EpisodeParameters = {},
