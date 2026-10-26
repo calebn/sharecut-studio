@@ -79,6 +79,18 @@ describe("SuggestionWaveform", () => {
     expect(onAdjust.mock.lastCall?.[0].end).toBeCloseTo(104.5);
   });
 
+  it("jumps with Home, End and the page keys", () => {
+    const { onAdjust } = setup();
+    fireEvent.keyDown(end(), { key: "PageUp" });
+    expect(onAdjust.mock.lastCall?.[0].end).toBeCloseTo(106);
+    fireEvent.keyDown(end(), { key: "PageDown" });
+    expect(onAdjust.mock.lastCall?.[0].end).toBeCloseTo(104);
+    fireEvent.keyDown(end(), { key: "End" });
+    expect(onAdjust.mock.lastCall?.[0].end).toBe(112);
+    fireEvent.keyDown(end(), { key: "Home" });
+    expect(onAdjust.mock.lastCall?.[0].end).toBeCloseTo(103.1);
+  });
+
   it("never lets the edges cross", () => {
     const { onAdjust } = setup();
     drag(0, true);

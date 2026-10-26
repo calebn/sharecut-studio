@@ -46,6 +46,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "ui/useMenuKeyboard.ts",
   "commands/governance.test.ts",
   "record/useRecordLiveComments.ts",
+  // The Review stage owns its own keys, scoped to its root, so typing in a field stays out of it.
+  "review/ReviewStage.tsx",
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
