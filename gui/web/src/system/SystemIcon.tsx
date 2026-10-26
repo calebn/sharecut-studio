@@ -6,11 +6,17 @@ import {
   type SystemIconName,
 } from "./icons";
 
+/** Stroke in the design system (section 3), drawn on the 20 grid of `ui/Icon`. */
+export const DS_ICON_STROKE = 1.75;
+const DS_GRID = 20;
+const LUCIDE_GRID = 24;
+
 /**
- * Lucide draws on a 24 grid at stroke 2; the 20 grid in `ui/Icon` uses 1.75.
- * 1.75 * 24 / 20 gives the same on-screen weight beside the existing set.
+ * Decision (owner, section 3 of the design system): Lucide draws on a 24 grid,
+ * so the DS 1.75 on the 20 grid scales to 1.75 * 24 / 20 = 2.1 to keep the
+ * same on-screen weight beside the existing icons.
  */
-export const SYSTEM_ICON_STROKE = 2.1;
+export const SYSTEM_ICON_STROKE = (DS_ICON_STROKE * LUCIDE_GRID) / DS_GRID;
 
 type Props = {
   name: SystemIconName;
@@ -37,6 +43,42 @@ function customGlyph(name: CustomIconName, progress: number | undefined) {
         <>
           <path d="M3 10v4M6.5 7v10M10 4v16M13.5 8v8" />
           <path d="M17 5h3M18.5 5v14M17 19h3" />
+        </>
+      );
+    case "skip-back-15":
+      return (
+        <>
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+          <text
+            x="12"
+            y="15.4"
+            textAnchor="middle"
+            fontSize="7.5"
+            fontWeight="700"
+            fill="currentColor"
+            stroke="none"
+          >
+            15
+          </text>
+        </>
+      );
+    case "skip-forward-15":
+      return (
+        <>
+          <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+          <path d="M21 3v5h-5" />
+          <text
+            x="12"
+            y="15.4"
+            textAnchor="middle"
+            fontSize="7.5"
+            fontWeight="700"
+            fill="currentColor"
+            stroke="none"
+          >
+            15
+          </text>
         </>
       );
     case "progress-ring": {

@@ -489,6 +489,8 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 Icons are Lucide where one fits (stroke 1.75, 16 px desktop, 20 px dock, 24 px tab bar). The filled variant means on or active, for example a filled `volume-x` on a muted track. Every verb has one icon, one key and one gesture. Keys never change meaning across stages, and single-letter keys are inactive while a text field has focus.
 
+Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.75 stroke of the 20 grid scales to 1.75 × 24 / 20 = 2.1 and keeps the on-screen weight of the existing `ui/Icon` set. Code and tests take the value from one exported constant, `SYSTEM_ICON_STROKE`.
+
 | Verb | Icon | Key | Touch | Surfaces |
 |---|---|---|---|---|
 | Play / Pause | `play` / `pause` (ink-filled circle) | Space | Tap Play | Player (all stages), expanded Player |
@@ -535,6 +537,11 @@ Icons are Lucide where one fits (stroke 1.75, 16 px desktop, 20 px dock, 24 px t
 Two glyphs carry a related second meaning on purpose:
 - `ear` is both the Hear verb and the "Can listen" role. Both mean listening.
 - `headphones` is both Solo and the Join-sheet "I'm wearing headphones" toggle. Both are about what reaches your ears.
+
+Glyphs for controls that are not verbs, one meaning each:
+- `skip-back-15` and `skip-forward-15` (custom: a rotate arrow with the number) for the Player's back and forward 15 s. They have no key; ←/→ are the fine moves.
+- `chevron-left` is Back in a pushed Sheet step, `chevron-down` also collapses the expanded Player, and `x` closes or dismisses (Coach tip).
+- Project menu rows: `history` (Recent), `folder-open` (All projects), `settings` (Settings), `plug` (Connect agent), `circle-help` (Help).
 
 Everything else is one glyph for one meaning. Gesture grammar, in one line: tap selects, long-press opens a menu (or selects a range if you drag), swipe right does the primary, swipe left does the "no" (Keep or Remove), swipe up moves on, pinch zooms, two fingers undo.
 
