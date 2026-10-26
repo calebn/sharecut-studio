@@ -1554,7 +1554,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "Start blocker fix in the Record room panel",
+        "keyboard_reason": "Button in the Record room panel",
         "guest": true
       },
       "tooltip": "Copy guest link",

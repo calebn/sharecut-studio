@@ -133,6 +133,19 @@ def test_start_blocked_when_nobody_joined() -> None:
     assert start_blockers(producer) == [{"code": "no_recorder"}]
 
 
+def test_start_refused_when_the_host_declined_and_nobody_else_is_recorded() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    declined = apply_record_command(
+        snap,
+        _cmd("Consent", role="host", pid="p_host", payload={"accepted": False}),
+        now_wall_ms=1,
+    )
+    assert start_blockers(declined) == []
+    with pytest.raises(RecordStateError, match=r"^cannot start: nobody has accepted recording$"):
+        apply_record_command(declined, _cmd("Start", role="host", pid="p_host"), now_wall_ms=2)
+
+
 def test_host_alone_can_start_a_solo_take() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
