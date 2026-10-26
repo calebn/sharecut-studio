@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from mcp.server import MCPServer
 
-from podcast_mcp.edits.audio_check_override import audio_check_override
-from podcast_mcp.edits.cut_speech import APPLY_ANYWAY
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService
@@ -76,14 +74,11 @@ def accept_session_suggestion_tool(
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project_path)
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        result = SessionSuggestionService(ws).accept(
+    return to_json(
+        SessionSuggestionService(ws).accept_naming_override(
             suggestion_id, take_index=take_index, override_audio_checks=override_audio_checks
         )
-    held = result.get("needs_confirmation")
-    if isinstance(held, dict) and isinstance(held.get("message"), str):
-        held["message"] = f"{held['message']} {APPLY_ANYWAY}"
-    return to_json(result)
+    )
 
 
 def set_active_review_version_tool(
