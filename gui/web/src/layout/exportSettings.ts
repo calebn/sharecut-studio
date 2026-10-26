@@ -43,7 +43,6 @@ const M4A: ExportFormatSpec = {
 
 const OFFERED: readonly ExportFormatSpec[] = [M4A, FLAC];
 
-
 const LOSSLESS = new Set(["flac", "wav", "alac"]);
 
 function asRecord(value: unknown): Record<string, unknown> {

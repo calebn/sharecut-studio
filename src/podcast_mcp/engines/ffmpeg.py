@@ -2600,7 +2600,10 @@ class FFmpegEngine:
         return codec in encoders and muxer in muxers
 
     def _has_filter(self, name: str) -> bool:
-        return name in (self._listed_names("-filters") or ())
+        names = self._listed_names("-filters")
+        if names is None:
+            names = self._listed_names_cache["-filters"] = set()
+        return name in names
 
     def annotate_time_marks(
         self,
