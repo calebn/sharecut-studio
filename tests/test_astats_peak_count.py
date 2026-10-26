@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.engines import ffmpeg as ffmpeg_module
-from podcast_mcp.engines.audio_audit import clipping_indicated, measure_astats
+from podcast_mcp.engines.audio_audit import clipping_indicated
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
 
 def test_asymmetric_audio_counts_both_signed_peaks(tmp_path: Path) -> None:
@@ -21,7 +22,7 @@ def test_asymmetric_audio_counts_both_signed_peaks(tmp_path: Path) -> None:
         wav.setframerate(48000)
         wav.writeframes(struct.pack("<48h", *samples) * 1000)
 
-    stats = measure_astats(path)
+    stats = FFmpegEngine.astats(path)
 
     assert stats["peak_count"] == 2000
     assert stats["peak_level_db"] == pytest.approx(-2.499, abs=0.001)
@@ -45,11 +46,11 @@ def test_peak_count_uses_last_exact_label(
 ) -> None:
     stderr = "\n".join(f"[Parsed_astats_0 @ 0x1] {line}" for line in payload.splitlines())
     monkeypatch.setattr(
-        "podcast_mcp.engines.audio_audit.run",
+        "podcast_mcp.engines.ffmpeg.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stderr=stderr),
     )
 
-    assert measure_astats(Path("audio.wav"))["peak_count"] == expected
+    assert FFmpegEngine.astats(Path("audio.wav"))["peak_count"] == expected
 
 
 def test_exact_labels_preserve_other_health_fields(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -72,11 +73,11 @@ def test_exact_labels_preserve_other_health_fields(monkeypatch: pytest.MonkeyPat
     ]
     stderr = "\n".join(f"[Parsed_astats_0 @ 0x1] {line}" for line in payload)
     monkeypatch.setattr(
-        "podcast_mcp.engines.audio_audit.run",
+        "podcast_mcp.engines.ffmpeg.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stderr=stderr),
     )
 
-    assert measure_astats(Path("audio.wav")) == {
+    assert FFmpegEngine.astats(Path("audio.wav")) == {
         "dc_offset": 0.25,
         "peak_level_db": -2.5,
         "rms_level_db": -7.25,
@@ -109,10 +110,10 @@ def test_astats_binary_selection_preserves_admission(
         )
 
     monkeypatch.setattr(ffmpeg_module, "resolve_ffmpeg_pair", unexpected_pair)
-    monkeypatch.setattr("podcast_mcp.engines.audio_audit.resolve_ffmpeg", resolve)
-    monkeypatch.setattr("podcast_mcp.engines.audio_audit.run", run)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.resolve_ffmpeg", resolve)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", run)
 
-    assert measure_astats(Path("audio.wav"), ffmpeg=binary)["peak_count"] == 2
+    assert FFmpegEngine.astats(Path("audio.wav"), ffmpeg=binary)["peak_count"] == 2
     assert resolutions == ([] if binary else ["default"])
     assert calls == [
         (
@@ -141,11 +142,11 @@ def test_astats_preserves_boundary_failure(monkeypatch: pytest.MonkeyPatch, boun
         raise failure
 
     monkeypatch.setattr(
-        "podcast_mcp.engines.audio_audit.resolve_ffmpeg",
+        "podcast_mcp.engines.ffmpeg.resolve_ffmpeg",
         fail if boundary == "resolution" else lambda: "resolved-ffmpeg",
     )
-    monkeypatch.setattr("podcast_mcp.engines.audio_audit.run", fail)
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", fail)
 
     with pytest.raises(FileNotFoundError) as caught:
-        measure_astats(Path("missing.wav"))
+        FFmpegEngine.astats(Path("missing.wav"))
     assert caught.value is failure

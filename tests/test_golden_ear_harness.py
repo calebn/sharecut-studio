@@ -126,7 +126,7 @@ def _patch_harness(
     monkeypatch.setattr(TimelineService, "join_quality", join_quality)
     monkeypatch.setattr(PlayService, "audition_context", audition_context)
     monkeypatch.setattr(
-        "podcast_mcp.services.document.golden_ear.measure_astats",
+        "podcast_mcp.services.document.golden_ear.FFmpegEngine.astats",
         lambda path: {"peak_level_db": -3.0, "file": Path(path).name},
     )
     monkeypatch.setattr(
@@ -338,7 +338,7 @@ def test_pair_diagnostics_analyze_current_and_suggested_rendered_wavs(
         analyzed.append(Path(path))
         return {"peak_level_db": -6.0}
 
-    monkeypatch.setattr("podcast_mcp.services.document.golden_ear.measure_astats", astats)
+    monkeypatch.setattr("podcast_mcp.services.document.golden_ear.FFmpegEngine.astats", astats)
     out = tmp_path / "pair-diagnostics"
     build_golden_ear(FIXTURE, out, limit=1, seed=0)
     key = json.loads((out / "key.json").read_text(encoding="utf-8"))
@@ -374,7 +374,7 @@ def test_pair_diagnostics_reports_missing_astats_without_losing_waveforms(
 ):
     _patch_harness(monkeypatch, sample_wav, [_decision()])
     monkeypatch.setattr(
-        "podcast_mcp.services.document.golden_ear.measure_astats",
+        "podcast_mcp.services.document.golden_ear.FFmpegEngine.astats",
         lambda _path: {"peak_level_db": None, "rms_level_db": None},
     )
     out = tmp_path / "missing-astats"

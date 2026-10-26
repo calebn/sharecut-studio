@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import math
-import re
 import tempfile
 from collections import Counter
 from collections.abc import Callable, Collection
@@ -33,7 +32,7 @@ from podcast_mcp.engines.envelope_lag import (
     copy_lag,
     copy_levels_db,
 )
-from podcast_mcp.engines.ffmpeg import decoded_no_frames, filter_log_text
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.lane_words import (
     WordKey,
     lane_transcripts,
@@ -54,7 +53,6 @@ from podcast_mcp.engines.ungated_audio import (
     raw_samples_on_timeline,
 )
 from podcast_mcp.models import EpisodeProject, TrackRole
-from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_DB,
@@ -64,7 +62,7 @@ from podcast_mcp.util.dsp import (
     rms_db,
 )
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.util.process import CalledProcessError, run
+from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.progress import (
     ProgressReporter,
     raise_if_cancel_requested,
@@ -168,52 +166,6 @@ class AnalysisPolicy:
             bleed_text_match_min_dominance_db=(float(min_dom) if min_dom is not None else None),
             bleed_ratio_warn_threshold=float(heur.get("bleed_ratio_warn_threshold", 0.2)),
         )
-
-
-def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float | int | None]:
-    """Objective per-file health stats via ffmpeg's astats filter.
-
-    Some fields (e.g. Crest factor, Dynamic range) are only printed once in the
-    per-channel section for mono audio, not repeated under "Overall" - we take the
-    last occurrence of each label across the filter's own lines rather than slicing
-    to the "Overall" section, so both kinds of fields are captured correctly.
-    """
-    cmd = [
-        ffmpeg or resolve_ffmpeg(),
-        "-i",
-        str(path),
-        "-map",
-        "0:a:0",
-        "-af",
-        "astats=metadata=1:reset=0",
-        "-f",
-        "null",
-        "-",
-    ]
-    r = run(cmd, capture_output=True)
-    ok = r.returncode == 0 and not decoded_no_frames(r.stderr)
-    text = filter_log_text(r.stderr, "astats") if ok else ""
-
-    def _grab(label: str) -> float | None:
-        matches = re.findall(rf"^[ \t]*{re.escape(label)}:\s*(-?inf|-?[\d.]+)", text, re.MULTILINE)
-        if not matches:
-            return None
-        val = matches[-1]
-        if val in ("inf", "-inf"):
-            return None
-        return float(val)
-
-    peak_count = _grab("Peak count")
-    return {
-        "dc_offset": _grab("DC offset"),
-        "peak_level_db": _grab("Peak level dB"),
-        "rms_level_db": _grab("RMS level dB"),
-        "crest_factor": _grab("Crest factor"),
-        "flat_factor": _grab("Flat factor"),
-        "peak_count": round(peak_count) if peak_count is not None else None,
-        "noise_floor_db": _grab("Noise floor dB"),
-        "dynamic_range_db": _grab("Dynamic range"),
-    }
 
 
 # Peak at/above this dBFS, or a positive flat_factor, counts as clipping.
@@ -2050,7 +2002,7 @@ def analyze_cleanup(
             proc_path = _processed_track_path(project, tid)
             health: dict[str, Any] | None = None
             if proc_path is not None:
-                stats: dict[str, Any] = dict(measure_astats(proc_path))
+                stats: dict[str, Any] = dict(FFmpegEngine.astats(proc_path))
                 stats["hum"] = detect_mains_hum(proc_path)
                 voice = file_level_profile(proc_path).voice_db
                 stats["voice_db"] = round(voice, 2) if math.isfinite(voice) else None

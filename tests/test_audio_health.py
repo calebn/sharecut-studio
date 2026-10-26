@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.engines.audio_audit import detect_mains_hum, measure_astats
+from podcast_mcp.engines.audio_audit import detect_mains_hum
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
 
@@ -33,8 +33,8 @@ def hum_wav(tmp_path: Path) -> Path:
     return out
 
 
-def test_measure_astats_returns_expected_keys(sample_wav: Path):
-    stats = measure_astats(sample_wav)
+def test_astats_returns_expected_keys(sample_wav: Path):
+    stats = FFmpegEngine.astats(sample_wav)
     assert stats["rms_level_db"] is not None
     assert stats["peak_level_db"] is not None
     assert stats["crest_factor"] is not None
@@ -43,12 +43,12 @@ def test_measure_astats_returns_expected_keys(sample_wav: Path):
     assert "dynamic_range_db" in stats
 
 
-def test_measure_astats_missing_field_returns_none(sample_wav: Path, monkeypatch):
+def test_astats_missing_field_returns_none(sample_wav: Path, monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.engines.audio_audit.run",
+        "podcast_mcp.engines.ffmpeg.run",
         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr="no useful data"),
     )
-    stats = measure_astats(sample_wav)
+    stats = FFmpegEngine.astats(sample_wav)
     assert stats["rms_level_db"] is None
     assert stats["peak_count"] is None
 

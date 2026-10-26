@@ -48,7 +48,7 @@ What to look for:
 - **A hard flat ceiling at the very top of the plot for long stretches** — clipping;
   cross-check with `astats.peak_count`/`flat_factor` from the same window.
 
-## Objective health stats (`measure_astats`)
+## Objective health stats (`FFmpegEngine.astats`)
 
 Parses FFmpeg's `astats` filter on the file's first audio stream (`-map 0:a:0`), the one the render plays (#2131). Each field uses the last exact label across channel and `Overall` output. This retains fields FFmpeg prints only in a channel section, such as `Crest factor`.
 
@@ -1062,7 +1062,7 @@ peer's quiet room from a remark when the owner's bleed fills its reference
 the default stays unchanged for the voiced runs tighten reads.
 
 `clipping_in_window` ignores `flat_factor` below a -20 dBFS peak
-(`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-measure_astats).
+(`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-ffmpegengineastats).
 
 The owner golden-ear harness requests this context without track DSP so its
 captions and timing cannot be mistaken for measurements of a proposed cut. It

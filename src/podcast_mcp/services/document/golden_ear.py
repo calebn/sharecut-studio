@@ -18,7 +18,7 @@ from typing import Any
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.pending_preview import resolve_pending_preview
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
-from podcast_mcp.engines.audio_audit import detect_mains_hum, measure_astats
+from podcast_mcp.engines.audio_audit import detect_mains_hum
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import PREMIX_HASH_NAME, PREMIX_NAME
 from podcast_mcp.models import EditDecision, EditDecisionType
@@ -320,7 +320,7 @@ def _pair_audio_diagnostics(
         image_path = diagnostics_dir / f"{role}.png"
         entry: dict[str, Any] = {"file": filename}
         try:
-            astats = measure_astats(audio_path)
+            astats = FFmpegEngine.astats(audio_path)
             entry["astats"] = astats
             if not any(value is not None for value in astats.values()):
                 entry["error"] = "astats unavailable: no metrics"

@@ -85,7 +85,7 @@ Pause proposal preparation uses current complete word images and original placem
 - **Default:** heuristics in `.agents/defaults/pipeline.yaml` → `analysis.heuristics`
 - **Optional:** `analysis.ml_backend` (off by default) for future non-intrusive quality scoring
 - `health.peak_count` reads FFmpeg's exact `Peak count` field, never `Abs Peak count`. A positive count alone does not indicate clipping.
-- **Objective health stats:** `measure_astats`/`detect_mains_hum` (both FFmpeg/numpy-based, no ML) back the `health` block in `analyze_cleanup_tool` and `audio_diagnostics_tool` — use these numbers, not just listening, to justify a recommendation. Details: [docs/audio-engineering.md](../../../docs/audio-engineering.md).
+- **Objective health stats:** `FFmpegEngine.astats`/`detect_mains_hum` (both FFmpeg/numpy-based, no ML) back the `health` block in `analyze_cleanup_tool` and `audio_diagnostics_tool` — use these numbers, not just listening, to justify a recommendation. Details: [docs/audio-engineering.md](../../../docs/audio-engineering.md).
 - Suppression runs automatically with default `transcript_mode: reconcile`; use `--dry-run` to preview. Targeted bleed-only: `apply_bleed_suppression_tool` or `apply_low_audibility_suppression_tool`
 
 ## NL examples
