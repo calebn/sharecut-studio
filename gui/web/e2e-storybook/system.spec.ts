@@ -97,8 +97,72 @@ test("System/Sheet phone footer is a 48 px full-width primary on a fine pointer"
 });
 
 test("System/Toast holds the toast at rest", async ({ page }) => {
+  await page.clock.install();
   await open(page, "system-toast--result", 1280);
   await expect(page.getByText("Cut 3 words")).toBeVisible();
-  await page.waitForTimeout(1500);
+  // Jump the page clock past the 10 s session-undo lifetime instead of waiting.
+  await page.clock.fastForward(30_000);
   await expect(page.getByText("Cut 3 words")).toBeVisible();
+});
+
+test("System/Menu rows with a shortcut set the icon apart from the label", async ({
+  page,
+}) => {
+  await open(page, "system-menu--more", 1280);
+  await page.getByRole("button", { name: "More" }).click();
+  const row = page.getByRole("menuitem", { name: /Split/ });
+  await expect(row).toBeVisible();
+  const gap = await row.evaluate((el) => {
+    const icon = el.querySelector("svg")?.getBoundingClientRect();
+    const label = el.querySelector(".ui-menu-item-label");
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let text: Node | null = null;
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (n.textContent?.includes("Split")) text = n;
+    }
+    if (!icon || !label || !text) return null;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const box = range.getBoundingClientRect();
+    return {
+      apart: box.left - icon.right,
+      iconMid: icon.top + icon.height / 2,
+      textMid: box.top + box.height / 2,
+    };
+  });
+  if (!gap) throw new Error("Menu row did not render");
+  expect(gap.apart).toBeGreaterThanOrEqual(8);
+  expect(Math.abs(gap.iconMid - gap.textMid)).toBeLessThanOrEqual(2);
+});
+
+test("System controls show the 2 px accent focus ring", async ({ page }) => {
+  await open(page, "system-cover--empty", 1280);
+  await page.keyboard.press("Tab");
+  const ring = await page.evaluate(() => {
+    const style = getComputedStyle(document.activeElement as Element);
+    return { width: style.outlineWidth, offset: style.outlineOffset };
+  });
+  expect(ring).toEqual({ width: "2px", offset: "2px" });
+});
+
+test("System/Player follow pill X has a 44 px hit area at 360", async ({
+  page,
+}) => {
+  await open(page, "system-player--following", 360);
+  const x = page.getByRole("button", { name: /^Stop following/ });
+  await expect(x).toBeVisible();
+  const box = await x.boundingBox();
+  if (!box) throw new Error("Pill X did not render");
+  const reach = await x.evaluate(
+    (el, [dx, dy]) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2 + dx,
+        r.top + r.height / 2 + dy,
+      );
+      return hit === el;
+    },
+    [20, 0],
+  );
+  expect(reach).toBe(true);
 });

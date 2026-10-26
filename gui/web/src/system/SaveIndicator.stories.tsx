@@ -10,7 +10,7 @@ const meta: Meta<typeof SaveIndicator> = {
   args: { state: "saved", onRetry: fn(), onDownload: fn() },
   decorators: [
     (Story) => (
-      <div style={{ padding: "1rem" }}>
+      <div style={{ padding: "var(--space-5)" }}>
         <Story />
       </div>
     ),

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { Avatar } from "../ui";
 import { Cover } from "./Cover";
@@ -31,7 +31,21 @@ const meta: Meta<typeof Cover> = {
 export default meta;
 type Story = StoryObj<typeof Cover>;
 
-export const Empty: Story = {};
+export const Empty: Story = {
+  args: { primary: { label: "Review suggestions", onClick: fn() } },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "Nothing to decide" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Review suggestions" }),
+    );
+    await expect(args.primary?.onClick).toHaveBeenCalledTimes(1);
+    await userEvent.click(canvas.getByRole("button", { name: "Back to Edit" }));
+    await expect(args.secondary?.onClick).toHaveBeenCalledTimes(1);
+  },
+};
 
 export const BadLink: Story = {
   args: {
@@ -68,7 +82,7 @@ export const RoomFull: Story = {
     primary: { label: "Try again", onClick: fn() },
     secondary: undefined,
     extra: (
-      <span style={{ display: "inline-flex", gap: "0.25rem" }}>
+      <span style={{ display: "inline-flex", gap: "var(--space-1)" }}>
         <Avatar name="Maya Chen" colorIndex={0} />
         <Avatar name="Rosa Diaz" colorIndex={1} />
         <Avatar name="Tom Park" colorIndex={2} />
@@ -94,6 +108,17 @@ export const NotServedHere: Story = {
     children: "Open the project in the desktop app to use this.",
     primary: undefined,
     secondary: { label: "Back to Home", onClick: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "This is not available here" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /Try again/ }),
+    ).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Back to Home" }));
+    await expect(args.secondary?.onClick).toHaveBeenCalledTimes(1);
   },
 };
 

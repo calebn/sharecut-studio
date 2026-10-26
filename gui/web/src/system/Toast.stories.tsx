@@ -51,7 +51,7 @@ function ToastOverPlayer({
         minBlockSize: "14rem",
       }}
     >
-      <div style={{ flex: 1, padding: "1rem" }}>
+      <div style={{ flex: 1, padding: "var(--space-5)" }}>
         <button
           type="button"
           onClick={() => {

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { SystemIcon } from "./SystemIcon";
 
 export type CoachTipProps = {
@@ -21,10 +21,19 @@ export function CoachTip({
   shown,
   onDismiss,
 }: CoachTipProps) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  // The close button unmounts with the tip; hand focus back to the anchor.
+  const dismissFromClose = () => {
+    anchorRef.current
+      ?.querySelector<HTMLElement>("button, a[href], input, select, textarea")
+      ?.focus({ preventScroll: true });
+    onDismiss();
+  };
   return (
     <span className="sys-coach">
       {/* Capture, so the anchor's own handler still runs. Not an interactive role: it only listens. */}
       <span
+        ref={anchorRef}
         className="sys-coach-anchor"
         onClickCapture={shown ? onDismiss : undefined}
       >
@@ -41,7 +50,7 @@ export function CoachTip({
             className="sys-icon-btn sys-coach-close"
             aria-label="Dismiss hint"
             title="Dismiss hint"
-            onClick={onDismiss}
+            onClick={dismissFromClose}
           >
             <SystemIcon name="x" size={16} />
           </button>
