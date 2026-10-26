@@ -138,8 +138,11 @@ class _TerminalCli:
         leaves no ffmpeg behind (an orphan would also hold the CLI's stderr pipe open)."""
         self.signal_group(signum)
         code = self.proc.wait(timeout=15)
-        time.sleep(0.2)
-        left = [pid for pid in ffmpeg_pids if self.marker in _command_of(pid)]
+        deadline = time.monotonic() + 0.2
+        while True:
+            left = [pid for pid in ffmpeg_pids if self.marker in _command_of(pid)]
+            if not left or time.monotonic() >= deadline:
+                break
         for pid in left:
             os.kill(pid, signal.SIGKILL)
         self.proc.communicate(timeout=15)
