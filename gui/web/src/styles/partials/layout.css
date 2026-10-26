@@ -269,6 +269,11 @@ html[data-shell="phone"] .guest-attention-dismiss {
   font-style: italic;
 }
 
+/* The danger red is 3.9:1 on the attention amber in the dark theme. */
+.guest-attention .pipeline-error {
+  color: var(--color-text-primary);
+}
+
 .daw-main {
   display: grid;
   grid-template-columns: var(--header-width) 1fr var(--inspector-width);
