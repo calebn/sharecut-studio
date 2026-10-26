@@ -2103,6 +2103,10 @@ button.save-dot {
   color: var(--color-text-primary);
 }
 
+.guest-version--attention .ui-control.linkish {
+  color: var(--color-text-primary);
+}
+
 .guest-version-text {
   flex: 1 1 12rem;
   min-inline-size: 0;
