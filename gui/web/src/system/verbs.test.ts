@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COMMANDS } from "../commands/catalog";
+import { matchKeymapCommands, SHARED_KEY_ORDER } from "../keymap/registry";
 import { SYSTEM_ICON_NAMES } from "./icons";
 import {
   BROWSER_RESERVED_KEYS,
@@ -104,6 +105,8 @@ describe("verb table", () => {
       add(verb.iconAlt, verb.id);
     }
     for (const stage of STAGES) add(stage.icon, `stage:${stage.id}`);
+    for (const glyph of STATUS_GLYPHS)
+      add(glyph.glyph, `status:${glyph.state}`);
     for (const tie of ICON_TIES) {
       for (const owner of tie.owners) {
         if (owner.startsWith("role:")) add(tie.icon, owner);
@@ -217,15 +220,6 @@ describe("verb table", () => {
     }
   });
 
-  it("keeps the known live-binding conflicts on the books", () => {
-    const conflicts = rows
-      .filter((v) => v.status === "conflict")
-      .map((v) => v.id);
-    expect(conflicts.sort()).toEqual(
-      ["comment", "export", "goToStage", "mute", "pauseTake"].sort(),
-    );
-  });
-
   it("keeps bare single-letter keys to one verb each", () => {
     const bare = rows.flatMap((v) =>
       v.keys
@@ -236,5 +230,84 @@ describe("verb table", () => {
         .map((s) => s.key),
     );
     expect(new Set(bare).size).toBe(bare.length);
+  });
+});
+
+/** The keys of a verb as the keymap sees them: ids of every live command. */
+function liveOwners(verb: VerbDef): string[] {
+  const ids = new Set<string>();
+  for (const spec of verb.keys) {
+    const matched = matchKeymapCommands(
+      {
+        key: spec.key === "Space" ? " " : spec.key,
+        code: "",
+        metaKey: spec.mod === true,
+        ctrlKey: false,
+        altKey: spec.alt === true,
+        shiftKey: spec.shift === true,
+      },
+      false,
+    );
+    for (const command of matched) ids.add(command.id);
+  }
+  return [...ids];
+}
+
+/** Commands the registry itself orders on one shared key (Escape, Backspace, M). */
+function sharedMates(commandId: string | undefined): string[] {
+  if (!commandId) return [];
+  return SHARED_KEY_ORDER.filter((entry) =>
+    entry.order.includes(commandId),
+  ).flatMap((entry) => [...entry.order]);
+}
+
+describe("verb table against the live keymap", () => {
+  it("explains every live owner of a verb's keys", () => {
+    const unexplained = rows.flatMap((verb) => {
+      const known = new Set<string>([
+        ...(verb.commandId ? [verb.commandId] : []),
+        ...(verb.replaces ?? []),
+        ...(verb.alsoBound ?? []),
+        ...sharedMates(verb.commandId),
+      ]);
+      return liveOwners(verb)
+        .filter((id) => !known.has(id))
+        .map((id) => `${verb.id}: ${id}`);
+    });
+    expect(unexplained).toEqual([]);
+  });
+
+  it("lists in replaces only commands that really own a key of the verb", () => {
+    const stale = rows.flatMap((verb) => {
+      const owners = new Set(liveOwners(verb));
+      return (verb.replaces ?? [])
+        .filter((id) => !owners.has(id))
+        .map((id) => `${verb.id}: ${id}`);
+    });
+    expect(stale).toEqual([]);
+  });
+
+  it("marks bound only when a key drives the command, new only when none does", () => {
+    const wrong = rows.flatMap((verb) => {
+      if (!verb.commandId) return [];
+      const driven = liveOwners(verb).includes(verb.commandId);
+      if (verb.status === "bound" && !driven) return [`${verb.id}: not bound`];
+      if (verb.status === "new" && driven) return [`${verb.id}: already bound`];
+      return [];
+    });
+    expect(wrong).toEqual([]);
+  });
+
+  it("never gives a bare key to a verb marked new if a command owns it", () => {
+    const wrong = rows
+      .filter((verb) => verb.status === "new")
+      .filter((verb) => liveOwners(verb).length > 0)
+      .map((verb) => verb.id);
+    expect(wrong).toEqual([]);
+  });
+
+  it("does not hand Mod+X to Cut", () => {
+    const cut = rows.find((verb) => verb.id === "cut");
+    expect(cut?.keys.map(chordOf)).toEqual(["Backspace", "Delete"]);
   });
 });

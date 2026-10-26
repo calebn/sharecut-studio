@@ -5,9 +5,14 @@ import type { SystemIconName } from "./icons";
  * (docs/design/stages/design-system.md). Pure data: nothing here is wired to the
  * command bus or keymap yet.
  *
- * `bound`: the key already drives `commandId`. `conflict`: the key displaces the
- * keymap ids in `replaces`, which the adoption slice must retire or move.
- * `new`: no live binding for the key; `commandId` is the command it will drive.
+ * Statuses are checked against the live keymap (`src/keymap/registry.ts`) by
+ * `verbs.test.ts`, so they cannot drift.
+ * `bound`: the verb's first key already drives `commandId` (extra keys of the
+ * same verb may still be new, as `/` is for Palette).
+ * `conflict`: a key of the verb is live for a different command; `replaces` names
+ * those ids, which the adoption slice must retire or move.
+ * `new`: no key of the verb is live for `commandId`; it is the command the key
+ * will drive.
  */
 export type VerbStatus = "bound" | "conflict" | "new";
 
@@ -50,6 +55,8 @@ export type VerbDef = {
   readonly commandId?: string;
   /** Command ids whose live key this verb takes over. */
   readonly replaces?: readonly string[];
+  /** Other live commands the same keys already drive (Zoom: in, out and fit). */
+  readonly alsoBound?: readonly string[];
   readonly note?: string;
 };
 
@@ -79,8 +86,9 @@ export const VERBS = [
     keys: [k("J"), k("K"), k("L")],
     touch: "swipe-timeline",
     surfaces: ["player"],
-    status: "new",
-    note: "K already stops playback; J and L are new. Repeats go 1x, 2x, 4x.",
+    status: "conflict",
+    replaces: ["transport.stop"],
+    note: "K stops playback today; J and L are new. Repeats go 1x, 2x, 4x.",
   },
   {
     id: "hear",
@@ -95,8 +103,10 @@ export const VERBS = [
       "source-card",
       "status-row",
     ],
-    status: "new",
+    status: "conflict",
     commandId: "range.play",
+    replaces: ["transport.togglePlay"],
+    note: "The Play row ignores Shift, so Shift+Space toggles play today.",
   },
   {
     id: "hearBefore",
@@ -121,7 +131,7 @@ export const VERBS = [
     id: "cut",
     label: "Cut",
     icon: "scissors",
-    keys: [k("Backspace"), k("Delete"), mod("X")],
+    keys: [k("Backspace"), k("Delete")],
     touch: "swipe-right",
     surfaces: [
       "action-bar",
@@ -132,6 +142,7 @@ export const VERBS = [
     ],
     status: "bound",
     commandId: "edit.delete",
+    note: "Mod+X stays Cut-to-clipboard (edit.cut), not this verb.",
   },
   {
     id: "keep",
@@ -149,7 +160,8 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["pause-suggestion"],
-    status: "new",
+    status: "conflict",
+    replaces: ["tighten.applyHit"],
   },
   {
     id: "lower",
@@ -158,7 +170,8 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["sound-suggestion"],
-    status: "new",
+    status: "conflict",
+    replaces: ["tighten.applyHit"],
   },
   {
     id: "replace",
@@ -167,7 +180,8 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["pickup-suggestion", "session-suggestion"],
-    status: "new",
+    status: "conflict",
+    replaces: ["tighten.applyHit"],
   },
   {
     id: "insert",
@@ -176,7 +190,8 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["pickup-suggestion", "session-suggestion"],
-    status: "new",
+    status: "conflict",
+    replaces: ["tighten.applyHit"],
   },
   {
     id: "approve",
@@ -185,7 +200,8 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["check-row", "clip-idea"],
-    status: "new",
+    status: "conflict",
+    replaces: ["tighten.applyHit"],
   },
   {
     id: "resolve",
@@ -194,8 +210,9 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["decision-card", "queue-row"],
-    status: "new",
+    status: "conflict",
     commandId: "comment.resolve",
+    replaces: ["tighten.applyHit"],
   },
   {
     id: "later",
@@ -204,17 +221,20 @@ export const VERBS = [
     keys: [k("Tab"), k("ArrowDown")],
     touch: "swipe-up",
     surfaces: ["decision-card", "review-dock"],
-    status: "new",
+    status: "conflict",
+    replaces: ["track.moveDown"],
+    note: "ArrowDown moves the selected track down today.",
   },
   {
     id: "next",
     label: "Next / Previous",
     icon: null,
     keys: [k("Tab"), k("Tab", { shift: true }), k("ArrowDown"), k("ArrowUp")],
-    touch: "swipe-down",
+    touch: "swipe-up",
     surfaces: ["review-queue", "edit-after-cut", "fix-text"],
-    status: "new",
-    note: "Swipe up goes to the next, down to the previous, on the card.",
+    status: "conflict",
+    replaces: ["track.moveDown", "track.moveUp"],
+    note: "Swipe up goes to the next and swipe down to the previous, on the card. The arrows move the selected track today.",
   },
   {
     id: "applyAll",
@@ -223,8 +243,9 @@ export const VERBS = [
     keys: [k("Enter", { shift: true })],
     touch: "tap",
     surfaces: ["queue-group", "find-bar", "toast"],
-    status: "new",
-    note: "Shows the verb's own icon with a count.",
+    status: "conflict",
+    replaces: ["tighten.applyHit"],
+    note: "Shows the verb's own icon with a count. The Tighten row ignores Shift, so Shift+Enter applies a hit today.",
   },
   {
     id: "split",
@@ -235,6 +256,7 @@ export const VERBS = [
     surfaces: ["action-bar", "playhead-menu", "dock"],
     status: "bound",
     commandId: "edit.bladeCut",
+    note: "Alt-click at the pointer is the pointer form; the table has no field for it.",
   },
   {
     id: "comment",
@@ -393,10 +415,9 @@ export const VERBS = [
     keys: [mod("E")],
     touch: "tap",
     surfaces: ["deliver", "action-bar"],
-    status: "conflict",
+    status: "new",
     commandId: "export.deliverables",
-    replaces: ["export.deliverables"],
-    note: "Mod+Shift+E today. With a range selected it exports the range.",
+    note: "Mod+Shift+E drives this command today; Mod+E is free. With a range selected it exports the range.",
   },
   {
     id: "import",
@@ -436,8 +457,10 @@ export const VERBS = [
     keys: [k("C", { shift: true })],
     touch: "double-tap",
     surfaces: ["playhead-menu", "dock", "deliver-chapters"],
-    status: "new",
+    status: "conflict",
     commandId: "edit.addChapter",
+    replaces: ["tool.blade"],
+    note: "The Blade row ignores Shift, so Shift+C is Blade today.",
   },
   {
     id: "find",
@@ -458,6 +481,7 @@ export const VERBS = [
     surfaces: ["app-header"],
     status: "bound",
     commandId: "ui.toggleCommandPalette",
+    note: "? is live; / is new.",
   },
   {
     id: "propose",
@@ -549,9 +573,10 @@ export const VERBS = [
     keys: [k("="), k("-"), k("\\"), k("Z")],
     touch: "pinch",
     surfaces: ["timeline"],
-    status: "new",
+    status: "bound",
     commandId: "view.zoomIn",
-    note: "= in, - out, \\ fit, Z to selection. The first three are bound.",
+    alsoBound: ["view.zoomOut", "view.fit"],
+    note: "= in, - out, \\ fit are live; Z to selection is new.",
   },
 ] as const satisfies readonly VerbDef[];
 
@@ -606,8 +631,9 @@ export const ICON_TIES = [
   },
   {
     icon: "record",
-    owners: ["record", "stage:record"],
-    reason: "The Record verb and the Record stage are one glyph.",
+    owners: ["record", "stage:record", "status:live"],
+    reason:
+      "The Record verb, the Record stage and the Live status are one glyph. The clock in section 4.6 is the pill's time text, not part of the glyph.",
   },
   {
     icon: "wand-sparkles",
@@ -620,7 +646,7 @@ export const ICON_TIES = [
   reason: string;
 }[];
 
-/** Chords browsers reserve: never used. */
+/** Letters browsers reserve behind Mod (Mod+N and so on): never used with Mod. */
 export const BROWSER_RESERVED_KEYS = ["N", "T", "W", "R", "D"] as const;
 
 export const GESTURE_GRAMMAR = [
