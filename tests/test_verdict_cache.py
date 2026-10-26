@@ -285,3 +285,18 @@ def test_a_changed_word_near_the_cut_changes_the_key(tmp_path: Path) -> None:
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     project.transcripts[0].words[0].text = "hullo"
     assert verdict_cache.verdict_key(project, edit, **kwargs) != base
+
+
+def test_key_parts_name_the_input_that_moved_the_key(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    base = verdict_cache.key_parts(project, edit, **kwargs)
+    assert base is not None and "heard" in base
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0, source_end=4, timeline_start=0),
+        Clip(id="b", track_id="host", source_start=4, source_end=SECONDS, timeline_start=4),
+    ]
+    moved = verdict_cache.key_parts(project, edit, **kwargs)
+    assert moved is not None
+    assert {name for name in base if base[name] != moved[name]} == {"heard"}
