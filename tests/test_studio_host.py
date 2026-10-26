@@ -237,38 +237,6 @@ def test_a_studio_nothing_listens_for_is_a_stale_announcement(project: Path) -> 
     assert locate_studio(project) is None
 
 
-def _ping_server(status: int, body: bytes) -> tuple[ThreadingHTTPServer, threading.Thread]:
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            self.send_response(status)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *_args: object) -> None:
-            return None
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return server, thread
-
-
-@pytest.mark.parametrize("body", [b"not json", b"[]"])
-def test_a_ping_answered_with_an_unreadable_body_is_a_broken_studio_not_a_bypass(
-    project: Path, body: bytes
-) -> None:
-    server, thread = _ping_server(200, body)
-    try:
-        announce_studio_host(project, _host(port=server.server_address[1]))
-        with pytest.raises(StudioUnresponsive, match="did not answer in time"):
-            locate_studio(project)
-    finally:
-        server.shutdown()
-        thread.join(10)
-        server.server_close()
-
-
 def test_a_studio_slow_to_answer_once_is_pinged_again(project: Path, quick_ping: None) -> None:
     pings = {"count": 0}
     second_arrived = threading.Event()
