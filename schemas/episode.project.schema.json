@@ -535,6 +535,7 @@
         "session_id": { "type": "string" },
         "session_number": { "type": "integer", "minimum": 1 },
         "at_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
+        "anchor": { "anyOf": [{ "$ref": "#/$defs/InsertAnchor" }, { "type": "null" }], "default": null },
         "from_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
         "to_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
         "track_ids": { "type": "array", "default": [], "items": { "type": "string" } },
@@ -559,6 +560,20 @@
         "comments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/StagedComment" } }
       }
     },
+    "InsertAnchor": {
+      "type": "object",
+      "description": "The audio an insert point sat on when its session was first staged; Accept finds it again. A clip anchor names a source second on a dialogue track; an end anchor resolves to the end of the dialogue.",
+      "required": ["kind", "at_sec"],
+      "properties": {
+        "kind": { "enum": ["clip", "end"] },
+        "at_sec": { "type": "number", "minimum": 0 },
+        "track_id": { "type": ["string", "null"], "default": null },
+        "source_id": { "type": ["string", "null"], "default": null },
+        "source_sec": { "type": ["number", "null"], "minimum": 0, "default": null },
+        "side": { "enum": ["before", "after", null], "default": null },
+        "offset_s": { "type": "number", "default": 0.0 }
+      }
+    },
     "StagedRoomTone": {
       "type": "object",
       "description": "A room-tone bed recorded in a staged session; it is registered on its track only when the suggestion is accepted.",
@@ -581,7 +596,8 @@
         "id": { "type": "string" },
         "body": { "type": "string" },
         "author": { "type": "string" },
-        "recording_ms": { "type": "integer", "minimum": 0 }
+        "recording_ms": { "type": "integer", "minimum": 0 },
+        "timeline_offset_s": { "type": "number", "minimum": 0, "default": 0.0 }
       }
     },
     "RecordSessionRecord": {

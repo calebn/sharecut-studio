@@ -928,6 +928,7 @@ class StagedComment(BaseModel):
     body: str
     author: str
     recording_ms: int = Field(ge=0)
+    timeline_offset_s: float = Field(default=0.0, ge=0)
 
 
 class StagedTake(BaseModel):
@@ -959,6 +960,34 @@ class StagedRoomTone(BaseModel):
     channels: int = Field(ge=1)
 
 
+class InsertAnchor(BaseModel):
+    """The audio an insert point sat on when its session was first staged.
+
+    A ``clip`` anchor names a source second on a dialogue track and finds its clip again at
+    Accept, however the timeline was edited since. ``side`` picks the clip that starts there
+    (``before``) or ends there (``after``) when a split leaves two. ``offset_s`` is the
+    distance past the source second, which is not zero for a point in a gap. An ``end``
+    anchor was at or past the end of the dialogue and resolves to the end at Accept.
+    """
+
+    kind: Literal["clip", "end"]
+    at_sec: float = Field(ge=0)
+    track_id: str | None = None
+    source_id: str | None = None
+    source_sec: float | None = Field(default=None, ge=0)
+    side: Literal["before", "after"] | None = None
+    offset_s: float = 0.0
+
+    @model_validator(mode="after")
+    def _clip_anchor_names_its_audio(self) -> InsertAnchor:
+        named = self.track_id is not None and self.source_sec is not None and self.side is not None
+        if (self.kind == "clip") != named:
+            raise ValueError(
+                "a clip anchor names track_id, source_sec and side; an end anchor none"
+            )
+        return self
+
+
 class SessionSuggestion(BaseModel):
     """A record session staged for an insert or replace target, waiting for a decision.
 
@@ -971,6 +1000,7 @@ class SessionSuggestion(BaseModel):
     session_id: str
     session_number: int = Field(ge=1)
     at_sec: float | None = Field(default=None, ge=0)
+    anchor: InsertAnchor | None = None
     from_sec: float | None = Field(default=None, ge=0)
     to_sec: float | None = Field(default=None, ge=0)
     track_ids: list[str] = Field(default_factory=list)

@@ -76,6 +76,16 @@ def test_staged_and_skipped_session_titles() -> None:
         )
         == "Skipped Session 3"
     )
+    for kind, label in (("mutation", "Added Session 3"), ("snapshot", "after Added Session 3")):
+        assert (
+            format_history_group_title(
+                kind=kind,
+                label=label,
+                operation="accept_session_suggestion",
+                params={"suggestion_id": "ss-abc", "session_id": "abc", "session_number": 3},
+            )
+            == "Added Session 3"
+        )
 
 
 def test_summarize_diff_edit_log_and_duration() -> None:

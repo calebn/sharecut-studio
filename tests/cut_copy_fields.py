@@ -33,6 +33,7 @@ SHARED_FIELDS: dict[str, str] = {
     "DocumentSyncSection": ("last_command"),
     "ExactRangeTarget": ("clips intervals kind media_seals track_ids"),
     "HistoryEntry": ("created_at id label operation params snapshot_file"),
+    "InsertAnchor": ("at_sec kind offset_s side source_id source_sec track_id"),
     "MixSection": ("automation_envelopes processing_chains"),
     "PipelineRun": ("id started_at steps"),
     "PipelineStepLog": ("finished_at message started_at status step"),
@@ -70,8 +71,8 @@ SHARED_FIELDS: dict[str, str] = {
         "base_server_seq causation_id client_id client_seq command_id payload role type"
     ),
     "SessionSuggestion": (
-        "at_sec from_sec id kind room_tone selected_take session_id session_number status takes to_sec "
-        "track_ids"
+        "anchor at_sec from_sec id kind room_tone selected_take session_id session_number status "
+        "takes to_sec track_ids"
     ),
     "SocialClipCandidate": (
         "approved caption_suggestion end exported_path id reasons review_required score "
@@ -88,7 +89,7 @@ SHARED_FIELDS: dict[str, str] = {
     "SpeakerIngestAlignment": ("align_method content_align_sec session_start_in_file_sec"),
     "SpeakerSplit": ("backend crosstalk_lane crosstalk_mode id lanes media_path method turns"),
     "SpeakerTurnRecord": ("confidence end_s speakers start_s"),
-    "StagedComment": ("author body id recording_ms"),
+    "StagedComment": ("author body id recording_ms timeline_offset_s"),
     "StagedRoomTone": ("channels duration_s path sample_rate source_id track_id track_label"),
     "StagedTake": (
         "comments duration_s offset_s segment_index source_id take_index track_id track_label"

@@ -9,18 +9,34 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.mcp.tools.review import list_session_suggestions_tool, skip_session_suggestion_tool
-from podcast_mcp.models import EpisodeProject, load_project, save_project
+from podcast_mcp.edits.comments import add_comment
+from podcast_mcp.edits.ripple import ripple_remove_clips, ripple_track_ids
+from podcast_mcp.edits.session_suggestions import staged_span_s
+from podcast_mcp.mcp.tools.review import (
+    accept_session_suggestion_tool,
+    list_session_suggestions_tool,
+    skip_session_suggestion_tool,
+)
+from podcast_mcp.models import (
+    ChapterMarker,
+    Clip,
+    EpisodeProject,
+    Track,
+    TrackRole,
+    load_project,
+    save_project,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
-from podcast_mcp.services.document import HistoryService, SessionSuggestionService
+from podcast_mcp.services.document import HistoryService, SessionSuggestionService, TimelineService
 from podcast_mcp.services.record.commands import RecordCommand
-from podcast_mcp.services.record.landing import RecordLandingService
-from podcast_mcp.services.record.landing_math import (
-    record_session_number,
-    session_take_offsets_s,
-    staged_span_s,
+from podcast_mcp.services.record.landing import (
+    InsertAnchorTakenError,
+    RecordLandingService,
+    SessionSuggestionClosedError,
+    TakeAlreadyPlacedError,
 )
+from podcast_mcp.services.record.landing_math import record_session_number, session_take_offsets_s
 from podcast_mcp.services.record.service import (
     RecordSessionService,
     apply_record_ws_message,
@@ -86,7 +102,7 @@ def _join(ws, room):
     return svc, echo["participant_id"]
 
 
-def _ack(ws, room, guest: str, take: int, *, seconds: float = 0.5) -> None:
+def _ack(ws, room, guest: str, take: int, *, seconds: float = 0.5, join_offset_ms: int = 0) -> None:
     pcm = bytes(int(48_000 * 2 * seconds))
     wav = pcm_wav_header(len(pcm)) + pcm
     RecordUploadService(ws.project).ingest_part(
@@ -100,11 +116,20 @@ def _ack(ws, room, guest: str, take: int, *, seconds: float = 0.5) -> None:
         file_sha256=sha256_hex(wav),
         final=True,
         expected_parts=1,
-        join_offset_ms=0,
+        join_offset_ms=join_offset_ms,
     )
 
 
-def _record(ws, room, svc, guest: str, takes: int, *, comment_in_take: int | None = None) -> None:
+def _record(
+    ws,
+    room,
+    svc,
+    guest: str,
+    takes: int,
+    *,
+    comment_in_take: int | None = None,
+    join_offset_ms: int = 0,
+) -> None:
     clock = 0
     for take in range(takes):
         svc.submit(_cmd("Start"), now_wall_ms=clock)
@@ -126,7 +151,7 @@ def _record(ws, room, svc, guest: str, takes: int, *, comment_in_take: int | Non
                 capabilities=CAPS,
             )
         svc.submit(_cmd("Stop"), now_wall_ms=clock + 3_000)
-        _ack(ws, room, guest, take)
+        _ack(ws, room, guest, take, join_offset_ms=join_offset_ms)
         clock += 10_000
 
 
@@ -138,10 +163,26 @@ def _land_end_session(ws):
     return room
 
 
-def _stage(ws, target, *, takes: int = 1, comment_in_take: int | None = None, land: bool = True):
+def _stage(
+    ws,
+    target,
+    *,
+    takes: int = 1,
+    comment_in_take: int | None = None,
+    join_offset_ms: int = 0,
+    land: bool = True,
+):
     room = ShareService(ws).create_record_room(target=target)
     svc, guest = _join(ws, room)
-    _record(ws, room, svc, guest, takes, comment_in_take=comment_in_take)
+    _record(
+        ws,
+        room,
+        svc,
+        guest,
+        takes,
+        comment_in_take=comment_in_take,
+        join_offset_ms=join_offset_ms,
+    )
     landed = RecordLandingService(ws).land(align=lambda _p: None) if land else None
     return room, guest, svc, landed
 
@@ -549,20 +590,568 @@ def test_non_finite_target_times_are_refused(bad):
     assert "at_sec" in str(err.value)
 
 
-def test_a_take_after_skip_joins_the_skipped_suggestion_and_discard_empties_it(
+def _seed_timeline(ws) -> None:
+    def build(project: EpisodeProject) -> None:
+        project.tracks.extend(
+            [
+                Track(id="host", label="Host", role=TrackRole.DIALOGUE),
+                Track(id="co", label="Co", role=TrackRole.DIALOGUE),
+                Track(id="music", label="Music", role=TrackRole.MUSIC),
+            ]
+        )
+        project.clips.extend(
+            [
+                Clip(
+                    id="host-1",
+                    track_id="host",
+                    source_id="src-host",
+                    source_start=0.0,
+                    source_end=4.0,
+                    timeline_start=0.0,
+                ),
+                Clip(
+                    id="co-1",
+                    track_id="co",
+                    source_id="src-co",
+                    source_start=0.0,
+                    source_end=4.0,
+                    timeline_start=0.0,
+                ),
+                Clip(
+                    id="music-1",
+                    track_id="music",
+                    source_id="src-music",
+                    source_start=0.0,
+                    source_end=2.0,
+                    timeline_start=3.0,
+                ),
+            ]
+        )
+        add_comment(project, body="early", author="rev", timeline_start=0.5, comment_id="early")
+        add_comment(project, body="late", author="rev", timeline_start=3.0, comment_id="late")
+        add_comment(
+            project,
+            body="across",
+            author="rev",
+            timeline_start=0.5,
+            timeline_end=2.0,
+            comment_id="across",
+        )
+        project.editorial.chapters = [
+            ChapterMarker(time=0.5, title="one"),
+            ChapterMarker(time=2.0, title="two"),
+        ]
+
+    ws.mutate("seed timeline", "seeded timeline", build)
+
+
+def _dialogue_clips(project, track_id: str):
+    return sorted(
+        (c for c in project.clips if c.track_id == track_id), key=lambda c: c.timeline_start
+    )
+
+
+def _everything(ws) -> str:
+    ws.reload()
+    project = ws.project
+    return json.dumps(
+        {
+            "timeline": _timeline(ws),
+            "sources": [s.model_dump() for s in project.sources],
+            "record_sessions": [r.model_dump() for r in project.editorial.record_sessions],
+            "suggestions": [s.model_dump() for s in project.editorial.session_suggestions],
+            "duration": project.timeline.duration_sec,
+        },
+        sort_keys=True,
+        default=str,
+    )
+
+
+def test_staging_captures_the_anchor_and_the_comment_offset(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT, takes=2, comment_in_take=1, join_offset_ms=400)
+    row = _suggestion(ws, room["session_id"])
+    anchor = row.anchor
+    assert anchor is not None
+    assert (anchor.kind, anchor.track_id, anchor.source_id, anchor.side) == (
+        "clip",
+        "host",
+        "src-host",
+        "before",
+    )
+    assert anchor.source_sec == pytest.approx(1.0)
+    assert anchor.offset_s == pytest.approx(0.0)
+    assert anchor.at_sec == 1.0
+    assert [t.offset_s for t in row.takes] == pytest.approx([0.4, 3.4])
+    [comment] = row.takes[1].comments
+    assert comment.timeline_offset_s == pytest.approx(3.0)
+
+
+@pytest.mark.parametrize(
+    ("at_sec", "kind", "side", "source_sec", "offset_s"),
+    [
+        (0.0, "clip", "before", 0.0, 0.0),
+        (4.0, "end", None, None, 0.0),
+        (9.0, "end", None, None, 0.0),
+        (4.5, "end", None, None, 0.0),
+    ],
+)
+def test_capture_insert_anchor_cases(at_sec, kind, side, source_sec, offset_s):
+    from podcast_mcp.edits.insert_anchor import capture_insert_anchor
+
+    project = EpisodeProject.create("anchors", "/tmp/ws")
+    project.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.clips.append(
+        Clip(
+            id="c",
+            track_id="host",
+            source_id="s",
+            source_start=0.0,
+            source_end=4.0,
+            timeline_start=0.0,
+        )
+    )
+    anchor = capture_insert_anchor(project, at_sec)
+    assert (anchor.kind, anchor.side, anchor.source_sec) == (kind, side, source_sec)
+    assert anchor.offset_s == pytest.approx(offset_s)
+
+
+def test_capture_insert_anchor_in_a_gap_follows_the_previous_clip():
+    from podcast_mcp.edits.insert_anchor import capture_insert_anchor, resolve_insert_anchor
+
+    project = EpisodeProject.create("gap", "/tmp/ws")
+    project.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.clips.extend(
+        [
+            Clip(
+                id="a",
+                track_id="host",
+                source_id="s",
+                source_start=2.0,
+                source_end=4.0,
+                timeline_start=1.0,
+            ),
+            Clip(
+                id="b",
+                track_id="host",
+                source_id="s",
+                source_start=6.0,
+                source_end=8.0,
+                timeline_start=5.0,
+            ),
+        ]
+    )
+    anchor = capture_insert_anchor(project, 3.5)
+    assert (anchor.side, anchor.source_sec, anchor.offset_s) == ("after", 4.0, pytest.approx(0.5))
+    assert resolve_insert_anchor(project, anchor) == pytest.approx(3.5)
+    before_all = capture_insert_anchor(project, 0.25)
+    assert (before_all.side, before_all.source_sec) == ("before", 2.0)
+    assert before_all.offset_s == pytest.approx(-0.75)
+    assert resolve_insert_anchor(project, before_all) == pytest.approx(0.25)
+
+
+def test_accept_ripples_every_dialogue_track_and_places_the_takes(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, _svc, _landed = _stage(ws, INSERT, takes=2, comment_in_take=0)
+    sid = f"ss-{room['session_id']}"
+    staged = _suggestion(ws, room["session_id"])
+    span = staged_span_s((t.offset_s, t.duration_s) for t in staged.takes)
+    assert span == pytest.approx(3.5)
+
+    result = SessionSuggestionService(ws).accept(sid)
+
+    ws.reload()
+    project = ws.project
+    assert result["at_sec"] == pytest.approx(1.0)
+    assert result["span_s"] == pytest.approx(3.5)
+    assert result["suggestion"]["status"] == "accepted"
+    assert result["unmoved_track_ids"] == ["music"]
+    for track_id in ("host", "co"):
+        left, right = _dialogue_clips(project, track_id)
+        assert (left.timeline_start, left.source_start, left.source_end) == (0.0, 0.0, 1.0)
+        assert right.timeline_start == pytest.approx(4.5)
+        assert (right.source_start, right.source_end) == (1.0, 4.0)
+        assert right.timeline_end == pytest.approx(4.0 + span)
+    [music] = _dialogue_clips(project, "music")
+    assert music.timeline_start == 3.0
+    placed = _dialogue_clips(project, guest)
+    assert [c.timeline_start for c in placed] == pytest.approx([1.0, 4.0])
+    assert [c.source_id for c in placed] == [t.source_id for t in staged.takes]
+    track = project.track_by_id(guest)
+    assert track is not None
+    assert track.role == TrackRole.DIALOGUE
+    assert track.media is not None
+    assert track.media.path == project.source_by_id(staged.takes[0].source_id).path
+    assert project.timeline.duration_sec == pytest.approx(7.5)
+    assert max(c.timeline_end for c in project.clips) == pytest.approx(7.5)
+    assert _suggestion(ws, room["session_id"]).status == "accepted"
+    assert HistoryService(ws).list_entries().groups[-1].title == "Added Session 1"
+
+
+def test_accept_shifts_comments_and_chapters_and_lands_the_live_comments(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    _room, guest, _svc, _landed = _stage(ws, INSERT, takes=2, comment_in_take=0)
+    SessionSuggestionService(ws).accept(ws.project.editorial.session_suggestions[0].id)
+    ws.reload()
+    by_id = {c.id: c for c in ws.project.comments}
+    assert by_id["early"].timeline_start == 0.5
+    assert by_id["late"].timeline_start == pytest.approx(6.5)
+    assert (by_id["across"].timeline_start, by_id["across"].timeline_end) == (
+        0.5,
+        pytest.approx(5.5),
+    )
+    assert [c.time for c in ws.project.editorial.chapters] == pytest.approx([0.5, 5.5])
+    live = by_id["live-note"]
+    assert (live.author, live.body) == (guest, "Fix this")
+    assert live.timeline_start == pytest.approx(1.0 + 0.0 + 1.5)
+
+
+def test_accepted_live_comments_use_the_take_origin_without_the_join_offset(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, _svc, _landed = _stage(ws, INSERT, takes=2, comment_in_take=1, join_offset_ms=400)
+    staged = _suggestion(ws, room["session_id"])
+    recording_s = staged.takes[1].comments[0].recording_ms / 1000.0
+    SessionSuggestionService(ws).accept(staged.id)
+    ws.reload()
+    live = next(c for c in ws.project.comments if c.id == "live-note")
+    assert live.timeline_start == pytest.approx(1.0 + 3.0 + recording_s)
+    placed = _dialogue_clips(ws.project, guest)
+    assert [c.timeline_start for c in placed] == pytest.approx([1.4, 4.4])
+    assert ws.project.timeline.duration_sec == pytest.approx(4.0 + 3.9)
+
+
+def test_accept_at_the_end_places_after_the_last_dialogue(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, _svc, _landed = _stage(ws, {"kind": "insert", "at_sec": 50.0}, takes=2)
+    assert _suggestion(ws, room["session_id"]).anchor.kind == "end"
+    result = SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    ws.reload()
+    assert result["at_sec"] == pytest.approx(4.0)
+    assert [c.timeline_start for c in _dialogue_clips(ws.project, guest)] == pytest.approx(
+        [4.0, 7.0]
+    )
+    assert [len(_dialogue_clips(ws.project, t)) for t in ("host", "co")] == [1, 1]
+    assert ws.project.timeline.duration_sec == pytest.approx(4.0 + 3.5)
+
+
+def test_accept_follows_the_audio_the_point_was_staged_on(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, _svc, _landed = _stage(ws, INSERT)
+    ws.mutate(
+        "cut earlier",
+        "cut earlier",
+        lambda p: ripple_remove_clips(
+            p, [(0.0, 0.5)], ripple_track_ids(p), defaults=ws.effective_config()
+        ),
+    )
+    TimelineService(ws).insert_gap(0.25, 2.0)
+    result = SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    ws.reload()
+    assert result["at_sec"] == pytest.approx(1.0 - 0.5 + 2.0)
+    [placed] = _dialogue_clips(ws.project, guest)
+    assert placed.timeline_start == pytest.approx(2.5)
+
+
+def test_accept_straddling_a_clip_split_by_an_earlier_insert_keeps_the_anchor(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT)
+    TimelineService(ws).insert_gap(1.0, 2.0)
+    result = SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    assert result["at_sec"] == pytest.approx(3.0)
+
+
+def test_accept_at_a_point_in_a_gap_moves_with_the_clip_before_it(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+
+    def build(project: EpisodeProject) -> None:
+        project.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+        for clip_id, start in (("a", 0.0), ("b", 6.0)):
+            project.clips.append(
+                Clip(
+                    id=clip_id,
+                    track_id="host",
+                    source_id=f"src-{clip_id}",
+                    source_start=0.0,
+                    source_end=4.0,
+                    timeline_start=start,
+                )
+            )
+
+    ws.mutate("seed", "seeded", build)
+    room, _guest, _svc, _landed = _stage(ws, {"kind": "insert", "at_sec": 5.0})
+    anchor = _suggestion(ws, room["session_id"]).anchor
+    assert (anchor.side, anchor.source_id, anchor.offset_s) == ("after", "src-a", 1.0)
+    TimelineService(ws).insert_gap(0.5, 1.0)
+    result = SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    assert result["at_sec"] == pytest.approx(6.0)
+
+
+def test_accept_refuses_a_stale_anchor_and_changes_nothing(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT)
+    ws.mutate(
+        "cut the point",
+        "cut the point",
+        lambda p: ripple_remove_clips(
+            p, [(0.5, 2.0)], ripple_track_ids(p), defaults=ws.effective_config()
+        ),
+    )
+    before = _everything(ws)
+    with pytest.raises(CodedValueError) as raised:
+        SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    assert raised.value.code == "stale_anchor"
+    assert _everything(ws) == before
+    assert _suggestion(ws, room["session_id"]).status == "pending"
+
+
+def test_accept_places_the_room_tone_bed(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.engines.room_tone import room_tone_source_id
+    from podcast_mcp.engines.track_ids import slug_track_id
+
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room = ShareService(ws).create_record_room(target=INSERT)
+    svc, guest = _join(ws, room)
+    _room_tone_bed(ws, room, guest)
+    _record(ws, room, svc, guest, 1)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    staged = _suggestion(ws, room["session_id"])
+    [bed] = staged.room_tone
+    SessionSuggestionService(ws).accept(staged.id)
+    ws.reload()
+    track_id = slug_track_id(guest)
+    track = ws.project.track_by_id(track_id)
+    assert track is not None
+    assert track.room_tone is not None
+    assert track.room_tone.path == bed.path
+    assert ws.project.source_by_id(room_tone_source_id(track_id)).path == bed.path
+
+
+def test_accept_is_one_undo_step_and_redo_replays_it(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT, takes=2, comment_in_take=0)
+    sid = f"ss-{room['session_id']}"
+    before = _everything(ws)
+    SessionSuggestionService(ws).accept(sid)
+    accepted = _everything(ws)
+    assert accepted != before
+    history = HistoryService(ws)
+    group = history.list_entries().groups[-1]
+    assert group.title == "Added Session 1"
+
+    history.undo()
+    assert _everything(ws) == before
+    assert _suggestion(ws, room["session_id"]).status == "pending"
+    history.redo()
+    assert _everything(ws) == accepted
+    history.undo()
+    SessionSuggestionService(ws).accept(sid)
+    ws.reload()
+    assert _suggestion(ws, room["session_id"]).status == "accepted"
+    entry = ws.project.history.entries[-1]
+    assert entry.operation == "accept_session_suggestion"
+    assert entry.params["session_number"] == 1
+
+
+def test_accept_refusals(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, _svc, _landed = _stage(ws, INSERT)
+    sid = f"ss-{room['session_id']}"
+    service = SessionSuggestionService(ws)
+    with pytest.raises(KeyError) as missing:
+        service.accept("ss-missing")
+    assert missing.value.code == "session_suggestion_not_found"
+
+    from podcast_mcp.engines.track_ids import slug_track_id
+
+    ws.mutate(
+        "music on the guest id",
+        "music on the guest id",
+        lambda p: p.tracks.append(
+            Track(id=slug_track_id(guest), label="Music", role=TrackRole.MUSIC)
+        ),
+    )
+    before = _everything(ws)
+    with pytest.raises(CodedValueError) as wrong_role:
+        service.accept(sid)
+    assert wrong_role.value.code == "track_not_dialogue"
+    assert _everything(ws) == before
+    HistoryService(ws).undo()
+
+    service.accept(sid)
+    accepted = _everything(ws)
+    with pytest.raises(CodedValueError, match="is accepted, not pending") as again:
+        service.accept(sid)
+    assert again.value.code == "session_suggestion_not_pending"
+    assert _everything(ws) == accepted
+    HistoryService(ws).undo()
+    service.skip(sid)
+    with pytest.raises(CodedValueError) as skipped:
+        service.accept(sid)
+    assert skipped.value.code == "session_suggestion_not_pending"
+
+
+def test_accept_refuses_a_replace_session_and_an_empty_one(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, REPLACE)
+    before = _everything(ws)
+    with pytest.raises(CodedValueError, match="not available yet") as replace:
+        SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    assert replace.value.code == "accept_replace_unavailable"
+    assert _everything(ws) == before
+
+    from podcast_mcp.models import SessionSuggestion
+
+    ws.mutate(
+        "empty suggestion",
+        "empty suggestion",
+        lambda p: p.editorial.session_suggestions.append(
+            SessionSuggestion(
+                id="ss-empty",
+                kind="insert",
+                session_id="e" * 12,
+                session_number=9,
+                at_sec=1.0,
+            )
+        ),
+    )
+    with pytest.raises(CodedValueError) as empty:
+        SessionSuggestionService(ws).accept("ss-empty")
+    assert empty.value.code == "session_suggestion_empty"
+
+
+def test_a_second_pending_insert_at_the_same_anchor_is_refused_until_the_first_is_decided(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    first, _guest, _svc, _landed = _stage(ws, INSERT)
+    other = ShareService(ws).create_record_room(target=INSERT)
+    svc, guest = _join(ws, other)
+    _record(ws, other, svc, guest, 1)
+    before = _everything(ws)
+    with pytest.raises(InsertAnchorTakenError, match="Session 1 is already staged") as raised:
+        RecordLandingService(ws).land(align=lambda _p: None)
+    assert raised.value.code == "insert_anchor_taken"
+    assert _everything(ws) == before
+    assert not [s for s in ws.project.sources if s.id.startswith(f"rec-{other['session_id']}-")]
+    raw = Path(ws.project.workspace_dir) / "raw"
+    assert not [p for p in raw.rglob("*") if other["session_id"] in p.name]
+
+    SessionSuggestionService(ws).skip(f"ss-{first['session_id']}")
+    landed = RecordLandingService(ws).land(align=lambda _p: None)
+    assert [item["take_index"] for item in landed["staged"]] == [0]
+
+
+@pytest.mark.parametrize("decision", ["accept", "skip"])
+def test_a_take_after_a_decision_is_refused_and_nothing_changes(
+    minimal_project, sample_wav, tmp_workspace, decision
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
     room, guest, svc, _landed = _stage(ws, INSERT)
-    sid = _suggestion(ws, room["session_id"]).id
+    sid = f"ss-{room['session_id']}"
+    service = SessionSuggestionService(ws)
+    getattr(service, decision)(sid)
+    svc.submit(_cmd("Start"), now_wall_ms=20_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=23_000)
+    _ack(ws, room, guest, 1)
+    _room_tone_bed(ws, room, guest)
+    before = _everything(ws)
+    raw = Path(ws.project.workspace_dir) / "raw"
+    files = sorted(raw.rglob("*"))
+
+    with pytest.raises(SessionSuggestionClosedError) as raised:
+        RecordLandingService(ws).land(align=lambda _p: None)
+    assert raised.value.code == "session_suggestion_closed"
+    assert _everything(ws) == before
+    assert sorted(raw.rglob("*")) == files
+    rows = RecordUploadService(ws.project).status(session_id=room["session_id"])["segments"]
+    assert [bool(r.get("landed")) for r in rows if r["take_index"] == 1] == [False]
+
+
+def test_discarding_a_placed_take_is_refused_but_a_skipped_one_can_go(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, guest, svc, _landed = _stage(ws, INSERT)
+    sid = f"ss-{room['session_id']}"
+    SessionSuggestionService(ws).accept(sid)
+    before = _everything(ws)
+    with pytest.raises(TakeAlreadyPlacedError) as raised:
+        RecordLandingService(ws).delete_take(0)
+    assert raised.value.code == "take_already_placed"
+    assert _everything(ws) == before
+
+    HistoryService(ws).undo()
     SessionSuggestionService(ws).skip(sid)
     svc.submit(_cmd("Start"), now_wall_ms=20_000)
     svc.submit(_cmd("Stop"), now_wall_ms=23_000)
     _ack(ws, room, guest, 1)
-    RecordLandingService(ws).land(align=lambda _p: None)
-    row = _suggestion(ws, room["session_id"])
-    assert (row.status, [t.take_index for t in row.takes]) == ("skipped", [0, 1])
+    with pytest.raises(SessionSuggestionClosedError):
+        RecordLandingService(ws).land(align=lambda _p: None)
     RecordLandingService(ws).delete_take(0)
-    RecordLandingService(ws).delete_take(1)
     ws.reload()
     assert ws.project.editorial.session_suggestions == []
+    assert not [s for s in ws.project.sources if s.id.startswith(f"rec-{room['session_id']}-0-")]
+
+
+def test_cli_and_mcp_accept(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT)
+    sid = f"ss-{room['session_id']}"
+    runner = CliRunner()
+    done = runner.invoke(
+        cli_app,
+        ["review", "accept-session-suggestion", "--project", str(minimal_project), "--id", sid],
+    )
+    assert done.exit_code == 0, done.output
+    payload = json.loads(done.output)
+    assert (payload["suggestion"]["status"], payload["unmoved_track_ids"]) == (
+        "accepted",
+        ["music"],
+    )
+    again = runner.invoke(
+        cli_app,
+        ["review", "accept-session-suggestion", "--project", str(minimal_project), "--id", sid],
+    )
+    assert again.exit_code == 1
+    assert "not pending" in again.output
+    with pytest.raises(CodedValueError):
+        accept_session_suggestion_tool(str(minimal_project), sid)
+    HistoryService(ProjectWorkspace.open(minimal_project)).undo()
+    result = json.loads(accept_session_suggestion_tool(str(minimal_project), sid))
+    assert result["suggestion"]["status"] == "accepted"
