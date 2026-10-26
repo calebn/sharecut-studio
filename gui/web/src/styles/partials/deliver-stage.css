@@ -1,0 +1,279 @@
+/* Deliver stage compositions. Same rules as system.css. */
+
+.dv-stage {
+  --dv-main-width: 40rem;
+  --dv-side-width: 23.5rem;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  block-size: 100%;
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+}
+
+.dv-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-block-size: 0;
+  overflow-y: auto;
+  inline-size: 100%;
+  max-inline-size: 65rem;
+  margin-inline: auto;
+  padding: var(--space-5);
+  box-sizing: border-box;
+}
+
+.dv-columns {
+  display: grid;
+  grid-template-columns: minmax(0, var(--dv-main-width)) minmax(
+      0,
+      var(--dv-side-width)
+    );
+  align-items: start;
+  gap: var(--space-6);
+}
+
+.dv-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-inline-size: 0;
+}
+
+.dv-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dv-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dv-section-title {
+  margin: 0;
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+}
+
+.dv-readiness {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dv-readiness-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dv-chips,
+.dv-part,
+.dv-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dv-chip-size {
+  margin-inline-start: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.dv-field-label {
+  min-inline-size: 5rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.dv-note,
+.dv-save {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.dv-primary {
+  display: flex;
+}
+
+.dv-export {
+  min-block-size: 3rem;
+  padding-inline: var(--space-6);
+  gap: var(--space-3);
+}
+
+.dv-files,
+.dv-chapters,
+.dv-clips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dv-file,
+.dv-chapter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+}
+
+.dv-file-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-file-size {
+  color: var(--color-text-secondary);
+}
+
+.dv-chapter-title,
+.dv-clip-title {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--control-height);
+  padding-inline: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.dv-chapter-title:hover,
+.dv-clip-title:hover {
+  border-color: var(--color-border-subtle);
+}
+
+.dv-clips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.dv-clip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.dv-clip[data-approved] {
+  border-color: var(--color-accent);
+}
+
+.dv-clip-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 4rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+}
+
+.dv-clip-meta,
+.dv-clip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.dv-clip-approved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-accent-text);
+}
+
+.dv-strength {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.dv-strength-bar {
+  inline-size: 0.25rem;
+  block-size: 0.5rem;
+  border-radius: var(--radius-xs);
+  background: var(--color-border);
+}
+
+.dv-strength-bar:nth-child(2) {
+  block-size: 0.75rem;
+}
+
+.dv-strength-bar:nth-child(3) {
+  block-size: 1rem;
+}
+
+.dv-strength-bar[data-on] {
+  background: var(--color-accent);
+}
+
+.dv-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+}
+
+.dv-stage[data-layout="phone"] .dv-page {
+  padding: var(--space-4);
+}
+
+.dv-stage[data-layout="phone"] .dv-foot .dv-primary .dv-export {
+  inline-size: 100%;
+}
+
+.dv-stage[data-layout="phone"] .dv-clips {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (max-width: 48rem) {
+  .dv-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dv-readiness-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dv-clips {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The segmented choices share the row and wrap their words instead of widening the page. */
+.dv-field .ui-segmented {
+  max-inline-size: 100%;
+}
+
+.dv-field .ui-segmented > * {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  white-space: normal;
+  text-align: center;
+}
