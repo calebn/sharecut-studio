@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import contextlib
 import itertools
-import subprocess
 import threading
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -24,7 +22,6 @@ from podcast_mcp.util.batch_scope import scoped_by_file, scoped_by_file_if_held,
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import file_stamp
-from podcast_mcp.util.process import CalledProcessError, popen
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.wav import open_wav
 
@@ -40,98 +37,6 @@ def _decode_f32(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[s
     )
 
 
-def resample_streams(
-    chunks: Iterator[np.ndarray], from_rate: int, to_rates: Iterable[int]
-) -> dict[int, np.ndarray]:
-    """Convert mono ``chunks`` to each of ``to_rates`` with ffmpeg, giving the same samples as decoding a wav of the chunks at that rate.
-
-    The chunks stream through one ffmpeg process per rate. Each converter keeps its state
-    across chunk edges, as it would across a file, and the function holds only the converted
-    results.
-    A rate equal to ``from_rate`` is the chunks themselves. A failed conversion raises
-    ``CalledProcessError``, as a failed decode does.
-    """
-    rates = tuple(dict.fromkeys(to_rates))
-    converting = [rate for rate in rates if rate != from_rate]
-    if not converting:
-        return dict.fromkeys(rates, np.concatenate(list(chunks)))
-    commands = {
-        rate: [
-            resolve_ffmpeg_pair().ffmpeg,
-            "-v",
-            "error",
-            "-f",
-            "f32le",
-            "-ar",
-            str(from_rate),
-            "-ac",
-            "1",
-            "-i",
-            "pipe:0",
-            "-ar",
-            str(rate),
-            "-f",
-            "f32le",
-            "pipe:1",
-        ]
-        for rate in converting
-    }
-    processes = {
-        rate: popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        for rate, command in commands.items()
-    }
-    kept: list[np.ndarray] = []
-    failure: list[BaseException] = []
-
-    def feed() -> None:
-        open_pipes = {rate: process.stdin for rate, process in processes.items()}
-        try:
-            for chunk in chunks:
-                data = np.ascontiguousarray(chunk, dtype="<f4")
-                if from_rate in rates:
-                    kept.append(data)
-                payload = data.tobytes()
-                for rate, pipe in list(open_pipes.items()):
-                    assert pipe is not None
-                    try:
-                        pipe.write(payload)
-                    except BrokenPipeError:
-                        del open_pipes[rate]
-        except BaseException as exc:
-            failure.append(exc)
-        finally:
-            for pipe in open_pipes.values():
-                with contextlib.suppress(BrokenPipeError):
-                    assert pipe is not None
-                    pipe.close()
-
-    converted: dict[int, tuple[bytes, bytes]] = {}
-
-    def collect(rate: int) -> None:
-        process = processes[rate]
-        assert process.stdout is not None and process.stderr is not None
-        converted[rate] = (process.stdout.read(), process.stderr.read())
-
-    collectors = [
-        threading.Thread(target=collect, args=(rate,), daemon=True) for rate in converting
-    ]
-    feeder = threading.Thread(target=feed, daemon=True)
-    for thread in (*collectors, feeder):
-        thread.start()
-    for thread in (feeder, *collectors):
-        thread.join()
-    codes = {rate: process.wait() for rate, process in processes.items()}
-    if failure:
-        raise failure[0]
-    for rate, code in codes.items():
-        if code != 0:
-            raise CalledProcessError(code, commands[rate], stderr=converted[rate][1])
-    results = {rate: np.frombuffer(converted[rate][0], dtype="<f4") for rate in converting}
-    if from_rate in rates:
-        results[from_rate] = np.concatenate(kept)
-    return {rate: results[rate] for rate in rates}
-
-
 _LOCALITY_SOURCE_RATE = 48000
 _LOCALITY_RATES = (8000, 16000)
 _LOCALITY_CEILING = 8192
@@ -144,7 +49,7 @@ _LOCALITY_LOCK = threading.Lock()
 
 
 def _resample_array(samples: np.ndarray, rate: int) -> np.ndarray:
-    return resample_streams(iter([samples]), _LOCALITY_SOURCE_RATE, [rate])[rate]
+    return FFmpegEngine.resample_streams(iter([samples]), _LOCALITY_SOURCE_RATE, [rate])[rate]
 
 
 def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
@@ -207,7 +112,7 @@ def _blocks_match(
 def resampler_locality(from_rate: int, rate: int) -> tuple[int, int] | None:
     """Return ``(warm_up, guard)`` in input samples, or ``None`` if the resampler is not local.
 
-    Restarting ``resample_streams`` ``warm_up`` samples before a grid point and dropping the
+    Restarting ``FFmpegEngine.resample_streams`` ``warm_up`` samples before a grid point and dropping the
     outputs before it, or feeding the input up to ``guard`` samples past a cut and keeping only
     the outputs that end at least ``guard`` samples before it, reproduces the continuous run bit
     for bit. A grid is ``from_rate // rate`` input samples. Only 48 kHz into 8 and 16 kHz is

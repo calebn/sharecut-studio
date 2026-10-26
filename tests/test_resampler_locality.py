@@ -1,11 +1,3 @@
-"""Restarting the ffmpeg resampler at a grid point reproduces the continuous run bit for bit.
-
-``resample_streams`` is a polyphase FIR with an integer ratio, so an output sample depends
-on a finite window of input. ``resampler_locality`` measures that window on the running
-build; these tests check what it reports on other signals, at a start, an end and across
-back-to-back blocks.
-"""
-
 from __future__ import annotations
 
 import itertools
@@ -16,9 +8,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines import ungated_audio
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.ungated_audio import (
     load_mono_full,
-    resample_streams,
     resampler_locality,
 )
 
@@ -60,7 +52,7 @@ SIGNALS = {
 
 
 def _resample(samples: np.ndarray, rate: int) -> np.ndarray:
-    return resample_streams(iter([samples]), SOURCE_RATE, [rate])[rate]
+    return FFmpegEngine.resample_streams(iter([samples]), SOURCE_RATE, [rate])[rate]
 
 
 def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
@@ -165,9 +157,9 @@ def test_a_build_is_calibrated_once(monkeypatch):
     resampler_locality(SOURCE_RATE, 8000)
     calls = []
     monkeypatch.setattr(
-        ungated_audio,
+        FFmpegEngine,
         "resample_streams",
-        lambda *args, **kwargs: calls.append(args) or {},
+        staticmethod(lambda *args, **kwargs: calls.append(args) or {}),
     )
 
     resampler_locality(SOURCE_RATE, 8000)
@@ -180,11 +172,11 @@ def test_a_different_build_is_calibrated_again(monkeypatch):
     build = ungated_audio._ffmpeg_build_id()
     monkeypatch.setattr(ungated_audio, "_ffmpeg_build_id", lambda: (*build, "other"))
     calls = []
-    real = ungated_audio.resample_streams
+    real = FFmpegEngine.resample_streams
     monkeypatch.setattr(
-        ungated_audio,
+        FFmpegEngine,
         "resample_streams",
-        lambda *args, **kwargs: calls.append(args) or real(*args, **kwargs),
+        staticmethod(lambda *args, **kwargs: calls.append(args) or real(*args, **kwargs)),
     )
 
     resampler_locality(SOURCE_RATE, 8000)

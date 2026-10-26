@@ -132,7 +132,7 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   A track with no volume envelope, gate, mute, or Bleed Restore gets that evidence by
   evaluating its `Audio` tree in memory (`engines/audio_eval.py`): the tree compiles to pieces
   that read any sample range, sources are decoded once to a temp file at their own rate
-  (`engines/decoded_source.py`), and the result streams through one ffmpeg resample to 8 kHz, as
+  (`engines/decoded_source.py`), and the result streams through `FFmpegEngine.resample_streams` to 8 kHz, as
   decoding the render's wav does. A cut between 8 kHz samples therefore lands where the render
   puts it (equal samples to 1e-3, same length, at 48 kHz and 44.1 kHz), and a 50-minute track
   costs about 100 MB beyond its 87 MB result. A track whose sources differ in rate or channel
