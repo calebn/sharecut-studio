@@ -112,7 +112,7 @@ html[data-shell="phone"]
 .command-palette-hint {
   margin: 0 0 var(--space-4);
   font-size: var(--font-size-body);
-  opacity: 0.75;
+  color: var(--color-text-secondary);
 }
 
 .command-palette-hint kbd {
