@@ -582,7 +582,7 @@ def test_verify_mode_recomputes_every_hit(tmp_path: Path, monkeypatch: pytest.Mo
         track_evidence.rms(project, "caleb", defaults)
         assert len(calls) == 2
 
-        store = next(v for v in scope_module._scope.get().values() if hasattr(v, "get_or_build"))
+        store = track_evidence._store()
         entry = next(iter(store._entries.values()))
         poisoned = entry.samples[JUMP].copy()
         poisoned[100] += 0.5
@@ -609,7 +609,7 @@ def test_rms_then_heard_evaluates_the_tree_once_and_keeps_one_8khz_array(
     with batch_scope():
         rms = track_evidence.rms(project, "caleb", defaults)
         heard = track_evidence.heard(project, "caleb", defaults)
-        store = next(v for v in scope_module._scope.get().values() if hasattr(v, "get_or_build"))
+        store = track_evidence._store()
 
     assert len(calls) == 1
     assert heard.jump.samples is rms.samples

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Hashable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -14,6 +15,10 @@ T = TypeVar("T")
 # A batch scope and a frozen block, either of which may be absent.
 BatchState = tuple[dict[Hashable, Any] | None, dict[Hashable, Any] | None]
 _scope: ContextVar[dict[Hashable, Any] | None] = ContextVar("batch_scope", default=None)
+# Values that batches running at the same time share; the last batch to end frees them.
+_shared: dict[Hashable, Any] = {}
+_shared_lock = threading.Lock()
+_open_batches = 0
 
 
 @contextmanager
@@ -29,11 +34,18 @@ def batch_scope() -> Iterator[None]:
     if _scope.get() is not None:
         yield
         return
+    global _open_batches
     token = _scope.set({})
+    with _shared_lock:
+        _open_batches += 1
     try:
         yield
     finally:
         _scope.reset(token)
+        with _shared_lock:
+            _open_batches -= 1
+            if not _open_batches:
+                _shared.clear()
 
 
 @contextmanager
@@ -58,6 +70,21 @@ def scoped(key: Hashable, make: Callable[[], T]) -> T:
     if key not in scope:
         scope[key] = make()
     return scope[key]
+
+
+def shared_while_batching(key: Hashable, make: Callable[[], T]) -> T:
+    """``make()``, or the earlier result any batch running now stored for ``key``. Outside a scope, ``make()``.
+
+    For work that is keyed by its content, so two batches at once (an approval and the
+    background warm of its checks) build it once between them. The value is freed when the
+    last running batch ends.
+    """
+    if _scope.get() is None:
+        return make()
+    with _shared_lock:
+        if key not in _shared:
+            _shared[key] = make()
+        return _shared[key]
 
 
 def scoped_by_file(kind: str, path: Path, extra: Hashable, make: Callable[[], T]) -> T:
