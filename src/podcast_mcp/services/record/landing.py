@@ -587,13 +587,22 @@ class RecordLandingService:
         closed = staged and (
             self._suggestion_closed() if session_closed is None else session_closed
         )
-        if closed and (pending or pending_room_tone):
-            self._refuse_closed(refuse_closed)
+        if closed:
+            new_beds = [
+                row
+                for row in pending_room_tone
+                if self._room_tone_missing(str(row["participant_id"]), True)
+            ]
+            if pending or new_beds:
+                self._refuse_closed(refuse_closed)
             pending, pending_room_tone = [], []
         if pending and staged and isinstance(snap.target, InsertTarget):
+            held = session_suggestion_for(self.workspace.project, self.session_id)
             self._refuse_taken_anchor(
                 self.workspace.project,
-                capture_insert_anchor(self.workspace.project, snap.target.at_sec),
+                held.anchor
+                if held is not None
+                else capture_insert_anchor(self.workspace.project, snap.target.at_sec),
             )
         for row in pending_room_tone:
             acked = self._gate_acked(row, roles, mark=False)
@@ -953,6 +962,10 @@ class RecordLandingService:
                     operation="record_land",
                     params=session_params,
                 )
+            except (SessionSuggestionClosedError, InsertAnchorTakenError):
+                for item in copied + room_tone_copied:
+                    self._discard_copy(item)
+                raise
             except Exception:
                 for item in copied + room_tone_copied:
                     self._mark_copied_failed(item)
@@ -1262,6 +1275,16 @@ class RecordLandingService:
         return _same_revision(
             Path(project.workspace_dir) / str(item["rel"]), item.get("raw_revision")
         )
+
+    def _discard_copy(self, item: dict[str, Any]) -> None:
+        rel = str(item["rel"])
+        project = self.workspace.project
+        if any(source.path == rel for source in project.sources):
+            return
+        try:
+            (Path(project.workspace_dir) / rel).unlink(missing_ok=True)
+        except OSError:
+            log.warning("could not remove unplaced copy session=%s rel=%s", self.session_id, rel)
 
     def _mark_copied_failed(self, item: dict[str, Any]) -> None:
         self._upload.mark_land_failed(
