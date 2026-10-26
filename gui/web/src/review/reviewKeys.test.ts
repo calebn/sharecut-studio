@@ -19,6 +19,8 @@ describe("stageActionFor", () => {
     expect(stageActionFor(key("x"))).toBe("keep");
     expect(stageActionFor(key("ArrowDown"))).toBe("next");
     expect(stageActionFor(key("ArrowUp"))).toBe("previous");
+    expect(stageActionFor(key("c"))).toBe("comment");
+    expect(stageActionFor(key("e"))).toBe("openInEdit");
     expect(stageActionFor(key("a"))).toBe("hearBefore");
     expect(stageActionFor(key("b"))).toBe("hearAfter");
     expect(stageActionFor(key("Enter", { shiftKey: true }))).toBe("applyAll");
@@ -90,6 +92,17 @@ describe("stageActionFor", () => {
     expect(
       stageActionFor(key("Backspace", { target: handle }), { primary: "cut" }),
     ).toBeNull();
+  });
+
+  it("only counts controls inside the stage", () => {
+    const outer = document.createElement("a");
+    const root = document.createElement("div");
+    const text = document.createElement("p");
+    root.append(text);
+    outer.append(root);
+    expect(stageActionFor(key("Enter", { target: text }), { root })).toBe(
+      "verb",
+    );
   });
 
   it("ignores chords with Ctrl or Meta", () => {
