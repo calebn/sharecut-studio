@@ -28,7 +28,7 @@ const meta: Meta<typeof Card> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'A dismissible container for one short message and its actions: the Setup card and the Add to Home Screen hint. The close button is named by the caller, never a bare "Close", and is 44 px. Without `onDismiss` there is no close button.\n\n**Motion.** Dismissing removes the card with `--motion-panel`. Not implemented in this slice.',
+          'A dismissible container for one short message and its actions: the Setup card and the Add to Home Screen hint. The close button is named by the caller, never a bare "Close", and is 44 px. Without `onDismiss` there is no close button.\n\n**Motion.** Dismissing removes the card with `--motion-panel`.',
       },
     },
   },

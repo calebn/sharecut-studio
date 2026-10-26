@@ -27,7 +27,7 @@ const meta: Meta<typeof ProjectCardList> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'One recent project. The card is one button named by the project, with its meta and stage chip as the description; the chip says where it opens. The first card carries the accent ring that Enter continues from (visual only). Arrows, Home and End move between cards with one tab stop. A card whose folder moved shows "Folder moved" and a Find… button beside it.\n\n**Motion.** Hover changes the border and fill with `--motion-hover`. Not implemented in this slice.',
+          'One recent project. The card is one button named by the project, with its meta and stage chip as the description; the chip says where it opens. The first card carries the accent ring that Enter continues from (visual only). Arrows, Home and End move between cards with one tab stop. A card whose folder moved shows "Folder moved" and a Find… button beside it.\n\n**Motion.** Hover changes the border and fill with `--motion-hover`.',
       },
     },
   },
@@ -57,7 +57,4 @@ export const FolderMoved: Story = {
 };
 export const RowsFolderMoved: Story = {
   args: { variant: "row", projects: [PROJECTS[0], MISSING] },
-};
-export const PhoneRows: Story = {
-  args: { variant: "row" },
 };

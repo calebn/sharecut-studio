@@ -28,7 +28,7 @@ const meta: Meta<typeof OpenOther> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          '"Open other…" at the end of the Recent heading. With an OS picker it opens the picker in folder mode. In a plain browser it opens a popover under the button with one path field ("Folder of the episode") and an Open button; Enter submits. Errors sit under the field in plain words with the fix. An episode another window has open says so and offers "Switch to it".\n\n**Motion.** The popover appears with `--motion-hover`. Not implemented in this slice.',
+          '"Open other…" at the end of the Recent heading. With an OS picker it opens the picker in folder mode. In a plain browser it opens a popover under the button with one path field ("Folder of the episode") and an Open button; Enter submits. Errors sit under the field in plain words with the fix. An episode another window has open says so and offers "Switch to it".\n\n**Motion.** The popover appears with `--motion-hover`.',
       },
     },
   },

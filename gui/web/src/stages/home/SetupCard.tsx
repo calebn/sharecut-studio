@@ -12,7 +12,7 @@ export type SetupCardProps = {
   progress?: number;
   /** "1.1 of 2.0 GB · about 3 min", formatted by the caller. */
   detail?: string;
-  /** The download size in words: "about 2 GB". The caller derives it. */
+  /** The download size in words: "about 2 GB". */
   sizeLabel: string;
   onGetReady: () => void;
   onChoose: () => void;
@@ -22,6 +22,7 @@ export type SetupCardProps = {
 };
 
 const TITLE = "Get ShareCut ready";
+const DISMISS_LABEL = "Dismiss the setup card";
 
 function NotNowMenu({ onNotNow }: Pick<SetupCardProps, "onNotNow">) {
   const [open, setOpen] = useState(false);
@@ -73,7 +74,7 @@ function SetupBody({
 }: SetupCardProps) {
   if (state === "needed") {
     return (
-      <Card title={TITLE} dismissLabel="Dismiss the setup card">
+      <Card title={TITLE} dismissLabel={DISMISS_LABEL}>
         <div className="sys-setup-needed">
           <span className="sys-setup-icon" aria-hidden="true">
             <SystemIcon name="cloud-download" size={32} />
@@ -99,10 +100,7 @@ function SetupBody({
   }
   if (state === "downloading") {
     return (
-      <Card
-        title="Getting ShareCut ready"
-        dismissLabel="Dismiss the setup card"
-      >
+      <Card title="Getting ShareCut ready" dismissLabel={DISMISS_LABEL}>
         <StatusRow
           state="running"
           title="Downloading"
@@ -115,7 +113,7 @@ function SetupBody({
   }
   const checking = state === "check-error";
   return (
-    <Card title={TITLE} dismissLabel="Dismiss the setup card">
+    <Card title={TITLE} dismissLabel={DISMISS_LABEL}>
       <StatusRow
         state="failed"
         title={

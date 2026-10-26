@@ -21,7 +21,7 @@ const meta: Meta<typeof StartTile> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "A large tap-and-drop target that starts an episode. Import audio shows the Import key (Mod+I) and Record shows R. Sizes 220 (empty Home), 160 (Home), 80 (Prepare Sources footer) and the 72 px phone bar. A disabled tile stays focusable and says why in place of its line.\n\n**Motion.** Hover and drag-hover change the border and fill with `--motion-hover`. Not implemented in this slice.",
+          "A large tap-and-drop target that starts an episode. Import audio shows the Import key (Mod+I) and Record shows R. Sizes 220 (empty Home), 160 (Home), 80 (Prepare Sources footer) and the 72 px phone bar. A disabled tile stays focusable and says why in place of its line.\n\n**Motion.** Hover and drag-hover change the border and fill with `--motion-hover`.",
       },
     },
   },

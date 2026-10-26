@@ -33,7 +33,7 @@ const meta: Meta<typeof SetupCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with Cancel; the person can import or record meanwhile. Failed and the check error say what happened in one line with "Try again" and never show raw error text. The size comes from the caller as words ("about 2 GB").\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`. Not implemented in this slice.',
+          'The Setup card on Home, shown only while models are missing. Needed: "Get ready" starts the one download, "Choose…" opens Models, and "Not now" in the more menu hides it until the next launch. Downloading is one progress row with Cancel; the person can import or record meanwhile. Failed and the check error say what happened in one line with "Try again" and never show raw error text. The size comes from the caller as words ("about 2 GB").\n\n**Motion.** The card changes state in place with `--motion-hover` on the bar fill; dismissing leaves with `--motion-panel`.',
       },
     },
   },

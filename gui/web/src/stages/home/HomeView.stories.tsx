@@ -36,7 +36,7 @@ const meta: Meta<typeof HomeView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Home: the Import audio and Record tiles over the recent episodes, with the Setup card between them and Recent when models are missing, and the Add to Home Screen hint at the top of Recent. Below 40rem the tiles become a 72 px bar in the thumb zone and the cards become 72 px rows. Presentational: data in, callbacks out.\n\nNot built here: the card context menu (Open, Reveal in folder, Duplicate, Remove from list) and the phone swipe-to-remove. Both need the real remove-from-list action, so they are deferred to wiring.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; the Setup card leaves with `--motion-panel` when dismissed. Not implemented in this slice.",
+          "Home: the Import audio and Record tiles over the recent episodes, with the Setup card between them and Recent when models are missing, and the Add to Home Screen hint at the top of Recent. Below 40rem the tiles become a 72 px bar in the thumb zone and the cards become 72 px rows. Presentational: data in, callbacks out.\n\nNot built here: the card context menu (Open, Reveal in folder, Duplicate, Remove from list) and the phone swipe-to-remove. Both need the real remove-from-list action, so they are deferred to wiring.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; the Setup card leaves with `--motion-panel` when dismissed.",
       },
     },
   },
@@ -73,6 +73,4 @@ export const DropHover: Story = { args: { dropActive: true } };
 export const Loading: Story = {
   args: { phase: "loading", projects: [], loadingElapsedMs: 1000 },
 };
-export const Phone: Story = {};
-export const PhoneEmpty: Story = { args: { phase: "empty", projects: [] } };
 export const PhoneInstallHint: Story = { args: { showInstallHint: true } };

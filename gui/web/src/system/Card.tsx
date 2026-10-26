@@ -7,7 +7,6 @@ export type CardProps = {
   title: ReactNode;
   /** Names the close button for assistive technology: "Dismiss the setup card". */
   dismissLabel: string;
-  /** Without it the card cannot be dismissed and shows no close button. */
   onDismiss?: () => void;
   children: ReactNode;
 };

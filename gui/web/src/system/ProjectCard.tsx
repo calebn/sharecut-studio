@@ -18,11 +18,11 @@ export type ProjectCardData = {
   folderMissing?: boolean;
 };
 
-export type ProjectCardProps = {
+type ProjectCardProps = {
   project: ProjectCardData;
   /** `card` 240 x 152, `row` 72 px (phone, Project menu). */
   variant?: "card" | "row";
-  /** Roving tabindex: 0 for the one card in the tab order, -1 for the rest. */
+  /** Roving tabindex: only the active card is in the tab order. */
   tabIndex?: 0 | -1;
   /** The card Enter continues from: a visual ring only, it takes no focus. */
   primary?: boolean;
@@ -37,7 +37,7 @@ export type ProjectCardProps = {
  * One recent project: a single button named by the project, with its meta and
  * stage chip as the description. Wrap in `li`; arrows live in the list.
  */
-export function ProjectCard({
+function ProjectCard({
   project,
   variant = "card",
   tabIndex = 0,
@@ -107,8 +107,6 @@ export type ProjectCardListProps = {
   variant?: "card" | "row";
   /** Names the list for assistive technology: "Recent episodes". */
   label: string;
-  /** The card with the ring. Defaults to the first project. */
-  primaryId?: string;
   onOpen: (id: string, stage: ProjectCardData["stage"]) => void;
   onFind?: (id: string) => void;
 };
@@ -118,14 +116,12 @@ export function ProjectCardList({
   projects,
   variant = "card",
   label,
-  primaryId,
   onOpen,
   onFind,
 }: ProjectCardListProps) {
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
   const current = Math.min(active, Math.max(projects.length - 1, 0));
-  const ringId = primaryId ?? projects[0]?.id;
 
   const move = (event: KeyboardEvent<HTMLButtonElement>) => {
     const last = projects.length - 1;
@@ -158,7 +154,7 @@ export function ProjectCardList({
             project={project}
             variant={variant}
             tabIndex={index === current ? 0 : -1}
-            primary={project.id === ringId}
+            primary={index === 0}
             onOpen={onOpen}
             onFind={onFind}
             onKeyDown={move}
