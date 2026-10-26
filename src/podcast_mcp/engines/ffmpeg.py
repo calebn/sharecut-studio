@@ -819,6 +819,7 @@ class FFmpegEngine:
             audio_duration = None
         scan_failed = False
         audio_start = 0.0
+        scan_end: float | None = None
         if audio_streams:
             container_start = _seconds(fmt.get("start_time")) or 0.0
             audio_start = (_seconds(stream.get("start_time")) or 0.0) - container_start
@@ -833,24 +834,53 @@ class FFmpegEngine:
                 if scan is None or not 0 < scan[1] - scan[0] <= MAX_PROBED_AUDIO_EXTENT_SEC:
                     scan_failed = True
                 else:
-                    first_pts, end = scan
-                    audio_start = first_pts - container_start
-                    duration = end - first_pts
+                    audio_start = scan[0] - container_start
+                    scan_end = scan[1]
             else:
                 duration = audio_duration
+            if audio_start > _AUDIO_START_GAP_SEC:
+                # Priming and pre-skip sit in the first packet's pts but not in the decoded audio.
+                decoded = self._first_decoded_pts(path, untrusted=untrusted)
+                if decoded is not None:
+                    audio_start = decoded - container_start
+            else:
+                audio_start = 0.0
+            if scan_end is not None:
+                duration = scan_end - container_start - audio_start
             # A forged start would push every seek out of range, like a forged extent.
             scan_failed = scan_failed or audio_start > MAX_PROBED_AUDIO_EXTENT_SEC
         return AudioProbe(
             duration_sec=duration,
             sample_rate=int(stream.get("sample_rate") or 48000),
             channels=int(stream.get("channels") or 1),
-            audio_start_sec=audio_start if audio_start > _AUDIO_START_GAP_SEC else 0.0,
+            audio_start_sec=audio_start,
             duration_estimated=not audio_streams or scan_failed or not math.isfinite(duration),
             audio_duration_sec=audio_duration,
             sample_fmt=stream.get("sample_fmt") or None,
             audio_stream_count=len(audio_streams),
             legacy_default_audio_index=_legacy_audio_pick(audio_streams),
         )
+
+    def _first_decoded_pts(self, path: Path, *, untrusted: bool) -> float | None:
+        cmd = [
+            self.ffprobe,
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-read_intervals",
+            "%+#4",
+            "-show_entries",
+            "frame=pts_time",
+            "-of",
+            "csv=p=0",
+        ]
+        if untrusted:
+            cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
+        cmd.append(str(path))
+        r = run(cmd, capture_output=True, text=True, timeout=_PACKET_SCAN_TIMEOUT_SEC)
+        lines = r.stdout.split() if r.returncode == 0 else []
+        return _seconds(lines[0].rstrip(",")) if lines else None
 
     def _scan_audio_extent(self, path: Path, *, untrusted: bool) -> tuple[float, float] | None:
         """a:0's first packet pts and the end of its last packet, or None when the scan fails."""

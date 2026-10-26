@@ -173,7 +173,10 @@ The renderer and placement masks share source sample rounding and short-fade beh
 **Audio-relative source clock** (#2175). Source time 0 is the first audio stream's first sample, the clock
 every whole-file decode, ASR window, waveform and transcript already uses. A file whose audio starts
 late in its container (video first, or `-itsoffset`) reports that lead as `AudioProbe.audio_start_sec`,
-zero at or below `_AUDIO_START_GAP_SEC` (0.02 s) so codec priming never counts. ffmpeg's `-ss` and
+zero at or below `_AUDIO_START_GAP_SEC` (0.02 s) so codec priming never counts. Above the gate the
+lead is the first decoded frame's pts (one extra `ffprobe`), because a packet pts includes AAC priming
+the decoder drops. The length is measured from the applied lead, so a file at or below the gate keeps
+its container-clock extent. ffmpeg's `-ss` and
 `atrim` count from the container start, so `MediaSeek.at(start_sec, lead_sec)` adds the lead on the
 way in. Every windowed read of a media file passes `FFmpegEngine.audio_start_sec(path)`, which reads
 the shared `probe_media` cache. A WAV, a fill or a native decode starts at its audio and passes 0.
