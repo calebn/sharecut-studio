@@ -1,8 +1,8 @@
 /**
  * The 154 non-interaction surface IDs in the UI inventory
- * (the #2279 surface inventory, derived from `gui/web/src`; it moves to
- * `docs/design/stages/` with #2291). A new surface gets its ID here and a row in
- * the coverage manifest.
+ * (the #2279 surface inventory, derived from `gui/web/src`; the source document
+ * is `docs/design/stages/inventory.md`). A new surface gets its ID here and a
+ * row in the coverage manifest.
  */
 export const INVENTORY_IDS: readonly string[] = [
   "BAN-FOLLOW",

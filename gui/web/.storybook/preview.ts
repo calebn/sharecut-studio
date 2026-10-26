@@ -11,7 +11,15 @@ const preview: Preview = {
   parameters: {
     options: {
       storySort: {
-        order: ["Style guide", "Atoms", "Molecules", "Organisms", "Templates"],
+        order: [
+          "Style guide",
+          "System",
+          "Stages",
+          "Atoms",
+          "Molecules",
+          "Organisms",
+          "Templates",
+        ],
       },
     },
     controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
