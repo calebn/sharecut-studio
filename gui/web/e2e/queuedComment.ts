@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from "@playwright/test";
+import { openPanel } from "./stageNav";
 
 export type CapturedCommentCommand = {
   command_id: string;
@@ -36,10 +37,7 @@ export async function interceptCommentCommands(page: Page): Promise<{
 
 /** Open the comment composer and submit one anchored host comment. */
 export async function postHostComment(page: Page, body: string): Promise<void> {
-  await page
-    .getByLabel("Editor panels")
-    .getByRole("tab", { name: "Comments" })
-    .click();
+  await openPanel(page, "comments");
   await page
     .getByLabel("Editor panels")
     .getByRole("button", { name: "Toggle comment mode", exact: true })

@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import type { PipelineJobSnapshot } from "../src/types/pipeline";
 import type { createEditorProfiler } from "./editorProfile";
 import { failureReason, hash, measured } from "./editorProfileReport";
+import { openPanel } from "./stageNav";
 
 type ReplayEvidence = {
   scheduled: number;
@@ -172,13 +173,7 @@ export async function replayPipelineProgress(
   let replayEvidence: ReplayEvidence | undefined;
   let primaryFailure: unknown;
   try {
-    const pipelineName = /^Pipeline(?: ●)?$/;
-    const pipelineTab = page.getByRole("tab", { name: pipelineName });
-    if (await pipelineTab.isVisible()) await pipelineTab.click();
-    else {
-      await page.getByRole("button", { name: "More", exact: true }).click();
-      await page.getByRole("button", { name: pipelineName }).click();
-    }
+    await openPanel(page, "pipeline");
     await expect
       .poll(() => page.evaluate(() => window.__editorProgressReplay!.connected))
       .toBe(true);
