@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { episode, tightenHits } from "../test/episodeFixture";
 import { panelFrame } from "../test/panelFrame";
 import { pipelineConfig } from "../test/pipelineConfigFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { TightenPanel } from "./TightenPanel";
 
 const loaded = {
@@ -13,6 +13,7 @@ const loaded = {
 const meta: Meta<typeof TightenPanel> = {
   title: "Templates/Editor · Tighten panel",
   component: TightenPanel,
+  beforeEach: episodeBeforeEach,
   decorators: [panelFrame, withEpisode],
   parameters: {
     layout: "fullscreen",
@@ -29,9 +30,8 @@ export const WithHits: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("4 of 4 hits")).toBeVisible();
-    await expect(
-      await canvas.findByRole("button", { name: "Find hits" }),
-    ).toBeEnabled();
+    const find = await canvas.findByRole("button", { name: "Find hits" });
+    await waitFor(() => expect(find).toBeEnabled());
   },
 };
 

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 import { episode } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { TranscriptVocabularyEditor } from "./TranscriptVocabularyEditor";
 
 const vocabulary = {
@@ -18,6 +18,7 @@ const vocabulary = {
 const meta: Meta<typeof TranscriptVocabularyEditor> = {
   title: "Templates/Pipeline · Transcript vocabulary",
   component: TranscriptVocabularyEditor,
+  beforeEach: episodeBeforeEach,
   decorators: [
     withEpisode,
     (Story) => (

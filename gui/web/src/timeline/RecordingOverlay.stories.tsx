@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { recordRoom } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { RecordingOverlay } from "./RecordingOverlay";
 import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 
@@ -16,6 +16,7 @@ const take = {
 const meta: Meta<typeof RecordingOverlay> = {
   title: "Templates/RecordingOverlay",
   component: RecordingOverlay,
+  beforeEach: episodeBeforeEach,
   decorators: [timelineLaneStoryDecorator, withEpisode],
   parameters: {
     lanePreviewLabel: "Recording overlay preview",

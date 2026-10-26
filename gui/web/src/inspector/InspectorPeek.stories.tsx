@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { useDaw } from "../state/useDaw";
 import { selections } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { InspectorPeek } from "./InspectorPeek";
 import { peekTarget } from "./peekTarget";
 
@@ -18,6 +18,7 @@ function SelectionPeek() {
 const meta: Meta<typeof SelectionPeek> = {
   title: "Templates/Editor · Inspector · Peek",
   component: SelectionPeek,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   parameters: {
     layout: "fullscreen",

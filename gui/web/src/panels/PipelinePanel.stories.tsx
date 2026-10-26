@@ -3,7 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { episode, pipelineJob } from "../test/episodeFixture";
 import { panelFrame } from "../test/panelFrame";
 import { pipelineConfig } from "../test/pipelineConfigFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { PipelinePanel } from "./PipelinePanel";
 
 const loaded = {
@@ -15,6 +15,7 @@ const loaded = {
 const meta: Meta<typeof PipelinePanel> = {
   title: "Templates/Editor · Pipeline panel",
   component: PipelinePanel,
+  beforeEach: episodeBeforeEach,
   decorators: [panelFrame, withEpisode],
   parameters: { layout: "fullscreen", episode: { project: episode() } },
 };

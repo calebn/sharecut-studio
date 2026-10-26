@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { MIRA } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { SoloChip } from "./SoloChip";
 
 const meta: Meta<typeof SoloChip> = {
   title: "Templates/SoloChip",
   component: SoloChip,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   parameters: {
     layout: "padded",

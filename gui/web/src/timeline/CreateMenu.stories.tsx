@@ -3,7 +3,7 @@ import { expect, within } from "storybook/test";
 import { portaledOverlayParameters } from "../storybook/storyLayout";
 import { MIRA } from "../test/episodeFixture";
 import { hitRouterStub } from "../test/hitRouterStub";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { CreateMenu, type CreateMenuPlace } from "./CreateMenu";
 
 const place: CreateMenuPlace = {
@@ -17,6 +17,7 @@ const place: CreateMenuPlace = {
 const meta: Meta<typeof CreateMenu> = {
   title: "Templates/CreateMenu",
   component: CreateMenu,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   parameters: {
     ...portaledOverlayParameters,

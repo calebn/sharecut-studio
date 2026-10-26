@@ -3,7 +3,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { useDawStore } from "../state/dawStore";
 import { episode, selections } from "../test/episodeFixture";
 import { panelFrame } from "../test/panelFrame";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import {
   TRANSCRIPT_MODE_HINT,
   TRANSCRIPT_SELECT_TOUCH_HINT,
@@ -36,6 +36,7 @@ function withIgnoredPhrase(project: ProjectView): ProjectView {
 const meta: Meta<typeof TranscriptPanel> = {
   title: "Templates/Editor · Transcript panel",
   component: TranscriptPanel,
+  beforeEach: episodeBeforeEach,
   decorators: [panelFrame, withEpisode],
   parameters: { layout: "fullscreen", episode: {} },
 };

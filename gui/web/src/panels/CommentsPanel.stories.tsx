@@ -2,12 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { emptyEpisode } from "../test/episodeFixture";
 import { panelFrame } from "../test/panelFrame";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { CommentsPanel } from "./CommentsPanel";
 
 const meta: Meta<typeof CommentsPanel> = {
   title: "Templates/Editor · Comments panel",
   component: CommentsPanel,
+  beforeEach: episodeBeforeEach,
   decorators: [panelFrame, withEpisode],
   parameters: { layout: "fullscreen", episode: {} },
 };
