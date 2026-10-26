@@ -48,7 +48,7 @@ from podcast_mcp.edits.cut_policy import (
     action_for_safety_observation,
     edit_time_behavior,
 )
-from podcast_mcp.edits.cut_quality import post_pad_fade_in_bounds_ms
+from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SourceExtent
 from podcast_mcp.edits.filler_pacing import pause_trim_is_imperceptible
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
@@ -1018,15 +1018,7 @@ def assess_held_pause(
         edit.track_id, SourceSec(after.start), SourceSec(after.end)
     )
     assert before_span is not None and after_span is not None
-    reach = (
-        max(
-            edit.crossfade_ms,
-            post_pad_fade_in_bounds_ms(defaults)[1],
-            int(defaults.get("tighten", {}).get("filler_pre_pad_fade_out_ms", 5)),
-            max((max(c.fade_in_ms, c.fade_out_ms) for c in project.clips), default=0),
-        )
-        / 1000.0
-    )
+    reach = fade_reach_sec(project, edit, defaults)
     observation_span = (
         min(float(span[0]) - reach, float(before_span[0])),
         max(float(span[1]) + reach, float(after_span[1])),

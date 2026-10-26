@@ -48,7 +48,7 @@ def _project(tmp_path: Path, starts: tuple[float, ...]) -> EpisodeProject:
 
 @pytest.fixture(autouse=True)
 def _short_reach(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(verdict_cache, "WINDOW_SEC", 2.0)
+    monkeypatch.setattr(verdict_cache, "READ_SEC", 2.0)
 
 
 def _builds(monkeypatch: pytest.MonkeyPatch) -> list[int]:
@@ -92,6 +92,22 @@ def test_a_cut_within_reach_of_an_applied_one_builds_again(
     project = _project(tmp_path, (10.0, 11.0, 70.0))
     built = _builds(monkeypatch)
     assert _approve(project) == []
+    assert len(built) == 2
+
+
+def test_the_reach_is_the_read_distance_plus_the_fade_reach(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    starts = (10.0, 13.5)
+    short = _project(tmp_path / "short", starts)
+    built = _builds(monkeypatch)
+    assert _approve(short) == []
+    assert len(built) == 1
+
+    faded = _project(tmp_path / "faded", starts)
+    faded.clips[0].fade_in_ms = 2000
+    built.clear()
+    assert _approve(faded) == []
     assert len(built) == 2
 
 
