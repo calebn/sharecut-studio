@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import socket
@@ -26,7 +27,12 @@ from podcast_mcp.services.app import (
     withdraw_studio_host,
 )
 from podcast_mcp.services.app import studio_host as studio_host_module
-from podcast_mcp.services.app.studio_host import HANDOFF_PROTOCOL, handoff_env
+from podcast_mcp.services.app.studio_host import (
+    HANDOFF_PROTOCOL,
+    HandoffLost,
+    hand_off,
+    handoff_env,
+)
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     project_commit_lock,
@@ -204,6 +210,22 @@ def test_a_studio_that_accepts_and_stays_silent_is_never_bypassed(
     announce_studio_host(project, _host(port=silent_listener))
     with pytest.raises(StudioUnresponsive, match="did not answer in time"):
         locate_studio(project)
+
+
+def test_a_studio_that_goes_silent_after_the_ping_is_lost_not_bypassed(
+    project: Path, silent_listener: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(studio_host_module, "STREAM_SILENCE_TIMEOUT_SEC", 0.2)
+    host = _host(port=silent_listener)
+    with pytest.raises(HandoffLost, match="did not answer in time"):
+        hand_off(
+            host,
+            argv=["status"],
+            project=str(project),
+            cwd=str(project),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
 
 
 def test_a_studio_nothing_listens_for_is_a_stale_announcement(
