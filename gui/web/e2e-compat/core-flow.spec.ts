@@ -191,6 +191,14 @@ test.describe("core flow", () => {
           });
 
           await test.step("share: a viewer plays the per-track MP3 proxies", async () => {
+            const refresh = host.getByRole("button", {
+              name: /^Mix out of date\. .*\. Refresh mix\.$/,
+            });
+            await expect(refresh).toBeEnabled();
+            await refresh.click();
+            await expect(
+              host.getByText("Mix up to date", { exact: true }),
+            ).toBeVisible({ timeout: 60_000 });
             const token = await createReviewShare(host, projectPath);
             const chunkPrefix = `/api/review/${token}/daw/proxy/`;
             const isChunk = (url: string) => {
