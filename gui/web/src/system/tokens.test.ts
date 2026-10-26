@@ -89,6 +89,7 @@ const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--motion-state", ["250ms"]],
   ["--motion-ease-out", ["cubic-bezier(0.2, 0.8, 0.2, 1)"]],
   ["--motion-long-press", ["500ms"]],
+  ["--motion-hold-to-stop", ["600ms"]],
   ["--motion-loop-pipeline", ["1.2s"]],
   ["--motion-loop-skeleton", ["1.6s"]],
   ["--motion-loop-rec", ["1.8s"]],

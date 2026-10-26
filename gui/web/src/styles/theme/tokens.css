@@ -59,6 +59,9 @@
   /* A touch long press (LONG_PRESS_MS in hooks/gestureConstants.ts, pinned
      by its test): progress shown during a hold ends when the hold fires. */
   --motion-long-press: 500ms;
+  /* Hold to stop a take (HOLD_TO_STOP_MS in system/RecordButton.tsx, pinned by
+     its test): the ring fills over exactly the hold. */
+  --motion-hold-to-stop: 600ms;
   /* Looping status indicators keep their own, slower periods. */
   --motion-loop-pipeline: 1.2s;
   --motion-loop-skeleton: 1.6s;

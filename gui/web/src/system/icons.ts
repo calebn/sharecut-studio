@@ -28,9 +28,11 @@ import {
   type LucideIcon,
   MessageSquare,
   MessageSquareCheck,
+  Mic,
   MicOff,
   Minus,
   OctagonAlert,
+  PanelRight,
   Pause,
   Play,
   Plug,
@@ -120,6 +122,8 @@ export const LUCIDE_ICONS = {
   minus: Minus,
   plus: Plus,
   lock: Lock,
+  mic: Mic,
+  "panel-right": PanelRight,
 } as const satisfies Record<string, LucideIcon>;
 
 /** No Lucide equivalent: drawn by hand in `SystemIcon`. */
