@@ -1083,6 +1083,20 @@ host `audition_context_tool` / `play_compose_tool` — see
 [host-online-relay.md](host-online-relay.md) (`guest_audition_context` is the
 review-window twin).
 
+## Late-start audio (#2175)
+
+Source time 0 is the first audio stream's first sample, the clock
+every whole-file decode, ASR window, waveform and transcript already uses. A file whose audio starts
+late in its container (video first, or `-itsoffset`) reports that lead as `AudioProbe.audio_start_sec`,
+zero at or below `_AUDIO_START_GAP_SEC` (0.02 s) so codec priming never counts. Above the gate the
+lead is the first decoded frame's pts (one extra `ffprobe`), because a packet pts includes AAC priming
+the decoder drops. The length is measured from the applied lead, so a file at or below the gate keeps
+its container-clock extent. ffmpeg's `-ss` and
+`atrim` count from the container start, so `MediaSeek.at(start_sec, lead_sec)` adds the lead on the
+way in. Every windowed read of a media file passes `FFmpegEngine.audio_start_sec(path)`, which reads
+the shared `probe_media` cache. A WAV, a fill or a native decode starts at its audio and passes 0.
+`tests/test_timebase_guards.py` and `tests/test_late_start_clock.py` keep a call from omitting it. ffmpeg rebases an audio-only read of MPEG transport and program streams (`mpegts`, `mpeg`) to pts 0 while input `-ss` keeps the container clock, so no lead is right for both. `probe` marks such a file `duration_estimated` when its audio starts above the gate, and ingest refuses it.
+
 ## Not yet implemented (see `ROADMAP.md`)
 
 - Applying the same Silero VAD signal to the pause-floor logic in
