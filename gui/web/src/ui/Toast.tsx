@@ -1,6 +1,7 @@
 import {
   type FocusEvent,
   type PointerEvent,
+  type ReactNode,
   type RefObject,
   useEffect,
   useEffectEvent,
@@ -49,6 +50,10 @@ type Props = {
   onDismiss: () => void;
   /** Shows Undo; leave it out when there is nothing to undo. */
   onUndo?: () => void;
+  /** The action's name when "Undo" is not enough ("Undo all" on a merged toast). */
+  undoLabel?: string;
+  /** A decorative glyph before the message (the design system toast leads with an icon). */
+  icon?: ReactNode;
   /** Why Undo is unavailable. Disables Undo and pauses auto-dismiss (Undo must never expire while it cannot be clicked). */
   undoDisabledReason?: string;
   /** Says why a pressable Undo will not act at once ("Undo ready after save"). Shown under the message; pauses auto-dismiss like a disabled reason. */
@@ -98,6 +103,8 @@ type CardProps = Omit<Props, "toast" | "className" | "regionRef"> & {
 function ToastCard({
   toast,
   onUndo,
+  undoLabel = "Undo",
+  icon,
   onDismiss,
   undoDisabledReason,
   undoNote,
@@ -208,6 +215,11 @@ function ToastCard({
       onFocus={onFocus}
       onBlur={onBlur}
     >
+      {icon ? (
+        <span className="ui-toast-icon" aria-hidden="true">
+          {icon}
+        </span>
+      ) : null}
       <span id={messageId} className="ui-toast-message">
         {toast.message}
       </span>
@@ -219,7 +231,7 @@ function ToastCard({
           }
           onClick={onUndo}
         >
-          Undo
+          {undoLabel}
         </Button>
       ) : null}
       <Button variant="link" onClick={onDismiss}>

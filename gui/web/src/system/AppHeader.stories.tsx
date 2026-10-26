@@ -44,8 +44,13 @@ const people = [
   { name: "Lee Kim", colorIndex: 4 },
 ];
 
-function Header(props: Partial<AppHeaderProps> & { withStages?: boolean }) {
-  const { withStages = true, ...rest } = props;
+function Header(
+  props: Partial<AppHeaderProps> & {
+    withStages?: boolean;
+    stageIds?: readonly StageId[];
+  },
+) {
+  const { withStages = true, stageIds, ...rest } = props;
   const [active, setActive] = useState<StageId>("edit");
   return (
     <AppHeader
@@ -58,6 +63,7 @@ function Header(props: Partial<AppHeaderProps> & { withStages?: boolean }) {
           ? {
               active,
               onSelect: setActive,
+              stages: stageIds,
               badges: { review: { kind: "needs-you", count: 6 } },
             }
           : undefined
@@ -71,10 +77,27 @@ export const Host: Story = {
   render: () => <Header />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    // The Stage bar shows labels from 1100 px up and icons only below it.
+    // Inside the header that is the header's width, not the bar's.
+    const host = canvasElement.querySelector(".sys-app-header-host");
+    const labels = canvasElement.querySelectorAll(
+      '[role="tab"][aria-selected="false"] .sys-stage-label',
+    );
+    const wide = (host?.getBoundingClientRect().width ?? 0) > 1100;
+    if (wide) {
+      await expect(labels.length).toBeGreaterThan(0);
+      for (const label of labels) {
+        await expect(label.getBoundingClientRect().width).toBeGreaterThan(24);
+      }
+    }
     await userEvent.click(canvas.getByRole("button", { name: /Episode 14/ }));
+    const body = within(document.body);
     await expect(
-      await within(document.body).findByRole("menuitem", {
-        name: "All projects",
+      await body.findByRole("menuitem", { name: "All projects" }),
+    ).toBeVisible();
+    await expect(
+      body.getByRole("menuitem", {
+        name: /Rename project,\s*Episode 14 - The long way round/,
       }),
     ).toBeVisible();
   },
@@ -87,14 +110,67 @@ export const Guest: Story = {
       people={people.slice(0, 2)}
     />
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: "Invite" })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Undo" })).toBeNull();
+  },
+};
+
+export const GuestEditor: Story = {
+  render: () => (
+    <Header
+      guest={{ version: "v3", role: "Editor" }}
+      people={people.slice(0, 2)}
+      stageIds={["edit", "review"]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Invite" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Undo" })).toBeVisible();
+  },
+};
+
+export const GuestViewer: Story = {
+  render: () => (
+    <Header guest={{ version: "v3", role: "Viewer" }} withStages={false} />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).queryByRole("button", { name: "Invite" }),
+    ).toBeNull();
+  },
+};
+
+export const Loading: Story = {
+  render: () => <Header loading people={[]} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: /Episode 14/ }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Undo" })).toBeDisabled();
+    await expect(canvas.queryByRole("status")).toBeNull();
+  },
 };
 
 export const Offline: Story = {
   render: () => <Header save={{ state: "offline", waiting: 2 }} />,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole("status")).toHaveTextContent(
+      "2 waiting",
+    );
+  },
 };
 
 export const Failed: Story = {
   render: () => <Header save={{ state: "failed" }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("alert")).toHaveTextContent("Save failed");
+    await expect(canvas.getByRole("button", { name: /Retry/ })).toBeVisible();
+  },
 };
 
 export const Phone: Story = {

@@ -6,7 +6,10 @@ export type SaveIndicatorProps = {
   justSaved?: boolean;
   /** Offline: edits waiting to send. */
   waiting?: number;
-  /** Narrow chrome: glyph and Retry only. */
+  /**
+   * Narrow chrome: glyph, a count and Retry only. The App header gets the same
+   * form from its container width, so it does not pass this.
+   */
   compact?: boolean;
   onRetry?: () => void;
   onDownload?: () => void;
@@ -21,33 +24,44 @@ export function SaveIndicator({
   onRetry,
   onDownload,
 }: SaveIndicatorProps) {
+  const size = compact ? " sys-save--compact" : "";
   if (state === "failed") {
+    // A group, not a live region: Retry and Download are controls. Only the
+    // failure text is announced.
     return (
-      <span className="sys-save sys-save--failed" role="status">
-        <SystemIcon
-          name="octagon-alert"
-          size={16}
-          className="sys-tone-danger"
-        />
-        {compact ? null : <span className="sys-save-text">Save failed</span>}
+      <span
+        className={`sys-save sys-save--failed${size}`}
+        role="group"
+        aria-label="Save status"
+      >
+        <span className="sys-save-alert" role="alert">
+          <SystemIcon
+            name="octagon-alert"
+            size={16}
+            className="sys-tone-danger"
+          />
+          <span className="sys-save-text">Save failed</span>
+        </span>
         <button type="button" className="sys-text-btn" onClick={onRetry}>
           Retry<span className="sr-only"> saving</span>
         </button>
-        {compact ? null : (
-          <button type="button" className="sys-text-btn" onClick={onDownload}>
-            Download a copy
-          </button>
-        )}
+        <button
+          type="button"
+          className="sys-text-btn sys-save-download"
+          onClick={onDownload}
+        >
+          Download a copy
+        </button>
       </span>
     );
   }
   if (state === "offline") {
     const text = waiting ? `${waiting} waiting` : "Offline";
     return (
-      <span className="sys-save sys-save--offline" role="status">
+      <span className={`sys-save sys-save--offline${size}`} role="status">
         <SystemIcon name="cloud-off" size={16} className="sys-tone-warning" />
-        <span className={compact ? "sr-only" : "sys-save-text"}>{text}</span>
-        {compact && waiting ? (
+        <span className="sys-save-text">{text}</span>
+        {waiting ? (
           <span aria-hidden="true" className="sys-save-count">
             {waiting}
           </span>

@@ -25,7 +25,7 @@ function Badge({ badge }: { badge: StageBadge }) {
   const text = STATUS_TEXT[badge.kind];
   return (
     <span className="sys-stage-badge">
-      <StatusGlyph state={badge.kind} dot size={12} />
+      <StatusGlyph state={badge.kind} dot size={12} text={false} />
       {badge.count ? (
         <span aria-hidden="true" className="sys-stage-count">
           {badge.count}
@@ -39,9 +39,10 @@ function Badge({ badge }: { badge: StageBadge }) {
 }
 
 /**
- * The five stages as one tab list (`ui/Tabs` owns the roving keys: Left and
- * Right move and select, Home and End jump). At container widths under 1100 px (68.75rem) the inactive
- * segments show the icon only; the label stays in the accessible name.
+ * The five stages as one tab list; `ui/Tabs` owns the roving keys. Under 1100 px
+ * (68.75rem) the inactive segments show the icon only and keep the label in the
+ * accessible name. The width is the nearest container's: the App header, or
+ * the bar itself when it stands alone.
  */
 export function StageBar({
   active,
@@ -71,11 +72,13 @@ export function StageBar({
         aria-controls={panelId}
         tabIndex={selected ? 0 : -1}
         className={`sys-stage-tab${stage.id === "record" && live ? " sys-stage-tab--live" : ""}`}
-        title={`${stage.label}`}
+        title={stage.label}
         onClick={() => onSelect(stage.id)}
       >
         <SystemIcon name={stage.icon} size={form === "tabs" ? 24 : 16} />
         <span className="sys-stage-label">{stage.label}</span>
+        {/* A text node between the label and the badge keeps the words apart in the accessible name. */}
+        {badge ? " " : null}
         {badge ? <Badge badge={badge} /> : null}
       </button>
     );

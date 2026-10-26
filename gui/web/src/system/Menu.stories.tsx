@@ -58,6 +58,23 @@ function VerbRow({
   );
 }
 
+function PlainRow({
+  icon,
+  onSelect,
+  children,
+}: {
+  icon: SystemIconName;
+  onSelect: () => void;
+  children: string;
+}) {
+  return (
+    <MenuItem onSelect={onSelect}>
+      <SystemIcon name={icon} size={16} />
+      {children}
+    </MenuItem>
+  );
+}
+
 function Demo({
   label,
   trigger,
@@ -92,16 +109,37 @@ export const Project: Story = {
     <Demo label="Project menu" trigger="Episode 14">
       {(close) => (
         <>
-          <VerbRow verb="fixText" onSelect={close} />
+          <MenuItem
+            onSelect={close}
+            shortcut={capsOf(verbOf("fixText").keys[0]).join(" ")}
+          >
+            <span className="sys-menu-field">
+              <SystemIcon name="text-cursor-input" size={16} />
+              <span className="sr-only">Rename project, </span>
+              <span className="sys-menu-field-text">Episode 14</span>
+            </span>
+          </MenuItem>
           <MenuSection label="Recent">
-            <MenuItem onSelect={close}>Episode 13</MenuItem>
-            <MenuItem onSelect={close}>Pilot cut</MenuItem>
+            <PlainRow icon="history" onSelect={close}>
+              Episode 13
+            </PlainRow>
+            <PlainRow icon="history" onSelect={close}>
+              Pilot cut
+            </PlainRow>
           </MenuSection>
           <MenuSeparator />
-          <MenuItem onSelect={close}>All projects</MenuItem>
-          <MenuItem onSelect={close}>Settings</MenuItem>
-          <MenuItem onSelect={close}>Connect agent</MenuItem>
-          <MenuItem onSelect={close}>Help</MenuItem>
+          <PlainRow icon="folder-open" onSelect={close}>
+            All projects
+          </PlainRow>
+          <PlainRow icon="settings" onSelect={close}>
+            Settings
+          </PlainRow>
+          <PlainRow icon="plug" onSelect={close}>
+            Connect agent
+          </PlainRow>
+          <PlainRow icon="circle-help" onSelect={close}>
+            Help
+          </PlainRow>
         </>
       )}
     </Demo>
@@ -131,13 +169,12 @@ export const CreateHere: Story = {
     <Demo label="Create here" trigger="Create here">
       {(close) => (
         <>
-          <div className="sys-menu-anchor" aria-hidden="true">
-            12:04.3 · Maya
-          </div>
-          <VerbRow verb="comment" onSelect={close} />
-          <VerbRow verb="addChapter" onSelect={close} />
-          <VerbRow verb="record" onSelect={close} />
-          <VerbRow verb="import" onSelect={close} />
+          <MenuSection label="12:04.3 · Maya">
+            <VerbRow verb="comment" onSelect={close} />
+            <VerbRow verb="addChapter" onSelect={close} />
+            <VerbRow verb="record" onSelect={close} />
+            <VerbRow verb="import" onSelect={close} />
+          </MenuSection>
         </>
       )}
     </Demo>

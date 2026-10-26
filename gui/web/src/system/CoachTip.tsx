@@ -1,4 +1,5 @@
-import { type ReactNode, useId } from "react";
+import type { ReactNode } from "react";
+import { SystemIcon } from "./SystemIcon";
 
 export type CoachTipProps = {
   /** The element the hint points at. */
@@ -6,8 +7,9 @@ export type CoachTipProps = {
   /** One line. */
   text: string;
   placement?: "below" | "above";
-  /** The caller shows it once; any action on the anchor dismisses it. */
+  /** The caller shows it once. */
   shown: boolean;
+  /** Called by the close button and by any click or key activation on the anchor. */
   onDismiss: () => void;
 };
 
@@ -19,13 +21,17 @@ export function CoachTip({
   shown,
   onDismiss,
 }: CoachTipProps) {
-  const id = useId();
   return (
     <span className="sys-coach">
-      {children}
+      {/* Capture, so the anchor's own handler still runs. Not an interactive role: it only listens. */}
+      <span
+        className="sys-coach-anchor"
+        onClickCapture={shown ? onDismiss : undefined}
+      >
+        {children}
+      </span>
       {shown ? (
         <span
-          id={id}
           role="note"
           className={`sys-coach-tip sys-coach-tip--${placement}`}
         >
@@ -34,9 +40,10 @@ export function CoachTip({
             type="button"
             className="sys-icon-btn sys-coach-close"
             aria-label="Dismiss hint"
+            title="Dismiss hint"
             onClick={onDismiss}
           >
-            <span aria-hidden="true">×</span>
+            <SystemIcon name="x" size={16} />
           </button>
         </span>
       ) : null}

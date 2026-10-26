@@ -31,7 +31,16 @@ const meta: Meta<typeof StatusRow> = {
 export default meta;
 type Story = StoryObj<typeof StatusRow>;
 
-export const Queued: Story = { args: { detail: "Waiting for 2 jobs" } };
+const named = (state: string): Story["play"] =>
+  async function play({ canvasElement }) {
+    // The glyph carries its state name for assistive tech.
+    await expect(within(canvasElement).getByText(state)).toBeInTheDocument();
+  };
+
+export const Queued: Story = {
+  args: { detail: "Waiting for 2 jobs" },
+  play: named("Not yet"),
+};
 export const Running: Story = {
   args: {
     state: "running",
@@ -40,9 +49,17 @@ export const Running: Story = {
     progress: 0.6,
     action: { label: "Cancel", onAction: fn() },
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Running")).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("progressbar", { name: "Finding the words" }),
+    ).toHaveAttribute("aria-valuenow", "60");
+  },
 };
 export const Done: Story = {
   args: { state: "done", title: "Transcript ready", detail: "52:10" },
+  play: named("Done"),
 };
 export const NeedsYou: Story = {
   args: {
@@ -50,6 +67,7 @@ export const NeedsYou: Story = {
     title: "2 words are unsure",
     action: { label: "Fix", onAction: fn() },
   },
+  play: named("Needs you"),
 };
 export const Failed: Story = {
   args: {
@@ -57,6 +75,12 @@ export const Failed: Story = {
     title: "Upload stopped",
     detail: "Rosa, take 2",
     action: { label: "Try again", onAction: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Failed")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await expect(args.action?.onAction).toHaveBeenCalledOnce();
   },
 };
 export const NeedsModel: Story = {
@@ -67,7 +91,7 @@ export const NeedsModel: Story = {
   },
 };
 
-function Expandable(args: React.ComponentProps<typeof StatusRow>) {
+function ExpandableDemo(args: React.ComponentProps<typeof StatusRow>) {
   const [expanded, setExpanded] = useState(false);
   return (
     <StatusRow
@@ -87,20 +111,24 @@ function Expandable(args: React.ComponentProps<typeof StatusRow>) {
   );
 }
 
-export const ExpandableRow: Story = {
+export const Expandable: Story = {
   args: {
     state: "running",
     title: "Uploading takes",
     detail: "3 of 5",
     progress: 0.6,
   },
-  render: (args) => <Expandable {...args} />,
+  render: (args) => <ExpandableDemo {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
       canvas.getByRole("button", { name: /Uploading takes/ }),
     );
     await expect(canvas.getByText("Rosa")).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Uploading takes/ }),
+    );
+    await expect(canvas.queryByText("Rosa")).toBeNull();
   },
 };
 

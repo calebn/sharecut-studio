@@ -88,6 +88,24 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
+  it("leads with a decorative icon and names Undo as asked", async () => {
+    const user = userEvent.setup();
+    const onUndo = vi.fn();
+    render(
+      <Toast
+        toast={{ id: 1, message: "3 cuts" }}
+        icon={<svg data-testid="glyph" />}
+        undoLabel="Undo all"
+        onUndo={onUndo}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("glyph").closest("[aria-hidden]")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Undo all" }));
+    expect(onUndo).toHaveBeenCalledOnce();
+  });
+
   it("renders an empty region with no buttons when toast is null", () => {
     render(<Toast toast={null} onUndo={vi.fn()} onDismiss={vi.fn()} />);
     expect(region()).toBeEmptyDOMElement();

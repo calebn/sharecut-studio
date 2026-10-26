@@ -65,6 +65,32 @@ export const Empty: Story = {};
 
 export const Recent: Story = {
   args: { recent: ["verb:cut", "stage:review", "person:rosa"] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Recent")).toBeVisible();
+    await expect(canvas.getAllByRole("option")).toHaveLength(3);
+  },
+};
+
+/** Recent ids that no longer exist fall back to every group. */
+export const RecentGone: Story = {
+  args: { recent: ["verb:gone"] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByText("Recent")).toBeNull();
+    await expect(canvas.getByText("Commands")).toBeVisible();
+    await expect(canvas.queryByText("No matches")).toBeNull();
+  },
+};
+
+/** Verbs with no key (Invite) are palette-only, so they are listed. */
+export const KeyLessVerb: Story = {
+  args: { initialQuery: "invite" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("option", { name: /^Invite/ }),
+    ).toBeVisible();
+  },
 };
 
 export const Filtered: Story = {
@@ -79,7 +105,12 @@ export const Filtered: Story = {
   },
 };
 
-export const NoMatches: Story = { args: { initialQuery: "zzz" } };
+export const NoMatches: Story = {
+  args: { initialQuery: "zzz" },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText("No matches")).toBeVisible();
+  },
+};
 
 export const Phone: Story = {
   args: { form: "sheet" },

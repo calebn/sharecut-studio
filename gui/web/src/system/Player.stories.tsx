@@ -42,6 +42,7 @@ const meta: Meta<typeof Player> = {
     onExpand: fn(),
     onCollapse: fn(),
     onRetry: fn(),
+    onChapter: fn(),
   },
   decorators: [
     (Story) => (
@@ -56,7 +57,7 @@ const meta: Meta<typeof Player> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Bar form: 56 px on every device. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, A/B and Comment on the right. Play is ink-filled, not accent. Below a 40rem container the skip buttons, the total and the extra pills hide. The expanded form adds a 64 px Overview strip, a 64 px Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
+          "Bar form: 56 px on every device. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. Below a 40rem container the skip buttons and the total hide and each Status pill shows its glyph only; the text stays for assistive tech. The expanded form adds a 64 px Overview strip, a 64 px Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
       },
     },
   },
@@ -70,19 +71,63 @@ export const Playing: Story = { args: { playing: true } };
 export const WithCuts: Story = { args: { cuts: "−4:10" } };
 export const HearOriginalHeld: Story = {
   args: { hearOriginal: true, cuts: "−4:10" },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const original = canvas.getByRole("button", { name: "A" });
+    await expect(original).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByRole("button", { name: "B" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "B" }));
+    await expect(args.onHearOriginal).toHaveBeenCalledWith(false);
+  },
 };
 export const Loading: Story = { args: { state: "loading" } };
 export const MixUpdating: Story = {
   args: { state: "mix-updating", cuts: "−4:10" },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText("Updating mix")).toBeVisible();
+  },
 };
-export const AudioError: Story = { args: { state: "error" } };
-export const Soloed: Story = { args: { solo: "Rosa", playing: true } };
+export const AudioError: Story = {
+  args: { state: "error" },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Audio error")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await expect(args.onRetry).toHaveBeenCalledOnce();
+  },
+};
+export const Soloed: Story = {
+  args: { solo: "Rosa", playing: true },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Solo Rosa"),
+    ).toBeInTheDocument();
+  },
+};
 export const Following: Story = {
-  args: { following: { name: "Rosa", colorIndex: 1 }, playing: true },
+  args: {
+    following: { name: "Rosa", colorIndex: 1 },
+    playing: true,
+    onUnfollow: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Following Rosa")).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Stop following Rosa" }),
+    );
+    await expect(args.onUnfollow).toHaveBeenCalledOnce();
+  },
 };
 
-function Toggling(args: PlayerProps) {
-  const [expanded, setExpanded] = useState(false);
+function Toggling({
+  initialExpanded = false,
+  ...args
+}: PlayerProps & { initialExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(initialExpanded);
   const [playing, setPlaying] = useState(false);
   return (
     <Player
@@ -105,23 +150,43 @@ export const Phone: Story = {
   },
 };
 
+/** Starts expanded, collapses to the bar, and expands again: it ends expanded on purpose, for the sweep and the screenshot. */
 export const Expanded: Story = {
-  render: (args) => <Toggling {...args} />,
+  render: (args) => <Toggling {...args} initialExpanded />,
   args: { cuts: "−4:10" },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", { name: /Expand player/ }),
-    );
     await expect(canvas.getByRole("list", { name: "Chapters" })).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Collapse" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: /The long way round/ }),
+    );
+    await expect(args.onChapter).toHaveBeenCalledWith(1);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse player" }),
+    );
     await expect(canvas.queryByRole("list", { name: "Chapters" })).toBeNull();
     await userEvent.click(
       canvas.getByRole("button", { name: /Expand player/ }),
     );
+    await expect(canvas.getByRole("list", { name: "Chapters" })).toBeVisible();
   },
 };
 
 export const ExpandedGuest: Story = {
   args: { form: "expanded", guest: true, playing: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: "A" })).toBeNull();
+    await expect(canvas.getByRole("button", { name: "Comment" })).toBeVisible();
+  },
+};
+
+export const ExpandedAudioError: Story = {
+  args: { form: "expanded", state: "error" },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Audio error")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await expect(args.onRetry).toHaveBeenCalledOnce();
+  },
 };
