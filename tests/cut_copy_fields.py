@@ -71,8 +71,8 @@ SHARED_FIELDS: dict[str, str] = {
         "base_server_seq causation_id client_id client_seq command_id payload role type"
     ),
     "SessionSuggestion": (
-        "anchor at_sec from_sec id kind room_tone selected_take session_id session_number status "
-        "takes to_sec track_ids"
+        "anchor at_sec end_anchor from_sec id kind room_tone selected_take session_id session_number "
+        "status takes to_sec track_ids"
     ),
     "SocialClipCandidate": (
         "approved caption_suggestion end exported_path id reasons review_required score "
