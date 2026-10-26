@@ -163,13 +163,16 @@ def test_an_explicit_cpu_engine_never_looks_at_the_gpu(planted) -> None:
     assert [c["device"] for c in calls] == ["cpu"]
 
 
-def test_a_gpu_that_will_not_load_falls_back_to_the_cpu_once(planted, caplog) -> None:
+@pytest.mark.parametrize(
+    "message", ["CUDA out of memory", "Requested float16 compute type, but the device does not"]
+)
+def test_a_gpu_that_will_not_load_falls_back_to_the_cpu_once(planted, caplog, message) -> None:
     calls: list[str] = []
 
     def factory(name, **kwargs):
         calls.append(kwargs["device"])
         if kwargs["device"] == "cuda":
-            raise RuntimeError("CUDA out of memory")
+            raise RuntimeError(message)
         return MagicMock()
 
     engine = _engine()
@@ -178,7 +181,7 @@ def test_a_gpu_that_will_not_load_falls_back_to_the_cpu_once(planted, caplog) ->
         engine._get_model()
     assert calls == ["cuda", "cpu"]
     assert sum("CPU for the life of this engine" in r.message for r in caplog.records) == 1
-    assert "out of memory" in caplog.text
+    assert message in caplog.text
 
 
 def test_a_gpu_that_fails_mid_run_redoes_the_job_on_the_cpu(planted, tmp_path) -> None:
@@ -242,6 +245,87 @@ def test_cancel_does_not_trigger_a_fallback(planted, tmp_path, error) -> None:
         with pytest.raises(type(error)):
             _engine().transcribe_file(audio, language="en")
     assert made == ["cuda"]
+
+
+def _run_with_gpu_error(tmp_path, error) -> list[str]:
+    models = {"cuda": MagicMock(), "cpu": _words_model("hello")}
+    models["cuda"].transcribe.side_effect = error
+    made: list[str] = []
+
+    def factory(name, **kwargs):
+        made.append(kwargs["device"])
+        return models[kwargs["device"]]
+
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"x")
+    with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
+        _engine().transcribe_file(audio, language="en")
+    return made
+
+
+@pytest.mark.parametrize(
+    "error", [RuntimeError("out of memory"), MemoryError("std::bad_alloc"), MemoryError()]
+)
+def test_a_host_out_of_memory_run_error_is_not_retried_on_the_cpu(planted, tmp_path, error) -> None:
+    with pytest.raises(type(error)):
+        _run_with_gpu_error(tmp_path, error)
+
+
+def test_a_gpu_error_named_only_by_the_cause_falls_back(planted, tmp_path) -> None:
+    try:
+        raise ValueError("transcription failed") from RuntimeError("CUDA failed: out of memory")
+    except ValueError as wrapped:
+        assert _run_with_gpu_error(tmp_path, wrapped) == ["cuda", "cpu"]
+
+
+def test_a_cancel_or_missing_model_in_the_cause_chain_does_not_fall_back(planted, tmp_path) -> None:
+    missing = ModelMissing(
+        id="whisper",
+        model="CUDA",
+        label="CUDA Whisper",
+        purpose="speech-to-text",
+        size="1 GB",
+        size_bytes=None,
+        command="podcast-mcp models fetch",
+        state="missing",
+    )
+    for inner in (CancelledProgress("CUDA cancelled"), missing):
+        try:
+            raise ValueError("transcription failed") from inner
+        except ValueError as wrapped:
+            with pytest.raises(ValueError, match="transcription failed"):
+                _run_with_gpu_error(tmp_path, wrapped)
+
+
+def test_a_suppressed_context_is_not_followed(planted, tmp_path) -> None:
+    try:
+        try:
+            raise RuntimeError("CUDA failed")
+        except RuntimeError:
+            raise ValueError("transcription failed") from None
+    except ValueError as wrapped:
+        with pytest.raises(ValueError, match="transcription failed"):
+            _run_with_gpu_error(tmp_path, wrapped)
+
+
+def test_a_cyclic_cause_chain_terminates(planted, tmp_path) -> None:
+    a, b = RuntimeError("one"), RuntimeError("two")
+    a.__cause__, b.__cause__ = b, a
+    with pytest.raises(RuntimeError, match="one"):
+        _run_with_gpu_error(tmp_path, a)
+
+
+def test_a_cancel_while_loading_does_not_fall_back(planted) -> None:
+    calls: list[str] = []
+
+    def factory(name, **kwargs):
+        calls.append(kwargs["device"])
+        raise CancelledProgress("stop")
+
+    with use_hardware_profile(_gpu()), patch("faster_whisper.WhisperModel", factory):
+        with pytest.raises(CancelledProgress):
+            _engine()._get_model()
+    assert calls == ["cuda"]
 
 
 def test_a_missing_model_is_reported_not_retried_on_the_cpu(tmp_path, monkeypatch) -> None:

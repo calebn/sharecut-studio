@@ -70,12 +70,26 @@ ASR_CACHE_VARIANTS = 2
 ASR_CACHE_LOCK_TIMEOUT_SEC = 10.0
 
 _T = TypeVar("_T")
-# What CTranslate2 raises when the GPU, its driver or the CUDA libraries are the problem.
-_GPU_ERROR = re.compile(r"cuda|cublas|cudnn|out of memory|\bgpu\b", re.IGNORECASE)
+# A bare "out of memory" is left out: the host raises it too, and the CPU needs more host memory.
+_GPU_ERROR = re.compile(r"cuda|cublas|cudnn|\bgpu\b", re.IGNORECASE)
 
 # ``forced_alignment_jobs`` statuses where the aligner's times replaced Whisper's
 # (set in ``_align_words``); ``keep_whisper`` records ``failed`` / ``skipped``.
 ALIGNMENT_SUCCESS_STATUSES = frozenset({"aligned", "cached"})
+
+
+def _is_gpu_failure(exc: BaseException) -> bool:
+    """True when ``exc``, or an exception it was raised from, reads as a GPU error."""
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        if isinstance(cur, ModelMissing | CancelledProgress):
+            return False
+        if _GPU_ERROR.search(str(cur)):
+            return True
+        seen.add(id(cur))
+        cur = cur.__cause__ or (None if cur.__suppress_context__ else cur.__context__)
+    return False
 
 
 def forced_alignment_succeeded(entry: Mapping[str, Any]) -> bool:
@@ -512,7 +526,8 @@ class TranscriptionEngine:
             try:
                 self._model = self._load_model(WhisperModel, model_path, placement)
             except Exception as exc:
-                if placement.device == "cpu":
+                # No text gate: a compute-type error names no CUDA library.
+                if placement.device == "cpu" or isinstance(exc, ModelMissing | CancelledProgress):
                     raise
                 self._fall_back_to_cpu(f"the GPU model would not load ({exc})", exc)
                 self._model = self._load_model(WhisperModel, model_path, CPU_PLACEMENT)
@@ -551,7 +566,7 @@ class TranscriptionEngine:
         """Switch to the CPU after a GPU error; False when there is nothing to fall back from."""
         if self.placement is None or self.placement.device == "cpu":
             return False
-        if isinstance(exc, ModelMissing | CancelledProgress) or not _GPU_ERROR.search(str(exc)):
+        if not _is_gpu_failure(exc):
             return False
         self._fall_back_to_cpu(f"the GPU run failed ({exc})", exc)
         return True

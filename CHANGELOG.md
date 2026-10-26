@@ -16,7 +16,7 @@
 
 ### Fixes
 
-* A CLI command or stdio MCP tool call no longer writes the project directly when the Studio serving it is slow to answer (#2318). The Studio ping now waits 5 s and is tried twice; a Studio that accepts the connection but stays silent stops the command with "Studio (pid N) is serving this project but did not answer in time" and writes nothing.
+* A Whisper GPU run that fails with a host out-of-memory error is no longer retried on the CPU (#2248). Only CUDA, cuBLAS, cuDNN and GPU errors, including ones named by an error's cause, trigger a retry after a failed run; a GPU model that fails to load is still retried on the CPU.
 
 * Uploading an MPEG-TS, M2TS or MPEG-PS file whose audio starts late now says "audio starts late in an MPEG transport stream; re-encode it" to the host instead of "not a playable audio file" (#2310). Guests still see the generic copy. An upload whose probe times out now reports "not a playable audio file" instead of the raw timeout text.
 
@@ -27,6 +27,8 @@
 * Audio health stats (`measure_astats`) and `check_loudness` now read the first audio stream, the one the render plays, on media with several audio streams (#2131). Single-stream files measure the same as before.
 * `check_loudness`, `measure_astats` and the speech-gated loudness blocks no longer read a file's metadata tags as measurements (#2143); mastering's loudness measurement ignores tag text on our own renders. A tagged file with no audio stream used to pass `check_loudness`; `check_loudness` and `measure_astats` now give `null` for it or for a failed FFmpeg run, and tags that are not valid UTF-8 no longer crash them. Untagged files measure the same as before.
 * `load_profile` no longer falls back to a stale speaker profile (stem hash mismatch).
+
+* A CLI command or stdio MCP tool call no longer writes the project directly when the Studio serving it is slow to answer (#2318). The Studio ping now waits 5 s and is tried twice; a Studio that accepts the connection but stays silent stops the command with "Studio (pid N) is serving this project but did not answer in time" and writes nothing.
 
 ## [0.1.1](https://github.com/calebn/sharecut-studio/compare/v0.1.0...v0.1.1) (2026-10-18)
 
