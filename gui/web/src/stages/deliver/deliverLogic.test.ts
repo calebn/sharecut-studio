@@ -112,6 +112,34 @@ describe("export settings", () => {
     });
   });
 
+  it("holds both ends inside the episode", () => {
+    expect(clampPart({ start: 99.5, end: 200 }, 100, "end")).toEqual({
+      mode: "part",
+      start: 99,
+      end: 100,
+    });
+    expect(clampPart({ start: 200, end: 300 }, 100, "start")).toEqual({
+      mode: "part",
+      start: 99,
+      end: 100,
+    });
+    expect(clampPart({ start: 0, end: 0.2 }, 0.5, "end")).toEqual({
+      mode: "part",
+      start: 0,
+      end: 0.5,
+    });
+  });
+
+  it("blocks an Out that is not after In", () => {
+    const part = (start: number, end: number) => ({
+      ...SETTINGS,
+      part: { mode: "part" as const, start, end },
+    });
+    expect(exportBlocker(part(10, 10))).toBe("Out must come after In.");
+    expect(exportBlocker(part(10, 5))).toBe("Out must come after In.");
+    expect(exportBlocker(part(10, 11))).toBeUndefined();
+  });
+
   it("needs a format", () => {
     expect(
       exportBlocker({
@@ -169,6 +197,17 @@ describe("export contract", () => {
     expect(stale(CLIPS, removeChapter(CHAPTERS, "c2"))).toBe(true);
     expect(stale(CLIPS, addChapterAt(CHAPTERS, 50, "n"))).toBe(true);
     expect(stale(CLIPS, [...CHAPTERS])).toBe(false);
+  });
+
+  it("goes stale when an approved clip's In moves, not an unapproved one's", () => {
+    const moved = (id: string) =>
+      CLIPS.map((c) => (c.id === id ? { ...c, start: c.start + 1 } : c));
+    const stale = (clips: typeof CLIPS) =>
+      currentExportState(DONE, exportRequest(SETTINGS, clips, CHAPTERS))
+        .phase === "stale";
+    expect(stale(moved("k3"))).toBe(true);
+    expect(stale(moved("k1"))).toBe(false);
+    expect(stale(CLIPS)).toBe(false);
   });
 
   it("compares the range", () => {
@@ -297,6 +336,20 @@ describe("clips", () => {
     );
   });
 
+  it("trims only the clip asked for", () => {
+    const next = trimClip(CLIPS, "k1", "end", 640, 3120);
+    expect(next[0]?.end).toBe(640);
+    expect(next[1]).toEqual(CLIPS[1]);
+    expect(next[2]).toEqual(CLIPS[2]);
+    expect(trimClip(CLIPS, "missing", "end", 640, 3120)).toEqual(CLIPS);
+  });
+
+  it("ignores a second restore of the same clip", () => {
+    const gone = CLIPS[1]!;
+    const once = restoreClip(removeClip(CLIPS, gone.id), gone, 1);
+    expect(restoreClip(once, gone, 1)).toHaveLength(3);
+  });
+
   it("names items without a title or with a repeated one", () => {
     expect(itemNames(["", "A", "A", "B"], "clip")).toEqual([
       "clip 1",
@@ -311,5 +364,58 @@ describe("clips", () => {
     if (!gone) throw new Error("fixture");
     const back = restoreClip(removeClip(CLIPS, gone.id), gone, 1);
     expect(back.map((c) => c.id)).toEqual(["k1", "k2", "k3"]);
+  });
+});
+
+describe("peaks", () => {
+  const peaks = (truePeak?: number) =>
+    readinessRows({ ...CLEAR_FACTS, truePeak }).find((r) => r.id === "peaks");
+
+  it("allows the limit itself and flags anything over it", () => {
+    expect(peaks(-1.5)?.state).toBe("done");
+    expect(peaks(-1.5)?.fix).toBeUndefined();
+    expect(peaks(-1.4)?.state).toBe("needs-you");
+    expect(peaks(-1.4)?.fix?.stage).toBe("edit");
+    expect(peaks(undefined)?.fix).toBeUndefined();
+    expect(peaks(-3)?.fix).toBeUndefined();
+  });
+});
+
+describe("selections that are not finite", () => {
+  it("fall back", () => {
+    expect(
+      validSelection({ start: 0, end: Number.POSITIVE_INFINITY }, 100),
+    ).toBeNull();
+    expect(
+      validSelection({ start: Number.NEGATIVE_INFINITY, end: 5 }, 100),
+    ).toBeNull();
+    expect(validSelection({ start: 1, end: Number.NaN }, 100)).toBeNull();
+  });
+});
+
+describe("what makes a finished export current", () => {
+  const part = (start: number, end: number) => ({
+    ...REQUEST,
+    settings: { ...SETTINGS, part: { mode: "part" as const, start, end } },
+  });
+
+  it("compares In and Out even when a selection fixed the range", () => {
+    const range = { start: 40, end: 90 };
+    const wrote = { ...part(10, 20), range };
+    expect(coversRequest(wrote, { ...part(10, 20), range })).toBe(true);
+    expect(coversRequest(wrote, { ...part(10, 30), range })).toBe(false);
+    expect(coversRequest(wrote, { ...part(5, 20), range })).toBe(false);
+    expect(coversRequest(wrote, { ...REQUEST, range })).toBe(false);
+  });
+
+  it("is stale when something is added after the last item", () => {
+    const later = [...CHAPTERS, { id: "z", at: 99999, title: "Epilogue" }];
+    expect(coversRequest(REQUEST, { ...REQUEST, chapters: later })).toBe(false);
+    expect(
+      coversRequest(REQUEST, {
+        ...REQUEST,
+        clips: [...REQUEST.clips, { id: "zz", start: 0, end: 5, title: "x" }],
+      }),
+    ).toBe(false);
   });
 });

@@ -406,6 +406,23 @@ describe("stale after an export", () => {
     expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("0:30.0");
   });
 
+  it("goes stale when an approved clip's In moves", async () => {
+    setup({ exportState: DONE });
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Cold open" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    const start = screen.getByRole("textbox", { name: "In of Cold open" });
+    await userEvent.clear(start);
+    await userEvent.type(start, "0:05{Enter}");
+    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+    await userEvent.clear(start);
+    await userEvent.type(start, "0:00{Enter}");
+    expect(screen.queryByText("Edited since export")).toBeNull();
+  });
+
   it("lists the clips an export did include", () => {
     setup({ exportState: DONE });
     expect(screen.getByText("clips/cold-open.wav")).toBeInTheDocument();
@@ -465,6 +482,28 @@ describe("chapters", () => {
   });
 });
 
+describe("the Add at playhead position", () => {
+  it("never puts a chapter past the end of the episode", async () => {
+    setup({ playhead: TOTAL + 500 });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add at playhead" }),
+    );
+    const times = screen
+      .getAllByRole("textbox", { name: /^Time of/ })
+      .map((t) => (t as HTMLInputElement).value);
+    expect(times.at(-1)).toBe("52:00.0");
+  });
+});
+
+describe("a selection that appears after a plain export", () => {
+  it("does not make the export stale", () => {
+    const all = props({ exportState: DONE });
+    const { rerender } = render(<DeliverStage {...all} />);
+    rerender(<DeliverStage {...all} selection={{ start: 40, end: 90 }} />);
+    expect(screen.queryByText("Edited since export")).toBeNull();
+  });
+});
+
 describe("names for assistive technology", () => {
   it("falls back for an empty title and tells duplicates apart", async () => {
     setup({
@@ -498,7 +537,7 @@ describe("clips", () => {
     expect(document.activeElement?.textContent).toContain("Approved");
   });
 
-  it("removes a clip with an Undo toast", async () => {
+  it("removes a clip, and Undo brings back only that clip", async () => {
     setup();
     await userEvent.click(
       screen.getByRole("button", { name: "More for The boat was still there" }),
@@ -507,10 +546,16 @@ describe("clips", () => {
       await screen.findByRole("menuitem", { name: "Remove" }),
     );
     expect(screen.queryByDisplayValue("The boat was still there")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Approve Nobody asked the river/ }),
+    );
+    await userEvent.type(clipTitle("Nobody asked the river"), "!");
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(
       screen.getByDisplayValue("The boat was still there"),
     ).toBeInTheDocument();
+    expect(clipTitle("Nobody asked the river!")).toBeInTheDocument();
+    expect(screen.getAllByText("Approved")).toHaveLength(2);
   });
 
   it("opens a clip in Edit from the more menu", async () => {
@@ -572,5 +617,162 @@ describe("states", () => {
     const { all } = setup({ exportState: NEEDS_MODEL });
     await userEvent.click(screen.getByRole("button", { name: "Get" }));
     expect(all.onGetModel).toHaveBeenCalledOnce();
+  });
+});
+
+describe("what each part of the page shows", () => {
+  const rowTitles = [
+    "Exporting",
+    "Export failed",
+    "Edited since export",
+    "Exported",
+  ];
+  const shown = () =>
+    rowTitles.filter((t) => screen.queryByText(t, { exact: true }) !== null);
+
+  it.each([
+    [
+      { phase: "running", progress: 0.2, detail: "x" } as ExportState,
+      ["Exporting"],
+    ],
+    [{ phase: "failed", cause: "no disk" } as ExportState, ["Export failed"]],
+    [DONE, ["Exported"]],
+    [{ ...DONE, phase: "stale" } as ExportState, ["Edited since export"]],
+    [NEVER, []],
+  ])("shows only its own status row", (exportState, titles) => {
+    setup({ exportState });
+    expect(shown()).toEqual(titles);
+  });
+
+  it("lists exported files only after an export", () => {
+    const never = setup();
+    expect(never.container.querySelector(".dv-files")).toBeNull();
+    never.unmount();
+    const done = setup({ exportState: DONE });
+    expect(done.container.querySelector(".dv-files")).not.toBeNull();
+  });
+
+  it("offers Reveal in the app and Download in a browser, for the file clicked", async () => {
+    const app = setup({ exportState: DONE });
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Reveal" })[0] as HTMLElement,
+    );
+    expect(app.all.onReveal).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "field-notes.mp3" }),
+    );
+    expect(app.all.onDownload).not.toHaveBeenCalled();
+    app.unmount();
+    const browser = setup({ exportState: DONE, env: "browser" });
+    expect(screen.queryByRole("button", { name: "Reveal" })).toBeNull();
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Download" })[0] as HTMLElement,
+    );
+    expect(browser.all.onDownload).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "field-notes.mp3" }),
+    );
+    expect(browser.all.onReveal).not.toHaveBeenCalled();
+  });
+
+  it("marks the listen link only after an export", () => {
+    const never = setup();
+    expect(never.container.querySelector("[data-highlight]")).toBeNull();
+    never.unmount();
+    const done = setup({ exportState: DONE });
+    expect(done.container.querySelector("[data-highlight]")).not.toBeNull();
+  });
+
+  it("shows the listen link when ready and a skeleton while loading", () => {
+    const ready = setup();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    ready.unmount();
+    setup({ state: "loading" });
+    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+  });
+
+  it("marks the page busy only while loading", () => {
+    const ready = setup();
+    expect(ready.container.querySelector(".dv-page[aria-busy]")).toBeNull();
+    ready.unmount();
+    const loading = setup({ state: "loading" });
+    expect(
+      loading.container.querySelector('.dv-page[aria-busy="true"]'),
+    ).not.toBeNull();
+  });
+
+  it("shows which loudness and range are chosen", async () => {
+    setup();
+    const pressed = (name: RegExp | string) =>
+      screen.getByRole("button", { name }).getAttribute("aria-pressed");
+    expect(pressed(/^Podcast/)).toBe("true");
+    expect(pressed(/^Broadcast/)).toBe("false");
+    expect(pressed("Whole episode")).toBe("true");
+    expect(pressed("Part…")).toBe("false");
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    expect(pressed("Whole episode")).toBe("false");
+    expect(pressed("Part…")).toBe("true");
+    await userEvent.click(screen.getByRole("button", { name: /^Broadcast/ }));
+    expect(pressed(/^Broadcast/)).toBe("true");
+    expect(pressed(/^Podcast/)).toBe("false");
+  });
+
+  it("plays and pauses from the Player", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+  });
+
+  it("shows one Find clips when there are no clips, and the strength and approval of each card", () => {
+    const empty = setup({ initialClips: [] });
+    expect(screen.getAllByRole("button", { name: "Find clips" })).toHaveLength(
+      1,
+    );
+    empty.unmount();
+    const full = setup();
+    expect(
+      full.container.querySelectorAll(".dv-clip[data-approved]"),
+    ).toHaveLength(1);
+    const on = (name: string) =>
+      screen.getByRole("img", { name }).querySelectorAll("[data-on]").length;
+    expect(on("Strong clip")).toBe(3);
+    expect(on("Fair clip")).toBe(2);
+    expect(on("Weak clip")).toBe(1);
+  });
+});
+
+describe("the double-export timer", () => {
+  it("is cancelled when the host answers, so it cannot release a later export early", () => {
+    vi.useFakeTimers();
+    try {
+      const all = props();
+      const { container, rerender } = render(<DeliverStage {...all} />);
+      const stage = () => container.querySelector(".dv-stage") as Element;
+      modE(stage());
+      rerender(
+        <DeliverStage {...all} exportState={{ phase: "failed", cause: "x" }} />,
+      );
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledTimes(2);
+      act(() => {
+        vi.advanceTimersByTime(1100);
+      });
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("Mod+E on Apple with both modifiers", () => {
+  it("needs Cmd without Ctrl", () => {
+    platform.apple = true;
+    const { stage, all } = setup();
+    fireEvent.keyDown(stage(), { key: "e", metaKey: true, ctrlKey: true });
+    expect(all.onExport).not.toHaveBeenCalled();
   });
 });

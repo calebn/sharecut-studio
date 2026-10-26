@@ -7,6 +7,16 @@ import { RoleChip } from "./RoleChip";
 import { TimeField } from "./TimeField";
 
 describe("RoleChip", () => {
+  it.each([
+    ["viewer", "Viewer: can listen", "Viewer"],
+    ["commenter", "Commenter: can comment", "Commenter"],
+    ["editor", "Editor: can edit", "Editor"],
+  ] as const)("names %s and shows its word", (access, name, word) => {
+    render(<RoleChip access={access} />);
+    expect(screen.getByRole("img", { name })).toBeInTheDocument();
+    expect(screen.getByText(word)).toBeInTheDocument();
+  });
+
   it("names the role without its text when compact", () => {
     render(<RoleChip access="commenter" compact />);
     expect(
@@ -17,6 +27,78 @@ describe("RoleChip", () => {
 });
 
 describe("LinkRow", () => {
+  const LINK = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
+
+  it("copies from the keyboard", async () => {
+    const onCopy = vi.fn();
+    render(<LinkRow access="viewer" link={LINK} onCopy={onCopy} />);
+    screen.getByRole("button", { name: "Copy" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onCopy).toHaveBeenCalledOnce();
+  });
+
+  it("names who opened it, shows the note and the whole link on hover", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        note="Pinned to Rough cut"
+        openedBy={[{ name: "Rosa" }, { name: "Jon" }]}
+        onCopy={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Opened by Rosa, Jon" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pinned to Rough cut")).toBeInTheDocument();
+    expect(screen.getByTitle(LINK)).toBeInTheDocument();
+  });
+
+  it("marks the row after an export and drops the role word on phone", () => {
+    const { container } = render(
+      <LinkRow
+        access="commenter"
+        link={LINK}
+        highlight
+        compact
+        onCopy={() => {}}
+      />,
+    );
+    expect(container.querySelector('[data-highlight="true"]')).not.toBeNull();
+    expect(screen.queryByText("Commenter")).toBeNull();
+    expect(
+      screen.getByRole("img", { name: "Commenter: can comment" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the copy state on the row and selects a blocked link", () => {
+    const { container, rerender } = render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        copyState="blocked"
+        onCopy={() => {}}
+      />,
+    );
+    expect(container.querySelector('[data-copy="blocked"]')).not.toBeNull();
+    expect(container.querySelector("[data-selected]")).not.toBeNull();
+    rerender(<LinkRow access="viewer" link={LINK} onCopy={() => {}} />);
+    expect(container.querySelector("[data-selected]")).toBeNull();
+  });
+
+  it("keeps Share on phone even when the clipboard is blocked", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        share
+        copyState="blocked"
+        onCopy={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+  });
+
   it("makes no link until Copy and says so", async () => {
     const onCopy = vi.fn();
     render(<LinkRow access="viewer" link={null} onCopy={onCopy} />);
@@ -113,6 +195,7 @@ describe("TimeField", () => {
     await userEvent.clear(input);
     await userEvent.type(input, "3{Escape}");
     expect(onChange).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue("10");
   });
 
   it("holds at the lower bound as well as the upper", async () => {
@@ -140,6 +223,15 @@ describe("TimeField", () => {
     const { onChange, input } = setup();
     await userEvent.clear(input);
     await userEvent.type(input, "abc{Enter}");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores movement when no drag started", () => {
+    const { onChange } = setup();
+    fireEvent.pointerMove(screen.getByText("Gain"), {
+      clientX: 140,
+      pointerId: 1,
+    });
     expect(onChange).not.toHaveBeenCalled();
   });
 
