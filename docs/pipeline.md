@@ -628,7 +628,8 @@ timeline-dependent part always runs again: the placement, the written cut, and t
 pads, which must equal what the entry recorded or the full check runs. A check that read an
 unreadable file is never stored. `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
 hit and fails if it differs; the approve and cut tests pass in that mode except nine that count
-checks (named in `tests/conftest.py`). Off by default.
+checks (named in `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
+which set the flags themselves. Off by default.
 
 ### Which fingerprint answers which question
 
