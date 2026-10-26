@@ -436,6 +436,12 @@ def _seconds(value: Any) -> float | None:
     return seconds if math.isfinite(seconds) else None
 
 
+def _rebases_audio_only_reads(probe_json: dict[str, Any]) -> bool:
+    """MPEG-TS and MPEG-PS: ffmpeg zeroes an audio-only read's clock while `-ss` keeps the container's."""
+    names = str(probe_json.get("format", {}).get("format_name", "")).split(",")
+    return "mpegts" in names or "mpeg" in names
+
+
 def _stream_duration_unreliable(probe_json: dict[str, Any]) -> bool:
     """Containers whose declarations can omit packets or later logical streams."""
     names = str(probe_json.get("format", {}).get("format_name", ""))
@@ -849,6 +855,9 @@ class FFmpegEngine:
                 duration = scan_end - container_start - audio_start
             # A forged start would push every seek out of range, like a forged extent.
             scan_failed = scan_failed or audio_start > MAX_PROBED_AUDIO_EXTENT_SEC
+            scan_failed = scan_failed or (
+                audio_start > _AUDIO_START_GAP_SEC and _rebases_audio_only_reads(data)
+            )
         return AudioProbe(
             duration_sec=duration,
             sample_rate=int(stream.get("sample_rate") or 48000),
