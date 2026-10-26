@@ -159,11 +159,7 @@ export function EpisodeFile({
               settings.part.mode === "part" &&
               onSettings({
                 ...settings,
-                part: clampPart(
-                  { start, end: settings.part.end },
-                  total,
-                  "start",
-                ),
+                part: clampPart({ start, end: settings.part.end }, total),
               })
             }
           />
@@ -179,11 +175,7 @@ export function EpisodeFile({
               settings.part.mode === "part" &&
               onSettings({
                 ...settings,
-                part: clampPart(
-                  { start: settings.part.start, end },
-                  total,
-                  "end",
-                ),
+                part: clampPart({ start: settings.part.start, end }, total),
               })
             }
           />

@@ -40,14 +40,11 @@ export function partSeconds(part: ExportPart, total: number): number {
 export function clampPart(
   next: { start: number; end: number },
   total: number,
-  moved: "start" | "end",
 ): ExportPart {
   const gap = Math.min(1, total);
   const start = Math.min(Math.max(0, next.start), total - gap);
   const end = Math.max(Math.min(total, next.end), start + gap);
-  return moved === "start"
-    ? { mode: "part", start, end: Math.max(end, start + gap) }
-    : { mode: "part", start: Math.min(start, end - gap), end };
+  return { mode: "part", start, end };
 }
 
 export function estimateBytes(format: FormatId, seconds: number): number {

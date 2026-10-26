@@ -29,6 +29,27 @@ describe("RoleChip", () => {
 describe("LinkRow", () => {
   const LINK = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
 
+  it("shows the link cut in the middle, and nothing when nobody opened it", () => {
+    render(<LinkRow access="viewer" link={LINK} onCopy={() => {}} />);
+    expect(screen.getByText(middleTruncate(LINK))).toBeInTheDocument();
+    expect(screen.queryByText(LINK)).toBeNull();
+    expect(screen.queryByRole("img", { name: /Opened by/ })).toBeNull();
+  });
+
+  it("shows the key to press when the clipboard is blocked", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        copyState="blocked"
+        onCopy={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /^Press .*C$/ }),
+    ).toBeInTheDocument();
+  });
+
   it("copies from the keyboard", async () => {
     const onCopy = vi.fn();
     render(<LinkRow access="viewer" link={LINK} onCopy={onCopy} />);
@@ -196,6 +217,44 @@ describe("TimeField", () => {
     await userEvent.type(input, "3{Escape}");
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(input).toHaveValue("10");
+  });
+
+  it("shows the formatted, clamped value again after Enter, an arrow or blur", async () => {
+    const { input } = setup();
+    await userEvent.clear(input);
+    await userEvent.type(input, "30{Enter}");
+    expect(input).toHaveValue("10");
+    await userEvent.clear(input);
+    await userEvent.type(input, "7");
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input).toHaveValue("10");
+    await userEvent.clear(input);
+    await userEvent.type(input, "7");
+    await userEvent.tab();
+    expect(input).toHaveValue("10");
+  });
+
+  it("steps by one by default and keeps the arrow from moving the caret", () => {
+    const { onChange, input } = setup({ step: undefined });
+    const notPrevented = fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(notPrevented).toBe(false);
+    expect(onChange).toHaveBeenLastCalledWith(11);
+  });
+
+  it("captures the pointer and stops scrubbing on release or cancel", () => {
+    const { onChange } = setup();
+    const grip = screen.getByText("Gain");
+    const capture = vi.fn();
+    Object.assign(grip, { setPointerCapture: capture });
+    fireEvent.pointerDown(grip, { clientX: 100, pointerId: 7 });
+    expect(capture).toHaveBeenCalledWith(7);
+    fireEvent.pointerUp(grip, { pointerId: 7 });
+    fireEvent.pointerMove(grip, { clientX: 140, pointerId: 7 });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.pointerDown(grip, { clientX: 100, pointerId: 7 });
+    fireEvent.pointerCancel(grip, { pointerId: 7 });
+    fireEvent.pointerMove(grip, { clientX: 140, pointerId: 7 });
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("holds at the lower bound as well as the upper", async () => {
