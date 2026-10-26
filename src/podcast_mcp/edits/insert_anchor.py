@@ -59,6 +59,52 @@ def capture_insert_anchor(project: EpisodeProject, at_sec: float) -> InsertAncho
     return _clip_anchor(first, at_sec, side="before", source_sec=first.source_start)
 
 
+def _range_anchor(
+    clips: list[Clip], at_sec: float, track_ids: list[str], *, ending: bool
+) -> InsertAnchor | None:
+    containing = [c for c in clips if c.timeline_start - _EPS <= at_sec < c.timeline_end - _EPS]
+    ends_here = [
+        c
+        for c in clips
+        if abs(c.timeline_end - at_sec) <= _EPS and c.timeline_start + _EPS < at_sec
+    ]
+    options: list[tuple[Clip, Literal["before", "after"]]] = [
+        *((c, "after") for c in ends_here if ending),
+        *((c, "before") for c in containing),
+    ]
+    options.sort(key=lambda option: option[0].track_id not in track_ids)
+    if not options:
+        return None
+    clip, side = options[0]
+    source_sec = clip.source_end if side == "after" else clip_source_at_timeline(clip, at_sec)
+    return InsertAnchor(
+        kind="clip",
+        at_sec=at_sec,
+        track_id=clip.track_id,
+        source_id=clip.source_id,
+        source_sec=max(source_sec, 0.0),
+        side=side,
+        offset_s=0.0,
+    )
+
+
+def capture_range_anchors(
+    project: EpisodeProject, from_sec: float, to_sec: float, track_ids: list[str]
+) -> tuple[InsertAnchor | None, InsertAnchor | None]:
+    """What each end of ``[from_sec, to_sec)`` is anchored to on the dialogue tracks now.
+
+    A point inside a clip, or at a clip's start, is that clip's source second (and the end
+    may also sit on a clip's end). Clips on ``track_ids`` are preferred. Neither anchor is
+    ever an ``end`` anchor, and a point in a gap has none: both are ``None`` then.
+    """
+    clips = _dialogue_clips(project)
+    start = _range_anchor(clips, from_sec, track_ids, ending=False)
+    stop = _range_anchor(clips, to_sec, track_ids, ending=True)
+    if start is None or stop is None:
+        return None, None
+    return start, stop
+
+
 def _stale() -> CodedValueError:
     return CodedValueError(
         "The audio this session was staged at is no longer on the timeline, or more than one "
@@ -138,3 +184,30 @@ def pending_anchor_holder(
         ),
         None,
     )
+
+
+def resolve_range(project: EpisodeProject, row: SessionSuggestion) -> tuple[float, float]:
+    """The timeline range a replace session was staged over, found again from its anchors.
+
+    ``stale_anchor`` when either end is gone or unclear, the range collapsed, or it no longer
+    holds the same length of audio it did when staged (anything added or taken out inside).
+    """
+    anchor, end_anchor = row.anchor, row.end_anchor
+    if anchor is None or end_anchor is None or "end" in (anchor.kind, end_anchor.kind):
+        raise CodedValueError(
+            "This session was not recorded over a range that starts and ends on speech, so the "
+            "audio to replace cannot be found again. Record it again with both ends on audio.",
+            code="stale_anchor",
+        )
+    start = resolve_insert_anchor(project, anchor)
+    stop = resolve_insert_anchor(project, end_anchor)
+    if start < -_EPS or stop - start <= _EPS:
+        raise _stale()
+    staged_length = end_anchor.at_sec - anchor.at_sec
+    if abs((stop - start) - staged_length) > _EPS:
+        raise CodedValueError(
+            "The range this session was recorded to replace has changed since: audio was added "
+            "to it or taken out of it. Record the session again over the range as it is now.",
+            code="stale_anchor",
+        )
+    return max(start, 0.0), stop
