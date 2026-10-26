@@ -8,6 +8,7 @@ import { SystemIcon } from "../system/SystemIcon";
 import { formatSeconds } from "../system/seconds";
 import { VerbButton } from "../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../system/verbDisplay";
+import type { VerbId } from "../system/verbs";
 import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
 import {
   decidedItems,
@@ -26,7 +27,6 @@ export type ReviewContent = {
     QueueRowProps,
     "snippet" | "time" | "value" | "author" | "unread" | "offline"
   >;
-  /** A Check item draws as a Status row instead of a queue row. */
   check?: { title: string; detail?: string; actionLabel: string };
   card: Pick<
     DecisionCardProps,
@@ -48,7 +48,7 @@ export type ReviewQueueProps = {
   content: (item: ReviewItem) => ReviewContent;
   selectedId: string | null;
   filter: ReviewFilter;
-  /** Prepare is still finding suggestions: a running row above the groups. */
+  /** The Prepare job still finding suggestions. */
   job?: { title: string; progress: number };
   bulkRunning?: BulkProgress;
   /** A guest reads the queue: no bulk verbs, no Find more, no swipes. */
@@ -86,7 +86,7 @@ const FILTERS: readonly {
   },
 ];
 
-const GERUND: Partial<Record<string, string>> = {
+const GERUND: Partial<Record<VerbId, string>> = {
   cut: "Cutting",
   shorten: "Shortening",
   lower: "Lowering",
@@ -123,26 +123,23 @@ function GroupHeader({
       <SystemIcon name={meta.icon} size={16} />
       <span className="rv-group-name">{group.label}</span>
       <span className="sys-mono rv-group-count">{group.items.length}</span>
-      {group.savedSeconds > 0 ? (
-        <span className="sys-mono rv-group-saved">
-          {formatSeconds(group.savedSeconds)}
-        </span>
-      ) : null}
       {bulk && verb?.icon ? (
-        <Button
-          className="rv-bulk"
-          onClick={() => onBulk?.(group)}
-          title={`${verb.label} all ${bulk.ids.length}${hintOf(verbOf("applyAll"))}`}
-        >
-          <SystemIcon name={verb.icon} size={14} />
-          {verb.label} all {bulk.ids.length}
-        </Button>
+        <>
+          <span className="sys-mono">{formatSeconds(bulk.savedSeconds)}</span>
+          <Button
+            className="rv-bulk"
+            onClick={() => onBulk?.(group)}
+            title={`${verb.label} all ${bulk.ids.length}${hintOf(verbOf("applyAll"))}`}
+          >
+            <SystemIcon name={verb.icon} size={14} />
+            {verb.label} all {bulk.ids.length}
+          </Button>
+        </>
       ) : null}
     </div>
   );
 }
 
-/** Groups by kind, each with its bulk verb, then a collapsed Decided group. */
 export function ReviewQueue({
   items,
   content,
@@ -165,6 +162,25 @@ export function ReviewQueue({
   const shown = filterItems(items, filter);
   const groups = groupQueue(shown);
   const decided = decidedItems(shown);
+
+  if (state !== "ready") {
+    return (
+      <section className="rv-queue" aria-label="Review queue">
+        {state === "loading" ? (
+          <Skeleton layout="list" rows={6} />
+        ) : (
+          <StatusRow
+            state="failed"
+            title="Could not load the queue"
+            detail="Your decisions are saved."
+            action={
+              onRetry ? { label: "Try again", onAction: onRetry } : undefined
+            }
+          />
+        )}
+      </section>
+    );
+  }
 
   const header = (
     <header className="rv-head">
@@ -195,28 +211,6 @@ export function ReviewQueue({
       </div>
     </header>
   );
-
-  if (state === "loading") {
-    return (
-      <section className="rv-queue" aria-label="Review queue">
-        <Skeleton layout="list" rows={6} />
-      </section>
-    );
-  }
-  if (state === "error") {
-    return (
-      <section className="rv-queue" aria-label="Review queue">
-        <StatusRow
-          state="failed"
-          title="Could not load the queue"
-          detail="Your decisions are saved."
-          action={
-            onRetry ? { label: "Try again", onAction: onRetry } : undefined
-          }
-        />
-      </section>
-    );
-  }
 
   return (
     <section className="rv-queue" aria-label="Review queue">

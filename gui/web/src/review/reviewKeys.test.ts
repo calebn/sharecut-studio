@@ -1,53 +1,88 @@
 import { describe, expect, it } from "vitest";
-import { type ReviewKeyEvent, reviewActionFor } from "./reviewKeys";
+import { stageActionFor } from "./reviewKeys";
 
-const key = (
-  k: string,
-  over: Partial<ReviewKeyEvent> = {},
-): ReviewKeyEvent => ({
+type Input = Parameters<typeof stageActionFor>[0];
+
+const key = (k: string, over: Partial<Input> = {}): Input => ({
   key: k,
   shiftKey: false,
   altKey: false,
   ctrlKey: false,
   metaKey: false,
+  repeat: false,
   ...over,
 });
 
-describe("reviewActionFor", () => {
+describe("stageActionFor", () => {
   it("maps the verb table keys", () => {
-    expect(reviewActionFor(key("Enter"), {})).toBe("verb");
-    expect(reviewActionFor(key("x"), {})).toBe("keep");
-    expect(reviewActionFor(key("Tab"), {})).toBe("next");
-    expect(reviewActionFor(key("ArrowDown"), {})).toBe("next");
-    expect(reviewActionFor(key("Tab", { shiftKey: true }), {})).toBe(
-      "previous",
-    );
-    expect(reviewActionFor(key("ArrowUp"), {})).toBe("previous");
-    expect(reviewActionFor(key("a"), {})).toBe("hearBefore");
-    expect(reviewActionFor(key("b"), {})).toBe("hearAfter");
-    expect(reviewActionFor(key("Enter", { shiftKey: true }), {})).toBe(
-      "applyAll",
-    );
+    expect(stageActionFor(key("Enter"))).toBe("verb");
+    expect(stageActionFor(key("x"))).toBe("keep");
+    expect(stageActionFor(key("ArrowDown"))).toBe("next");
+    expect(stageActionFor(key("ArrowUp"))).toBe("previous");
+    expect(stageActionFor(key("a"))).toBe("hearBefore");
+    expect(stageActionFor(key("b"))).toBe("hearAfter");
+    expect(stageActionFor(key("Enter", { shiftKey: true }))).toBe("applyAll");
   });
 
   it("ignores editable targets", () => {
     const input = document.createElement("input");
-    expect(reviewActionFor(key("x", { target: input }), {})).toBeNull();
+    expect(stageActionFor(key("x", { target: input }))).toBeNull();
   });
 
-  it("leaves Tab and Enter to focused controls", () => {
+  it("ignores held keys that decide", () => {
+    expect(stageActionFor(key("Enter", { repeat: true }))).toBeNull();
+    expect(
+      stageActionFor(key("Enter", { shiftKey: true, repeat: true })),
+    ).toBeNull();
+    expect(stageActionFor(key("x", { repeat: true }))).toBeNull();
+    expect(stageActionFor(key("ArrowDown", { repeat: true }))).toBe("next");
+  });
+
+  describe("Tab", () => {
+    const root = document.createElement("div");
+    const text = document.createElement("p");
     const button = document.createElement("button");
-    expect(reviewActionFor(key("Tab", { target: button }), {})).toBeNull();
-    expect(reviewActionFor(key("Enter", { target: button }), {})).toBeNull();
-    expect(reviewActionFor(key("x", { target: button }), {})).toBe("keep");
+    const toast = document.createElement("div");
+    const undo = document.createElement("button");
+    toast.append(undo);
+    root.append(text, button, toast);
+
+    it("passes through on the root, so focus can leave", () => {
+      expect(stageActionFor(key("Tab", { target: root }), { root })).toBeNull();
+      expect(
+        stageActionFor(key("Tab", { shiftKey: true, target: root }), { root }),
+      ).toBeNull();
+    });
+
+    it("passes through on a button and on the Undo toast button", () => {
+      expect(
+        stageActionFor(key("Tab", { target: button }), { root }),
+      ).toBeNull();
+      expect(stageActionFor(key("Tab", { target: undo }), { root })).toBeNull();
+    });
+
+    it("steps on a plain element inside the stage", () => {
+      expect(stageActionFor(key("Tab", { target: text }), { root })).toBe(
+        "next",
+      );
+      expect(
+        stageActionFor(key("Tab", { shiftKey: true, target: text }), { root }),
+      ).toBe("previous");
+    });
+  });
+
+  it("leaves Enter on a control to the control", () => {
+    const button = document.createElement("button");
+    expect(stageActionFor(key("Enter", { target: button }))).toBeNull();
+    expect(stageActionFor(key("x", { target: button }))).toBe("keep");
   });
 
   it("uses Backspace as the verb only for a cut", () => {
-    expect(reviewActionFor(key("Backspace"), { primary: "cut" })).toBe("verb");
-    expect(reviewActionFor(key("Backspace"), { primary: "lower" })).toBeNull();
+    expect(stageActionFor(key("Backspace"), { primary: "cut" })).toBe("verb");
+    expect(stageActionFor(key("Backspace"), { primary: "lower" })).toBeNull();
   });
 
   it("ignores chords with Ctrl or Meta", () => {
-    expect(reviewActionFor(key("x", { metaKey: true }), {})).toBeNull();
+    expect(stageActionFor(key("x", { metaKey: true }))).toBeNull();
   });
 });

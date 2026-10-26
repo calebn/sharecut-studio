@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { QUEUE_ITEMS, reviewContent } from "../storybook/reviewFixtures";
+import { reviewContent } from "../storybook/reviewContent";
+import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
 import {
   isolatedStoryParameters,
   viewportStoryParameters,
@@ -12,7 +13,7 @@ import { Button } from "../ui";
 import { ReviewQueue, type ReviewQueueProps } from "./ReviewQueue";
 import type { ReviewFilter } from "./reviewQueue";
 
-function Filtered(props: ReviewQueueProps) {
+function StatefulQueue(props: ReviewQueueProps) {
   const [filter, setFilter] = useState<ReviewFilter>(props.filter);
   const [selectedId, setSelectedId] = useState(props.selectedId);
   return (
@@ -43,7 +44,7 @@ const meta: Meta<typeof ReviewQueue> = {
     onFindMore: fn(),
     onRetry: fn(),
   },
-  render: (args) => <Filtered {...args} />,
+  render: (args) => <StatefulQueue {...args} />,
   decorators: [
     (Story) => (
       <div style={{ padding: "var(--space-5)", maxWidth: "24rem" }}>
@@ -105,10 +106,10 @@ export const LoadError: Story = {
 };
 
 export const Phone: Story = {
-  parameters: { ...viewportStoryParameters },
+  parameters: isolatedStoryParameters,
   decorators: [
     (Story) => (
-      <div style={{ padding: "var(--space-4)" }}>
+      <div style={{ inlineSize: "22.5rem", maxInlineSize: "100%" }}>
         <Story />
       </div>
     ),
@@ -127,7 +128,7 @@ function QueueSheet(props: ReviewQueueProps) {
         detent="half"
         onClose={() => setOpen(false)}
       >
-        <Filtered {...props} />
+        <StatefulQueue {...props} />
       </Sheet>
     </>
   );

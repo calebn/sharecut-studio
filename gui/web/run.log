@@ -1,0 +1,9 @@
+
+ RUN  v5.0.5 /home/user/sharecut-studio/gui/web
+
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  15:58:19
+   Duration  3.79s (tests 51%, environment 21%, transform 14%, import 9%, setup 5%)
+

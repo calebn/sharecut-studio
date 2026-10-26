@@ -96,20 +96,16 @@ export function SuggestionWaveform({
   };
   const onKey = (edge: Edge) => (event: KeyboardEvent<HTMLElement>) => {
     const current = edge === "start" ? start : end;
-    const target =
-      event.key === "ArrowLeft"
-        ? current - (event.shiftKey ? KEY_STEP_BIG_S : KEY_STEP_S)
-        : event.key === "ArrowRight"
-          ? current + (event.shiftKey ? KEY_STEP_BIG_S : KEY_STEP_S)
-          : event.key === "PageDown"
-            ? current - KEY_STEP_PAGE_S
-            : event.key === "PageUp"
-              ? current + KEY_STEP_PAGE_S
-              : event.key === "Home"
-                ? bounds.start
-                : event.key === "End"
-                  ? bounds.end
-                  : null;
+    const step = event.shiftKey ? KEY_STEP_BIG_S : KEY_STEP_S;
+    const targets = new Map([
+      ["ArrowLeft", current - step],
+      ["ArrowRight", current + step],
+      ["PageDown", current - KEY_STEP_PAGE_S],
+      ["PageUp", current + KEY_STEP_PAGE_S],
+      ["Home", bounds.start],
+      ["End", bounds.end],
+    ]);
+    const target = targets.get(event.key) ?? null;
     if (readOnly || target === null) return;
     event.preventDefault();
     onAdjustStart?.();

@@ -46,7 +46,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "ui/useMenuKeyboard.ts",
   "commands/governance.test.ts",
   "record/useRecordLiveComments.ts",
-  // The Review stage owns its own keys, scoped to its root, so typing in a field stays out of it.
+  // Sheets and dialogs render through portals; a native root listener keeps their keys out of the stage.
   "review/ReviewStage.tsx",
 ]);
 

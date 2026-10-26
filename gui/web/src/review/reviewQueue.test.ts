@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
 import {
-  bulkEligible,
   decidedItems,
+  decisionMessage,
   filterCounts,
   filterItems,
   groupQueue,
   progressLine,
   type ReviewItem,
   resultText,
-  secondsSaved,
 } from "./reviewQueue";
 
 const item = (over: Partial<ReviewItem>): ReviewItem => ({
@@ -34,14 +33,22 @@ describe("groupQueue", () => {
     expect(groups[3]?.items.map((i) => i.id)).toEqual(["f1", "f2", "f3", "f4"]);
   });
 
-  it("offers one bulk verb per cut group with the seconds as one number", () => {
+  it("counts only what the bulk will cut, as one number", () => {
     const fillers = groupQueue(QUEUE_ITEMS).find((g) => g.kind === "filler");
     expect(fillers?.bulk?.verb).toBe("cut");
     expect(fillers?.bulk?.ids).toEqual(["f1", "f2", "f4"]);
-    expect(fillers?.bulk?.savedSeconds).toBeCloseTo(
-      (fillers?.savedSeconds ?? 0) -
-        (QUEUE_ITEMS.find((i) => i.id === "f3")?.savedSeconds ?? 0),
-    );
+    expect(fillers?.bulk?.savedSeconds).toBeCloseTo(0.8 + 0.6 + 0.7);
+  });
+
+  it("leaves unsure, blocked and decided items out of the bulk", () => {
+    const rows = [
+      item({ id: "a" }),
+      item({ id: "b", unsure: true }),
+      item({ id: "c", blocked: true }),
+      item({ id: "d", result: "kept" }),
+    ];
+    expect(groupQueue(rows)[0]?.bulk?.ids).toEqual(["a"]);
+    expect(groupQueue([item({ id: "b", blocked: true })])[0]?.bulk).toBeNull();
   });
 
   it("never offers a bulk on checks, words or comments", () => {
@@ -49,15 +56,6 @@ describe("groupQueue", () => {
     for (const kind of ["check", "unsure-word", "comment"]) {
       expect(groups.find((g) => g.kind === kind)?.bulk).toBeNull();
     }
-  });
-});
-
-describe("bulkEligible", () => {
-  it("excludes unsure, blocked and decided items", () => {
-    expect(bulkEligible(item({}))).toBe(true);
-    expect(bulkEligible(item({ unsure: true }))).toBe(false);
-    expect(bulkEligible(item({ blocked: true }))).toBe(false);
-    expect(bulkEligible(item({ result: "kept" }))).toBe(false);
   });
 });
 
@@ -74,8 +72,7 @@ describe("counts and progress", () => {
     ]);
   });
 
-  it("counts only applied items as saved", () => {
-    expect(secondsSaved(QUEUE_ITEMS)).toBeCloseTo(0.5);
+  it("lists decided items", () => {
     expect(decidedItems(QUEUE_ITEMS).map((i) => i.id)).toEqual(["f0", "p0"]);
   });
 
@@ -90,5 +87,15 @@ describe("resultText", () => {
       "Cut 0.8 s",
     );
     expect(resultText(item({ result: "kept" }))).toBe("Kept");
+  });
+});
+
+describe("decisionMessage", () => {
+  it("names one decision and sums a bulk", () => {
+    expect(decisionMessage(QUEUE_ITEMS, ["f1"], "applied")).toBe("Cut 0.8 s");
+    expect(decisionMessage(QUEUE_ITEMS, ["f1", "f2"], "applied")).toBe(
+      "Cut 2 · saves 1.4 s",
+    );
+    expect(decisionMessage(QUEUE_ITEMS, ["f1", "f2"], "kept")).toBe("Kept 2");
   });
 });

@@ -1,4 +1,10 @@
-/* Review stage compositions: queue, stage frame, context strip. Same rules as system.css. */
+/* Review stage compositions. Same rules as system.css. */
+
+.rv-queue,
+.rv-stage {
+  --rv-row-min: 2.5rem;
+  --rv-queue-width: 22.5rem;
+}
 
 .rv-queue {
   display: flex;
@@ -40,11 +46,12 @@
   flex-direction: column;
 }
 
-.rv-group-head {
+.rv-group-head,
+.rv-decided-toggle {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-block-size: 2.5rem;
+  min-block-size: var(--rv-row-min);
   padding-inline: var(--space-4);
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
@@ -55,16 +62,7 @@
   font-weight: 600;
 }
 
-.rv-group-saved {
-  margin-inline-start: auto;
-}
-
-.rv-group-saved + .rv-bulk,
-.rv-group-count + .rv-bulk {
-  margin-inline-start: var(--space-3);
-}
-
-.rv-group-count:last-child {
+.rv-group-count {
   margin-inline-end: auto;
 }
 
@@ -74,21 +72,9 @@
   gap: var(--space-1);
 }
 
-.rv-check[data-selected] {
-  border-radius: var(--radius-md);
-  background: var(--color-accent-subtle);
-  box-shadow: inset var(--selection-row-edge-width) 0 0 var(--color-accent);
-}
-
 .rv-decided-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: 2.5rem;
-  padding-inline: var(--space-4);
   border: 0;
   background: transparent;
-  color: var(--color-text-secondary);
   font: inherit;
   font-size: var(--font-size-ui);
   cursor: pointer;
@@ -99,8 +85,7 @@
 }
 
 @media (pointer: coarse) {
-  .rv-decided-toggle,
-  .rv-bulk {
+  .rv-decided-toggle {
     min-block-size: var(--touch-min);
   }
 }
@@ -119,7 +104,7 @@
 
 .rv-main {
   display: grid;
-  grid-template-columns: minmax(0, 22.5rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--rv-queue-width)) minmax(0, 1fr);
   align-items: start;
   flex: 1;
   min-block-size: 0;
