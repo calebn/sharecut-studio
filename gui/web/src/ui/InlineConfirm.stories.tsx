@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { InlineConfirm } from "./InlineConfirm";
 
 const meta: Meta<typeof InlineConfirm> = {
@@ -21,9 +21,9 @@ type Story = StoryObj<typeof InlineConfirm>;
 export const Default: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("button", { name: "Keep link" }),
-    ).toHaveFocus();
+    await waitFor(() =>
+      expect(canvas.getByRole("button", { name: "Keep link" })).toHaveFocus(),
+    );
     await userEvent.click(canvas.getByRole("button", { name: "Stop sharing" }));
     await expect(args.onConfirm).toHaveBeenCalledOnce();
   },
