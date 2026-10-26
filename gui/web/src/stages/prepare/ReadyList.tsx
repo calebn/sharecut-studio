@@ -7,7 +7,6 @@ import { Button } from "../../ui";
 
 export type ReadyRowId = "add" | "transcribe" | "align" | "clean" | "suggest";
 
-/** What a button in the list asks the caller to do. */
 export type ReadyAction =
   | "download-model"
   | "download-aligner"
@@ -18,7 +17,6 @@ export type ReadyAction =
   | "keep-fixes"
   | "replace";
 
-/** The expanded body of a row. */
 export type ReadyBody =
   | {
       /** A large alignment move that needs a look. */

@@ -113,7 +113,6 @@ export const StepSelected: Story = {
         canvas.getByRole("button", { name: /^Line up tracks/ }),
       ).toHaveFocus(),
     );
-    // Open it again so the last frame shows the step's settings.
     await userEvent.click(
       canvas.getByRole("button", { name: /^Line up tracks/ }),
     );
