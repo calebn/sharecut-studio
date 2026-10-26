@@ -54,6 +54,39 @@ describe("QueueRow", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it("ignores a swipe under 80 px", () => {
+    const onVerb = vi.fn();
+    const onKeep = vi.fn();
+    render(
+      <QueueRow
+        kind="filler"
+        snippet="um"
+        time="18:36"
+        onVerb={onVerb}
+        onKeep={onKeep}
+      />,
+    );
+    swipe(screen.getByRole("button"), 79);
+    swipe(screen.getByRole("button"), -79);
+    expect(onVerb).not.toHaveBeenCalled();
+    expect(onKeep).not.toHaveBeenCalled();
+  });
+
+  it("does not swipe once decided", () => {
+    const onVerb = vi.fn();
+    const { container } = render(
+      <QueueRow
+        kind="filler"
+        snippet="um"
+        time="18:36"
+        decided={{ result: "applied", text: "Cut 0.8 s" }}
+        onVerb={onVerb}
+      />,
+    );
+    swipe(container.firstElementChild as Element, 120);
+    expect(onVerb).not.toHaveBeenCalled();
+  });
+
   it("collapses a decided row to one line with no button", () => {
     render(
       <QueueRow

@@ -15,7 +15,7 @@ const meta: Meta<typeof QueueRow> = {
   tags: ["autodocs"],
   args: {
     kind: "filler",
-    snippet: <Suggestion segments={FILLER_EXCERPT} />,
+    snippet: <Suggestion focus segments={FILLER_EXCERPT} />,
     time: "18:36",
     value: "0.8 s",
     onSelect: fn(),
@@ -85,7 +85,7 @@ export const UnsureWord: Story = {
 };
 
 export const FillerWithUnsureWord: Story = {
-  args: { snippet: <Suggestion segments={FILLER_WITH_UNSURE} /> },
+  args: { snippet: <Suggestion focus segments={FILLER_WITH_UNSURE} /> },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText("uncle")).toHaveClass(
       "sys-sugg-unsure",

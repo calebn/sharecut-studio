@@ -13,6 +13,8 @@ export type SuggestionProps =
   | {
       kind?: "words";
       segments: readonly SuggestionSegment[];
+      /** One line: the change always shows, and the text around it gives way first. */
+      focus?: boolean;
     }
   | {
       kind: "pause";
@@ -69,26 +71,48 @@ export function Suggestion(props: SuggestionProps) {
       </span>
     );
   }
-  let offset = 0;
+  const { segments, focus } = props;
+  const first = segments.findIndex((segment) => segment.struck);
+  const last = segments.findLastIndex((segment) => segment.struck);
+  if (!focus || first === -1) {
+    return <span className="sys-sugg">{words(segments, 0)}</span>;
+  }
+  const offsetOf = (index: number) =>
+    segments.slice(0, index).reduce((sum, s) => sum + s.text.length, 0);
   return (
-    <span className="sys-sugg">
-      {props.segments.map((segment) => {
-        const key = offset;
-        offset += segment.text.length;
-        const inner = segment.unsure ? (
-          <span className="sys-sugg-unsure">{segment.text}</span>
-        ) : (
-          segment.text
-        );
-        return segment.struck ? (
-          <del key={key} className="sys-sugg-struck">
-            <span className="sr-only">Removed: </span>
-            {inner}
-          </del>
-        ) : (
-          <span key={key}>{inner}</span>
-        );
-      })}
+    <span className="sys-sugg sys-sugg--focus">
+      <span className="sys-sugg-lead">
+        <span className="sys-sugg-lead-text">
+          {words(segments.slice(0, first), 0)}
+        </span>
+      </span>
+      <span className="sys-sugg-change">
+        {words(segments.slice(first, last + 1), offsetOf(first))}
+      </span>
+      <span className="sys-sugg-trail">
+        {words(segments.slice(last + 1), offsetOf(last + 1))}
+      </span>
     </span>
   );
+}
+
+function words(segments: readonly SuggestionSegment[], start: number) {
+  let offset = start;
+  return segments.map((segment) => {
+    const key = offset;
+    offset += segment.text.length;
+    const inner = segment.unsure ? (
+      <span className="sys-sugg-unsure">{segment.text}</span>
+    ) : (
+      segment.text
+    );
+    return segment.struck ? (
+      <del key={key} className="sys-sugg-struck">
+        <span className="sr-only">Removed: </span>
+        {inner}
+      </del>
+    ) : (
+      <span key={key}>{inner}</span>
+    );
+  });
 }
