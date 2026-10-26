@@ -465,6 +465,35 @@ def test_plan_makes_paths_absolute_and_keeps_everything_else(tmp_path: Path) -> 
     assert plan.argv[5:] == ["--body=x", "--author", "a", "--start", "-1.5"]
 
 
+@pytest.mark.parametrize(
+    "tail",
+    [
+        ["set-active", "--id", "v1"],
+        ["share", "--pin", "--role", "viewer"],
+        ["revoke-share", "--token", "t"],
+    ],
+)
+def test_review_commands_that_name_a_project_are_handed_off(
+    tail: list[str], tmp_path: Path
+) -> None:
+    tmp_path = tmp_path.resolve()
+    root = typer.main.get_command(cli_app)
+    plan = plan_handoff(root, ["review", tail[0], "--project", "ep/p.json", *tail[1:]], tmp_path)
+    assert plan is not None
+    assert plan.project == tmp_path / "ep" / "p.json"
+    assert plan.argv == ["review", tail[0], "--project", str(plan.project), *tail[1:]]
+
+
+def test_a_version_option_of_a_command_is_not_the_root_version_flag(tmp_path: Path) -> None:
+    tmp_path = tmp_path.resolve()
+    root = typer.main.get_command(cli_app)
+    plan = plan_handoff(
+        root, ["review", "share", "--project", "ep/p.json", "--version", "v1"], tmp_path
+    )
+    assert plan is not None
+    assert plan.argv == ["review", "share", "--project", str(plan.project), "--version", "v1"]
+
+
 def test_no_input_is_forwarded_to_studio(tmp_path: Path) -> None:
     from types import SimpleNamespace
 
@@ -501,6 +530,9 @@ def test_plan_resolves_symlinks_before_dotdot(tmp_path: Path) -> None:
         ["comment", "list"],
         ["pipeline", "list"],
         ["relay", "bucket-setup", "--config", "relay.yaml"],
+        ["--version"],
+        ["review", "backup-registry"],
+        ["review", "backup-registry", "--dest", "backup.db"],
         ["comment", "list", "--unknown", "1", "--project", "p.json"],
         ["not-a-command", "--project", "p.json"],
     ],
