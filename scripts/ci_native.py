@@ -22,8 +22,6 @@ PYTHON_NATIVE = frozenset(
     (NativeFamily.PINNED, NativeFamily.RESOLVER, NativeFamily.LOCK, NativeFamily.REGISTRY)
 )
 PAYLOAD_NATIVE = frozenset((NativeFamily.PAYLOAD, NativeFamily.LOCK, NativeFamily.REGISTRY))
-DESKTOP_PR_EXCLUSIONS = ("contracts/test-wait-allowlist.json",)
-DESKTOP_PR_PATHS = ("**", *(f"!{path}" for path in DESKTOP_PR_EXCLUSIONS))
 
 
 @dataclass(frozen=True)
@@ -130,7 +128,7 @@ NATIVE_WORKLOADS = (
     ),
 )
 
-NATIVE_CONTRACTS = {
+NATIVE_CONTRACTS: dict[str, frozenset[NativeFamily]] = {
     "bootstrap-assets.json": PYTHON_NATIVE,
     "ffmpeg-artifacts.json": PAYLOAD_NATIVE,
     "ffmpeg-build.json": PYTHON_NATIVE | PAYLOAD_NATIVE,
@@ -155,6 +153,11 @@ NATIVE_CONTRACTS = {
         frozenset(),
     ),
 }
+
+DESKTOP_PR_EXCLUSIONS: tuple[str, ...] = tuple(
+    f"contracts/{name}" for name, consumers in NATIVE_CONTRACTS.items() if not consumers
+)
+DESKTOP_PR_PATHS: tuple[str, ...] = ("**", *(f"!{path}" for path in DESKTOP_PR_EXCLUSIONS))
 
 NATIVE_RULES = tuple(
     NativeRule(tuple(Glob.parse(path) for path in paths), consumers)
