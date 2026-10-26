@@ -62,6 +62,8 @@ _ALLOWED_RESP_HEADERS = frozenset(
         "content-range",
         "last-modified",
         "vary",
+        "x-sharecut-error-code",
+        "x-robots-tag",
     }
 )
 

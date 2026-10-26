@@ -195,6 +195,14 @@ def test_response_headers_allowlist_drops_set_cookie():
     assert out["Cache-Control"] == "no-cache"
 
 
+def test_response_headers_forward_error_code_and_robots_tag():
+    from podcast_relay.routes.proxy import _response_headers
+
+    out = _response_headers({"X-Sharecut-Error-Code": "share_not_found", "X-Robots-Tag": "noindex"})
+    assert out["X-Sharecut-Error-Code"] == "share_not_found"
+    assert out["X-Robots-Tag"] == "noindex"
+
+
 def test_relay_state_unregister_removes_live_routing_keeps_binding():
     state = RelayState(set(), allow_open_tunnel=True)
     session = TunnelSession(host_id="h1", websocket=None)  # type: ignore[arg-type]
