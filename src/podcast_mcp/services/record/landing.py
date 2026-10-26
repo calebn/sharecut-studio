@@ -1272,12 +1272,9 @@ class RecordLandingService:
     ) -> tuple[Path, str] | None:
         if take_index == ROOM_TONE_TAKE_INDEX:
             suggestion = session_suggestion_for(project, self.session_id)
-            bed = next(
-                (bed for bed in suggestion.room_tone if bed.source_id == source_id)
-                if suggestion is not None
-                else iter(()),
-                None,
-            )
+            if suggestion is None:
+                return _registered_source_file(project, source_id)
+            bed = next((bed for bed in suggestion.room_tone if bed.source_id == source_id), None)
             if bed is not None:
                 dest = (Path(project.workspace_dir) / bed.path).resolve()
                 return (dest, bed.path) if dest.is_file() else None

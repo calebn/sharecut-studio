@@ -182,7 +182,14 @@ def validate_record_payload(command_type: str, payload: dict[str, Any]) -> dict[
     if model is None:
         return {}
     if command_type == "SetTarget":
-        return {"target": parse_session_target((payload or {}).get("target")).model_dump()}
+        raw_target = (payload or {}).get("target")
+        if not isinstance(raw_target, dict):
+            raise CodedValueError(
+                'target: pass an object such as {"kind": "end"}, {"kind": "insert", ...} '
+                'or {"kind": "replace", ...}',
+                code="invalid_record_request",
+            )
+        return {"target": parse_session_target(raw_target).model_dump()}
     try:
         return model.model_validate(payload or {}).model_dump()
     except ValidationError as exc:

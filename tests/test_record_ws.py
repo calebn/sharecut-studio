@@ -2062,6 +2062,13 @@ def test_http_set_target_refusals_name_the_field(
         assert refused.status_code == 400, refused.text
         assert field in refused.text
         assert "invalid record payload" not in refused.text
+    for payload in ({}, {"target": None}, {"target": "end"}):
+        refused = client.post(
+            "/api/record/command",
+            json={"path": str(ws.path), "command_type": "SetTarget", "payload": payload},
+        )
+        assert refused.status_code == 400, refused.text
+        assert "target:" in refused.text
     far = {"kind": "insert", "at_sec": 500.0}
     ok = client.post(
         "/api/record/command",

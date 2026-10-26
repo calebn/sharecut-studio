@@ -20,6 +20,7 @@ from podcast_mcp.mcp.tools.record import (
     record_target_tool,
 )
 from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models.episode import Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record.control import RecordControlService
@@ -30,6 +31,7 @@ from podcast_mcp.services.record.service import (
     apply_record_ws_message,
     reset_record_runtime_for_tests,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _isolate() -> None:
@@ -290,6 +292,28 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
     assert "invalid session target" in bad.output
     with pytest.raises(RecordStateError, match="is not available yet"):
         RecordControlService(ws).set_target({"kind": "start"})
+    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "end"}
+
+
+def test_record_target_cli_and_mcp_refuse_a_replace_over_an_unknown_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+
+    def add_track(project) -> None:
+        project.tracks.append(Track(id="ava", label="Ava", role=TrackRole.DIALOGUE))
+
+    ws.mutate("seed", "seeded", add_track)
+    _consented_room(ws)
+    target = json.dumps({"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["ghost"]})
+    refused = CliRunner().invoke(
+        cli_app, ["record", "target", target, "--project", str(minimal_project)]
+    )
+    assert refused.exit_code == 1, refused.output
+    assert "track_ids:" in refused.output and "ghost" in refused.output
+    with pytest.raises(CodedValueError, match="track_ids:"):
+        record_target_tool(str(minimal_project), target)
     assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "end"}
 
 
