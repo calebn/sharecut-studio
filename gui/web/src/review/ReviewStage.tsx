@@ -101,6 +101,7 @@ export function ReviewStage({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const refocus = useRef(false);
 
   const phone = layout === "phone";
   const selected = items.find((item) => item.id === selectedId) ?? null;
@@ -121,8 +122,10 @@ export function ReviewStage({
     setPending(null);
     setSide("B");
   };
-  const step = (direction: "forward" | "backward") =>
+  const step = (direction: "forward" | "backward") => {
+    refocus.current = true;
     select(stepUndecided(items, selectedId, direction, filter));
+  };
 
   const apply = (
     ids: readonly string[],
@@ -130,6 +133,7 @@ export function ReviewStage({
     waive = false,
   ) => {
     const plan = planDecision(items, ids, result, { filter, waive });
+    refocus.current = true;
     setItems(plan.items);
     select(plan.selectedId);
     const first = items.find((i) => i.id === ids[0]);
@@ -142,6 +146,11 @@ export function ReviewStage({
     });
     setUndo(() => () => {
       setItems((current) => undoDecisions(current, plan.decidedIds).items);
+      setResolved((current) => {
+        const next = new Set(current);
+        for (const id of plan.decidedIds) next.delete(id);
+        return next;
+      });
       select(plan.decidedIds[0] ?? null);
       setToast(null);
     });
@@ -164,7 +173,7 @@ export function ReviewStage({
   };
 
   const bulk = (ids: readonly string[] | undefined) => {
-    if (guest || !ids?.length) return;
+    if (guest || bulkRunning || !ids?.length) return;
     if (holdsGate(ids)) setPending({ ids });
     else apply(ids, "applied");
   };
@@ -201,9 +210,20 @@ export function ReviewStage({
     else if (!selected) return;
     else if (action === "verb") verb(selected.id);
     else if (action === "keep") keep(selected.id);
-    else if (action === "openInEdit") onOpenInEdit?.(selected.id);
+    else if (action === "openInEdit" && !guest) onOpenInEdit?.(selected.id);
     else if (action === "comment") onComment?.(selected.id);
   });
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (refocus.current) {
+      refocus.current = false;
+      const active = document.activeElement;
+      if (el && (!active || active === document.body)) {
+        el.focus({ preventScroll: true });
+      }
+    }
+  });
+
   useLayoutEffect(() => {
     const el = root.current;
     el?.addEventListener("keydown", handleKey);
@@ -218,10 +238,11 @@ export function ReviewStage({
   const adjust = (next: TimeRange) => {
     if (!selected || !wave) return;
     const delta = next.end - next.start - (wave.end - wave.start);
-    setRanges({ ...ranges, [selected.id]: next });
-    setItems(
-      items.map((i) =>
-        i.id === selected.id
+    const id = selected.id;
+    setRanges((current) => ({ ...current, [id]: next }));
+    setItems((current) =>
+      current.map((i) =>
+        i.id === id
           ? { ...i, savedSeconds: Math.max(0, i.savedSeconds + delta) }
           : i,
       ),

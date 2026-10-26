@@ -88,6 +88,12 @@ export function stageActionFor(
   if (!action) return null;
   if (event.repeat && DECIDES.includes(action)) return null;
   if (
+    (event.key === "Backspace" || event.key === "Delete") &&
+    isControl(event.target)
+  ) {
+    return null;
+  }
+  if (
     event.key === "Tab" &&
     (event.target === context.root || isControl(event.target))
   ) {

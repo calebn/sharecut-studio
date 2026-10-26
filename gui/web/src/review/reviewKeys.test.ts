@@ -84,6 +84,14 @@ describe("stageActionFor", () => {
     expect(stageActionFor(key("Backspace"), { primary: "lower" })).toBeNull();
   });
 
+  it("leaves Backspace to a focused waveform handle", () => {
+    const handle = document.createElement("span");
+    handle.setAttribute("role", "slider");
+    expect(
+      stageActionFor(key("Backspace", { target: handle }), { primary: "cut" }),
+    ).toBeNull();
+  });
+
   it("ignores chords with Ctrl or Meta", () => {
     expect(stageActionFor(key("x", { metaKey: true }))).toBeNull();
   });

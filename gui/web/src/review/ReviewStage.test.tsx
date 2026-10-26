@@ -165,6 +165,47 @@ describe("ReviewStage", () => {
     expect(decided()).toBe(before);
   });
 
+  it("gives a guest no Open in Edit key", () => {
+    const onOpenInEdit = vi.fn();
+    const { press } = setup({ guest: true, onOpenInEdit });
+    press("e");
+    expect(onOpenInEdit).not.toHaveBeenCalled();
+  });
+
+  it("returns focus to the stage when the focused button unmounts", async () => {
+    const { stage, decided } = setup();
+    const keep = screen.getByRole("button", { name: /^Keep/ });
+    keep.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(document.activeElement).toBe(stage);
+    const before = decided();
+    await userEvent.keyboard("x");
+    expect(decided()).not.toBe(before);
+  });
+
+  it("does not start a second bulk while one runs", () => {
+    const { decided, press } = setup({
+      bulkRunning: { kind: "filler", total: 3, done: 1 },
+    });
+    const before = decided();
+    press("Enter", { shiftKey: true });
+    expect(decided()).toBe(before);
+  });
+
+  it("rolls back an unsure word's check when Undo reverts it", async () => {
+    const { press } = setup({
+      initialItems: QUEUE_ITEMS,
+      initialSelectedId: "f3",
+      gateConfirmed: true,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Looks right" }));
+    press("Enter");
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(
+      screen.getByRole("button", { name: "Looks right" }),
+    ).toBeInTheDocument();
+  });
+
   it("ignores keys typed in a field", () => {
     const { stage, decided } = setup();
     const field = document.createElement("input");
