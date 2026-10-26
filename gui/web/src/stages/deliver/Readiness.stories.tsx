@@ -9,7 +9,7 @@ const meta: Meta<typeof Readiness> = {
   title: "Stages/Deliver/Readiness",
   component: Readiness,
   tags: ["autodocs"],
-  args: { rows: readinessRows(CLEAR_FACTS), onFix: fn(), onRetry: fn() },
+  args: { rows: readinessRows(CLEAR_FACTS), onFix: fn() },
   decorators: [
     (Story) => (
       <div style={{ padding: "var(--space-5)", maxInlineSize: "65rem" }}>
@@ -60,8 +60,6 @@ export const AfterExport: Story = {
 };
 
 export const Loading: Story = { args: { state: "loading" } };
-
-export const LoadError: Story = { name: "Error", args: { state: "error" } };
 
 export const Phone: Story = {
   args: { rows: readinessRows(OPEN_FACTS) },

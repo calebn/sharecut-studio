@@ -55,17 +55,11 @@ export function estimateBytes(format: FormatId, seconds: number): number {
   return Math.round((entry?.bytesPerSecond ?? 0) * seconds);
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
-  if (bytes >= 1_000_000) return `${Math.round(bytes / 1_000_000)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1000))} kB`;
-}
-
 /** 83.5 is "1:23.5". */
 export function formatClock(seconds: number): string {
-  const whole = Math.max(0, seconds);
-  const minutes = Math.floor(whole / 60);
-  const rest = (whole - minutes * 60).toFixed(1).padStart(4, "0");
+  const tenths = Math.round(Math.max(0, seconds) * 10);
+  const minutes = Math.floor(tenths / 600);
+  const rest = ((tenths % 600) / 10).toFixed(1).padStart(4, "0");
   return `${minutes}:${rest}`;
 }
 
@@ -198,11 +192,25 @@ export function readinessSummary(rows: readonly ReadinessRow[]): string {
 
 export type ExportFile = { name: string; bytes: number; format: FormatId };
 
+/** What an export was asked to write; `range` is null for the whole episode. */
+export type ExportRequest = {
+  settings: EpisodeSettings;
+  clipIds: readonly string[];
+  range: TimeSpan | null;
+};
+
+export type TimeSpan = { start: number; end: number };
+
 export type ExportState =
   | { phase: "never" }
+  | { phase: "needs-model"; model: string; size: string }
   | { phase: "running"; progress: number; detail: string }
-  | { phase: "done"; files: readonly ExportFile[]; when: string }
-  | { phase: "stale"; files: readonly ExportFile[]; when: string }
+  | {
+      phase: "done" | "stale";
+      files: readonly ExportFile[];
+      when: string;
+      exported: ExportRequest;
+    }
   | { phase: "failed"; cause: string };
 
 export type DeliverEnv = "app" | "browser";
@@ -223,8 +231,66 @@ export type EpisodeSettings = {
   part: ExportPart;
 };
 
+/** The range an export writes: a selection passed in wins, else the Deliver In and Out. */
+export function planRange(
+  part: ExportPart,
+  selection?: TimeSpan | null,
+): TimeSpan | null {
+  if (selection) return selection;
+  return part.mode === "part" ? { start: part.start, end: part.end } : null;
+}
+
+export function exportRequest(
+  settings: EpisodeSettings,
+  clips: readonly Clip[],
+  selection?: TimeSpan | null,
+): ExportRequest {
+  return {
+    settings,
+    clipIds: clips.filter((c) => c.approved).map((c) => c.id),
+    range: planRange(settings.part, selection),
+  };
+}
+
+const sameSet = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length &&
+  [...a].sort().join("\n") === [...b].sort().join("\n");
+
+/** Whether an export already covers what the page would write now. */
+export function coversRequest(
+  exported: ExportRequest,
+  now: ExportRequest,
+): boolean {
+  const a = exported.settings;
+  const b = now.settings;
+  return (
+    sameSet(a.formats, b.formats) &&
+    a.loudness === b.loudness &&
+    a.part.mode === b.part.mode &&
+    (a.part.mode === "whole" ||
+      (b.part.mode === "part" &&
+        a.part.start === b.part.start &&
+        a.part.end === b.part.end)) &&
+    sameSet(exported.clipIds, now.clipIds)
+  );
+}
+
+/** A finished export turns stale when settings or approved clips change after it. */
+export function currentExportState(
+  state: ExportState,
+  now: ExportRequest,
+): ExportState {
+  return state.phase === "done" && !coversRequest(state.exported, now)
+    ? { ...state, phase: "stale" }
+    : state;
+}
+
 /** Why Export cannot start: nothing is chosen, or the part is empty. */
-export function exportBlocker(settings: EpisodeSettings): string | undefined {
+export function exportBlocker(
+  settings: EpisodeSettings,
+  state?: ExportState,
+): string | undefined {
+  if (state?.phase === "needs-model") return "Needs the transcription model.";
   if (settings.formats.length === 0) return "Choose a format first.";
   if (settings.part.mode === "part" && settings.part.end <= settings.part.start)
     return "Out must come after In.";
@@ -240,10 +306,20 @@ export function addChapterAt(
   at: number,
   id: string,
 ): Chapter[] {
-  return [
-    ...chapters,
-    { id, at, title: `Chapter ${chapters.length + 1}` },
-  ].sort(byTime);
+  const taken = new Set(chapters.map((c) => c.title));
+  let number = chapters.length + 1;
+  while (taken.has(`Chapter ${number}`)) number += 1;
+  return [...chapters, { id, at, title: `Chapter ${number}` }].sort(byTime);
+}
+
+/** Puts a removed chapter back into whatever the list holds now. */
+export function restoreChapter(
+  chapters: readonly Chapter[],
+  chapter: Chapter,
+): Chapter[] {
+  return chapters.some((c) => c.id === chapter.id)
+    ? [...chapters]
+    : [...chapters, chapter].sort(byTime);
 }
 
 export function retitleChapter(
@@ -277,10 +353,14 @@ export function clipStrength(score: number): 1 | 2 | 3 {
 export type Clip = {
   id: string;
   title: string;
-  seconds: number;
+  /** Seconds into the episode. */
+  start: number;
+  end: number;
   score: number;
   approved: boolean;
 };
+
+export const clipSeconds = (clip: Clip) => clip.end - clip.start;
 
 export function approveClip(clips: readonly Clip[], id: string): Clip[] {
   return clips.map((c) => (c.id === id ? { ...c, approved: true } : c));
@@ -290,13 +370,59 @@ export function removeClip(clips: readonly Clip[], id: string): Clip[] {
   return clips.filter((c) => c.id !== id);
 }
 
-/** Approved clips go out with the episode; they appear as files next to it. */
+export function retitleClip(
+  clips: readonly Clip[],
+  id: string,
+  title: string,
+): Clip[] {
+  return clips.map((c) => (c.id === id ? { ...c, title } : c));
+}
+
+/** Moves a clip's In or Out, keeping a second between them. */
+export function trimClip(
+  clips: readonly Clip[],
+  id: string,
+  edge: "start" | "end",
+  at: number,
+  total: number,
+): Clip[] {
+  return clips.map((c) => {
+    if (c.id !== id) return c;
+    return edge === "start"
+      ? { ...c, start: Math.min(Math.max(0, at), c.end - 1) }
+      : { ...c, end: Math.max(Math.min(total, at), c.start + 1) };
+  });
+}
+
+export function restoreClip(
+  clips: readonly Clip[],
+  clip: Clip,
+  index: number,
+): Clip[] {
+  if (clips.some((c) => c.id === clip.id)) return [...clips];
+  const next = [...clips];
+  next.splice(Math.min(index, next.length), 0, clip);
+  return next;
+}
+
+/** Approved clips as files next to the episode: unique names, never empty. */
 export function clipFiles(clips: readonly Clip[]): ExportFile[] {
+  const used = new Set<string>();
   return clips
     .filter((c) => c.approved)
-    .map((c) => ({
-      name: `clips/${c.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.wav`,
-      bytes: estimateBytes("wav", c.seconds),
-      format: "wav" as const,
-    }));
+    .map((c) => {
+      const slug =
+        c.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "clip";
+      let name = slug;
+      for (let n = 2; used.has(name); n += 1) name = `${slug}-${n}`;
+      used.add(name);
+      return {
+        name: `clips/${name}.wav`,
+        bytes: estimateBytes("wav", clipSeconds(c)),
+        format: "wav" as const,
+      };
+    });
 }

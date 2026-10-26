@@ -1,5 +1,3 @@
-/* Role chip, Link row and Scrub field. Same rules as system.css. */
-
 .sys-role {
   display: inline-flex;
   flex: none;
@@ -87,21 +85,6 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-field);
   text-align: end;
-}
-
-.sys-time-unit {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-}
-
-.sys-time-reset {
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--color-accent);
-  cursor: pointer;
 }
 
 @media (pointer: coarse) {

@@ -1,22 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { CHAPTERS, CLEAR_FACTS, CLIPS, OPEN_FACTS } from "./deliverFixture";
+import {
+  CHAPTERS,
+  CLEAR_FACTS,
+  CLIPS,
+  DONE,
+  OPEN_FACTS,
+  REQUEST,
+  SETTINGS,
+} from "./deliverFixture";
 import {
   addChapterAt,
   approveClip,
   clampPart,
   clipFiles,
   clipStrength,
+  currentExportState,
   estimateBytes,
   exportBlocker,
-  formatBytes,
+  exportRequest,
   formatClock,
   parseClock,
   partSeconds,
+  planRange,
   primaryAction,
   readinessRows,
   readinessSummary,
   removeChapter,
+  removeClip,
+  restoreChapter,
+  restoreClip,
   retimeChapter,
+  trimClip,
 } from "./deliverLogic";
 
 describe("readiness", () => {
@@ -69,8 +83,7 @@ describe("readiness", () => {
 describe("export settings", () => {
   it("estimates sizes from the length", () => {
     expect(estimateBytes("mp3", 3000)).toBe(48_000_000);
-    expect(formatBytes(48_000_000)).toBe("48 MB");
-    expect(formatBytes(1_500_000_000)).toBe("1.5 GB");
+    expect(estimateBytes("mp3", 0)).toBe(0);
   });
 
   it("exports the part's length, not the episode's", () => {
@@ -111,16 +124,44 @@ describe("export settings", () => {
     expect(
       primaryAction({ phase: "running", progress: 0.2, detail: "" }, "app"),
     ).toBe("exporting");
-    expect(primaryAction({ phase: "done", files: [], when: "" }, "app")).toBe(
-      "reveal",
-    );
-    expect(
-      primaryAction({ phase: "done", files: [], when: "" }, "browser"),
-    ).toBe("download");
-    expect(primaryAction({ phase: "stale", files: [], when: "" }, "app")).toBe(
-      "export",
-    );
+    expect(primaryAction(DONE, "app")).toBe("reveal");
+    expect(primaryAction(DONE, "browser")).toBe("download");
+    expect(primaryAction({ ...DONE, phase: "stale" }, "app")).toBe("export");
     expect(primaryAction({ phase: "failed", cause: "" }, "app")).toBe("export");
+  });
+});
+
+describe("export contract", () => {
+  const now = (change: Partial<typeof SETTINGS>, clips = CLIPS) =>
+    exportRequest({ ...SETTINGS, ...change }, clips);
+
+  it("stays done while nothing changed", () => {
+    expect(currentExportState(DONE, exportRequest(SETTINGS, CLIPS)).phase).toBe(
+      "done",
+    );
+  });
+
+  it("goes stale when a format, the loudness, the part or the clips change", () => {
+    const stale = (request: ReturnType<typeof now>) =>
+      currentExportState(DONE, request).phase === "stale";
+    expect(stale(now({ formats: ["mp3", "wav", "flac"] }))).toBe(true);
+    expect(stale(now({ loudness: "streaming" }))).toBe(true);
+    expect(stale(now({ part: { mode: "part", start: 0, end: 60 } }))).toBe(
+      true,
+    );
+    expect(stale(now({}, approveClip(CLIPS, "k1")))).toBe(true);
+    expect(stale(now({ formats: ["wav", "mp3"] }))).toBe(false);
+  });
+
+  it("plans the range from a selection, else the Deliver part, else the whole", () => {
+    const part = { mode: "part", start: 10, end: 20 } as const;
+    expect(planRange({ mode: "whole" })).toBeNull();
+    expect(planRange(part)).toEqual({ start: 10, end: 20 });
+    expect(planRange(part, { start: 50, end: 80 })).toEqual({
+      start: 50,
+      end: 80,
+    });
+    expect(REQUEST.clipIds).toEqual(["k3"]);
   });
 });
 
@@ -131,6 +172,8 @@ describe("clock", () => {
     expect(parseClock("83")).toBe(83);
     expect(parseClock("1:23")).toBe(83);
     expect(parseClock("soon")).toBeNull();
+    expect(formatClock(59.96)).toBe("1:00.0");
+    expect(formatClock(0)).toBe("0:00.0");
   });
 });
 
@@ -139,6 +182,25 @@ describe("chapters", () => {
     const next = addChapterAt(CHAPTERS, 700, "x");
     expect(next.map((c) => c.id)).toEqual(["c1", "c2", "x", "c3", "c4"]);
     expect(next[2]?.title).toBe("Chapter 5");
+  });
+
+  it("never repeats a title after a delete", () => {
+    const two = CHAPTERS.slice(0, 2).map((c, i) => ({
+      ...c,
+      title: `Chapter ${i + 1}`,
+    }));
+    const next = addChapterAt(removeChapter(two, two[0]?.id ?? ""), 900, "x");
+    expect(new Set(next.map((c) => c.title)).size).toBe(next.length);
+  });
+
+  it("restores only the removed chapter into the current list", () => {
+    const gone = CHAPTERS[1];
+    if (!gone) throw new Error("fixture");
+    const edited = retimeChapter(removeChapter(CHAPTERS, gone.id), "c1", 5);
+    const back = restoreChapter(edited, gone);
+    expect(back.map((c) => c.id)).toEqual(["c1", "c2", "c3", "c4"]);
+    expect(back[0]?.at).toBe(5);
+    expect(restoreChapter(back, gone)).toHaveLength(4);
   });
 
   it("re-sorts after a retime and removes by id", () => {
@@ -164,5 +226,31 @@ describe("clips", () => {
       "clips/cold-open.wav",
     ]);
     expect(clipFiles(approveClip(CLIPS, "k1"))).toHaveLength(2);
+  });
+
+  it("gives clips with the same or an empty title their own names", () => {
+    const same = CLIPS.map((c) => ({ ...c, approved: true, title: "Hook!" }));
+    const named = clipFiles(same).map((f) => f.name);
+    expect(new Set(named).size).toBe(3);
+    expect(named).toEqual([
+      "clips/hook.wav",
+      "clips/hook-2.wav",
+      "clips/hook-3.wav",
+    ]);
+    expect(clipFiles([{ ...same[0]!, title: "" }]).map((f) => f.name)).toEqual([
+      "clips/clip.wav",
+    ]);
+  });
+
+  it("trims inside the episode and keeps a second between In and Out", () => {
+    expect(trimClip(CLIPS, "k1", "end", 600, 3120)[0]?.end).toBe(613);
+    expect(trimClip(CLIPS, "k1", "start", 9999, 3120)[0]?.start).toBe(652);
+  });
+
+  it("puts a removed clip back where it was", () => {
+    const gone = CLIPS[1];
+    if (!gone) throw new Error("fixture");
+    const back = restoreClip(removeClip(CLIPS, gone.id), gone, 1);
+    expect(back.map((c) => c.id)).toEqual(["k1", "k2", "k3"]);
   });
 });

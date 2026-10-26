@@ -7,15 +7,18 @@ import {
 } from "../../storybook/storyLayout";
 import { playInCanvas } from "../../storybook/storyPlay";
 import type { LinkCopyState } from "../../system/LinkRow";
+import { isApplePlatform } from "../../utils/platform";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
   CLEAR_FACTS,
   CLIPS,
   DONE,
+  exportedState,
   FAILED,
   LINK,
   MEASURED_FACTS,
+  NEEDS_MODEL,
   NEVER,
   OPEN_FACTS,
   OPENED_BY,
@@ -24,6 +27,8 @@ import {
   STALE,
   TOTAL,
 } from "./deliverFixture";
+
+const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
 
 /** Exports and copies in place, as the app will once it is wired. */
 function Live(props: DeliverStageProps) {
@@ -35,9 +40,9 @@ function Live(props: DeliverStageProps) {
       {...props}
       exportState={exportState}
       link={{ ...props.link, url, copyState: copy }}
-      onExport={(settings) => {
-        props.onExport(settings);
-        setExportState(DONE);
+      onExport={(request) => {
+        props.onExport(request);
+        setExportState(exportedState(request));
       }}
       onCopyLink={() => {
         props.onCopyLink();
@@ -85,6 +90,8 @@ const meta: Meta<typeof DeliverStage> = {
     onPlayFrom: fn(),
     onPlayClip: fn(),
     onFindClips: fn(),
+    onOpenClipInEdit: fn(),
+    onGetModel: fn(),
     onRetry: fn(),
   },
   parameters: {
@@ -112,7 +119,7 @@ export const Ready: Story = {
     await userEvent.keyboard("{Control>}e{/Control}");
     await expect(args.onExport).toHaveBeenCalledOnce();
     await expect(
-      await view.findByRole("button", { name: "Reveal in Finder" }),
+      await view.findByRole("button", { name: REVEAL }),
     ).toBeInTheDocument();
     await expect(view.queryByRole("button", { name: /^Export/ })).toBeNull();
   }),
@@ -149,9 +156,7 @@ export const Exported: Story = {
   },
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
-    await userEvent.click(
-      view.getByRole("button", { name: "Reveal in Finder" }),
-    );
+    await userEvent.click(view.getByRole("button", { name: REVEAL }));
     await expect(args.onReveal).toHaveBeenCalledOnce();
     await userEvent.click(view.getByRole("button", { name: "Copy" }));
     await expect(
@@ -173,9 +178,9 @@ export const ExportedInBrowser: Story = {
 export const Stale: Story = {
   args: { exportState: STALE, link: { url: LINK, openedBy: OPENED_BY } },
   play: playInCanvas(async ({ canvasElement, args }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Export again" }),
-    );
+    const view = within(canvasElement);
+    await expect(view.getByText("Edited since export")).toBeInTheDocument();
+    await userEvent.click(view.getByRole("button", { name: /^Export/ }));
     await expect(args.onExport).toHaveBeenCalledOnce();
   }),
 };
@@ -183,10 +188,32 @@ export const Stale: Story = {
 export const Failed: Story = {
   args: { exportState: FAILED },
   play: playInCanvas(async ({ canvasElement, args }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Try again" }),
-    );
+    const view = within(canvasElement);
+    await expect(view.getByText("Export failed")).toBeInTheDocument();
+    await userEvent.click(view.getByRole("button", { name: /^Export/ }));
     await expect(args.onExport).toHaveBeenCalledOnce();
+  }),
+};
+
+export const EditedAfterExport: Story = {
+  args: { exportState: DONE, facts: MEASURED_FACTS },
+  play: playInCanvas(async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.queryByRole("button", { name: /^Export/ })).toBeNull();
+    await userEvent.click(view.getByRole("button", { name: /^Streaming/ }));
+    await expect(view.getByText("Edited since export")).toBeInTheDocument();
+    await expect(view.getByRole("button", { name: /^Export/ })).toBeEnabled();
+    await expect(view.queryByRole("button", { name: REVEAL })).toBeNull();
+  }),
+};
+
+export const NeedsModel: Story = {
+  args: { exportState: NEEDS_MODEL },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await userEvent.click(view.getByRole("button", { name: "Get" }));
+    await expect(args.onGetModel).toHaveBeenCalledOnce();
+    await expect(view.getByRole("button", { name: /^Export/ })).toBeDisabled();
   }),
 };
 
@@ -202,6 +229,12 @@ export const Loading: Story = { args: { state: "loading" } };
 export const LoadError: Story = {
   name: "Error",
   args: { state: "error" },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Try again" }),
+    );
+    await expect(args.onRetry).toHaveBeenCalledOnce();
+  }),
 };
 
 export const Guest: Story = {

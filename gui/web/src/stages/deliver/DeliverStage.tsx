@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
 import type { LinkCopyState } from "../../system/LinkRow";
 import { Player } from "../../system/Player";
@@ -12,24 +12,32 @@ import {
   approveClip,
   type Chapter,
   type Clip,
-  clipFiles,
+  currentExportState,
   type DeliverEnv,
   type EpisodeSettings,
   type ExportFile,
+  type ExportRequest,
   type ExportState,
   exportBlocker,
+  exportRequest,
   primaryAction,
   type ReadinessFacts,
   readinessRows,
   removeChapter,
   removeClip,
+  restoreChapter,
+  restoreClip,
   retimeChapter,
   retitleChapter,
+  retitleClip,
+  type TimeSpan,
+  trimClip,
 } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 import { ExportButton } from "./ExportButton";
 import { ListenLink } from "./ListenLink";
 import { Readiness } from "./Readiness";
+import { useFocusRecovery } from "./useFocusRecovery";
 
 export type DeliverStageProps = {
   facts: ReadinessFacts;
@@ -41,10 +49,11 @@ export type DeliverStageProps = {
   saveTo: string;
   exportState: ExportState;
   env?: DeliverEnv;
-  /** The Player's clock. */
   clock: { time: string; total: string };
   /** Playhead in seconds, where Add at playhead puts a chapter. */
   playhead: number;
+  /** A range selected in Edit; Mod+E exports it instead of the Deliver In and Out. */
+  selection?: TimeSpan | null;
   link: {
     url: string | null;
     copyState?: LinkCopyState;
@@ -57,10 +66,9 @@ export type DeliverStageProps = {
   state?: "ready" | "loading" | "error";
   /** Guests get Review only; Deliver shows a Cover instead of controls. */
   guest?: boolean;
-  /** Toast lifetime in ms. */
   toastMs?: number;
   onFix: (stage: StageId, target?: string) => void;
-  onExport: (settings: EpisodeSettings) => void;
+  onExport: (request: ExportRequest) => void;
   onCancel: () => void;
   onReveal: (file?: ExportFile) => void;
   onDownload: (file?: ExportFile) => void;
@@ -70,6 +78,8 @@ export type DeliverStageProps = {
   onPlayFrom: (seconds: number) => void;
   onPlayClip: (id: string) => void;
   onFindClips: () => void;
+  onOpenClipInEdit: (id: string) => void;
+  onGetModel?: () => void;
   onRetry?: () => void;
 };
 
@@ -77,7 +87,6 @@ const EXPORT_KEY = VERBS.find((verb) => verb.id === "export")?.keys[0];
 
 let nextChapter = 0;
 
-/** The Deliver page: Readiness, then the episode file, the listen link, chapters and clips. */
 export function DeliverStage({
   facts,
   total,
@@ -89,6 +98,7 @@ export function DeliverStage({
   env = "app",
   clock,
   playhead,
+  selection = null,
   link,
   pinnedTo,
   layout = "desktop",
@@ -106,6 +116,8 @@ export function DeliverStage({
   onPlayFrom,
   onPlayClip,
   onFindClips,
+  onOpenClipInEdit,
+  onGetModel,
   onRetry,
 }: DeliverStageProps) {
   const [settings, setSettings] = useState(initialSettings);
@@ -114,21 +126,32 @@ export function DeliverStage({
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [playing, setPlaying] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
+  const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
+  const inFlight = useRef(false);
   const phone = layout === "phone";
+  const loading = state === "loading";
 
-  const blocker = exportBlocker(settings);
-  const action = primaryAction(exportState, env);
-  const startExport = () => {
-    if (!guest && !blocker && action !== "exporting") onExport(settings);
+  const blocker = loading
+    ? "Still loading."
+    : exportBlocker(settings, exportState);
+  const request = exportRequest(settings, clips);
+  const shownState = currentExportState(exportState, request);
+  const action = primaryAction(shownState, env);
+
+  useEffect(() => {
+    inFlight.current = false;
+  }, [exportState]);
+  const startExport = (viaKey = false) => {
+    if (guest || blocker || action === "exporting" || inFlight.current) return;
+    inFlight.current = true;
+    onExport(viaKey ? exportRequest(settings, clips, selection) : request);
   };
   const onKey = useRef(startExport);
-  useLayoutEffect(() => {
+  useEffect(() => {
     onKey.current = startExport;
   });
-  useLayoutEffect(() => {
-    const el = root.current;
-    if (!el || !EXPORT_KEY) return;
+  useEffect(() => {
+    if (!rootEl || !EXPORT_KEY) return;
     const listener = (event: KeyboardEvent) => {
       if (
         (event.metaKey || event.ctrlKey) &&
@@ -138,12 +161,13 @@ export function DeliverStage({
         event.key.toUpperCase() === EXPORT_KEY.key
       ) {
         event.preventDefault();
-        onKey.current();
+        onKey.current(true);
       }
     };
-    el.addEventListener("keydown", listener);
-    return () => el.removeEventListener("keydown", listener);
-  }, []);
+    rootEl.addEventListener("keydown", listener);
+    return () => rootEl.removeEventListener("keydown", listener);
+  }, [rootEl]);
+  useFocusRecovery(rootEl);
 
   if (guest) {
     return (
@@ -172,60 +196,78 @@ export function DeliverStage({
   }
 
   const rows = readinessRows(facts);
-  const remove = (id: string) => {
-    const before = chapters;
-    const gone = chapters.find((c) => c.id === id);
-    setChapters(removeChapter(chapters, id));
-    setToast({
-      id: Date.now(),
-      message: `Deleted ${gone?.title ?? "chapter"}`,
-    });
+  const notify = (message: string, onUndo: () => void) => {
+    setToast({ id: Date.now(), message });
     setUndo(() => () => {
-      setChapters(before);
+      onUndo();
       setToast(null);
     });
   };
-  const pins = [...clipFiles(clips)];
-  const exportWithClips: ExportState =
-    exportState.phase === "done" || exportState.phase === "stale"
-      ? { ...exportState, files: [...exportState.files, ...pins] }
-      : exportState;
-  const sharedState = state === "loading" ? "loading" : "ready";
+  const removeChapterWithUndo = (id: string) => {
+    const gone = chapters.find((c) => c.id === id);
+    if (!gone) return;
+    setChapters((now) => removeChapter(now, id));
+    notify(`Removed ${gone.title}`, () =>
+      setChapters((now) => restoreChapter(now, gone)),
+    );
+  };
+  const removeClipWithUndo = (id: string) => {
+    const index = clips.findIndex((c) => c.id === id);
+    const gone = clips[index];
+    if (!gone) return;
+    setClips((now) => removeClip(now, id));
+    notify(`Removed ${gone.title}`, () =>
+      setClips((now) => restoreClip(now, gone, index)),
+    );
+  };
+  const sharedState = loading ? "loading" : "ready";
   const chaptersPart = (
     <ChaptersList
       chapters={chapters}
       total={total}
       state={sharedState}
       onRetitle={(id, title) =>
-        setChapters(retitleChapter(chapters, id, title))
+        setChapters((now) => retitleChapter(now, id, title))
       }
-      onRetime={(id, at) => setChapters(retimeChapter(chapters, id, at))}
+      onRetime={(id, at) => setChapters((now) => retimeChapter(now, id, at))}
       onPlayFrom={onPlayFrom}
-      onRemove={remove}
+      onRemove={removeChapterWithUndo}
       onAdd={() =>
-        setChapters(addChapterAt(chapters, playhead, `new-${nextChapter++}`))
+        setChapters((now) =>
+          addChapterAt(now, Math.min(playhead, total), `new-${nextChapter++}`),
+        )
       }
     />
   );
   const clipsPart = (
     <ClipsRow
       clips={clips}
+      total={total}
       state={sharedState}
-      onRetitle={(id, title) =>
-        setClips(clips.map((c) => (c.id === id ? { ...c, title } : c)))
+      onRetitle={(id, title) => setClips((now) => retitleClip(now, id, title))}
+      onTrim={(id, edge, at) =>
+        setClips((now) => trimClip(now, id, edge, at, total))
       }
       onPlay={onPlayClip}
-      onApprove={(id) => setClips(approveClip(clips, id))}
-      onRemove={(id) => setClips(removeClip(clips, id))}
+      onApprove={(id) => setClips((now) => approveClip(now, id))}
+      onRemove={removeClipWithUndo}
+      onOpenInEdit={onOpenClipInEdit}
       onFind={onFindClips}
     />
   );
 
   return (
-    <div ref={root} className="dv-stage" data-layout={layout} tabIndex={-1}>
-      {/* A scroll region must take keyboard focus (axe), even while it only holds a skeleton. */}
-      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <section className="dv-page" aria-label="Deliver" tabIndex={0}>
+    <div
+      ref={setRootEl}
+      className="dv-stage"
+      data-layout={layout}
+      tabIndex={-1}
+    >
+      <section
+        className="dv-page"
+        aria-label="Deliver"
+        aria-busy={loading || undefined}
+      >
         <Readiness rows={rows} state={sharedState} onFix={onFix} />
         <div className="dv-columns">
           <div className="dv-col">
@@ -233,13 +275,14 @@ export function DeliverStage({
               settings={settings}
               total={total}
               saveTo={saveTo}
-              exportState={exportWithClips}
+              exportState={shownState}
               env={env}
               state={sharedState}
               dock={phone}
               onSettings={setSettings}
               onChangeFolder={onChangeFolder}
-              onExport={startExport}
+              onExport={() => startExport()}
+              onGetModel={onGetModel}
               onCancel={onCancel}
               onReveal={onReveal}
               onDownload={onDownload}
@@ -263,7 +306,7 @@ export function DeliverStage({
                 noMix={link.noMix ? { onRefresh: onRefreshMix } : undefined}
                 share={phone}
                 compact={phone}
-                highlight={exportState.phase === "done"}
+                highlight={shownState.phase === "done"}
                 onCopy={onCopyLink}
               />
             )}
@@ -281,7 +324,7 @@ export function DeliverStage({
           <ExportButton
             action={action}
             blocker={blocker}
-            onExport={startExport}
+            onExport={() => startExport()}
             onReveal={() => onReveal()}
             onDownload={() => onDownload()}
           />

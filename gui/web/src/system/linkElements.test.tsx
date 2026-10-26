@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { LinkRow } from "./LinkRow";
 import { middleTruncate } from "./linkText";
-import { RoleChip, RolePicker } from "./RoleChip";
+import { RoleChip } from "./RoleChip";
 import { TimeField } from "./TimeField";
 
 describe("RoleChip", () => {
@@ -13,13 +13,6 @@ describe("RoleChip", () => {
       screen.getByRole("img", { name: "Commenter: can comment" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Commenter")).toBeNull();
-  });
-
-  it("changes role through the picker", async () => {
-    const onChange = vi.fn();
-    render(<RolePicker access="viewer" onChange={onChange} />);
-    await userEvent.click(screen.getByRole("button", { name: /^Editor/ }));
-    expect(onChange).toHaveBeenCalledWith("editor");
   });
 });
 
@@ -127,12 +120,6 @@ describe("TimeField", () => {
     await userEvent.clear(input);
     await userEvent.type(input, "abc{Enter}");
     expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("shows a reset dot only away from the default", async () => {
-    const { onChange } = setup({ defaultValue: 0 });
-    await userEvent.click(screen.getByRole("button", { name: "Reset Gain" }));
-    expect(onChange).toHaveBeenCalledWith(0);
   });
 
   it("scrubs by dragging the label", () => {

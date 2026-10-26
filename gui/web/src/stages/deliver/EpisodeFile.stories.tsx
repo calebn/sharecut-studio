@@ -2,15 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
-import {
-  DONE,
-  FAILED,
-  NEVER,
-  RUNNING,
-  SETTINGS,
-  STALE,
-  TOTAL,
-} from "./deliverFixture";
+import { DONE, NEEDS_MODEL, NEVER, SETTINGS, TOTAL } from "./deliverFixture";
 import type { EpisodeSettings } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 
@@ -82,6 +74,8 @@ export const PartOfEpisode: Story = {
     await userEvent.clear(out);
     await userEvent.type(out, "0:30{Enter}");
     await expect(out).toHaveValue("0:30.0");
+    await userEvent.click(view.getByRole("button", { name: "Part…" }));
+    await expect(out).toHaveValue("0:30.0");
     const start = view.getByRole("textbox", { name: "In" });
     await userEvent.clear(start);
     await userEvent.type(start, "9:00{Enter}");
@@ -89,17 +83,21 @@ export const PartOfEpisode: Story = {
   },
 };
 
-export const Exporting: Story = { args: { exportState: RUNNING } };
-
 export const Exported: Story = { args: { exportState: DONE } };
 
 export const ExportedInBrowser: Story = {
   args: { exportState: DONE, env: "browser" },
 };
 
-export const Stale: Story = { args: { exportState: STALE } };
-
-export const Failed: Story = { args: { exportState: FAILED } };
+export const NeedsModel: Story = {
+  args: { exportState: NEEDS_MODEL, onGetModel: fn() },
+  play: async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await expect(view.getByText("1.6 GB")).toBeInTheDocument();
+    await userEvent.click(view.getByRole("button", { name: "Get" }));
+    await expect(args.onGetModel).toHaveBeenCalledOnce();
+  },
+};
 
 export const Loading: Story = { args: { state: "loading" } };
 

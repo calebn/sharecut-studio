@@ -1,9 +1,13 @@
-import type {
-  Chapter,
-  Clip,
-  EpisodeSettings,
-  ExportState,
-  ReadinessFacts,
+import {
+  type Chapter,
+  type Clip,
+  clipFiles,
+  type EpisodeSettings,
+  type ExportRequest,
+  type ExportState,
+  estimateBytes,
+  partSeconds,
+  type ReadinessFacts,
 } from "./deliverLogic";
 
 export const TOTAL = 3120;
@@ -47,24 +51,57 @@ export const CLIPS: readonly Clip[] = [
   {
     id: "k1",
     title: "Nobody asked the river",
-    seconds: 41,
+    start: 612,
+    end: 653,
     score: 0.82,
     approved: false,
   },
   {
     id: "k2",
     title: "The boat was still there",
-    seconds: 28,
+    start: 1840,
+    end: 1868,
     score: 0.55,
     approved: false,
   },
-  { id: "k3", title: "Cold open", seconds: 33, score: 0.31, approved: true },
+  {
+    id: "k3",
+    title: "Cold open",
+    start: 0,
+    end: 33,
+    score: 0.31,
+    approved: true,
+  },
 ];
 
-export const FILES = [
-  { name: "field-notes.mp3", bytes: 49_900_000, format: "mp3" },
-  { name: "field-notes.wav", bytes: 550_000_000, format: "wav" },
-] as const;
+export const REQUEST: ExportRequest = {
+  settings: SETTINGS,
+  clipIds: ["k3"],
+  range: null,
+};
+
+/** The finished export a host would report for a request. */
+export function exportedState(
+  request: ExportRequest,
+  clips: readonly Clip[] = CLIPS,
+  phase: "done" | "stale" = "done",
+): Extract<ExportState, { phase: "done" | "stale" }> {
+  const seconds = partSeconds(request.settings.part, TOTAL);
+  const approved = clips.filter((c) => request.clipIds.includes(c.id));
+  return {
+    phase,
+    when: "2 h ago",
+    exported: request,
+    files: [
+      ...request.settings.formats.map((id) => ({
+        name: `field-notes.${id}`,
+        bytes: estimateBytes(id, seconds),
+        format: id,
+      })),
+      ...clipFiles(approved.map((c) => ({ ...c, approved: true }))),
+    ],
+  };
+}
 
 export const NEVER: ExportState = { phase: "never" };
 export const RUNNING: ExportState = {
@@ -72,15 +109,12 @@ export const RUNNING: ExportState = {
   progress: 0.6,
   detail: "Mastering · Writing MP3 · 60%",
 };
-export const DONE: ExportState = {
-  phase: "done",
-  files: FILES,
-  when: "2 h ago",
-};
-export const STALE: ExportState = {
-  phase: "stale",
-  files: FILES,
-  when: "2 h ago",
+export const DONE = exportedState(REQUEST);
+export const STALE = exportedState(REQUEST, CLIPS, "stale");
+export const NEEDS_MODEL: ExportState = {
+  phase: "needs-model",
+  model: "transcription model",
+  size: "1.6 GB",
 };
 export const FAILED: ExportState = {
   phase: "failed",
