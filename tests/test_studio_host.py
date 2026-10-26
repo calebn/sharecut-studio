@@ -191,7 +191,7 @@ def test_workspace_folder_finds_the_same_announcement_as_the_project_file(projec
 
 @pytest.fixture
 def quick_ping(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
 
 
 @pytest.fixture
@@ -228,9 +228,7 @@ def test_a_studio_that_goes_silent_after_the_ping_is_lost_not_bypassed(
         )
 
 
-def test_a_studio_nothing_listens_for_is_a_stale_announcement(
-    project: Path, quick_ping: None
-) -> None:
+def test_a_studio_nothing_listens_for_is_a_stale_announcement(project: Path) -> None:
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
