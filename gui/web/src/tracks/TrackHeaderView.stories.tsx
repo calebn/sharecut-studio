@@ -74,6 +74,10 @@ type Story = StoryObj<typeof TrackHeaderView>;
 
 export const Default: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
@@ -99,6 +103,10 @@ export const Selected: Story = {
 
 export const SavedMute: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   args: {
     muteState: "saved",
     mixer: (
@@ -121,6 +129,10 @@ export const SavedMute: Story = {
 
 export const ListenMuteAndSolo: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   args: {
     muteState: "listen",
     mixer: (
@@ -143,6 +155,10 @@ export const ListenMuteAndSolo: Story = {
 
 export const Soloed: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   args: {
     mixer: (
       <TrackMuteSoloButtonsView
@@ -164,6 +180,10 @@ export const Soloed: Story = {
 
 export const ImpliedMute: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   args: {
     muteState: "implied",
     mixer: (
@@ -191,6 +211,10 @@ export const ImpliedMute: Story = {
 
 export const StaleStem: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   args: {
     stemClass: "stale",
     wholeReasons: ["fx"],
@@ -239,6 +263,10 @@ export const EmptyTrack: Story = {
 
 export const ReorderTarget: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   args: { mayReorder: true, dragging: false, dropEdge: "after" },
   play: async ({ canvasElement }) => {
     const grip = within(canvasElement).getByRole("button", {
@@ -257,6 +285,10 @@ export const ReorderTarget: Story = {
 
 export const SpeakerMatchesName: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+  },
   args: {
     track: sampleTrack({
       id: "mira",

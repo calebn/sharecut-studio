@@ -187,7 +187,11 @@ export const CommentModeHidesCut: Story = {
 export const IngestOnly: Story = {
   tags: ["wide-only"],
   args: { bladeAllowed: false },
-  parameters: { railTablet: true },
+  parameters: {
+    wideOnlyReason:
+      "The play needs the + Track button, which the 360 px rail does not draw.",
+    railTablet: true,
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(

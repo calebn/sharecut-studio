@@ -143,6 +143,10 @@ function TransportTemplate({
 
 export const Wide: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The transport bar has a 70rem minimum width, so the page overflows a 360 px viewport.",
+  },
   render: () => <TransportTemplate />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -159,11 +163,19 @@ export const Wide: Story = {
 
 export const Playing: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The transport bar has a 70rem minimum width, so the page overflows a 360 px viewport.",
+  },
   render: () => <TransportTemplate initiallyPlaying />,
 };
 
 export const StaleRender: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The transport bar has a 70rem minimum width, so the page overflows a 360 px viewport.",
+  },
   render: () => <TransportTemplate stale />,
 };
 

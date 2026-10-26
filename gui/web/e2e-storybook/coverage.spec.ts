@@ -26,9 +26,8 @@ const THEMES: StoryTheme[] = ["light", "dark"];
  * Each worker opens Storybook once and moves between stories through the
  * preview channel, as the Storybook UI does, so a story costs a render and an
  * axe run rather than a page load. A story is checked at every width on that
- * live page. A story tagged `wide-only` is built around a layout that needs a
- * viewport wider than the phone (a fixed design width or a desktop-only play),
- * so it is checked at 1280 only. A story named for a phone width is checked at
+ * live page. A story tagged `wide-only` cannot render at the phone width, so it
+ * is checked at 1280 only and must say why in `parameters.wideOnlyReason`. A story named for a phone width is checked at
  * 360 only, and never carries `wide-only`.
  */
 const isPhoneStory = (story: IndexEntry) => /phone/i.test(story.name);
@@ -54,11 +53,14 @@ const index = JSON.parse(
 ) as { entries: Record<string, IndexEntry> };
 
 const stories = Object.values(index.entries).filter(
-  (entry) => entry.type === "story" && entry.id.startsWith("templates-"),
+  (entry) => entry.type === "story",
 );
 
-base("the Storybook index lists template stories", () => {
-  expect(stories.length).toBeGreaterThan(0);
+base("the Storybook index lists every story level", () => {
+  const levels = new Set(stories.map((story) => story.id.split("-")[0]));
+  expect([...levels]).toEqual(
+    expect.arrayContaining(["atoms", "molecules", "organisms", "templates"]),
+  );
 });
 
 base("the geometry title sets name existing stories", () => {
@@ -83,7 +85,13 @@ const STORYBOOK_URL = "http://127.0.0.1:6010";
 type Channel = { emit: (event: string, payload: unknown) => void };
 type PreviewWindow = {
   __STORYBOOK_ADDONS_CHANNEL__: Channel;
-  __STORYBOOK_PREVIEW__?: { currentRender?: { id?: string; phase?: string } };
+  __STORYBOOK_PREVIEW__?: {
+    currentRender?: {
+      id?: string;
+      phase?: string;
+      story?: { parameters?: { wideOnlyReason?: unknown } };
+    };
+  };
 };
 
 const test = base.extend<object, { storybook: Page }>({
@@ -167,6 +175,17 @@ for (const theme of THEMES) {
         }
         await renderSettled(page, story.id);
         await expect(page.locator("body.sb-show-errordisplay")).toHaveCount(0);
+        if (story.tags?.includes("wide-only")) {
+          const reason = await page.evaluate(
+            () =>
+              (window as unknown as PreviewWindow).__STORYBOOK_PREVIEW__
+                ?.currentRender?.story?.parameters?.wideOnlyReason,
+          );
+          expect(
+            typeof reason === "string" && reason.trim() !== "",
+            "a wide-only story sets parameters.wideOnlyReason",
+          ).toBe(true);
+        }
         await page.evaluate(() => document.fonts.ready);
 
         for (const width of [first, ...rest]) {

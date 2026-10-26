@@ -73,6 +73,10 @@ export const MainMenuCollapsed: Story = {
 
 export const WideBar: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The story draws the bar in an 80rem frame, so the page overflows a 360 px viewport.",
+  },
   decorators: [
     (Story) => (
       <div style={{ inlineSize: "80rem" }}>

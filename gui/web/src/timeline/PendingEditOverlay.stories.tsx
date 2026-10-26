@@ -109,7 +109,6 @@ export const Selected: Story = {
 };
 
 export const DragEndHandle: Story = {
-  tags: ["wide-only"],
   args: {
     edits: [remove],
     clipsByTrack: { "mira-voice": [clipRow()] },
