@@ -77,6 +77,8 @@ def test_building_evidence_for_a_long_mixed_rate_episode_stays_in_budget(tmp_pat
                 f"sine=f=220:r={rate}:d={seconds},aformat=channel_layouts={layout}",
                 "-c:a",
                 "flac",
+                "-compression_level",
+                "0",
                 str(tmp_path / name),
             ],
             check=True,
