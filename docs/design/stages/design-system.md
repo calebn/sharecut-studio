@@ -1,0 +1,754 @@
+# ShareCut design system (Direction C, "Stages")
+
+Reconciles the three area specs into one system: spec-edit.md (shell, Edit, phone shell), spec-record.md (Record), spec-review-deliver.md (Home, Prepare, Review, Deliver, guest review). Where this file and a spec disagree, this file wins. Each spec has a note at its top listing the terms that changed.
+
+Inputs: SPEC-BRIEF.md, rubric.md, the three specs, and the theme tokens in `gui/web/src/styles/theme/` (accent is the orange `--color-accent-*` family, failure is `--color-danger`, needs-you is `--color-warning`, and `--recording-red` exists). No new colors. Caleb's colors, IBM Plex and the wordmark stay.
+
+The rules behind every decision below:
+- One element per kind of thing, one icon per verb, one key per verb, one gesture per verb (rubric principles 10 and 11).
+- Something persistent, like the Player, keeps the same keys in every stage. A key never changes meaning between stages.
+- Position carries meaning. The negative choice is always on the left and the primary always on the trailing (right) end, and swipe direction matches: swipe left says no, swipe right says yes.
+- Merge before inventing. Every element below replaces at least one term from the specs (section 2 lists them).
+
+---
+
+## 1. Stage model
+
+### 1.1 Order and names
+
+**Record · Prepare · Edit · Review · Deliver**, keys Mod+1 to Mod+5.
+
+- Record comes first. That is the order of the work for a recorded show: audio comes in, Prepare processes it, you edit, you decide, you ship. Prepare's job ("turn raw audio into an editable episode") follows whatever brought the audio in. spec-record Q1 recommended this. spec-edit and spec-review-deliver used Prepare first only because the brief listed it that way.
+- An import-first project skips Record. Import lives in Prepare (and on Home and in empty Edit), and the project opens on Prepare. Record stays one tap away for a later session.
+- Edit, Review and Deliver keep Mod+3, Mod+4 and Mod+5 under either order, so the most used keys hold even if Caleb flips the first two (open-questions Q1).
+
+**Home is not a stage.** It sits above a project: the project switcher and the front door. You reach it from the Project menu ("All projects"), with Mod+O from anywhere, and at launch with no project open. Home has no Stage bar.
+
+### 1.2 Each stage: main surface and its one primary action
+
+| Stage | Main surface (gets the most space) | The one primary action | Anticipated next action, closest at hand |
+|---|---|---|---|
+| Home | Project cards (recent), Start tiles | Open the most recent project (focus ring on load, Enter). With no projects: the Import Start tile | Its card chip says which stage it opens to |
+| Record | The Room: a grid of Person tiles, with the right rail (Comments, Takes) | The Record button (start, hold to stop). Guest: Mute. Producer: Comment | After Stop: the hand-off "Edit Session 2" |
+| Prepare | The Ready list (a Status list) in the center, Sources (Session groups) on the left, "Help the transcriber" on the right | None while processing. When done, the Stage hand-off becomes the primary ("Review 14 suggestions") | Name speakers while it runs. Tab moves between Source cards |
+| Edit | Timeline and Script pane, one shared selection | None in chrome. Each selection has its own primary at the trailing end of the Action bar (Cut for words and ranges) | Selecting puts the verbs next to the object |
+| Review | Decision card (center), Review queue (left) | The card's verb (Cut, Shorten, Lower, Resolve, Approve, Replace). Enter | The next undecided item arrives on its own |
+| Deliver | Readiness, then Episode file, Listen link, Chapters, Clips | Export | After export: Reveal or Download, then Copy link |
+
+### 1.3 Switching
+
+- **Desktop and tablet:** the Stage bar is a segmented control centered in the App header. Click a stage or press Mod+1 to Mod+5. Clicking the active stage scrolls it to the playhead.
+- **Phone:** the Stage bar is the bottom tab bar (56 px plus the safe area), always visible. The phone never hides it: free switching (Caleb 22:25Z) beats the Photos-style toolbar swap.
+- **Deep links between stages** (each lands with the object selected):
+  - E or the Edit-stage icon on a Decision card opens Edit, zoomed to that item.
+  - Each fix button on a Readiness row opens that item in its stage.
+  - "Go to Record" on a recording band.
+  - The Record verb on an Edit selection opens Record with the target set to Replace.
+  - The Stage hand-off button (Mod+Enter).
+- **Nothing locks.** Review with no items shows its empty Cover. Deliver with open items still exports. Edit with no audio shows Start tiles.
+- **Badges** (one glyph set, section 4.6), on the Stage bar segment or tab:
+  - Record: a count of people waiting, a live red dot and take clock, "Paused", a saving ring, or an amber dot for an alert.
+  - Prepare: a progress ring, or an amber dot when it needs you.
+  - Review: the count of undecided items (suggestions, comments and checks together).
+  - Deliver: a check when a current export exists, or an amber dot when the export is older than the latest edit.
+- **Guests:**
+  - Review-link Viewer and Commenter: Review only, with no Stage bar.
+  - Review-link Editor: Edit and Review.
+  - Record-link guest and producer: the Room only, with no Stage bar.
+  - Prepare, Record (as host) and Deliver are host-only, because they touch the host's computer (models, files, the room).
+
+### 1.4 What persists across stages
+
+| Thing | Rule |
+|---|---|
+| Playhead | One per window, shared by every stage. Switching never moves it. Record has no playback, but the position is kept |
+| Selection | One selection model. The selected object travels: a suggestion selected in Review is selected in Edit, and a comment opened in Edit is the current item in Review. A selection the target stage can't show (a clip, in Deliver) is kept, not shown, and comes back when you return |
+| Player bar | On every stage except Record. In Record, the Record dock takes its place (no playback while people are on mics). Takes are heard from the Takes rows |
+| Undo history | One stack for the project across all stages. Undo in Deliver can undo a cut made in Edit, and the toast says what it undid |
+| Live take | Keeps recording on any stage. The Record badge shows the clock |
+| Zoom and scroll | Kept per stage |
+| Drafts | Composer drafts are kept per anchor. A Fix text field in progress commits when you leave |
+| Open sheets | Close on switch, since a sheet belongs to its surface. Sheets re-open from the selection |
+
+### 1.5 Recording sessions (first versus later)
+
+One concept, the **Session**, shows up in three places with one look: the Session group (Prepare Sources, Record rail), the session band on the Timeline ruler, and the Session target chip.
+
+| Case | Entry | Default target | Lands as |
+|---|---|---|---|
+| First recording of a new project | Home, Record Start tile. Project is created with default name and folder. Record opens with the room made and the Invite sheet open, Copy focused | "Starts the episode" | Applied directly |
+| A later session | Stage bar, Record | "At the end · after 52:10" | Applied directly, one undo step "Added Session 2" |
+| Pickup over a selection | Edit, Record verb (R) on words or a range | "Replaces 12:04 to 12:09" (the script of the selection is shown) | A Suggestion (Replace) in Review and Edit, with A/B and a take switcher |
+| Insert at playhead | Edit, Record verb with nothing selected, or the "+" menu | "Inserts at 12:04" | A Suggestion (Insert) |
+
+Where later sessions land is open-questions Q3. Track matching is decided here: match a returning person by display name, and correct it with a Person picker on each Source card of the Session group before you leave Record. Each change is undoable.
+
+---
+
+## 2. Shared element catalog
+
+Counted from the specs: about 90 distinct element names across the brief and the three specs (54 formally declared: 9 in the brief, 18 NEW in spec-edit, 13 NEW in spec-record, 14 NEW in spec-review-deliver). After merging there are **43 shared elements** and 2 Edit-local ones. Primitives (Button, Icon button, Segmented control, Chip, Switch, Text field, Confirm in place) are the existing `Atoms/*` and `Molecules/*` and are not counted.
+
+Storybook. Shared elements live under `System/<Element>`. Stage compositions live under `Stages/<Stage>/<Surface>`, where Stage is Frame, Home, Record, Prepare, Edit, Review, Deliver or Guest. Existing `Atoms/*` stay as primitives. Each existing `Templates/*`, `Organisms/*` or `Molecules/*` story that one of these elements replaces is deleted in the same change that adds its replacement. In the repo, Frame elements live under `System/`, so `Frame` is not a Stage title (the closed set is Home, Record, Prepare, Edit, Review, Deliver, Guest). That replaces the specs' mixed `Shell/`, `Edit/`, `Record/`, `Stages/Frame/` and `StageBar` prefixes.
+
+### Frame
+
+**1. App header**
+- Anatomy: 48 px (phone: 44 px below the safe area).
+  - Left: the Project menu button (wordmark symbol 20 px and the title, truncated last), the Save indicator, then Undo and Redo.
+  - Center (desktop and tablet): the Stage bar.
+  - Right: presence avatars (Person, 24 px, up to 3 then "+N"), Invite (`user-plus`) and the palette (`search`).
+  - No other buttons.
+- States: host, guest (the title gets a second line with the version and a Role chip; Invite is hidden for Viewer and Commenter), offline, loading (renders at once with the known title).
+- Used: SCR-SHELL-DESKTOP, SCR-SHELL-TABLET, SCR-PHONE-*, SCR-GUEST-*, SCR-REC-ROOM-* (guest form with no Stage bar).
+- Replaces: App header (edit), the rdp Stage-bar header with its "more" button, the rdp 56 px guest header, the Record room header.
+- Story: `System/AppHeader`: Host, Guest, Offline, Phone, RecordGuest.
+
+**2. Stage bar**
+- Anatomy: desktop segments 96 × 32 (88 on tablet), each a 16 px icon and a 13/500 label. Below 1100 px the inactive segments show the icon only. Phone tab bar: 5 equal tabs, a 24 px icon over an 11 px label. Badges sit top-right.
+- Stage icons (each used only to mean "this stage"):
+  - Record: filled circle, neutral at rest and red only while live.
+  - Prepare: `wand-sparkles`.
+  - Edit: waveform with a text cursor (custom, built on `audio-waveform`).
+  - Review: `inbox`.
+  - Deliver: `send`.
+- States: each badge kind (4.6), narrow, phone, guest Editor (2 tabs).
+- Used: every stage. It replaces phone Listen, Timeline, Text and More, CHIP-REC-TRANSPORT and CMP-PIPELINE-CHIP.
+- Replaces: Stage bar (edit and rdp), Room status pill compact form (record), Pipeline chip.
+- Story: `System/StageBar`: Desktop, Narrow, Phone, AllBadges, RecordLive, GuestEditor.
+
+**3. Save indicator**
+- An 8 px glyph after the title.
+  - Saved: nothing, or a check for 2 s after a save.
+  - Saving: hollow ring.
+  - Offline: amber `cloud-off` with a count ("2 waiting").
+  - Failed: red `octagon-alert`, with Retry and Download a copy.
+- Used: CMP-SAVEDOT, SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION.
+- Replaces: Save dot (edit), Save state dot with the offline cloud (rdp), the guest offline banner.
+- Story: `System/SaveIndicator`.
+
+**4. Player**
+- Bar form: 56 px on every device, at the bottom of every stage except Record.
+  - Left: time in Plex Mono 15, "/ 52:10" edited length, and the cuts Status pill ("−4:10").
+  - Center: back 15 s, Play/Pause (a 40 px circle filled with ink, not accent), forward 15 s. Phone hides the skip buttons.
+  - Right: A/B (hold to hear the original), Comment at playhead (`message-square`), and the solo and mix Status pills when they apply.
+- Expanded form:
+  - Phone: swipe up on the bar, or tap the time.
+  - Guest Review: embedded at the top of the center column.
+  - It shows a 64 px Overview strip with chapter ticks and comment dots, the title and current chapter, a 64 px Play, ±15 s, A/B, Comment, and the chapter list.
+- States: no audio (hidden), loading (ring around Play), playing, mix updating, audio error, following someone (their ring on Play), guest.
+- Used: CMP-TRANSPORT, CMP-TRANSPORT-PILLS, SCR-PHONE-LISTEN, the guest Player card, the phone mini player.
+- Replaces: Transport, Player bar, Player sheet (edit); mini player, Player card (rdp).
+- Story: `System/Player`: Ready, Playing, WithCuts, HearOriginalHeld, MixUpdating, AudioError, Soloed, Following, Phone, Expanded, ExpandedGuest.
+
+**5. Overview strip**
+- A whole-episode miniature with the playhead, viewport rectangle, selection band and ticks (suggestions, comments, find matches, chapters, session bands).
+- Heights: 16 (phone Edit, Script focus), 32 (Review context, above the Player bar), 48 (Project card, static), 64 (expanded Player).
+- Used: SCR-LAYOUT-TEXT, SCR-PHONE-TIMELINE, the SCR-REVIEW context strip, SCR-HOME cards, the expanded Player.
+- Replaces: Overview strip (edit), Review context strip, Project card waveform strip, Player card scrubber (rdp).
+- Story: `System/OverviewStrip`: Edit16, Review32, CardStatic48, Player64.
+
+**6. Palette**
+- A 560 px centered card at 20 % from the top. Phone: full-height sheet.
+- Search first. Recent when empty. Rows show the verb icon, name, context and key caps.
+- Groups: commands, stages, projects, people, chapters, gestures (touch), and Help (Report a problem, Guides).
+- Opened with / or ? or the header `search`.
+- Used: DLG-PALETTE, DLG-GESTURES, the DLG-HELP "Shortcuts" row.
+- Replaces: palette (edit), the rdp Help "Shortcuts and gestures" row and the ? = Help key.
+- Story: `System/Palette`.
+
+### Selection and action
+
+**7. Action bar.** The concrete form of the object selection model. It has three forms with one verb order.
+- Verb order, always: [Scope chip] · Hear and A/B · Keep · Split · Comment · Fix text · Record · Export · Remove · More · Inspect · **primary** (trailing, accent filled, only when the object has a primary).
+  - Keep (the "no") sits left and the primary (the "yes") sits right, matching swipe left and swipe right.
+  - Verbs that don't apply are absent, never disabled.
+- Primary per object: cut suggestion → Cut; pause → Shorten; sound → Lower; pickup → Replace or Insert; words or range → Cut; comment → Resolve; check or clip idea → Approve. Clip, seam, marker, track and envelope point have no primary.
+- **Floating** (desktop and tablet): a 40 px pill (44 px on touch) 8 px above the selection, flipping below when there is no room. Icon only, tooltip with name and key.
+- **Dock** (phone): one 64 px row above the Player bar, a 48 px icon over a 10 px label, and it is the Sheet's first detent.
+  - Phone Edit always shows the dock. With nothing selected it shows playhead verbs (Split, Add chapter, Record, Paste).
+  - Phone Review always shows it (an item is always current): Keep (left), A/B (center), verb (right).
+  - Record uses the dock in its transport layout, replacing the Player bar: centered round buttons, secondaries 48, primary 64, 16 px gaps, Leave or More set 24 px apart at the far right. Host: Mute, Comment, Record, Pause, More. Guest: Mute, Comment, Rail, Leave. Producer: Comment, Rail, Leave.
+- **Inline:** the same row inside a Decision card or a Sheet footer.
+- States: per object kind, multi-select (count in the leading slot), read-only guest (Hear and Comment only).
+- Used: CMP-RANGE-ACTIONS, OVL-PENDING, INS-PEEK, SHEET-PHONE-INSPECTOR, MENU-CREATE (the playhead set), the Decision card action row, the Review phone thumb buttons, the SCR-REC-* dock, the SCR-REC-DECLINED peek bar (dock with one primary, Join recording).
+- Replaces: Action bar and action dock (edit); Record dock (record); Decision card action row, phone Keep and verb buttons (rdp).
+- Story: `System/ActionBar`: Words, Range, Clip, Seam, Suggestion, Comment, Multi, PhoneDock, PhoneDockPlayhead, ReviewDock, RecordHost, RecordGuest, RecordProducer, ReadOnly.
+
+**8. Scope chip**
+- The leading slot of the Action bar for ranges, words and Split: stacked track-colour dots (or "All"), plus a ripple glyph when time closes or a gap glyph when time is kept. Click to toggle tracks.
+- Used: CMP-RANGE-ACTIONS, INT-SPLIT, INT-DELETE.
+- Story: `System/ScopeChip`.
+
+**9. Sheet.** Every non-modal surface that is not a menu.
+- Anatomy: header 40 px (object icon, title or inline rename, close), body of rows (label left, control right), optional footer with one primary in the thumb zone.
+- Desktop placements: Anchored card, 320 px, to a selection or button, at most 60 % of the viewport (the Inspector). Side panel, 400 px, on the right (Settings). Centered card, 400 px (Join).
+- Phone: a bottom sheet with detents (4.3).
+- Values apply as they change. There are no Apply buttons.
+- Instances:
+  - Inspector: INS-CLIP, INS-CLIP-MULTI, INS-TRACK, INS-CHAPTER, INS-SOCIAL, INS-RANGE, INS-WORD, INS-BLEED, the Seam, CMP-WORDBAR, DLG-PRECISION.
+  - Your own Person tile: CMP-REC-DEVICE, the Device sheet.
+  - Join: SCR-REC-LOBBY-GUEST, -PRODUCER, CMP-REC-CONSENT.
+  - Invite: MENU-PEOPLE invite, DLG-SHARE.
+  - Person: presence, Follow, Go to.
+  - View (the eye): MENU-VIEW.
+  - History: PNL-HISTORY, INT-UNDO.
+  - Mix: SHEET-PHONE-MIX.
+  - Queue on phone.
+  - Settings: DLG-MODELS, DLG-MCP, DLG-HELP, Project settings, PNL-PIPELINE Advanced, DLG-STEP-PARAMS.
+  - Speaker: POP-SPEAKER.
+- A sheet opened from a sheet pushes a step inside the same sheet. Sheets never stack.
+- Replaces: Inspector sheet, Invite popover, eye popover, History popover, speaker popover, person popover (edit); Join sheet, Device sheet, Invite tile popover (record); Models sheet, Help sheet, Connect agent sheet, History sheet, Invite popover (rdp).
+- Story: `System/Sheet`: AnchoredCard, SidePanel, CenteredCard, PhonePeek, PhoneHalf, PhoneFull, PushedStep; and per instance under its stage (for example `Stages/Record/JoinSheet`).
+
+**10. Menu**
+- A 280 px list of 36 px rows (44 on touch): verb icon, label, key caps. A header row names the anchor ("12:04.3 · Maya"). Rows that can't apply are absent.
+- Phone: the same rows as a content-height Sheet.
+- Instances: the Project menu (first row is the title as a rename field, then Recent 5, All projects, Settings, Connect agent, Help), More (⋯), Create here or long-press, the Session target chip menu, Person tile menu, row menus.
+- Used: MENU-MAIN, MENU-CREATE, the Home "more" and Help buttons, the record ⋯.
+- Replaces: Project menu (edit); Home more and Help buttons, the Stage-bar "more" (rdp); the room overflow (record).
+- Story: `System/Menu`: Project, More, CreateHere, Phone.
+
+**11. Scrub field**
+- A numeric value with its unit in Plex Mono. Drag to change (Shift ×10, Alt ×0.1), click to type, ↑/↓ to step, Enter commits, Esc reverts, a reset dot shows when the value isn't the default, and one gesture is one undo step.
+- Variants: plain, with track (allowed range), level bar.
+- Used: every Inspector, CMP-TRACK-FADER, SHEET-PHONE-MIX, DLG-STEP-PARAMS, the Deliver Chapters time, Deliver Part In and Out.
+- Story: `System/ScrubField`.
+
+**12. Readout chip**
+- A 22 px chip 12 px above the pointer during any drag: delta and resulting value.
+- Used: CMP-CLIP trim, fade, move, roll, envelope, level, marker drag, Decision card handles.
+- Story: `System/ReadoutChip`.
+
+**13. Selection handles**
+- Caret handles with 12 px knobs (44 px hit) at both ends of a text selection, adjusting by word.
+- Used: PNL-TRANSCRIPT, CMP-WORDRANGE, the Decision card excerpt, guest transcript.
+- Story: `System/SelectionHandles`.
+
+### Content
+
+**14. Script pane**
+- The transcript as a document: a speaker margin (Person 20 px and first name), reading type (4.5), no modes.
+  - Click a word to seek.
+  - Drag, Shift-click or double-click to select.
+  - Typing on a selection is Fix text.
+  - Backspace on a selection is Cut.
+- Its header holds `text-search` (find), the unsure-words "? 3" chip, the show-cut-text `eye` and the follow pin. Region notices are compact Status rows in that header.
+- Read-only variant for guests and the Decision card excerpt (two sentences of context).
+- Used: PNL-TRANSCRIPT, CMP-TURN, SCR-PHONE-TEXT, SCR-GUEST-COMMENTER transcript, the Decision card excerpt.
+- Story: `System/ScriptPane` (states), `Stages/Edit/ScriptPane` (compositions).
+
+**15. Timeline**
+- Ruler 24 px, which also carries the **session bands** (alternating tint per session with an "S2" pill). Marker lane 24 px. Lanes fill the height (72 to 240 px each). Corner zoom cluster at the bottom-right of the lanes (Fit, −, +, `eye`). Playhead is a 2 px accent line.
+- The live take band in the lanes becomes the session band on the ruler when it lands.
+- Used: CMP-TIMELINE, CMP-RULER, CMP-MARKERS, OVL-RECORDING, OVL-RANGE, OVL-PRESENCE, SCR-PHONE-TIMELINE.
+- Replaces: corner zoom cluster and marker lane (edit, now parts of this element), the Session marker in the marker lane (record).
+- Story: `System/Timeline` (parts), `Stages/Edit/Timeline` (compositions).
+
+**16. Track header**
+- Person 28 px with the level ring, name, then on hover or when set: Mute (`volume-x`), Solo (`headphones`), a level Scrub field. Drag to reorder. The wide form (280 px) is the desktop mixer. The phone form is 56 px, avatar only.
+- Used: CMP-TRACK-HEADERS, CMP-TRACK-FADER, CMP-TRACK-MIX, SHEET-PHONE-MIX rows.
+- Story: `System/TrackHeader`.
+
+**17. Clip**
+- A rounded 6 px block in the track colour. Its label shows only when the clip is wider than 80 px. Trim tabs and fade knobs appear on hover and while selected. A muted region is hatched grey with `volume-x`.
+- Used: CMP-CLIP, INT-MOVE, INT-TRIM, INT-FADE.
+- Story: `System/Clip`.
+
+**18. Marker**
+- One glyph family in the marker lane: chapter = `flag`; comment = `message-square` pin (span bar for a range); clip idea = bracket pair, hatched while proposed and solid once approved. "+3" stacks.
+- Used: CMP-MARKERS, INS-CHAPTER, INS-SOCIAL, OVL-COMMENT-BUBBLE, Record comments after landing.
+- Replaces: social bracket and comment pin (edit), the record "Comment pin" marker, the rdp "Suggestion visual on the marker lane" for clips.
+- Story: `System/Marker`.
+
+**19. Suggestion.** One drawing for any proposed change, everywhere.
+- Text: struck words in the cut token on a hatch background.
+- Waveform: 45° hatch in the suggestion token with a 2 px outline, a 16 px kind glyph and edge handles.
+- Rows: kind glyph and struck snippet.
+- Pauses draw a hatched gap glyph. Pickups draw a hatched region with the Record glyph.
+- Hatch means proposed. Solid strike or a Seam means applied.
+- Used: OVL-PENDING, INS-PENDING, PNL-TIGHTEN results, guest suggestions, pickup and insert sessions, clip ideas, Decision card.
+- Story: `System/Suggestion`: Text, Waveform, Row, Pause, Pickup, Guest.
+
+**20. Seam**
+- The boundary between two pieces of audio: an applied cut, a split, a join.
+  - Timeline: a 6 px diamond, filled for a cut and hollow for a split.
+  - Text: an 18 px pill with `scissors` and the removed length.
+- Verbs: Hear across, Keep (cuts only), join type, Comment, Inspect.
+- Used: POP-JOIN, CMP-EDITBOUNDARY, DLG-PRECISION, OVL-APPLIED, OVL-EDITMARKERS, INS-APPLIED, the Review "Decided" rows.
+- Story: `System/Seam`.
+
+**21. A/B audition**
+- A two-segment control: "A" (before or original) and "B" (after or edited). Each plays 1.5 s pre-roll through 1.5 s post-roll (Review: 3 s). Press-and-hold A with nothing selected plays the original at the playhead.
+- Adjusting a handle switches it to B.
+- Used: Decision card, Seam, Suggestion, Player (Hear original), the Prepare align check, Source card voice check.
+- Replaces: "Hear original" (edit, the O key) and Hear before and after (rdp).
+- Story: `System/ABAudition`.
+
+### Decisions and comments
+
+**22. Review queue**
+- A list container.
+  - Header: progress ("6 of 14 decided · saves 7.8 s"), filter icons with counts (All, `scissors`, `message-square`, `triangle-alert`), and Find more (`wand-sparkles`).
+  - Groups, each with a bulk primary in its header ("Cut all 11", Shift+Enter).
+  - Sorts: by kind (default) or chronological.
+- Placements: Review left 360 px; Record right rail (Comments filter, chronological, Composer at the bottom); guest Review left (Comments and Your suggestions); phone Queue sheet.
+- Used: SCR-REVIEW, PNL-IMPACT, PNL-TIGHTEN, PNL-COMMENTS, CMP-REC-LIVECOMMENTS, SCR-GUEST-COMMENTER.
+- Replaces: Review queue (rdp), Notes rail (record).
+- Story: `System/ReviewQueue`: Groups, CommentsChronological, Guest, PhoneSheet, BulkRunning.
+
+**23. Queue row**
+- 56 px: kind glyph or author avatar, snippet (Suggestion drawing for proposals), time in mono, value (saved seconds, or reply count), unread 8 px accent dot, offline clock. Swipe right = primary, swipe left = Keep.
+- Used: Review queue items, comment rows, Record comments and markers (a marker is a comment with no text).
+- Replaces: Comment row (rdp), Notes rail rows (record).
+- Story: `System/QueueRow`.
+
+**24. Decision card.** The focus surface and inspector for one decidable thing.
+- Anatomy: kind line (glyph, kind, time, speaker), plain title, Script excerpt with the Suggestion drawing, a 96 px ±6 s waveform with edge handles (snap to silence), why line, A/B, inline Action bar.
+- Variants:
+  - Suggestion.
+  - Pickup (take switcher "Take 1 of 3").
+  - Comment (thread, action items, Composer, Resolve).
+  - Check (unsure words stepper, transcript check, conflict).
+- Placements: Review center (max 760 px); Edit Inspect on a suggestion or comment (anchored Sheet, 320 px compact); phone Review full screen, with swipes.
+- Used: SCR-REVIEW, INS-PENDING, INS-COMMENT, CMP-COMMENT-CARD, PNL-IMPACT-REFINE-GATE, FLOW-REC-LATER pickups.
+- Replaces: Decision card and comment thread (rdp), comment popover and suggestion inspector (edit).
+- Story: `System/DecisionCard`: Filler, Pause, Sound, Pickup, Comment, Check, Adjusting, CompactInEdit, Phone, PhoneSwipe.
+
+**25. Composer**
+- One field with a leading time chip, which pins when typing starts or takes the selection. Tap the chip to re-anchor, or clear it to make a whole-episode note.
+- A send arrow sits inside the field. Enter posts and Shift+Enter adds a line.
+- On a guest's first post, a name line appears above.
+- Optional visibility chip (Record, open-questions Q6).
+- Used: PNL-COMMENTS, CMP-GUEST-NAME, CMP-GUEST-COMMENT, CMP-REC-LIVECOMMENTS, the Decision card reply, INS-COMMENT reply, the expanded Player comment.
+- Story: `System/Composer`.
+
+### Status and feedback
+
+**26. Status row.** One line about a state someone may need to act on, or a task that is running.
+- Anatomy: status glyph (4.6), plain title, a detail with numbers, a 4 px progress bar while running, at most one action (Fix, Get with size, Try again, Cancel, Retry), and an optional Details disclosure. Rows can expand to child rows.
+- Densities: 48 (lists), 44 (alert), 32 (inline in a region header).
+- **Status list** is a container of Status rows: Readiness, Ready list, Takes.
+- **Alert slot** is one 44 px slot under the App header on every stage. It shows the highest-priority row with "+N" for the rest. Record keeps its own priority table: mic lost, no audio, storage, saving failed, host offline, monitor failed, clipping.
+- Used: the Readiness check, the Prepare Ready list, Model gates (DLG-MODEL-GATE, DLG-WHISPER), Setup card, SCR-SETUP-*, the Review Checks group, the Join sheet rows (name, mic, headphones), CMP-REC-NOTICES, CMP-REC-UPLOAD, CMP-REC-HOSTROSTER, CMP-REC-CLIPPING (take detail), Takes rows, the CMP-PIPELINE-CHIP popover, Script "Transcript out of date".
+- Replaces: Job row, Check row, Model need row, Readiness check list (rdp); Room alert, Takes tray (record); Script header notice (edit).
+- Story: `System/StatusRow`: Queued, Running, Done, NeedsYou, Failed, NeedsModel, Expandable, Alert, Inline; `System/StatusList`; `System/AlertSlot`.
+
+**27. Status pill**
+- 28 px (24 in the header): glyph, short text, optional ✕. One rendering for the room state and short persistent states.
+- Used: Room status ("● 12:04 · Take 2", "Quiet please · 3", "Saving · 2 of 3", "Reconnecting…"), Following ("Following Rosa ×"), New version, the cuts delta in the Player, Solo (headphones, avatars, ✕), mix updating, Project card stage chip ("Review 6").
+- Replaces: Room status pill (record); Solo chip, delta chip, mix ring (edit); Following pill, version pill, stage status chip (rdp).
+- Story: `System/StatusPill`.
+
+**28. Toast**
+- One position: centered 12 px above the Player bar (above the dock on phone). Max 480 × 44. Icon, past-tense result, at most one action (Undo, or the next step).
+- Lasts 6 s, paused on hover or touch, and 10 s for session-level undo (End session, Stop sharing). A new toast replaces the old one, and same-kind toasts merge ("3 cuts · Undo all").
+- Used: TOAST-MAIN, every undoable action.
+- Story: `System/Toast`.
+
+**29. Coach tip**
+- A one-line hint anchored to an element, shown once at the moment of first need, dismissed by any action.
+- Used: DLG-GESTURES, CMP-RAIL-PEEK, the BAN-GUEST-ROLE first-visit hint, the Review keyboard footer hints, "Solo is just for your ears".
+- Story: `System/CoachTip`.
+
+**30. Cover.** The one "nothing to show here" layout.
+- Anatomy: wordmark symbol 32 px (page size only), a 48 px case glyph, title 20/24, one sentence, at most one primary and one text button.
+- Sizes: page and region.
+- Phone: the text block starts at 30 % of the height and the primary is pinned in the thumb zone 16 px above the safe area.
+- Kinds: empty (no tracks, no transcript, nothing to decide, no matches, no clip ideas), bad link, link ended, ended with a local recording (Save my recording), room full (occupant avatars, Try again), host asleep, not served here, region failed to load.
+- Never server JSON.
+- Used: SCR-ERROR, SCR-COVER, SCR-RECOVERY, SCR-GUEST-LINK-INVALID, BAN-LOADFAIL, SCR-REC-INVALID, SCR-REC-FULL, SCR-REC-ACCESS-ENDED, EMPTY-STATES, the empty Review.
+- Replaces: Status cover (rdp), Room cover (record), Empty state pattern (edit).
+- Story: `System/Cover`, one story per kind plus Phone and Region.
+
+**31. Skeleton**
+- Nothing for 300 ms, then static grey blocks in the destination's real layout (no shimmer until the animation pass), then at 4 s the line "Still loading…" with Retry.
+- Used: SCR-SHELL-LOADING, SCR-LOADING, SCR-REC-LOADING, Home cards, queue.
+- Story: `System/Skeleton` and each stage's `Loading` story.
+
+### People and sharing
+
+**32. Person.** One person, one colour (their track colour when they have a track), everywhere.
+- Avatar sizes: 20 (Script margin), 24 (presence, comments), 28 (track header, listener row), 32 (Cover, Join header).
+- The ring is the live level in the person's colour, with a 2 s red tick on a clip.
+- The tile form (Record grid) is 4:3, radius 12, avatar at 40 %, with the name bottom-left and a glyph cluster bottom-right (`mic-off`, signal, `ear` for a listener). The top-right holds a clip count and an amber triangle for an alert. The ring becomes the saving ring after Stop.
+- Host tile: a small Record glyph badge (no accent outline, since accent means selection).
+- Empty tile: dashed, `user-plus`. It opens the Invite sheet at the record links.
+- States: placeholder, joining, live, muted, speaking, clipping, weak, lost, saving, saved, failed, declined, left, empty.
+- Used: MENU-PEOPLE, OVL-PRESENCE, CMP-TURN, CMP-TRACK-HEADERS, CMP-REC-ROSTER, all SCR-REC-ROOM-*, DLG-MCP (agent presence), BAN-FOLLOW.
+- Replaces: Person tile (brief), Invite tile (record), presence avatars (edit, rdp).
+- Story: `System/Person`: Avatar sizes, Tile states, Empty.
+
+**33. Person picker**
+- A row or list of Person avatars with names, a check on the current one, and Fix text to rename.
+- Used: POP-SPEAKER, the INS-TRACK Person row, the INS-CLIP Track row, Session group track mapping, Source card speaker.
+- Replaces: speaker popover (edit), track mapping menus (record).
+- Story: `System/PersonPicker`.
+
+**34. Role chip**
+- A segmented control or a chip for a link role.
+  - Can listen: `ear`.
+  - Can comment: `message-square`.
+  - Can edit: the Edit stage icon.
+  - Can record: `mic`.
+- Used: Link row, guest App header, Person sheet.
+- Replaces: Role chip (rdp, where eye, pencil and headphones become ear, Edit icon and ear), the role segmented control in the Invite popover (edit).
+- Story: `System/RoleChip`.
+
+**35. Link row**
+- 64 px: Role chip, link in mono truncated in the middle, opened-by avatars, Copy (`copy`; on phone, the system share sheet), More (QR code, pin to version, AI assistants, Replace link, Stop sharing).
+- The link is minted on first Copy. When the clipboard is blocked, the text gets selected and the button reads "Press ⌘C".
+- The **Invite sheet** is a Sheet of Link rows grouped Review links / Record links / Listen link, opened from the header Invite on every stage.
+  - The Record empty tile opens it at Record links.
+  - Deliver embeds the Listen link row in place.
+- Used: DLG-SHARE, DLG-SHARE-CREATED, MENU-PEOPLE invite, INT-REC-INVITE, the Deliver listen link.
+- Replaces: Link row (rdp), Invite popover (edit), Invite tile popover (record).
+- Story: `System/LinkRow`, `Stages/Frame/InviteSheet`.
+
+### Starting and sources
+
+**36. Start tile**
+- A large tap-and-drop target with a 32 px icon, a title and one line. Two kinds: Import audio (`file-plus`) and Record (filled circle).
+- Sizes: 220 (empty Home), 160 (Home), 240 (empty Prepare), 160 × 96 (empty Edit), 80 (Prepare Sources footer), and on phone a 2-up bar of 72 in the thumb zone.
+- States: rest, drag-hover, disabled with reason.
+- Used: SCR-HOME, SCR-SHELL-INGEST, the SCR-PREPARE empty state and Sources column, the FLOW-REC-NEW entry.
+- Replaces: Source tile (rdp), the Edit empty-state buttons (edit), the Home New sheet tiles (record). The New sheet itself is dropped.
+- Story: `System/StartTile`.
+
+**37. Project card**
+- 240 × 152: Overview strip (48, static), name, "52:10 · edited 2 h ago", and a stage Status pill that says where the card opens. The phone form is a 72 px row.
+- Used: SCR-HOME, the Project menu Recent rows (compact).
+- Story: `System/ProjectCard`.
+
+**38. Source card**
+- One audio source: speaker swatch (Person), name field, file and duration, mini waveform, Hear (4 s of the voice), inline prompts (Split speakers, Replace audio by dropping on it), Person picker for mapping.
+- States: uploading, probing, ready, needs name, failed.
+- Used: SCR-PREPARE, DLG-SPLIT, landed takes.
+- Story: `System/SourceCard`.
+
+**39. Session group**
+- Header: session name (Fix text), Session target chip (locked after landing), stats ("3 people · 2 takes · 14:20"), Status ring. Body: Source cards (and, while recording, Take Status rows).
+- Footer: the Stage hand-off ("Edit Session 2", or "Review pickup").
+- Used: the Prepare Sources column, the Record Takes rail.
+- Replaces: Session summary card, Takes tray grouping (record); the Prepare session grouping (rdp).
+- Story: `System/SessionGroup`.
+
+**40. Drop overlay**
+- A full-window overlay while dragging files, labelled with the outcome of the current target:
+  - Anywhere: "New tracks".
+  - Over a lane: "Add here on Maya's track", at the drop time.
+  - Over a Source card: "Replace Maya's audio" (undo toast).
+- Used: INT-IMPORT, SCR-SHELL-INGEST, SCR-HOME drop, the Prepare Sources column.
+- Story: `System/DropOverlay`.
+
+### Recording
+
+**41. Record button**
+- A 64 px round button with two faces. Idle or paused: a filled record-red circle (start or resume). Live: a square in a ring, hold 600 ms to stop, with the ring filling. Keyboard and assistive tech: Enter opens a Confirm-in-place with Keep recording (focused) and Stop take.
+- Record red is reserved for recording app-wide.
+- Used: DLG-RECORD, CMP-REC-STOP, INT-REC-START, INT-REC-STOP.
+- Replaces: the record spec's three faces (the paused "resume notch" face is dropped) and the 72 px size.
+- Story: `System/RecordButton`.
+
+**42. Session target chip**
+- 32 px: placement glyph and text ("Starts the episode", "At the end · after 52:10", "Inserts at 12:04", "Replaces 12:04 to 12:09"). A Menu changes it before the first take, and a lock glyph appears after.
+- Used: DLG-RECORD session header, FLOW-REC-LATER, FLOW-REC-PICKUP, Session group header.
+- Story: `System/SessionTargetChip`.
+
+### Navigation
+
+**43. Stage hand-off button**
+- The next stage's icon, a label with the reason ("Review 14 suggestions"), and `arrow-right`. Mod+Enter.
+- Placement: desktop bottom-right of the stage content; phone directly above the Player bar.
+- It is secondary weight until the stage's own work is done, then it becomes the primary, unless the stage already has its own primary (Deliver's Export).
+- It appears in Record (after save), Prepare, Review (empty) and Deliver (when items are open). It never appears in Edit, where the Review badge does that job and the corner is the zoom cluster.
+- Used: SCR-PREPARE, SCR-REVIEW, SCR-DELIVER, the Session group footer.
+- Story: `System/StageHandoff`.
+
+### Edit-local (not shared, listed so nobody re-invents them)
+
+- **Target chooser** (POP-CHOOSER). A fan of 44 px object-kind chips on an ambiguous long-press. Story `Stages/Edit/TargetChooser`.
+- **Find bar** (CMP-FINDREPLACE). 44 px under the Script header: field, "3 of 12", ↑/↓, Replace toggle, `Aa`, Cut all (Shift+Enter), Select all. Story `Stages/Edit/FindBar`.
+
+### Dropped as redundant
+
+- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a blade cursor while Alt is held over a clip.
+- The Edit surface switch as its own element. It is a Segmented control instance: lanes (`chart-gantt`) and text (`text`).
+- The Home New sheet (record FLOW-REC-NEW). Start tiles sit on Home directly, and name and folder default.
+- The Re-record verb. It is the Record verb with a Replace target.
+- The paused face of the Record button.
+- Separate Marker and Notes controls in Record. Both are Comment: tap drops a marker, long-press or typing writes a note.
+- The record-only Room alert, Room cover, Room status pill, Join sheet, Device sheet, Invite tile, Takes tray, Session summary card and Session marker. They are merged as listed above.
+- The rdp Job row, Check row, Model need row, Readiness list, Player card, mini player, Review context strip, Status cover, History sheet and Home Help and more buttons. They are merged as listed above.
+- The spec-edit Player sheet, Invite popover, eye popover, corner zoom cluster as an element, Empty state pattern and Coach tip duplicates. They are merged as listed above.
+- The ? = Help key. ? opens the Palette.
+
+---
+
+## 3. Verb and icon language
+
+Icons are Lucide where one fits (stroke 1.75, 16 px desktop, 20 px dock, 24 px tab bar). The filled variant means on or active, for example a filled `volume-x` on a muted track. Every verb has one icon, one key and one gesture. Keys never change meaning across stages, and single-letter keys are inactive while a text field has focus.
+
+| Verb | Icon | Key | Touch | Surfaces |
+|---|---|---|---|---|
+| Play / Pause | `play` / `pause` (ink-filled circle) | Space | Tap Play | Player (all stages), expanded Player |
+| Shuttle | none | J back, K pause and return, L forward (repeat 1×, 2×, 4×) | Swipe the timeline | Player, every stage |
+| Hear (play the selection) | `ear` | Shift+Space | Tap Hear | Action bar on any selection, Decision card, Take rows, Source card voice, Status rows (align move) |
+| Hear before / after | "A" / "B" segmented | A / B (hold A with nothing selected = original) | Tap A or B, press-and-hold A | A/B audition: Decision card, Seam, Suggestion, Player |
+| Cut | `scissors` | Backspace or Delete (Mod+X also copies) | Swipe right on a cut suggestion; dock button | Action bar (words, range, clip, cut suggestion), Decision card, queue group bulk, Find bar "Cut all", toast "Cut all" |
+| Keep | `shield-check` | X | Swipe left | Action bar (suggestion, cut seam, cut words), Decision card, queue rows, auto-reduction region |
+| Shorten | `fold-horizontal` | Enter (primary) | Swipe right | Pause suggestions |
+| Lower | `volume-1` | Enter (primary) | Swipe right | Sound suggestions |
+| Replace / Insert | `replace` / `between-horizontal-start` | Enter (primary) | Swipe right | Pickup and session suggestions in Review and Edit |
+| Approve | `check` (word "Looks right" or "Use clip") | Enter (primary) | Swipe right | Check rows (align move, unsure word, transcript check), clip ideas in Deliver |
+| Resolve | `message-square-check` | Enter (primary on a comment) | Swipe right | Decision card (comment), queue rows |
+| Later | `chevron-down` | Tab or ↓ (moves on without deciding) | Swipe up | Decision card, Review dock |
+| Next / Previous of the same kind | none | Tab / Shift+Tab (↓/↑ in the queue) | Swipe up / down on the card | Review queue, Edit after a cut (next occurrence), Fix text (next unsure word) |
+| Apply to all like this | the verb's icon with a count | Shift+Enter | Group header button | Queue group bulk, Find "Cut all", toast "Cut all" |
+| Split | `square-split-horizontal` | Mod+K at playhead; Alt-click at pointer | Dock "Split" with nothing selected | Action bar (range, clip), playhead menu, phone dock |
+| Comment (also marker, reply) | `message-square` | C | Tap Comment; long-press = compose with time pinned | Player (all stages), Action bar, Record dock, Decision card (reply), Marker, Review queue |
+| Fix text (also rename) | `text-cursor-input` | F2, or start typing on a selection | Double-tap | Script, Decision card unsure word, marker titles, speaker, project title, session name |
+| Remove (non-audio) | `trash-2` | Backspace or Delete on a non-audio object | Swipe left on list rows | Markers, comments, tracks, envelope points, chapter rows, clip ideas, Home Recent ("Remove from list"), person in room (Confirm in place) |
+| Mute | `volume-x` (track, words) / `mic-off` (your mic) | M | Tap | Track header, Mix sheet, Action bar More, Record dock, Person tile |
+| Solo | `headphones` | S | Tap | Track header, Mix sheet, Solo Status pill |
+| Inspect | `sliders-horizontal` | I | Swipe the dock up; double-click the object | Action bar, Prepare Advanced |
+| More | `ellipsis` | . (period) | Long-press or right-click | Action bar, rows, cards |
+| Record | filled circle | R: in Record, start or resume, and hold R 600 ms to stop. In Edit, opens Record with a Replace target (selection) or Insert target (playhead) | Tap; hold the Record button to stop | Stage bar, Start tile, Record button, Action bar (Edit, host only), "+" menu |
+| Pause take | `pause` | P | Tap | Record dock (host) |
+| Invite | `user-plus` | none (palette) | Tap | App header (every stage), empty Person tile, Deliver |
+| Copy link | `copy` (phone: share sheet) | none | Tap | Link row |
+| Export | `download` | Mod+E (with a range selected: export the range) | Tap | Deliver primary, Action bar on a range |
+| Import | `file-plus` | Mod+I; drop files anywhere | Tap Start tile | Start tiles, Prepare, Edit "+" |
+| Undo / Redo | `undo-2` / `redo-2` | Mod+Z / Mod+Shift+Z | Two-finger tap / three-finger swipe; long-press Undo = History | App header, every toast |
+| Add chapter | `flag` | Shift+C | Double-tap the marker lane | Playhead menu, phone dock, Deliver Chapters |
+| Find in transcript | `text-search` | Mod+F | Tap | Script header |
+| Palette | `search` | / or ? | Tap | App header |
+| Propose (find suggestions, clips) | `wand-sparkles` | none | Tap | Review queue header, Deliver Clips, Prepare |
+| Go to stage / hand-off | stage icon + `arrow-right` | Mod+1..5; Mod+Enter (hand-off); E (open in Edit) | Tab bar; tap | Stage bar, hand-off, Readiness fixes, Decision card |
+| Follow | `locate-fixed` | Esc stops | Tap in the Person sheet | Person sheet, Player ring |
+| Leave room | `door-open` | none | Tap | Record guest and producer dock |
+| Get model | `cloud-download` | none | Tap | Status rows (needs model), Settings |
+| Split speakers | `split` | none | Tap | Source card |
+| Show / hide | `eye` / `eye-off` | none | Tap | View sheet, Script show-cut-text |
+| Zoom | none | = / − / \ (fit) / Z (to selection) | Pinch | Timeline |
+
+Two glyphs carry a related second meaning on purpose:
+- `ear` is both the Hear verb and the "Can listen" role. Both mean listening.
+- `headphones` is both Solo and the Join-sheet "I'm wearing headphones" toggle. Both are about what reaches your ears.
+
+Everything else is one glyph for one meaning. Gesture grammar, in one line: tap selects, long-press opens a menu (or selects a range if you drag), swipe right does the primary, swipe left does the "no" (Keep or Remove), swipe up moves on, pinch zooms, two fingers undo.
+
+Keys that browsers reserve are never used: Mod+N, Mod+T, Mod+W, Mod+R, Mod+D. F6 cycles regions (header, main surface, rail, Player) so Tab can rove inside a surface.
+
+---
+
+## 4. Layout tokens
+
+### 4.1 Regions
+
+| Region | Desktop / tablet | Phone |
+|---|---|---|
+| App header | Top, 48 | Top, 44 + safe area |
+| Alert slot | Under the header, 0 or 44 | Under the header, 0 or 44 |
+| Stage content | Fills | Fills |
+| List rail (navigation lists: Review queue, Prepare Sources) | Left, 360 | Becomes a Sheet |
+| Companion rail (Record Comments/Takes, Prepare "Help the transcriber") | Right, 360 | Becomes a Sheet with a peek |
+| Script pane | Right split pane, 400 default (320 to 640), 480 at 1920. Stacked 50/50 on tablet portrait | Its own surface (segmented switch) |
+| Action bar | Floating by the selection | Dock, 64, above the Player |
+| Player bar / Record dock | Bottom, 56 / 80 | 56 / 80, above the tab bar |
+| Stage bar | Header center | Bottom tab bar, 56 + safe area |
+
+Phone bottom chrome is at most 176 px plus the safe area (dock 64, Player 56, tabs 56), and the on-screen keyboard hides all three. Record guests have no tab bar.
+
+The Script measure caps at 68 characters in Script focus (Shift+T). Side by side at 400 px it holds about 44 characters. spec-edit claimed 68 at 400 px, which is not possible at 16 px type, so the claim is dropped.
+
+### 4.2 Spacing
+
+A 4 px grid. Use 4, 8, 12, 16, 24, 32, 48 only.
+- 8 inside a cluster (icon buttons in one group).
+- 16 between groups, and the phone side gutter.
+- 24 between sections, and the desktop gutter.
+- 48 above page titles on Home and Deliver.
+- Content max widths: 1040 (Home, Deliver), 760 (Decision card, guest center column).
+
+### 4.3 Sheet detents (phone)
+
+- **Peek.** Content height, 64 to 120 px: the Action dock, the Record comments peek, the Prepare summary row.
+- **Half.** 50 %.
+- **Full.** 92 %, so the header and the status pill stay visible.
+- The 88 % detent (record Join sheet) is dropped. The Join sheet opens at Full.
+- The grip is 36 × 5 with a 44 px hit area. Tapping the grip toggles Peek and Half. Dragging below Peek dismisses (and clears the selection for the Inspector).
+
+Desktop widths: Menu 280, anchored card 320, side panel 400, centered card 400, Palette 560.
+
+### 4.4 Targets
+
+| Thing | Size |
+|---|---|
+| Any touch target | at least 44 × 44 |
+| Desktop icon button | 32 visual (44 hit under `pointer: coarse`) |
+| Dock button | 48 |
+| Dock primary and Record button | 64 round |
+| Phone primary (sheet footer, Cover, hand-off) | 48 tall, full width, in the bottom thumb zone |
+| Desktop primary | 36 inline, 40 page-level (Export, Join, hand-off promoted) |
+| Edge handles (trim, suggestion, selection) | 6 × 24 visual, 44 hit on touch |
+
+### 4.5 Type
+
+- Plex Sans: 13/16 meta, 15/20 UI body, 20/24 card titles, 28/32 page titles.
+- Reading (any transcript: Script, Decision card excerpt, guest transcript): 16/26 on desktop, 17/28 on phone.
+- Plex Mono for every time and number: 13 in rows, 15 in the Player.
+- Times always read "12:04". Ranges read "12:04 to 12:09".
+
+### 4.6 One status glyph set
+
+The same glyphs are used in Status rows, badges, the Save indicator, tiles and pills.
+
+| State | Glyph and colour |
+|---|---|
+| Done | `circle-check` |
+| Running | progress ring |
+| Not yet | hollow `circle` |
+| Needs you | amber `triangle-alert` (an 8 px amber dot in badges) |
+| Failed | red `octagon-alert` |
+| Offline / waiting to send | amber `cloud-off` |
+| Live | record-red dot and clock |
+
+### 4.7 The one primary-button rule
+
+- Each context has at most one accent-filled button. A context is a stage's content, a Sheet, or a card.
+- The Player's Play is ink-filled, not accent, so the stage primary is still the only accent fill on screen.
+- Record red appears only on things that record.
+- Danger red appears only on failures and on the confirm button of something Undo can't reverse.
+- The Stage hand-off is secondary until the stage's work is done.
+- Edit's chrome has no primary. A selection's primary sits at the trailing end of its Action bar.
+
+### 4.8 How selection looks everywhere
+
+| What | Look |
+|---|---|
+| Selected object (clip, seam, marker, tile, card) | 2 px accent outline, handles visible |
+| Selected span (words, range, queue row, list row) | accent-subtle fill (about 12 %) with 2 px accent edges (rows: a left edge) |
+| Current Review item | the same as a selected row; the Overview tick is accented |
+| Multi-select | the same per item, and the count leads the Action bar |
+| Remote person's selection | 1 px outline in their colour, no fill |
+| Keyboard focus | 2 px accent ring offset 2 px, `:focus-visible` only |
+| Proposed | hatch in the suggestion token |
+| Applied cut | Seam (diamond or pill), or solid strike when show-cut-text is on |
+| Muted | grey with `volume-x` |
+| Speaking | ring and border in the person's colour |
+
+Colour roles, all existing tokens:
+- Accent: selection, primary, playhead, focus.
+- Person colour: who.
+- Record red: recording.
+- Suggestion token: proposed.
+- Cut token: removed.
+- Amber: needs you.
+- Danger: failed or irreversible.
+- Ink: transport.
+
+---
+
+## 5. Conflicts resolved
+
+Every place the specs disagreed or collided with each other or with themselves. E = spec-edit, R = spec-record, D = spec-review-deliver.
+
+### Keys
+
+| # | Conflict | Decision | Why |
+|---|---|---|---|
+| K1 | Mod+1..5: E has Prepare = 1, Record = 2 | Record = 1, Prepare = 2, then Edit 3, Review 4, Deliver 5 | Stage order (1.1). Edit, Review and Deliver keep their keys |
+| K2 | Enter: E has Enter accept a suggestion and Enter select a focused clip. D has the primary verb. R has Enter on the Record button | Enter is the primary of the selected object. On a focused, unselected object it selects. In a field it commits. On the focused Record button it opens Keep/Stop | One rule ("do the default for what you're on") covers all four |
+| K3 | J/K/L: E has shuttle. D has J/K next and previous and L Later | J/K/L are shuttle everywhere. Review moves with ↓/↑ or Tab/Shift+Tab. Later is Tab or ↓ | The Player persists across stages, so its keys must too. Later is "next without deciding" |
+| K4 | C: today it is Blade, E makes it Comment, R uses M for Marker and N for notes | C is Comment everywhere: marker, note, reply | A marker is a comment without text. Reply is commenting on a comment |
+| K5 | B: E moves Blade to B, while A/B uses B for "after" | The Blade tool is removed. B is "after". Alt-click splits at the pointer | Removes a mode (E removed modes from the Script for the same reason) and frees B |
+| K6 | O (E: hold to hear the original) next to A/B | Hold A with nothing selected plays the original. O is unused | One audition control |
+| K7 | M: E has Mute track, R has Marker, R has Mod+D mute self | M is Mute everywhere (track in Edit, your mic in Record). Mod+D is dropped | One key per verb. Mod+D is the browser's bookmark key |
+| K8 | Shift+M add chapter (E) clashes with the M = Mute meaning | Shift+C | The C family pins things to the marker lane |
+| K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record everywhere. Reply is C | Recording is the higher-consequence verb and owns its letter |
+| K10 | ⌘⇧C copy listen link (D) | Dropped (palette only) | Shift+C is Add chapter. The action is rare |
+| K11 | ⌘N new, ⌘O open (E); ⌘N import, ⌘R record, ⌘O open other, ⌘⇧O Home (D) | Mod+O goes to Home from anywhere (and on Home it opens Open other…). Mod+I imports. R records on Home. Enter opens the focused card. No Mod+N | Browsers reserve Mod+N and Mod+R. Mod+I is already Import in D's Prepare |
+| K12 | Mod+Shift+E (E) versus ⌘E (D) for export | Mod+E | One key. On a selected range it exports the range |
+| K13 | ? as Help on Home (D) versus the palette (E) | ? opens the Palette, which holds a Help group | One discovery surface |
+| K14 | G R chords (R) | Dropped | No other spec uses chords |
+| K15 | Mod+B force mix refresh (E) | Palette only | The mix refreshes on its own |
+| K16 | Tab: E uses it for clip focus, next occurrence, and next unsure word | Tab is "next of the same kind" inside a content surface. F6 moves between regions | Keeps one meaning for Tab and gives keyboard users a way out |
+| K17 | Skip 5 s (E desktop) versus 15 s (E phone sheet, D Player card) | 15 s everywhere. Fine moves use ←/→ (1 s, Shift 5 s) | Podcast-app convention, for one Player |
+
+### Icons
+
+| # | Conflict | Decision | Why |
+|---|---|---|---|
+| I1 | Edit stage drawn as scissors (D) | Waveform with a text cursor | Scissors is Cut |
+| I2 | Prepare stage drawn as sliders (D) | `wand-sparkles` | Sliders is Inspect. The wand already means "the app proposes" |
+| I3 | Deliver stage drawn as an arrow out of a tray (D) | `send` | That arrow is Export. A stage icon means "go there" |
+| I4 | Review stage drawn as a check in a bubble (E) | `inbox` | That glyph is Resolve |
+| I5 | Keep as a U-turn arrow (E) versus shield over waveform (D) | `shield-check` | The U-turn arrow is Undo |
+| I6 | Listen-only role as eye (D) versus ear (E); producer as headphones (D); Follow as eye (E) | Listen role = `ear`, producer = `ear`, Follow = `locate-fixed`, eye only for show and hide | There were three meanings on the eye. Headphones is Solo |
+| I7 | Editor role as pencil, "Open in Edit" as pencil, speaker rename as pencil | Role and Open in Edit use the Edit stage icon. Rename is Fix text | One glyph per meaning. Going to a stage always uses the stage icon |
+| I8 | Hear as speaker-wave (E) | `ear` | Speaker glyphs mean volume (Lower, Mute track, level) |
+| I9 | Re-record as mic with a return arrow (R) | The Record glyph (and verb) with a Replace target | One verb |
+| I10 | "Find more" as a magnifier (D) | `wand-sparkles` | The magnifier is the palette |
+| I11 | Session marker drawn as a bracket (R) next to clip brackets (E) | A session band on the ruler | Two brackets in one lane read as one thing |
+| I12 | Failed as a red triangle (E save) versus a red octagon (D) | Red octagon for failed, amber triangle for needs you | One glyph set (4.6) |
+| I13 | Import as an arrow into a tray (D) next to the `inbox` Review stage | `file-plus` | Avoids two tray glyphs |
+| I14 | Host tile accent outline (R) | Record-glyph badge | Accent means selection |
+| I15 | Speaking ring in accent (R) | The person's colour | Accent means selection. Colour means who |
+| I16 | Advanced (Prepare) as a gear (D) | `sliders-horizontal` (it opens an Inspector) | Gear is Settings |
+
+### Elements and layout
+
+| # | Conflict | Decision | Why |
+|---|---|---|---|
+| L1 | Header: E puts Undo/Redo left, with a Project menu, search, 24 px avatars and 32 px tabs. D puts Undo/Redo right, with a "more" button, 28 px avatars and 40 px tabs | E's layout | Undo sits by the save state (document state). People sit on the right. 32 px tabs leave air in 48 px |
+| L2 | Click on the title: rename (D) versus menu (E) | Menu, whose first row is a rename field. Double-click the title renames directly | One button, both jobs, and nothing lost |
+| L3 | Phone player: 56 px Player bar (E) versus a 64 px mini player with Comment (D) | 56 px, and Comment moves into the Player on every device | One Player. Comment at the moment is the listener's most likely act |
+| L4 | Guest Player card (D) versus phone Player sheet (E) | One Player, expanded form | The same object |
+| L5 | Review context strip at 56 (D) versus Overview strip (E) | Overview strip, 32 px, above the Player | One miniature |
+| L6 | Status cover (D) versus Room cover (R) versus Empty state (E); glyph 48 versus 64; phone text in the lower half versus at 30 % | One Cover. 48 px glyph. Text from 30 %, primary pinned in the thumb zone | Reads well and reaches well |
+| L7 | Loading: 4 s (E, R) versus 8 s (D) | 300 ms blank, then skeleton, then 4 s "Still loading…" with Retry | Two of the three specs agreed. Sooner honesty |
+| L8 | Toast 5 s (E) versus 6 s (D) versus 10 s (R, End session) | 6 s, and 10 s for session-level undo | Enough to reach Undo. The long form only where the server's window applies |
+| L9 | Stop sharing as an inline confirm (D) versus End session as an undo toast (R) | Both undo toasts (10 s). The server keeps the token restorable for 10 s. Confirm in place only for Remove person from the room | Confirm only when Undo is impossible (rubric) |
+| L10 | Home: a New sheet with Record and Import (R) versus Start tiles on Home (D) | Start tiles on Home. No New sheet. Name and folder default | One click fewer. D removed the create form |
+| L11 | Invites: header Invite (E), Review header Invite (D), Invite tiles (R), Deliver share card (E, D) | One Invite sheet of Link rows, from the header on every stage. The empty Person tile opens it at Record links. Deliver embeds the Listen row | One sharing object. D's Q4 is answered |
+| L12 | Commenter guest: Edit in suggest mode (E) versus Review only with "Suggest a cut" (D) | Review only. The Commenter's Cut verb makes a Suggestion. No separate "Suggest cut" verb | Same verb, result by role |
+| L13 | Editor guest: Prepare, Edit and Review (E) versus Edit and Review (D) | Edit and Review | Prepare touches the host's models and files |
+| L14 | Guest header at 56 (D) | The 48 px App header with a two-line title | One header |
+| L15 | Deliver badge: check when Readiness passes (E) versus check when a current export exists, amber when stale (D) | D | Delivered is the fact the badge reports |
+| L16 | Review badge: suggestions and comments (E) versus all undecided (D) | All undecided, checks included | Matches the queue count |
+| L17 | Record dock (R), phone action dock (E), Review thumb buttons (D), Decision card action row (D), all ordered differently | One Action bar with three forms and one verb order: Keep left, primary right | Thumb position and swipe direction agree everywhere |
+| L18 | Record button 72 (R) versus dock primary 64 | 64 | One primary size |
+| L19 | Join sheet: desktop 420 at the top (96 px), phone 88 % (R) | Sheet centered card 400, phone Full (92 %) | Standard widths and detents |
+| L20 | Join rows (R) versus Check rows (D) | Status rows | Same anatomy |
+| L21 | Device sheet (R) | The Inspector of your own Person tile | Tapping a thing selects it. Inspect shows its properties |
+| L22 | Room alert (R) versus app-wide attention (none) versus Script notices (E) | Alert slot of Status rows on every stage. Region notices are inline Status rows | R asked for exactly this |
+| L23 | Job row, Check row, Model need row (D); Takes rows (R) | One Status row | Same glyph, title, detail, one action |
+| L24 | Session summary card (R) versus Prepare session grouping (D) | Session group, in both places | One Session object |
+| L25 | Session marker in the marker lane (R) versus the recording band (E, R) | The live band lands as the ruler session band | No bracket collision (I11) |
+| L26 | Hand-off at bottom-right (D) versus Edit's corner zoom cluster (E) | No hand-off in Edit | Avoids the collision. The Review badge does the job |
+| L27 | Loudness in Prepare and Deliver (D) and in Project settings (E) | Deliver only | One setting, one place. Mastering is Deliver's |
+| L28 | Vocabulary in Prepare (D) and Project settings (E) | Prepare only | Same rule |
+| L29 | Help button and "more" on Home (D) versus Project menu rows (E) | The Project menu (app menu on Home) holds Settings, Connect agent and Help | One menu |
+| L30 | Dropping on an existing track: add (E) versus replace (D, Source card) | Lane = add at the drop time. Source card = replace. The overlay names the outcome | Each surface does what its axis implies, and the result shows before you drop |
+| L31 | Clip idea "Keep" means approve (D), opposite to Keep | Approve (`check`). Dismiss is Remove | Keep only ever means "leave the audio as it is" |
+| L32 | Clip idea drawing: Suggestion (D) versus social bracket (E) | A bracket, hatched while proposed and solid once approved | Hatch means proposed everywhere |
+| L33 | Decision card order "Later, Keep, Verb" (D) versus Action bar "Hear, Cut, Keep…" (E) | The universal order in element 7 | Same verbs in the same places |
+| L34 | Comment popover in Edit (E) and suggestion inspector (E) versus Decision card (D) | Decision card, compact, in an anchored Sheet | E itself said "same component" |
+| L35 | History: popover with preview (D) versus history popover (E) | A Sheet instance, with D's preview behaviour | Same thing |
+| L36 | Following: ring, pill and a 2 px content frame (D) versus banner and a ring on Play (E) | Thicker avatar ring, a Following Status pill, and the ring on Play. No frame | A coloured frame competes with selection |
+| L37 | Presence avatars 24 (E) versus 28 (D) | 24 | Fits the 48 px header |
+| L38 | Swipe left on a comment row resolves (D) | Swipe right resolves (it is the primary). Left is Keep or Remove | Gesture grammar |
+| L39 | Phone Review: Keep and verb at 56, plus a 48 A/B row (two rows) | One 64 px dock row: Keep, A/B, verb | Saves 48 px. One dock height |
+| L40 | Record "Notes" versus Review "Comments" | Comments. Record's rail is the Review queue (Comments, chronological) and Takes | One object before and after landing (R said the same) |
+| L41 | Rails: Record 320 right, Prepare 360 left and 320 right, Review 360 left | List rails 360 on the left, companion rails 360 on the right | Two rail roles, one width |
+| L42 | Phone playhead dock "Comment here" (E) | Comment lives in the Player. The playhead dock has Split, Add chapter, Record, Paste | One home per verb |
+| L43 | E Q2: show suggestions inline in Edit? | Yes. They are decidable in place with the same verbs | One element per kind. Edit never hides pending work |
+| L44 | E Q1: should a text cut remove time on every track? | Yes. A range scoped to fewer tracks leaves silence, and the Scope chip shows which before you act | Keeps speakers in sync. The outcome is visible first |
+| L45 | E Q3 and Q4: bottom transport, and dropping the audition switch | Yes to both | Already implied by the Player |
+| L46 | E Q5 and Q6: five phone tabs, and the key changes | Yes to both | One model across devices |
+| L47 | D Q5: swipe on the phone Decision card on by default? | On, with an 80 px threshold and the verb icon growing while you drag. Every decision is undoable | Undo makes it safe |
+| L48 | D Q7: Clips in Deliver? | Yes. The markers stay in Edit | Clips are an output |
+| L49 | R Q8: matching returning guests to their tracks | Match by display name, corrected with the Person picker on each Source card in the Session group | No extra step before the first take |
+| L50 | R Q9: room tone in the pre-roll | Yes. 3 s "Quiet please" on the first take of each session, with a fallback in your tile's Inspector | Removes a mandatory lobby step for every guest |
+| L51 | E: the Script measure claim (68 characters at 400 px) | 68 characters in Script focus only | Physically about 44 at 400 px |
