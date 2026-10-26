@@ -14,7 +14,7 @@ from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     parse_comment_id,
 )
-from podcast_mcp.services.record.state import RecordRole, SessionTarget
+from podcast_mcp.services.record.state import RecordRole, SessionTarget, parse_session_target
 from podcast_mcp.services.session_sync import sanitize_display_name
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -181,6 +181,8 @@ def validate_record_payload(command_type: str, payload: dict[str, Any]) -> dict[
     model = _PAYLOAD_MODELS.get(command_type)
     if model is None:
         return {}
+    if command_type == "SetTarget":
+        return {"target": parse_session_target((payload or {}).get("target")).model_dump()}
     try:
         return model.model_validate(payload or {}).model_dump()
     except ValidationError as exc:
