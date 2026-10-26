@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import audio, audio_eval, timeline_render, track_evidence
+from podcast_mcp.engines import audio, audio_eval, timeline_render, track_evidence, ungated_audio
 from podcast_mcp.engines.audio import (
     At,
     Audio,
@@ -206,7 +206,9 @@ def test_one_chunk_stream_feeds_every_rate_as_a_resample_of_its_own(
     source = (rng.standard_normal(44100 * 3) * 0.1).astype(np.float32)
     pieces = [source[i : i + 30011] for i in range(0, source.size, 30011)]
 
-    together = resample_streams(iter(pieces), 44100, (JUMP, WAVEFORM, 44100))
+    together = resample_streams(iter(pieces), 44100, (WAVEFORM, 44100, JUMP, WAVEFORM, JUMP))
+
+    assert list(together) == [WAVEFORM, 44100, JUMP]
 
     np.testing.assert_array_equal(
         together[JUMP], resample_streams(iter(pieces), 44100, (JUMP,))[JUMP]
@@ -215,6 +217,45 @@ def test_one_chunk_stream_feeds_every_rate_as_a_resample_of_its_own(
         together[WAVEFORM], resample_streams(iter(pieces), 44100, (WAVEFORM,))[WAVEFORM]
     )
     np.testing.assert_array_equal(together[44100], source)
+
+
+@pytest.mark.parametrize("rates", [(48000, 48000), ()])
+def test_resampling_without_conversion_consumes_chunks_without_a_binary(
+    rates: tuple[int, ...], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_binary() -> typing.NoReturn:
+        pytest.fail("no conversion needs no binary")
+
+    monkeypatch.setattr(ungated_audio, "resolve_ffmpeg_pair", no_binary)
+    visited: list[int] = []
+
+    def chunks() -> typing.Iterator[np.ndarray]:
+        for index in range(2):
+            visited.append(index)
+            yield np.arange(12, dtype=np.float64).reshape(3, 4)[:, ::2] + index * 12
+
+    result = resample_streams(chunks(), 48000, rates)
+
+    assert visited == [0, 1]
+    assert list(result) == list(dict.fromkeys(rates))
+    if rates:
+        expected = np.array([[0, 2], [4, 6], [8, 10], [12, 14], [16, 18], [20, 22]])
+        np.testing.assert_array_equal(result[48000], expected)
+        assert result[48000].dtype == np.float64
+        assert result[48000].flags.writeable
+
+
+@pytest.mark.parametrize("rates", [(48000,), ()])
+def test_resampling_empty_input_without_conversion_raises(
+    rates: tuple[int, ...], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_binary() -> typing.NoReturn:
+        pytest.fail("no conversion needs no binary")
+
+    monkeypatch.setattr(ungated_audio, "resolve_ffmpeg_pair", no_binary)
+
+    with pytest.raises(ValueError):
+        resample_streams(iter([]), 48000, rates)
 
 
 def test_no_render_runs_when_an_effect_overlaps_an_accepted_mute(
