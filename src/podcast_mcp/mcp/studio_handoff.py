@@ -5,8 +5,9 @@ calls take the same project and render locks as Studio and fail with "Project is
 Studio builds the mix. The CLI avoids this by handing each command to Studio (#1733); this does
 the same for MCP. While a Studio serves the project, a tool call runs in that Studio through its
 own ``/mcp`` endpoint (single writer, the screen updates live) and the result comes back as
-Studio produced it. With no Studio serving the project, or one that cannot be reached before the
-call is sent, the call runs here as before.
+Studio produced it. With no Studio serving the project, the call runs here as before. A Studio
+that was found serving the project but cannot take the call (it fails before the call is sent)
+stops it with an error and nothing runs, so the call never writes behind a live Studio.
 
 Only the stdio entry point installs this. Studio runs the same tool registry, and its own copy
 must never forward to itself.
@@ -25,7 +26,12 @@ from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp import settings
 from podcast_mcp.mcp.project_default import ENV_VAR as PROJECT_ENV_VAR
-from podcast_mcp.services.app import StudioHost, StudioUnresponsive, locate_studio
+from podcast_mcp.services.app import (
+    DIRECT_ENV_VAR,
+    StudioHost,
+    StudioUnresponsive,
+    locate_studio,
+)
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.progress import mcp_progress_sink
 
@@ -61,6 +67,15 @@ def _lost_result(host: StudioHost, name: str, why: str) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
 
 
+def _not_taken_result(host: StudioHost, name: str) -> CallToolResult:
+    text = (
+        f"Studio (pid {host.pid}) is serving the project but did not take {name}. "
+        f"Nothing was run. Run it again, or set {DIRECT_ENV_VAR}=1 to write directly "
+        "(this may overwrite what Studio is holding)."
+    )
+    return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
+
+
 def _progress_relay(context: Any) -> Any:
     """Forward Studio's progress to the stdio client, only if that client asked for progress.
 
@@ -87,7 +102,11 @@ def _progress_relay(context: Any) -> Any:
 async def _run_in_studio(
     host: StudioHost, name: str, arguments: dict[str, Any], context: Any = None
 ) -> Any:
-    """Run one tool call in Studio; ``None`` means nothing was sent, so the caller runs it here."""
+    """Run one tool call in Studio and return its result, or an error result; never ``None``.
+
+    A failure before the call is sent returns an error saying nothing was run, so the caller
+    does not run the call here behind a live Studio.
+    """
     relay = _progress_relay(context)
     sent = False
     try:
@@ -104,7 +123,7 @@ async def _run_in_studio(
     except Exception as exc:
         if not sent:
             log.debug("Studio at %s:%s did not take the call", host.host, host.port, exc_info=True)
-            return None
+            return _not_taken_result(host, name)
         log.warning("Studio stopped answering %s", name, exc_info=True)
         return _lost_result(host, name, f"it stopped answering ({type(exc).__name__})")
 
@@ -135,10 +154,7 @@ def install_studio_handoff(server: Any) -> None:
         forwarded = {
             key: _absolute(key, value) for key, value in arguments.items() if key != "project_path"
         }
-        result = await _run_in_studio(host, name, forwarded, context)
-        if result is None:
-            return await call_next(arguments)
-        return result
+        return await _run_in_studio(host, name, forwarded, context)
 
     wrap_call_tool(server, around)
     server._podcast_studio_handoff_installed = True

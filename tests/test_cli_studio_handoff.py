@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -571,4 +572,52 @@ def test_a_studio_that_stays_silent_stops_the_command_instead_of_writing_directl
         sock.close()
     assert result.exit_code == 1
     assert "did not answer in time" in result.output
+    assert comment_bodies(minimal_project) == []
+
+
+@contextlib.contextmanager
+def _ping_answering(status: int, body: bytes) -> Iterator[int]:
+    """A listener on loopback whose handoff ping answers ``status`` with ``body``."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args: object) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(10)
+
+
+def test_a_studio_answering_the_ping_with_an_empty_list_stops_the_command_with_a_message(
+    minimal_project: Path,
+) -> None:
+    from typer.testing import CliRunner
+
+    with _ping_answering(200, b"[]") as port:
+        announce_studio_host(
+            minimal_project, StudioHost("x", os.getpid(), "127.0.0.1", port, "tok", "0")
+        )
+        result = CliRunner().invoke(
+            cli_app,
+            [
+                "comment", "add", "--project", str(minimal_project), "--body", "x",
+                "--author", "a", "--start", "1",
+            ],
+        )  # fmt: skip
+    assert result.exit_code == 1
+    assert "not a Studio reply" in result.output
+    assert "Traceback" not in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
     assert comment_bodies(minimal_project) == []

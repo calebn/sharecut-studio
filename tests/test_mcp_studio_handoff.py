@@ -8,10 +8,13 @@ result can only have come from Studio. A project no Studio serves still runs her
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import os
 import threading
 import time
 from collections.abc import Callable, Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +27,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.server import mcp as real_mcp
 from podcast_mcp.mcp.studio_handoff import install_studio_handoff
 from podcast_mcp.models import EpisodeProject, save_project
+from podcast_mcp.services.app import StudioHost, announce_studio_host
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -70,6 +74,31 @@ def studio(minimal_project: Path) -> Iterator[Path]:
         server.should_exit = True
         thread.join(20)
         sock.close()
+
+
+@contextlib.contextmanager
+def _ping_answering(status: int, body: bytes) -> Iterator[int]:
+    """A listener on loopback whose handoff ping answers ``status`` with ``body``."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args: object) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(10)
 
 
 def _wrapped() -> _Direct:
@@ -164,7 +193,11 @@ def test_studio_that_stops_answering_after_the_send_reports_a_possible_change(
     assert server.calls == []
 
 
-def test_studio_that_cannot_be_reached_before_the_send_falls_back_here(
+def _text(result: Any) -> str:
+    return result.content[0].text  # type: ignore[no-any-return]
+
+
+def test_studio_that_cannot_be_reached_before_the_send_stops_the_call(
     studio: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import podcast_mcp.mcp.studio_handoff as handoff
@@ -179,7 +212,64 @@ def test_studio_that_cannot_be_reached_before_the_send_falls_back_here(
     monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Unreachable())
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
-    assert result == "ran here"
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    assert "did not take list_clips_tool" in _text(result)
+    assert server.calls == []
+
+
+def test_studio_whose_initialize_fails_after_a_good_ping_stops_the_call(
+    studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    class _Session:
+        def __init__(self, *_a: Any) -> None: ...
+
+        async def __aenter__(self) -> _Session:
+            return self
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+        async def initialize(self) -> None:
+            raise ConnectionError("initialize failed")
+
+    class _Streams:
+        async def __aenter__(self) -> tuple[None, None]:
+            return None, None
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+    monkeypatch.setattr(handoff, "ClientSession", _Session)
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    text = _text(result)
+    assert "did not take list_clips_tool" in text
+    assert "Nothing was run" in text
+    assert "may have changed the project" not in text
+    assert server.calls == []
+
+
+def test_a_listener_answering_the_ping_with_an_empty_list_stops_the_call(
+    minimal_project: Path,
+) -> None:
+    with _ping_answering(200, b"[]") as port:
+        announce_studio_host(
+            minimal_project, StudioHost("x", os.getpid(), "127.0.0.1", port, "tok", "0")
+        )
+        server = _wrapped()
+        result = asyncio.run(
+            server.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+        )
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    assert "not a Studio reply" in _text(result)
+    assert server.calls == []
 
 
 def test_relative_file_arguments_are_made_absolute_before_the_send(
