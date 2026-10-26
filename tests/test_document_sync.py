@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
-from threading import Event
+from threading import Event, local
 from unittest.mock import patch
 
 import jsonschema
@@ -48,6 +47,7 @@ from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
+from podcast_mcp.util import project_state
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RenderBusyError
 from sqlite_helpers import FailingConnection
@@ -2637,24 +2637,67 @@ def test_reused_command_id_with_a_different_edit_is_a_conflict(minimal_project):
 
 
 def test_concurrent_same_sequence_submits_apply_once(minimal_project):
-    """A replay racing its still-running original (client timeout, another tab) applies once."""
     first_svc = DocumentSyncService.open(minimal_project)
     second_svc = DocumentSyncService.open(minimal_project)
     entered = Event()
+    contended = Event()
+    release = Event()
+    replay_worker = local()
     original_apply = first_svc._apply
+    original_state_lock = project_state.project_state_lock
+    state_lock = original_state_lock(first_svc.ws.project)
+    assert original_state_lock(second_svc.ws.project) is state_lock
+
+    class ObservedStateLock:
+        def __enter__(self):
+            if not state_lock.acquire(False):
+                contended.set()
+                state_lock.acquire()
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            state_lock.release()
+
+        def acquire(self, *args, **kwargs):
+            return state_lock.acquire(*args, **kwargs)
+
+        def release(self, *args, **kwargs):
+            return state_lock.release(*args, **kwargs)
+
+    observed_lock = ObservedStateLock()
+
+    def observed_state_lock(project):
+        lock = original_state_lock(project)
+        if getattr(replay_worker, "active", False) and lock is state_lock:
+            return observed_lock
+        return lock
+
+    def replay():
+        replay_worker.active = True
+        try:
+            return second_svc.submit(_comment("same", command_id="fixed"))
+        finally:
+            replay_worker.active = False
 
     def slow_apply(*args, **kwargs):
         entered.set()
-        time.sleep(0.2)
+        assert release.wait(timeout=30)
         return original_apply(*args, **kwargs)
 
     with (
         patch.object(first_svc, "_apply", side_effect=slow_apply),
+        patch.object(project_state, "project_state_lock", side_effect=observed_state_lock),
         ThreadPoolExecutor(max_workers=2) as pool,
     ):
-        first = pool.submit(first_svc.submit, _comment("same", command_id="fixed"))
-        assert entered.wait(timeout=5.0)
-        second = pool.submit(second_svc.submit, _comment("same", command_id="fixed"))
+        try:
+            first = pool.submit(first_svc.submit, _comment("same", command_id="fixed"))
+            assert entered.wait(timeout=5.0)
+            second = pool.submit(replay)
+            assert contended.wait(timeout=5.0)
+            assert not first.done()
+            assert not second.done()
+        finally:
+            release.set()
         results = [first.result(timeout=30), second.result(timeout=30)]
 
     assert [r.get("idempotent") is True for r in results] == [False, True]
