@@ -81,7 +81,6 @@ function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
   };
 }
 
-/** Provides the models context a live component reads, from `parameters.models`. */
 export const withModels: Decorator = (Story, context) => (
   <ModelsContext.Provider
     value={storyModelsApi(context.parameters.models as Partial<ModelsApi>)}

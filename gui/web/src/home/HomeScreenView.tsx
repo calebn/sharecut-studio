@@ -15,7 +15,6 @@ export type HomeScreenViewProps = {
   busyAction: HomeBusyAction;
   error: string | null;
   modelsIncomplete: boolean;
-  /** Dialogs the screen opens, mounted beside the page. */
   dialogs: ReactNode;
   onNameChange: (value: string) => void;
   onDirChange: (value: string) => void;
