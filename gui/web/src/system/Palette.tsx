@@ -1,36 +1,13 @@
 import { type KeyboardEvent, useId, useMemo, useState } from "react";
-import type { SystemIconName } from "./icons";
 import { KeyCaps } from "./KeyCaps";
+import {
+  type PaletteGroup,
+  type PaletteItem,
+  resultGroups,
+} from "./paletteResults";
 import { SystemIcon } from "./SystemIcon";
-import type { KeySpec } from "./verbs";
 
-export type PaletteGroup =
-  | "Commands"
-  | "Stages"
-  | "Projects"
-  | "People"
-  | "Chapters"
-  | "Gestures"
-  | "Help";
-
-export type PaletteItem = {
-  id: string;
-  group: PaletteGroup;
-  label: string;
-  icon?: SystemIconName | null;
-  context?: string;
-  keys?: readonly KeySpec[];
-};
-
-const GROUP_ORDER: readonly PaletteGroup[] = [
-  "Commands",
-  "Stages",
-  "Projects",
-  "People",
-  "Chapters",
-  "Gestures",
-  "Help",
-];
+export type { PaletteGroup, PaletteItem };
 
 export type PaletteProps = {
   items: readonly PaletteItem[];
@@ -42,14 +19,6 @@ export type PaletteProps = {
   onRun?: (item: PaletteItem) => void;
   onClose?: () => void;
 };
-
-function matches(item: PaletteItem, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  return (
-    needle === "" ||
-    `${item.label} ${item.context ?? ""}`.toLowerCase().includes(needle)
-  );
-}
 
 /**
  * Search-first command palette. Rows show the verb icon, name, context and key
@@ -66,20 +35,10 @@ export function Palette({
   const listId = useId();
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
-  const groups = useMemo(() => {
-    if (query.trim() === "" && recent.length > 0) {
-      const found = recent
-        .map((id) => items.find((item) => item.id === id))
-        .filter((item): item is PaletteItem => item !== undefined);
-      return [{ name: "Recent", items: found }];
-    }
-    return GROUP_ORDER.map((name) => ({
-      name,
-      items: items.filter(
-        (item) => item.group === name && matches(item, query),
-      ),
-    })).filter((group) => group.items.length > 0);
-  }, [items, query, recent]);
+  const groups = useMemo(
+    () => resultGroups(items, query, recent),
+    [items, query, recent],
+  );
   const flat = groups.flatMap((group) => group.items);
   const current = Math.min(active, Math.max(flat.length - 1, 0));
   const optionId = (index: number) => `${listId}-opt-${index}`;
@@ -151,8 +110,18 @@ export function Palette({
                   aria-selected={position === current}
                   tabIndex={-1}
                   className="sys-palette-row"
+                  // Keep focus in Search, which owns the keyboard.
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => onRun?.(item)}
-                  onKeyDown={onKeyDown}
+                  onMouseMove={() => setActive(position)}
+                  // Search owns the keyboard; this covers assistive tech that
+                  // moves real focus onto a row.
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onRun?.(item);
+                    }
+                  }}
                 >
                   {item.icon ? (
                     <SystemIcon name={item.icon} size={16} />

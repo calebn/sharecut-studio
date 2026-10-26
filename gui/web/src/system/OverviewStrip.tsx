@@ -17,9 +17,10 @@ export type OverviewStripProps = {
   label: string;
 };
 
-const HEIGHT_CLASS = { 16: "16", 32: "32", 48: "48", 64: "64" } as const;
-
-/** A whole-episode miniature. Static: seeking is wired where it is used. */
+/**
+ * A whole-episode miniature. Static: seeking is wired where it is used.
+ * Comments are dots, every other tick is a line.
+ */
 export function OverviewStrip({
   height,
   peaks = [],
@@ -30,9 +31,11 @@ export function OverviewStrip({
   label,
 }: OverviewStripProps) {
   const count = Math.max(peaks.length, 1);
+  const lines = ticks.filter((tick) => tick.kind !== "comment");
+  const dots = ticks.filter((tick) => tick.kind === "comment");
   return (
     <div
-      className={`sys-overview sys-overview--${HEIGHT_CLASS[height]}`}
+      className={`sys-overview sys-overview--${height}`}
       role="img"
       aria-label={label}
     >
@@ -72,18 +75,25 @@ export function OverviewStrip({
             />
           ))
         )}
-        {ticks.map((tick) => (
+        {lines.map((tick) => (
           <line
-            key={`${tick.kind}-${tick.at}`}
+            key={`${tick.kind}-${tick.at}-${tick.current ? "now" : ""}`}
             className={`sys-overview-tick sys-overview-tick--${tick.kind}${tick.current ? " is-current" : ""}`}
             x1={tick.at * count}
             x2={tick.at * count}
             y1={0}
-            y2={tick.kind === "comment" ? 0.3 : 1}
+            y2={1}
             vectorEffect="non-scaling-stroke"
           />
         ))}
       </svg>
+      {dots.map((tick) => (
+        <span
+          key={`${tick.kind}-${tick.at}-${tick.current ? "now" : ""}`}
+          className={`sys-overview-dot${tick.current ? " is-current" : ""}`}
+          style={{ insetInlineStart: `${tick.at * 100}%` }}
+        />
+      ))}
       {viewport ? (
         <span
           className="sys-overview-viewport"

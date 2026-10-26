@@ -40,7 +40,7 @@ function Demo({ placement }: { placement: "below" | "above" }) {
         shown={shown}
         onDismiss={() => setShown(false)}
       >
-        <Button onClick={() => setShown(false)}>Solo</Button>
+        <Button>Solo</Button>
       </CoachTip>
     </div>
   );
@@ -62,6 +62,9 @@ export const DismissedByAction: Story = {
   render: () => <Demo placement="below" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.getByRole("note")).toHaveTextContent(
+      "Solo is just for your ears",
+    );
     await userEvent.click(canvas.getByRole("button", { name: "Solo" }));
     await expect(canvas.queryByRole("note")).toBeNull();
   },

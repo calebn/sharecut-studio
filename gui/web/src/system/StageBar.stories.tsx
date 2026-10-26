@@ -62,6 +62,18 @@ export const Phone: Story = {
 };
 
 export const AllBadges: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("tab", { name: "Review 6, Needs you" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("tab", { name: "Deliver Failed" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("tab", { name: "Record 2, Waiting to send" }),
+    ).toBeVisible();
+  },
   render: () => (
     <Bar
       badges={{

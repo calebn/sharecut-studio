@@ -857,6 +857,12 @@ html[data-shell="phone"] .ui-menu-shortcut {
   flex: 1 1 auto;
 }
 
+.ui-toast-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
 /* A failure: the danger border and message set it apart from a result. */
 .ui-toast--error {
   border-color: var(--color-danger);

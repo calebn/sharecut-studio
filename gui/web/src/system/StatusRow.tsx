@@ -60,7 +60,7 @@ export function StatusRow({
             type="button"
             className="sys-status-text sys-status-toggle"
             aria-expanded={expanded}
-            aria-controls={childrenId}
+            aria-controls={expanded ? childrenId : undefined}
             onClick={onToggle}
           >
             <span className="sys-status-title">{title}</span>

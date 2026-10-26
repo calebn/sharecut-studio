@@ -1,7 +1,7 @@
 import { capsOf } from "./verbDisplay";
 import type { KeySpec } from "./verbs";
 
-/** Display-only key caps; the row's label already names the action. */
+/** Display-only key caps; the row's label already names the action. A row shows its first two chords. */
 export function KeyCaps({ chords }: { chords: readonly KeySpec[] }) {
   if (chords.length === 0) return null;
   return (

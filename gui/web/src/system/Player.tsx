@@ -1,6 +1,6 @@
 import { type CSSProperties, useId } from "react";
 import { presenceColorVar } from "../presence/colors";
-import { Button, Pill } from "../ui";
+import { Button, Pill, SegmentedControl, ToggleButton } from "../ui";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
@@ -34,7 +34,12 @@ export type PlayerProps = {
   onComment?: () => void;
   onExpand?: () => void;
   onCollapse?: () => void;
+  /** Audio error: tries again. Shown in the bar and in the expanded form. */
   onRetry?: () => void;
+  /** A chapter row was chosen. The host seeks (#2292). */
+  onChapter?: (index: number) => void;
+  /** The "×" on the Following pill. */
+  onUnfollow?: () => void;
 };
 
 const SKIP = 15;
@@ -55,10 +60,7 @@ function Skip({
       title={`${back ? "Back" : "Forward"} ${SKIP} seconds`}
       onClick={() => onSkip?.(seconds)}
     >
-      <span aria-hidden="true">
-        {back ? "−" : "+"}
-        {SKIP}
-      </span>
+      <SystemIcon name={back ? "skip-back-15" : "skip-forward-15"} size={24} />
     </button>
   );
 }
@@ -96,47 +98,110 @@ function Play({ playing, state, following, onPlayPause }: PlayerProps) {
   );
 }
 
-function StatePills(props: PlayerProps) {
-  const { cuts, solo, state, guest } = props;
+/** Back 15 s, Play and forward 15 s: the same trio in the bar and the expanded form. */
+function PlayCluster(props: PlayerProps) {
   return (
     <>
-      {cuts ? (
-        <Pill title="Length change from your cuts">
-          <span className="sys-mono">{cuts}</span>
+      <Skip seconds={-SKIP} onSkip={props.onSkip} />
+      <Play {...props} />
+      <Skip seconds={SKIP} onSkip={props.onSkip} />
+    </>
+  );
+}
+
+/** The cuts delta: the edited length changes, so it stays beside the time. */
+function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
+  return cuts ? (
+    <Pill title="Length change from your cuts">
+      <span className="sys-mono">{cuts}</span>
+    </Pill>
+  ) : null;
+}
+
+/**
+ * Following, solo, mix and error Status pills. On a narrow Player the text
+ * hides and the glyph stays; the text is still read.
+ */
+function StatePills({
+  solo,
+  state,
+  guest,
+  following,
+  onUnfollow,
+  onRetry,
+}: PlayerProps) {
+  return (
+    <>
+      {following ? (
+        <Pill className="sys-player-pill">
+          <SystemIcon name="locate-fixed" size={12} />
+          <span className="sys-player-pill-text">
+            Following {following.name}
+          </span>
+          {onUnfollow ? (
+            <button
+              type="button"
+              className="sys-pill-x"
+              aria-label={`Stop following ${following.name}`}
+              title="Stop following"
+              onClick={onUnfollow}
+            >
+              <SystemIcon name="x" size={12} />
+            </button>
+          ) : null}
         </Pill>
       ) : null}
       {solo && !guest ? (
-        <Pill className="sys-player-extra">
-          <SystemIcon name="headphones" size={12} /> {solo}
+        <Pill className="sys-player-pill">
+          <SystemIcon name="headphones" size={12} />
+          <span className="sys-player-pill-text">Solo {solo}</span>
         </Pill>
       ) : null}
       {state === "mix-updating" ? (
-        <Pill className="sys-player-extra">
-          <SystemIcon name="progress-ring" size={12} progress={0.3} /> Updating
-          mix
+        <Pill className="sys-player-pill">
+          <SystemIcon name="progress-ring" size={12} progress={0.3} />
+          <span className="sys-player-pill-text">Updating mix</span>
         </Pill>
       ) : null}
       {state === "error" ? (
-        <Pill tone="warning">
-          <SystemIcon name="octagon-alert" size={12} /> Audio error
-        </Pill>
+        <>
+          <Pill className="sys-player-pill sys-pill--danger">
+            <SystemIcon name="octagon-alert" size={12} />
+            <span className="sys-player-pill-text">Audio error</span>
+          </Pill>
+          <Button variant="link" onClick={onRetry}>
+            Retry
+          </Button>
+        </>
       ) : null}
     </>
   );
 }
 
+/** The A/B audition control (design system 21): A is the original, B the edit. */
 function HearOriginal({ hearOriginal, onHearOriginal }: PlayerProps) {
+  const original = hearOriginal ?? false;
   return (
-    <button
-      type="button"
-      className="sys-icon-btn sys-player-ab"
-      aria-pressed={hearOriginal ?? false}
-      aria-label="Hear the original"
-      title="Hear the original (A)"
-      onClick={() => onHearOriginal?.(!hearOriginal)}
-    >
-      <span aria-hidden="true">A/B</span>
-    </button>
+    <SegmentedControl label="Audition" className="sys-player-ab">
+      <ToggleButton
+        quiet
+        pressed={original}
+        title="Hear the original (A)"
+        aria-keyshortcuts="A"
+        onClick={() => onHearOriginal?.(true)}
+      >
+        A
+      </ToggleButton>
+      <ToggleButton
+        quiet
+        pressed={!original}
+        title="Hear the edit (B)"
+        aria-keyshortcuts="B"
+        onClick={() => onHearOriginal?.(false)}
+      >
+        B
+      </ToggleButton>
+    </SegmentedControl>
   );
 }
 
@@ -148,7 +213,6 @@ export function Player(props: PlayerProps) {
     time,
     total,
     state,
-    following,
     guest,
     title,
     chapters = [],
@@ -156,45 +220,40 @@ export function Player(props: PlayerProps) {
     peaks,
     ticks,
     playhead,
-    onSkip,
     onComment,
     onExpand,
     onCollapse,
-    onRetry,
+    onChapter,
   } = props;
   if (form === "bar") {
     return (
       <div
         role="group"
         aria-label="Player"
-        className="sys-player"
+        className="sys-player-host"
         data-state={state}
       >
-        <div className="sys-player-left">
-          <button
-            type="button"
-            className="sys-player-time"
-            aria-label={`${time} / ${total}. Expand player`}
-            onClick={onExpand}
-          >
-            <span className="sys-player-now">{time}</span>
-            <span className="sys-player-total">{` / ${total}`}</span>
-          </button>
-          <StatePills {...props} />
-        </div>
-        <div className="sys-player-center">
-          <Skip seconds={-SKIP} onSkip={onSkip} />
-          <Play {...props} />
-          <Skip seconds={SKIP} onSkip={onSkip} />
-        </div>
-        <div className="sys-player-right">
-          {guest ? null : <HearOriginal {...props} />}
-          <VerbButton verb="comment" onClick={onComment} />
-          {state === "error" ? (
-            <Button variant="link" onClick={onRetry}>
-              Retry
-            </Button>
-          ) : null}
+        <div className="sys-player">
+          <div className="sys-player-left">
+            <button
+              type="button"
+              className="sys-player-time"
+              aria-label={`${time} / ${total}. Expand player`}
+              onClick={onExpand}
+            >
+              <span className="sys-player-now">{time}</span>
+              <span className="sys-player-total">{` / ${total}`}</span>
+            </button>
+            <CutsPill cuts={props.cuts} />
+          </div>
+          <div className="sys-player-center">
+            <PlayCluster {...props} />
+          </div>
+          <div className="sys-player-right">
+            {guest ? null : <HearOriginal {...props} />}
+            <VerbButton verb="comment" onClick={onComment} />
+            <StatePills {...props} />
+          </div>
         </div>
       </div>
     );
@@ -203,7 +262,6 @@ export function Player(props: PlayerProps) {
     <section
       aria-labelledby={headingId}
       className="sys-player sys-player--expanded"
-      data-following={following ? "" : undefined}
     >
       <div className="sys-player-head">
         <div>
@@ -214,9 +272,15 @@ export function Player(props: PlayerProps) {
             <p className="sys-player-chapter">{chapters[chapter].title}</p>
           ) : null}
         </div>
-        <Button variant="link" onClick={onCollapse}>
-          Collapse
-        </Button>
+        <button
+          type="button"
+          className="sys-icon-btn"
+          aria-label="Collapse player"
+          title="Collapse player"
+          onClick={onCollapse}
+        >
+          <SystemIcon name="chevron-down" size={16} />
+        </button>
       </div>
       <OverviewStrip
         height={64}
@@ -228,12 +292,11 @@ export function Player(props: PlayerProps) {
       <p className="sys-player-readout">
         <span className="sys-player-now">{time}</span>
         <span className="sys-player-total">{` / ${total}`}</span>
+        <CutsPill cuts={props.cuts} />
         <StatePills {...props} />
       </p>
       <div className="sys-player-center sys-player-center--large">
-        <Skip seconds={-SKIP} onSkip={onSkip} />
-        <Play {...props} />
-        <Skip seconds={SKIP} onSkip={onSkip} />
+        <PlayCluster {...props} />
       </div>
       <div className="sys-player-actions">
         {guest ? null : <HearOriginal {...props} />}
@@ -247,8 +310,9 @@ export function Player(props: PlayerProps) {
                 type="button"
                 className="sys-row-btn"
                 aria-current={index === chapter ? "true" : undefined}
+                onClick={() => onChapter?.(index)}
               >
-                <span>{entry.title}</span>
+                <span className="sys-row-title">{entry.title}</span>
                 <span className="sys-mono">{entry.time}</span>
               </button>
             </li>

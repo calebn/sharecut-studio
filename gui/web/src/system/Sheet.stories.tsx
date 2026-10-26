@@ -22,7 +22,7 @@ const meta: Meta<typeof Sheet> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Every non-modal surface that is not a menu: header 40, rows (label left, control right), one primary in the footer. Anchored card 320, side panel 400, centered card 400 (wraps Dialog), and on phone a bottom sheet with Peek, Half and Full detents (wraps BottomSheet). Values apply as they change, so there is no Apply button. A pushed step replaces the body and the header keeps its title.\n\n**Motion.** Phone sheets slide with `--motion-panel` through BottomSheet; the pushed step slides in from the inline end with `--motion-panel`. Anchored and side frames are static in this slice.",
+          "Every non-modal surface that is not a menu: header 40, rows (label left, control right), one primary in the footer. Anchored card 320, side panel 400, centered card 400 (wraps Dialog), and on phone a bottom sheet with Peek, Half and Full detents (wraps BottomSheet). Values apply as they change, so there is no Apply button. A pushed step replaces the body: in the static frames the header shows Back (an icon button) and the step's title; in the Dialog and BottomSheet forms the title changes and Back sits at the top of the body. The phone footer is one primary, 48 tall and full width, at the bottom of the sheet whatever the pointer. The Expand and Collapse buttons on the phone header belong to `BottomSheet` and stay text until that component is touched.\n\n**Motion.** Phone sheets slide with `--motion-panel` through BottomSheet; the pushed step slides in from the inline end with `--motion-panel`. Anchored and side frames are static in this slice.",
       },
     },
   },
@@ -63,7 +63,7 @@ const frame = {
   justifyContent: "center",
 } as const;
 
-export const Anchored: Story = {
+export const AnchoredCard: Story = {
   render: (args) => (
     <div style={frame}>
       <Sheet
@@ -125,13 +125,14 @@ export const PushedStep: Story = {
       canvas.getByRole("heading", { name: "Noise reduction" }),
     ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Back" }));
+    await expect(canvas.getByRole("heading", { name: "Clip" })).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Noise reduction" }),
     ).toBeVisible();
   },
 };
 
-export const Centered: Story = {
+export const CenteredCard: Story = {
   parameters: isolatedStoryParameters,
   render: (args) => (
     <DialogLauncher label="Open join" initiallyOpen={false}>
@@ -162,9 +163,12 @@ export const Centered: Story = {
   },
 };
 
-function PhoneSheet(args: React.ComponentProps<typeof Sheet>) {
+function PhoneSheet({
+  startAt,
+  ...args
+}: React.ComponentProps<typeof Sheet> & { startAt: DrawerDetent }) {
   const [open, setOpen] = useState(false);
-  const [detent, setDetent] = useState<DrawerDetent>("half");
+  const [detent, setDetent] = useState<DrawerDetent>(startAt);
   return (
     <>
       <Button onClick={() => setOpen(true)}>Open mix</Button>
@@ -188,14 +192,26 @@ function PhoneSheet(args: React.ComponentProps<typeof Sheet>) {
   );
 }
 
-export const Phone: Story = {
-  parameters: isolatedStoryParameters,
-  render: (args) => <PhoneSheet {...args} />,
-  play: async ({ canvasElement, viewMode }) => {
-    if (viewMode === "docs") return;
-    await openDialogByLauncher(canvasElement, {
-      launcherName: "Open mix",
-      dialogName: "Mix",
-    });
-  },
-};
+function phoneStory(startAt: DrawerDetent): Story {
+  return {
+    parameters: isolatedStoryParameters,
+    render: (args) => <PhoneSheet {...args} startAt={startAt} />,
+    play: async ({ canvasElement, viewMode }) => {
+      if (viewMode === "docs") return;
+      const dialog = await openDialogByLauncher(canvasElement, {
+        launcherName: "Open mix",
+        dialogName: "Mix",
+      });
+      // The footer is the phone form's own; its 48 px full-width primary is
+      // measured in the browser sweep (e2e-storybook/system.spec.ts).
+      const done = within(dialog).getByRole("button", { name: "Done" });
+      await expect(
+        done.closest(".sys-sheet-bottom .sys-sheet-footer"),
+      ).not.toBeNull();
+    },
+  };
+}
+
+export const PhonePeek: Story = phoneStory("peek");
+export const PhoneHalf: Story = phoneStory("half");
+export const PhoneFull: Story = phoneStory("full");

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 
@@ -45,9 +46,51 @@ type Story = StoryObj<typeof OverviewStrip>;
 
 export const Edit16: Story = {
   args: { height: 16, viewport: [0.3, 0.55], selection: [0.34, 0.4] },
+  play: async ({ canvasElement }) => {
+    const strip = within(canvasElement).getByRole("img", {
+      name: "Episode overview",
+    });
+    await expect(strip).toHaveClass("sys-overview--16");
+    await expect(
+      strip.querySelector(".sys-overview-viewport")?.getAttribute("style"),
+    ).toContain("30%");
+    await expect(strip.querySelector(".sys-overview-selection")).not.toBeNull();
+  },
 };
-export const Review32: Story = { args: { height: 32, ticks } };
+export const Review32: Story = {
+  args: { height: 32, ticks },
+  play: async ({ canvasElement }) => {
+    const strip = within(canvasElement).getByRole("img", {
+      name: "Episode overview",
+    });
+    await expect(strip).toHaveClass("sys-overview--32");
+    // Comments are dots; the other four ticks are lines, one of them current.
+    await expect(strip.querySelectorAll(".sys-overview-dot")).toHaveLength(2);
+    await expect(strip.querySelectorAll("line.sys-overview-tick")).toHaveLength(
+      4,
+    );
+    await expect(strip.querySelectorAll(".is-current")).toHaveLength(1);
+  },
+};
 export const CardStatic48: Story = {
   args: { height: 48, playhead: undefined },
+  play: async ({ canvasElement }) => {
+    const strip = within(canvasElement).getByRole("img", {
+      name: "Episode overview",
+    });
+    await expect(strip).toHaveClass("sys-overview--48");
+    await expect(strip.querySelector(".sys-overview-playhead")).toBeNull();
+  },
 };
-export const Player64: Story = { args: { height: 64, ticks } };
+export const Player64: Story = {
+  args: { height: 64, ticks },
+  play: async ({ canvasElement }) => {
+    const strip = within(canvasElement).getByRole("img", {
+      name: "Episode overview",
+    });
+    await expect(strip).toHaveClass("sys-overview--64");
+    await expect(
+      strip.querySelector(".sys-overview-playhead")?.getAttribute("style"),
+    ).toContain("40%");
+  },
+};

@@ -1,5 +1,5 @@
 import { SystemIcon } from "./SystemIcon";
-import type { StatusState } from "./statusText";
+import { STATUS_TEXT, type StatusState } from "./statusText";
 import { STATUS_GLYPHS } from "./verbs";
 
 type Props = {
@@ -8,18 +8,30 @@ type Props = {
   dot?: boolean;
   progress?: number;
   size?: number;
+  /** The state's name for assistive tech. `false` when the caller names it. */
+  text?: string | false;
 };
 
 /** The one status glyph set (design system 4.6). Shape differs per state, never colour alone. */
-export function StatusGlyph({ state, dot, progress, size = 16 }: Props) {
+export function StatusGlyph({
+  state,
+  dot,
+  progress,
+  size = 16,
+  text = STATUS_TEXT[state],
+}: Props) {
   const entry = STATUS_GLYPHS.find((glyph) => glyph.state === state);
   if (!entry) return null;
+  const name = text === false ? null : <span className="sr-only">{text}</span>;
   if (dot && state === "needs-you") {
-    return <span className="sys-glyph sys-glyph--dot sys-tone-warning" />;
+    return (
+      <span className="sys-glyph sys-glyph--dot sys-tone-warning">{name}</span>
+    );
   }
   return (
     <span className={`sys-glyph sys-tone-${entry.tone}`}>
       <SystemIcon name={entry.glyph} size={size} progress={progress} />
+      {name}
     </span>
   );
 }

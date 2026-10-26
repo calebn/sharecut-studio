@@ -87,6 +87,16 @@ export const HostAsleep: Story = {
   },
 };
 
+export const NotServedHere: Story = {
+  args: {
+    glyph: "cloud-off",
+    title: "This is not available here",
+    children: "Open the project in the desktop app to use this.",
+    primary: undefined,
+    secondary: { label: "Back to Home", onClick: fn() },
+  },
+};
+
 export const RegionFailed: Story = {
   args: {
     size: "region",
