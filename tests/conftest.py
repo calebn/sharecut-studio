@@ -168,6 +168,15 @@ _VERDICT_VERIFY_COUNTS_CHECKS = (
 
 
 @pytest.fixture(autouse=True)
+def _verdict_cache_off_except_its_own_tests(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The cache is on by default; only its own tests exercise it, the rest count real checks (#1958)."""
+    if request.node.path.name != "test_verdict_cache.py":
+        monkeypatch.setenv("PODCAST_VERDICT_CACHE", "0")
+
+
+@pytest.fixture(autouse=True)
 def _verdict_verify_off_for_check_counting_tests(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:

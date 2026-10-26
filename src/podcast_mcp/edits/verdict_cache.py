@@ -79,7 +79,7 @@ def approval_running() -> bool:
 
 
 def enabled() -> bool:
-    return settings.flag(ENABLE_ENV) or settings.flag(VERIFY_ENV)
+    return settings.flag(ENABLE_ENV, default=True) or settings.flag(VERIFY_ENV)
 
 
 def verifying() -> bool:
