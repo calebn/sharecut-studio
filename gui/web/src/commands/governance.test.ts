@@ -86,6 +86,9 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/ActionBarInline.tsx",
   // A focused suggestion handle moves with the arrow keys, 0.5 s with Shift.
   "system/SuggestionWaveform.tsx",
+  // Enter or Space on a live Record button opens the stop question, since a
+  // key cannot hold.
+  "system/RecordButton.tsx",
   // The Stage design system palette (owner-accepted): its combobox keys stay in
   // the view, arrows, Enter and Escape on the search field and Enter or Space on a row.
   "system/Palette.tsx",

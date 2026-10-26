@@ -136,6 +136,7 @@ loops, and essential state changes are immediate.
 | `--motion-toggle` | Control and track-row transforms; phone nav tab color; the pipeline progress bar. |
 | `--motion-panel` | Dialog panels rising in (`fade-in` with `rise-in`); dialog and bottom-sheet scrims fading in (`fade-in`); bottom sheets; undo toasts rising 0.5rem (`rise-in`); focus-pull out. |
 | `--motion-state` | Play's playing glow; track-row and empty-stage shadows; the ruler glow; focus-pull in. |
+| `--motion-hold-to-stop` | The Record button's ring filling while a live take is held to stop. It equals `HOLD_TO_STOP_MS` (600ms) in `system/RecordButton.tsx`, and a Vitest test keeps them equal. |
 | `--motion-loop-*` | The pipeline pulse, the loading shimmer, and the REC dot. |
 | `--motion-long-press` | Progress shown during a touch hold that ends when the hold fires: the touch chooser's "about to grab" ring. It equals `LONG_PRESS_MS` (500ms) in `hooks/gestureConstants.ts`, and a Vitest test keeps them equal. |
 

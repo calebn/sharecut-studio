@@ -1,0 +1,180 @@
+/* Record stage elements. Same rules as system.css: tokens only, rem only. */
+
+.sys-record {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sys-record-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 4rem;
+  block-size: 4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  color: var(--color-record);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.sys-record-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sys-record-dot {
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 50%;
+  background: var(--color-record);
+}
+
+.sys-record-live {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.sys-record-track {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 3;
+}
+
+.sys-record-fill {
+  fill: none;
+  stroke: var(--color-record);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.sys-record-square {
+  fill: var(--color-record);
+}
+
+.sys-record-btn[data-holding] .sys-record-fill {
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-record-btn[data-holding] .sys-record-fill {
+    transition: stroke-dashoffset var(--motion-hold-to-stop) linear;
+  }
+}
+
+.sys-record-hint {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  line-height: 1rem;
+}
+
+.sys-record-confirm {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  translate: -50% calc(-1 * var(--space-3));
+  inline-size: max-content;
+  max-inline-size: 20rem;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-floating);
+  z-index: 1;
+}
+
+.sys-dock {
+  container: sys-dock / inline-size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  min-block-size: 5rem;
+  padding: var(--space-3) var(--space-5);
+  padding-block-end: max(var(--space-3), env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.sys-dock-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+}
+
+.sys-dock-far {
+  display: flex;
+  align-items: center;
+}
+
+.sys-dock-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.sys-dock-btn--primary {
+  inline-size: 4rem;
+  block-size: 4rem;
+}
+
+.sys-dock-btn[aria-pressed="true"] {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-text-secondary);
+}
+
+.sys-dock-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sys-dock-badge {
+  position: absolute;
+  inset-block-start: calc(-1 * var(--space-1));
+  inset-inline-end: calc(-1 * var(--space-1));
+  min-inline-size: 1.25rem;
+  padding-inline: var(--space-1);
+  border-radius: 50%;
+  background: var(--color-accent-solid);
+  color: var(--color-accent-on-solid);
+  font-size: var(--font-size-small);
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.sys-dock-status {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+}
+
+/* A host's phone dock has no Notes button. */
+@container sys-dock (max-width: 40rem) {
+  .sys-dock[data-seat="host"] .sys-dock-notes {
+    display: none;
+  }
+
+  .sys-dock-far {
+    margin-inline-start: calc(-1 * var(--space-3));
+  }
+}

@@ -250,6 +250,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the word-boundary sliders preview a word's timing and save one adjustment on release",
   "system/SuggestionWaveform.tsx":
     "a suggestion's edge handles move a control inside one Decision card, not a timeline target; they preview the range and the card saves on decision",
+  "system/RecordButton.tsx":
+    "the Record button: a 600 ms press-and-hold stops a live take, and Enter or Space asks first; it is not a timeline target",
   "system/useSwipeDecision.ts":
     "the Review card and queue row swipe: right is the verb, left is Keep, up is Later (the Swipe right and Swipe left rows in verbs.ts), 80 px to commit",
   "presence/usePresenceCursorSource.ts":
