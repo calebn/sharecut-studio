@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.engines import ffmpeg as ffmpeg_module
 from podcast_mcp.engines.audio_audit import clipping_indicated, measure_astats
 
 
@@ -85,3 +86,66 @@ def test_exact_labels_preserve_other_health_fields(monkeypatch: pytest.MonkeyPat
         "noise_floor_db": -2.5,
         "dynamic_range_db": 28.81,
     }
+
+
+@pytest.mark.parametrize("binary", [None, "", "explicit-ffmpeg"])
+def test_astats_binary_selection_preserves_admission(
+    monkeypatch: pytest.MonkeyPatch, binary: str | None
+) -> None:
+    resolutions: list[str] = []
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def resolve() -> str:
+        resolutions.append("default")
+        return "resolved-ffmpeg"
+
+    def unexpected_pair(*args: object, **kwargs: object) -> None:
+        raise AssertionError("astats introduced constructor pair admission")
+
+    def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        calls.append((argv, kwargs))
+        return subprocess.CompletedProcess(
+            argv, 0, stderr=b"[Parsed_astats_0 @ 0x1] Peak count: 2.5\n"
+        )
+
+    monkeypatch.setattr(ffmpeg_module, "resolve_ffmpeg_pair", unexpected_pair)
+    monkeypatch.setattr("podcast_mcp.engines.audio_audit.resolve_ffmpeg", resolve)
+    monkeypatch.setattr("podcast_mcp.engines.audio_audit.run", run)
+
+    assert measure_astats(Path("audio.wav"), ffmpeg=binary)["peak_count"] == 2
+    assert resolutions == ([] if binary else ["default"])
+    assert calls == [
+        (
+            [
+                binary or "resolved-ffmpeg",
+                "-i",
+                "audio.wav",
+                "-map",
+                "0:a:0",
+                "-af",
+                "astats=metadata=1:reset=0",
+                "-f",
+                "null",
+                "-",
+            ],
+            {"capture_output": True},
+        )
+    ]
+
+
+@pytest.mark.parametrize("boundary", ["resolution", "launch"])
+def test_astats_preserves_boundary_failure(monkeypatch: pytest.MonkeyPatch, boundary: str) -> None:
+    failure = FileNotFoundError(f"{boundary} sentinel")
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise failure
+
+    monkeypatch.setattr(
+        "podcast_mcp.engines.audio_audit.resolve_ffmpeg",
+        fail if boundary == "resolution" else lambda: "resolved-ffmpeg",
+    )
+    monkeypatch.setattr("podcast_mcp.engines.audio_audit.run", fail)
+
+    with pytest.raises(FileNotFoundError) as caught:
+        measure_astats(Path("missing.wav"))
+    assert caught.value is failure
