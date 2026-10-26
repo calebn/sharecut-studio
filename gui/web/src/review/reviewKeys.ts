@@ -18,7 +18,13 @@ type KeyInput = Pick<
 > & { target?: EventTarget | null };
 
 /** Holding these must not decide a second item. */
-const DECIDES: readonly StageAction[] = ["verb", "keep", "applyAll"];
+const DECIDES: readonly StageAction[] = [
+  "verb",
+  "keep",
+  "applyAll",
+  "comment",
+  "openInEdit",
+];
 
 const keysOf = (id: VerbId): readonly KeySpec[] =>
   VERBS.find((entry) => entry.id === id)?.keys ?? [];

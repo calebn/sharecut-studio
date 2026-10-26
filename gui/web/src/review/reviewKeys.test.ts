@@ -35,6 +35,8 @@ describe("stageActionFor", () => {
       stageActionFor(key("Enter", { shiftKey: true, repeat: true })),
     ).toBeNull();
     expect(stageActionFor(key("x", { repeat: true }))).toBeNull();
+    expect(stageActionFor(key("c", { repeat: true }))).toBeNull();
+    expect(stageActionFor(key("e", { repeat: true }))).toBeNull();
     expect(stageActionFor(key("ArrowDown", { repeat: true }))).toBe("next");
   });
 
