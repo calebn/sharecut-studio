@@ -233,6 +233,65 @@
     inset 0 -0.1875rem 0 var(--color-danger);
 }
 
+/* Stage layout (design system section 4). Additive: no value above changes.
+   Reuse --transport-height (Player bar), --touch-min, --control-height,
+   --focus-ring-width and the --color-selection roles instead of renaming them.
+   Numbers in --space-N are steps, not px/4. */
+:root {
+  /* Regions (4.1) */
+  --app-header-height: 3rem;
+  --app-header-height-phone: 2.75rem;
+  --alert-slot-height: 2.75rem;
+  --rail-width: 22.5rem;
+  --script-pane-width: 25rem;
+  --script-pane-width-min: 20rem;
+  --script-pane-width-max: 40rem;
+  --script-pane-width-wide: 30rem;
+  --action-bar-height: 2.5rem;
+  --action-bar-height-touch: 2.75rem;
+  --action-dock-height: 4rem;
+  --record-dock-height: 5rem;
+  --tab-bar-height: 3.5rem;
+
+  /* Spacing (4.2): 32 and 48 continue the --space-N steps */
+  --space-7: 2rem;
+  --space-8: 3rem;
+  --content-max-wide: 65rem;
+  --content-max-narrow: 47.5rem;
+
+  /* Sheet detents and desktop widths (4.3) */
+  --sheet-peek-min: 4rem;
+  --sheet-peek-max: 7.5rem;
+  --sheet-detent-half: 50%;
+  --sheet-detent-full: 92%;
+  --sheet-grip-width: 2.25rem;
+  --sheet-grip-height: 0.3125rem;
+  --menu-width: 17.5rem;
+  --anchored-card-width: 20rem;
+  --side-panel-width: 25rem;
+  --centered-card-width: 25rem;
+  --palette-width: 35rem;
+
+  /* Targets (4.4) */
+  --target-dock-button: 3rem;
+  --target-dock-primary: 4rem;
+  --target-primary-phone: 3rem;
+  --target-primary-desktop: 2.25rem;
+  --target-primary-page: 2.5rem;
+  --handle-visual-width: 0.375rem;
+  --handle-visual-height: 1.5rem;
+
+  /* Type (4.5); line heights stay unitless literals in the consumer */
+  --font-size-card-title: 1.25rem;
+  --font-size-page-title: 1.75rem;
+  --font-size-reading-phone: 1.0625rem;
+
+  /* Selection look (4.8) */
+  --selection-outline-width: 0.125rem;
+  --selection-row-edge-width: 0.1875rem;
+  --selection-remote-width: 0.0625rem;
+}
+
 @media (pointer: coarse) {
   :root {
     --font-size-field-min: 1rem;

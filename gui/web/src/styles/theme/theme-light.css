@@ -156,6 +156,8 @@
     var(--color-bg-elevated)
   );
   --color-danger: var(--primitive-red-650);
+  /* Recording only (DS 4.7). Starts on the danger primitive so it can diverge without a rename. */
+  --color-record: var(--primitive-red-650);
   --color-danger-muted: color-mix(
     in srgb,
     var(--color-danger) 22%,
@@ -535,6 +537,8 @@
       var(--color-bg-elevated)
     );
     --color-danger: var(--primitive-red-650);
+    /* Recording only (DS 4.7). Starts on the danger primitive so it can diverge without a rename. */
+    --color-record: var(--primitive-red-650);
     --color-danger-muted: color-mix(
       in srgb,
       var(--color-danger) 22%,
