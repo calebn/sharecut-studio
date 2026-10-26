@@ -7,13 +7,17 @@ import os
 import re
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 from github_yaml import load_github_yaml
+from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / ".github/workflows/release-desktop-build.yml"
 DESKTOP_CHECK = ROOT / ".github/workflows/desktop.yml"
+load_script("ci_plan", register=True)
+native = sys.modules["ci_native"]
 
 REQUIRED_SECRETS = (
     "SOURCE_REPOSITORY_SSH_KEY",
@@ -149,7 +153,7 @@ def test_desktop_workflow_runs_pinned_media_tests_on_windows_python_floor() -> N
 
 def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
     data = load_github_yaml(DESKTOP_CHECK)
-    assert data["on"]["pull_request"]["paths"] == ["**", "!contracts/test-wait-allowlist.json"]
+    assert data["on"]["pull_request"]["paths"] == list(native.DESKTOP_PR_PATHS)
     assert data["on"]["push"] == {"branches": ["main"]}
 
     job = data["jobs"]["project-commit-lock-windows"]
