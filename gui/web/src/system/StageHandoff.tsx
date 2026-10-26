@@ -17,10 +17,9 @@ export type StageHandoffProps = {
   onActivate: () => void;
 };
 
-/** Display only: B1 binds no key. Mod is Cmd on Apple platforms, Ctrl elsewhere. */
+/** Display only. Mod is Cmd on Apple platforms, Ctrl elsewhere. */
 const HINT: KeySpec = { key: "Enter", mod: true };
 
-/** The button that moves the work to the next stage. Its name is its label. */
 export function StageHandoff({
   stage,
   label,

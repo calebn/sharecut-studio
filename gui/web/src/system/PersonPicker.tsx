@@ -13,10 +13,8 @@ const LABEL = "Who is this voice?";
 
 export type PersonPickerProps = {
   people: readonly PickerPerson[];
-  /** The chosen person; none yet when absent. */
   currentId?: string;
   onPick: (id: string) => void;
-  /** Adds a "Fix text" button beside each radio. */
   onRename?: (id: string) => void;
 };
 
