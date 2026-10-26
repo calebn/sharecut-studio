@@ -67,6 +67,29 @@ def late(eng: FFmpegEngine, tmp_path_factory: pytest.TempPathFactory) -> Path:
     return path
 
 
+def _build(eng: FFmpegEngine, path: Path, *args: str) -> Path:
+    subprocess.run(
+        [eng.ffmpeg, "-v", "error", "-y", *args, str(path)], check=True, capture_output=True
+    )
+    return path
+
+
+@pytest.fixture(scope="module", params=["mkv", "mp4"])
+def late_aac(
+    eng: FFmpegEngine, tmp_path_factory: pytest.TempPathFactory, request: pytest.FixtureRequest
+) -> Path:
+    video = ["-f", "lavfi", "-i", "testsrc=size=64x64:rate=10:duration=8"]
+    audio = ["-itsoffset", "3", "-f", "lavfi", "-i", f"sine=f=440:r={SR}:duration=2"]
+    codec = "ffv1" if request.param == "mkv" else "mpeg4"
+    return _build(
+        eng,
+        tmp_path_factory.mktemp("late_aac") / f"late_aac.{request.param}",
+        *video,
+        *audio,
+        *["-map", "0:v", "-map", "1:a", "-c:v", codec, "-c:a", "aac"],
+    )
+
+
 def _whole(eng: FFmpegEngine, path: Path) -> np.ndarray:
     _, _, chunks = eng.stream_pcm_f32(path)
     return np.concatenate([c.reshape(-1) for c in chunks])
@@ -131,6 +154,54 @@ def test_extract_segment_is_the_slice_of_the_whole_decode(
     extracted = _read(eng, out)
     assert len(extracted) == SR
     np.testing.assert_allclose(extracted, whole[SR // 2 : SR // 2 + SR], atol=PCM_TOLERANCE)
+
+
+def test_late_aac_probe_duration_is_within_a_packet_of_the_decode(
+    eng: FFmpegEngine, late_aac: Path
+) -> None:
+    whole = _whole(eng, late_aac)
+    assert eng.probe(late_aac).duration_sec == pytest.approx(len(whole) / SR, abs=1024 / SR)
+
+
+def test_late_aac_windowed_decode_is_the_slice_of_the_whole_decode(
+    eng: FFmpegEngine, late_aac: Path
+) -> None:
+    whole = _whole(eng, late_aac)
+    for start in (0, 5_000, SR // 2):
+        window = eng.decode_window_f32(late_aac, start, 4_000, SR, 1).reshape(-1)
+        assert len(window) == 4_000
+        np.testing.assert_allclose(window, whole[start : start + 4_000], atol=PCM_TOLERANCE)
+
+
+def test_late_aac_keep_render_is_the_slice_of_the_whole_decode(
+    eng: FFmpegEngine, late_aac: Path, tmp_path: Path
+) -> None:
+    whole = _whole(eng, late_aac)
+    out = tmp_path / "keep.wav"
+    eng.render_timeline(out, SourceAudio(late_aac, 0.5, 1.5), "anull")
+    rendered = _read(eng, out)
+    assert len(rendered) == SR
+    np.testing.assert_allclose(rendered, whole[SR // 2 : SR // 2 + SR], atol=PCM_TOLERANCE)
+
+
+def test_opus_duration_is_unchanged(eng: FFmpegEngine, tmp_path: Path) -> None:
+    opus = _build(
+        eng,
+        tmp_path / "opus.ogg",
+        *["-f", "lavfi", "-i", "sine=f=440:r=48000:duration=2", "-c:a", "libopus"],
+    )
+    assert eng.probe(opus).duration_sec == pytest.approx(2.0, abs=1e-9)
+
+
+def test_audio_only_aac_with_container_start_keeps_its_duration(
+    eng: FFmpegEngine, tmp_path: Path
+) -> None:
+    mka = _build(
+        eng,
+        tmp_path / "aac.mka",
+        *["-itsoffset", "1.5", "-f", "lavfi", "-i", f"sine=f=440:r={SR}:duration=2", "-c:a", "aac"],
+    )
+    assert eng.probe(mka).duration_sec == pytest.approx(2.0, abs=1e-9)
 
 
 def test_alignment_window_is_the_slice_of_the_whole_decode(eng: FFmpegEngine, late: Path) -> None:
