@@ -22,7 +22,6 @@ export type SetupCardProps = {
 };
 
 const TITLE = "Get ShareCut ready";
-const DISMISS_LABEL = "Dismiss the setup card";
 
 function NotNowMenu({ onNotNow }: Pick<SetupCardProps, "onNotNow">) {
   const [open, setOpen] = useState(false);
@@ -74,7 +73,7 @@ function SetupBody({
 }: SetupCardProps) {
   if (state === "needed") {
     return (
-      <Card title={TITLE} dismissLabel={DISMISS_LABEL}>
+      <Card title={TITLE}>
         <div className="sys-setup-needed">
           <span className="sys-setup-icon" aria-hidden="true">
             <SystemIcon name="cloud-download" size={32} />
@@ -100,7 +99,7 @@ function SetupBody({
   }
   if (state === "downloading") {
     return (
-      <Card title="Getting ShareCut ready" dismissLabel={DISMISS_LABEL}>
+      <Card title="Getting ShareCut ready">
         <StatusRow
           state="running"
           title="Downloading"
@@ -113,7 +112,7 @@ function SetupBody({
   }
   const checking = state === "check-error";
   return (
-    <Card title={TITLE} dismissLabel={DISMISS_LABEL}>
+    <Card title={TITLE}>
       <StatusRow
         state="failed"
         title={

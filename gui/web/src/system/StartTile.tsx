@@ -10,6 +10,10 @@ export type StartTileProps = {
   state?: "rest" | "drag-hover" | "disabled";
   /** Shown in place of the line when `state` is `disabled`. */
   disabledReason?: string;
+  /** `primary` is the filled accent tile: the one action on an empty Home. */
+  variant?: "default" | "primary";
+  /** Files being dragged over the tile; worded in the drag-hover line. */
+  dragCount?: number;
   onActivate: () => void;
 };
 
@@ -24,22 +28,33 @@ export function StartTile({
   size,
   state = "rest",
   disabledReason,
+  variant = "default",
+  dragCount,
   onActivate,
 }: StartTileProps) {
   const titleId = useId();
   const noteId = useId();
   const disabled = state === "disabled";
   const { title, line } = COPY[kind];
-  const note = disabled && disabledReason ? disabledReason : line;
+  const dragging = state === "drag-hover";
+  const dropLine =
+    dragCount === undefined
+      ? "Drop to add files"
+      : `Drop to add ${dragCount} ${dragCount === 1 ? "file" : "files"}`;
+  const reason = disabled && disabledReason ? disabledReason : null;
+  const note = reason ?? (dragging ? dropLine : line);
+  // The 80 px tile drops its line, but still says why it is disabled and
+  // what a drop does.
   const compact = size === 80;
+  const showNote = !compact || reason !== null || dragging;
   return (
     <button
       type="button"
-      className={`sys-start sys-start--${kind} sys-start--${size}`}
+      className={`sys-start sys-start--${kind} sys-start--${size}${variant === "primary" ? " sys-start--primary" : ""}`}
       data-state={state}
       aria-disabled={disabled || undefined}
       aria-labelledby={titleId}
-      aria-describedby={compact ? undefined : noteId}
+      aria-describedby={showNote ? noteId : undefined}
       onClick={disabled ? undefined : onActivate}
     >
       <span className="sys-start-icon">
@@ -52,11 +67,11 @@ export function StartTile({
         <span id={titleId} className="sys-start-title">
           {title}
         </span>
-        {compact ? null : (
+        {showNote ? (
           <span id={noteId} className="sys-start-line">
             {note}
           </span>
-        )}
+        ) : null}
       </span>
       {size === "phone-bar" || compact ? null : (
         <KeyCaps chords={verbOf(kind).keys.slice(0, 1)} />

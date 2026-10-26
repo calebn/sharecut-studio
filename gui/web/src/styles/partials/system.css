@@ -1468,7 +1468,8 @@
   font-size: var(--font-size-emphasis);
 }
 
-.sys-start--phone-bar:not([aria-disabled="true"]) .sys-start-line {
+.sys-start--phone-bar:not([aria-disabled="true"], [data-state="drag-hover"])
+  .sys-start-line {
   display: none;
 }
 
@@ -1505,6 +1506,30 @@
 .sys-start[data-state="drag-hover"] {
   border-color: var(--color-accent);
   background: var(--color-accent-subtle);
+}
+
+.sys-start--primary {
+  border-color: var(--color-accent-solid);
+  background: var(--color-accent-solid);
+  color: var(--color-accent-on-solid);
+}
+
+.sys-start--primary .sys-start-icon,
+.sys-start--primary .sys-start-line {
+  color: var(--color-accent-on-solid);
+}
+
+.sys-start--primary .sys-keys,
+.sys-start--primary .sys-keys * {
+  border-color: currentcolor;
+  background: transparent;
+  color: var(--color-accent-on-solid);
+}
+
+.sys-start--primary[data-state="drag-hover"] {
+  border-color: var(--color-accent-solid);
+  background: var(--color-accent-solid);
+  box-shadow: 0 0 0 var(--space-1) var(--color-accent-subtle);
 }
 
 .sys-start[aria-disabled="true"] {
@@ -1771,11 +1796,20 @@
 }
 
 .sys-home-column {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   inline-size: 100%;
   max-inline-size: 65rem;
   margin-inline: auto;
+  padding-block-start: var(--space-8);
   padding-inline: var(--space-5);
+}
+
+.sys-home-wordmark {
+  margin: 0;
+  font: inherit;
+  line-height: 0;
 }
 
 .sys-home-header {
@@ -1797,6 +1831,7 @@
 }
 
 .sys-home-main {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -1862,17 +1897,19 @@
   }
 }
 
-@container sys-home (min-width: 100rem) {
-  .sys-home-column {
-    max-inline-size: 85rem;
-  }
-
+/* The 65rem column holds four 15rem cards and three gaps. */
+@container sys-home (min-width: 65rem) {
   .sys-home .sys-project-list--card {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
+.sys-home[data-phase="empty"] .sys-home-main {
+  justify-content: center;
+}
+
 .sys-home[data-narrow] .sys-home-column {
+  padding-block-start: 0;
   padding-inline: var(--space-5);
 }
 

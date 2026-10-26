@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { StartTile } from "../../system/StartTile";
 import { HomeView, type HomeViewProps } from "./HomeView";
 import { RECENTS } from "./homeFixture";
 import { OpenOther } from "./OpenOther";
@@ -96,6 +97,55 @@ describe("HomeView", () => {
   });
 });
 
+describe("HomeView empty, loading and drop", () => {
+  it("makes Import audio the filled primary tile only when empty", () => {
+    setup({ phase: "empty", projects: [] });
+    expect(screen.getByRole("button", { name: "Import audio" })).toHaveClass(
+      "sys-start--primary",
+    );
+    expect(screen.getByRole("button", { name: "Record" })).not.toHaveClass(
+      "sys-start--primary",
+    );
+  });
+
+  it("keeps Import audio default when there are recents", () => {
+    setup();
+    expect(
+      screen.getByRole("button", { name: "Import audio" }),
+    ).not.toHaveClass("sys-start--primary");
+  });
+
+  it("has one h1, the ShareCut wordmark", () => {
+    setup();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "ShareCut",
+    );
+  });
+
+  it("calls onRetryLoad from the slow skeleton", async () => {
+    const onRetryLoad = vi.fn();
+    const { user } = setup({
+      phase: "loading",
+      projects: [],
+      loadingElapsedMs: 5000,
+      onRetryLoad,
+    });
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetryLoad).toHaveBeenCalledOnce();
+  });
+
+  it("words the drop with the dragged file count", () => {
+    setup({ dropActive: true, dropCount: 3 });
+    expect(screen.getByText("Drop to add 3 files")).toBeInTheDocument();
+  });
+
+  it("words the drop without a count", () => {
+    setup({ dropActive: true });
+    expect(screen.getByText("Drop to add files")).toBeInTheDocument();
+  });
+});
+
 describe("OpenOther", () => {
   it("submits the path with Enter", async () => {
     const onSubmit = vi.fn();
@@ -116,5 +166,66 @@ describe("OpenOther", () => {
     );
     await user.keyboard("{Enter}");
     expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  const renderOpen = (alreadyOpen = false) => {
+    render(
+      <OpenOther
+        mode="path"
+        path="/ep"
+        defaultOpen
+        alreadyOpen={alreadyOpen}
+        onChooseFolder={vi.fn()}
+        onPathChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onSwitchWindow={vi.fn()}
+      />,
+    );
+    return userEvent.setup();
+  };
+
+  it("closes on Esc from the field and focuses the trigger", async () => {
+    const user = await renderOpen();
+    await user.click(
+      screen.getByRole("textbox", { name: "Folder of the episode" }),
+    );
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open other…" })).toHaveFocus();
+  });
+
+  it("closes on Esc from the Open button and focuses the trigger", async () => {
+    const user = await renderOpen();
+    screen.getByRole("button", { name: "Open" }).focus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open other…" })).toHaveFocus();
+  });
+
+  it("announces the already-open note and describes the field by it", async () => {
+    await renderOpen(true);
+    const note = screen.getByRole("status");
+    expect(note).toHaveTextContent("This episode is open in another window.");
+    expect(
+      screen.getByRole("textbox", { name: "Folder of the episode" }),
+    ).toHaveAccessibleDescription("This episode is open in another window.");
+  });
+});
+
+describe("StartTile size 80", () => {
+  it("renders a disabled reason and describes the tile by it", () => {
+    render(
+      <StartTile
+        kind="record"
+        size={80}
+        state="disabled"
+        disabledReason="Finish the current save first."
+        onActivate={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Record" }),
+    ).toHaveAccessibleDescription("Finish the current save first.");
+    expect(screen.getByText("Finish the current save first.")).toBeVisible();
   });
 });

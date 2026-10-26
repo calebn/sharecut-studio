@@ -1,11 +1,15 @@
-import { type FormEvent, useId, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { Button, InlineError } from "../../ui";
 
 export type OpenOtherProps = {
   /** `picker`: the OS folder picker exists. `path`: a plain browser, so a path field. */
   mode: "picker" | "path";
-  /** The picker or the open is running. */
-  busy?: boolean;
   path: string;
   /** Plain words with a fix; never the server's text. */
   error?: string;
@@ -30,7 +34,6 @@ export const NOT_AN_EPISODE =
  */
 export function OpenOther({
   mode,
-  busy = false,
   path,
   error,
   alreadyOpen = false,
@@ -43,18 +46,25 @@ export function OpenOther({
   const [open, setOpen] = useState(defaultOpen);
   const errorId = useId();
   const noteId = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!busy) onSubmit();
+    onSubmit();
+  };
+  const closeOnEscape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    setOpen(false);
+    trigger.current?.focus();
   };
   const describedBy = alreadyOpen ? noteId : error ? errorId : undefined;
   return (
     <div className="sys-open-other">
       <button
+        ref={trigger}
         type="button"
         className="sys-text-btn"
         aria-expanded={mode === "path" ? open : undefined}
-        aria-busy={busy || undefined}
         onClick={mode === "picker" ? onChooseFolder : () => setOpen(!open)}
       >
         Open other…
@@ -76,24 +86,20 @@ export function OpenOther({
               aria-invalid={error ? true : undefined}
               aria-describedby={describedBy}
               onChange={(event) => onPathChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setOpen(false);
-              }}
+              onKeyDown={closeOnEscape}
             />
-            <Button
-              type="submit"
-              variant="primary"
-              aria-busy={busy || undefined}
-            >
+            <Button type="submit" variant="primary" onKeyDown={closeOnEscape}>
               Open
             </Button>
           </div>
           {alreadyOpen ? (
             <div className="sys-open-note">
-              <p id={noteId} className="sys-open-text">
+              <p id={noteId} role="status" className="sys-open-text">
                 This episode is open in another window.
               </p>
-              <Button onClick={onSwitchWindow}>Switch to it</Button>
+              <Button onClick={onSwitchWindow} onKeyDown={closeOnEscape}>
+                Switch to it
+              </Button>
             </div>
           ) : (
             <InlineError id={errorId} message={error} />

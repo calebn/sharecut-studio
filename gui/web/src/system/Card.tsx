@@ -5,8 +5,8 @@ export type CardProps = {
   tone?: "default" | "hint";
   /** Text, or text with an inline aria-hidden glyph. */
   title: ReactNode;
-  /** Names the close button for assistive technology: "Dismiss the setup card". */
-  dismissLabel: string;
+  /** Names the close button for assistive technology: "Dismiss the setup card". Only used with `onDismiss`. */
+  dismissLabel?: string;
   onDismiss?: () => void;
   children: ReactNode;
 };
@@ -29,8 +29,8 @@ export function Card({
         {onDismiss ? (
           <CloseButton
             className="sys-card-close"
-            aria-label={dismissLabel}
-            title={dismissLabel}
+            aria-label={dismissLabel ?? "Dismiss"}
+            title={dismissLabel ?? "Dismiss"}
             onClick={onDismiss}
           />
         ) : null}

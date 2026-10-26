@@ -21,7 +21,7 @@ const meta: Meta<typeof StartTile> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "A large tap-and-drop target that starts an episode. Import audio shows the Import key (Mod+I) and Record shows R. Sizes 220 (empty Home), 160 (Home), 80 (Prepare Sources footer) and the 72 px phone bar. A disabled tile stays focusable and says why in place of its line.\n\n**Motion.** Hover and drag-hover change the border and fill with `--motion-hover`.",
+          'A large tap-and-drop target that starts an episode. Import audio shows the Import key (Mod+I) and Record shows R. Sizes 220 (empty Home), 160 (Home), 80 (Prepare Sources footer) and the 72 px phone bar. A disabled tile stays focusable and says why in place of its line, at every size. `variant="primary"` is the filled accent tile for the one action on an empty Home. In drag-hover the line reads "Drop to add N files" when `dragCount` is given.\n\n**Motion.** Hover and drag-hover change the border and fill with `--motion-hover`.',
       },
     },
   },
@@ -40,7 +40,23 @@ export const ImportRest: Story = {
 export const RecordRest: Story = { args: { kind: "record" } };
 export const Large220: Story = { args: { size: 220 } };
 export const Compact80: Story = { args: { size: 80 } };
-export const DragHover: Story = { args: { state: "drag-hover" } };
+export const DragHover: Story = {
+  args: { state: "drag-hover", dragCount: 3 },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Drop to add 3 files"),
+    ).toBeVisible();
+  },
+};
+export const Primary: Story = { args: { variant: "primary", size: 220 } };
+export const Compact80Disabled: Story = {
+  args: {
+    kind: "record",
+    size: 80,
+    state: "disabled",
+    disabledReason: "Finish the current save first.",
+  },
+};
 export const Disabled: Story = {
   args: {
     kind: "record",

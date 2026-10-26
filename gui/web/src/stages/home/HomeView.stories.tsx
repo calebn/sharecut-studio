@@ -29,6 +29,7 @@ const meta: Meta<typeof HomeView> = {
     onModels: fn(),
     onConnectAgent: fn(),
     onSettings: fn(),
+    onRetryLoad: fn(),
   },
   parameters: {
     ...viewportStoryParameters,
@@ -36,7 +37,7 @@ const meta: Meta<typeof HomeView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Home: the Import audio and Record tiles over the recent episodes, with the Setup card between them and Recent when models are missing, and the Add to Home Screen hint at the top of Recent. Below 40rem the tiles become a 72 px bar in the thumb zone and the cards become 72 px rows. Presentational: data in, callbacks out.\n\nNot built here: the card context menu (Open, Reveal in folder, Duplicate, Remove from list) and the phone swipe-to-remove. Both need the real remove-from-list action, so they are deferred to wiring.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; the Setup card leaves with `--motion-panel` when dismissed.",
+          "Home: the Import audio and Record tiles over the recent episodes, with the Setup card between them and Recent when models are missing, and the Add to Home Screen hint at the top of Recent. Below 40rem the tiles become a 72 px bar in the thumb zone and the cards become 72 px rows. On an empty Home Import audio is the filled primary tile, centred in the page. Presentational: data in, callbacks out.\n\nNot built here: the card context menu (Open, Reveal in folder, Duplicate, Remove from list) and the phone swipe-to-remove. Both need the real remove-from-list action, so they are deferred to wiring.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; the Setup card leaves with `--motion-panel` when dismissed.",
       },
     },
   },
@@ -45,7 +46,19 @@ const meta: Meta<typeof HomeView> = {
 export default meta;
 type Story = StoryObj<typeof HomeView>;
 
-export const Empty: Story = { args: { phase: "empty", projects: [] } };
+const importIsPrimary: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await expect(
+    canvas.getByRole("button", { name: "Import audio" }),
+  ).toHaveClass("sys-start--primary");
+  await expect(canvas.getByRole("button", { name: "Record" })).not.toHaveClass(
+    "sys-start--primary",
+  );
+};
+export const Empty: Story = {
+  args: { phase: "empty", projects: [] },
+  play: importIsPrimary,
+};
 export const WithRecents: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
@@ -69,10 +82,21 @@ export const SetupDownloading: Story = {
   },
 };
 export const FolderMoved: Story = { args: { projects: RECENTS_MOVED } };
-export const DropHover: Story = { args: { dropActive: true } };
+export const DropHover: Story = { args: { dropActive: true, dropCount: 3 } };
 export const Loading: Story = {
   args: { phase: "loading", projects: [], loadingElapsedMs: 1000 },
 };
+export const LoadingSlow: Story = {
+  args: { phase: "loading", projects: [], loadingElapsedMs: 5000 },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await expect(args.onRetryLoad).toHaveBeenCalledOnce();
+  },
+};
 export const Phone: Story = {};
-export const PhoneEmpty: Story = { args: { phase: "empty", projects: [] } };
+export const PhoneEmpty: Story = {
+  args: { phase: "empty", projects: [] },
+  play: importIsPrimary,
+};
 export const PhoneInstallHint: Story = { args: { showInstallHint: true } };
