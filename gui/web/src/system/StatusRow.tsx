@@ -51,6 +51,12 @@ export function StatusRow({
 }: StatusRowProps) {
   const childrenId = useId();
   const expandable = children !== undefined && children !== null;
+  const text = (
+    <>
+      <span className="sys-status-title">{title}</span>
+      {detail ? <span className="sys-status-detail">{detail}</span> : null}
+    </>
+  );
   return (
     <div className={`sys-status sys-status--${density}`} data-state={state}>
       <div className="sys-status-line">
@@ -63,18 +69,10 @@ export function StatusRow({
             aria-controls={expanded ? childrenId : undefined}
             onClick={onToggle}
           >
-            <span className="sys-status-title">{title}</span>
-            {detail ? (
-              <span className="sys-status-detail">{detail}</span>
-            ) : null}
+            {text}
           </button>
         ) : (
-          <span className="sys-status-text">
-            <span className="sys-status-title">{title}</span>
-            {detail ? (
-              <span className="sys-status-detail">{detail}</span>
-            ) : null}
-          </span>
+          <span className="sys-status-text">{text}</span>
         )}
         {action ? (
           <Button onClick={action.onAction}>

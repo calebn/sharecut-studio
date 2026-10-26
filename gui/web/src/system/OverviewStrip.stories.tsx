@@ -64,7 +64,6 @@ export const Review32: Story = {
       name: "Episode overview",
     });
     await expect(strip).toHaveClass("sys-overview--32");
-    // Comments are dots; the other four ticks are lines, one of them current.
     await expect(strip.querySelectorAll(".sys-overview-dot")).toHaveLength(2);
     await expect(strip.querySelectorAll("line.sys-overview-tick")).toHaveLength(
       4,

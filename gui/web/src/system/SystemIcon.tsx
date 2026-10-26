@@ -34,6 +34,20 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
+const SKIP_15 = (
+  <text
+    x="12"
+    y="15.4"
+    textAnchor="middle"
+    fontSize="7.5"
+    fontWeight="700"
+    fill="currentColor"
+    stroke="none"
+  >
+    15
+  </text>
+);
+
 function customGlyph(name: CustomIconName, progress: number | undefined) {
   switch (name) {
     case "record":
@@ -50,17 +64,7 @@ function customGlyph(name: CustomIconName, progress: number | undefined) {
         <>
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
           <path d="M3 3v5h5" />
-          <text
-            x="12"
-            y="15.4"
-            textAnchor="middle"
-            fontSize="7.5"
-            fontWeight="700"
-            fill="currentColor"
-            stroke="none"
-          >
-            15
-          </text>
+          {SKIP_15}
         </>
       );
     case "skip-forward-15":
@@ -68,17 +72,7 @@ function customGlyph(name: CustomIconName, progress: number | undefined) {
         <>
           <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
           <path d="M21 3v5h-5" />
-          <text
-            x="12"
-            y="15.4"
-            textAnchor="middle"
-            fontSize="7.5"
-            fontWeight="700"
-            fill="currentColor"
-            stroke="none"
-          >
-            15
-          </text>
+          {SKIP_15}
         </>
       );
     case "progress-ring": {

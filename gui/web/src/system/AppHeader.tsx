@@ -139,8 +139,6 @@ export function AppHeader({
   const shown = people.slice(0, MAX_AVATARS);
   const extra = people.length - shown.length;
   const canEdit = !guest || guest.role === "Editor";
-  // Invite is hidden for Viewer and Commenter (design system 2, Frame 1).
-  const canInvite = !guest || guest.role === "Editor";
   return (
     <header className="sys-app-header-host" aria-busy={loading || undefined}>
       <div className="sys-app-header">
@@ -202,7 +200,7 @@ export function AppHeader({
               ) : null}
             </ul>
           ) : null}
-          {canInvite ? <VerbButton verb="invite" onClick={onInvite} /> : null}
+          {canEdit ? <VerbButton verb="invite" onClick={onInvite} /> : null}
           <VerbButton verb="palette" onClick={onPalette} />
         </div>
       </div>

@@ -34,7 +34,6 @@ test("System/AppHeader shows icons only for inactive stages under 1100", async (
   await expect(tab).toBeVisible();
   const box = await tab.locator(".sys-stage-label").boundingBox();
   expect(box?.width ?? 0).toBeLessThanOrEqual(2);
-  // The selected stage keeps its label.
   const edit = await page
     .getByRole("tab", { name: /^Edit/ })
     .locator(".sys-stage-label")
@@ -78,7 +77,6 @@ test("System/Player expanded form stretches across its card", async ({
     .toBeGreaterThan(0);
   const { card, collapse, row } = seen[0];
   if (!card || !collapse || !row) throw new Error("Player did not render");
-  // Collapse sits at the trailing edge, and chapter rows run the card's width.
   expect(card.x + card.width - (collapse.x + collapse.width)).toBeLessThan(24);
   expect(row.width).toBeGreaterThan(card.width - 48);
 });
@@ -95,7 +93,6 @@ test("System/Sheet phone footer is a 48 px full-width primary on a fine pointer"
   if (!sheet || !button) throw new Error("Sheet did not render");
   expect(button.height).toBeGreaterThanOrEqual(47.5);
   expect(button.width).toBeGreaterThan(sheet.width - 48);
-  // In the lower part of the sheet, not under the rows at the top.
   expect(button.y).toBeGreaterThan(sheet.y + sheet.height / 2);
 });
 

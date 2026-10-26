@@ -37,7 +37,7 @@ function matches(item: PaletteItem, query: string): boolean {
   );
 }
 
-export type ResultGroup = { name: string; items: PaletteItem[] };
+type ResultGroup = { name: string; items: PaletteItem[] };
 
 /**
  * The groups to show. An empty query with recent ids that still exist shows
