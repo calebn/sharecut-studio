@@ -71,7 +71,6 @@ function ToastOverPlayer({
         onUndo={
           undo && !undone
             ? () => {
-                // A new toast replaces the old one: the undo is itself a result.
                 setUndone(true);
                 setToast((t) => ({
                   id: (t?.id ?? 0) + 1,

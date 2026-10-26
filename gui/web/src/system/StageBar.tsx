@@ -59,10 +59,10 @@ export function StageBar({
   );
   const tabs = shown.map((stage) => {
     const selected = stage.id === active;
-    const badge =
-      stage.id === "record" && live
-        ? ({ kind: "live" } as StageBadge)
-        : badges?.[stage.id];
+    const isLive = stage.id === "record" && live;
+    const badge = isLive
+      ? ({ kind: "live" } as StageBadge)
+      : badges?.[stage.id];
     return (
       <button
         key={stage.id}
@@ -71,7 +71,7 @@ export function StageBar({
         aria-selected={selected}
         aria-controls={panelId}
         tabIndex={selected ? 0 : -1}
-        className={`sys-stage-tab${stage.id === "record" && live ? " sys-stage-tab--live" : ""}`}
+        className={`sys-stage-tab${isLive ? " sys-stage-tab--live" : ""}`}
         title={stage.label}
         onClick={() => onSelect(stage.id)}
       >

@@ -33,7 +33,6 @@ type Story = StoryObj<typeof StatusRow>;
 
 const named = (state: string): Story["play"] =>
   async function play({ canvasElement }) {
-    // The glyph carries its state name for assistive tech.
     await expect(within(canvasElement).getByText(state)).toBeInTheDocument();
   };
 

@@ -115,7 +115,7 @@ export const LUCIDE_ICONS = {
 } as const satisfies Record<string, LucideIcon>;
 
 /** No Lucide equivalent: drawn by hand in `SystemIcon`. */
-export const CUSTOM_ICON_NAMES = [
+const CUSTOM_ICON_NAMES = [
   "record",
   "stage-edit",
   "progress-ring",

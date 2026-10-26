@@ -583,7 +583,7 @@ export const VERBS = [
 export type VerbId = (typeof VERBS)[number]["id"];
 
 /** One shared chord set: the design system reuses these keys by object kind. */
-export type ChordGroup = {
+type ChordGroup = {
   readonly chords: readonly string[];
   readonly verbs: readonly VerbId[];
   readonly reason: string;

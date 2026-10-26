@@ -52,12 +52,13 @@ function Skip({
   onSkip?: (seconds: number) => void;
 }) {
   const back = seconds < 0;
+  const label = `${back ? "Back" : "Forward"} ${SKIP} seconds`;
   return (
     <button
       type="button"
       className="sys-icon-btn sys-player-skip"
-      aria-label={`${back ? "Back" : "Forward"} ${SKIP} seconds`}
-      title={`${back ? "Back" : "Forward"} ${SKIP} seconds`}
+      aria-label={label}
+      title={label}
       onClick={() => onSkip?.(seconds)}
     >
       <SystemIcon name={back ? "skip-back-15" : "skip-forward-15"} size={24} />
