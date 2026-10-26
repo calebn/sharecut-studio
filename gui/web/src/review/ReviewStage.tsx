@@ -234,11 +234,14 @@ export function ReviewStage({
           ...body.card.unsure,
           resolved: resolved.has(selected.id),
           onFix: () => {
+            if (guest) return;
             setResolved(new Set(resolved).add(selected.id));
             if (selected.kind === "unsure-word")
               apply([selected.id], "applied");
           },
-          onLooksRight: () => setResolved(new Set(resolved).add(selected.id)),
+          onLooksRight: () => {
+            if (!guest) setResolved(new Set(resolved).add(selected.id));
+          },
         }
       : undefined;
   const unsureWords = openOf(items, "unsure-word").length;

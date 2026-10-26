@@ -153,6 +153,18 @@ describe("ReviewStage", () => {
     expect(decided()).toBe(before);
   });
 
+  it("gives a guest no unsure-word controls and no decision", () => {
+    const { decided } = setup({
+      initialItems: QUEUE_ITEMS,
+      initialSelectedId: "f3",
+      guest: true,
+    });
+    const before = decided();
+    expect(screen.queryByRole("button", { name: /Fix text/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
+    expect(decided()).toBe(before);
+  });
+
   it("ignores keys typed in a field", () => {
     const { stage, decided } = setup();
     const field = document.createElement("input");
