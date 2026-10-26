@@ -533,7 +533,7 @@ class HeldPauseSpan(NamedTuple):
 def held_pause_observation_span(
     project: EpisodeProject,
     edit: EditDecision,
-    span: tuple[TimelineSec, TimelineSec],
+    span: tuple[float, float],
     words: tuple[TranscriptWord, TranscriptWord],
     defaults: EffectiveConfig,
 ) -> HeldPauseSpan:
