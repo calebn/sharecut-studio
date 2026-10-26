@@ -426,15 +426,18 @@ def create_app(
 
             def _serve_share_spa(token: str, request: Request, *, kind: str) -> Any:
                 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
-                from podcast_mcp.services.collaboration import lookup_share
-                from podcast_mcp.services.collaboration.share_page import (
+                from podcast_mcp.services.collaboration import (
                     inject_share_document_head,
+                    lookup_share,
                 )
+                from podcast_mcp.util.coded_error import CodedKeyError
 
                 index_path = static_root / "index.html"
                 try:
                     lookup_share(token, kind=kind)
-                except KeyError:
+                except CodedKeyError as exc:
+                    if exc.code != "share_not_found":
+                        raise guest_http_error(exc, logger=log, operation="share page") from exc
                     with guest_boundary(log, "share page"):
                         shell = inject_share_document_head(
                             index_path.read_text(encoding="utf-8"), _DEAD_SHARE_HEAD
