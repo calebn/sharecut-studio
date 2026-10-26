@@ -62,6 +62,14 @@ describe("StageHandoff", () => {
     expect(onActivate).not.toHaveBeenCalled();
   });
 
+  it("is not disabled by an empty reason", async () => {
+    const { button, onActivate } = setup({ disabledReason: "" });
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).not.toHaveAttribute("aria-describedby");
+    await userEvent.click(button);
+    expect(onActivate).toHaveBeenCalledOnce();
+  });
+
   it("shows Ctrl on other platforms and Cmd on Apple, and binds no key", async () => {
     vi.stubGlobal("navigator", { platform: "Linux x86_64" });
     const first = setup();

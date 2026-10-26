@@ -58,6 +58,20 @@ describe("SourceCard", () => {
     expect(hear).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("omits aria-pressed from Hear while idle", () => {
+    render(<Card name="Maya" playing={false} />);
+    expect(screen.getByRole("button", { name: /^Hear/ })).not.toHaveAttribute(
+      "aria-pressed",
+    );
+  });
+
+  it("does not fill Split with the accent, even when prompted", () => {
+    render(<Card name="Maya" state="split-prompt" />);
+    expect(screen.getByRole("button", { name: "Split" })).not.toHaveClass(
+      "primary",
+    );
+  });
+
   it("steps the number of voices within 2 and 8, with the reason shown", async () => {
     const onVoices = vi.fn();
     const { rerender } = render(
@@ -78,6 +92,10 @@ describe("SourceCard", () => {
     const fewer = screen.getByRole("button", { name: "Fewer voices" });
     expect(fewer).toHaveAttribute("aria-disabled", "true");
     expect(fewer).not.toBeDisabled();
+    expect(fewer).toHaveAccessibleDescription("Two is the fewest");
+    expect(
+      screen.getByRole("button", { name: "More voices" }),
+    ).not.toHaveAttribute("aria-describedby");
     await userEvent.click(fewer);
     expect(onVoices).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "More voices" }));
@@ -95,6 +113,9 @@ describe("SourceCard", () => {
       />,
     );
     expect(screen.getByText("Eight is the most")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "More voices" }),
+    ).toHaveAccessibleDescription("Eight is the most");
     await userEvent.click(screen.getByRole("button", { name: "More voices" }));
     expect(onVoices).toHaveBeenCalledTimes(1);
     expect(group.querySelector("output")).toHaveTextContent("8");

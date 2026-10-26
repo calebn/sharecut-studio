@@ -2153,7 +2153,7 @@
 }
 
 .sys-person-state--success {
-  color: var(--color-success-strong);
+  color: var(--color-success);
 }
 
 .sys-person-tile--empty {

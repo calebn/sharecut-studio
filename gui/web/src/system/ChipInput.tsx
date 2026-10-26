@@ -26,7 +26,11 @@ export type ChipInputProps = {
   speakers: readonly string[];
   terms: readonly string[];
   onTermsChange: (terms: string[]) => void;
-  /** Characters already spent elsewhere, such as the show title. */
+  /**
+   * Characters already spent elsewhere, such as the show title. Pass the
+   * title's length; the ", " that joins it to the list (2 more) is added
+   * here whenever this is above 0.
+   */
   reservedChars?: number;
 };
 
@@ -55,14 +59,14 @@ export function ChipInput({
   const [live, setLive] = useState({ message: "", seq: 0 });
   const noteId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  const budget = BUDGET - reservedChars;
+  const budget = BUDGET - (reservedChars > 0 ? reservedChars + 2 : 0);
   const all = [...speakers, ...terms];
   const left = budget - used(all);
 
   const announce = (message: string) =>
     setLive((current) => ({ message, seq: current.seq + 1 }));
 
-  function add(raw: string): boolean {
+  function add(raw: string): { added: boolean; rest: string } {
     const parts = raw
       .split(/[,\n]/)
       .map((part) => part.trim())
@@ -71,13 +75,16 @@ export function ChipInput({
     const before = left;
     let refused: Note | null = null;
     let added = false;
-    for (const part of parts) {
+    const rest: string[] = [];
+    for (let i = 0; i < parts.length; i += 1) {
+      const part = parts[i];
       const current = [...speakers, ...nextTerms];
       const seen = current.some(
         (entry) => entry.toLowerCase() === part.toLowerCase(),
       );
       if (seen) {
         refused = { text: `${part} is already there.`, tone: "duplicate" };
+        rest.push(part);
         continue;
       }
       if (part.length > MAX_ENTRY_CHARS) {
@@ -85,11 +92,13 @@ export function ChipInput({
           text: `Keep each term under ${MAX_ENTRY_CHARS} characters.`,
           tone: "long",
         };
+        rest.push(...parts.slice(i));
         break;
       }
       const cost = (current.length > 0 ? 2 : 0) + part.length;
       if (current.length >= MAX_ENTRIES || cost > budget - used(current)) {
         refused = { text: LIMIT_TEXT, tone: "limit" };
+        rest.push(...parts.slice(i));
         break;
       }
       nextTerms.push(part);
@@ -106,7 +115,7 @@ export function ChipInput({
     if (refused) {
       announce(refused.text);
     }
-    return added;
+    return { added, rest: rest.join(", ") };
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -126,10 +135,20 @@ export function ChipInput({
     if (event.key !== "Enter" && event.key !== ",") return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
       return;
-    if (event.currentTarget.value.trim() === "") return;
-    if (add(event.currentTarget.value)) {
+    const value = event.currentTarget.value;
+    if (value.trim() === "") {
+      if (event.key === ",") event.preventDefault();
+      return;
+    }
+    if (/^[\s,]*$/.test(value)) {
       event.preventDefault();
       setText("");
+      return;
+    }
+    const { added, rest } = add(value);
+    if (added) {
+      event.preventDefault();
+      setText(rest);
     }
   }
 
@@ -137,7 +156,8 @@ export function ChipInput({
     const pasted = event.clipboardData.getData("text");
     if (!/[,\n]/.test(pasted)) return;
     event.preventDefault();
-    add(pasted);
+    const { rest } = add(pasted);
+    if (rest) setText((current) => (current ? `${current}, ${rest}` : rest));
   }
 
   function remove(term: string) {
