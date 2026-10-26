@@ -621,8 +621,8 @@ per recording, not per pause.
 
 Approving a source remove observes the cut's neighbourhood (peer speech, acoustic edges, pauses)
 and then checks the written result; that is nearly all of an approval's cost. It is on by
-default: `PODCAST_VERDICT_CACHE=0` (or false, no, off) turns it off, unless `PODCAST_VERDICT_VERIFY=1`
-is also set, which keeps it on. The host's idle background warm (`/api/pending-preview/warm`) checks the
+default; `PODCAST_VERDICT_CACHE=0` (or false, no, off) turns it off, but `PODCAST_VERDICT_VERIFY=1`
+keeps it on. The host's idle background warm (`/api/pending-preview/warm`) checks the
 pending cuts on a copy, at low priority, with the interactive intent Approve all uses (the intent
 is part of the check, so a check made for another intent is never reused), stopping as soon as
 an approval starts, and an approval reuses the check of every cut whose neighbourhood is unchanged. The key
