@@ -286,6 +286,7 @@ def test_a_ping_answered_200_with_a_body_that_is_not_a_studio_reply_is_never_byp
         announce_studio_host(project, _host(port=port))
         with pytest.raises(StudioBadReply, match="not a Studio reply") as caught:
             locate_studio(project)
+    assert "Nothing was run." in str(caught.value)
     assert isinstance(caught.value, StudioUnresponsive)
     assert caught.value.host.port == port
 
@@ -295,3 +296,19 @@ def test_a_ping_that_is_not_200_is_a_direct_write(project: Path, status: int, bo
     with ping_answering(status, body) as port:
         announce_studio_host(project, _host(port=port))
         assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize(
+    ("extra", "expected"), [({}, True), ({"mcp": True}, True), ({"mcp": False}, False)]
+)
+def test_a_ping_says_whether_the_studio_has_mcp(
+    project: Path, extra: dict[str, bool], expected: bool
+) -> None:
+    body = json.dumps(
+        {"instance": "a1", "protocol": HANDOFF_PROTOCOL, "serves": True, **extra}
+    ).encode()
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(port=port))
+        host = locate_studio(project)
+    assert host is not None
+    assert host.mcp is expected
