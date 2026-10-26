@@ -13,7 +13,15 @@ from podcast_mcp.edits import cut_proof, verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_proof import CarriedTimelineRms
 from podcast_mcp.engines.play_audit import stem_path, write_stem_hash
-from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+)
 from source_review_helpers import _cut
 
 SR = 16_000
@@ -108,6 +116,32 @@ def test_the_reach_is_the_read_distance_plus_the_fade_reach(
     faded.clips[0].fade_in_ms = 2000
     built.clear()
     assert _approve(faded) == []
+    assert len(built) == 2
+
+
+def test_a_pause_reaches_out_to_the_words_it_is_observed_between(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def project(reason: str) -> EpisodeProject:
+        made = _project(tmp_path / reason.replace(":", "_"), (28.0,))
+        made.transcripts = [
+            Transcript(
+                track_id="host",
+                words=[
+                    TranscriptWord(text="w", start=s, end=s + 0.35)
+                    for s in (10.0, 11.0, 12.0, 36.0, 37.0, 38.0)
+                ],
+            )
+        ]
+        made.edit_decisions.append(_cut("c1", 20.0, 20.4, reason=reason))
+        return made
+
+    built = _builds(monkeypatch)
+    _approve(project("nl:range"))
+    assert len(built) == 1
+
+    built.clear()
+    _approve(project("pause:long"))
     assert len(built) == 2
 
 

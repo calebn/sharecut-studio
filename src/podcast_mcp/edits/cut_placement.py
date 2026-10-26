@@ -9,8 +9,9 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
+from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.ripple import ripple_track_ids
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
 from podcast_mcp.engines.clips_ops import uses_crossfade_join
@@ -40,6 +41,7 @@ from podcast_mcp.util.tracks import recording_audio_path
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 if TYPE_CHECKING:
+    from podcast_mcp.config.defaults import EffectiveConfig
     from podcast_mcp.edits.timeline_ops import LaneUnavailable
 
 
@@ -491,3 +493,62 @@ def original_pause_support(
     if abs(cursor - float(after_span[0])) > 1e-6:
         return CutRejected("source_geometry")
     return OriginalQuietSupport(tuple(pieces))
+
+
+def pause_words(
+    project: EpisodeProject, track_id: str, start: float, end: float
+) -> tuple[TranscriptWord, TranscriptWord] | CutRejected:
+    transcript = project.transcript_for_source(track_id, None)
+    words = (
+        [w for w in transcript.words if not w.suppressed and not w.ignored and w.end > w.start]
+        if transcript
+        else []
+    )
+    before = max(
+        (w for w in words if w.end <= start + 1e-6),
+        key=lambda w: w.end,
+        default=None,
+    )
+    after = min(
+        (w for w in words if w.start >= end - 1e-6),
+        key=lambda w: w.start,
+        default=None,
+    )
+    if before is None or after is None:
+        return CutRejected("no_air")
+    timeline = SessionTimeline(project)
+    for word in (before, after):
+        span = timeline.exact_source_span(track_id, SourceSec(word.start), SourceSec(word.end))
+        if span is None:
+            return CutRejected("source_geometry")
+    return before, after
+
+
+class HeldPauseSpan(NamedTuple):
+    lo: float
+    hi: float
+    word_gap: float
+
+
+def held_pause_observation_span(
+    project: EpisodeProject,
+    edit: EditDecision,
+    span: tuple[TimelineSec, TimelineSec],
+    words: tuple[TranscriptWord, TranscriptWord],
+    defaults: EffectiveConfig,
+) -> HeldPauseSpan:
+    """The timeline audio a held pause is observed over (its cut and fades, out to the words either side) and the gap between those words."""
+    timeline = SessionTimeline(project)
+    before_span = timeline.exact_source_span(
+        edit.track_id, SourceSec(words[0].start), SourceSec(words[0].end)
+    )
+    after_span = timeline.exact_source_span(
+        edit.track_id, SourceSec(words[1].start), SourceSec(words[1].end)
+    )
+    assert before_span is not None and after_span is not None
+    reach = fade_reach_sec(project, edit, defaults)
+    return HeldPauseSpan(
+        min(float(span[0]) - reach, float(before_span[0])),
+        max(float(span[1]) + reach, float(after_span[1])),
+        float(after_span[0] - before_span[1]),
+    )

@@ -27,11 +27,7 @@ from podcast_mcp.edits.cut_proof import (
     shared_source_audio_caches,
     shared_timeline_rms_caches,
 )
-from podcast_mcp.edits.cut_quality import (
-    fade_reach_sec,
-    recommend_cut_fade_ms,
-    recommend_post_pad_fade_in_ms,
-)
+from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     SourceExtent,
@@ -693,7 +689,7 @@ def _check_source_remove(
                     timeline.caches_for(
                         project,
                         placed[1],
-                        reach=verdict_cache.READ_SEC + fade_reach_sec(project, edit, defaults),
+                        reach=verdict_cache.check_reach_sec(project, edit, placed[1], defaults),
                         defaults=defaults,
                     )
                     if timeline is not None

@@ -36,8 +36,10 @@ from podcast_mcp.edits.cut_placement import (
     SOURCE_GEOMETRY_TOLERANCE_SEC,
     CutRejected,
     CutScopeHold,
+    held_pause_observation_span,
     inspect_source_remove_placement,
     original_pause_support,
+    pause_words,
 )
 from podcast_mcp.edits.cut_policy import (
     CUT_EDGE_CHECKS,
@@ -48,7 +50,6 @@ from podcast_mcp.edits.cut_policy import (
     action_for_safety_observation,
     edit_time_behavior,
 )
-from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SourceExtent
 from podcast_mcp.edits.filler_pacing import pause_trim_is_imperceptible
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
@@ -86,7 +87,6 @@ from podcast_mcp.models import (
     CutSpeech,
     EditDecision,
     EpisodeProject,
-    TranscriptWord,
 )
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project import transcript_context
@@ -960,35 +960,6 @@ def assess_held_source(
     return HeldAcoustics(tuple(flags))
 
 
-def pause_words(
-    project: EpisodeProject, track_id: str, start: float, end: float
-) -> tuple[TranscriptWord, TranscriptWord] | CutRejected:
-    transcript = project.transcript_for_source(track_id, None)
-    words = (
-        [w for w in transcript.words if not w.suppressed and not w.ignored and w.end > w.start]
-        if transcript
-        else []
-    )
-    before = max(
-        (w for w in words if w.end <= start + 1e-6),
-        key=lambda w: w.end,
-        default=None,
-    )
-    after = min(
-        (w for w in words if w.start >= end - 1e-6),
-        key=lambda w: w.start,
-        default=None,
-    )
-    if before is None or after is None:
-        return CutRejected("no_air")
-    timeline = SessionTimeline(project)
-    for word in (before, after):
-        span = timeline.exact_source_span(track_id, SourceSec(word.start), SourceSec(word.end))
-        if span is None:
-            return CutRejected("source_geometry")
-    return before, after
-
-
 @dataclass(frozen=True)
 class HeldPause:
     effects: tuple[PauseEdgeFade, ...]
@@ -1010,19 +981,8 @@ def assess_held_pause(
     if isinstance(words, CutRejected):
         return words
     before, after = words
-    timeline = SessionTimeline(project)
-    before_span = timeline.exact_source_span(
-        edit.track_id, SourceSec(before.start), SourceSec(before.end)
-    )
-    after_span = timeline.exact_source_span(
-        edit.track_id, SourceSec(after.start), SourceSec(after.end)
-    )
-    assert before_span is not None and after_span is not None
-    reach = fade_reach_sec(project, edit, defaults)
-    observation_span = (
-        min(float(span[0]) - reach, float(before_span[0])),
-        max(float(span[1]) + reach, float(after_span[1])),
-    )
+    pause_span = held_pause_observation_span(project, edit, span, words, defaults)
+    observation_span = (pause_span.lo, pause_span.hi)
     air = SessionAir(project, audio_caches=audio_caches)
     acoustic = not manual and bool(
         defaults.get("tighten", {}).get("breath_handling", {}).get("enabled", True)
@@ -1071,8 +1031,7 @@ def assess_held_pause(
         effects,
         0.0
         if manual
-        else air.silence_around(float(span[0]), float(span[1]))
-        or float(after_span[0] - before_span[1]),
+        else air.silence_around(float(span[0]), float(span[1])) or pause_span.word_gap,
         observation_span,
     )
 

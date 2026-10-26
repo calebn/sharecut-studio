@@ -25,6 +25,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 from podcast_mcp import settings
 from podcast_mcp.edits import cut_policy
+from podcast_mcp.edits.cut_placement import (
+    CutRejected,
+    held_pause_observation_span,
+    pause_words,
+)
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
 from podcast_mcp.util.bounded_cache import BoundedCache
@@ -137,6 +142,23 @@ def _digest(payload: Any) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def check_reach_sec(
+    project: EpisodeProject,
+    edit: EditDecision,
+    span: tuple[float, float],
+    defaults: dict,
+) -> float:
+    """How far from its cut a check reads: ``READ_SEC`` and the fade reach, out to a held pause's observed words."""
+    reach = READ_SEC + fade_reach_sec(project, edit, defaults)
+    if not (edit.reason or "").startswith("pause:"):
+        return reach
+    words = pause_words(project, edit.track_id, edit.start, edit.end)
+    if isinstance(words, CutRejected):
+        return reach
+    seen = held_pause_observation_span(project, edit, span, words, defaults)
+    return max(reach, float(span[0]) - seen.lo + READ_SEC, seen.hi - float(span[1]) + READ_SEC)
+
+
 def verdict_key(
     project: EpisodeProject,
     edit: EditDecision,
@@ -191,7 +213,7 @@ def _payload(
 ) -> dict[str, Any]:
     from podcast_mcp.util.tracks import recording_audio_path
 
-    reach = READ_SEC + fade_reach_sec(project, edit, defaults)
+    reach = check_reach_sec(project, edit, span, defaults)
     lo = float(span[0]) - reach
     hi = float(span[1]) + reach
     s_lo, s_hi = edit.start - reach, edit.end + reach
