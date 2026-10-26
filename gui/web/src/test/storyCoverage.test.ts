@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 /**
  * Every non-interaction surface in the UI inventory and the story titles that
  * render it. A story title lists every export of that file, so one title can
- * cover several IDs. `PENDING` only shrinks: a surface leaves it in the commit
- * that adds its story.
+ * cover several IDs. A surface is either covered, marked not a surface with a
+ * reason, or outside the React app. There is no pending state.
  */
 const COVERED: Record<string, string[]> = {
   "PNL-TRANSCRIPT": [
@@ -174,11 +174,6 @@ const COVERED: Record<string, string[]> = {
   ],
 };
 
-/** A story exists but shows only part of the surface. */
-const PARTIAL: Record<string, string[]> = {};
-
-const PENDING: string[] = [];
-
 /** Listed in the inventory but with nothing to draw. */
 const NOT_A_SURFACE: Record<string, string> = {
   "INS-CLIP-MULTI":
@@ -191,8 +186,6 @@ const NOT_A_SURFACE: Record<string, string> = {
 /** Server-rendered HTML outside the React app. */
 const OUTSIDE_APP = ["SCR-RECOVERY"];
 
-const PENDING_LIMIT = 0;
-
 const storyModules = import.meta.glob("../**/*.stories.tsx", {
   eager: true,
   import: "default",
@@ -203,22 +196,22 @@ describe("story coverage manifest", () => {
   it("lists each surface once", () => {
     const ids = [
       ...Object.keys(COVERED),
-      ...Object.keys(PARTIAL),
-      ...PENDING,
       ...Object.keys(NOT_A_SURFACE),
       ...OUTSIDE_APP,
     ];
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
   });
 
-  it.each([...Object.entries(COVERED), ...Object.entries(PARTIAL)])(
+  it.each(Object.entries(COVERED))(
     "%s names stories that exist",
     (_id, storyTitles) => {
       expect(storyTitles.filter((title) => !titles.has(title))).toEqual([]);
     },
   );
 
-  it("does not let pending surfaces grow", () => {
-    expect(PENDING.length).toBeLessThanOrEqual(PENDING_LIMIT);
+  it("gives every not-a-surface row a reason", () => {
+    expect(
+      Object.entries(NOT_A_SURFACE).filter(([, reason]) => !reason.trim()),
+    ).toEqual([]);
   });
 });
