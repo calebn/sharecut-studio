@@ -57,6 +57,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "ui/Tabs.tsx",
   // Arrows, Home and End move the one tab stop among the cards.
   "system/ProjectCard.tsx",
+  // Enter and comma add a chip, and Backspace in an empty field removes the last term.
+  "system/ChipInput.tsx",
   // Escape closes the Open other popover from its field and its buttons.
   "stages/home/OpenOther.tsx",
   // Escape cancels only this region's active pointer gesture.
