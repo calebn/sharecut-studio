@@ -2,7 +2,7 @@
 
 CTranslate2 (behind faster-whisper) supports CUDA but not Metal, so Apple Silicon stays on the
 CPU here. The choice never fails a job: ``choose_placement`` returns the CPU for anything unclear
-and the engine falls back to the CPU when a GPU load or run fails.
+and the engine falls back to the CPU when a GPU load fails or a run fails with a GPU error.
 """
 
 from __future__ import annotations
