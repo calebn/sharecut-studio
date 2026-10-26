@@ -11,7 +11,7 @@ function setup(extra: { readOnly?: boolean } = {}) {
   const onAdjustStart = vi.fn();
   const view = render(
     <SuggestionWaveform
-      kind="filler"
+      icon="scissors"
       peaks={peaks}
       windowStart={100}
       start={103}
@@ -40,6 +40,14 @@ describe("SuggestionWaveform", () => {
     expect(end()).toHaveAttribute("aria-valuemin", "100");
     expect(end()).toHaveAttribute("aria-valuemax", "112");
     expect(end().style.insetInlineStart).toBe(`${(5 / 12) * 100}%`);
+  });
+
+  it("does not start an adjustment on a tap", () => {
+    const { onAdjust, onAdjustStart } = setup();
+    fireEvent.pointerDown(end(), { clientX: 700, pointerId: 1 });
+    fireEvent.pointerUp(end(), { pointerId: 1 });
+    expect(onAdjustStart).not.toHaveBeenCalled();
+    expect(onAdjust).not.toHaveBeenCalled();
   });
 
   it("snaps a dragged handle to the nearest silence", () => {

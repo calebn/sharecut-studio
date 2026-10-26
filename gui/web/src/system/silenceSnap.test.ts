@@ -4,32 +4,32 @@ import { clampRange, snapToSilence } from "./silenceSnap";
 const loud = (n: number) => Array.from({ length: n }, () => 0.8);
 
 describe("snapToSilence", () => {
-  const options = { windowSeconds: 12 };
+  const window = 12;
 
   it("moves to the nearest quiet peak within reach", () => {
     const peaks = loud(120);
     peaks[50] = 0.02;
     peaks[53] = 0.02;
-    expect(snapToSilence(5.2, peaks, options)).toBeCloseTo(5.05, 5);
-    expect(snapToSilence(5.28, peaks, options)).toBeCloseTo(5.35, 5);
+    expect(snapToSilence(5.2, peaks, window)).toBeCloseTo(5.05, 5);
+    expect(snapToSilence(5.28, peaks, window)).toBeCloseTo(5.35, 5);
   });
 
   it("stays put when no quiet peak is in reach", () => {
     const peaks = loud(120);
     peaks[10] = 0;
-    expect(snapToSilence(6, peaks, options)).toBe(6);
+    expect(snapToSilence(6, peaks, window)).toBe(6);
   });
 
   it("stays put without peaks", () => {
-    expect(snapToSilence(3, [], options)).toBe(3);
+    expect(snapToSilence(3, [], window)).toBe(3);
   });
 
   it("does not read past either end of the peaks", () => {
     const peaks = loud(120);
     peaks[0] = 0;
     peaks[119] = 0;
-    expect(snapToSilence(0.05, peaks, options)).toBeCloseTo(0.05, 5);
-    expect(snapToSilence(11.9, peaks, options)).toBeCloseTo(11.95, 5);
+    expect(snapToSilence(0.05, peaks, window)).toBeCloseTo(0.05, 5);
+    expect(snapToSilence(11.9, peaks, window)).toBeCloseTo(11.95, 5);
   });
 });
 

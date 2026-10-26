@@ -1,5 +1,4 @@
 import type { SuggestionSegment } from "../system/Suggestion";
-import type { ReviewItem } from "./reviewQueue";
 
 /** 120 peaks across a 12 s window, quiet inside each `[from, to]` gap in seconds. */
 export function windowPeaks(gaps: readonly [number, number][]): number[] {
@@ -45,25 +44,9 @@ export const FILLER_WITH_UNSURE: readonly SuggestionSegment[] = [
   { text: " about the boat." },
 ];
 
-const item = (
-  id: string,
-  kind: ReviewItem["kind"],
-  at: number,
-  savedSeconds: number,
-  extra: Partial<ReviewItem> = {},
-): ReviewItem => ({ id, kind, at, savedSeconds, ...extra });
-
-export const QUEUE_ITEMS: readonly ReviewItem[] = [
-  item("c1", "check", 0, 0),
-  item("u1", "unsure-word", 614, 0),
-  item("m1", "comment", 702, 0),
-  item("f1", "filler", 1116, 0.8),
-  item("f2", "filler", 1290, 0.6),
-  item("f3", "filler", 1544, 0.9, { unsure: true }),
-  item("f4", "filler", 2010, 0.7),
-  item("p1", "pause", 1480, 2.3),
-  item("p2", "pause", 2210, 1.9),
-  item("s1", "sound", 2660, 0),
-  item("f0", "filler", 90, 0.5, { result: "applied" }),
-  item("p0", "pause", 240, 1.1, { result: "kept" }),
-];
+export const FILLER_WAVEFORM = {
+  peaks: fillerPeaks,
+  windowStart: 1108.8,
+  start: 1114.4,
+  end: 1115.2,
+};

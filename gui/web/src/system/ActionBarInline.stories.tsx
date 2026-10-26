@@ -69,13 +69,26 @@ export const VerbWaiting: Story = {
 };
 
 export const ReadOnly: Story = {
-  args: { readOnly: true },
-  play: async ({ canvasElement }) => {
+  args: {
+    readOnly: true,
+    center: (
+      <AbAudition
+        side="B"
+        change={{ start: 1114, end: 1115 }}
+        onSelect={() => undefined}
+      />
+    ),
+    onComment: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: "Keep" })).toBeNull();
     await expect(
-      canvas.getByRole("button", { name: "Open in Edit" }),
-    ).toBeVisible();
+      canvas.queryByRole("button", { name: "Open in Edit" }),
+    ).toBeNull();
+    await expect(canvas.getByRole("group", { name: "Audition" })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Comment" }));
+    await expect(args.onComment).toHaveBeenCalledOnce();
   },
 };
 

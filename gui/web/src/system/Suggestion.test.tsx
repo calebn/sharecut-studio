@@ -25,7 +25,7 @@ describe("Suggestion", () => {
 
   it("draws a pause as a hatched gap with its lengths", () => {
     const { container } = render(
-      <Suggestion kind="pause" length="2.9 s" to="0.6 s" />,
+      <Suggestion kind="pause" length={2.9} to={0.6} />,
     );
     expect(container.querySelector("svg pattern")).not.toBeNull();
     expect(screen.getByText("2.9 s")).toBeInTheDocument();

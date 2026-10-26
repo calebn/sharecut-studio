@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { FILLER_EXCERPT, fillerPeaks } from "../review/reviewFixtures";
+import { FILLER_EXCERPT, FILLER_WAVEFORM } from "../storybook/reviewFixtures";
 import { DecisionCard, type DecisionCardProps } from "./DecisionCard";
 import { Suggestion } from "./Suggestion";
 
@@ -11,12 +11,7 @@ const base = (): DecisionCardProps => ({
   time: "18:36",
   excerpt: <Suggestion segments={FILLER_EXCERPT} />,
   why: "Jon restarts the sentence.",
-  waveform: {
-    peaks: fillerPeaks,
-    windowStart: 1108.8,
-    start: 1114.4,
-    end: 1115.2,
-  },
+  waveform: FILLER_WAVEFORM,
   audition: { side: "A", onSide: vi.fn() },
   onVerb: vi.fn(),
   onKeep: vi.fn(),
@@ -129,13 +124,33 @@ describe("DecisionCard", () => {
     expect(onConfirm).toHaveBeenCalledWith("Heard it");
   });
 
-  it("gives a guest Open in Edit only", () => {
-    render(<DecisionCard {...base()} readOnly />);
+  it("gives a guest Hear and Comment, and Open in Edit only with canEdit", async () => {
+    const props = { ...base(), onComment: vi.fn() };
+    const { rerender } = render(<DecisionCard {...props} readOnly />);
     expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open in Edit" })).toBeNull();
+    expect(screen.getAllByRole("group", { name: "Audition" })).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Comment" }));
+    expect(props.onComment).toHaveBeenCalledOnce();
     expect(
       screen.getByRole("slider", { name: "End of the change" }),
     ).toHaveAttribute("aria-readonly", "true");
+    rerender(<DecisionCard {...props} readOnly canEdit />);
+    expect(
+      screen.getByRole("button", { name: "Open in Edit" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps Hear in the dock for a guest on phone", () => {
+    render(<DecisionCard {...base()} readOnly layout="phone" />);
+    const dock = screen.getByRole("group", { name: "Actions" });
+    expect(
+      within(dock).getByRole("group", { name: "Audition" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dock).getByRole("button", { name: "Comment" }),
+    ).toBeInTheDocument();
   });
 
   it("names the empty, error and loading states", async () => {
@@ -189,6 +204,36 @@ describe("DecisionCard", () => {
     expect(props.onKeep).toHaveBeenCalledOnce();
     swipe(0, -80);
     expect(props.onLater).toHaveBeenCalledOnce();
+  });
+
+  it("does not let a swipe decide a cut held back by an unsure word", () => {
+    const props = base();
+    const { container } = render(
+      <DecisionCard
+        {...props}
+        layout="phone"
+        unsure={{ word: "uncle", guess: "uncle", onFix: vi.fn() }}
+      />,
+    );
+    const body = container.querySelector(".sys-decision-body") as Element;
+    fireEvent.pointerDown(body, {
+      clientX: 100,
+      clientY: 100,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(body, { clientX: 220, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(body, { clientX: 220, clientY: 100, pointerId: 1 });
+    expect(props.onVerb).not.toHaveBeenCalled();
+  });
+
+  it("does not let a tap on the waveform flip A/B", () => {
+    const props = base();
+    render(<DecisionCard {...props} />);
+    const handle = screen.getByRole("slider", { name: "End of the change" });
+    fireEvent.pointerDown(handle, { clientX: 10, pointerId: 1 });
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+    expect(props.audition?.onSide).not.toHaveBeenCalled();
   });
 
   it("does not swipe on the card layout", () => {

@@ -1,13 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { fillerPeaks, pausePeaks } from "../review/reviewFixtures";
+import {
+  fillerPeaks,
+  pausePeaks,
+  windowPeaks,
+} from "../storybook/reviewFixtures";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import {
   SuggestionWaveform,
   type SuggestionWaveformProps,
 } from "./SuggestionWaveform";
-import type { SuggestionRange } from "./silenceSnap";
+import type { TimeRange } from "./seconds";
 
 function Adjustable(props: SuggestionWaveformProps) {
   const [range, setRange] = useState({ start: props.start, end: props.end });
@@ -15,7 +19,7 @@ function Adjustable(props: SuggestionWaveformProps) {
     <SuggestionWaveform
       {...props}
       {...range}
-      onAdjust={(next: SuggestionRange) => {
+      onAdjust={(next: TimeRange) => {
         setRange(next);
         props.onAdjust?.(next);
       }}
@@ -28,7 +32,7 @@ const meta: Meta<typeof SuggestionWaveform> = {
   component: SuggestionWaveform,
   tags: ["autodocs"],
   args: {
-    kind: "filler",
+    icon: "scissors",
     peaks: fillerPeaks,
     windowStart: 1110,
     start: 1114.4,
@@ -73,16 +77,18 @@ export const Filler: Story = {
 
 export const Pause: Story = {
   args: {
-    kind: "pause",
+    icon: "fold-horizontal",
     peaks: pausePeaks,
     start: 1114.3,
     end: 1117.2,
   },
 };
 
-export const Sound: Story = { args: { kind: "sound", start: 1113, end: 1116 } };
+export const Sound: Story = {
+  args: { icon: "volume-1", start: 1113, end: 1116 },
+};
 
-/** Keyboard moves the handle, calls the start hook first, and the range follows. */
+/** Keyboard moves the handle; onAdjustStart fires first. */
 export const Adjusting: Story = {
   play: async ({ args, canvasElement }) => {
     const handle = within(canvasElement).getByRole("slider", {
@@ -111,7 +117,7 @@ export const ReadOnly: Story = {
 };
 
 export const Silent: Story = {
-  args: { peaks: Array.from({ length: 120 }, () => 0.04) },
+  args: { peaks: windowPeaks([[0, 12]]) },
 };
 
 export const Phone: Story = {};
