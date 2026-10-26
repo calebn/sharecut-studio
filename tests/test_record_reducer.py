@@ -13,6 +13,7 @@ from podcast_mcp.services.record.reducer import (
     prepare_host_rejoin,
 )
 from podcast_mcp.services.record.state import (
+    RecordSnapshot,
     empty_record_snapshot,
     find_participant,
     guest_upload_consented,
@@ -977,3 +978,69 @@ def test_snapshot_without_room_tone_still_loads() -> None:
     old = empty_record_snapshot("sess").model_dump()
     old.pop("room_tone")
     assert RecordSnapshot.model_validate(old).room_tone is None
+
+
+def _set_target(snap, target, *, role: str = "host", pid: str = "p_host"):
+    return apply_record_command(
+        snap, _cmd("SetTarget", role=role, pid=pid, payload={"target": target}), now_wall_ms=5
+    )
+
+
+def test_a_new_room_lands_at_the_end() -> None:
+    assert empty_record_snapshot("sess").target.kind == "end"
+    assert RecordSnapshot.model_validate({"session_id": "old"}).target.kind == "end"
+
+
+def test_set_target_end_is_stored_before_the_first_take() -> None:
+    snap = _room_tone_room()
+    out = _set_target(snap, {"kind": "end"})
+    assert out.target.kind == "end"
+    assert out.takes == []
+    assert out.state == "lobby"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"kind": "start"},
+        {"kind": "insert", "at_sec": 12.5},
+        {"kind": "replace", "from_sec": 3.0, "to_sec": 9.0, "track_ids": ["host"]},
+    ],
+)
+def test_set_target_parses_later_kinds_but_refuses_them(target: dict) -> None:
+    snap = _room_tone_room()
+    with pytest.raises(RecordStateError, match=f"the {target['kind']} target is not available yet"):
+        _set_target(snap, target)
+    assert snap.target.kind == "end"
+
+
+def test_set_target_rejects_an_unknown_or_incomplete_target() -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    for target in ({"kind": "middle"}, {"kind": "insert"}, {}):
+        with pytest.raises(CodedValueError):
+            _cmd("SetTarget", role="host", pid="p_host", payload={"target": target})
+
+
+def test_set_target_is_locked_once_any_take_exists() -> None:
+    snap = apply_record_command(
+        _room_tone_room(), _cmd("Start", role="host", pid="p_host"), now_wall_ms=10
+    )
+    with pytest.raises(RecordStateError, match="locked once a take has been recorded"):
+        _set_target(snap, {"kind": "end"})
+    snap = apply_record_command(snap, _cmd("Stop", role="host", pid="p_host"), now_wall_ms=20)
+    with pytest.raises(RecordStateError, match="locked once a take has been recorded"):
+        _set_target(snap, {"kind": "end"})
+
+
+def test_set_target_is_host_only_in_the_command_catalog() -> None:
+    from podcast_mcp.services.record.commands import (
+        HOST_ONLY,
+        RecordAuthzError,
+        authorize_record_command,
+    )
+
+    assert "SetTarget" in HOST_ONLY
+    with pytest.raises(RecordAuthzError):
+        authorize_record_command(role="guest", capabilities=["join"], command_type="SetTarget")
+    authorize_record_command(role="host", capabilities=[], command_type="SetTarget")

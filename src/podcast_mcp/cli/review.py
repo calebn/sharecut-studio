@@ -91,6 +91,7 @@ def _cli_create_record_share(
     general_access: str,
     require_sign_in: bool,
     invite: list[str] | None,
+    target: str | None,
 ) -> None:
     if with_mcp or general_access != "link" or require_sign_in or invite:
         typer.echo(
@@ -120,6 +121,7 @@ def _cli_create_record_share(
         room = ShareService(ws).create_record_room(
             public_base_url=base_url,
             expires_at=expires_at,
+            target=target,
         )
     except RecordStaleLinksError as exc:
         typer.echo(json.dumps(exc.room, indent=2))
@@ -201,6 +203,11 @@ def review_share_cmd(
         "--invite",
         help="Invite email(s) onto the ACL (useful with --general-access restricted)",
     ),
+    target: str | None = typer.Option(
+        None,
+        "--target",
+        help="record: where the session lands (only end, the default, is available yet)",
+    ),
 ) -> None:
     """Create a review link (Anyone with the link; login-free by default)."""
     kind_key = (kind or "review").strip().lower()
@@ -215,6 +222,7 @@ def review_share_cmd(
             general_access=general_access,
             require_sign_in=require_sign_in,
             invite=invite,
+            target=target,
         )
         return
     if kind_key != "review":

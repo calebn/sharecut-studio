@@ -1622,6 +1622,36 @@
       }
     },
     {
+      "id": "daw.record.setTarget",
+      "label": "Set session target",
+      "effect": "project",
+      "service": "RecordSessionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.setTarget",
+        "gui": [
+          "RecordPanel"
+        ],
+        "cli": "podcast record target",
+        "mcp": [
+          "record_target_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Set where this session lands",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.record.pause",
       "label": "Pause recording",
       "effect": "project",

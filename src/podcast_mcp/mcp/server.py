@@ -142,6 +142,7 @@ from podcast_mcp.mcp.tools.record import (  # noqa: E402, F401
     record_start_tool,
     record_state_tool,
     record_stop_tool,
+    record_target_tool,
 )
 from podcast_mcp.mcp.tools.review import (  # noqa: E402, F401
     create_record_room_tool,

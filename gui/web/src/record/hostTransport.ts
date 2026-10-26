@@ -21,7 +21,7 @@ export async function submitHostRecordTransport(
   if (!path) {
     return;
   }
-  if (commandType === "RoomToneCountdown") {
+  if (commandType === "RoomToneCountdown" || commandType === "SetTarget") {
     useRecordHostStore
       .getState()
       .setSnapshot(await postHostRecordCommand(path, commandType, payload));

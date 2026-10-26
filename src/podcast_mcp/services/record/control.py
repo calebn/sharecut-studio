@@ -10,7 +10,7 @@ from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService, RecordTakeOpenError
 from podcast_mcp.services.record.live_comments import LIVE_COMMENT_ID_PREFIX
 from podcast_mcp.services.record.service import RecordSessionService, next_record_client_seq
-from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID, parse_session_target
 
 
 class RecordControlService:
@@ -41,6 +41,9 @@ class RecordControlService:
 
     def room_tone_countdown(self) -> dict[str, Any]:
         return self._host("RoomToneCountdown")
+
+    def set_target(self, target: str | dict[str, Any] | None = None) -> dict[str, Any]:
+        return self._host("SetTarget", {"target": parse_session_target(target).model_dump()})
 
     def marker(self, body: str = "Marker") -> dict[str, Any]:
         """Drop a live comment at this moment of the open take; it lands as a comment."""

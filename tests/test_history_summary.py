@@ -27,6 +27,33 @@ def test_format_pipeline_snapshot_title() -> None:
     assert title == "pipeline: transcribe"
 
 
+def test_record_land_title_names_the_session_in_both_group_kinds() -> None:
+    first = {"session_id": "abc", "session_number": 2, "session_first": True}
+    later = {"session_id": "abc", "session_number": 2, "session_first": False}
+    for kind, label in (("mutation", "Added Session 2"), ("snapshot", "after Added Session 2")):
+        assert (
+            format_history_group_title(
+                kind=kind, label=label, operation="record_land", params=first
+            )
+            == "Added Session 2"
+        )
+    assert (
+        format_history_group_title(
+            kind="mutation", label="Added to Session 2", operation="record_land", params=later
+        )
+        == "Added to Session 2"
+    )
+    assert (
+        format_history_group_title(
+            kind="mutation",
+            label="record land",
+            operation="record_land",
+            params={"session_id": "a"},
+        )
+        == "record land"
+    )
+
+
 def test_summarize_diff_edit_log_and_duration() -> None:
     lines = summarize_diff(
         {

@@ -709,6 +709,7 @@ RECORD_WS_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
     "Resume": {},
     "Stop": {},
     "RoomToneCountdown": {},
+    "SetTarget": {"target": {"kind": "end"}},
     "RemoveParticipant": {"participant_id": "p1"},
     "UpdateName": {"display_name": "Guest"},
     "Comment": {"id": "live-c1", "body": "comment"},
@@ -727,6 +728,18 @@ def test_record_guest_wire_contract_tracks_the_live_command_catalog() -> None:
             participant_id="p1",
             client_seq=1,
         )
+
+
+def test_set_target_payload_keeps_the_target_through_parse() -> None:
+    parsed = RecordCommand.parse(
+        command_type="SetTarget",
+        payload={"target": {"kind": "insert", "at_sec": 12.5}},
+        client_id="host",
+        role="host",
+        participant_id="p_host",
+        client_seq=1,
+    )
+    assert parsed.payload == {"target": {"kind": "insert", "at_sec": 12.5}}
 
 
 def test_record_signal_fault_crosses_the_registered_socket_boundary(

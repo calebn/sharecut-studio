@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Literal, NotRequired, TypedDict
+import json
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+
+from podcast_mcp.util.coded_error import CodedValueError
 
 RecordState = Literal["lobby", "recording", "paused", "stopped"]
 RecordRole = Literal["host", "guest", "producer"]
@@ -38,6 +41,62 @@ class TakeState(BaseModel):
     stopped_wall_ms: int | None = None
     pauses: list[PauseEntry] = Field(default_factory=list)
     consented_participant_ids: list[str]
+
+
+class EndTarget(BaseModel):
+    kind: Literal["end"] = "end"
+
+
+class StartTarget(BaseModel):
+    kind: Literal["start"] = "start"
+
+
+class InsertTarget(BaseModel):
+    kind: Literal["insert"] = "insert"
+    at_sec: float = Field(ge=0)
+
+
+class ReplaceTarget(BaseModel):
+    kind: Literal["replace"] = "replace"
+    from_sec: float = Field(ge=0)
+    to_sec: float = Field(ge=0)
+    track_ids: list[str] = Field(default_factory=list)
+
+
+SessionTarget = Annotated[
+    EndTarget | StartTarget | InsertTarget | ReplaceTarget, Field(discriminator="kind")
+]
+_TARGET_ADAPTER: TypeAdapter[SessionTarget] = TypeAdapter(SessionTarget)
+
+
+def parse_session_target(raw: str | dict[str, Any] | BaseModel | None) -> SessionTarget:
+    """Parse a target from a bare kind (``end``), a JSON object string or a dict; ``None`` is end."""
+    if raw is None:
+        return EndTarget()
+    try:
+        if isinstance(raw, BaseModel):
+            return _TARGET_ADAPTER.validate_python(raw.model_dump())
+        if isinstance(raw, str):
+            text = raw.strip()
+            return _TARGET_ADAPTER.validate_python(
+                json.loads(text) if text.startswith("{") else {"kind": text}
+            )
+        return _TARGET_ADAPTER.validate_python(raw)
+    except (ValidationError, ValueError) as exc:
+        raise CodedValueError(
+            "invalid session target: use end, start, insert or replace",
+            code="invalid_record_request",
+        ) from exc
+
+
+def unsupported_target_message(target: SessionTarget) -> str | None:
+    """Why ``target`` cannot be used yet; ``None`` for ``end``, the only landable target."""
+    if target.kind == "end":
+        return None
+    return (
+        f"the {target.kind} target is not available yet: sessions can only be added at the end "
+        "of the episode"
+    )
 
 
 class RoomToneRound(BaseModel):
@@ -82,10 +141,11 @@ class RecordSnapshot(BaseModel):
     pause_reason: PauseReason | None = None
     host_offline_gap_ms: int | None = None
     room_tone: RoomToneRound | None = None
+    target: SessionTarget = Field(default_factory=EndTarget)
 
 
-def empty_record_snapshot(session_id: str) -> RecordSnapshot:
-    return RecordSnapshot(session_id=session_id)
+def empty_record_snapshot(session_id: str, target: SessionTarget | None = None) -> RecordSnapshot:
+    return RecordSnapshot(session_id=session_id, target=target or EndTarget())
 
 
 def _current_take(snap: RecordSnapshot) -> TakeState | None:

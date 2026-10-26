@@ -939,12 +939,12 @@ def test_concurrent_mints_leave_one_usable_room(
     release = threading.Event()
     calls: list[int] = []
 
-    def gated(project, session_id):
+    def gated(project, session_id, target=None):
         calls.append(1)
         if len(calls) == 1:
             inside.set()
             assert release.wait(10)
-        return real_begin(project, session_id)
+        return real_begin(project, session_id, target)
 
     monkeypatch.setattr(record_pkg, "begin_record_session", gated)
     results: dict[str, dict] = {}
@@ -1096,3 +1096,70 @@ def test_revoke_record_room_tool(minimal_project, sample_wav, tmp_workspace, mon
     out = json.loads(revoke_record_room_tool(str(minimal_project), room["session_id"]))
     assert out["session_id"] == room["session_id"]
     assert set(out["revoked"]) == {room["guest"]["token"], room["producer"]["token"]}
+
+
+def test_room_target_defaults_to_end_and_is_set_at_mint(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    snap = RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()
+    assert snap["target"] == {"kind": "end"}
+    chosen = ShareService(ws).create_record_room(target="end")
+    assert RecordSessionService(ws.project, session_id=chosen["session_id"]).snapshot()[
+        "target"
+    ] == {"kind": "end"}
+    tool = json.loads(create_record_room_tool(str(ws.path), target='{"kind": "end"}'))
+    assert RecordSessionService(ws.project, session_id=tool["session_id"]).snapshot()["target"] == {
+        "kind": "end"
+    }
+
+
+@pytest.mark.parametrize(
+    "target",
+    ["start", {"kind": "insert", "at_sec": 4.0}, '{"kind": "replace", "from_sec": 1, "to_sec": 2}'],
+)
+def test_minting_a_room_refuses_targets_that_are_not_available_yet(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, target
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    first = ShareService(ws).create_record_room()
+    with pytest.raises(RecordStateError, match="is not available yet"):
+        ShareService(ws).create_record_room(target=target)
+    assert RecordSessionService.active_session_id(ws.project) == first["session_id"]
+
+
+def test_host_route_refuses_a_target_that_is_not_available_yet(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    resp = client.post(
+        "/api/shares/record", json={"path": str(ws.path), "target": {"kind": "start"}}
+    )
+    assert resp.status_code == 409
+    assert "is not available yet" in resp.text
+
+
+def test_minting_a_room_rejects_an_unknown_target(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    with pytest.raises(ValueError, match="invalid session target"):
+        ShareService(ws).create_record_room(target="middle")
+    client = TestClient(create_app())
+    resp = client.post(
+        "/api/shares/record", json={"path": str(ws.path), "target": {"kind": "middle"}}
+    )
+    assert resp.status_code == 400
+
+
+def test_cli_share_record_target_flag(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    _seed_premix(minimal_project, sample_wav)
+    runner = CliRunner()
+    base = ["review", "share", "--project", str(minimal_project), "--kind", "record"]
+    ok = runner.invoke(cli_app, [*base, "--target", "end"])
+    assert ok.exit_code == 0, ok.output
+    refused = runner.invoke(cli_app, [*base, "--target", "start"])
+    assert refused.exit_code == 1
+    assert "is not available yet" in refused.output

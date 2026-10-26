@@ -61,6 +61,22 @@ describe("record transport command failures", () => {
     },
   );
 
+  it("record.setTarget submits the end target by default and reports a refusal", async () => {
+    submit.mockResolvedValue(undefined);
+    expect(await execute("record.setTarget")).toEqual({ status: "ok" });
+    expect(submit).toHaveBeenCalledWith("SetTarget", {
+      target: { kind: "end" },
+    });
+    submit.mockRejectedValue(new Error("the target is locked"));
+    const result = await execute("record.setTarget", {
+      target: { kind: "end" },
+    });
+    expect(result.status).toBe("disabled");
+    expect(useRecordHostStore.getState().transportError).toBe(
+      "the target is locked",
+    );
+  });
+
   it("clears a previous error on success", async () => {
     useRecordHostStore.getState().setTransportError("old");
     submit.mockResolvedValue(undefined);

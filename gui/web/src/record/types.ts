@@ -55,6 +55,17 @@ export type TakeState = {
   consented_participant_ids: string[];
 };
 
+export type SessionTarget =
+  | { kind: "start" }
+  | { kind: "end" }
+  | { kind: "insert"; at_sec: number }
+  | {
+      kind: "replace";
+      from_sec: number;
+      to_sec: number;
+      track_ids: string[];
+    };
+
 export type RoomToneRound = {
   round: number;
   requested_wall_ms: number;
@@ -76,6 +87,8 @@ export type RecordSnapshot = {
   timeline_start_sec?: number | null;
   start_blockers?: StartBlocker[];
   room_tone?: RoomToneRound | null;
+  /** Host only: where this session lands; the server strips it from guest snapshots. */
+  target?: SessionTarget;
   /** Ms left of the current room-tone round at snapshot time; count down locally from it. */
   countdown_left_ms?: number;
   participants: RecordParticipant[];

@@ -22,7 +22,7 @@ from podcast_mcp.services.record.commands import (
     RecordCommand,
     authorize_record_command,
 )
-from podcast_mcp.services.record.landing_math import session_origin_s, take_offsets_s
+from podcast_mcp.services.record.landing_math import session_placement, take_offsets_s
 from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     live_comment_store_for,
@@ -43,14 +43,17 @@ from podcast_mcp.services.record.state import (
     TAKE_OPEN_REMINT_MSG,
     RecordRole,
     RecordSnapshot,
+    SessionTarget,
     empty_record_snapshot,
     find_participant,
     guest_upload_consented,
+    parse_session_target,
     recording_ms,
     recording_ms_at,
     room_tone_countdown_left_ms,
     start_blockers,
     take_containing_wall,
+    unsupported_target_message,
 )
 from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.services.session_sync import (
@@ -222,7 +225,7 @@ def filter_record_event_for_guest(
 ) -> dict[str, Any] | None:
     if event.get("type") == "Signal" and event.get("to") != participant_id:
         return None
-    stripped = _strip_lease_keys(event)
+    stripped = _strip_host_snapshot_keys(_strip_lease_keys(event))
     if role != "guest":
         return stripped
     return _filter_live_comments_for_guest(stripped, participant_id)
@@ -245,6 +248,14 @@ def _filter_live_comments_for_guest(obj: Any, participant_id: str) -> Any:
     if isinstance(obj, list):
         return [_filter_live_comments_for_guest(item, participant_id) for item in obj]
     return obj
+
+
+def _strip_host_snapshot_keys(event: dict[str, Any]) -> dict[str, Any]:
+    """Drop what only the host needs from a snapshot: where the session lands."""
+    snapshot = event.get("snapshot")
+    if not isinstance(snapshot, dict):
+        return event
+    return {**event, "snapshot": {k: v for k, v in snapshot.items() if k != "target"}}
 
 
 def _strip_lease_keys(obj: Any) -> Any:
@@ -308,8 +319,19 @@ def _participants_for(project: EpisodeProject) -> RecordParticipantStore:
     return store
 
 
-def begin_record_session(project: EpisodeProject, session_id: str) -> None:
-    """Start a new room: wipe the previous record command log and snapshot."""
+def begin_record_session(
+    project: EpisodeProject,
+    session_id: str,
+    target: SessionTarget | str | dict[str, Any] | None = None,
+) -> None:
+    """Start a new room: wipe the previous record command log and snapshot.
+
+    ``target`` is where the session lands (default: the end of the episode).
+    """
+    room_target = parse_session_target(target)
+    refusal = unsupported_target_message(room_target)
+    if refusal is not None:
+        raise RecordStateError(refusal)
     hub = record_hub_key(project)
     store = _store_for(project)
     active = RecordSessionService.active_session_id(project)
@@ -321,7 +343,7 @@ def begin_record_session(project: EpisodeProject, session_id: str) -> None:
         if snap.state in ("recording", "paused"):
             raise RecordStateError(TAKE_OPEN_REMINT_MSG)
 
-    store.reset(empty_record_snapshot(session_id).model_dump(), guard=guard)
+    store.reset(empty_record_snapshot(session_id, room_target).model_dump(), guard=guard)
     _participants_for(project).clear_all()
     live_comment_store_for(project).clear_all()
     clear_connections_for_hub(hub)
@@ -466,7 +488,7 @@ class RecordSessionService:
             out["timeline_start_sec"] = take_offsets_s(
                 snap.takes,
                 tombstoned=tombstoned,
-                origin_s=session_origin_s(self.project.clips, self.session_id),
+                origin_s=session_placement(self.project.clips, self.session_id, snap.target),
             ).get(snap.take_index)
         out["comments"] = [
             {

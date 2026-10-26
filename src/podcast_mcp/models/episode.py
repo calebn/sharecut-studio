@@ -909,6 +909,18 @@ class SpeakerSplit(BaseModel):
         return [(t.start_s, t.end_s) for t in self.turns if t.crosstalk]
 
 
+class RecordSessionRecord(BaseModel):
+    """A record-room session that landed on this timeline, numbered in landing order.
+
+    The number is assigned at the session's first land and lives in the project, so undoing
+    that land frees it.
+    """
+
+    session_id: str
+    number: int = Field(ge=1)
+    target_kind: Literal["start", "end", "insert", "replace"] = "end"
+
+
 class EditorialSection(BaseModel):
     edit_decisions: list[EditDecision] = Field(default_factory=list)
     edit_log: list[AppliedEditRecord] = Field(default_factory=list)
@@ -916,6 +928,7 @@ class EditorialSection(BaseModel):
     retained_bleed_alignments: list[RetainedBleedAlignmentDecision] = Field(default_factory=list)
     sound_actions: list[SoundActionRecord] = Field(default_factory=list)
     speaker_splits: list[SpeakerSplit] = Field(default_factory=list)
+    record_sessions: list[RecordSessionRecord] = Field(default_factory=list)
 
 
 class TranscriptsSection(BaseModel):
