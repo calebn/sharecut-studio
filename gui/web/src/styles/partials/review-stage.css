@@ -1,0 +1,168 @@
+/* Review stage compositions: queue, stage frame, context strip. Same rules as system.css. */
+
+.rv-queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-4);
+  box-sizing: border-box;
+}
+
+.rv-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rv-progress {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.rv-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.rv-filter .ui-segmented > .ui-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rv-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.rv-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.rv-group-name {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.rv-group-saved {
+  margin-inline-start: auto;
+}
+
+.rv-group-saved + .rv-bulk,
+.rv-group-count + .rv-bulk {
+  margin-inline-start: var(--space-3);
+}
+
+.rv-group-count:last-child {
+  margin-inline-end: auto;
+}
+
+.rv-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rv-check[data-selected] {
+  border-radius: var(--radius-md);
+  background: var(--color-accent-subtle);
+  box-shadow: inset var(--selection-row-edge-width) 0 0 var(--color-accent);
+}
+
+.rv-decided-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-ui);
+  cursor: pointer;
+}
+
+.rv-decided-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+@media (pointer: coarse) {
+  .rv-decided-toggle,
+  .rv-bulk {
+    min-block-size: var(--touch-min);
+  }
+}
+
+/* Stage frame */
+
+.rv-stage {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  block-size: 100%;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+.rv-main {
+  display: grid;
+  grid-template-columns: minmax(0, 22.5rem) minmax(0, 1fr);
+  align-items: start;
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+.rv-card {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.rv-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.rv-phone-top {
+  display: flex;
+  padding: var(--space-3) var(--space-4);
+}
+
+.rv-stage[data-layout="phone"] .rv-main {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow-y: hidden;
+}
+
+.rv-stage[data-layout="phone"] .rv-card {
+  flex: 1;
+}
+
+@container (max-width: 48rem) {
+  .rv-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

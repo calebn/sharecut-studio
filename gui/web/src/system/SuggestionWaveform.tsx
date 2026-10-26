@@ -11,6 +11,7 @@ import { clampRange, snapToSilence, WAVEFORM_WINDOW_S } from "./silenceSnap";
 
 const KEY_STEP_S = 0.05;
 const KEY_STEP_BIG_S = 0.5;
+const KEY_STEP_PAGE_S = 1;
 
 export type SuggestionWaveformProps = {
   /** The change's kind glyph. */
@@ -94,13 +95,25 @@ export function SuggestionWaveform({
     dragging.current = null;
   };
   const onKey = (edge: Edge) => (event: KeyboardEvent<HTMLElement>) => {
-    const direction =
-      event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
-    if (readOnly || direction === 0) return;
+    const current = edge === "start" ? start : end;
+    const target =
+      event.key === "ArrowLeft"
+        ? current - (event.shiftKey ? KEY_STEP_BIG_S : KEY_STEP_S)
+        : event.key === "ArrowRight"
+          ? current + (event.shiftKey ? KEY_STEP_BIG_S : KEY_STEP_S)
+          : event.key === "PageDown"
+            ? current - KEY_STEP_PAGE_S
+            : event.key === "PageUp"
+              ? current + KEY_STEP_PAGE_S
+              : event.key === "Home"
+                ? bounds.start
+                : event.key === "End"
+                  ? bounds.end
+                  : null;
+    if (readOnly || target === null) return;
     event.preventDefault();
     onAdjustStart?.();
-    const step = event.shiftKey ? KEY_STEP_BIG_S : KEY_STEP_S;
-    move(edge, (edge === "start" ? start : end) + direction * step, true);
+    move(edge, target, true);
   };
 
   const handle = (edge: Edge) => {
