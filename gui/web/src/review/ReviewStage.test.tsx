@@ -101,6 +101,16 @@ describe("ReviewStage", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 
+  it("words the prompt for the group's verb when its header is clicked", async () => {
+    setup({ initialItems: QUEUE_ITEMS, initialSelectedId: "p1" });
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    expect(
+      screen.getByRole("button", { name: "Cut anyway" }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    expect(screen.getByText(/^Cut 3 · saves/)).toBeInTheDocument();
+  });
+
   it("asks for Cut anyway on an unsure cut while the check is open", () => {
     const { press } = setup({
       initialItems: QUEUE_ITEMS,
