@@ -5,6 +5,7 @@ from podcast_mcp.util.lazy_exports import resolve_export
 if TYPE_CHECKING:
     from podcast_mcp.services.document.align_accept import AlignAcceptService
     from podcast_mcp.services.document.analysis import AnalysisService
+    from podcast_mcp.services.document.approval_warm import warm_in_background
     from podcast_mcp.services.document.boundary import (
         BoundaryEdit,
         BoundaryTarget,
@@ -70,6 +71,7 @@ __all__ = [
     "cross_process_lease",
     "run_comment_mutation_with_file_revisions",
     "score_golden_ear",
+    "warm_in_background",
 ]
 
 _MODULE_BY_NAME = {
@@ -85,6 +87,7 @@ _MODULE_BY_NAME = {
     "run_comment_mutation_with_file_revisions": "comment",
     "cross_process_bridge": "cross_process_sync",
     "cross_process_lease": "cross_process_sync",
+    "warm_in_background": "approval_warm",
     "EditService": "edit",
     "EpisodeService": "episode",
     "DEFAULT_LIMIT": "golden_ear",

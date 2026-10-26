@@ -175,7 +175,7 @@ def pending_preview_warm(
     """
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.document import EditService, PlayService
+    from podcast_mcp.services.document import PlayService, warm_in_background
     from podcast_mcp.util.process import low_priority
     from podcast_mcp.util.project_state import (
         BACKGROUND_RENDER_LOCK_TIMEOUT_SEC,
@@ -190,7 +190,7 @@ def pending_preview_warm(
                 warmed = PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
                     None, lock_timeout=BACKGROUND_RENDER_LOCK_TIMEOUT_SEC
                 )
-            EditService.warm_approval_checks_in_background(project_path)
+            warm_in_background(project_path)
             return warmed
         # The edit's renders read the sources and write content-addressed files atomically,
         # so a render or approve the user starts meanwhile is not queued behind them; only
