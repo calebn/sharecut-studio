@@ -49,6 +49,14 @@ def session_numbered(project: EpisodeProject, session_id: str) -> bool:
     return any(row.session_id == session_id for row in project.editorial.record_sessions)
 
 
+def session_landed_before(project: EpisodeProject, session_id: str) -> bool:
+    """True when the session has a stored number or clips landed before numbering existed."""
+    return session_numbered(project, session_id) or any(
+        (found := _RECORD_SOURCE.match(clip.source_id or "")) and found.group(1) == session_id
+        for clip in project.clips
+    )
+
+
 def record_session_number(project: EpisodeProject, session_id: str) -> int:
     """The session's number: its stored one, else one past every other session on the timeline.
 

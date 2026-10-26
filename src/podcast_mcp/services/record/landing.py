@@ -44,6 +44,7 @@ from podcast_mcp.services.record.landing_math import (
     overlap_window_s,
     record_session_number,
     record_source_prefix,
+    session_landed_before,
     session_numbered,
     session_placement,
     session_start_present,
@@ -677,6 +678,18 @@ class RecordLandingService:
                 workspace_dir / str(item["rel"]), item.get("file_sha256")
             )
 
+        session_params: dict[str, Any] = {"session_id": self.session_id}
+        label = "record land"
+        planning_project = self.workspace.project
+        if any(
+            self._copied_raw_matches(planning_project, item) and self._ack_generation_current(item)
+            for item in copied
+        ):
+            label = record_land_title(
+                record_session_number(planning_project, self.session_id),
+                first=not session_landed_before(planning_project, self.session_id),
+            )
+
         # ``mutate`` runs on the project it re-reads under the cross-process
         # project lock. It can be newer than the copy planned from above when a
         # non-land writer (edit, share, comment) committed meanwhile. Land and
@@ -688,14 +701,8 @@ class RecordLandingService:
         # is re-applied (the room-tone set from ``_room_tone_missing``).
         # Re-registering a bed is an idempotent upsert, so a stale planning read
         # cannot drop or corrupt newer project state.
-        session_params: dict[str, Any] = {"session_id": self.session_id}
-        label = "record land"
-        if copied:
-            planned = record_session_number(self.workspace.project, self.session_id)
-            planned_first = not session_numbered(self.workspace.project, self.session_id)
-            label = record_land_title(planned, first=planned_first)
-
         def mutate(project: EpisodeProject) -> dict[str, Any]:
+            landed_before = session_landed_before(project, self.session_id)
             landed_clips: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
             touched: set[str] = set()
@@ -793,8 +800,8 @@ class RecordLandingService:
                 accepted.append({**item, "prior": prior})
             if landed_clips:
                 number = record_session_number(project, self.session_id)
-                first = not session_numbered(project, self.session_id)
-                if first:
+                first = not landed_before
+                if not session_numbered(project, self.session_id):
                     project.editorial.record_sessions.append(
                         RecordSessionRecord(
                             session_id=self.session_id,

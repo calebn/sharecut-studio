@@ -1632,9 +1632,6 @@
       ],
       "surfaces": {
         "command": "record.setTarget",
-        "gui": [
-          "RecordPanel"
-        ],
         "cli": "podcast record target",
         "mcp": [
           "record_target_tool"
@@ -1642,7 +1639,7 @@
         "skill": "podcast-record-session"
       },
       "omit": {
-        "keyboard_reason": "chords in a later PR",
+        "keyboard_reason": "host CLI/MCP only",
         "guest": true
       },
       "tooltip": "Set where this session lands",

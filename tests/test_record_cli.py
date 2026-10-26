@@ -279,6 +279,7 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
             cli_app, ["record", "target", later, "--project", str(minimal_project)]
         )
         assert refused.exit_code == 1, refused.output
+        assert f"the {later} target is not available yet" in refused.output
     bad = runner.invoke(cli_app, ["record", "target", "middle", "--project", str(minimal_project)])
     assert bad.exit_code == 1
     assert "invalid session target" in bad.output

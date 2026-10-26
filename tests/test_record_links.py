@@ -1117,7 +1117,13 @@ def test_room_target_defaults_to_end_and_is_set_at_mint(
 
 @pytest.mark.parametrize(
     "target",
-    ["start", {"kind": "insert", "at_sec": 4.0}, '{"kind": "replace", "from_sec": 1, "to_sec": 2}'],
+    [
+        "start",
+        "insert",
+        "replace",
+        {"kind": "insert", "at_sec": 4.0},
+        '{"kind": "replace", "from_sec": 1, "to_sec": 2}',
+    ],
 )
 def test_minting_a_room_refuses_targets_that_are_not_available_yet(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, target

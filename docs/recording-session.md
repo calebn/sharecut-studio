@@ -761,9 +761,9 @@ Host-only `SetTarget` (payload `{"target": {"kind": "end"}}`) changes it. It rea
 
 | Rule | Behavior |
 |------|----------|
-| Kinds | `end`, `start`, `insert {at_sec}` and `replace {from_sec, to_sec, track_ids}` parse. Only `end` is accepted: `SetTarget`, `begin_record_session` and room mint refuse the others with "the start target is not available yet: sessions can only be added at the end of the episode". An unknown kind or missing field is `invalid_record_request`. |
-| Lock | Refused with "the target is locked once a take has been recorded" as soon as the snapshot holds any take, including a stopped one (discarding a take does not unlock it). |
-| Snapshot | `target` is in the host snapshot (`{"kind": "end"}`; rows written before it load as `end`). Guest and producer sockets never receive it: `filter_record_event_for_guest` drops `snapshot.target`. |
+| Kinds | `end`, `start`, `insert {at_sec}` and `replace {from_sec, to_sec, track_ids}` parse. Only `end` is accepted: `SetTarget`, `begin_record_session` and room mint refuse the others with "the start target is not available yet: sessions can only be added at the end of the episode". A bare `insert` or `replace` (CLI `podcast record target insert`, MCP `record_target_tool`) gets the same refusal as the full object form. The refusal is `record_state_refused` (not yet available); an unknown kind or a malformed object is `invalid_record_request`. |
+| Lock | Refused with "the target is locked once a take has been recorded" as soon as the snapshot holds any take, including a stopped one. Discarding a take does not unlock it, so a room whose only take was discarded cannot change target. |
+| Snapshot | `target` is in the host and producer snapshots (`{"kind": "end"}`; rows written before it load as `end`). Guest sockets never receive it: `filter_record_event_for_guest` drops `snapshot.target` for the guest role only. |
 | Placement | `session_placement(clips, session_id, target)` in `landing_math.py` is the one place both Land and the live `timeline_start_sec` read the session origin. For `end` it is `session_origin_s`: the end of the last clip the session did not land, plus the 2 s gap (0 s in an empty project). |
 
 ### Session numbers and the history step
@@ -771,12 +771,12 @@ Host-only `SetTarget` (payload `{"target": {"kind": "end"}}`) changes it. It rea
 A session's number is assigned at its first land that registers a keeper clip and stored in
 `editorial.record_sessions[]` (`{session_id, number, target_kind}`) in the same `record_land` mutation, so
 undoing that land removes the entry and frees the number. A room that never lands a keeper (a minted room, a
-room-tone-only land) takes no number, and a session whose takes are all discarded keeps its number. The number
+room-tone-only land) takes no number. An ingested or imported episode is not a session, so the first recording is Session 1. A session whose takes are all discarded keeps its number only once it has had a first land. The number
 is one past the highest stored number and one past the count of other sessions on the timeline, counting
 sessions landed before numbering existed by the `rec-<session_id>-` prefix of their clips.
 
 Each land is one `workspace.mutate` step, so one undo reverses it. The first land of a session is titled
-"Added Session N"; a later land of the same session (a later take, a late keeper) is "Added to Session N". The
+"Added Session N"; a later land of the same session (a later take, a late keeper, or a session landed before numbering existed) is "Added to Session N". The
 step keeps `operation: record_land` and carries `session_id`, `session_number` and `session_first` in its
 params; `format_history_group_title` reads them, so the History panel shows the session title whether the
 before-snapshot was recorded or deduplicated into an `after` entry. A land with no keeper clips stays

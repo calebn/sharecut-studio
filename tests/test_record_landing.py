@@ -527,6 +527,60 @@ def test_session_after_a_legacy_unnumbered_session_gets_the_next_number(
     assert [g.title for g in _land_groups(ws)] == ["Added Session 2"]
 
 
+def test_land_that_registers_no_clip_keeps_the_plain_title_and_takes_no_number(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    monkeypatch.setattr(RecordLandingService, "_copied_raw_matches", lambda *_a: False)
+    _room, landed = _land_session(ws)
+    assert landed["clips"] == []
+    assert ws.project.editorial.record_sessions == []
+    groups = HistoryService(ws).list_entries().groups
+    assert [g.title for g in groups] == ["record land"]
+    assert not any("Session" in (g.label or "") for g in groups)
+
+
+def test_legacy_session_landing_again_is_labelled_added_to_session(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    session_id = room["session_id"]
+    ws.mutate(
+        "seed legacy session",
+        "seeded legacy session",
+        lambda p: p.clips.append(
+            Clip(
+                id="c-legacy",
+                track_id="legacy",
+                source_id=f"rec-{session_id}-0-p_host-0",
+                source_start=0.0,
+                source_end=20.0,
+                timeline_start=0.0,
+            )
+        ),
+    )
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=session_id,
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    assert [(r.session_id, r.number) for r in ws.project.editorial.record_sessions] == [
+        (session_id, 1)
+    ]
+    [group] = _land_groups(ws)
+    assert group.title == "Added to Session 1"
+
+
 def test_room_tone_only_land_does_not_number_the_session(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
