@@ -14,11 +14,13 @@ import {
   clampPart,
   clipFiles,
   clipStrength,
+  coversRequest,
   currentExportState,
   estimateBytes,
   exportBlocker,
   exportRequest,
   formatClock,
+  itemNames,
   parseClock,
   partSeconds,
   planRange,
@@ -31,6 +33,7 @@ import {
   restoreClip,
   retimeChapter,
   trimClip,
+  validSelection,
 } from "./deliverLogic";
 
 describe("readiness", () => {
@@ -133,12 +136,12 @@ describe("export settings", () => {
 
 describe("export contract", () => {
   const now = (change: Partial<typeof SETTINGS>, clips = CLIPS) =>
-    exportRequest({ ...SETTINGS, ...change }, clips);
+    exportRequest({ ...SETTINGS, ...change }, clips, CHAPTERS);
 
   it("stays done while nothing changed", () => {
-    expect(currentExportState(DONE, exportRequest(SETTINGS, CLIPS)).phase).toBe(
-      "done",
-    );
+    expect(
+      currentExportState(DONE, exportRequest(SETTINGS, CLIPS, CHAPTERS)).phase,
+    ).toBe("done");
   });
 
   it("goes stale when a format, the loudness, the part or the clips change", () => {
@@ -153,6 +156,42 @@ describe("export contract", () => {
     expect(stale(now({ formats: ["wav", "mp3"] }))).toBe(false);
   });
 
+  it("goes stale when an approved clip or a chapter changes, and only then", () => {
+    const stale = (clips = CLIPS, chapters = CHAPTERS) =>
+      currentExportState(DONE, exportRequest(SETTINGS, clips, chapters))
+        .phase === "stale";
+    const edit = (id: string, change: object) =>
+      CLIPS.map((c) => (c.id === id ? { ...c, ...change } : c));
+    expect(stale(edit("k3", { end: 20 }))).toBe(true);
+    expect(stale(edit("k3", { title: "Hello" }))).toBe(true);
+    expect(stale(edit("k1", { title: "Hello", start: 1 }))).toBe(false);
+    expect(stale(CLIPS, retimeChapter(CHAPTERS, "c2", 400))).toBe(true);
+    expect(stale(CLIPS, removeChapter(CHAPTERS, "c2"))).toBe(true);
+    expect(stale(CLIPS, addChapterAt(CHAPTERS, 50, "n"))).toBe(true);
+    expect(stale(CLIPS, [...CHAPTERS])).toBe(false);
+  });
+
+  it("compares the range", () => {
+    const wrote = { ...REQUEST, range: { start: 1, end: 5 } };
+    expect(coversRequest(wrote, wrote)).toBe(true);
+    expect(
+      coversRequest(wrote, { ...wrote, range: { start: 1, end: 6 } }),
+    ).toBe(false);
+    expect(coversRequest(wrote, { ...wrote, range: null })).toBe(false);
+  });
+
+  it("accepts only a selection that can be exported", () => {
+    expect(validSelection({ start: 5, end: 5 }, 100)).toBeNull();
+    expect(validSelection({ start: 9, end: 3 }, 100)).toBeNull();
+    expect(validSelection({ start: Number.NaN, end: 3 }, 100)).toBeNull();
+    expect(validSelection({ start: 200, end: 300 }, 100)).toBeNull();
+    expect(validSelection({ start: -5, end: 300 }, 100)).toEqual({
+      start: 0,
+      end: 100,
+    });
+    expect(validSelection(null, 100)).toBeNull();
+  });
+
   it("plans the range from a selection, else the Deliver part, else the whole", () => {
     const part = { mode: "part", start: 10, end: 20 } as const;
     expect(planRange({ mode: "whole" })).toBeNull();
@@ -161,7 +200,7 @@ describe("export contract", () => {
       start: 50,
       end: 80,
     });
-    expect(REQUEST.clipIds).toEqual(["k3"]);
+    expect(REQUEST.clips.map((c) => c.id)).toEqual(["k3"]);
   });
 });
 
@@ -245,6 +284,26 @@ describe("clips", () => {
   it("trims inside the episode and keeps a second between In and Out", () => {
     expect(trimClip(CLIPS, "k1", "end", 600, 3120)[0]?.end).toBe(613);
     expect(trimClip(CLIPS, "k1", "start", 9999, 3120)[0]?.start).toBe(652);
+  });
+
+  it("never trims below zero or past the end, even for a clip under a second", () => {
+    const short = [{ ...CLIPS[0]!, start: 0.2, end: 0.6 }];
+    const out = trimClip(short, "k1", "start", -9, 100)[0]!;
+    expect(out.start).toBe(0);
+    const tail = [{ ...CLIPS[0]!, start: 99.8, end: 100 }];
+    expect(trimClip(tail, "k1", "end", 150, 100)[0]!.end).toBe(100);
+    expect(trimClip(tail, "k1", "end", 0, 100)[0]!.end).toBeLessThanOrEqual(
+      100,
+    );
+  });
+
+  it("names items without a title or with a repeated one", () => {
+    expect(itemNames(["", "A", "A", "B"], "clip")).toEqual([
+      "clip 1",
+      "A 2",
+      "A 3",
+      "B",
+    ]);
   });
 
   it("puts a removed clip back where it was", () => {

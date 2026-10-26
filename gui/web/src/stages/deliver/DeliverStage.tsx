@@ -32,6 +32,7 @@ import {
   retitleClip,
   type TimeSpan,
   trimClip,
+  validSelection,
 } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 import { ExportButton } from "./ExportButton";
@@ -87,6 +88,8 @@ const EXPORT_KEY = VERBS.find((verb) => verb.id === "export")?.keys[0];
 
 let nextChapter = 0;
 
+const IN_FLIGHT_MS = 2000;
+
 export function DeliverStage({
   facts,
   total,
@@ -134,17 +137,27 @@ export function DeliverStage({
   const blocker = loading
     ? "Still loading."
     : exportBlocker(settings, exportState);
-  const request = exportRequest(settings, clips);
-  const shownState = currentExportState(exportState, request);
+  const pick = validSelection(selection, total);
+  const request = exportRequest(settings, clips, chapters);
+  const keyRequest = exportRequest(settings, clips, chapters, pick);
+  const shownState = currentExportState(exportState, request, keyRequest);
   const action = primaryAction(shownState, env);
 
-  useEffect(() => {
+  const release = useRef<number | null>(null);
+  const clearInFlight = () => {
     inFlight.current = false;
+    if (release.current !== null) window.clearTimeout(release.current);
+    release.current = null;
+  };
+  useEffect(() => {
+    clearInFlight();
   }, [exportState]);
+  useEffect(() => clearInFlight, []);
   const startExport = (viaKey = false) => {
     if (guest || blocker || action === "exporting" || inFlight.current) return;
     inFlight.current = true;
-    onExport(viaKey ? exportRequest(settings, clips, selection) : request);
+    release.current = window.setTimeout(clearInFlight, IN_FLIGHT_MS);
+    onExport(viaKey ? keyRequest : request);
   };
   const onKey = useRef(startExport);
   useEffect(() => {

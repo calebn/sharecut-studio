@@ -13,6 +13,7 @@ import {
   NEEDS_MODEL,
   NEVER,
   OPEN_FACTS,
+  REQUEST,
   SETTINGS,
   TOTAL,
 } from "./deliverFixture";
@@ -76,7 +77,8 @@ describe("Mod+E", () => {
     expect(all.onExport).toHaveBeenCalledOnce();
     expect(all.onExport).toHaveBeenCalledWith({
       settings: SETTINGS,
-      clipIds: ["k3"],
+      clips: [{ id: "k3", start: 0, end: 33, title: "Cold open" }],
+      chapters: CHAPTERS,
       range: null,
     });
   });
@@ -88,6 +90,43 @@ describe("Mod+E", () => {
       start: 40,
       end: 90,
     });
+  });
+
+  it("falls back to the Deliver range for a selection that cannot be exported", () => {
+    for (const selection of [
+      { start: 5, end: 5 },
+      { start: 9, end: 3 },
+      { start: Number.NaN, end: 30 },
+      { start: TOTAL + 10, end: TOTAL + 20 },
+    ]) {
+      const { stage, all, unmount } = setup({ selection });
+      modE(stage());
+      expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toBeNull();
+      unmount();
+    }
+    const { stage, all } = setup({ selection: { start: -4, end: TOTAL + 50 } });
+    modE(stage());
+    expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toEqual({
+      start: 0,
+      end: TOTAL,
+    });
+  });
+
+  it("can export again when the host ignores the first request", () => {
+    vi.useFakeTimers();
+    try {
+      const { stage, all } = setup();
+      modE(stage());
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledOnce();
+      act(() => {
+        vi.advanceTimersByTime(2500);
+      });
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does nothing while exporting, with no format, or while loading", () => {
@@ -188,6 +227,13 @@ describe("Export button", () => {
   });
 });
 
+const field = (value: string, className: string) =>
+  screen
+    .getAllByDisplayValue(value)
+    .find((el) => el.classList.contains(className)) as HTMLElement;
+const clipTitle = (value: string) => field(value, "dv-clip-title");
+const chapterTitle = (value: string) => field(value, "dv-chapter-title");
+
 describe("stale after an export", () => {
   it("brings Export back when the loudness changes", async () => {
     setup({ exportState: DONE });
@@ -208,10 +254,12 @@ describe("stale after an export", () => {
   });
 
   it("goes stale when a clip is approved afterwards, without listing a file that was never written", async () => {
-    const exported = exportedState(
-      { settings: SETTINGS, clipIds: [], range: null },
-      CLIPS,
-    );
+    const exported = exportedState({
+      settings: SETTINGS,
+      clips: [],
+      chapters: CHAPTERS,
+      range: null,
+    });
     setup({ exportState: exported });
     expect(screen.queryByText("clips/cold-open.wav")).toBeNull();
     await userEvent.click(
@@ -219,6 +267,72 @@ describe("stale after an export", () => {
     );
     expect(screen.getByText("Edited since export")).toBeInTheDocument();
     expect(screen.queryByText("clips/nobody-asked-the-river.wav")).toBeNull();
+  });
+
+  it("stays done when an edit is typed back to what was exported", async () => {
+    setup({ exportState: DONE });
+    const title = clipTitle("Cold open");
+    await userEvent.type(title, "x");
+    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+    await userEvent.type(title, "{Backspace}");
+    expect(screen.queryByText("Edited since export")).toBeNull();
+  });
+
+  it("goes stale when an approved clip is trimmed", async () => {
+    setup({ exportState: DONE });
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Cold open" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "0:20{Enter}");
+    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+  });
+
+  it("ignores edits to a clip that was not approved at export", async () => {
+    setup({ exportState: DONE });
+    await userEvent.type(clipTitle("Nobody asked the river"), "!");
+    expect(screen.queryByText("Edited since export")).toBeNull();
+  });
+
+  it("goes stale when a chapter is retitled, retimed, added or removed", async () => {
+    setup({ exportState: DONE });
+    const stale = () => screen.queryByText("Edited since export") !== null;
+    await userEvent.type(chapterTitle("The old mill"), "!");
+    expect(stale()).toBe(true);
+    await userEvent.type(chapterTitle("The old mill!"), "{Backspace}");
+    expect(stale()).toBe(false);
+
+    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
+    await userEvent.clear(time);
+    await userEvent.type(time, "6:00{Enter}");
+    expect(stale()).toBe(true);
+    await userEvent.clear(time);
+    await userEvent.type(time, "5:12.4{Enter}");
+    expect(stale()).toBe(false);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add at playhead" }),
+    );
+    expect(stale()).toBe(true);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove Chapter 5" }),
+    );
+    expect(stale()).toBe(false);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove Listener mail" }),
+    );
+    expect(stale()).toBe(true);
+  });
+
+  it("covers the range a Mod+E export wrote", () => {
+    const selection = { start: 40, end: 90 };
+    const exported = exportedState({ ...REQUEST, range: selection });
+    setup({ exportState: exported, selection });
+    expect(screen.queryByText("Edited since export")).toBeNull();
   });
 
   it("lists the clips an export did include", () => {
@@ -277,6 +391,27 @@ describe("chapters", () => {
     expect(next.closest("li")?.textContent).toContain("");
     expect(next).not.toBe(document.body);
     expect(next.closest(".dv-chapter")).not.toBeNull();
+  });
+});
+
+describe("names for assistive technology", () => {
+  it("falls back for an empty title and tells duplicates apart", async () => {
+    setup({
+      initialChapters: [
+        { id: "a", at: 0, title: "" },
+        { id: "b", at: 10, title: "Same" },
+        { id: "c", at: 20, title: "Same" },
+      ],
+    });
+    expect(
+      screen.getByRole("button", { name: "Remove chapter 1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Same 2" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Same 3" }),
+    ).toBeInTheDocument();
   });
 });
 
