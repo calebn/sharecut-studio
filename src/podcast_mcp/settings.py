@@ -141,7 +141,8 @@ VARIABLES: tuple[Variable, ...] = (
         ("PODCAST_SHARE_ACCOUNTS", "Enable restricted shares with sign-in (1, true, yes, on)."),
         (
             "PODCAST_VERDICT_CACHE",
-            "Reuse the apply-time check of a cut whose neighbourhood was already checked (1, true, yes, on).",
+            "Reuse the apply-time check of a cut whose neighbourhood was already checked; 0, false, no or off disables.",
+            "1",
         ),
         (
             "PODCAST_VERDICT_VERIFY",

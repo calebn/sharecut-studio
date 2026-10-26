@@ -80,7 +80,13 @@ def _approve(project: EpisodeProject) -> list:
     return held
 
 
-def test_the_cache_is_off_unless_asked_for(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_cache_is_on_by_default_and_off_when_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(verdict_cache.ENABLE_ENV, raising=False)
+    monkeypatch.delenv(verdict_cache.VERIFY_ENV, raising=False)
+    assert verdict_cache.enabled()
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
     project = _project(tmp_path)
     assert precompute_verdicts(project, IDS, defaults=load_defaults()) == 0
     assert len(verdict_cache._STORE) == 0
@@ -90,7 +96,7 @@ def test_a_precomputed_cut_is_not_observed_again_and_decides_the_same(
     tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     plain_dir, cached_dir = tmp_path / "plain", tmp_path / "cached"
-    monkeypatch.delenv(verdict_cache.ENABLE_ENV)
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
     plain = _project(plain_dir)
     _approve(plain)
 
@@ -112,7 +118,7 @@ def test_a_cut_beside_another_is_precomputed_as_the_approval_will_see_it(
     tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cuts = ((5.0, 5.4), (6.0, 6.4))
-    monkeypatch.delenv(verdict_cache.ENABLE_ENV)
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
     plain = _project(tmp_path / "plain", cuts=cuts)
     _approve(plain)
 
