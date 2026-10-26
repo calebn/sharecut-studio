@@ -39,7 +39,7 @@ const meta: Meta<typeof SourceCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, the voice count (2 to 8, with the reason shown at each limit), Split, Remove and More. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
+          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, Remove and More. A card that sounds like several people asks "One recording of several people?" and adds the voice count (2 to 8, with the reason shown at each limit) and Split (`canSplit`, on by default only for that state). Remove, Split, Replace audio and Move carry the card name for assistive tech ("Remove Maya"). More holds Replace audio, Merge, and Move up and Move down, the keyboard way to reorder tracks. While `splitting` the card shows progress with Cancel splitting. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
       },
     },
   },
@@ -113,7 +113,7 @@ export const SplitPrompt: Story = {
 };
 
 export const StepperLimits: Story = {
-  args: { state: "ready", name: "Maya", voices: 8 },
+  args: { state: "split-prompt", name: "Maya", voices: 8 },
   render: (args) => <Live {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -121,6 +121,60 @@ export const StepperLimits: Story = {
     await expect(
       canvas.getByRole("button", { name: "More voices" }),
     ).toHaveAttribute("aria-disabled", "true");
+  },
+};
+
+export const ReadyCanSplit: Story = {
+  args: { state: "ready", name: "Maya", voices: 3, canSplit: true },
+  render: (args) => <Live {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Split Maya" }),
+    ).toBeVisible();
+  },
+};
+
+export const Splitting: Story = {
+  args: {
+    state: "splitting",
+    name: "Track 1",
+    progress: 0.4,
+    splitDetail: "1 of 3 voices",
+    onCancelSplit: fn(),
+  },
+  render: (args) => <Live {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("progressbar", { name: "Finding voices" }),
+    ).toHaveAttribute("aria-valuenow", "40");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Cancel splitting" }),
+    );
+    await expect(args.onCancelSplit).toHaveBeenCalledOnce();
+  },
+};
+
+export const MoveInMenu: Story = {
+  args: {
+    state: "ready",
+    name: "Maya",
+    onMoveUp: fn(),
+    onMoveDown: fn(),
+  },
+  render: (args) => <Live {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "More for Maya" }),
+    );
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole("menuitem", {
+        name: "Move up for Maya",
+      }),
+    );
+    await expect(args.onMoveUp).toHaveBeenCalledOnce();
   },
 };
 

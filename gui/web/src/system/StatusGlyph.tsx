@@ -1,3 +1,4 @@
+import { clampUnit } from "./progress";
 import { SystemIcon } from "./SystemIcon";
 import { STATUS_TEXT, type StatusState } from "./statusText";
 import { STATUS_GLYPHS } from "./verbs";
@@ -6,6 +7,7 @@ type Props = {
   state: StatusState;
   /** The 8 px dot that badges use for "needs you". */
   dot?: boolean;
+  /** 0 to 1; held to that range. */
   progress?: number;
   size?: number;
   /** The state's name for assistive tech. `false` when the caller names it. */
@@ -30,7 +32,11 @@ export function StatusGlyph({
   }
   return (
     <span className={`sys-glyph sys-tone-${entry.tone}`}>
-      <SystemIcon name={entry.glyph} size={size} progress={progress} />
+      <SystemIcon
+        name={entry.glyph}
+        size={size}
+        progress={progress === undefined ? undefined : clampUnit(progress)}
+      />
       {name}
     </span>
   );
