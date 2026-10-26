@@ -85,6 +85,10 @@ const phonePlay =
 
 export const Desktop: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The play needs the desktop shell and a 360 px viewport selects the phone shell.",
+  },
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement).findByRole("tab", { name: /Transcript/ }),
@@ -115,6 +119,8 @@ export const Loading: Story = {
 export const EmptyIngest: Story = {
   tags: ["wide-only"],
   parameters: {
+    wideOnlyReason:
+      "The play needs the desktop shell and a 360 px viewport selects the phone shell.",
     episode: {
       project: episode({
         tracks: [],

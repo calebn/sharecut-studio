@@ -18,8 +18,9 @@ const preview: Preview = {
     backgrounds: { disable: true },
     docs: { container: StudioDocsContainer },
     a11y: {
-      // Reuse the project's axe posture: contrast is enforced by theme
-      // tokens, not per-story spot checks.
+      // The addon panel runs the WCAG 2.0 A and AA rules, contrast included.
+      // e2e-storybook/coverage.spec.ts runs the same rules on every story in
+      // both themes, so a failing pair of theme tokens fails CI.
       options: { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] } },
     },
   },

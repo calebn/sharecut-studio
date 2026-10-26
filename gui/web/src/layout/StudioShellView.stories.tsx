@@ -265,6 +265,10 @@ type Story = StoryObj<PreviewProps>;
 
 export const Desktop: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The shell template is laid out at its desktop width, so the page overflows a 360 px viewport.",
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Play" }));
@@ -290,6 +294,10 @@ export const Desktop: Story = {
 };
 export const DesktopInspector: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The shell template is laid out at its desktop width, so the page overflows a 360 px viewport.",
+  },
   args: { initialInspector: true },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -305,6 +313,10 @@ export const DesktopInspector: Story = {
 };
 export const GuestFollowing: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The shell template is laid out at its desktop width, so the page overflows a 360 px viewport.",
+  },
   args: { guest: true, following: true },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -325,6 +337,10 @@ export const GuestFollowing: Story = {
 };
 export const Loading: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The shell template is laid out at its desktop width, so the page overflows a 360 px viewport.",
+  },
   args: { scene: "loading" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -345,6 +361,10 @@ export const Loading: Story = {
 };
 export const EmptyIngest: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The shell template is laid out at its desktop width, so the page overflows a 360 px viewport.",
+  },
   args: { scene: "ingest" },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -362,6 +382,10 @@ export const EmptyIngest: Story = {
 };
 export const TabletInspector: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The shell template is laid out at its desktop width, so the page overflows a 360 px viewport.",
+  },
   args: { tablet: true, initialInspector: true },
   play: async ({ args }) => {
     const body = within(document.body);
@@ -380,6 +404,10 @@ export const TabletInspector: Story = {
 };
 export const Tablet: Story = {
   tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The shell template is laid out at its desktop width, so the page overflows a 360 px viewport.",
+  },
   args: { tablet: true },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
