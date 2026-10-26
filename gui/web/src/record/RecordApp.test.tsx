@@ -893,6 +893,9 @@ describe("RecordApp", () => {
       expect(
         screen.getByText("This recording link is invalid or has ended."),
       ).toBeInTheDocument();
+      expect(
+        screen.getByText("Ask the host for a new link."),
+      ).toBeInTheDocument();
     });
   });
 

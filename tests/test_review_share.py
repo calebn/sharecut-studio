@@ -2641,3 +2641,65 @@ def test_guest_audio_pin_missing_is_coded_404(
         "detail": "This review's audio isn't available right now; ask the host to republish."
     }
     assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
+
+
+def _shell_client(tmp_path):
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text(
+        "<!DOCTYPE html><html><head><title>ShareCut Studio</title></head>"
+        '<body><div id="root"></div></body></html>',
+        encoding="utf-8",
+    )
+    return TestClient(create_app(static_dir=dist))
+
+
+def _assert_shell(response):
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "no-cache"
+    assert '<div id="root"></div>' in response.text
+    assert "og:audio" not in response.text
+
+
+@pytest.mark.parametrize("prefix", ["r", "rec"])
+def test_unknown_share_page_serves_the_app(prefix, tmp_path, tmp_workspace):
+    client = _shell_client(tmp_path)
+    _assert_shell(client.get(f"/{prefix}/definitely-missing"))
+    _assert_shell(client.get(f"/{prefix}/%3Cscript%3Ealert(1)%3C"))
+
+
+def test_revoked_share_page_matches_the_unknown_one(
+    minimal_project, sample_wav, tmp_path, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Revoked")
+    service = ShareService(ws)
+    token = service.create(review_version_id=version["id"], capabilities=["view", "play"])["token"]
+    client = _shell_client(tmp_path)
+    service.revoke(token)
+    revoked = client.get(f"/r/{token}")
+    _assert_shell(revoked)
+    assert revoked.text == client.get("/r/definitely-missing").text
+    assert client.get(f"/api/review/{token}/project").status_code == 404
+
+
+def test_revoked_record_room_page_serves_the_app(
+    minimal_project, sample_wav, tmp_path, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    service = ShareService(ws)
+    token = service.create_record_room()["guest"]["token"]
+    client = _shell_client(tmp_path)
+    service.revoke(token)
+    _assert_shell(client.get(f"/rec/{token}"))
+    assert client.get(f"/api/rec/{token}/bootstrap").status_code in (404, 403)
+
+
+def test_review_token_on_the_record_page_serves_the_app(
+    minimal_project, sample_wav, tmp_path, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Kind")
+    token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])["token"]
+    _assert_shell(_shell_client(tmp_path).get(f"/rec/{token}"))

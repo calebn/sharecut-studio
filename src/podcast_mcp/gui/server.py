@@ -423,17 +423,16 @@ def create_app(
                 return _serve_share_spa(token, request, kind="record")
 
             def _serve_share_spa(token: str, request: Request, *, kind: str) -> Any:
-                from podcast_mcp.gui.routes.deps import coded_http_error
                 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
                 from podcast_mcp.services.collaboration import lookup_share
 
+                index_path = static_root / "index.html"
                 try:
                     lookup_share(token, kind=kind)
-                except KeyError as exc:
-                    raise coded_http_error(404, "not found", code="share_not_found") from exc
+                except KeyError:
+                    return FileResponse(index_path, headers={"Cache-Control": "no-cache"})
                 except Exception as exc:
                     raise guest_http_error(exc, logger=log, operation="share page") from exc
-                index_path = static_root / "index.html"
                 with guest_boundary(log, "share page"):
                     index_html = index_path.read_text(encoding="utf-8")
                 for hook in registry.spa_hooks:

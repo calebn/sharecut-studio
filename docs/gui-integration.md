@@ -130,6 +130,7 @@ The viewer, its launch, routes, decisions, timeline layers and frontend internal
 
 - `GET /favicon.svg` is served from the built `gui/web/dist` root (not only `/assets`).
 - Hashed files under `/assets/*` use `Cache-Control: public, max-age=31536000, immutable`; HTML (`/`, `/r/{token}`, `/rec/{token}`) stays `no-cache`.
+- `GET /r/{token}` and `GET /rec/{token}` for an unknown, revoked, ended or wrong-kind token still return 200 with the plain app shell (no share hooks, same body for every dead token). The guest app then shows its invalid-link cover ("Ask the host for a new link."); the `/api/review/{token}/*` and `/api/rec/{token}/*` endpoints keep their coded 4xx JSON.
 - JSON responses (project, waveform status, …) are gzip-compressed when the client accepts encoding (`GZipMiddleware`). Document `/api/host/ws` (and guest dual-plane WS) negotiate permessage-deflate.
 - Guest ShareCut Studio (`share:{token}`) does **not** poll `/api/pipeline/*` — pipeline status is host-only.
 - Guest `daw/project` keeps a zeroed `edit_impact` stub (StatusBar-safe), empties
