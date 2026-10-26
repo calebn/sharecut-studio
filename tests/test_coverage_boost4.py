@@ -161,8 +161,8 @@ def test_gui_server_static_and_review_spa(tmp_path):
     app = create_app(static_dir=dist)
     client = TestClient(app)
     assert client.get("/").status_code == 200
-    assert client.get("/r/some-token").status_code == 404
-    assert client.get("/rec/some-token").status_code == 404
+    assert client.get("/r/some-token").status_code == 200
+    assert client.get("/rec/some-token").status_code == 200
     assert client.get("/assets/x.js").status_code == 200
 
 

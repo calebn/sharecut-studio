@@ -500,6 +500,29 @@ export async function loadOfflineSnapshot(
   return idbGet<OfflineSnapshot>(snapKey(token));
 }
 
+export async function clearOfflineSnapshot(token: string): Promise<void> {
+  if (typeof indexedDB === "undefined") {
+    return;
+  }
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(snapKey(token));
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
 /** Merge patch into the existing offline snapshot (keeps prior project/manifest). */
 export async function mergeOfflineSnapshot(
   token: string,

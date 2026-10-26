@@ -443,7 +443,7 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 | **Host offline** | Recorded guest | “Host offline: still recording locally.” The full-quality recording stays open. **Shipped with full-quality recording.** |
 | **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the guest's full-quality recording. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
 
-Prefix `/rec/` 404s a review token.
+Prefix `/rec/` with a review token (or `/r/` with a record token) opens the invalid-link cover: “This link is invalid or has ended. Ask the host for a new link.”
 
 ---
 
