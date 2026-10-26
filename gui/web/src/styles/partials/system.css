@@ -2073,3 +2073,254 @@
 .sys-setup .sys-status {
   flex: 1;
 }
+
+/* Person */
+
+.sys-person-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 50%;
+  background: var(--sys-person-color, var(--color-presence-0));
+  color: var(--color-bg-canvas);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.sys-person-avatar--20 {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  font-size: var(--font-size-micro);
+}
+
+.sys-person-avatar--24 {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  font-size: var(--font-size-caption);
+}
+
+.sys-person-avatar--28 {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  font-size: var(--font-size-caption);
+}
+
+.sys-person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+}
+
+.sys-person-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: 7rem;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-person-name {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.sys-person-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+}
+
+.sys-person-state--warning {
+  color: var(--color-warning-on-surface);
+}
+
+.sys-person-state--danger {
+  color: var(--color-danger);
+}
+
+.sys-person-state--success {
+  color: var(--color-success-strong);
+}
+
+.sys-person-tile--empty {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-ui);
+  cursor: pointer;
+}
+
+/* Person picker */
+
+.sys-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  container: sys-picker / inline-size;
+}
+
+.sys-picker-label {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+}
+
+.sys-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sys-picker-option {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  min-block-size: 2.25rem;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+  cursor: pointer;
+}
+
+.sys-picker-option:has(input:checked) {
+  background: var(--color-accent-subtle);
+}
+
+.sys-picker-option:has(input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sys-picker-option input {
+  flex: none;
+  accent-color: var(--color-accent-solid);
+}
+
+.sys-picker-option input:focus-visible {
+  outline: none;
+}
+
+.sys-picker-text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.sys-picker-name {
+  overflow-wrap: anywhere;
+}
+
+.sys-picker-detail {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-picker-fix {
+  flex: none;
+}
+
+@container sys-picker (max-width: 40rem) {
+  .sys-picker-option,
+  .sys-picker-fix {
+    min-block-size: var(--touch-min);
+  }
+}
+
+@media (pointer: coarse) {
+  .sys-picker-option,
+  .sys-picker-fix {
+    min-block-size: var(--touch-min);
+  }
+}
+
+/* Session target chip */
+
+.sys-target-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-target-chip--locked {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-sunken);
+}
+
+.sys-target-trigger {
+  block-size: auto;
+  min-block-size: var(--control-height-compact);
+  text-align: start;
+  white-space: normal;
+}
+
+.sys-target-check {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  inline-size: 1rem;
+}
+
+/* Stage hand-off */
+
+.sys-handoff-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.sys-handoff {
+  gap: var(--space-3);
+  min-block-size: 2.25rem;
+}
+
+.sys-handoff--40 {
+  min-block-size: 2.5rem;
+}
+
+.sys-handoff--48 {
+  min-block-size: 3rem;
+}
+
+.sys-handoff-label {
+  text-align: start;
+}
+
+.sys-handoff-reason {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-handoff-wrap--48 {
+  display: flex;
+}
+
+.sys-handoff-wrap--48 .sys-handoff {
+  flex: 1 1 100%;
+  justify-content: center;
+}
