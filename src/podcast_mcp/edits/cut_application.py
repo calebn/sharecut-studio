@@ -601,19 +601,28 @@ def precompute_verdicts(
         and e.exact_range is None
         and e.timebase == "source"
     ]
-    batch = tuple(_source_extents(removes).values())
+    batch = _source_extents(removes)
+    working = _cut_copy(project)
+    measured: cut_safety.MeasuredSources = {}
     # Its own scope, never the caller's: what a check parks there (a consumed room-tone bed,
     # pad origins) belongs to one batch and must not leak from a trial into the real one.
     with unscoped(), batch_scope():
-        for edit in removes:
-            _apply_source_remove(
-                project,
+        # In approval order, each cut on the project as the earlier ones left it, so the
+        # neighbourhood a check sees (and so its key) is the one the approval will see.
+        for edit in sorted(removes, key=lambda e: e.start, reverse=True):
+            applied = _apply_source_remove(
+                working,
                 edit,
                 defaults=defaults,
                 application_intent=application_intent,
-                batch=batch,
-                measured={},
+                batch=tuple(batch.values()),
+                measured=measured,
             )
+            if isinstance(applied, (CutSpeechConfirmation, CutScopeHold)):
+                batch.pop(edit.id)  # held: the approval drops it from the batch too
+                continue
+            working = applied[0]
+            measured.clear()
     return len(removes)
 
 

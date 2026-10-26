@@ -106,14 +106,23 @@ def test_a_precomputed_cut_is_not_observed_again_and_decides_the_same(
     assert [e.id for e in project.edit_decisions] == [e.id for e in plain.edit_decisions]
 
 
-def test_a_cut_applied_near_another_is_checked_again(
+def test_a_cut_beside_another_is_precomputed_as_the_approval_will_see_it(
     tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project = _project(tmp_path, cuts=((5.0, 5.4), (6.0, 6.4)))
+    cuts = ((5.0, 5.4), (6.0, 6.4))
+    monkeypatch.delenv(verdict_cache.ENABLE_ENV)
+    plain = _project(tmp_path / "plain", cuts=cuts)
+    _approve(plain)
+
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    project = _project(tmp_path / "cached", cuts=cuts)
     precompute_verdicts(project, IDS, defaults=load_defaults())
     seen = _spy_observations(monkeypatch)
     _approve(project)
-    assert seen == ["near"]
+    assert seen == []
+    assert [(c.source_start, c.source_end, c.timeline_start) for c in project.clips] == [
+        (c.source_start, c.source_end, c.timeline_start) for c in plain.clips
+    ]
 
 
 def test_every_input_of_the_check_changes_the_key(
