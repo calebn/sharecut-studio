@@ -481,11 +481,6 @@
   flex: none;
 }
 
-.sys-menu .ui-menu-item-label {
-  flex: 1;
-  min-inline-size: 0;
-}
-
 @media (pointer: coarse) {
   .sys-menu [role="menuitem"] {
     min-block-size: var(--touch-min);
