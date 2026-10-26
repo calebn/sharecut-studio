@@ -94,7 +94,7 @@ def create_record_room_tool(
     public_base_url: str = "http://127.0.0.1:8765",
     expires_at: str | None = None,
 ) -> str:
-    """Mint a recording room: guest + producer /rec/ links (design: docs/recording-session.md)."""
+    """Mint a recording room: guest + producer /rec/ links; revokes earlier rooms' links (docs/recording-session.md)."""
     from podcast_mcp.services.collaboration import ShareService
 
     ws = ProjectWorkspace.open(project_path)

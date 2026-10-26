@@ -13,7 +13,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share import ShareService, lookup_share
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.services.record.landing_math import ALIGN_DRIFT_MS
@@ -214,6 +214,27 @@ def test_remint_refused_while_recording_or_paused_allowed_when_idle(
     assert idle["session_id"] != room["session_id"]
     fresh = RecordSessionService(ws.project, session_id=idle["session_id"])
     assert fresh.snapshot()["state"] == "lobby"
+    for role in ("guest", "producer"):
+        with pytest.raises(KeyError):
+            lookup_share(room[role]["token"], kind="record")
+        assert lookup_share(idle[role]["token"], kind="record")["session_id"] == idle["session_id"]
+    assert RecordSessionService.active_session_id(ws.project) == idle["session_id"]
+
+
+def test_host_reconnect_after_remint_uses_new_room_link(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    old = ShareService(ws).create_record_room()
+    new = ShareService(ws).create_record_room()
+    client = TestClient(create_app())
+    dead = client.get(f"/api/rec/{old['producer']['token']}/bootstrap")
+    assert dead.status_code == 404
+    assert dead.headers["x-sharecut-error-code"] == "share_not_found"
+    live = client.get(f"/api/rec/{new['producer']['token']}/bootstrap")
+    assert live.status_code == 200
+    assert live.json()["session_id"] == new["session_id"]
 
 
 def test_land_after_host_reconnect_pause_clips_abut(

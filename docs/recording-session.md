@@ -116,7 +116,20 @@ One **room** has a `session_id` and **two tokens** (guest and producer), both
 from `RECORD_ROLE_PRESETS` (never client-chosen). Opening the guest link is how
 a producer becomes recorded next take. Prefix ↔ kind is enforced: `/r/` with a
 `record` row and `/rec/` with a `review` row serve the app shell, whose guest
-cover says the link is invalid and to ask the host for a new link (the API stays 404).
+cover says the link is invalid and to ask the host for a new link (the API stays 404;
+the cover shipped in PR 2322).
+
+Minting a new room **ends the previous one**: after the new room and its
+`begin_record_session` succeed, every guest and producer token of earlier rooms
+is revoked, so an old link can never admit anyone into today's room and shows
+the same dead-link cover. Revoking on mint does not purge land rollbacks or the
+land lock, so undo for takes already landed survives. If revoking an old token
+fails, the new room stays usable and the mint call raises so the host sees that
+a stale link is still live. Re-invite (`--session-id`) only mints into the
+active room. **Land before minting**: landing reads only the active room, so a
+stopped, not-yet-landed take in the old room is orphaned once a new room is
+minted and its guests lose upload resume on the old link. The mint guard blocks
+only `recording` / `paused`.
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 (live notes — **same create path as review comments**, kind-scoped ACL: guests

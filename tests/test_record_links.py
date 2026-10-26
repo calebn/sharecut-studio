@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
@@ -658,6 +660,164 @@ def test_create_record_token_requires_existing_room(
     extra = svc.create_record_token(role="guest", session_id=room["session_id"])
     assert extra["session_id"] == room["session_id"]
     assert extra["role"] == "guest"
+
+
+def _old_tokens_dead(ws, client, room) -> None:
+    for role in ("guest", "producer"):
+        token = room[role]["token"]
+        with pytest.raises(KeyError):
+            lookup_share(token, kind="record")
+        dead = client.get(f"/api/rec/{token}/bootstrap")
+        assert dead.status_code == 404
+        assert dead.headers["x-sharecut-error-code"] == "share_not_found"
+        with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
+            sock.send_json(
+                {
+                    "type": "Record",
+                    "command_type": "Join",
+                    "payload": {"display_name": "Old link"},
+                    "client_seq": 1,
+                }
+            )
+            with pytest.raises(WebSocketDisconnect):
+                for _ in range(10):
+                    assert sock.receive_json().get("type") != "Echo"
+
+
+def test_create_record_room_revokes_previous_room_tokens(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    new = svc.create_record_room()
+    assert new["session_id"] != old["session_id"]
+    client = TestClient(create_app(static_dir=_dist(tmp_path)))
+    _old_tokens_dead(ws, client, old)
+    for role in ("guest", "producer"):
+        assert lookup_share(new[role]["token"], kind="record")["session_id"] == new["session_id"]
+    assert RecordSessionService.active_session_id(ws.project) == new["session_id"]
+    rows = {row["id"]: row for row in list_shares(ws.project)}
+    for role in ("guest", "producer"):
+        assert rows[old[role]["id"]]["revoked"]
+        assert not rows[new[role]["id"]]["revoked"]
+
+
+def test_create_record_room_keeps_landed_take_rollbacks(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    svc.create_record_room()
+    with (
+        patch("podcast_mcp.services.record.purge_session_land_rollbacks") as purge,
+        patch("podcast_mcp.services.record.release_session_land_lock") as release,
+    ):
+        svc.create_record_room()
+    purge.assert_not_called()
+    release.assert_not_called()
+
+
+def test_create_record_room_revoke_failure_keeps_new_room_usable(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    bad = old["guest"]["token"]
+    real = ShareService.revoke
+
+    def flaky(self, token):
+        if token == bad:
+            raise RuntimeError("boom")
+        return real(self, token)
+
+    monkeypatch.setattr(ShareService, "revoke", flaky)
+    with pytest.raises(RuntimeError, match="could not be revoked"):
+        svc.create_record_room()
+    monkeypatch.setattr(ShareService, "revoke", real)
+    newest = RecordSessionService.active_session_id(ws.project)
+    assert newest != old["session_id"]
+    assert lookup_share(bad, kind="record")["session_id"] == old["session_id"]
+    with pytest.raises(KeyError):
+        lookup_share(old["producer"]["token"], kind="record")
+    new_tokens = [
+        row["token"]
+        for row in list_room_shares(ws.project, newest)
+        if row.get("kind") == "record" and share_is_usable(row)
+    ]
+    assert len(new_tokens) == 2
+    for token in new_tokens:
+        assert lookup_share(token, kind="record")["session_id"] == newest
+
+
+def test_failed_mint_keeps_previous_room_links(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    monkeypatch.setattr(
+        "podcast_mcp.services.record.begin_record_session",
+        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("nope")),
+    )
+    with pytest.raises(RuntimeError, match="nope"):
+        svc.create_record_room()
+    assert lookup_share(old["guest"]["token"], kind="record")["session_id"] == old["session_id"]
+    assert RecordSessionService.active_session_id(ws.project) == old["session_id"]
+
+
+def test_revoke_room_keeps_contract_after_split(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    with pytest.raises(KeyError, match="record room not found"):
+        svc.revoke_room("missing")
+    old = svc.create_record_room()
+    svc.create_record_room()
+    with pytest.raises(KeyError, match="record room not found"):
+        svc.revoke_room(old["session_id"])
+
+
+def test_reinvite_into_superseded_room_is_refused(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    new = svc.create_record_room()
+    with pytest.raises(KeyError, match="record room not found"):
+        svc.create_record_token(role="guest", session_id=old["session_id"])
+    ok = svc.create_record_token(role="guest", session_id=new["session_id"])
+    assert ok["session_id"] == new["session_id"]
+    with pytest.raises(KeyError, match="no longer usable"):
+        svc.replace_closed_record_invite(old["guest"]["token"])
+
+
+def test_cli_share_session_id_of_superseded_room_is_refused(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = ShareService(ws)
+    old = svc.create_record_room()
+    svc.create_record_room()
+    result = CliRunner().invoke(
+        cli_app,
+        [
+            "review",
+            "share",
+            "--project",
+            str(ws.path),
+            "--kind",
+            "record",
+            "--role",
+            "guest",
+            "--session-id",
+            old["session_id"],
+        ],
+    )
+    assert result.exit_code != 0
 
 
 def test_drop_share_releases_claim_without_cooldown(

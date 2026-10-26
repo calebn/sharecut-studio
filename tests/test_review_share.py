@@ -2708,6 +2708,23 @@ def test_revoked_record_room_page_serves_the_app(
     assert dead_api.headers["x-sharecut-error-code"] == "share_not_found"
 
 
+def test_superseded_record_room_page_serves_the_app(
+    minimal_project, sample_wav, tmp_path, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    service = ShareService(ws)
+    old = service.create_record_room()
+    new = service.create_record_room()
+    client = _shell_client(tmp_path)
+    for role in ("guest", "producer"):
+        token = old[role]["token"]
+        _assert_shell(client.get(f"/rec/{token}"), token)
+        dead_api = client.get(f"/api/rec/{token}/bootstrap")
+        assert dead_api.status_code == 404
+        assert dead_api.headers["x-sharecut-error-code"] == "share_not_found"
+    assert client.get(f"/api/rec/{new['guest']['token']}/bootstrap").status_code == 200
+
+
 def test_review_token_on_the_record_page_serves_the_app(
     minimal_project, sample_wav, tmp_path, tmp_workspace
 ):

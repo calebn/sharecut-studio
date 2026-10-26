@@ -592,6 +592,7 @@ The **Precise word boundaries** checkbox (`transcribe.forced_alignment.enabled`)
 | `GET /api/shares?path=` | Host share list with review versions and record invite closure (`invite_closed`, null for review links). Collaboration extension. |
 | `POST /api/shares` | Body `{ path, role?, with_mcp?, review_version_id?, freeze? }` (`freeze` pins the link to the version it starts on) — mint a link share (`ShareService.create_for_host`; publishes a review mix if none exists) |
 | `POST /api/shares/{token}/revoke` | Body `{ path }` — revoke + cooldown (`ShareService.revoke`) |
+| `POST /api/shares/record` | Body `{ path }`; mint a record room (guest + producer links) and revoke the previous room's links (`ShareService.create_record_room`); 409 while a take is open. |
 | `POST /api/shares/record/{source_token}/replace` | Host-only body `{ path }`; replace a closed, usable record invite in its original room with the same role and expiry (`ShareService.replace_closed_record_invite`). Existing participant leases remain valid. |
 | `GET /api/pipeline/events?job_id=` | SSE stream of progress + per-step timings |
 
