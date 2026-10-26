@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { SessionTargetChip, type SessionTarget } from "./SessionTargetChip";
+import { type SessionTarget, SessionTargetChip } from "./SessionTargetChip";
 import { StageHandoff, type StageHandoffProps } from "./StageHandoff";
 import { StatusGlyph } from "./StatusGlyph";
 

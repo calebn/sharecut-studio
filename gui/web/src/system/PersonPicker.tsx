@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Button } from "../ui";
-import { type PersonData, PersonAvatar } from "./Person";
+import { PersonAvatar, type PersonData } from "./Person";
 import { SystemIcon } from "./SystemIcon";
 
 export type PickerPerson = PersonData & {
