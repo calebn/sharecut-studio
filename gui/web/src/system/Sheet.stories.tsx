@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   isolatedStoryParameters,
   viewportStoryParameters,
@@ -38,7 +38,7 @@ function Rows({ onMore }: { onMore?: () => void }) {
     <>
       <div className="sys-sheet-row">
         <span>Gain {gain > 0 ? `+${gain}` : gain} dB</span>
-        <span>
+        <span style={{ display: "flex", gap: "var(--space-3)" }}>
           <Button onClick={() => setGain((g) => g - 1)}>Lower gain</Button>
           <Button onClick={() => setGain((g) => g + 1)}>Raise gain</Button>
         </span>
@@ -134,6 +134,71 @@ export const PushedStep: Story = {
     ).toBeVisible();
   },
 };
+
+function PushedOverlay({
+  form,
+  ...args
+}: React.ComponentProps<typeof Sheet> & { form: "centered" | "bottom" }) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState(false);
+  const close = () => setOpen(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Open sheet</Button>
+      <Sheet
+        {...args}
+        form={form}
+        title="Clip"
+        open={open}
+        onClose={close}
+        step={
+          step
+            ? {
+                title: "Noise reduction",
+                onBack: () => setStep(false),
+                children: <Rows />,
+              }
+            : null
+        }
+      >
+        <Rows onMore={() => setStep(true)} />
+      </Sheet>
+    </>
+  );
+}
+
+function pushedOverlayStory(form: "centered" | "bottom"): Story {
+  return {
+    parameters: isolatedStoryParameters,
+    render: (args) => <PushedOverlay {...args} form={form} />,
+    play: async ({ canvasElement, viewMode }) => {
+      if (viewMode === "docs") return;
+      const dialog = await openDialogByLauncher(canvasElement, {
+        launcherName: "Open sheet",
+        dialogName: "Clip",
+      });
+      const inside = within(dialog);
+      await userEvent.click(
+        inside.getByRole("button", { name: "Noise reduction" }),
+      );
+      // The body is replaced, so focus goes to the step's first control: Back.
+      await waitFor(() =>
+        expect(inside.getByRole("button", { name: "Back" })).toHaveFocus(),
+      );
+      await userEvent.click(inside.getByRole("button", { name: "Back" }));
+      await waitFor(() =>
+        expect(
+          inside.getByRole("button", { name: "Lower gain" }),
+        ).toHaveFocus(),
+      );
+    },
+  };
+}
+
+/** The Dialog form: Back sits at the top of the body and takes focus on push. */
+export const CenteredPushedStep: Story = pushedOverlayStory("centered");
+/** The BottomSheet form: same body, same focus handoff. */
+export const PhonePushedStep: Story = pushedOverlayStory("bottom");
 
 export const CenteredCard: Story = {
   parameters: isolatedStoryParameters,

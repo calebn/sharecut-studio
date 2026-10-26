@@ -103,9 +103,24 @@ export function Sheet({
       headingRef.current?.focus({ preventScroll: true });
       return;
     }
-    rowsRef.current
-      ?.querySelector<HTMLElement>(FOCUSABLE)
-      ?.focus({ preventScroll: true });
+    const focusFirst = () =>
+      rowsRef.current
+        ?.querySelector<HTMLElement>(FOCUSABLE)
+        ?.focus({ preventScroll: true });
+    focusFirst();
+    // The new title restarts the overlay hook, which moves focus to Close on
+    // the next frame. Take it back after that, unless the user moved it.
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (
+        !active ||
+        active === document.body ||
+        active.closest(".dialog-close, .bottom-sheet-header")
+      ) {
+        focusFirst();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [pushed, backInBody]);
   const body = (
     <Body step={step} backInBody={backInBody} rowsRef={rowsRef}>

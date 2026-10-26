@@ -46,7 +46,7 @@ const meta: Meta<typeof Player> = {
   },
   decorators: [
     (Story) => (
-      <div style={{ paddingBlockStart: "1rem" }}>
+      <div style={{ paddingBlockStart: "var(--space-5)" }}>
         <Story />
       </div>
     ),
@@ -165,10 +165,13 @@ export const Expanded: Story = {
       canvas.getByRole("button", { name: "Collapse player" }),
     );
     await expect(canvas.queryByRole("list", { name: "Chapters" })).toBeNull();
-    await userEvent.click(
-      canvas.getByRole("button", { name: /Expand player/ }),
-    );
+    const expand = canvas.getByRole("button", { name: /Expand player/ });
+    await expect(expand).toHaveFocus();
+    await userEvent.click(expand);
     await expect(canvas.getByRole("list", { name: "Chapters" })).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Collapse player" }),
+    ).toHaveFocus();
   },
 };
 
