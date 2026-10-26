@@ -33,6 +33,8 @@ from podcast_mcp.models import (
     ClipJoinMode,
     CombinedTranscript,
     CombinedUtterance,
+    EditDecision,
+    EditDecisionType,
     EditMode,
     EpisodeProject,
     MediaAsset,
@@ -1156,3 +1158,36 @@ def test_track_fade_max_ms_dialogue_only() -> None:
     assert track_fade_max_ms(host, cfg) == 25
     assert track_fade_max_ms(bed, cfg) is None
     assert track_fade_max_ms(None, cfg) is None
+
+
+def test_insert_gap_shifts_pending_timeline_decisions_only() -> None:
+    p = _two_track_project()
+    base = {"track_id": "host", "timebase": "timeline", "applied": False}
+    p.editorial.edit_decisions = [
+        EditDecision(id="before", type=EditDecisionType.MUTE, start=1.0, end=2.0, **base),
+        EditDecision(id="after", type=EditDecisionType.MUTE, start=4.0, end=5.0, **base),
+        EditDecision(id="across", type=EditDecisionType.MUTE, start=2.0, end=4.0, **base),
+        EditDecision(id="split", type=EditDecisionType.SPLIT, start=6.0, end=6.0, **base),
+        EditDecision(
+            id="source", track_id="host", type=EditDecisionType.REMOVE, start=4.0, end=5.0
+        ),
+        EditDecision(
+            id="done",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=4.0,
+            end=5.0,
+            timebase="timeline",
+            applied=True,
+        ),
+    ]
+    insert_gap(p, 3.0, 1.0, defaults=load_defaults())
+    spans = {e.id: (e.start, e.end) for e in p.editorial.edit_decisions}
+    assert spans == {
+        "before": (1.0, 2.0),
+        "after": (5.0, 6.0),
+        "across": (2.0, 5.0),
+        "split": (7.0, 7.0),
+        "source": (4.0, 5.0),
+        "done": (4.0, 5.0),
+    }

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from podcast_mcp.models import ChapterMarker, EpisodeProject, TimelineComment
+from podcast_mcp.models import ChapterMarker, EditDecision, EpisodeProject, TimelineComment
 from podcast_mcp.models.episode import RangeInterval
 
 _EPS = 1e-9
@@ -135,8 +135,13 @@ def shift_review_anchors_for_insert(
 ) -> None:
     """Move comments (with their spans) and chapters for a gap opened at ``at_time`` (mutates project).
 
-    An interval starting at or after the point moves; one the point falls inside grows.
+    An interval starting at or after the point moves; one the point falls inside grows. Pending
+    timeline-timebase edit decisions without an exact range move the same way; source-timebase
+    ones follow their clips, exact ranges are re-checked at approval, and applied records stay.
     """
+    project.editorial.edit_decisions = [
+        _shifted_decision(edit, at_time, duration_sec) for edit in project.editorial.edit_decisions
+    ]
     project.review.comments = [
         c.model_copy(
             update={
@@ -161,3 +166,16 @@ def shift_review_anchors_for_insert(
         ch.model_copy(update={"time": _start_after_insert(ch.time, at_time, duration_sec)})
         for ch in project.editorial.chapters
     ]
+
+
+def _shifted_decision(edit: EditDecision, at_time: float, duration_sec: float) -> EditDecision:
+    if edit.applied or edit.timebase != "timeline" or edit.exact_range is not None:
+        return edit
+    return edit.model_copy(
+        update={
+            "start": _start_after_insert(edit.start, at_time, duration_sec),
+            "end": _end_after_insert(edit.start, edit.end, at_time, duration_sec)
+            if edit.end > edit.start
+            else _start_after_insert(edit.end, at_time, duration_sec),
+        }
+    )
