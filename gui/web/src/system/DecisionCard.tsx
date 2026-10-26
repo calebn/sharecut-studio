@@ -220,7 +220,7 @@ export function DecisionCard(props: DecisionCardProps) {
   const change: TimeRange | null = waveform
     ? { start: waveform.start, end: waveform.end }
     : null;
-  const drag = swipe.drag;
+  const drag = swipe.drag?.intent === "verb" && holdVerb ? null : swipe.drag;
   const revealIcon =
     drag?.intent === "verb"
       ? iconOf(meta.verb)

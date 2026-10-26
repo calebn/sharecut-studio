@@ -126,10 +126,11 @@ export function ActionBarInline({
     body = (
       <>
         {openInEdit}
-        <span className="sys-actions-spacer" />
-        {later}
-        {keep}
-        {primary}
+        <span className="sys-actions-decide">
+          {later}
+          {keep}
+          {primary}
+        </span>
       </>
     );
   }

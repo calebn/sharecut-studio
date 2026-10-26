@@ -49,6 +49,42 @@
   stroke-width: 1.5;
 }
 
+.sys-sugg--focus {
+  display: flex;
+  min-inline-size: 0;
+}
+
+.sys-sugg-lead {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: end;
+}
+
+.sys-sugg-lead-text {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.sys-sugg-change {
+  flex: 0 0 auto;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-sugg-trail {
+  flex: 0 3 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Suggestion waveform */
 
 .sys-wave {
@@ -261,8 +297,11 @@
   border-block-start: 1px solid var(--color-border);
 }
 
-.sys-actions-spacer {
-  flex: 1;
+.sys-actions-decide {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline-start: auto;
 }
 
 .sys-actions--dock {
@@ -289,7 +328,26 @@
 }
 
 .sys-actions--dock .ui-control {
-  min-block-size: var(--touch-min);
+  min-block-size: var(--target-dock-button);
+}
+
+.sys-actions--dock .ui-segmented {
+  block-size: var(--target-dock-button);
+}
+
+.sys-actions--dock .sys-ab-note {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  :is(.sys-actions--inline, .sys-prompt, .sys-decision-unsure) .ui-control,
+  .sys-ab .ui-segmented > .ui-control {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-ab .ui-segmented {
+    block-size: var(--touch-min);
+  }
 }
 
 .sys-prompt {

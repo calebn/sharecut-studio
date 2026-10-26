@@ -19,6 +19,25 @@ const base = (): DecisionCardProps => ({
   onOpenInEdit: vi.fn(),
 });
 
+const swipe = (el: Element, dx: number, dy: number) => {
+  fireEvent.pointerDown(el, {
+    clientX: 100,
+    clientY: 100,
+    isPrimary: true,
+    pointerId: 1,
+  });
+  fireEvent.pointerMove(el, {
+    clientX: 100 + dx,
+    clientY: 100 + dy,
+    pointerId: 1,
+  });
+  fireEvent.pointerUp(el, {
+    clientX: 100 + dx,
+    clientY: 100 + dy,
+    pointerId: 1,
+  });
+};
+
 describe("DecisionCard", () => {
   it("puts Keep before the verb, and the verb last", () => {
     render(<DecisionCard {...base()} />);
@@ -225,6 +244,57 @@ describe("DecisionCard", () => {
     fireEvent.pointerMove(body, { clientX: 220, clientY: 100, pointerId: 1 });
     fireEvent.pointerUp(body, { clientX: 220, clientY: 100, pointerId: 1 });
     expect(props.onVerb).not.toHaveBeenCalled();
+  });
+
+  it("still keeps and moves on by swipe while the cut is held", () => {
+    const props = base();
+    const { container } = render(
+      <DecisionCard
+        {...props}
+        layout="phone"
+        unsure={{ word: "uncle", guess: "uncle", onFix: vi.fn() }}
+      />,
+    );
+    const body = container.querySelector(".sys-decision-body") as Element;
+    swipe(body, 120, 0);
+    expect(props.onVerb).not.toHaveBeenCalled();
+    swipe(body, -120, 0);
+    expect(props.onKeep).toHaveBeenCalledOnce();
+    swipe(body, 0, -120);
+    expect(props.onLater).toHaveBeenCalledOnce();
+  });
+
+  it("shows no verb reveal while the cut is held", () => {
+    const { container } = render(
+      <DecisionCard
+        {...base()}
+        layout="phone"
+        unsure={{ word: "uncle", guess: "uncle", onFix: vi.fn() }}
+      />,
+    );
+    const body = container.querySelector(".sys-decision-body") as Element;
+    fireEvent.pointerDown(body, {
+      clientX: 100,
+      clientY: 100,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(body, { clientX: 220, clientY: 100, pointerId: 1 });
+    expect(container.querySelector(".sys-decision-reveal")).toBeNull();
+  });
+
+  it("does not swipe for a guest on phone", () => {
+    const props = base();
+    const { container } = render(
+      <DecisionCard {...props} layout="phone" readOnly />,
+    );
+    const body = container.querySelector(".sys-decision-body") as Element;
+    swipe(body, 120, 0);
+    swipe(body, -120, 0);
+    swipe(body, 0, -120);
+    expect(props.onVerb).not.toHaveBeenCalled();
+    expect(props.onKeep).not.toHaveBeenCalled();
+    expect(props.onLater).not.toHaveBeenCalled();
   });
 
   it("does not let a tap on the waveform flip A/B", () => {

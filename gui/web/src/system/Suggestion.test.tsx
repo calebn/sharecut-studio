@@ -31,4 +31,26 @@ describe("Suggestion", () => {
     expect(screen.getByText("2.9 s")).toBeInTheDocument();
     expect(screen.getByText("0.6 s")).toBeInTheDocument();
   });
+
+  it("in focus mode keeps the change in its own span between the context", () => {
+    const { container } = render(
+      <Suggestion
+        focus
+        segments={[
+          { text: "so the mill is " },
+          { text: "um", struck: true },
+          { text: " nobody asked" },
+        ]}
+      />,
+    );
+    expect(container.querySelector(".sys-sugg-change")).toHaveTextContent(
+      "Removed: um",
+    );
+    expect(container.querySelector(".sys-sugg-lead")).toHaveTextContent(
+      "so the mill is",
+    );
+    expect(container.querySelector(".sys-sugg-trail")).toHaveTextContent(
+      "nobody asked",
+    );
+  });
 });
