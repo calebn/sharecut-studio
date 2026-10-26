@@ -15,7 +15,6 @@ from podcast_mcp.engines.audio_audit import (
     compute_word_audibility_map,
     detect_mains_hum,
     list_low_audibility_words,
-    measure_astats,
     recommend_boundary_fades,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -179,7 +178,7 @@ def audio_diagnostics_report(
         if pngs:
             eng.render_spectrogram(analysis_path, spectrogram_png, legend=window is None)
             eng.render_showwavespic(analysis_path, waveform_png)
-        astats = measure_astats(analysis_path)
+        astats = FFmpegEngine.astats(analysis_path)
         hum = detect_mains_hum(analysis_path)
     finally:
         if tmp_segment is not None:

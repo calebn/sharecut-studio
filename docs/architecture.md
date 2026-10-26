@@ -17,7 +17,7 @@ Each layer owns one concern. Per-module ownership notes, caches and the FFmpeg p
 [layer-reference.md](layer-reference.md); frontend internals live in [gui-viewer.md](gui-viewer.md).
 
 1. **Models** (`podcast_mcp.models`) — Pydantic episode project on disk; no I/O side effects. See [episode-format-v2.md](episode-format-v2.md).
-2. **Engines** (`podcast_mcp.engines`) — FFmpeg, transcription, waveform pyramids, source and timeline mapping, render and audio audits. `FFmpegEngine.decode_full_f32` owns uncached whole-file float32 decoding. The class-level `FFmpegEngine.resample_streams` operation owns stream conversion and its process lifecycle. See [audio-engineering.md](audio-engineering.md) and [layer-reference.md](layer-reference.md#layer-items).
+2. **Engines** (`podcast_mcp.engines`) — FFmpeg, transcription, waveform pyramids, source and timeline mapping, render and audio audits. `FFmpegEngine.decode_full_f32` owns uncached whole-file float32 decoding. The class-level `FFmpegEngine.resample_streams` operation owns stream conversion and its process lifecycle. `FFmpegEngine.astats` owns first-stream health measurement and parsing. See [audio-engineering.md](audio-engineering.md) and [layer-reference.md](layer-reference.md#layer-items).
 3. **Ingest** (`podcast_mcp.ingest`) — recorder-folder scan, `ingest.yaml` manifest, one dialogue track per speaker. See [multitrack-ingest.md](multitrack-ingest.md).
 4. **Edits** (`podcast_mcp.edits`) — filler detection, tighten presets, transcript search and cuts, the inaudible-cut optimizer, clip timeline operations. See [inaudible-cuts.md](inaudible-cuts.md) and [daw-editing.md](daw-editing.md).
 5. **Clips** (`podcast_mcp.clips`) — social clip candidates and WAV export.
@@ -319,7 +319,7 @@ than its timeline after applied edits; an overlong stem is stale.
 
 ### Audio extent admission
 
-`FFmpegEngine.probe` reports the selected first audio stream's endpoint on the container timeline, including leading gaps after subtracting the container origin. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.
+`FFmpegEngine.probe` reports the selected first audio stream's length, counted from its first sample, as `duration_sec`, and the lead between the container origin and that first sample as `audio_start_sec` (see [Late-start audio](audio-engineering.md#late-start-audio-2175)). A late audio start no longer lengthens the extent. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.
 
 `AudioProbe.require_duration_sec()` rejects uncertain, nonpositive, non-finite, and missing-audio results before source and media duration writes, source edits, or implicit full-span render bounds. Pipeline ingest preflights every track before metadata updates or dialogue clip creation. Strip silence admits extent before rebuilding clips. Full-track and segment renderers admit implicit clip extent before rendering. These boundaries return `invalid_audio` without changing project state or existing output. Upload finalization additionally caps known extents at seven days and removes rejected files.
 

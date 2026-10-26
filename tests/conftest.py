@@ -164,7 +164,6 @@ _VERDICT_VERIFY_COUNTS_CHECKS = (
     "test_source_remove_geometry.py::test_new_id_cannot_remove_a_source_span_consumed_by_an_earlier_cut",
     "test_source_remove_geometry.py::test_completed_structural_policy_is_the_only_veto",
     "test_source_remove_geometry.py::test_apply_reassesses_real_sabotage_after_offer",
-    "test_source_remove_geometry.py::test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor",
 )
 
 

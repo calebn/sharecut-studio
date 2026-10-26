@@ -133,6 +133,25 @@ def verdict_key(
         return None
 
 
+def key_parts(
+    project: EpisodeProject,
+    edit: EditDecision,
+    *,
+    defaults: dict,
+    manual: bool,
+    batch: Sequence[SourceExtent],
+    span: tuple[float, float],
+) -> dict[str, str] | None:
+    """A digest per input of the key, to see which input made a check miss (lab); ``None`` as ``verdict_key``."""
+    if any(max(c.fade_in_ms, c.fade_out_ms) > FADE_REACH_SEC * 1000 for c in project.clips):
+        return None
+    try:
+        payload = _payload(project, edit, defaults, manual, batch, span)
+    except (OSError, ValueError, KeyError):
+        return None
+    return {name: _digest(value) for name, value in payload.items()}
+
+
 def _key(
     project: EpisodeProject,
     edit: EditDecision,
@@ -141,6 +160,17 @@ def _key(
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
 ) -> str:
+    return _digest(_payload(project, edit, defaults, manual, batch, span))
+
+
+def _payload(
+    project: EpisodeProject,
+    edit: EditDecision,
+    defaults: dict,
+    manual: bool,
+    batch: Sequence[SourceExtent],
+    span: tuple[float, float],
+) -> dict[str, Any]:
     from podcast_mcp.util.tracks import recording_audio_path
 
     reach = FADE_REACH_SEC
@@ -220,7 +250,7 @@ def _key(
             repr(cut_policy.CUT_EDGE_CHECKS),
         ],
     }
-    return _digest(payload)
+    return payload
 
 
 def _heard(clip: Any, lo: float, hi: float) -> list[Any]:

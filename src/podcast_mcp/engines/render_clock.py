@@ -561,7 +561,9 @@ def _validate_flow(audio: Audio, clock: RenderClock, *, partial: bool) -> None:
             case CrossfadeAudio():
                 right, left = stack.pop(), stack.pop()
                 children = [left, right]
-                overlap = MediaSeek.at(0).first_sample(node.overlap_sec, producer.sample_rate)
+                overlap = MediaSeek.at(0, lead_sec=0.0).first_sample(
+                    node.overlap_sec, producer.sample_rate
+                )
                 available = left.consumer.frames + right.consumer.frames
                 if min(left.consumer.frames, right.consumer.frames) >= overlap:
                     available -= overlap

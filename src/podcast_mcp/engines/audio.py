@@ -425,7 +425,7 @@ def rendered_sources(audio: Audio, clock: RenderClock) -> tuple[RenderedSource, 
             case SourceAudio():
                 trim = clock.trims[leaf_index].producer
                 trim_rate = trim.sample_rate
-                seek = MediaSeek(0, clock.seek_us[leaf_index])
+                seek = MediaSeek(0, clock.seek_us[leaf_index], 0)
                 first = seek.first_sample(node.src_start, trim_rate)
                 last = min(seek.first_sample(node.src_end, trim_rate), first + trim.frames)
                 leaf_index += 1
@@ -465,7 +465,7 @@ def rendered_sources(audio: Audio, clock: RenderClock) -> tuple[RenderedSource, 
                 right, left = layouts.pop(), layouts.pop()
                 require_rate(left.clock.sample_rate, rate)
                 require_rate(right.clock.sample_rate, rate)
-                overlap = MediaSeek.at(0).first_sample(node.overlap_sec, rate)
+                overlap = MediaSeek.at(0, lead_sec=0.0).first_sample(node.overlap_sec, rate)
                 placed = (
                     *translated(left.sources, left.clock.sample_rate, rate),
                     *translated(

@@ -165,15 +165,33 @@ def test_seeked_window_matches_the_full_decode(media: dict[str, Path], ext: str)
 
 
 def test_media_seek_prerolls_from_a_whole_second_and_trims_by_timestamp() -> None:
-    seek = MediaSeek.at(3.2345678)
+    seek = MediaSeek.at(3.2345678, lead_sec=0.0)
     assert seek.input_args(5.5) == ["-ss", "2.000000", "-t", "3.500000"]
     assert seek.output_args(1.0) == ["-ss", "1.234567", "-t", "1.000000"]
     assert seek.offset(4.0) == "2.000000"
     assert seek.first_sample(3.2345678, SR) == 155_259
-    near_start = MediaSeek.at(0.4)
+    near_start = MediaSeek.at(0.4, lead_sec=0.0)
     assert near_start.input_args() == []
     assert near_start.output_args() == ["-ss", "0.400000"]
-    assert MediaSeek.at(0.0).output_args(2.0) == ["-t", "2.000000"]
+    assert MediaSeek.at(0.0, lead_sec=0.0).output_args(2.0) == ["-t", "2.000000"]
+
+
+def test_media_seek_adds_the_audio_lead_to_every_container_time() -> None:
+    seek = MediaSeek.at(0.5, lead_sec=3.0)
+    assert seek.input_args(1.5) == ["-ss", "3.000000", "-t", "1.500000"]
+    assert seek.output_args(1.0) == ["-ss", "0.500000", "-t", "1.000000"]
+    assert seek.offset(0.5) == "0.500000"
+    assert seek.first_sample(0.5, SR) == 24_000
+    assert seek.source_seek_us == 0
+
+
+def test_media_seek_before_the_audio_starts_still_counts_from_the_audio() -> None:
+    seek = MediaSeek.at(0.0, lead_sec=3.0)
+    assert seek.input_args() == ["-ss", "2.000000"]
+    assert seek.output_args() == ["-ss", "1.000000"]
+    assert seek.source_seek_us == -1_000_000
+    assert seek.first_sample(0.0, SR) == 0
+    assert MediaSeek(0, seek.source_seek_us, 0).first_sample(0.25, SR) == 12_000
 
 
 LEAD_IN_CONTAINERS = ("wav", "m4a")

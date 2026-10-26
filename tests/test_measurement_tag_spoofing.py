@@ -15,7 +15,6 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.loudness import check_loudness
-from podcast_mcp.engines.audio_audit import measure_astats
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, ebur128_summary_text, filter_log_text
 
 FAKE_SUMMARY = (
@@ -59,7 +58,7 @@ def clean(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def test_clean_reference_is_measured(clean: Path) -> None:
     assert FFmpegEngine().measure_loudness(clean) == pytest.approx(CLEAN_LUFS, abs=0.2)
-    stats = measure_astats(clean)
+    stats = FFmpegEngine.astats(clean)
     assert stats["peak_level_db"] == pytest.approx(-38.06, abs=0.05)
     assert FFmpegEngine().measure_loudness_blocks(clean)
 
@@ -71,7 +70,7 @@ def test_tags_do_not_change_measurements(tmp_path: Path, clean: Path, tags: dict
     assert engine.measure_loudness(tagged) == engine.measure_loudness(clean)
     assert engine.measure_loudness_blocks(tagged) == engine.measure_loudness_blocks(clean)
     assert engine.measure_loudness_full(tagged) == engine.measure_loudness_full(clean)
-    assert measure_astats(tagged) == measure_astats(clean)
+    assert FFmpegEngine.astats(tagged) == FFmpegEngine.astats(clean)
 
 
 def test_check_loudness_fails_a_quiet_file_whatever_its_title(tmp_path: Path) -> None:
@@ -87,7 +86,7 @@ def test_tagged_file_without_audio_measures_nothing(tmp_path: Path, tags: dict[s
     engine = FFmpegEngine()
     assert engine.measure_loudness(video) is None
     assert engine.measure_loudness_blocks(video) == []
-    assert all(value is None for value in measure_astats(video).values())
+    assert all(value is None for value in FFmpegEngine.astats(video).values())
     report = check_loudness(video, defaults=load_defaults(), target_lufs=-16.0)
     assert report["measured_lufs"] is None
     assert report["pass"] is False
@@ -128,7 +127,7 @@ def test_forged_tag_key_lines_are_ignored(tmp_path: Path, progress: bool) -> Non
     tagged = _encode_raw(tmp_path / "tagged.m4a", *AUDIO, "-c:a", "aac", *KEY_SPOOF)
     assert engine.measure_loudness(tagged) == engine.measure_loudness(clean)
     assert engine.measure_loudness_blocks(tagged) == engine.measure_loudness_blocks(clean)
-    assert measure_astats(tagged) == measure_astats(clean)
+    assert FFmpegEngine.astats(tagged) == FFmpegEngine.astats(clean)
     kwargs = {"on_progress": lambda *_: None, "total_sec": 2.0} if progress else {}
     full = engine.measure_loudness_full(clean, **kwargs)
     assert full is not None and full["integrated_lufs"] == pytest.approx(CLEAN_LUFS, abs=0.5)
@@ -137,7 +136,7 @@ def test_forged_tag_key_lines_are_ignored(tmp_path: Path, progress: bool) -> Non
     assert engine.measure_loudness(video) is None
     assert engine.measure_loudness_full(video, **kwargs) is None
     assert engine.measure_loudness_blocks(video) == []
-    assert all(value is None for value in measure_astats(video).values())
+    assert all(value is None for value in FFmpegEngine.astats(video).values())
 
 
 @pytest.mark.parametrize("progress", [False, True])
@@ -153,13 +152,13 @@ def test_zero_frame_file_with_forged_key_measures_nothing(tmp_path: Path) -> Non
         tmp_path / "z.flac", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono",
         "-frames:a", "0", "-metadata", f"{key}=v",
     )  # fmt: skip
-    assert all(value is None for value in measure_astats(empty).values())
+    assert all(value is None for value in FFmpegEngine.astats(empty).values())
 
 
 def test_coloured_stderr_is_read_like_plain(clean: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    plain = (FFmpegEngine().measure_loudness(clean), measure_astats(clean))
+    plain = (FFmpegEngine().measure_loudness(clean), FFmpegEngine.astats(clean))
     monkeypatch.setenv("AV_LOG_FORCE_COLOR", "1")
-    assert (FFmpegEngine().measure_loudness(clean), measure_astats(clean)) == plain
+    assert (FFmpegEngine().measure_loudness(clean), FFmpegEngine.astats(clean)) == plain
 
 
 def test_undecodable_tag_bytes_do_not_crash(tmp_path: Path) -> None:
@@ -179,5 +178,5 @@ def test_undecodable_tag_bytes_do_not_crash(tmp_path: Path) -> None:
         capture_output=True,
     )
     assert FFmpegEngine().measure_loudness(path) == pytest.approx(CLEAN_LUFS, abs=0.2)
-    assert measure_astats(path)["peak_level_db"] is not None
+    assert FFmpegEngine.astats(path)["peak_level_db"] is not None
     assert FFmpegEngine().measure_loudness_blocks(path)
