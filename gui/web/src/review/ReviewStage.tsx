@@ -2,40 +2,37 @@ import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { AuditionSide } from "../system/auditionWindow";
 import { DecisionCard } from "../system/DecisionCard";
 import { KIND_META } from "../system/decisionKinds";
+import type { SystemIconName } from "../system/icons";
 import { Player } from "../system/Player";
 import { Sheet } from "../system/Sheet";
 import { SystemIcon } from "../system/SystemIcon";
 import type { TimeRange } from "../system/seconds";
-import { formatSeconds } from "../system/seconds";
-import { iconOf, verbOf } from "../system/verbDisplay";
+import { iconOf } from "../system/verbDisplay";
 import { Button, Toast, type ToastState } from "../ui";
-import {
-  decideAndAdvance,
-  nextUndecided,
-  previousUndecided,
-  undoDecisions,
-} from "./advance";
+import { planDecision, stepUndecided, undoDecisions } from "./advance";
 import { ContextStrip } from "./ContextStrip";
 import {
   type BulkProgress,
   type ReviewContent,
   ReviewQueue,
 } from "./ReviewQueue";
-import { reviewActionFor } from "./reviewKeys";
+import { stageActionFor } from "./reviewKeys";
 import {
   fullOrder,
   groupQueue,
+  isCut,
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
-  resultText,
 } from "./reviewQueue";
 
 export type ReviewStageProps = {
   initialItems: readonly ReviewItem[];
   content: (item: ReviewItem) => ReviewContent;
-  /** Episode length in seconds, for the context strip. */
+  /** Episode length in seconds. */
   duration: number;
+  /** Playhead and episode length as the Player shows them. */
+  clock: { time: string; total: string };
   peaks?: readonly number[];
   initialSelectedId?: string;
   initialFilter?: ReviewFilter;
@@ -45,27 +42,31 @@ export type ReviewStageProps = {
   state?: "ready" | "loading" | "error";
   job?: { title: string; progress: number };
   bulkRunning?: BulkProgress;
-  /** The Q9 default: Cut anyway counts as checking. The prompt shows once per session. */
+  /** Cut anyway counts as checking. The prompt shows once per session. */
   gateConfirmed?: boolean;
-  /** How long the Undo toast stays. */
+  /** Undo toast lifetime in ms. */
   toastMs?: number;
   onOpenInEdit?: (id: string) => void;
   onComment?: (id: string) => void;
-  /** Cut anyway was chosen, with the note if one was written. */
   onWaive?: (note?: string) => void;
+  onFindMore?: () => void;
   onHandOff?: () => void;
   onRetry?: () => void;
 };
 
-const CUTS = ["filler", "pause", "sound"];
+const BLOCKED_WHY = "The server will not apply this yet.";
+const EMPTY_CARD: ReviewContent["card"] = { title: "", time: "" };
 
-type Pending = { ids: string[] };
+type Pending = { ids: readonly string[] };
 
-/** The Review stage: queue, Decision card, context strip and Player, with advance, bulk and undo. */
+const openOf = (items: readonly ReviewItem[], kind: ReviewItem["kind"]) =>
+  items.filter((item) => item.kind === kind && !item.result);
+
 export function ReviewStage({
   initialItems,
   content,
   duration,
+  clock,
   peaks,
   initialSelectedId,
   initialFilter = "all",
@@ -75,24 +76,27 @@ export function ReviewStage({
   job,
   bulkRunning,
   gateConfirmed = false,
-  toastMs,
+  toastMs = 6000,
   onOpenInEdit,
   onComment,
   onWaive,
+  onFindMore,
   onHandOff,
   onRetry,
 }: ReviewStageProps) {
   const [items, setItems] = useState<ReviewItem[]>([...initialItems]);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initialSelectedId ?? nextUndecided(initialItems, null),
-  );
   const [filter, setFilter] = useState<ReviewFilter>(initialFilter);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialSelectedId ?? stepUndecided(initialItems, null, "forward", filter),
+  );
   const [side, setSide] = useState<AuditionSide>("B");
   const [resolved, setResolved] = useState<ReadonlySet<string>>(new Set());
   const [ranges, setRanges] = useState<Record<string, TimeRange>>({});
   const [confirmed, setConfirmed] = useState(gateConfirmed);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [toast, setToast] = useState<ToastState | null>(null);
+  const [toast, setToast] = useState<
+    (ToastState & { icon: SystemIconName }) | null
+  >(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -100,113 +104,96 @@ export function ReviewStage({
 
   const phone = layout === "phone";
   const selected = items.find((item) => item.id === selectedId) ?? null;
-  const gate = !confirmed && items.some((i) => i.kind === "check" && !i.result);
+  const gate = !confirmed && openOf(items, "check").some((i) => i.transcript);
   const holdsGate = (ids: readonly string[]) =>
     gate &&
-    ids.some((id) => CUTS.includes(items.find((i) => i.id === id)?.kind ?? ""));
+    ids.some((id) => {
+      const item = items.find((i) => i.id === id);
+      return item !== undefined && isCut(item);
+    });
 
   const select = (id: string | null) => {
     setSelectedId(id);
     setPending(null);
     setSide("B");
   };
+  const step = (direction: "forward" | "backward") =>
+    select(stepUndecided(items, selectedId, direction, filter));
 
-  const apply = (ids: readonly string[], result: ReviewResult) => {
-    const closing = ids.some(
-      (id) => items.find((i) => i.id === id)?.kind === "unsure-word",
-    );
-    const after = decideAndAdvance(items, ids, result);
-    const unsureLeft = after.items.some(
-      (i) => i.kind === "unsure-word" && !i.result,
-    );
-    const checks =
-      closing && !unsureLeft
-        ? after.items
-            .filter((i) => i.kind === "check" && !i.result)
-            .map((i) => i.id)
-        : [];
-    const all = [...ids, ...checks];
-    const out = checks.length ? decideAndAdvance(items, all, result) : after;
-    setItems(out.items);
-    select(out.selectedId);
-    const saved = all.reduce(
-      (sum, id) => sum + (items.find((i) => i.id === id)?.savedSeconds ?? 0),
-      0,
-    );
+  const apply = (
+    ids: readonly string[],
+    result: ReviewResult,
+    waive = false,
+  ) => {
+    const plan = planDecision(items, ids, result, { filter, waive });
+    setItems(plan.items);
+    select(plan.selectedId);
     const first = items.find((i) => i.id === ids[0]);
-    const message =
-      result === "kept"
-        ? ids.length > 1
-          ? `Kept ${ids.length}`
-          : "Kept"
-        : ids.length > 1
-          ? `${verbOf(KIND_META[first?.kind ?? "filler"].verb).label} ${ids.length} · saves ${formatSeconds(saved)}`
-          : first
-            ? resultText({ ...first, result })
-            : "Done";
-    setToast({ id: Date.now(), message });
+    setToast({
+      id: Date.now(),
+      message: plan.message,
+      icon: iconOf(
+        result === "kept" || !first ? "keep" : KIND_META[first.kind].verb,
+      ),
+    });
     setUndo(() => () => {
-      setItems((current) => undoDecisions(current, all).items);
-      select(all[0] ?? null);
+      setItems((current) => undoDecisions(current, plan.decidedIds).items);
+      select(plan.decidedIds[0] ?? null);
       setToast(null);
     });
   };
 
   const verb = (id: string) => {
     const item = items.find((i) => i.id === id);
-    if (!item || guest) return;
-    if (item.unsure && !resolved.has(id)) return;
+    if (!item || item.result || item.blocked || guest) return;
     if (holdsGate([id])) {
       setPending({ ids: [id] });
       return;
     }
+    if (item.unsure && !resolved.has(id)) return;
     apply([id], "applied");
   };
 
   const keep = (id: string) => {
-    if (!guest) apply([id], "kept");
+    const item = items.find((i) => i.id === id);
+    if (item && !item.result && !guest) apply([id], "kept");
   };
 
-  const applyAll = () => {
-    const group = groupQueue(items).find((g) =>
-      g.items.some((i) => i.id === selectedId),
-    );
-    if (guest || !group?.bulk) return;
-    if (holdsGate(group.bulk.ids)) {
-      setPending({ ids: [...group.bulk.ids] });
-      return;
-    }
-    apply(group.bulk.ids, "applied");
+  const bulk = (ids: readonly string[] | undefined) => {
+    if (guest || !ids?.length) return;
+    if (holdsGate(ids)) setPending({ ids });
+    else apply(ids, "applied");
   };
+  const applyGroup = () =>
+    bulk(
+      groupQueue(items).find((g) => g.items.some((i) => i.id === selectedId))
+        ?.bulk?.ids,
+    );
 
   const confirmAnyway = (note?: string) => {
     if (!pending) return;
     setConfirmed(true);
     onWaive?.(note);
-    const checks = items
-      .filter((i) => i.kind === "check" && !i.result)
-      .map((i) => i.id);
-    apply([...pending.ids, ...checks], "applied");
+    apply(pending.ids, "applied", true);
   };
 
   const checkWords = () => {
-    const word = items.find((i) => i.kind === "unsure-word" && !i.result);
-    const check = items.find((i) => i.kind === "check" && !i.result);
-    select((word ?? check)?.id ?? selectedId);
+    const target = openOf(items, "unsure-word")[0] ?? openOf(items, "check")[0];
+    select(target?.id ?? selectedId);
   };
 
   const handleKey = useEffectEvent((event: KeyboardEvent) => {
-    const action = reviewActionFor(event, {
+    const action = stageActionFor(event, {
       primary: selected ? KIND_META[selected.kind].verb : undefined,
+      root: root.current,
     });
     if (!action) return;
     event.preventDefault();
-    if (action === "next") select(nextUndecided(items, selectedId));
-    else if (action === "previous")
-      select(previousUndecided(items, selectedId));
+    if (action === "next") step("forward");
+    else if (action === "previous") step("backward");
     else if (action === "hearBefore") setSide("A");
     else if (action === "hearAfter") setSide("B");
-    else if (action === "applyAll") applyAll();
+    else if (action === "applyAll") applyGroup();
     else if (!selected) return;
     else if (action === "verb") verb(selected.id);
     else if (action === "keep") keep(selected.id);
@@ -236,6 +223,7 @@ export function ReviewStage({
       ),
     );
   };
+  const card = body?.card ?? EMPTY_CARD;
   const unsure =
     body?.card.unsure && selected
       ? {
@@ -249,12 +237,9 @@ export function ReviewStage({
           onLooksRight: () => setResolved(new Set(resolved).add(selected.id)),
         }
       : undefined;
-  const unsureWords = items.filter(
-    (i) => i.kind === "unsure-word" && !i.result,
-  ).length;
-  const order = fullOrder(items);
+  const unsureWords = openOf(items, "unsure-word").length;
   const position = selected
-    ? order.findIndex((i) => i.id === selected.id) + 1
+    ? fullOrder(items).findIndex((i) => i.id === selected.id) + 1
     : 0;
 
   const queue = (
@@ -274,22 +259,14 @@ export function ReviewStage({
       }}
       onVerb={verb}
       onKeep={keep}
-      onBulk={(group) => {
-        if (!group.bulk) return;
-        if (holdsGate(group.bulk.ids)) setPending({ ids: [...group.bulk.ids] });
-        else apply(group.bulk.ids, "applied");
-      }}
+      onBulk={(group) => bulk(group.bulk?.ids)}
+      onFindMore={onFindMore}
       onRetry={onRetry}
     />
   );
 
   return (
-    <div
-      ref={root}
-      className="rv-stage"
-      data-layout={phone ? "phone" : "card"}
-      tabIndex={-1}
-    >
+    <div ref={root} className="rv-stage" data-layout={layout} tabIndex={-1}>
       <div className="rv-main">
         {phone ? (
           <div className="rv-phone-top">
@@ -308,9 +285,8 @@ export function ReviewStage({
             state={
               state !== "ready" ? state : selected && body ? "ready" : "empty"
             }
-            {...body?.card}
-            title={body?.card.title ?? ""}
-            time={body?.card.time ?? ""}
+            {...card}
+            why={selected?.blocked ? BLOCKED_WHY : card.why}
             waveform={wave && { ...wave, onAdjust: adjust }}
             savedSeconds={
               selected && selected.savedSeconds > 0 && wave
@@ -339,7 +315,7 @@ export function ReviewStage({
             onRetry={onRetry}
             onVerb={() => selected && verb(selected.id)}
             onKeep={() => selected && keep(selected.id)}
-            onLater={() => select(nextUndecided(items, selectedId))}
+            onLater={() => step("forward")}
             onOpenInEdit={() => selected && onOpenInEdit?.(selected.id)}
             onComment={() => selected && onComment?.(selected.id)}
           />
@@ -356,7 +332,7 @@ export function ReviewStage({
           className="sys-toast-dock"
           toast={toast}
           timeoutMs={toastMs}
-          icon={<SystemIcon name={iconOf("cut")} size={16} />}
+          icon={toast ? <SystemIcon name={toast.icon} size={16} /> : undefined}
           onUndo={undo ?? undefined}
           onDismiss={() => setToast(null)}
         />
@@ -364,8 +340,8 @@ export function ReviewStage({
           form="bar"
           guest={guest}
           playing={playing}
-          time="12:04"
-          total="52:10"
+          time={clock.time}
+          total={clock.total}
           onPlayPause={() => setPlaying(!playing)}
         />
       </div>

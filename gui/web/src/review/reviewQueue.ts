@@ -13,16 +13,17 @@ export type ReviewItem = {
   at: number;
   /** Seconds the item removes when applied. Zero for comments and checks. */
   savedSeconds: number;
-  /** A suggestion whose range holds a word the transcript is unsure of. */
   unsure?: boolean;
-  /** A suggestion the server will not apply yet. */
+  /** The server will not apply it yet. */
   blocked?: boolean;
+  /** The refine check: the only one that Cut anyway and the last unsure word resolve. */
+  transcript?: boolean;
   result?: ReviewResult;
 };
 
 export type ReviewFilter = "all" | "suggestions" | "comments" | "checks";
 
-export type BulkAction = {
+type BulkAction = {
   verb: VerbId;
   ids: readonly string[];
   savedSeconds: number;
@@ -32,13 +33,10 @@ export type ReviewGroup = {
   kind: DecisionKind;
   label: string;
   items: readonly ReviewItem[];
-  /** Seconds the group's items would remove. */
-  savedSeconds: number;
   /** Null when the kind has no bulk verb or nothing in it may be bulk-applied. */
   bulk: BulkAction | null;
 };
 
-/** Checks first, then comments, then the suggestion kinds. */
 const KIND_ORDER: readonly DecisionKind[] = [
   "check",
   "unsure-word",
@@ -57,7 +55,9 @@ const GROUP_LABEL: Record<DecisionKind, string> = {
   sound: "Sounds",
 };
 
-const BULK_KINDS: readonly DecisionKind[] = ["filler", "pause", "sound"];
+export const CUT_KINDS: readonly DecisionKind[] = ["filler", "pause", "sound"];
+
+export const isCut = (item: ReviewItem) => CUT_KINDS.includes(item.kind);
 
 const FILTER_OF: Record<DecisionKind, Exclude<ReviewFilter, "all">> = {
   check: "checks",
@@ -70,10 +70,10 @@ const FILTER_OF: Record<DecisionKind, Exclude<ReviewFilter, "all">> = {
 
 const isDecided = (item: ReviewItem) => item.result !== undefined;
 
-/** Unsure words, and cuts that touch one, are decided one at a time. */
-export function bulkEligible(item: ReviewItem): boolean {
+/** Unsure words, blocked cuts and cuts that touch an unsure word are decided one at a time. */
+function bulkEligible(item: ReviewItem): boolean {
   return (
-    BULK_KINDS.includes(item.kind) &&
+    CUT_KINDS.includes(item.kind) &&
     !item.unsure &&
     !item.blocked &&
     !isDecided(item)
@@ -99,7 +99,6 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
         kind,
         label: GROUP_LABEL[kind],
         items: inKind,
-        savedSeconds: sumSaved(inKind),
         bulk:
           eligible.length === 0
             ? null
@@ -134,7 +133,6 @@ export function filterItems(
     : items.filter((item) => FILTER_OF[item.kind] === filter);
 }
 
-/** Undecided items per filter. */
 export function filterCounts(
   items: readonly ReviewItem[],
 ): Record<ReviewFilter, number> {
@@ -148,7 +146,7 @@ export function filterCounts(
 }
 
 /** Only applied items count: kept and undecided ones save nothing. */
-export function secondsSaved(items: readonly ReviewItem[]): number {
+function secondsSaved(items: readonly ReviewItem[]): number {
   return sumSaved(items.filter((item) => item.result === "applied"));
 }
 
@@ -166,4 +164,18 @@ export function resultText(item: ReviewItem): string {
   return item.savedSeconds > 0
     ? `${word} ${formatSeconds(item.savedSeconds)}`
     : word;
+}
+
+/** The Undo toast text for one decision or a bulk. */
+export function decisionMessage(
+  items: readonly ReviewItem[],
+  ids: readonly string[],
+  result: ReviewResult,
+): string {
+  const picked = items.filter((item) => ids.includes(item.id));
+  const first = picked[0];
+  if (!first) return "Done";
+  if (picked.length === 1) return resultText({ ...first, result });
+  if (result === "kept") return `Kept ${picked.length}`;
+  return `${verbOf(KIND_META[first.kind].verb).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
 }

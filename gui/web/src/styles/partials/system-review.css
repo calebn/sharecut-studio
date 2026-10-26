@@ -74,7 +74,7 @@
   max-inline-size: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: pre;
+  white-space: nowrap;
 }
 
 .sys-sugg-trail {
@@ -193,7 +193,8 @@
   touch-action: pan-y;
 }
 
-.sys-queue-row[data-selected] {
+.sys-queue-row[data-selected],
+.rv-check[data-selected] {
   background: var(--color-accent-subtle);
   box-shadow: inset var(--selection-row-edge-width) 0 0 var(--color-accent);
 }
