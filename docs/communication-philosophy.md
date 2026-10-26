@@ -200,8 +200,8 @@ decided-by: calebn
 evidence:
 - #1326 owner decision https://github.com/calebn/sharecut-studio/issues/1326#issuecomment-6151053529, add visible Undo, Redo, Zoom out, and Zoom in to the desktop transport
 enforced-by:
-- gui/web/src/layout/TransportBar.editControls.test.tsx::keeps history and zoom visible when desktop chrome collapses
-- gui/web/src/layout/TransportBar.editControls.test.tsx::places history then zoom before tools on a wide desktop for an editor
+- gui/web/src/stage/edit/EditCorner.test.tsx::zooms through view.zoomIn and view.zoomOut
+- gui/web/src/stage/frame/HistoryControls.test.tsx::uses authorized guest history availability and the same command path
 -->
 
 Desktop keeps **Undo**, **Redo**, **Zoom out**, and **Zoom in** visible in the

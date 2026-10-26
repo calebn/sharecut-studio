@@ -164,7 +164,7 @@ it("classifies story, test and test-helper files", () => {
   expect(isStoryOrTestFile("timeline/timelineLaneStoryDecorator.tsx")).toBe(
     false,
   );
-  expect(isStoryOrTestFile("layout/dawShellStoryDecorator.tsx")).toBe(false);
+  expect(isStoryOrTestFile("stage/frame/frameStoryDecorator.tsx")).toBe(false);
 });
 
 describe("stories stay out of the production bundle", () => {

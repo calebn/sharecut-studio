@@ -1,8 +1,10 @@
 import { memo, type ReactNode, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
+import { useTwoFingerTap } from "../../hooks/useTwoFingerTap";
 import { PresenceGhostLayer } from "../../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../../presence/usePresenceCursorSource";
+import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { AppHeader } from "../../system/AppHeader";
 import { StageBar } from "../../system/StageBar";
@@ -51,6 +53,12 @@ function StageFrameAdapter({
   const stageBar = useStageBarProps();
   const rootRef = useRef<HTMLDivElement>(null);
   usePresenceCursorSource(rootRef);
+  const undoEnabled = useDawStore(
+    (s) =>
+      s.project != null &&
+      canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities),
+  );
+  useTwoFingerTap(rootRef, { enabled: shell === "phone" && undoEnabled });
 
   // Header and Player keep transport keys working after a click (true). Edit
   // sets its own regions inside the body; every other stage's body is not the

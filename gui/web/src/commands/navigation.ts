@@ -8,7 +8,7 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { transportAvailability } from "../state/transportAvailability";
-import type { AuditionMode, LayoutMode } from "../state/types";
+import type { AuditionMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
 import { GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { clampToSession } from "../utils/time";
@@ -158,16 +158,6 @@ export function registerNavigationCommands(): void {
       return { status: "disabled", reason: errorMessage(e) };
     }
   });
-
-  const setLayout = (mode: LayoutMode) => {
-    useDawStore.getState().setLayoutMode(mode);
-    return { status: "ok" } as const;
-  };
-
-  registerCommand("layout.default", () => setLayout("default"));
-  registerCommand("layout.timeline", () => setLayout("timeline"));
-  registerCommand("layout.text", () => setLayout("text"));
-  registerCommand("layout.review", () => setLayout("review"));
 
   registerCommand("navigation.nudgePlayheadBack", (args, ctx) => {
     const delta = args.shift ? 5 : 1;

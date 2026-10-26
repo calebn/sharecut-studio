@@ -2,7 +2,7 @@ import { useLayoutEffect } from "react";
 import { focusAndReveal } from "./focusAndReveal";
 import { registerFocusHold } from "./focusHold";
 
-const SHELL_SELECTOR = ".stage-frame, .daw-shell";
+const SHELL_SELECTOR = ".stage-frame";
 const ROOT_CLASS = "bottom-sheet-root";
 const COLUMN_CLASS = "bottom-sheet-column-host";
 

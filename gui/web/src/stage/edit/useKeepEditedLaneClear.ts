@@ -7,13 +7,13 @@
  * cap. With the software keyboard up the sheet takes the visible area instead.
  */
 import { useLayoutEffect, useRef } from "react";
-import { remToPx } from "../../hooks/useTabsHeight";
 import {
   capInspectorSheetForLane,
   inspectorSheetBottom,
   inspectorSheetPanel,
 } from "../../ui/compactSheet";
 import { useResizeObserver } from "../../ui/useResizeObserver";
+import { remToPx } from "../../utils/remToPx";
 import {
   KEEP_CLEAR_PX,
   keepTargetClear,

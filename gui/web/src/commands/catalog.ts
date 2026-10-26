@@ -166,42 +166,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canManageProjects",
     notes: "Mod+O: closes the project and goes Home",
   },
-  "layout.default": {
-    id: "layout.default",
-    category: "layout",
-    label: "Restore layout",
-    when: "layoutShell",
-    paletteRunnable: false,
-    notes:
-      "Legacy dock layout, no key and no palette row; removed with the old shell",
-  },
-  "layout.timeline": {
-    id: "layout.timeline",
-    category: "layout",
-    label: "Maximize timeline",
-    when: "layoutShell",
-    paletteRunnable: false,
-    notes:
-      "Legacy dock layout, no key and no palette row; removed with the old shell",
-  },
-  "layout.text": {
-    id: "layout.text",
-    category: "layout",
-    label: "Maximize transcript",
-    when: "layoutShell",
-    paletteRunnable: false,
-    notes:
-      "Legacy dock layout, no key and no palette row; removed with the old shell",
-  },
-  "layout.review": {
-    id: "layout.review",
-    category: "layout",
-    label: "Review layout",
-    when: "layoutShell",
-    paletteRunnable: false,
-    notes:
-      "Legacy dock layout, no key and no palette row; removed with the old shell",
-  },
   "navigation.nudgePlayheadBack": {
     id: "navigation.nudgePlayheadBack",
     category: "navigation",
@@ -898,24 +862,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     paletteRunnable: false,
     notes:
       "Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu",
-  },
-  "view.setTab": {
-    id: "view.setTab",
-    category: "view",
-    label: "Switch editor tab",
-    when: "hasProject",
-    paletteRunnable: false,
-    notes: "Args: { tab: DawTab }",
-    breaksFollow: true,
-  },
-  "view.setMobileMode": {
-    id: "view.setMobileMode",
-    category: "view",
-    label: "Switch phone mode",
-    when: "hasProject",
-    paletteRunnable: false,
-    notes: "Args: { mode: MobileMode, destination?: MoreDestination }",
-    breaksFollow: true,
   },
   "tighten.applyHit": {
     id: "tighten.applyHit",

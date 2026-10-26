@@ -11,7 +11,6 @@ import type {
 } from "../types/project";
 import type {
   AuditionMode,
-  PresenceMobileMode,
   PresenceTab,
   SessionClient,
   SessionRegion,
@@ -99,19 +98,8 @@ export interface TranscriptInlineEditRequest {
 
 export type DawTab = PresenceTab;
 
-/** Phone bottom-nav mode (Listen / Timeline / Text / More). */
-export type MobileMode = PresenceMobileMode;
-
 /** Timeline tool — select inspects; blade splits at click/playhead. */
 export type ToolMode = "select" | "blade";
-
-/** Desktop/tablet shell layout — see docs/gui-mobile.md § Desktop — layouts. */
-export type LayoutMode =
-  | "adaptive"
-  | "default"
-  | "timeline"
-  | "text"
-  | "review";
 
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
@@ -121,14 +109,6 @@ export type ShellBreakpoint = "phone" | "tablet" | "desktop";
  * presence `mobile_mode` payload), never presence visibility.
  */
 export type PointerKind = "fine" | "coarse";
-
-export type MoreDestination =
-  | "hub"
-  | "comments"
-  | "history"
-  | "impact"
-  | "tighten"
-  | "pipeline";
 
 /** The envelope point form's text. */
 export type EnvelopeForm = {
@@ -317,7 +297,6 @@ export interface DawState {
   setRangeArmed: (armed: boolean) => void;
   setRangeScopeTrackIds: (trackIds: readonly string[] | null) => void;
   setRangeBusy: (busy: boolean) => void;
-  activeTab: DawTab;
   userZoomed: boolean;
   layers: LayerVisibility;
   commentMode: boolean;
@@ -369,9 +348,6 @@ export interface DawState {
   remoteSelectionRevision: number;
   shellBreakpoint: ShellBreakpoint;
   pointerKind: PointerKind;
-  mobileMode: MobileMode;
-  moreDestination: MoreDestination;
-  layoutMode: LayoutMode;
   sheetExpanded: boolean;
   /** Compact (phone) inspector: open as the peek strip or expanded; persisted. */
   compactInspectorView: CompactInspectorView;
@@ -499,7 +475,6 @@ export interface DawState {
     trackId: string,
     mods?: { shift?: boolean; mod?: boolean },
   ) => void;
-  setActiveTab: (tab: DawTab) => void;
   setTranscriptFollowPlayhead: (on: boolean) => void;
   toggleTranscriptFollowPlayhead: () => void;
   setTranscriptTimingRequest: (
@@ -588,9 +563,6 @@ export interface DawState {
   /** Also re-stores `timelineViewportWidth` from the live timeline or the new shell's estimate. */
   setShellBreakpoint: (bp: ShellBreakpoint) => void;
   setPointerKind: (kind: PointerKind) => void;
-  setMobileMode: (mode: MobileMode) => void;
-  setMoreDestination: (dest: MoreDestination) => void;
-  setLayoutMode: (mode: LayoutMode) => void;
   setSheetExpanded: (on: boolean) => void;
   setCompactInspectorView: (view: CompactInspectorView) => void;
   setSelectionHit: (hit: RoutedTarget | null) => void;

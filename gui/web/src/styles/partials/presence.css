@@ -214,10 +214,6 @@
     min-block-size: var(--touch-min);
     flex: 0 0 auto;
   }
-
-  .mobile-more-hub [role="menuitem"] {
-    min-block-size: var(--touch-min);
-  }
 }
 
 @container app (inline-size < 68.75rem) {

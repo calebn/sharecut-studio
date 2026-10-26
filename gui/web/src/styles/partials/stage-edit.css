@@ -272,3 +272,10 @@
   min-block-size: 0;
   background: var(--color-bg-base);
 }
+
+.waveform-amp-readout {
+  align-self: center;
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}

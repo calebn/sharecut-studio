@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { dawShellStoryDecorator } from "../../layout/dawShellStoryDecorator";
+import { frameStoryDecorator } from "./frameStoryDecorator";
 import { GuestVersionNoticeView } from "./GuestVersionNoticeView";
 
 const meta: Meta<typeof GuestVersionNoticeView> = {
   title: "Templates/GuestVersionNotice",
   component: GuestVersionNoticeView,
   tags: ["autodocs"],
-  decorators: [dawShellStoryDecorator],
+  decorators: [frameStoryDecorator],
   parameters: { layout: "fullscreen" },
   args: {
     label: "Rough cut 2",

@@ -119,12 +119,17 @@ export const EyeSheet: Story = {
     const sheet = await within(document.body).findByRole("dialog", {
       name: "View",
     });
-    await expect(
-      within(sheet).getByRole("region", { name: "Layers" }),
-    ).toBeVisible();
-    await expect(
-      within(sheet).getByRole("region", { name: "Waveform scale" }),
-    ).toBeVisible();
+    // The sheet fades in; wait out the entry animation before asserting.
+    await waitFor(() =>
+      expect(
+        within(sheet).getByRole("region", { name: "Layers" }),
+      ).toBeVisible(),
+    );
+    await waitFor(() =>
+      expect(
+        within(sheet).getByRole("region", { name: "Waveform scale" }),
+      ).toBeVisible(),
+    );
   },
 };
 

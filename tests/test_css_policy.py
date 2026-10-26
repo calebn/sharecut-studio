@@ -778,8 +778,8 @@ def test_track_mute_states_keep_their_paint_on_hover() -> None:
 
 def test_wide_and_adjacent_controls_press_in_place() -> None:
     """A press scale moves a control's hit edge, so a press near it can
-    release outside and lose the click. Menu rows (in a panel or not),
-    segments and phone nav tabs keep a colour-only press."""
+    release outside and lose the click. Menu rows (in a panel or not)
+    and segments keep a colour-only press."""
     press = [
         d
         for d in _file_declarations(_PARTIALS_DIR / "ui.css")
@@ -790,7 +790,6 @@ def test_wide_and_adjacent_controls_press_in_place() -> None:
         ".ui-menu-panel *",
         '[role^="menuitem"]',
         ".ui-segmented > *",
-        ".mobile-nav *",
     ):
         assert excluded in press[0].preludes[-1], excluded
 

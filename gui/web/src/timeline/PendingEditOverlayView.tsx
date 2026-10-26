@@ -129,12 +129,12 @@ function timelineChromeBottom(): number {
   );
 }
 
-/** Viewport y where the bottom panel begins; the window's bottom when absent. */
+/** Viewport y where the Player begins; the window's bottom when absent. */
 function bottomChromeTop(): number {
-  // The Inspector column hides the tabs row (#1696): the viewport bounds the card.
+  // The Inspector column leaves the Player's row alone (#1696): the viewport bounds the card.
   if (document.querySelector(".bottom-sheet--column"))
     return window.innerHeight;
-  const panel = document.querySelector(".bottom-tabs");
+  const panel = document.querySelector(".stage-frame-player");
   return panel ? panel.getBoundingClientRect().top : window.innerHeight;
 }
 
@@ -159,10 +159,10 @@ function actionsReach(card: HTMLElement, naturalHeight: number): number {
 
 /**
  * The chrome that bounds where the card may float. Its size changes without a
- * scroll or resize (a comment grows the marker lane; the splitter moves the
- * bottom panel), so the overlay observes each one.
+ * scroll or resize (a comment grows the marker lane; the Player grows to its
+ * expanded form), so the overlay observes each one.
  */
-const FLOAT_BOUNDS_SELECTORS = [".marker-lane", ".bottom-tabs"];
+const FLOAT_BOUNDS_SELECTORS = [".marker-lane", ".stage-frame-player"];
 const floatBounds = FLOAT_BOUNDS_SELECTORS.map(
   (selector) => () => document.querySelector(selector),
 );

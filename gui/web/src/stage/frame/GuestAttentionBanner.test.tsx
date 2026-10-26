@@ -7,9 +7,11 @@ import {
   volatileOutcomeFor,
 } from "../../services/offlineQueue/offlineAttention";
 import { useDawStore } from "../../state/dawStore";
+import { SaveIndicator } from "../../system/SaveIndicator";
 import { minimalProject, offlineConflict } from "../../test/fixtures";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../../utils/apiError";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
+import { useSaveIndicator } from "./useSaveIndicator";
 
 const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
 vi.mock("../../services/offlineQueue/drainOfflineQueue", () => drain);
@@ -733,10 +735,13 @@ describe("GuestAttentionBanner", () => {
     offlineStore.dismissHostConflicts.mockReturnValueOnce(dismissal.promise);
     useDawStore.getState().hydrate(path, minimalProject());
     const { beginDocumentSend } = await import("../../state/documentSendOrder");
-    const { SaveStateDot } = await import("../../layout/SaveStateDot");
+    function SaveDot() {
+      const props = useSaveIndicator();
+      return props ? <SaveIndicator {...props} /> : null;
+    }
     render(
       <>
-        <SaveStateDot />
+        <SaveDot />
         <GuestAttentionBanner />
       </>,
     );
@@ -755,9 +760,7 @@ describe("GuestAttentionBanner", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(
-      screen.getByRole("img", { name: "Saved to project" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Saved");
     expect(
       screen.queryByRole("region", { name: /Needs attention/ }),
     ).not.toBeInTheDocument();

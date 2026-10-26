@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { dawShellStoryDecorator } from "../../layout/dawShellStoryDecorator";
 import { recordMobileViewport } from "../../record/recordStoryDecorator";
 import { offlineConflict } from "../../test/fixtures";
 import { episodeBeforeEach } from "../../test/withEpisode";
 import { DocumentCommand } from "../../types/documentCommands.generated";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../../utils/apiError";
+import { frameStoryDecorator } from "./frameStoryDecorator";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
 const DETAILS = "Needs attention details and recovery actions";
@@ -20,14 +20,7 @@ const meta: Meta<typeof GuestAttentionBannerView> = {
   title: "Templates/GuestAttentionBanner",
   component: GuestAttentionBannerView,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <div className="daw-shell-banners">
-        <Story />
-      </div>
-    ),
-    dawShellStoryDecorator,
-  ],
+  decorators: [frameStoryDecorator],
   args: {
     pending: 0,
     conflicts: [],
@@ -94,7 +87,7 @@ export const PendingAndConflict: Story = {
 };
 
 export const PhoneManyConflicts: Story = {
-  parameters: { ...recordMobileViewport.parameters, dawShellPhone: true },
+  parameters: { ...recordMobileViewport.parameters, framePhone: true },
   globals: recordMobileViewport.globals,
   args: {
     conflicts: Array.from({ length: 7 }, (_, i) =>

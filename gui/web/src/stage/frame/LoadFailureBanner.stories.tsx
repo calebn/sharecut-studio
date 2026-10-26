@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { dawShellStoryDecorator } from "../../layout/dawShellStoryDecorator";
+import { frameStoryDecorator } from "./frameStoryDecorator";
 import { LoadFailureBanner } from "./LoadFailureBanner";
 
 const meta: Meta<typeof LoadFailureBanner> = {
   title: "Templates/LoadFailureBanner",
   component: LoadFailureBanner,
   tags: ["autodocs"],
-  decorators: [dawShellStoryDecorator],
+  decorators: [frameStoryDecorator],
   parameters: { layout: "fullscreen" },
 };
 

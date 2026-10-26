@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { dawShellStoryDecorator } from "../../layout/dawShellStoryDecorator";
 import { recordMobileViewport } from "../../record/recordStoryDecorator";
+import { frameStoryDecorator } from "./frameStoryDecorator";
 import { HomeScreenHintView } from "./HomeScreenHintView";
 
 const meta: Meta<typeof HomeScreenHintView> = {
   title: "Templates/HomeScreenHint",
   component: HomeScreenHintView,
   tags: ["autodocs"],
-  decorators: [dawShellStoryDecorator],
+  decorators: [frameStoryDecorator],
   args: { onDismiss: fn() },
   parameters: { layout: "fullscreen" },
 };
@@ -27,5 +27,5 @@ export const Safari: Story = {
 
 export const Phone: Story = {
   ...recordMobileViewport,
-  parameters: { ...recordMobileViewport.parameters, dawShellPhone: true },
+  parameters: { ...recordMobileViewport.parameters, framePhone: true },
 };

@@ -136,6 +136,8 @@ export function hydrateEpisode(
   useDawStore.setState({
     guestMode,
     shareCapabilities: capabilities,
+    // A frame story at a phone width leaves `phone` here; start every story from desktop.
+    shellBreakpoint: "desktop",
     ...state,
   });
   useDawStore.getState().setSelection(selection ?? selections.none);

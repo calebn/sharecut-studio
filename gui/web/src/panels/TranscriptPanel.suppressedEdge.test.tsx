@@ -1,6 +1,7 @@
 import { fireEvent, render, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTranscriptWordSuppressed } from "../api";
+import { Inspector } from "../inspector/Inspector";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -156,7 +157,6 @@ describe("TranscriptPanel suppressed edge words (#752)", () => {
       playheadSec: 0,
       selection: null,
       transcriptFollowPlayhead: false,
-      layoutMode: "text",
       pointerKind: "fine",
       transcriptInlineCommitPending: false,
       transcriptInlineEditFailure: null,
@@ -169,7 +169,12 @@ describe("TranscriptPanel suppressed edge words (#752)", () => {
     "keeps $name as a chip, and Correct -> select -> Unsuppress round-trips it",
     async (edgeCase) => {
       useDawStore.setState({ project: projectFor(edgeCase) });
-      const { container } = render(<TranscriptPanel />);
+      const { container } = render(
+        <>
+          <TranscriptPanel />
+          <Inspector />
+        </>,
+      );
 
       const chip = container.querySelector(".utterance-word.suppressed");
       expect(chip).not.toBeNull();

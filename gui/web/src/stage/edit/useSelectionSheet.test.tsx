@@ -3,16 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SELECTION_SURFACES,
   type SelectionKind,
+  type SheetScreen,
 } from "../../inspector/selectionSurface";
 import { useDawStore } from "../../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import type { Selection } from "../../types/project";
-import {
-  type SheetOpenState,
-  selectionSheetOpen,
-  useSelectionSheet,
-} from "./useSelectionSheet";
+import { selectionSheetOpen, useSelectionSheet } from "./useSelectionSheet";
 
 const clip = clipRow({ id: "c2", track_id: "host", timeline_start: 10 });
 
@@ -26,7 +23,6 @@ beforeEach(() => {
     null,
   );
   useDawStore.setState({
-    mobileMode: "timeline",
     selection: { kind: "clip", id: "c2", trackId: "host" },
     selectionHit: { kind: "trim-in", id: "c2" },
     compactInspectorView: "peek",
@@ -43,7 +39,7 @@ describe("useSelectionSheet placement", () => {
     "puts the %s shell's inspector in a column on a short wide touch screen",
     (shell) => {
       stubMatchMedia(true);
-      const { result } = renderHook(() => useSelectionSheet(shell));
+      const { result } = renderHook(() => useSelectionSheet(shell, "timeline"));
       expect(result.current).toMatchObject({
         open: true,
         placement: "column",
@@ -56,11 +52,13 @@ describe("useSelectionSheet placement", () => {
 
   it("opens the phone's and the tablet's timeline selection at the compact strip", () => {
     stubMatchMedia(false);
-    const phone = renderHook(() => useSelectionSheet("phone")).result.current;
+    const phone = renderHook(() => useSelectionSheet("phone", "timeline"))
+      .result.current;
     expect(phone.placement).toBe("sheet");
     expect(phone.compact?.className).toContain("bottom-sheet--compact");
     expect(phone.className).toContain("bottom-sheet--inspector");
-    const tablet = renderHook(() => useSelectionSheet("tablet")).result.current;
+    const tablet = renderHook(() => useSelectionSheet("tablet", "timeline"))
+      .result.current;
     expect(tablet.placement).toBe("sheet");
     expect(tablet.compact?.className).toContain("bottom-sheet--compact");
     expect(tablet.className).toContain("bottom-sheet--inspector");
@@ -72,7 +70,9 @@ describe("useSelectionSheet placement", () => {
       selectionHit: null,
     });
     const media = stubMatchMedia(true);
-    const { result } = renderHook(() => useSelectionSheet("tablet"));
+    const { result } = renderHook(() =>
+      useSelectionSheet("tablet", "timeline"),
+    );
     expect(result.current.className).toBe("");
     act(() => media.setMatches(false));
     expect(result.current.className).toContain("bottom-sheet--lane-band");
@@ -80,7 +80,7 @@ describe("useSelectionSheet placement", () => {
 
   it("changes shape as the phone rotates", () => {
     const media = stubMatchMedia(false);
-    const { result } = renderHook(() => useSelectionSheet("phone"));
+    const { result } = renderHook(() => useSelectionSheet("phone", "timeline"));
     expect(result.current.placement).toBe("sheet");
     act(() => media.setMatches(true));
     expect(result.current.placement).toBe("column");
@@ -106,7 +106,9 @@ describe("useSelectionSheet placement", () => {
 
   it("keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection", () => {
     const rotate = stubRotation(true);
-    const { result } = renderHook(() => useSelectionSheet("tablet"));
+    const { result } = renderHook(() =>
+      useSelectionSheet("tablet", "timeline"),
+    );
     expect(result.current.placement).toBe("column");
     act(() => rotate(false));
     expect(result.current.placement).toBe("sheet");
@@ -119,7 +121,9 @@ describe("useSelectionSheet placement", () => {
 
   it("opens the peek strip for a selection made after the Inspector went upright", () => {
     const rotate = stubRotation(true);
-    const { result } = renderHook(() => useSelectionSheet("tablet"));
+    const { result } = renderHook(() =>
+      useSelectionSheet("tablet", "timeline"),
+    );
     act(() => rotate(false));
     act(() => useDawStore.setState({ selection: null }));
     act(() =>
@@ -134,7 +138,9 @@ describe("useSelectionSheet placement", () => {
 
   it("starts as the peek strip when the phone is upright", () => {
     stubRotation(false);
-    const { result } = renderHook(() => useSelectionSheet("tablet"));
+    const { result } = renderHook(() =>
+      useSelectionSheet("tablet", "timeline"),
+    );
     expect(result.current.compact?.className).toContain(
       "bottom-sheet--compact",
     );
@@ -151,7 +157,7 @@ describe("useSelectionSheet placement", () => {
       },
       selectionHit: null,
     });
-    const { result } = renderHook(() => useSelectionSheet("phone"));
+    const { result } = renderHook(() => useSelectionSheet("phone", "timeline"));
     expect(result.current.open).toBe(true);
     expect(result.current.compact).toBeUndefined();
   });
@@ -185,14 +191,14 @@ describe("useSelectionSheet placement", () => {
       },
       selectionHit: null,
     });
-    renderHook(() => useSelectionSheet("phone"));
+    renderHook(() => useSelectionSheet("phone", "timeline"));
     expect(scroller.scrollTop).toBe(150);
     document.body.replaceChildren();
   });
 
   it("closes through the same handler in a column", () => {
     stubMatchMedia(true);
-    const { result } = renderHook(() => useSelectionSheet("phone"));
+    const { result } = renderHook(() => useSelectionSheet("phone", "timeline"));
     act(() => result.current.onClose());
     expect(useDawStore.getState().selection).toBeNull();
   });
@@ -234,88 +240,36 @@ const EVERY_KIND: Record<SelectionKind, NonNullable<Selection>> = {
 
 const KINDS = Object.keys(SELECTION_SURFACES) as SelectionKind[];
 
-const SCREENS = {
-  timeline: {
-    phone: { mobileMode: "timeline", moreDestination: "hub" },
-    tablet: { layoutMode: "default" },
-  },
-  text: {
-    phone: { mobileMode: "text", moreDestination: "hub" },
-    tablet: { layoutMode: "text" },
-  },
-  comments: {
-    phone: { mobileMode: "more", moreDestination: "comments" },
-    tablet: { layoutMode: "review" },
-  },
-} as const satisfies Record<
-  string,
-  {
-    phone: Pick<SheetOpenState, "mobileMode" | "moreDestination">;
-    tablet: Pick<SheetOpenState, "layoutMode">;
-  }
->;
-
 function sheetOpen(
   shell: "phone" | "tablet",
-  screen: keyof typeof SCREENS,
+  screen: SheetScreen,
   selection: Selection,
   rangeArmed = false,
 ): boolean {
-  return selectionSheetOpen({
-    shell,
-    selection,
-    rangeArmed,
-    layoutMode: "default",
-    mobileMode: "listen",
-    moreDestination: "hub",
-    ...SCREENS[screen][shell],
-  });
+  return selectionSheetOpen({ shell, selection, rangeArmed, screen });
 }
 
 describe("selectionSheetOpen reads one table on the phone and the tablet", () => {
   it.each(
     KINDS.flatMap((kind) =>
-      (Object.keys(SCREENS) as (keyof typeof SCREENS)[]).map(
-        (screen) => [kind, screen] as const,
-      ),
+      (["timeline", "text"] as const).map((screen) => [kind, screen] as const),
     ),
-  )("opens %s on the %s screen the same way on both", (kind, screen) => {
+  )("opens %s on the %s surface the same way on both", (kind, screen) => {
     const selection = EVERY_KIND[kind];
     expect(sheetOpen("tablet", screen, selection)).toBe(
       sheetOpen("phone", screen, selection),
     );
   });
 
-  it("opens a transcript range in the tablet's Text layout and a clip not", () => {
+  it("opens a transcript range with the Script showing and a clip not", () => {
     expect(sheetOpen("tablet", "text", EVERY_KIND.transcriptRange)).toBe(true);
     expect(sheetOpen("tablet", "text", EVERY_KIND.clip)).toBe(false);
   });
 
-  it("opens a comment in the tablet's Review layout and a pending edit not", () => {
-    expect(sheetOpen("tablet", "comments", EVERY_KIND.comment)).toBe(true);
-    expect(sheetOpen("tablet", "comments", EVERY_KIND.pending)).toBe(false);
-  });
-
-  it("opens every kind in the tablet's default layout", () => {
+  it("opens every kind over the lanes", () => {
     for (const kind of KINDS) {
       expect(sheetOpen("tablet", "timeline", EVERY_KIND[kind])).toBe(true);
     }
-  });
-
-  it("opens a pending edit chosen in Tighten on the phone, and a clip not", () => {
-    const state = {
-      shell: "phone",
-      rangeArmed: false,
-      layoutMode: "default",
-      mobileMode: "more",
-      moreDestination: "tighten",
-    } as const;
-    expect(
-      selectionSheetOpen({ ...state, selection: EVERY_KIND.pending }),
-    ).toBe(true);
-    expect(selectionSheetOpen({ ...state, selection: EVERY_KIND.clip })).toBe(
-      false,
-    );
   });
 
   it("opens on an armed range alone on the phone and the tablet (#1793)", () => {

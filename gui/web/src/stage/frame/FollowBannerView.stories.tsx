@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { dawShellStoryDecorator } from "../../layout/dawShellStoryDecorator";
 import { recordMobileViewport } from "../../record/recordStoryDecorator";
 import { FollowBannerView } from "./FollowBannerView";
+import { frameStoryDecorator } from "./frameStoryDecorator";
 
 const meta: Meta<typeof FollowBannerView> = {
   title: "Templates/FollowBanner",
   component: FollowBannerView,
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
-  decorators: [dawShellStoryDecorator],
+  decorators: [frameStoryDecorator],
   args: {
     name: "Mira",
     colorIndex: 2,
@@ -66,11 +66,11 @@ export const HostMirrorsAudition: Story = {
 };
 
 export const PhoneLongName: Story = {
-  parameters: { ...recordMobileViewport.parameters, dawShellPhone: true },
+  parameters: { ...recordMobileViewport.parameters, framePhone: true },
   globals: recordMobileViewport.globals,
   args: { name: "Ada Lovelace Very Long Name" },
   play: async ({ canvasElement }) => {
-    const shell = canvasElement.querySelector<HTMLElement>(".daw-shell");
+    const shell = canvasElement.querySelector<HTMLElement>(".stage-frame");
     const text = canvasElement.querySelector<HTMLElement>(
       ".follow-banner-text",
     );

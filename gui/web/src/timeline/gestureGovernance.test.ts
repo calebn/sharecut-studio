@@ -222,18 +222,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "sheet drag: the grabber drags a bottom sheet between detents; a range input under it keeps the keyboard and screen reader path",
   "ui/BottomSheet.tsx":
     "the detent slider under the grabber is the keyboard and screen reader path to the same detents",
-  "layout/CollapsedDrawerHandle.tsx":
-    "reopen swipe: a drag up on the collapsed drawer handle reopens the drawer, and a press does the same",
-  "layout/BottomTabsSplitterView.tsx":
-    "splitter: a drag resizes the bottom tabs; arrow keys and the size buttons do the same by key",
   "stage/edit/ScriptDivider.tsx":
     "divider: a drag resizes the Script pane beside the timeline; the arrow keys, Enter and double-click do the same by key",
-  "layout/useRailLabelPeek.ts":
-    "rail label: a touch long press on an icon-only rail control names it for a moment without activating it (useLongPress timing)",
-  "layout/ListenCommentComposer.tsx":
-    "a press on a dock button keeps the focused comment or name field focused, so the keyboard and the dock height hold through the tap; it starts no gesture",
-  "layout/ListenPlayhead.tsx":
-    "Listen scrub: a native range input seeks the playhead; it is not a timeline target",
   "system/Player.tsx":
     "hold to hear: a press on A hears the original and letting go after a hold goes back; a quick release latches it, and the A and B buttons do the same by key",
   "tracks/TrackFaderView.tsx":

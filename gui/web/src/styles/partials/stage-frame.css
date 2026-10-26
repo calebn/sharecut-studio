@@ -19,6 +19,43 @@
   container: app / size;
 }
 
+/* The bottom chrome a docked sheet, jog or toast rests above: the Player,
+   and on a phone the tab bar under it. */
+html {
+  --frame-bottom-chrome: calc(
+    var(--transport-height) +
+    env(safe-area-inset-bottom)
+  );
+}
+
+html[data-shell="phone"] {
+  --frame-bottom-chrome: calc(
+    var(--tab-bar-height) +
+    var(--transport-height) +
+    env(safe-area-inset-bottom)
+  );
+}
+
+/* Touch frames sit fixed to the viewport, so a page scroll never moves them
+   against the fixed sheets (#1077). */
+@media (pointer: coarse) {
+  html[data-shell="phone"] .stage-frame,
+  html[data-shell="tablet"] .stage-frame {
+    position: fixed;
+    inset: 0;
+    block-size: auto;
+    max-block-size: none;
+  }
+
+  /* Safari's post-rotation pan (#1761, from useViewportPan): the fixed frame
+     takes the visible band, and its fixed children follow it. */
+  html[data-viewport-pan][data-shell="phone"] .stage-frame,
+  html[data-viewport-pan][data-shell="tablet"] .stage-frame {
+    inset-block: var(--viewport-pan-top) auto;
+    block-size: var(--viewport-pan-height);
+  }
+}
+
 .stage-frame-header,
 .stage-frame-banners,
 .stage-frame-alerts {

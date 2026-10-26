@@ -1,24 +1,9 @@
 import { expect, type Page } from "@playwright/test";
-import { type StoryTheme, storyUrl } from "./storyUrl";
-
-export async function openStory(
-  page: Page,
-  id: string,
-  width: number,
-  theme: StoryTheme,
-  embed = false,
-) {
-  await page.setViewportSize({ width, height: 900 });
-  await page.goto(storyUrl(`templates-${id}`, { theme, embed }));
-  await expect(page.locator(".daw-shell")).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-  await page.evaluate(() => document.fonts.ready);
-}
 
 export async function expectShellFit(page: Page, width: number) {
-  const geometry = await page.locator(".daw-shell").evaluate((shell) => {
+  const geometry = await page.locator(".stage-frame").evaluate((shell) => {
     const main = shell.querySelector("main");
-    if (!main) throw new Error("Shell has no main region");
+    if (!main) throw new Error("Frame has no main region");
     const rect = shell.getBoundingClientRect();
     return {
       left: rect.left,

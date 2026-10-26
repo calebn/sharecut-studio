@@ -167,10 +167,6 @@ export function evaluateWhen(
         : { ok: false, reason: "No trim handle focused" };
     case "always":
       return { ok: true };
-    case "layoutShell":
-      return ctx.shellBreakpoint !== "phone"
-        ? { ok: true }
-        : { ok: false, reason: "Layouts need the desktop or tablet shell" };
     case "editorFocused":
       return ctx.editorFocused
         ? { ok: true }

@@ -3,25 +3,15 @@ import { lastPressedRect } from "../ui/pressedControl";
 
 /**
  * Phone chrome docked to the bottom edge. The toast sits above the highest of
- * these that is shown: the mode nav, Listen's comment field, the Timeline tool
- * rail, an open join's crossfade rail, or an open sheet.
+ * these that is shown: the tab bar, the Player, an open join's crossfade rail,
+ * or an open sheet.
  */
 const FLOOR_SELECTORS = [
-  ".mobile-nav",
-  ".mobile-dock",
   ".stage-frame-tabs",
   ".stage-frame-player",
-  ".daw-shell--phone .editing-tool-rail",
   ".join-edit-rail",
   ".bottom-sheet:not(.bottom-sheet--column)",
 ] as const;
-
-/**
- * Controls that sit in the page body and that a toast must not cover: Listen's
- * Play row. On a short phone the band above the bottom chrome is only just
- * taller than the toast, so docking there would land on them.
- */
-const KEEP_CLEAR_SELECTORS = [".listen-hero-controls"] as const;
 
 const PROTECT_SELECTORS = [
   ".comment-compose",
@@ -31,10 +21,7 @@ const PROTECT_SELECTORS = [
 ] as const;
 
 /** Phone chrome docked to the top edge; the toast stays below it. */
-const CEILING_SELECTORS = [
-  ".daw-shell--phone .daw-shell-transport",
-  ".daw-shell--phone .mobile-status-row",
-] as const;
+const CEILING_SELECTORS = [".stage-frame--phone .stage-frame-header"] as const;
 
 type VerticalSpan = Readonly<{ top: number; bottom: number }>;
 type HorizontalSpan = Readonly<{ left: number; right: number }>;
@@ -43,11 +30,11 @@ type MeasuredRect = VerticalSpan & HorizontalSpan;
 /** Movable-control spans already intersect the card horizontally. */
 export type ToastDockInput = {
   viewportHeight: number;
-  /** Bottom of the lowest top-docked control row (transport, status row). */
+  /** Bottom of the lowest top-docked control row (the frame header). */
   ceilingPx: number;
-  /** Tops of the bottom-docked chrome that is shown (nav, tool rail, sheet). */
+  /** Tops of the bottom-docked chrome that is shown (tab bar, Player, sheet). */
   floorTopsPx: readonly number[];
-  /** Top of the chrome the toast rests above when no free band fits (mode nav on phone, status bar elsewhere). */
+  /** Top of the chrome the toast rests above when no free band fits (tab bar on phone, Player elsewhere). */
   restTopPx: number;
   toastHeightPx: number;
   gapPx: number;
@@ -57,8 +44,6 @@ export type ToastDockInput = {
    * sheet.
    */
   pressedPx?: { top: number; bottom: number } | null;
-  /** Vertical extents of body controls the toast must clear (Listen's Play row). */
-  keepClearPx?: readonly { top: number; bottom: number }[];
   /** Fields take priority over the ceiling and other controls when a clear position fits. */
   protectPx?: readonly { top: number; bottom: number }[];
 };
@@ -66,11 +51,10 @@ export type ToastDockInput = {
 /**
  * Where the toast's bottom edge goes, as a distance from the viewport
  * bottom. It docks just above the highest bottom chrome (an open sheet, the
- * tool rail, or the mode nav) when the band between that and the top
- * transport fits it, so it covers neither controls nor sheet fields. A
+ * Player, or the tab bar) when the band between that and the frame header
+ * fits it, so it covers neither controls nor sheet fields. A
  * full-height sheet leaves no such band; the toast then sits above the rest
- * chrome, over the sheet's scrolling body, which the person can scroll past. If that spot covers the control just pressed or a
- * control that must stay clear (Listen's Play row on a short phone), the toast
+ * chrome, over the sheet's scrolling body, which the person can scroll past. If that spot covers the control just pressed, the toast
  * moves just above it, or just below it when there is no room above; the first
  * spot that covers none of them wins. If no position fits, it keeps the original
  * resting position.
@@ -83,18 +67,13 @@ export function toastDockBottomPx({
   toastHeightPx,
   gapPx,
   pressedPx,
-  keepClearPx = [],
   protectPx = [],
 }: ToastDockInput): number {
   const floor = Math.min(restTopPx, ...floorTopsPx);
   const fits = floor - ceilingPx >= toastHeightPx + 2 * gapPx;
   const dockBottom = fits ? floor : restTopPx;
   const spot = dockBottom - gapPx;
-  const avoid = [
-    ...(pressedPx ? [pressedPx] : []),
-    ...keepClearPx,
-    ...protectPx,
-  ];
+  const avoid = [...(pressedPx ? [pressedPx] : []), ...protectPx];
   const clearOf = (extent: { top: number; bottom: number }, bottom: number) =>
     extent.top >= bottom || extent.bottom <= bottom - toastHeightPx;
   const clear = (bottom: number) =>
@@ -205,7 +184,7 @@ export function useToastDock(
       frame = window.requestAnimationFrame(layout);
       const phone = document.documentElement.dataset.shell === "phone";
       const rest = document.querySelector(
-        phone ? ".mobile-nav" : ".status-bar",
+        phone ? ".stage-frame-tabs" : ".stage-frame-player",
       );
       const card = region.firstElementChild;
       if (!(rest instanceof HTMLElement) || !card) {
@@ -228,12 +207,8 @@ export function useToastDock(
             floorTopsPx: shownRects(FLOOR_SELECTORS).map((rect) => rect.top),
             pressedPx:
               spansAcrossCard(pressed ? [pressed] : [], cardRect)[0] ?? null,
-            keepClearPx: spansAcrossCard(
-              shownRects(KEEP_CLEAR_SELECTORS),
-              cardRect,
-            ),
           }
-        : { ceilingPx: 0, floorTopsPx: [], pressedPx: null, keepClearPx: [] };
+        : { ceilingPx: 0, floorTopsPx: [], pressedPx: null };
       const bottomPx = toastDockBottomPx({
         viewportHeight: window.innerHeight,
         restTopPx: restTop(rest),
