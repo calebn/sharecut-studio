@@ -3,7 +3,7 @@
 
 /* Quiet at rest; pressed falls through to the shared .ui-control chip. */
 .transcript-toolbar
-.transcript-annotate-btn:not([aria-pressed="true"], :hover) {
+  .transcript-annotate-btn:not([aria-pressed="true"], :hover) {
   border-color: transparent;
   background: transparent;
 }
