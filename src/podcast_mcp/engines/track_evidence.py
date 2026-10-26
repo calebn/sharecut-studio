@@ -37,7 +37,7 @@ from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE, LevelProfile, track_profile
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.batch_scope import scoped, unscoped
+from podcast_mcp.util.batch_scope import shared_while_batching, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.parallel import run_parallel
@@ -337,7 +337,7 @@ class _Store:
 
 def _store() -> _Store:
     with _store_creation:
-        return scoped(_STORE_KEY, _Store)
+        return shared_while_batching(_STORE_KEY, _Store)
 
 
 def _verify(stored: _Entry, rebuilt: Evidence | Declined) -> None:

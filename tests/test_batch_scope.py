@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -9,7 +10,7 @@ import pytest
 
 from podcast_mcp.engines import ffmpeg
 from podcast_mcp.engines.ungated_audio import load_mono_full
-from podcast_mcp.util.batch_scope import batch_scope, scoped_by_file
+from podcast_mcp.util.batch_scope import batch_scope, scoped_by_file, shared_while_batching
 from podcast_mcp.util.binaries import FFmpegPair
 
 
@@ -145,3 +146,27 @@ def test_scoped_by_file_key_includes_extra(tmp_path: Path) -> None:
         again = scoped_by_file("k", f, (16000, "ffmpeg", ("mono",)), lambda: object())
     assert one is again
     assert one is not two
+
+
+def test_two_batches_at_once_share_a_value_and_the_last_to_end_frees_it() -> None:
+    made: list[int] = []
+
+    def make() -> int:
+        made.append(1)
+        return len(made)
+
+    assert shared_while_batching("k", make) == 1 and len(made) == 1  # no scope: not kept
+    with batch_scope():
+        first = shared_while_batching("k", make)
+        seen: list[int] = []
+
+        def other() -> None:
+            with batch_scope():
+                seen.append(shared_while_batching("k", make))
+
+        thread = threading.Thread(target=other)
+        thread.start()
+        thread.join()
+        assert seen == [first]
+    with batch_scope():
+        assert shared_while_batching("k", make) != first
