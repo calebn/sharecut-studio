@@ -2611,3 +2611,227 @@
 .sys-status-list .sys-status-list {
   gap: 0;
 }
+
+/* Prepare stage */
+
+.sys-prepare {
+  container: sys-prepare / inline-size;
+  padding: var(--space-5);
+  color: var(--color-text-primary);
+}
+
+.sys-prepare-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.sys-prepare-layout > * {
+  min-inline-size: 0;
+}
+
+.sys-prepare-sources,
+.sys-prepare-ready,
+.sys-prepare-aside,
+.sys-split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sys-prepare-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.sys-prepare-title,
+.sys-prepare-subtitle {
+  margin: 0;
+  font-size: var(--font-size-emphasis);
+  font-weight: 600;
+}
+
+.sys-prepare-subtitle {
+  margin-block-start: var(--space-4);
+}
+
+.sys-prepare-note,
+.sys-prepare-label {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-prepare-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.sys-prepare-field .ui-segmented {
+  flex-wrap: wrap;
+  block-size: auto;
+}
+
+.sys-prepare-field .ui-segmented > .ui-control {
+  min-block-size: var(--control-height);
+}
+
+.sys-prepare-empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  inline-size: 100%;
+  max-inline-size: 50rem;
+  margin-inline: auto;
+  padding-block: var(--space-6);
+}
+
+.sys-prepare-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: 4.5rem;
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sys-prepare-summary-text {
+  flex: 1;
+  min-inline-size: 0;
+  font-weight: 500;
+}
+
+.sys-prepare-chevron {
+  display: inline-flex;
+  flex: none;
+}
+
+.sys-prepare-summary[aria-expanded="true"] .sys-prepare-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-prepare-chevron {
+    transition: transform var(--motion-panel);
+  }
+}
+
+.sys-prepare-ready-body[data-open="false"] {
+  display: none;
+}
+
+.sys-prepare-handoff {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-content);
+  margin-inline: calc(-1 * var(--space-5));
+  padding: var(--space-4) var(--space-5);
+  padding-block-end: max(var(--space-4), env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-canvas);
+}
+
+.sys-prepare-handoff .sys-handoff-wrap {
+  display: flex;
+}
+
+.sys-prepare-handoff .sys-handoff {
+  flex: 1 1 100%;
+  justify-content: center;
+  min-block-size: 3rem;
+}
+
+.sys-prepare-handoff .sys-keys {
+  display: none;
+}
+
+.sys-ready-text {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+}
+
+.sys-ready-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-block-end: var(--space-1);
+}
+
+@container sys-prepare (min-width: 40rem) {
+  .sys-prepare-empty {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container sys-prepare (min-width: 60rem) {
+  .sys-prepare-layout {
+    display: grid;
+    grid-template-columns: 22.5rem minmax(0, 1fr) 20rem;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "sources ready aside"
+      "sources ready handoff";
+    align-items: start;
+    gap: var(--space-5) var(--space-6);
+  }
+
+  .sys-prepare-sources {
+    grid-area: sources;
+  }
+
+  .sys-prepare-ready {
+    grid-area: ready;
+  }
+
+  .sys-prepare-aside {
+    grid-area: aside;
+  }
+
+  .sys-prepare-handoff {
+    grid-area: handoff;
+    align-self: end;
+    position: static;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .sys-prepare-handoff .sys-handoff-wrap {
+    display: inline-flex;
+    justify-content: flex-end;
+    inline-size: 100%;
+  }
+
+  .sys-prepare-handoff .sys-handoff {
+    flex: none;
+    min-block-size: 2.5rem;
+  }
+
+  .sys-prepare-handoff .sys-keys {
+    display: inline-flex;
+  }
+
+  .sys-prepare-summary {
+    display: none;
+  }
+
+  .sys-prepare-ready-body[data-open="false"] {
+    display: block;
+  }
+
+  .sys-prepare[data-phase="empty"] .sys-prepare-layout {
+    display: block;
+  }
+}
