@@ -55,14 +55,14 @@ NOT_HANDED_OFF = frozenset(
         "setup",
         "doctor",
         "bootstrap",
-        "review",
         "session",
     }
 )
 # Set while Studio runs a handed-off command: that command is already in the one writer,
 # so it must not hand itself off again.
 _running_for_caller: ContextVar[bool] = ContextVar("running_for_caller", default=False)
-_HELP_TOKENS = frozenset({"--help", "-h", "--version"})
+_HELP_TOKENS = frozenset({"--help", "-h"})
+_VERSION_TOKEN = "--version"
 _PROJECT_OPTION = "--project"
 
 
@@ -201,7 +201,8 @@ def _absolutize(
 
 def plan_handoff(root: Command, argv: list[str], cwd: Path) -> HandoffPlan | None:
     """The handoff for ``argv`` (everything after ``podcast``), or None to run it directly."""
-    if any(token in _HELP_TOKENS for token in argv):
+    leading = next((i for i, token in enumerate(argv) if not token.startswith("-")), len(argv))
+    if any(token in _HELP_TOKENS for token in argv) or _VERSION_TOKEN in argv[:leading]:
         return None
     split = _split_root_options(root, argv)
     if split is None:
