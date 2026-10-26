@@ -529,18 +529,28 @@ async def test_guest_reporter_lazy_start_and_coalesce_and_message():
     q = hub.subscribe("tok", loop)
     reporter = GuestWsProgressReporter(hub, "tok")
     try:
-        reporter.start("t", "Slow work", total=4)
-        await asyncio.sleep(1.1)
+        with _guest_payload_accepted(q, {"kind": "start", "task_id": "t"}) as accepted:
+            reporter.start("t", "Slow work", total=4)
+            await asyncio.wait_for(accepted, timeout=3.0)
         events = drain(q)
         assert any(e.get("kind") == "start" for e in events)
-        reporter.message("t", "phase two")
-        await asyncio.sleep(0.3)
+        with _guest_payload_accepted(
+            q, {"kind": "message", "task_id": "t", "message": "phase two"}
+        ) as accepted:
+            reporter.message("t", "phase two")
+            await asyncio.wait_for(accepted, timeout=3.0)
         msg_events = drain(q)
         assert any(e.get("kind") == "message" for e in msg_events)
-        reporter.update("t", 1, total=4, message="a")
-        await asyncio.sleep(0.3)
-        reporter.update("t", 2, total=4, message="b")
-        await asyncio.sleep(0.3)
+        with _guest_payload_accepted(
+            q, {"kind": "update", "task_id": "t", "current": 1, "message": "a"}
+        ) as accepted:
+            reporter.update("t", 1, total=4, message="a")
+            await asyncio.wait_for(accepted, timeout=3.0)
+        with _guest_payload_accepted(
+            q, {"kind": "update", "task_id": "t", "current": 2, "message": "b"}
+        ) as accepted:
+            reporter.update("t", 2, total=4, message="b")
+            await asyncio.wait_for(accepted, timeout=3.0)
         later = drain(q)
         kinds = [e.get("kind") for e in later]
         assert kinds.count("update") <= 2
