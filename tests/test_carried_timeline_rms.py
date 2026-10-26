@@ -145,6 +145,25 @@ def test_a_pause_reaches_out_to_the_words_it_is_observed_between(
     assert len(built) == 2
 
 
+@pytest.mark.parametrize(("earlier", "rebuilt"), [(36.0, 2), (33.0, 1)])
+def test_a_fade_written_by_an_applied_cut_widens_the_reach_of_the_next_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, earlier: float, rebuilt: int
+) -> None:
+    defaults = load_defaults()
+    defaults["inaudible_cuts"] = {**defaults["inaudible_cuts"], "micro_fade_ms": 3000}
+    project = _project(tmp_path, (earlier, 40.0))
+    built = _builds(monkeypatch)
+    approve_edits(
+        project,
+        [e.id for e in project.edit_decisions],
+        defaults=defaults,
+        held_out=[],
+        asked_out=[],
+    )
+    assert max(c.fade_out_ms for c in project.clips) == 3000
+    assert len(built) == rebuilt
+
+
 def test_carrying_decides_the_same_as_building_every_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
