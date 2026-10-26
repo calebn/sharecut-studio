@@ -182,6 +182,8 @@ export const ShowRemaps: Story = {
     const input = within(dialog).getByRole("textbox", {
       name: "Remap Blade tool",
     });
+    await userEvent.click(input);
+    await waitFor(() => expect(input).toHaveFocus());
     await userEvent.type(input, " B ");
     await userEvent.tab();
     await expect(args.onRemap).toHaveBeenCalledWith("tool.blade", "B");
