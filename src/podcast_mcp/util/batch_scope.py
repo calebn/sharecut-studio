@@ -29,7 +29,8 @@ def batch_scope() -> Iterator[None]:
     workspace. Inside the scope a repeat decode of an unchanged file, the level caches built
     from it, a repeat path resolution, and each recording's identity stat are the first
     one's, so the batch pays one pass per file, not one per edit. A nested scope shares the
-    outer one. Everything is freed on exit.
+    outer one. Everything is freed on exit, except what :func:`shared_while_batching` holds
+    for a batch still running.
     """
     if _scope.get() is not None:
         yield
