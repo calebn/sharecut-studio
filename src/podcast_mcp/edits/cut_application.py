@@ -582,8 +582,12 @@ def precompute_verdicts(
     *,
     defaults: EffectiveConfig,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+    yield_to_approval: bool = False,
 ) -> int:
     """Check each pending source remove of ``ids`` now so a later approval can reuse the check.
+
+    With ``yield_to_approval`` (the idle warm) it stops as soon as an approval is running: the
+    checks already made stay cached and the approval does the rest rather than duplicating them.
 
     Nothing in ``project`` changes; every cut is checked on a copy, as ``approve_edits`` does.
     Returns how many cuts were checked; 0 while the verdict cache is off.
@@ -604,12 +608,16 @@ def precompute_verdicts(
     batch = _source_extents(removes)
     working = _cut_copy(project)
     measured: cut_safety.MeasuredSources = {}
+    checked = 0
     # Its own scope, never the caller's: what a check parks there (a consumed room-tone bed,
     # pad origins) belongs to one batch and must not leak from a trial into the real one.
     with unscoped(), batch_scope():
         # In approval order, each cut on the project as the earlier ones left it, so the
         # neighbourhood a check sees (and so its key) is the one the approval will see.
         for edit in sorted(removes, key=lambda e: e.start, reverse=True):
+            if yield_to_approval and verdict_cache.approval_running():
+                break
+            checked += 1
             applied = _apply_source_remove(
                 working,
                 edit,
@@ -623,7 +631,7 @@ def precompute_verdicts(
                 continue
             working = applied[0]
             measured.clear()
-    return len(removes)
+    return checked
 
 
 def _check_source_remove(

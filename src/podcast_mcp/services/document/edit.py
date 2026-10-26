@@ -25,6 +25,7 @@ from podcast_mcp.edits import (
     propose_tighten_edits,
     reject_edits,
     search_transcript,
+    verdict_cache,
 )
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
 from podcast_mcp.edits.cut_speech import (
@@ -352,6 +353,7 @@ class EditService(CutMutatingService):
             ids,
             defaults=self.ws.effective_config(),
             application_intent=CutIntent.HUMAN_BOUNDARIES,
+            yield_to_approval=True,
         )
 
     @staticmethod
@@ -362,8 +364,6 @@ class EditService(CutMutatingService):
         on a copy and save nothing, and an approval that starts meanwhile simply checks for
         itself. Does nothing while the verdict cache is off (#1958).
         """
-        from podcast_mcp.edits import verdict_cache
-
         if not verdict_cache.enabled():
             return
         key = str(project_path)
@@ -455,7 +455,7 @@ class EditService(CutMutatingService):
             return 0
 
         try:
-            with batch_scope():
+            with verdict_cache.approving(), batch_scope():
                 return self.ws.mutate(
                     "before approve edits",
                     "after approve edits",

@@ -351,3 +351,17 @@ def test_a_programmatic_check_is_not_reused_by_the_host_approval(
         application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
     assert sorted(seen) == sorted(IDS)
+
+
+def test_the_background_warm_stops_when_an_approval_is_running(
+    tmp_path: Path, cache_on: None
+) -> None:
+    project = _project(tmp_path)
+    with verdict_cache.approving():
+        assert (
+            precompute_verdicts(project, IDS, defaults=load_defaults(), yield_to_approval=True) == 0
+        )
+        assert len(verdict_cache._STORE) == 0
+    assert not verdict_cache.approval_running()
+    precompute_verdicts(project, IDS, defaults=load_defaults(), yield_to_approval=True)
+    assert len(verdict_cache._STORE) == 2
