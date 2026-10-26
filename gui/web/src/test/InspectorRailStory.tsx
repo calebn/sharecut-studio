@@ -1,6 +1,5 @@
 import { Inspector } from "../inspector/Inspector";
 
-/** The production inspector in a rail-width column, as the desktop shell places it. */
 export function InspectorRailStory({
   placement = "rail",
 }: {

@@ -15,7 +15,6 @@ import {
 import { FakeWebSocket } from "./fakeWebSocket";
 
 export interface EpisodeParameters {
-  /** Defaults to the shared episode. */
   project?: ProjectView;
   /** Defaults to the host, who opens the project by path. A guest opens `share:episode`. */
   role?: EpisodeRole;

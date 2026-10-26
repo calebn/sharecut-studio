@@ -339,7 +339,6 @@ export function episode(overrides: Partial<ProjectView> = {}): ProjectView {
   });
 }
 
-/** An episode with nothing to review, for empty-state stories. */
 export function emptyEpisode(): ProjectView {
   return episode({
     pending_edits: [],
@@ -362,7 +361,6 @@ export function emptyEpisode(): ProjectView {
   });
 }
 
-/** Pending tighten hits, each on the words it would cut, for the Tighten panel. */
 export function tightenHits(): PendingEditView[] {
   const hit = (
     id: string,

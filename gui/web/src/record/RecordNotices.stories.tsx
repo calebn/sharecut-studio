@@ -7,7 +7,6 @@ import { NoAudioNotice } from "./NoAudioNotice";
 import { recordStoryDecorator } from "./recordStoryDecorator";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 
-/** Stubs `navigator.storage.estimate` before its children read it. */
 function StorageEstimate({
   estimate,
   children,

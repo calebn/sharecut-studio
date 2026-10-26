@@ -1,7 +1,6 @@
 import { fn } from "storybook/test";
 import type { HitRouter } from "../timeline/hitRouting";
 
-/** A hit router whose every method is a spy, for stories that draw its views. */
 export function hitRouterStub(): HitRouter {
   return {
     dispose: fn(),
