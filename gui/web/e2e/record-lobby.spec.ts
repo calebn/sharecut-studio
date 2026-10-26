@@ -216,6 +216,9 @@ test.describe("record lobby", () => {
 
           const roomDlg = await openHostRecordRoom(host);
           await expect(
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+          ).toBeVisible();
+          await expect(
             roomDlg.getByText(/No guest has joined yet/),
           ).toHaveCount(0);
           await expect(

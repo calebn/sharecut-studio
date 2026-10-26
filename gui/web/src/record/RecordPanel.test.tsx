@@ -187,6 +187,23 @@ describe("RecordPanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("enables Start for a host alone once storage is ready", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      participants: [
+        recordParticipant({
+          participant_id: "p_host",
+          role: "host",
+          display_name: "Host",
+        }),
+      ],
+    });
+    render(<RecordPanel />);
+    const start = screen.getByRole("button", { name: "Start" });
+    await waitFor(() => expect(start).toBeEnabled());
+    expect(start).not.toHaveAccessibleDescription(/guest/i);
+  });
+
   it("names each guest Start is waiting for", async () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
