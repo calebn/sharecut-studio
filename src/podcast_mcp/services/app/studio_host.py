@@ -246,7 +246,7 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
     if status != 200:
         return None
     if not isinstance(body, dict):
-        raise StudioBadReply(host) from None
+        raise StudioBadReply(host)
     if (
         body.get("instance") != host.instance
         or body.get("protocol") != HANDOFF_PROTOCOL

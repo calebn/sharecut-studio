@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import io
 import json
 import os
@@ -41,6 +40,7 @@ from podcast_mcp.util.project_state import (
     project_state_lock,
     render_cancel_scope,
 )
+from studio_ping_helpers import ping_answering
 
 
 @pytest.fixture
@@ -278,36 +278,11 @@ def test_a_studio_slow_to_answer_once_is_pinged_again(project: Path, quick_ping:
     assert pings["count"] == 2
 
 
-@contextlib.contextmanager
-def _ping_answering(status: int, body: bytes) -> Iterator[int]:
-    """A listener on loopback whose handoff ping answers ``status`` with ``body``."""
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            self.send_response(status)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *_args: object) -> None:
-            return None
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield server.server_address[1]
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(10)
-
-
 @pytest.mark.parametrize("body", [b"", b"[]", b"not json", b"null"])
 def test_a_ping_answered_200_with_a_body_that_is_not_a_studio_reply_is_never_bypassed(
     project: Path, body: bytes
 ) -> None:
-    with _ping_answering(200, body) as port:
+    with ping_answering(200, body) as port:
         announce_studio_host(project, _host(port=port))
         with pytest.raises(StudioBadReply, match="not a Studio reply") as caught:
             locate_studio(project)
@@ -317,6 +292,6 @@ def test_a_ping_answered_200_with_a_body_that_is_not_a_studio_reply_is_never_byp
 
 @pytest.mark.parametrize(("status", "body"), [(503, b""), (503, b"[]"), (404, b"not json")])
 def test_a_ping_that_is_not_200_is_a_direct_write(project: Path, status: int, body: bytes) -> None:
-    with _ping_answering(status, body) as port:
+    with ping_answering(status, body) as port:
         announce_studio_host(project, _host(port=port))
         assert locate_studio(project) is None

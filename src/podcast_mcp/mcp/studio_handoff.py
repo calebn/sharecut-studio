@@ -5,9 +5,9 @@ calls take the same project and render locks as Studio and fail with "Project is
 Studio builds the mix. The CLI avoids this by handing each command to Studio (#1733); this does
 the same for MCP. While a Studio serves the project, a tool call runs in that Studio through its
 own ``/mcp`` endpoint (single writer, the screen updates live) and the result comes back as
-Studio produced it. With no Studio serving the project, the call runs here as before. A Studio
-that was found serving the project but cannot take the call (it fails before the call is sent)
-stops it with an error and nothing runs, so the call never writes behind a live Studio.
+Studio produced it. With no Studio serving the project, the call runs here. A Studio that was
+found serving the project but cannot take the call (it fails before the call is sent) stops it
+with an error and nothing runs, so the call never writes behind a live Studio.
 
 Only the stdio entry point installs this. Studio runs the same tool registry, and its own copy
 must never forward to itself.

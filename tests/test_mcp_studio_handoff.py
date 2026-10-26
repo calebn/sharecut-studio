@@ -8,13 +8,11 @@ result can only have come from Studio. A project no Studio serves still runs her
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import os
 import threading
 import time
 from collections.abc import Callable, Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +26,7 @@ from podcast_mcp.mcp.server import mcp as real_mcp
 from podcast_mcp.mcp.studio_handoff import install_studio_handoff
 from podcast_mcp.models import EpisodeProject, save_project
 from podcast_mcp.services.app import StudioHost, announce_studio_host
+from studio_ping_helpers import ping_answering
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -74,31 +73,6 @@ def studio(minimal_project: Path) -> Iterator[Path]:
         server.should_exit = True
         thread.join(20)
         sock.close()
-
-
-@contextlib.contextmanager
-def _ping_answering(status: int, body: bytes) -> Iterator[int]:
-    """A listener on loopback whose handoff ping answers ``status`` with ``body``."""
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            self.send_response(status)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *_args: object) -> None:
-            return None
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield server.server_address[1]
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(10)
 
 
 def _wrapped() -> _Direct:
@@ -258,7 +232,7 @@ def test_studio_whose_initialize_fails_after_a_good_ping_stops_the_call(
 def test_a_listener_answering_the_ping_with_an_empty_list_stops_the_call(
     minimal_project: Path,
 ) -> None:
-    with _ping_answering(200, b"[]") as port:
+    with ping_answering(200, b"[]") as port:
         announce_studio_host(
             minimal_project, StudioHost("x", os.getpid(), "127.0.0.1", port, "tok", "0")
         )
