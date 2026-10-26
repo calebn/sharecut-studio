@@ -495,9 +495,9 @@ def test_background_warm_checks_the_pending_cuts_once_at_a_time(minimal_project,
     from fastapi.testclient import TestClient
 
     from podcast_mcp.edits import verdict_cache
-    from podcast_mcp.gui.routes import document as route
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.services.document import EditService, PlayService
+    from podcast_mcp.services.document import edit as edit_module
 
     monkeypatch.setattr(PlayService, "warm_pending_preview", lambda self, *a, **k: {})
     started, release = threading.Event(), threading.Event()
@@ -525,4 +525,4 @@ def test_background_warm_checks_the_pending_cuts_once_at_a_time(minimal_project,
         if thread.name == "approval-check-warm":
             thread.join(5)
     assert calls == [1]
-    assert not route._warming_checks
+    assert not edit_module._warming_checks
