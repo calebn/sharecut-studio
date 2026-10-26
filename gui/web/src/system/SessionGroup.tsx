@@ -73,7 +73,12 @@ export function SessionGroup({
     </>
   );
   return (
-    <section className="sys-group" aria-label={title} data-status={status}>
+    <section
+      className="sys-group"
+      tabIndex={-1}
+      aria-label={title}
+      data-status={status}
+    >
       <header className="sys-group-header">
         <h3 className="sys-group-title">{title}</h3>
         <p className="sys-group-stats">

@@ -93,7 +93,7 @@ function Help({ id, children }: { id: string; children: ReactNode }) {
 type FieldProps = {
   stepId: string;
   param: StepParam;
-  locked: boolean;
+  off: boolean;
   /** Set while a step runs: the visible line that says why nothing changes. */
   busyId?: string;
   onParam: AdvancedStepsProps["onParam"];
@@ -103,7 +103,7 @@ type FieldProps = {
 function ParamField({
   stepId,
   param,
-  locked,
+  off,
   busyId,
   onParam,
   onReset,
@@ -137,9 +137,12 @@ function ParamField({
             type="button"
             className="sys-adv-reset"
             aria-label={`Reset to default: ${param.label}`}
-            disabled={locked}
-            aria-describedby={locked ? busyId : undefined}
-            onClick={() => onReset(stepId, param.id)}
+            disabled={off}
+            aria-disabled={busyId ? true : undefined}
+            aria-describedby={busyId}
+            onClick={() => {
+              if (!busyId) onReset(stepId, param.id);
+            }}
           >
             <span className="sys-adv-reset-dot" aria-hidden="true" />
           </button>
@@ -154,21 +157,25 @@ function ParamField({
           max={param.max}
           step={param.step}
           value={shown}
-          disabled={locked}
+          disabled={off}
+          aria-disabled={busyId ? true : undefined}
           aria-valuetext={valueText(param)}
           aria-describedby={describedBy}
-          onChange={(event) =>
-            onParam(stepId, param.id, Number(event.target.value))
-          }
+          onChange={(event) => {
+            if (!busyId) onParam(stepId, param.id, Number(event.target.value));
+          }}
         />
       ) : (
         <select
           id={id}
           className="sys-adv-select"
           value={param.value}
-          disabled={locked}
+          disabled={off}
+          aria-disabled={busyId ? true : undefined}
           aria-describedby={describedBy}
-          onChange={(event) => onParam(stepId, param.id, event.target.value)}
+          onChange={(event) => {
+            if (!busyId) onParam(stepId, param.id, event.target.value);
+          }}
         >
           {known ? null : (
             <option value={param.value} disabled>
@@ -210,9 +217,11 @@ function StepSwitch({
       aria-label={name}
       checked={checked}
       aria-checked={checked}
-      disabled={locked}
+      aria-disabled={locked || undefined}
       aria-describedby={locked ? reasonId : undefined}
-      onChange={(event) => onChange(event.target.checked)}
+      onChange={(event) => {
+        if (!locked) onChange(event.target.checked);
+      }}
     />
   );
 }
@@ -306,7 +315,7 @@ export function AdvancedSteps({
                 key={param.id}
                 stepId={selected.id}
                 param={param}
-                locked={locked || off}
+                off={off}
                 busyId={locked ? reasonId : undefined}
                 onParam={onParam}
                 onReset={onReset}

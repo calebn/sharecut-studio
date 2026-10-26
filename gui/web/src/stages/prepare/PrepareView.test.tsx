@@ -478,4 +478,56 @@ describe("PrepareView focus", () => {
     );
     expect(summary).toHaveAttribute("aria-expanded", "false");
   });
+
+  it("gives a name two sessions share a control name of its own", () => {
+    render(
+      <PrepareView
+        {...props({
+          sessions: [
+            session({ sources: NAMED_TAKES.slice(0, 2) }),
+            SECOND_SESSION,
+          ],
+        })}
+      />,
+    );
+    const names = screen
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((name) => name && /Maya|Anneke/.test(name));
+    expect(names.length).toBeGreaterThan(4);
+    expect(new Set(names).size).toBe(names.length);
+    expect(
+      screen.getByRole("button", { name: "Remove Maya, voice 1" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Remove Maya, voice 3" }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText("Another voice is also called Maya."),
+    ).toHaveLength(2);
+  });
+
+  it("leaves a name that only one voice has as it was", () => {
+    render(
+      <PrepareView
+        {...props({
+          sessions: [session({ sources: NAMED_TAKES.slice(0, 2) })],
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Remove Maya" })).toBeVisible();
+    expect(screen.queryByText(/Another voice is also called/)).toBeNull();
+  });
+
+  it("moves focus to the next session when the session of the focused chip is removed", () => {
+    const two = [session({ sources: NAMED_TAKES.slice(0, 2) }), SECOND_SESSION];
+    const { rerender } = render(<PrepareView {...props({ sessions: two })} />);
+    screen
+      .getAllByRole("button", { name: /Where this session goes/ })[0]
+      .focus();
+    rerender(<PrepareView {...props({ sessions: [two[1]] })} />);
+    expect(document.activeElement).toBe(
+      screen.getByRole("region", { name: "Session 2 · 2 Nov" }),
+    );
+  });
 });

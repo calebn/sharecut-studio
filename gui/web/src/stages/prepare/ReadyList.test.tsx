@@ -219,4 +219,75 @@ describe("ReadyList", () => {
     expect(outside).toHaveFocus();
     outside.remove();
   });
+
+  it("forgets a hand-made open when the row leaves the state, so a return does not steal focus", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />,
+    );
+    const row = screen.getByRole("button", { name: /Transcribe/ });
+    await user.click(row);
+    await user.click(row);
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toHaveFocus();
+    rerender(
+      <ReadyList rows={settle(ROWS.keepFixes, "done")} onAction={vi.fn()} />,
+    );
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    rerender(<ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toBeVisible();
+    expect(outside).toHaveFocus();
+    outside.remove();
+  });
+
+  it("forgets a hand-made close when the row leaves the state, so the prompt returns open", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />,
+    );
+    await user.click(screen.getByRole("button", { name: /Transcribe/ }));
+    expect(screen.queryByRole("button", { name: "Keep my fixes" })).toBeNull();
+    rerender(
+      <ReadyList rows={settle(ROWS.keepFixes, "done")} onAction={vi.fn()} />,
+    );
+    rerender(<ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
+  });
+
+  it("keeps a hand-made close while the row stays as it is", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />,
+    );
+    await user.click(screen.getByRole("button", { name: /Transcribe/ }));
+    rerender(<ReadyList rows={[...ROWS.keepFixes]} onAction={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Keep my fixes" })).toBeNull();
+  });
+
+  it("moves focus to the next row when the focused row is removed", () => {
+    const { rerender } = render(
+      <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
+    );
+    screen.getByRole("button", { name: "Try again" }).focus();
+    rerender(
+      <ReadyList
+        rows={ROWS.failed.filter((row) => row.id !== "transcribe")}
+        onAction={vi.fn()}
+      />,
+    );
+    expect(document.activeElement).toBe(screen.getAllByRole("listitem")[1]);
+  });
+
+  it("moves focus to the list when every row is removed", () => {
+    const { rerender } = render(
+      <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
+    );
+    screen.getByRole("button", { name: "Try again" }).focus();
+    rerender(<ReadyList rows={[]} onAction={vi.fn()} />);
+    expect(document.activeElement).toBe(
+      screen.getByRole("list", { name: "Getting ready" }),
+    );
+  });
 });

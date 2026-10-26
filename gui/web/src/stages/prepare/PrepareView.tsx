@@ -142,17 +142,24 @@ export function PrepareView({
   }
   const root = useRef<HTMLDivElement>(null);
   useFocusRescue(root, (target) => {
-    const cards = [
-      ...(root.current?.querySelectorAll<HTMLElement>(".sys-source") ?? []),
-    ];
-    const at = cards.findIndex((card) => card.contains(target));
-    if (at < 0) return () => null;
-    return () =>
-      cards.slice(at + 1).find((card) => card.isConnected) ??
-      cards
+    const near = (items: HTMLElement[], at: number) =>
+      items.slice(at + 1).find((item) => item.isConnected) ??
+      items
         .slice(0, at)
         .reverse()
-        .find((card) => card.isConnected) ??
+        .find((item) => item.isConnected);
+    const all = (selector: string) => [
+      ...(root.current?.querySelectorAll<HTMLElement>(selector) ?? []),
+    ];
+    const cards = all(".sys-source");
+    const groups = all(".sys-group");
+    const card = cards.findIndex((one) => one.contains(target));
+    const group = groups.findIndex((one) => one.contains(target));
+    const items = card >= 0 ? cards : groups;
+    const at = card >= 0 ? card : group;
+    if (at < 0) return () => null;
+    return () =>
+      near(items, at) ??
       root.current?.querySelector<HTMLElement>(".sys-start--import");
   });
   const ids = {
@@ -220,6 +227,16 @@ export function PrepareView({
         .map((name) => [name.toLowerCase(), name] as const),
     ).values(),
   ];
+  const counts = new Map<string, number>();
+  for (const one of sessions) {
+    for (const source of one.sources) {
+      const key = source.name.trim().toLowerCase();
+      if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  const repeated = new Set(
+    [...counts].filter(([, count]) => count > 1).map(([key]) => key),
+  );
   return (
     <div ref={root} className="sys-prepare" data-phase={phase}>
       <div className="sys-prepare-layout">
@@ -274,6 +291,7 @@ export function PrepareView({
                 key={session.id}
                 session={session}
                 firstIndex={firstIndexes[at]}
+                repeated={repeated}
                 actions={sourceActions}
                 onTarget={
                   onTarget ? (to) => onTarget(session.id, to) : undefined

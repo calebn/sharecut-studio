@@ -112,11 +112,25 @@ function BodyButtons({
  * moves in the DOM and drops focus. A row with a body opens and closes with its
  * own button; a row that needs you starts open and never takes focus by
  * itself. Opening Keep my fixes by hand puts focus on Keep, never on Replace.
+ * A hand-made open or close lasts only while the row stays in the state that
+ * it was made in.
  */
 export function ReadyList({ rows, onAction }: ReadyListProps) {
+  const shape = Object.fromEntries(
+    rows.map((row) => [row.id, `${row.state}:${row.body?.kind ?? ""}`]),
+  );
   const [toggled, setToggled] = useState<Partial<Record<ReadyRowId, boolean>>>(
     {},
   );
+  const [shapes, setShapes] = useState(shape);
+  if (rows.some((row) => shapes[row.id] !== shape[row.id])) {
+    setShapes(shape);
+    setToggled((open) =>
+      Object.fromEntries(
+        Object.entries(open).filter(([id]) => shapes[id] === shape[id]),
+      ),
+    );
+  }
   return (
     <StatusList label="Getting ready">
       {rows.map((row) => {
