@@ -5,7 +5,7 @@ import {
   enlargedLandscapeSheet,
   inspectorSheetStoryDecorator,
 } from "../../test/inspectorSheetDecorator";
-import { withEpisode } from "../../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { ClipInspector } from "./ClipInspector";
 
 const project = episode();
@@ -14,6 +14,7 @@ const clip = project.clips.tracks[MIRA][0];
 const meta: Meta<typeof ClipInspector> = {
   title: "Templates/Editor · Inspector · Clip",
   component: ClipInspector,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   render: () => <ClipInspector clip={clip} />,
   parameters: {

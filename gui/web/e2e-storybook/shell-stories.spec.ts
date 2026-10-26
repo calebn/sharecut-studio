@@ -3,18 +3,23 @@ import { expectShellFit, openStory } from "./shellFit";
 import { storyUrl } from "./storyUrl";
 
 const PHONE_STORIES = [
-  "shell--phone-listen",
-  "shell--phone-timeline",
-  "shell--phone-text",
-  "shell--phone-more",
-  "shell--phone-comments",
-  "shell--phone-guest",
+  { id: "shell--phone-listen", mode: "Listen" },
+  { id: "shell--phone-timeline", mode: "Timeline" },
+  { id: "shell--phone-text", mode: "Text" },
+  { id: "shell--phone-more", mode: "More" },
+  { id: "shell--phone-comments", mode: "More" },
+  { id: "shell--phone-guest", mode: "Listen" },
 ] as const;
 
-for (const id of PHONE_STORIES) {
+for (const { id, mode } of PHONE_STORIES) {
   test(`${id} keeps Primary navigation on screen at 360`, async ({ page }) => {
     await openStory(page, id, 360, "light");
     await expectShellFit(page, 360);
+    await expect(
+      page
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("button", { pressed: true }),
+    ).toHaveText(mode);
     const nav = await page
       .getByRole("navigation", { name: "Primary" })
       .boundingBox();

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { episode, MIRA } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { InlineWordEditor } from "./InlineWordEditor";
 import { TranscriptSpeakerEditor } from "./TranscriptSpeakerEditor";
 
@@ -10,6 +10,7 @@ if (!mira) throw new Error("The episode fixture has no Mira track.");
 
 const meta: Meta = {
   title: "Templates/Editor · Transcript editors",
+  beforeEach: episodeBeforeEach,
   decorators: [
     withEpisode,
     (Story) => (
@@ -40,7 +41,7 @@ export const CorrectWord: Story = {
       name: "Correct word “beginning.”",
     });
     await expect(input).toHaveValue("beginning.");
-    await expect(input).toHaveFocus();
+    await waitFor(() => expect(input).toHaveFocus());
   },
 };
 

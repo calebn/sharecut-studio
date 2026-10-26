@@ -3,12 +3,13 @@ import { expect, userEvent, within } from "storybook/test";
 import { emptyEpisode, episode, MIRA } from "../test/episodeFixture";
 import { pendingEditView } from "../test/fixtures";
 import { panelFrame } from "../test/panelFrame";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { ImpactPanel } from "./ImpactPanel";
 
 const meta: Meta<typeof ImpactPanel> = {
   title: "Templates/Editor · Impact panel",
   component: ImpactPanel,
+  beforeEach: episodeBeforeEach,
   decorators: [panelFrame, withEpisode],
   parameters: { layout: "fullscreen", episode: {} },
 };

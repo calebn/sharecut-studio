@@ -7,7 +7,7 @@ import {
   viewportStoryParameters,
 } from "../storybook/storyLayout";
 import { episode } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { FeedbackToast } from "./FeedbackToast";
 
 const head = episode().history?.head_id ?? null;
@@ -38,6 +38,7 @@ function ToastOverShell() {
 const meta: Meta<typeof FeedbackToast> = {
   title: "Templates/Toast dock",
   component: FeedbackToast,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   render: () => <ToastOverShell />,
   parameters: {

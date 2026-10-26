@@ -2,13 +2,14 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { selections } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { TimelineView } from "./TimelineView";
 
 const meta: Meta<typeof TimelineView> = {
   title: "Templates/Timeline",
   component: TimelineView,
+  beforeEach: episodeBeforeEach,
   decorators: [
     withEpisode,
     (Story, context) => (

@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { recordRoom } from "../test/episodeFixture";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { RecordTransportChip } from "./RecordTransportChip";
 
 const meta: Meta<typeof RecordTransportChip> = {
   title: "Templates/RecordTransportChip",
   component: RecordTransportChip,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   parameters: { layout: "padded", episode: { record: recordRoom } },
 };

@@ -2,11 +2,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { selections } from "../../test/episodeFixture";
 import { InspectorRailStory } from "../../test/InspectorRailStory";
-import { withEpisode } from "../../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 
 const meta: Meta<typeof InspectorRailStory> = {
   title: "Templates/Editor · Inspector · Pending edit",
   component: InspectorRailStory,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   parameters: {
     layout: "fullscreen",

@@ -4,12 +4,13 @@ import {
   portaledOverlayParameters,
   viewportStoryParameters,
 } from "../storybook/storyLayout";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { TransportBar } from "./TransportBar";
 
 const meta: Meta<typeof TransportBar> = {
   title: "Templates/Transport menus",
   component: TransportBar,
+  beforeEach: episodeBeforeEach,
   decorators: [
     withEpisode,
     (Story) => (
@@ -46,6 +47,9 @@ export const MainMenu: Story = {
   play: async ({ canvasElement }) => {
     const menu = await openMenu(canvasElement);
     await expect(within(menu).getByText("Project")).toBeVisible();
+    await expect(
+      within(menu).getByRole("menuitem", { name: /^Share…/ }),
+    ).toBeVisible();
   },
 };
 

@@ -7,7 +7,7 @@ import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { MIRA } from "../test/episodeFixture";
 import { openDialogByLauncher } from "../test/storyDialog";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import type { EditBoundaryView } from "../types/project";
 import { PrecisionBoundaryDialog } from "./PrecisionBoundaryDialog";
 
@@ -119,6 +119,7 @@ async function applyOffset(canvasElement: HTMLElement, offset: string) {
 const meta: Meta<typeof BoundaryDialogPreview> = {
   title: "Templates/Editor · Precision boundary dialog",
   component: BoundaryDialogPreview,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   args: { onApply: fn(async () => ({ queued: false })) },
   parameters: { ...isolatedStoryParameters, episode: {} },

@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { expect, fn, within } from "storybook/test";
 import { portaledOverlayParameters } from "../storybook/storyLayout";
 import { hitRouterStub } from "../test/hitRouterStub";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import type { HitCandidate } from "./hitCandidates";
 import { hitTargetProps, type ResolvedHit } from "./hitTargets";
 import type { HitKind } from "./inputContract";
@@ -103,6 +103,7 @@ function ChooserPreview({
 
 const meta: Meta = {
   title: "Templates/TargetChooser",
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   parameters: {
     ...portaledOverlayParameters,

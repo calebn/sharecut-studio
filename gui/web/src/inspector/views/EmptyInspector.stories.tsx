@@ -3,11 +3,12 @@ import { expect, within } from "storybook/test";
 import { episode } from "../../test/episodeFixture";
 import { pendingEditView } from "../../test/fixtures";
 import { InspectorRailStory } from "../../test/InspectorRailStory";
-import { withEpisode } from "../../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 
 const meta: Meta<typeof InspectorRailStory> = {
   title: "Templates/Editor · Inspector · Empty",
   component: InspectorRailStory,
+  beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
   parameters: { layout: "fullscreen", episode: {} },
 };

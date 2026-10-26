@@ -2,12 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { emptyEpisode, episode } from "../test/episodeFixture";
 import { panelFrame } from "../test/panelFrame";
-import { withEpisode } from "../test/withEpisode";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { HistoryPanel } from "./HistoryPanel";
 
 const meta: Meta<typeof HistoryPanel> = {
   title: "Templates/Editor · History panel",
   component: HistoryPanel,
+  beforeEach: episodeBeforeEach,
   decorators: [panelFrame, withEpisode],
   parameters: { layout: "fullscreen", episode: {} },
 };
