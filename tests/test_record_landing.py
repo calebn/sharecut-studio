@@ -711,6 +711,30 @@ def test_align_fallback_does_not_invoke_conversation_align(
     assert not called
 
 
+def test_land_host_only_take_has_no_drift(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid="p_host",
+        segment=0,
+        join_offset_ms=0,
+    )
+    aligns: list[int] = []
+    result = RecordLandingService(ws).land(align=lambda _p: aligns.append(1))
+    assert [row["track_id"] for row in result["clips"]] == [slug_of("p_host")]
+    assert result["drift_ms"] is None
+    assert result["align_fallback"] is False
+    assert aligns == []
+
+
 def test_producer_keeper_is_not_landed(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     _isolate()
     ws = _seed(minimal_project, sample_wav)

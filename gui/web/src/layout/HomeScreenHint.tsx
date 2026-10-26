@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Button } from "../ui/Button";
 import {
   dismissHomeScreenHint,
-  HOME_SCREEN_HINT,
   homeScreenHintDismissed,
   offersHomeScreenHint,
   readHomeScreenEnv,
 } from "../utils/homeScreenHint";
+import { HomeScreenHintView } from "./HomeScreenHintView";
 
 /**
  * The shell's Add to Home Screen banner (#1077): in an iPhone or iPad Safari
@@ -20,18 +19,11 @@ export function HomeScreenHint() {
   );
   if (!shown) return null;
   return (
-    <aside className="home-screen-hint" aria-label="Full screen">
-      <p className="home-screen-hint-text">{HOME_SCREEN_HINT}</p>
-      <Button
-        variant="link"
-        className="home-screen-hint-dismiss"
-        onClick={() => {
-          dismissHomeScreenHint();
-          setShown(false);
-        }}
-      >
-        Dismiss
-      </Button>
-    </aside>
+    <HomeScreenHintView
+      onDismiss={() => {
+        dismissHomeScreenHint();
+        setShown(false);
+      }}
+    />
   );
 }

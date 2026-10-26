@@ -50,7 +50,7 @@ make them feel the software is fragile.
     addresses for machines, never labels for people. (Surface 2)
 - Pair every problem statement with its fix.
   - Do: blockers as a list under the Start button, each with its fix
-    action ("No guest has joined yet" → "Copy guest link"). (Surface 1)
+    action ("Storage check failed" → "Retry storage check"). (Surface 1)
   - Don't: a comma-joined wall of blockers far from the button they
     gate. (Surface 1)
 - Teach in the empty moment, then get out of the way.
@@ -81,7 +81,7 @@ to UX partners; for UI copy, this table wins.
 | Lobby | Pre-recording staging state | "waiting room" |
 | Land | Finish a recording and ingest the takes. Disabled with its reason beside it until there is something to land; "Retry land" after a failed land | "save", "finalize" (a recording is "Saved to project"; Land places it on the timeline) |
 | Stop take | End the open take for everyone in the record room. Stop sits alone behind a divider and asks once: "Stop this take? Recording ends for everyone in the room." [Keep recording] [Stop take] | "End take", "Finish recording" |
-| Start blocker | One reason Start is disabled, listed under Start with its fix when the host has one: "No guest has joined yet." [Copy guest link], "Waiting for Ava to accept recording." | a comma-joined list of bare names |
+| Start blocker | One reason Start is disabled, listed under Start with its fix when the host has one: "Waiting for Ava to accept recording."; a failed storage check [Retry storage check] | a comma-joined list of bare names |
 | Full-quality recording | Each participant's lossless recording, captured on their own device and saved to the project during the session. Its status reads "Saving to project…", then "Saved to project", shown per participant and per segment wherever the host or a guest can see it. A segment is saved once the host holds the verified file; landing it on the timeline is the separate Land step. The copy kept on the person's device is "this device's copy". "Keeper" stays in code and schema only | "keeper", "local keeper", "local recording", "local backup", "uploading" |
 | Save state | The host's project save light, a small dot with no visible text. Its name and tooltip read "Saving to project…", "Saved to project", "Not saved yet · 3 waiting to send", an unknown outcome with its recovery, or an unreadable saved queue with "Retry to read them". Shape carries the state with the colour: solid circle saved, ring saving, hollow circle waiting, square failed (an unreadable queue only; a refused command never turns it red), dashed diamond unknown. The Needs attention banner is the text beside it and holds Send now, Retry, and Inspect History for hosts when needed. A guest with uncertain Undo or Redo asks the project owner to inspect History. It uses the record room's saving and saved words. Edits waiting to send are kept on this device. Desktop and tablet status bar, phone status row in every mode | "Synced", "Offline mode", "Autosave", "Error" |
 | Undo waits for the save | An Undo or Redo pressed while an edit is still saving. A control that would wait says "Undo ready after save" (Redo likewise); a press says "Undo runs after save", then runs on the edit the person just made. A toast's Undo runs only if its change is still the newest step, and otherwise says "Can't undo: the project changed since. Nothing was undone." Never a dead control that only says to wait | "queued", "pending undo", "Wait for the current action to finish." on an Undo |

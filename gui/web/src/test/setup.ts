@@ -16,6 +16,9 @@ HTMLElement.prototype.showPopover ??= function showPopover(this: HTMLElement) {
 };
 HTMLElement.prototype.hidePopover ??= () => undefined;
 
+// jsdom has no hit testing; axe's elementsFromPoint polyfill calls this.
+document.elementFromPoint ??= () => null;
+
 class ResizeObserverStub {
   observe(): void {}
   unobserve(): void {}

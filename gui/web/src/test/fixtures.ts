@@ -135,6 +135,7 @@ export function offlineConflict(
     kind?: OfflineConflict["kind"];
     reason?: string;
     recovery?: OfflineConflict["recovery"];
+    blocksSave?: boolean;
   } = {},
 ): OfflineConflict {
   const kind = overrides.kind ?? "refused";
@@ -150,7 +151,13 @@ export function offlineConflict(
   const reason =
     overrides.reason ?? "Envelope changed since this edit was queued";
   if (kind === "refused") {
-    return { command, kind, reason, recovery: "edit-and-resubmit" };
+    return {
+      command,
+      kind,
+      reason,
+      recovery: "edit-and-resubmit",
+      ...(overrides.blocksSave ? { blocksSave: true } : {}),
+    };
   }
   return {
     command,

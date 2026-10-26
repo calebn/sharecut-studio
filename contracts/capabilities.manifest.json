@@ -1548,13 +1548,10 @@
         "hostProjectLoaded"
       ],
       "surfaces": {
-        "command": "record.copyGuestLink",
-        "gui": [
-          "RecordPanel"
-        ]
+        "command": "record.copyGuestLink"
       },
       "omit": {
-        "keyboard_reason": "Start blocker fix in the Record room panel",
+        "keyboard_reason": "Palette command; Share also has a Copy guest link button",
         "guest": true
       },
       "tooltip": "Copy guest link",

@@ -25,7 +25,7 @@ export const FEATURE_EXTENSION_STATUS_0 = "extension.status.0";
  * that host-only endpoint. The share HTML route is only mounted when the host
  * has `share.ui.routes`, so these caps are safe defaults.
  */
-const GUEST_SHARE_FEATURES: FeaturesManifest = {
+export const GUEST_SHARE_FEATURES: FeaturesManifest = {
   api_version: 1,
   features: [
     FEATURE_SHARE_UI_ROUTES,

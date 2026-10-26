@@ -148,6 +148,20 @@ export const CompactPhone: Story = {
 };
 
 export const PausedEmptyProject: Story = {
+  decorators: [
+    (Story) => (
+      <>
+        <div className="daw-shell-transport">
+          <TransportFrame playing={false}>
+            <TransportZone position="center">
+              <Story />
+            </TransportZone>
+          </TransportFrame>
+        </div>
+        <main aria-label="Stage" />
+      </>
+    ),
+  ],
   args: {
     playing: false,
     availability: { togglePlay: "Import audio to play.", stop: undefined },

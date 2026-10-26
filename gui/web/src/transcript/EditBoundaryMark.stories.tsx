@@ -113,7 +113,7 @@ export const RollDragPreview: Story = {
     ) as HTMLElement;
     void fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
     void fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
-    await expect(mark).toHaveAttribute("aria-grabbed", "true");
+    await waitFor(() => expect(mark).toHaveAttribute("aria-grabbed", "true"));
     await expect(
       canvas.getByRole("group", { name: "Preview restored words" }),
     ).toBeInTheDocument();

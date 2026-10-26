@@ -152,17 +152,16 @@ def producer_count(snap: RecordSnapshot) -> int:
 class StartBlocker(TypedDict):
     """One reason host Start is refused; clients word it and offer its fix."""
 
-    code: Literal["no_guest", "consent_pending"]
+    code: Literal["no_recorder", "consent_pending"]
     participant_id: NotRequired[str]
     display_name: NotRequired[str]
 
 
 def start_blockers(snap: RecordSnapshot) -> list[StartBlocker]:
-    """Why host Start is refused: no connected guest, or recorded people yet to accept."""
-    guests = [p for p in snap.participants if p.role == "guest" and _live(p)]
-    if not guests:
-        return [{"code": "no_guest"}]
+    """Why host Start is refused: nobody to record, or recorded people yet to accept."""
     recorded = [p for p in snap.participants if p.role in RECORDED_ROLES and _live(p)]
+    if not recorded:
+        return [{"code": "no_recorder"}]
     return [
         {
             "code": "consent_pending",
@@ -177,8 +176,8 @@ def start_blockers(snap: RecordSnapshot) -> list[StartBlocker]:
 def describe_start_blockers(blockers: list[StartBlocker]) -> str:
     """One sentence for a refused Start (CLI, MCP and HTTP errors)."""
     parts = [
-        "no guest has joined"
-        if row["code"] == "no_guest"
+        "nobody has joined the room"
+        if row["code"] == "no_recorder"
         else f"{row.get('display_name', '')} has not accepted recording"
         for row in blockers
     ]

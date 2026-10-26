@@ -124,14 +124,19 @@ def test_producer_consent_and_guest_start_forbidden(
 def test_host_start_blocked_until_consent(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
-    blocked = client.post(
+    pre_join = client.post(
         "/api/record/command",
         json={"path": str(ws.path), "command_type": "Start", "payload": {}},
     )
-    assert blocked.status_code == 400
+    assert pre_join.status_code == 400
     with client.websocket_connect(f"/api/rec/{token}/ws") as guest:
         _join(guest, name="Ava")
         _drain_until(guest, lambda m: m.get("type") == "Snapshot")
+        blocked = client.post(
+            "/api/record/command",
+            json={"path": str(ws.path), "command_type": "Start", "payload": {}},
+        )
+        assert blocked.status_code == 400
         guest.send_json(
             {
                 "type": "Record",
@@ -166,11 +171,11 @@ def test_host_start_blocked_until_consent(minimal_project, sample_wav, tmp_works
 def test_guest_consent_seq_not_collapsed_by_host_cli_seq(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    """Host CLI Start burns a global seq; guest Join must still use frame seq 1."""
+    """A refused host CLI command burns a global seq; guest Join must still use frame seq 1."""
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     ctrl = RecordControlService(ws)
-    with pytest.raises(RecordStateError, match=r"^cannot start: no guest has joined$"):
-        ctrl.start()
+    with pytest.raises(RecordStateError, match=r"^cannot pause unless recording$"):
+        ctrl.pause()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
         token=room["guest"]["token"],
