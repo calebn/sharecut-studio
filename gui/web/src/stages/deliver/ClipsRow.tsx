@@ -12,6 +12,7 @@ import {
   clipSeconds,
   clipStrength,
   formatClock,
+  itemNames,
   parseClock,
 } from "./deliverLogic";
 
@@ -34,13 +35,13 @@ type Props = {
 const STRENGTH_NAME = ["Weak", "Fair", "Strong"] as const;
 
 function ClipMenu({
-  clip,
+  name,
   trimming,
   onTrim,
   onOpenInEdit,
   onRemove,
 }: {
-  clip: Clip;
+  name: string;
   trimming: boolean;
   onTrim: () => void;
   onOpenInEdit: () => void;
@@ -56,11 +57,11 @@ function ClipMenu({
     <Menu
       open={open}
       onOpenChange={setOpen}
-      label={`${more.label} for ${clip.title}`}
+      label={`${more.label} for ${name}`}
       trigger={(props) => (
         <Button
           {...props}
-          aria-label={`${more.label} for ${clip.title}`}
+          aria-label={`${more.label} for ${name}`}
           title={`${more.label}${hintOf(more)}`}
         >
           <SystemIcon name={iconOf("more")} size={16} />
@@ -91,6 +92,10 @@ export function ClipsRow({
   onFind,
 }: Props) {
   const [trimming, setTrimming] = useState<string | null>(initialTrimming);
+  const names = itemNames(
+    clips.map((c) => c.title),
+    "clip",
+  );
   const find = (
     <Button variant="link" onClick={onFind}>
       Find clips
@@ -112,7 +117,8 @@ export function ClipsRow({
         </EmptyState>
       ) : (
         <ul className="dv-clips" data-focus-list="clips">
-          {clips.map((clip) => {
+          {clips.map((clip, index) => {
+            const name = names[index] ?? clip.title;
             const strength = clipStrength(clip.score);
             const trim = trimming === clip.id;
             return (
@@ -124,20 +130,20 @@ export function ClipsRow({
                 <div className="dv-clip-wave">
                   <VerbButton
                     verb="play"
-                    label={`Play ${clip.title}`}
+                    label={`Play ${name}`}
                     onClick={() => onPlay(clip.id)}
                   />
                 </div>
                 <input
                   className="dv-clip-title"
-                  aria-label={`Title of ${clip.title}`}
+                  aria-label={`Title of ${name}`}
                   value={clip.title}
                   onChange={(event) => onRetitle(clip.id, event.target.value)}
                 />
                 {trim ? (
                   <div className="dv-clip-trim">
                     <TimeField
-                      label={`In of ${clip.title}`}
+                      label={`In of ${name}`}
                       value={clip.start}
                       min={0}
                       max={total}
@@ -147,7 +153,7 @@ export function ClipsRow({
                       onChange={(at) => onTrim(clip.id, "start", at)}
                     />
                     <TimeField
-                      label={`Out of ${clip.title}`}
+                      label={`Out of ${name}`}
                       value={clip.end}
                       min={0}
                       max={total}
@@ -196,7 +202,7 @@ export function ClipsRow({
                     </Button>
                   )}
                   <ClipMenu
-                    clip={clip}
+                    name={name}
                     trimming={trim}
                     onTrim={() => setTrimming(trim ? null : clip.id)}
                     onOpenInEdit={() => onOpenInEdit(clip.id)}

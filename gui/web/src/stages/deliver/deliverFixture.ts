@@ -76,18 +76,17 @@ export const CLIPS: readonly Clip[] = [
 
 export const REQUEST: ExportRequest = {
   settings: SETTINGS,
-  clipIds: ["k3"],
+  clips: [{ id: "k3", start: 0, end: 33, title: "Cold open" }],
+  chapters: CHAPTERS,
   range: null,
 };
 
 /** The finished export a host would report for a request. */
 export function exportedState(
   request: ExportRequest,
-  clips: readonly Clip[] = CLIPS,
   phase: "done" | "stale" = "done",
 ): Extract<ExportState, { phase: "done" | "stale" }> {
   const seconds = partSeconds(request.settings.part, TOTAL);
-  const approved = clips.filter((c) => request.clipIds.includes(c.id));
   return {
     phase,
     when: "2 h ago",
@@ -98,7 +97,9 @@ export function exportedState(
         bytes: estimateBytes(id, seconds),
         format: id,
       })),
-      ...clipFiles(approved.map((c) => ({ ...c, approved: true }))),
+      ...clipFiles(
+        request.clips.map((c) => ({ ...c, score: 1, approved: true })),
+      ),
     ],
   };
 }
@@ -110,7 +111,7 @@ export const RUNNING: ExportState = {
   detail: "Mastering · Writing MP3 · 60%",
 };
 export const DONE = exportedState(REQUEST);
-export const STALE = exportedState(REQUEST, CLIPS, "stale");
+export const STALE = exportedState(REQUEST, "stale");
 export const NEEDS_MODEL: ExportState = {
   phase: "needs-model",
   model: "transcription model",

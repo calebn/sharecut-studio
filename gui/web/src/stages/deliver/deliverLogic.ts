@@ -195,7 +195,8 @@ export type ExportFile = { name: string; bytes: number; format: FormatId };
 /** What an export was asked to write; `range` is null for the whole episode. */
 export type ExportRequest = {
   settings: EpisodeSettings;
-  clipIds: readonly string[];
+  clips: readonly Pick<Clip, "id" | "start" | "end" | "title">[];
+  chapters: readonly Chapter[];
   range: TimeSpan | null;
 };
 
@@ -240,14 +241,30 @@ export function planRange(
   return part.mode === "part" ? { start: part.start, end: part.end } : null;
 }
 
+/** A selection from Edit that cannot be exported falls back to the Deliver In and Out. */
+export function validSelection(
+  selection: TimeSpan | null | undefined,
+  total: number,
+): TimeSpan | null {
+  if (!selection) return null;
+  const { start, end } = selection;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const span = { start: Math.max(0, start), end: Math.min(total, end) };
+  return span.end > span.start ? span : null;
+}
+
 export function exportRequest(
   settings: EpisodeSettings,
   clips: readonly Clip[],
+  chapters: readonly Chapter[],
   selection?: TimeSpan | null,
 ): ExportRequest {
   return {
     settings,
-    clipIds: clips.filter((c) => c.approved).map((c) => c.id),
+    clips: clips
+      .filter((c) => c.approved)
+      .map(({ id, start, end, title }) => ({ id, start, end, title })),
+    chapters,
     range: planRange(settings.part, selection),
   };
 }
@@ -255,6 +272,21 @@ export function exportRequest(
 const sameSet = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length &&
   [...a].sort().join("\n") === [...b].sort().join("\n");
+
+function byId<T extends { id: string }>(list: readonly T[]): T[] {
+  return [...list].sort((x, y) => x.id.localeCompare(y.id));
+}
+
+function sameList<T>(
+  a: readonly T[],
+  b: readonly T[],
+  same: (x: T, y: T) => boolean,
+): boolean {
+  return a.length === b.length && a.every((item, i) => same(item, b[i] as T));
+}
+
+const sameSpan = (a: TimeSpan | null, b: TimeSpan | null) =>
+  a === null || b === null ? a === b : a.start === b.start && a.end === b.end;
 
 /** Whether an export already covers what the page would write now. */
 export function coversRequest(
@@ -264,23 +296,38 @@ export function coversRequest(
   const a = exported.settings;
   const b = now.settings;
   return (
-    sameSet(a.formats, b.formats) &&
+    sameSet([...a.formats], [...b.formats]) &&
     a.loudness === b.loudness &&
     a.part.mode === b.part.mode &&
     (a.part.mode === "whole" ||
       (b.part.mode === "part" &&
         a.part.start === b.part.start &&
         a.part.end === b.part.end)) &&
-    sameSet(exported.clipIds, now.clipIds)
+    sameSpan(exported.range, now.range) &&
+    sameList(
+      byId(exported.clips),
+      byId(now.clips),
+      (x, y) =>
+        x.id === y.id &&
+        x.start === y.start &&
+        x.end === y.end &&
+        x.title === y.title,
+    ) &&
+    sameList(
+      exported.chapters,
+      now.chapters,
+      (x, y) => x.id === y.id && x.at === y.at && x.title === y.title,
+    )
   );
 }
 
-/** A finished export turns stale when settings or approved clips change after it. */
+/** A finished export turns stale when anything it wrote has changed since. */
 export function currentExportState(
   state: ExportState,
-  now: ExportRequest,
+  ...now: ExportRequest[]
 ): ExportState {
-  return state.phase === "done" && !coversRequest(state.exported, now)
+  return state.phase === "done" &&
+    !now.some((request) => coversRequest(state.exported, request))
     ? { ...state, phase: "stale" }
     : state;
 }
@@ -389,8 +436,8 @@ export function trimClip(
   return clips.map((c) => {
     if (c.id !== id) return c;
     return edge === "start"
-      ? { ...c, start: Math.min(Math.max(0, at), c.end - 1) }
-      : { ...c, end: Math.max(Math.min(total, at), c.start + 1) };
+      ? { ...c, start: Math.max(0, Math.min(at, c.end - 1)) }
+      : { ...c, end: Math.min(total, Math.max(at, c.start + 1)) };
   });
 }
 
@@ -425,4 +472,15 @@ export function clipFiles(clips: readonly Clip[]): ExportFile[] {
         format: "wav" as const,
       };
     });
+}
+
+/** Names for assistive technology: a blank title becomes "clip 2", a repeated one gets its place. */
+export function itemNames(titles: readonly string[], noun: string): string[] {
+  return titles.map((title, index) => {
+    const name = title.trim();
+    if (!name) return `${noun} ${index + 1}`;
+    return titles.filter((t) => t.trim() === name).length > 1
+      ? `${name} ${index + 1}`
+      : name;
+  });
 }

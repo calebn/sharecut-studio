@@ -5,7 +5,12 @@ import { VerbButton } from "../../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../../system/verbDisplay";
 import { Button, EmptyState } from "../../ui";
 import { DeliverSection } from "./DeliverSection";
-import { type Chapter, formatClock, parseClock } from "./deliverLogic";
+import {
+  type Chapter,
+  formatClock,
+  itemNames,
+  parseClock,
+} from "./deliverLogic";
 
 type Props = {
   chapters: readonly Chapter[];
@@ -31,6 +36,10 @@ export function ChaptersList({
   onAdd,
 }: Props) {
   const add = verbOf("addChapter");
+  const names = itemNames(
+    chapters.map((c) => c.title),
+    "chapter",
+  );
   const addButton = (
     <Button onClick={onAdd} title={`${add.label}${hintOf(add)}`}>
       <SystemIcon name={iconOf("addChapter")} size={14} />
@@ -54,10 +63,10 @@ export function ChaptersList({
       ) : (
         <>
           <ul className="dv-chapters" data-focus-list="chapters">
-            {chapters.map((chapter) => (
+            {chapters.map((chapter, index) => (
               <li key={chapter.id} className="dv-chapter">
                 <TimeField
-                  label={`Time of ${chapter.title}`}
+                  label={`Time of ${names[index]}`}
                   value={chapter.at}
                   min={0}
                   max={total}
@@ -68,7 +77,7 @@ export function ChaptersList({
                 />
                 <input
                   className="dv-chapter-title"
-                  aria-label={`Title of ${chapter.title}`}
+                  aria-label={`Title of ${names[index]}`}
                   value={chapter.title}
                   onChange={(event) =>
                     onRetitle(chapter.id, event.target.value)
@@ -76,12 +85,12 @@ export function ChaptersList({
                 />
                 <VerbButton
                   verb="play"
-                  label={`Play from ${chapter.title}`}
+                  label={`Play from ${names[index]}`}
                   onClick={() => onPlayFrom(chapter.at)}
                 />
                 <VerbButton
                   verb="remove"
-                  label={`Remove ${chapter.title}`}
+                  label={`Remove ${names[index]}`}
                   onClick={() => onRemove(chapter.id)}
                 />
               </li>
