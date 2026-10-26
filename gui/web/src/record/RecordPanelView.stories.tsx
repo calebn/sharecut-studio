@@ -100,7 +100,7 @@ const meta: Meta<typeof RecordPanelView> = {
     startBlocked: false,
     blockers: [],
     blockersId: "record-blockers",
-    startFixes: { copyGuestLink: fn(), retryStorage: fn() },
+    startFixes: { retryStorage: fn() },
     doneNotice: null,
     capture: null,
     offline: false,
@@ -216,9 +216,9 @@ export const LobbyBlocked: Story = {
     startBlocked: true,
     blockers: [
       {
-        key: "no_guest",
-        text: "No guest has joined yet. Send them the guest link.",
-        fix: "copyGuestLink",
+        key: "storage",
+        text: "Storage is blocked.",
+        fix: "retryStorage",
       },
     ],
   },
@@ -229,9 +229,9 @@ export const LobbyBlocked: Story = {
       within(dialog).getByRole("button", { name: "Start" }),
     ).toBeDisabled();
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Copy guest link" }),
+      within(dialog).getByRole("button", { name: "Retry storage check" }),
     );
-    await expect(args.startFixes.copyGuestLink).toHaveBeenCalledOnce();
+    await expect(args.startFixes.retryStorage).toHaveBeenCalledOnce();
   },
 };
 
