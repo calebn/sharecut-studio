@@ -49,6 +49,7 @@ const mainLandmark = async (canvasElement: HTMLElement) =>
   within(canvasElement).findAllByRole("main");
 
 export const Desktop: Story = {
+  tags: ["wide-only"],
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement).findByRole("tab", { name: /Transcript/ }),
@@ -78,6 +79,7 @@ export const Loading: Story = {
 };
 
 export const EmptyIngest: Story = {
+  tags: ["wide-only"],
   parameters: {
     episode: {
       project: episode({

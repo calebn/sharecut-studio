@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { isolatedStoryParameters } from "../../storybook/storyLayout";
 import { registryModels } from "../../test/modelsStory";
 import { ANOTHER_DOWNLOAD_REASON } from "../activity";
@@ -85,9 +85,11 @@ export const Downloading: Story = {
     const dialog = await within(document.body).findByRole("dialog", {
       name: dialogName,
     });
-    await expect(
-      within(dialog).getByRole("button", { name: "Cancel download" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Cancel download" }),
+      ).toBeVisible(),
+    );
   },
 };
 
@@ -106,9 +108,11 @@ export const Failed: Story = {
     const dialog = await within(document.body).findByRole("dialog", {
       name: dialogName,
     });
-    await expect(
-      within(dialog).getByRole("button", { name: "Retry" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Retry" }),
+      ).toBeVisible(),
+    );
   },
 };
 
@@ -118,9 +122,11 @@ export const Ready: Story = {
     const dialog = await within(document.body).findByRole("dialog", {
       name: dialogName,
     });
-    await expect(
-      within(dialog).getByRole("button", { name: "Continue" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Continue" }),
+      ).toBeVisible(),
+    );
   },
 };
 

@@ -185,7 +185,9 @@ export const CommentModeHidesCut: Story = {
 };
 
 export const IngestOnly: Story = {
+  tags: ["wide-only"],
   args: { bladeAllowed: false },
+  parameters: { railTablet: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(

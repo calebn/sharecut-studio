@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ReactNode, useLayoutEffect, useState } from "react";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { MicLossNotice } from "./MicLossNotice";
 import { NoAudioNotice } from "./NoAudioNotice";
@@ -70,9 +70,8 @@ export const StorageLow: Story = {
     </StorageEstimate>
   ),
   play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("status"),
-    ).not.toBeEmptyDOMElement();
+    const status = await within(canvasElement).findByRole("status");
+    await waitFor(() => expect(status).not.toBeEmptyDOMElement());
   },
 };
 
@@ -83,8 +82,7 @@ export const StorageUnknown: Story = {
     </StorageEstimate>
   ),
   play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("status"),
-    ).not.toBeEmptyDOMElement();
+    const status = await within(canvasElement).findByRole("status");
+    await waitFor(() => expect(status).not.toBeEmptyDOMElement());
   },
 };

@@ -50,6 +50,7 @@ export const MainMenu: Story = {
 };
 
 export const MainMenuGuest: Story = {
+  args: { compact: true },
   parameters: { episode: { role: "commenter" } },
   play: async ({ canvasElement }) => {
     const menu = await openMenu(canvasElement);
@@ -67,6 +68,7 @@ export const MainMenuCollapsed: Story = {
 };
 
 export const WideBar: Story = {
+  tags: ["wide-only"],
   decorators: [
     (Story) => (
       <div style={{ inlineSize: "80rem" }}>
