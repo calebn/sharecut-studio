@@ -484,7 +484,7 @@ def test_review_commands_that_name_a_project_are_handed_off(
     assert plan.argv == ["review", tail[0], "--project", str(plan.project), *tail[1:]]
 
 
-def test_a_version_option_of_a_command_is_not_the_root_version_flag(tmp_path: Path) -> None:
+def test_a_review_share_version_option_is_handed_off(tmp_path: Path) -> None:
     tmp_path = tmp_path.resolve()
     root = typer.main.get_command(cli_app)
     plan = plan_handoff(
