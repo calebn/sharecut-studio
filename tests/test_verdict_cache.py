@@ -59,7 +59,7 @@ def _project(tmp_path: Path, *, cuts=((5.0, 5.4), (30.0, 30.4))) -> EpisodeProje
 @pytest.fixture
 def cache_on(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
-    monkeypatch.setattr(verdict_cache, "WINDOW_SEC", 2.0)
+    monkeypatch.setattr(verdict_cache, "READ_SEC", 2.0)
 
 
 def _spy_observations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -183,6 +183,26 @@ def test_every_input_of_the_check_changes_the_key(
     assert key() != base  # the same recording plays again somewhere else
 
 
+def test_a_long_clip_fade_still_caches_and_widens_the_window(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    base = verdict_cache.verdict_key(project, edit, **kwargs)
+    split = (
+        Clip(id="a", track_id="host", source_start=0, source_end=12.5, timeline_start=0),
+        Clip(id="b", track_id="host", source_start=12.5, source_end=SECONDS, timeline_start=12.5),
+    )
+    project.clips = list(split)
+    assert base is not None
+    assert verdict_cache.verdict_key(project, edit, **kwargs) == base
+    project.clips[1].fade_in_ms = 3000
+    long_fade = verdict_cache.verdict_key(project, edit, **kwargs)
+    assert long_fade is not None and long_fade != base
+    project.clips[1].fade_in_ms = 3100
+    assert verdict_cache.verdict_key(project, edit, **kwargs) != long_fade
+    assert verdict_cache.key_parts(project, edit, **kwargs) is not None
+
+
 def test_a_cut_far_from_the_window_does_not_change_the_key(tmp_path: Path, cache_on: None) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
@@ -222,7 +242,7 @@ def test_verify_mode_rechecks_every_hit_and_agrees(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(verdict_cache.VERIFY_ENV, "1")
-    monkeypatch.setattr(verdict_cache, "WINDOW_SEC", 2.0)
+    monkeypatch.setattr(verdict_cache, "READ_SEC", 2.0)
     project = _project(tmp_path)
     precompute_verdicts(project, IDS, defaults=load_defaults())
     seen = _spy_observations(monkeypatch)
@@ -234,7 +254,7 @@ def test_verify_mode_fails_when_an_entry_is_wrong(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(verdict_cache.VERIFY_ENV, "1")
-    monkeypatch.setattr(verdict_cache, "WINDOW_SEC", 2.0)
+    monkeypatch.setattr(verdict_cache, "READ_SEC", 2.0)
     project = _project(tmp_path)
     precompute_verdicts(project, IDS, defaults=load_defaults())
     with verdict_cache._STORE.lock:
@@ -249,10 +269,6 @@ def test_verify_mode_fails_when_an_entry_is_wrong(
 
 def test_cut_application_names_the_cache_module() -> None:
     assert cut_application.verdict_cache is verdict_cache
-
-
-def test_the_window_covers_the_breath_context_it_reads() -> None:
-    assert verdict_cache.WINDOW_SEC >= 5.0 + verdict_cache.FADE_REACH_SEC
 
 
 def test_the_production_window_sees_a_change_four_seconds_away(tmp_path: Path) -> None:

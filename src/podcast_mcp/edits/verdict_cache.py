@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from podcast_mcp import settings
 from podcast_mcp.edits import cut_policy
+from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
@@ -37,11 +38,10 @@ if TYPE_CHECKING:
 
 ENABLE_ENV = "PODCAST_VERDICT_CACHE"
 VERIFY_ENV = "PODCAST_VERDICT_VERIFY"
-# Breath level context 5 s, voiced-run reach 0.64 s, pad and join reach under 0.2 s, plus margin.
-WINDOW_SEC = 12.0
-# A clip fade reaches at most this far past the cut; a longer one is not cached. Fixed, not the
-# longest fade in the project, so that a fade written elsewhere does not move the window.
-FADE_REACH_SEC = 1.0
+# The farthest a check reads from its cut apart from fades: breath level context 5 s, voiced-run
+# reach 0.64 s, pad and join reach under 0.2 s, plus margin. A fade reaches further by
+# ``cut_quality.fade_reach_sec``.
+READ_SEC = 6.0
 _ENTRIES = 512
 
 
@@ -147,8 +147,6 @@ def verdict_key(
     span: tuple[float, float],
 ) -> str | None:
     """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable."""
-    if any(max(c.fade_in_ms, c.fade_out_ms) > FADE_REACH_SEC * 1000 for c in project.clips):
-        return None  # a fade longer than the window margin
     try:
         return _key(project, edit, defaults, manual, batch, span)
     except (OSError, ValueError, KeyError):
@@ -165,8 +163,6 @@ def key_parts(
     span: tuple[float, float],
 ) -> dict[str, str] | None:
     """A digest per input of the key, to see which input made a check miss (lab); ``None`` as ``verdict_key``."""
-    if any(max(c.fade_in_ms, c.fade_out_ms) > FADE_REACH_SEC * 1000 for c in project.clips):
-        return None
     try:
         payload = _payload(project, edit, defaults, manual, batch, span)
     except (OSError, ValueError, KeyError):
@@ -195,10 +191,10 @@ def _payload(
 ) -> dict[str, Any]:
     from podcast_mcp.util.tracks import recording_audio_path
 
-    reach = FADE_REACH_SEC
-    lo = float(span[0]) - WINDOW_SEC - reach
-    hi = float(span[1]) + WINDOW_SEC + reach
-    s_lo, s_hi = edit.start - WINDOW_SEC - reach, edit.end + WINDOW_SEC + reach
+    reach = READ_SEC + fade_reach_sec(project, edit, defaults)
+    lo = float(span[0]) - reach
+    hi = float(span[1]) + reach
+    s_lo, s_hi = edit.start - reach, edit.end + reach
     heard = []
     elsewhere = []
     for c in project.clips:

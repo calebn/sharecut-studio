@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms
 from podcast_mcp.edits.audio_cache import JUMP_SAMPLE_RATE, TrackAudioCache, track_level_profile
@@ -16,6 +16,9 @@ from podcast_mcp.edits.inaudible_cuts import (
 from podcast_mcp.engines.audio_audit import measure_window_rms_db
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 from podcast_mcp.util.tracks import track_audio_path
+
+if TYPE_CHECKING:
+    from podcast_mcp.models import EditDecision, EpisodeProject
 
 
 @dataclass(frozen=True)
@@ -170,6 +173,19 @@ def post_pad_fade_in_bounds_ms(defaults: EffectiveConfig) -> tuple[int, int]:
     min_ms = int(tighten.get("filler_post_pad_fade_in_min_ms", 15))
     max_ms = int(tighten.get("filler_post_pad_fade_in_max_ms", 120))
     return (max_ms, min_ms) if max_ms < min_ms else (min_ms, max_ms)
+
+
+def fade_reach_sec(project: EpisodeProject, edit: EditDecision, defaults: EffectiveConfig) -> float:
+    """How far a fade can reach past a cut: the longest of the cut's crossfade, the pad fades and any clip fade."""
+    return (
+        max(
+            edit.crossfade_ms,
+            post_pad_fade_in_bounds_ms(defaults)[1],
+            int(_tighten_cfg(defaults).get("filler_pre_pad_fade_out_ms", 5)),
+            max((max(c.fade_in_ms, c.fade_out_ms) for c in project.clips), default=0),
+        )
+        / 1000.0
+    )
 
 
 def _fit_before_burst_ms(
