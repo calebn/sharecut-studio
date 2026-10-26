@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
+import type { CompactSheetProps } from "../stage/edit/useCompactInspector";
 import type { SheetPlacement } from "../ui/BottomSheet";
-import type { CompactSheetProps } from "./useCompactInspector";
 
 /** On `.daw-shell` while the Inspector is a column beside the timeline (#1696). */
 export const INSPECTOR_COLUMN_SHELL_CLASS = "daw-shell--inspector-column";

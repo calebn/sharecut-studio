@@ -32,6 +32,15 @@ import { TranscriptPanel } from "../panels/TranscriptPanel";
 import { PresenceGhostLayer } from "../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../presence/usePresenceCursorSource";
 import { canIngestMedia, guestShareBannerLabel } from "../shareMode";
+import { useSelectionSheet } from "../stage/edit/useSelectionSheet";
+import { FollowBanner } from "../stage/frame/FollowBanner";
+import { GuestAttentionBanner } from "../stage/frame/GuestAttentionBanner";
+import { GuestVersionNotice } from "../stage/frame/GuestVersionNotice";
+import { HomeScreenHint } from "../stage/frame/HomeScreenHint";
+import {
+  type LoadFailure,
+  LoadFailureBanner,
+} from "../stage/frame/LoadFailureBanner";
 import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
@@ -42,17 +51,11 @@ import { oneWordOf } from "../utils/rangeSelect";
 import { BottomTabsSplitter } from "./BottomTabsSplitter";
 import { CollapsedDrawerHandle } from "./CollapsedDrawerHandle";
 import { EditingToolRail } from "./EditingToolRail";
-import { FollowBanner } from "./FollowBanner";
-import { GuestAttentionBanner } from "./GuestAttentionBanner";
-import { GuestVersionNotice } from "./GuestVersionNotice";
-import { HomeScreenHint } from "./HomeScreenHint";
-import { type LoadFailure, LoadFailureBanner } from "./LoadFailureBanner";
 import { MobileShell } from "./MobileShell";
 import { StatusBar } from "./StatusBar";
 import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
 import { TransportBar } from "./TransportBar";
 import { useEffectiveLayout } from "./useEffectiveLayout";
-import { useSelectionSheet } from "./useSelectionSheet";
 
 function StudioShellAdapter({
   guestShare = false,

@@ -73,7 +73,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // Enter saves and Escape cancels the comment name and comment time fields.
   "comments/InlineEditInput.tsx",
   // Palette search: Enter runs the top match and arrows step through results.
-  "layout/CommandPaletteView.tsx",
+  "stage/dialogs/CommandPaletteView.tsx",
   // The Stage design system palette (owner-accepted): its combobox keys stay in
   // the view, arrows, Enter and Escape on the search field and Enter or Space on a row.
   "system/Palette.tsx",

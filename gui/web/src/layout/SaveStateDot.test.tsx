@@ -4,11 +4,11 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { recordVolatileOutcome } from "../services/offlineQueue/offlineAttention";
 import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
+import { GuestAttentionBanner } from "../stage/frame/GuestAttentionBanner";
+import { ATTENTION_BANNER_ID } from "../stage/frame/GuestAttentionBannerView";
 import { useDawStore } from "../state/dawStore";
 import { beginDocumentSend } from "../state/documentSendOrder";
 import { minimalProject, offlineConflict } from "../test/fixtures";
-import { GuestAttentionBanner } from "./GuestAttentionBanner";
-import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { SaveStateDot } from "./SaveStateDot";
 
 const offlineStore = vi.hoisted(() => {

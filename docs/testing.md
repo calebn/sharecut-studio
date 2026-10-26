@@ -731,7 +731,7 @@ status bar waives by decision. Findings outside the swept surfaces are lines on
 #1445's Ledger. A new control that fails the sweep is
 fixed, or its class is named in that list with the equivalent control that
 replaces it. The selection surfaces themselves are covered at the unit level by
-`gui/web/src/layout/selectionSurface.test.tsx`, which renders every selection
+`gui/web/src/stage/edit/selectionSurface.test.tsx`, which renders every selection
 kind on the phone, tablet and desktop shells and asserts a non-empty body, its
 actions in the one place the shell offers them, and no range control behind a
 sheet's scrim.

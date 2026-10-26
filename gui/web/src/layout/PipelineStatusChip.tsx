@@ -1,9 +1,9 @@
 import type { MouseEventHandler } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { StaleProgressCopy } from "../ui/StaleProgressCopy";
 import { isPipelineRunning } from "../utils/pipeline";
 import { pipelineChromeLabel } from "../utils/pipelineProgress";
 import { formatTimeShort } from "../utils/time";
-import { StaleProgressCopy } from "./StaleProgressCopy";
 
 type Props = {
   job: PipelineJobSnapshot;

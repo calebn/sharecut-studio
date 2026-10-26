@@ -493,10 +493,10 @@ wrapper so a story's tool/comment/blade-confirm clicks feel live without
 touching the DAW store; `EditingToolRailView` takes its `ToolModeToggle` as a
 `toolToggle` slot, the same pattern as `TrackHeaderView`'s `mixer` slot.
 `CommandPaletteView` takes its rows (`PaletteCommand[]`) as a prop that the
-live adapter builds with `layout/commandPaletteRows.ts`, a `.ts` helper that
+live adapter builds with `stage/dialogs/commandPaletteRows.ts`, a `.ts` helper that
 reads the command catalog, the keymap registry (and its remap overrides) and
 the `when` gates at runtime. The view searches and groups those rows with the
-store-free `layout/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
+store-free `stage/dialogs/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
 nothing store-bound.
 The live `ToolModeToggle`, `EditingToolRail` and `CommandPalette` adapters are
 unchanged for callers and continue to read DAW state and dispatch through

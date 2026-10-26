@@ -823,7 +823,7 @@ A timeline selection on a phone-sized screen opens a peek
 strip instead of the half sheet. Phone-sized means the phone shell in
 Timeline mode, or the tablet shell on a screen at most 40rem tall (a phone
 held sideways). Taller tablets and desktop keep their inspector.
-`layout/useCompactInspector.ts` decides this for both shells. Where the
+`stage/edit/useCompactInspector.ts` decides this for both shells. Where the
 Inspector is a [column](#decision-the-inspector-is-a-column-on-a-short-wide-touch-screen),
 at least 40rem wide on a coarse pointer, there is no strip: the measurements
 below for 800×360 and 844×390 sideways are the strip's, before the column.
@@ -894,8 +894,8 @@ evidence:
 - #1696: owner request (calebn, 2026-10-17, project chat) to present the selection Inspector as a side column on a phone held sideways
 - #1694 and #1714: the lane band kept the lane and the form on screen, but they shared a short vertical space and the keypad squeezed both
 enforced-by:
-- gui/web/src/layout/useInspectorColumn.test.ts::asks for a short, wide screen whose primary pointer is coarse
-- gui/web/src/layout/useSelectionSheet.test.tsx::puts the %s shell's inspector in a column on a short wide touch screen
+- gui/web/src/stage/edit/useInspectorColumn.test.ts::asks for a short, wide screen whose primary pointer is coarse
+- gui/web/src/stage/edit/useSelectionSheet.test.tsx::puts the %s shell's inspector in a column on a short wide touch screen
 - gui/web/src/ui/compactSheet.test.ts::is invisible to every keep-clear helper, which look for the sheet class
 - gui/web/e2e-compat/inspector-column.spec.ts::a clip's Inspector is a column beside a whole timeline, and Close returns the shell
 - gui/web/e2e-compat/inspector-column.spec.ts::with the keyboard up the column shortens to the visible viewport and keeps its header
@@ -903,7 +903,7 @@ enforced-by:
 - gui/web/e2e-compat/inspector-column.spec.ts::turning upright keeps an unsaved draft and its focus in the Inspector
 - gui/web/e2e-compat/inspector-column.spec.ts::with Safari's chrome collapsed the column stops above the status strip, not over the focused field
 - gui/web/src/ui/BottomSheet.test.tsx::keeps the draft, the elements and the focus when the phone rotates and back
-- gui/web/src/layout/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
+- gui/web/src/stage/edit/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
 -->
 
 On a coarse primary pointer at most 40rem tall and at least 40rem wide, the

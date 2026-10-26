@@ -93,7 +93,7 @@ const WRAPPER_MOUNTS: Record<
   string,
   { component: string; mounts: Record<string, string> }
 > = {
-  "layout/HistoryControls.tsx": {
+  "stage/frame/HistoryControls.tsx": {
     component: "HistoryControls",
     mounts: {
       "layout/EditingToolRailView.tsx": "editingToolRail",

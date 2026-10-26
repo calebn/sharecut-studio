@@ -91,6 +91,7 @@ const LAYER_TABLE: readonly {
       "models",
       "panels",
       "record",
+      "stage",
       "system",
       "timeline",
       "tracks",
@@ -260,8 +261,8 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
   "hooks -> views": [
     "hooks/useHostSync.ts -> record (static)",
     "hooks/useKeyboardInset.ts -> ui/focusAndReveal (static)",
-    "hooks/useOfflineAttentionAnnouncement.ts -> layout/attentionLabel (static)",
-    "hooks/useShortTouchScreen.ts -> layout/useCompactInspector (static)",
+    "hooks/useOfflineAttentionAnnouncement.ts -> stage/frame/attentionLabel (static)",
+    "hooks/useShortTouchScreen.ts -> stage/edit/useCompactInspector (static)",
     "hooks/useWaveformSnapTicks.ts -> timeline/snapOverlay (static)",
     "keymap/listener.ts -> ui/modalGate (static)",
   ],

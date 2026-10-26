@@ -5,8 +5,8 @@ import {
   pickEpisodeProject,
 } from "../api";
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
-import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { ModelsDialog, useModels } from "../models";
+import { HostMcpDialog } from "../stage/dialogs/HostMcpDialog";
 import { errorMessage } from "../utils/apiError";
 import { projectUrl } from "../utils/projectUrl";
 import { readLocal, writeLocal } from "../utils/storage";

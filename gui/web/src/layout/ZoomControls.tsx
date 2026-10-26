@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { commandLabel } from "../commands/labels";
+import type { ZoomAvailability } from "../stage/edit/useZoomControls";
 import { Button, Icon } from "../ui";
-import type { ZoomAvailability } from "./useZoomControls";
 
 const ZOOM_COPY = {
   in: {

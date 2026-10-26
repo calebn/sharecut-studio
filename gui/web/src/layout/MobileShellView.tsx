@@ -1,6 +1,7 @@
 import type { ReactNode, Ref, RefCallback } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab } from "../presence/followSync";
+import type { CompactSheetProps } from "../stage/edit/useCompactInspector";
 import type { MobileMode, MoreDestination } from "../state/types";
 import { BottomSheet, type SheetPlacement } from "../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../ui/compactSheet";
@@ -12,7 +13,6 @@ import {
   type ShellAppearance,
   type ShellNotices,
 } from "./shellPresentation";
-import type { CompactSheetProps } from "./useCompactInspector";
 
 const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
   { id: "listen", label: "Listen", icon: "listen" },

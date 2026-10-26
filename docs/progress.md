@@ -17,7 +17,7 @@ Users should be able to answer:
 Narration must map to real work (no LLM filler). Brand: calm status chrome ([ux/pages/brand.md](../ux/pages/brand.md)).
 
 Export and Split speakers render their dialog progress through
-`gui/web/src/layout/JobProgressView.tsx`. It owns the headline, honest bar,
+`gui/web/src/stage/dialogs/JobProgressView.tsx`. It owns the headline, honest bar,
 unit count, elapsed time, and stale status. Each dialog owns its starting and
 cancel copy, close guidance, errors, and outcomes.
 

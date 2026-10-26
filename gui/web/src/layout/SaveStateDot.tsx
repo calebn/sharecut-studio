@@ -4,14 +4,14 @@ import {
   useOfflineAttention,
 } from "../services/offlineQueue/offlineAttention";
 import { isShareProjectKey } from "../shareMode";
+import { ATTENTION_BANNER_ID } from "../stage/frame/GuestAttentionBannerView";
+import { latestSaveOutcome, saveStateOf } from "../stage/frame/saveState";
 import {
   documentActivityBusy,
   subscribeDocumentActivity,
 } from "../state/documentSendOrder";
 import { useDaw } from "../state/useDaw";
-import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { SaveStateDotView } from "./SaveStateDotView";
-import { latestSaveOutcome, saveStateOf } from "./saveState";
 
 function focusAttention() {
   const banner = document.getElementById(ATTENTION_BANNER_ID);

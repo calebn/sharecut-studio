@@ -6,13 +6,13 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawKeymapListener } from "../keymap/listener";
 import { useRecordHostStore } from "../record/hostStore";
+import { BounceDialog } from "../stage/dialogs/BounceDialog";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { setChrome } from "../test/chrome";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { Dialog } from "../ui/Dialog";
-import { BounceDialog } from "./BounceDialog";
 import { MobileShell } from "./MobileShell";
 
 const offlineStore = vi.hoisted(() => ({

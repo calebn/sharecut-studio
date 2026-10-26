@@ -1,13 +1,13 @@
 import { commandLabel } from "../commands/labels";
 import { runPointerCommand } from "../commands/pointer";
 import { canIngestMedia, canSuggestStructuralOnProject } from "../shareMode";
+import { useZoomControls } from "../stage/edit/useZoomControls";
+import { useHistoryControls } from "../stage/frame/useHistoryControls";
 import { useDaw } from "../state/useDaw";
 import { CommandButton } from "../ui/CommandButton";
 import { Icon } from "../ui/Icon";
 import { EditingToolRailView } from "./EditingToolRailView";
 import { ToolModeToggle } from "./ToolModeToggle";
-import { useHistoryControls } from "./useHistoryControls";
-import { useZoomControls } from "./useZoomControls";
 
 /** Ferrite-style bottom tool rail (phone/tablet). */
 export function EditingToolRail({ inert = false }: { inert?: boolean }) {
