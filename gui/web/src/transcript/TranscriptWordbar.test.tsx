@@ -130,6 +130,13 @@ it("pointer changes stay local until one release, with independent source viewpo
     viewport: { scrollLeft: 0 },
   });
 });
+it("names the neighboring words as a group", async () => {
+  setup();
+  await ready();
+  const group = screen.getByRole("group", { name: "Neighboring words" });
+  expect(group).toHaveTextContent("before");
+  expect(group).toHaveTextContent("after");
+});
 it("keyboard and numeric changes require explicit Apply and invalid drafts do not save", async () => {
   setup();
   await ready();
