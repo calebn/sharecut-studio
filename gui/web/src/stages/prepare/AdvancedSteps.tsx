@@ -60,7 +60,6 @@ export type AdvancedStepsProps = {
   selectedId?: string;
   running?: RunningStep;
   onSelect: (id: string) => void;
-  /** Back to the list. */
   onBack: () => void;
   onToggle: (id: string, enabled: boolean) => void;
   onParam: (stepId: string, paramId: string, value: number | string) => void;

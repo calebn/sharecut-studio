@@ -13,9 +13,9 @@ const DS_GRID = 20;
 const LUCIDE_GRID = 24;
 
 /**
- * Decision (owner, section 3 of the design system): Lucide draws on a 24 grid,
- * so the DS 1.75 on the 20 grid scales to 1.75 * 24 / 20 = 2.1 to keep the
- * same on-screen weight beside the existing icons.
+ * Lucide draws on a 24 grid, so the DS 1.75 (section 3) on the 20 grid scales
+ * to 1.75 * 24 / 20 = 2.1 to keep the same on-screen weight beside the
+ * existing icons.
  */
 export const SYSTEM_ICON_STROKE = (DS_ICON_STROKE * LUCIDE_GRID) / DS_GRID;
 

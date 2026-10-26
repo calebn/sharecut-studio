@@ -15,7 +15,6 @@ export type AnnouncementInput = {
   phase: PreparePhase;
   /** Files being added or just added. */
   addCount?: number;
-  /** Files dragged over the window. */
   dropCount?: number;
   dropActive?: boolean;
   /** The hand-off label, spoken when everything is done. */
@@ -29,7 +28,6 @@ function files(count: number | undefined): string {
     : `${count} ${count === 1 ? "file" : "files"}`;
 }
 
-/** The one polite message for the stage's current phase. */
 export function prepareAnnouncement({
   phase,
   addCount,

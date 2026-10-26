@@ -11,7 +11,6 @@ export type SplitPhase = "prompt" | "splitting" | "name-voices" | "failed";
 
 export type SplitSpeakersProps = {
   phase: SplitPhase;
-  /** The session that holds the recording. */
   session: Omit<PrepareSession, "sources">;
   /** The one recording of several people. */
   recording: PrepareSource;
