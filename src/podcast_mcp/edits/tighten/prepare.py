@@ -216,7 +216,7 @@ def _prepare_candidate(
     if _clamp_to_candidate(candidate, plan.start, plan.end) != (plan.start, plan.end):
         return CutRejected("bounds")
     if candidate.cut_kind == "pause" and not mute_mode:
-        words = cut_safety.pause_words(
+        words = cut_placement.pause_words(
             project, candidate.track_id, candidate.start, candidate.gap_end or candidate.end
         )
         if isinstance(words, CutRejected):
