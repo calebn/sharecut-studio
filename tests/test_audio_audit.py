@@ -864,8 +864,16 @@ def test_load_mono_full_decodes(sample_wav: Path):
 def test_load_mono_full_empty_raises(tmp_path: Path):
     empty = tmp_path / "empty.wav"
     empty.write_bytes(b"not audio")
-    with patch("podcast_mcp.engines.ungated_audio.run") as run:
-        run.return_value = MagicMock(stdout=b"", returncode=0)
+    from podcast_mcp.engines import ffmpeg
+
+    real_run = ffmpeg.run
+
+    def empty_decode(command, **kwargs):
+        if "f32le" in command:
+            return MagicMock(stdout=b"", returncode=0)
+        return real_run(command, **kwargs)
+
+    with patch.object(ffmpeg, "run", side_effect=empty_decode):
         with pytest.raises(NoAudioDecodedError, match="no audio decoded"):
             load_mono_full(empty)
 

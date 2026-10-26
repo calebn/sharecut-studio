@@ -73,6 +73,7 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError, resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
+from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import (
     DEVNULL,
     PIPE,
@@ -600,6 +601,32 @@ class FFmpegEngine:
         self.ffprobe = pair.ffprobe
         self.source = pair.source
         self._filter_names_cache: set[str] | None = None
+
+    def decode_full_f32(self, path: Path, *, sample_rate: int, layout: list[str]) -> np.ndarray:
+        """Decode the first audio stream into a nonempty flat float32 byte view."""
+        result = run(
+            [
+                self.ffmpeg,
+                "-v",
+                "error",
+                "-i",
+                str(path),
+                "-map",
+                "0:a:0",
+                *layout,
+                "-ar",
+                str(sample_rate),
+                "-f",
+                "f32le",
+                "pipe:1",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        samples = np.frombuffer(result.stdout, dtype=np.float32)
+        if samples.size == 0:
+            raise NoAudioDecodedError(path)
+        return samples
 
     def check_available(self) -> tuple[bool, str]:
         try:

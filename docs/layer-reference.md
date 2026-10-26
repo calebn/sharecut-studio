@@ -73,6 +73,10 @@ render in `audio_audit._ungated_cache` for an active processing chain. Its scope
 cleanup must remove the temporary output on success and failure. Rejected candidates
 must not publish workspace artifacts, pools, project state, history, or exports.
 
+`FFmpegEngine.decode_full_f32` owns synchronous whole-file decoding, float32 byte
+conversion and empty-output failure. `ungated_audio` retains layout selection,
+batch caching, probing and channel reshaping.
+
 `FFmpegEngine` and single-command consumers select one validated `FFmpegPair`
 through `util.binaries.resolve_ffmpeg_pair`. The value carries absolute command
 paths, an equal numeric release, and the selection source. Explicit supported
