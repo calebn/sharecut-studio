@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from mcp.server import MCPServer
 
+from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService
@@ -36,7 +37,7 @@ def list_session_suggestions_tool(project_path: str, status: str = "") -> str:
 
     status: pending, skipped or accepted; empty lists all. A staged session has its recordings
     registered as sources but nothing on the timeline until accept_session_suggestion_tool places
-    it. Only insert sessions can be accepted so far.
+    it.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
@@ -52,18 +53,34 @@ def skip_session_suggestion_tool(project_path: str, suggestion_id: str) -> str:
     return to_json(SessionSuggestionService(ws).skip(suggestion_id))
 
 
-def accept_session_suggestion_tool(project_path: str, suggestion_id: str) -> str:
-    """Place a pending insert session on the timeline (one undo step, "Added Session N").
+def accept_session_suggestion_tool(
+    project_path: str,
+    suggestion_id: str,
+    take_index: int | None = None,
+    override_audio_checks: bool = False,
+) -> str:
+    """Place a pending session on the timeline (one undo step, "Added Session N").
 
-    Opens the session's length at its insert point on every dialogue track and places its
-    takes, room-tone beds and live comments there. Refuses a session that is not pending, a
-    replace session (not available yet) and one whose insert point is gone (stale_anchor).
+    An insert opens the session's length at its insert point on every dialogue track and places
+    its takes, room-tone beds and live comments there. A replace removes its range on every
+    dialogue track and puts one take in its place (take_index, else the selected or last take);
+    its range is found again from the audio it was staged on. Refuses a session that is not
+    pending, a range or insert point that is gone or changed (stale_anchor), an unknown take
+    (take_not_found), a take_index on an insert (take_not_applicable), a track the take did not
+    record (track_not_recorded) and pending edits inside the range (pending_edits_in_range).
+    A replace that also removes another track's speech stays unchanged and returns
+    needs_confirmation until you repeat with override_audio_checks=true (recorded).
     The result lists non-dialogue tracks that did not move (unmoved_track_ids).
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project_path)
-    return to_json(SessionSuggestionService(ws).accept(suggestion_id))
+    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        return to_json(
+            SessionSuggestionService(ws).accept(
+                suggestion_id, take_index=take_index, override_audio_checks=override_audio_checks
+            )
+        )
 
 
 def set_active_review_version_tool(

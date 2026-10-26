@@ -5,6 +5,11 @@ from pathlib import Path
 
 import typer
 
+from podcast_mcp.cli.cut_speech import (
+    cli_override,
+    override_audio_checks_option,
+    require_cut_applied,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     RecordStaleLinksError,
@@ -65,7 +70,7 @@ def review_session_suggestions_cmd(
 ) -> None:
     """List record sessions staged for an insert or replace target.
 
-    Accept an insert session with accept-session-suggestion; replace sessions cannot be accepted yet.
+    Accept a session with accept-session-suggestion.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
@@ -99,17 +104,30 @@ def review_skip_session_suggestion_cmd(
 def review_accept_session_suggestion_cmd(
     project: Path = typer.Option(..., "--project"),
     suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
+    take: int | None = typer.Option(
+        None,
+        "--take",
+        help="Take index to place for a replace session (default: the selected or last take)",
+    ),
+    override_checks: bool = override_audio_checks_option(),
 ) -> None:
-    """Place a pending insert session on the timeline in one undo step.
+    """Place a pending session on the timeline in one undo step.
 
-    Opens the session's length at its insert point on every dialogue track. Replace sessions
-    cannot be accepted yet.
+    An insert opens the session's length at its insert point on every dialogue track. A replace
+    removes its range on every dialogue track and puts one take in its place; if that also
+    removes speech of a track the take did not record, nothing changes until you repeat with
+    --override-audio-checks.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
     ws = ProjectWorkspace.open(project)
     try:
-        result = SessionSuggestionService(ws).accept(suggestion_id)
+        with cli_override(override_checks):
+            result = require_cut_applied(
+                lambda: SessionSuggestionService(ws).accept(
+                    suggestion_id, take_index=take, override_audio_checks=override_checks
+                )
+            )
     except CodedError as exc:
         typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc
