@@ -22,7 +22,6 @@ from typing import Any
 import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from mcp.shared._httpx_utils import create_mcp_http_client
 from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp import settings
@@ -36,7 +35,7 @@ log = logging.getLogger(__name__)
 
 HOST_MCP_PATH = "/mcp"
 
-#: How long Studio, which has answered the ping, may take to accept the MCP session.
+#: The ping has its own timeout; this bounds a Studio that answers the ping and then hangs.
 INITIALIZE_TIMEOUT_SEC = 10.0
 
 #: Statuses that mean the host does not serve ``/mcp`` (an older build, a non-loopback bind).
@@ -67,15 +66,18 @@ def _lost_result(host: StudioHost, name: str, why: str) -> CallToolResult:
         "The call had already been sent and may have changed the project. Check the project "
         "in Studio (or run `podcast history-status`) before you call it again."
     )
-    return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
+    return _error_result(text)
 
 
 def _declined_result(host: StudioHost) -> CallToolResult:
-    text = (
+    return _error_result(
         f"Studio (pid {host.pid}) is serving this project but did not take the call, so nothing "
         f"was run. Try again in a moment, or set {DIRECT_ENV_VAR}=1 to write directly "
         "(this may overwrite what Studio is holding)."
     )
+
+
+def _error_result(text: str) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
 
 
@@ -86,13 +88,13 @@ def _leaves(exc: BaseException) -> list[BaseException]:
 
 
 def _studio_is_not_there(exc: BaseException, status: int | None) -> bool:
-    """Whether a failure before the send shows no Studio to take the call, as opposed to one that failed."""
+    """A timeout means Studio is there but silent, so it is not treated as absent."""
     if status in _NO_MCP_ROUTE:
         return True
     leaves = _leaves(exc)
     if any(isinstance(leaf, TimeoutError | httpx2.TimeoutException) for leaf in leaves):
         return False
-    return any(isinstance(leaf, OSError | httpx2.ConnectError) for leaf in leaves)
+    return any(isinstance(leaf, OSError | httpx2.NetworkError) for leaf in leaves)
 
 
 def _progress_relay(context: Any) -> Any:
@@ -121,7 +123,7 @@ def _progress_relay(context: Any) -> Any:
 async def _run_in_studio(
     host: StudioHost, name: str, arguments: dict[str, Any], context: Any = None
 ) -> Any:
-    """Run one tool call in Studio; ``None`` means no Studio is there to take it, so the caller runs it here."""
+    """Run one tool call in Studio; ``None`` means no Studio is there, so run it here."""
     relay = _progress_relay(context)
     sent = False
     status: int | None = None
@@ -133,7 +135,7 @@ async def _run_in_studio(
 
     try:
         url = f"http://{host.host}:{host.port}{HOST_MCP_PATH}"
-        http_client = create_mcp_http_client()
+        http_client = httpx2.AsyncClient(timeout=httpx2.Timeout(30.0, read=300.0))
         http_client.event_hooks["response"].append(note_status)
         async with (
             http_client,
@@ -197,7 +199,9 @@ def install_studio_handoff(server: Any) -> None:
 def _locate(project: str) -> StudioHost | None:
     try:
         return locate_studio(Path(project))
-    except (OSError, ValueError):
+    except StudioUnresponsive:
+        raise
+    except Exception:
         log.debug("could not look for a Studio serving %s", project, exc_info=True)
         return None
 

@@ -14,6 +14,8 @@ dependencies = [
     "pydantic>=2.7.0",
     "pyyaml>=6.0",
     "mcp>=2.2,<3",
+    # Imported directly by the stdio MCP handoff to classify transport errors; mcp installs it.
+    "httpx2>=2.10.0",
     "faster-whisper>=1.1.0",
     "av>=11,<19",
     # Imported directly by the opt-in forced aligner (#714); faster-whisper already

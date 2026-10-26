@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import socket
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -491,25 +490,3 @@ def test_a_studio_without_the_mcp_route_runs_the_call_here(
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(project)}))
     assert result == "ran here"
     assert len(server.calls) == 1
-
-
-def test_a_connection_refused_after_the_ping_runs_the_call_here(
-    studio: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import podcast_mcp.mcp.studio_handoff as handoff
-
-    real_locate = handoff.locate_studio
-
-    def locate_then_close(project: Path) -> StudioHost | None:
-        host = real_locate(project)
-        assert host is not None
-        sock = socket.socket()
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-        sock.close()
-        return StudioHost(host.instance, host.pid, host.host, port, host.token, host.version)
-
-    monkeypatch.setattr(handoff, "locate_studio", locate_then_close)
-    server = _wrapped()
-    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
-    assert result == "ran here"

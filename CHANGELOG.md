@@ -30,7 +30,7 @@
 
 * A CLI command or stdio MCP tool call no longer writes the project directly when the Studio serving it is slow to answer (#2318). The Studio ping now waits 5 s and is tried twice; a Studio that accepts the connection but stays silent stops the command with "Studio (pid N) is serving this project but did not answer in time" and writes nothing.
 * A `podcast review` command that names `--project` is now handed to the Studio serving the project instead of writing the project directly (#2325).
-* A live Studio that answers the ping but then fails or times out on the MCP call, or answers the ping with an unreadable body, no longer lets the tool call or command write the project directly (#2326).
+* A live Studio that fails the MCP call or answers the ping with an unreadable body no longer lets the call or command write the project directly (#2326).
 
 ## [0.1.1](https://github.com/calebn/sharecut-studio/compare/v0.1.0...v0.1.1) (2026-10-18)
 
