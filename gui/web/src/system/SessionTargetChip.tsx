@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button, Menu, MenuItem } from "../ui";
 import { SystemIcon } from "./SystemIcon";
+
+const SUBJECT = "Where this session goes";
 
 export type SessionTarget = "start" | "end";
 
@@ -26,12 +28,18 @@ export function SessionTargetChip({
   onTarget,
 }: SessionTargetChipProps) {
   const [open, setOpen] = useState(false);
+  const reasonId = useId();
   if (locked) {
     return (
-      <span className="sys-target-chip sys-target-chip--locked">
+      <span
+        className="sys-target-chip sys-target-chip--locked"
+        role="group"
+        aria-label={SUBJECT}
+        aria-describedby={reasonId}
+      >
         <SystemIcon name="lock" size={14} />
         <span>{TARGET_TEXT[target]}</span>
-        <span className="sys-target-reason">
+        <span id={reasonId} className="sys-target-reason">
           Set when the first take landed
         </span>
       </span>
@@ -41,10 +49,14 @@ export function SessionTargetChip({
     <Menu
       open={open}
       onOpenChange={setOpen}
-      label="Where this session goes"
+      label={SUBJECT}
       className="ui-menu-root sys-menu sys-target-chip"
       trigger={(props) => (
-        <Button {...props} className="sys-target-trigger">
+        <Button
+          {...props}
+          className="sys-target-trigger"
+          aria-label={`${SUBJECT}: ${TARGET_TEXT[target]}`}
+        >
           <span>{TARGET_TEXT[target]}</span>
           <SystemIcon name="chevron-down" size={14} />
         </Button>

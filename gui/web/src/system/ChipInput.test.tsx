@@ -173,8 +173,61 @@ describe("ChipInput", () => {
 
   it("counts the reserved characters against the budget", async () => {
     render(<Harness reservedChars={340} />);
-    // budget 32, Anneke uses 6 -> 26 left, within 40
-    expect(screen.getByText("26 left")).toBeVisible();
+    // 340 + ", " = 342 -> budget 30, Anneke uses 6 -> 24 left, within 40
+    expect(screen.getByText("24 left")).toBeVisible();
+  });
+
+  it("spends no separator when nothing is reserved", () => {
+    render(
+      <Harness terms={["a".repeat(100), "b".repeat(100), "c".repeat(100)]} />,
+    );
+    // 6 + 3 * 102 = 312 of 372 -> 60 left, so no count yet
+    expect(screen.queryByText(/ left$/)).toBeNull();
+  });
+
+  it("adds what fits, and keeps the rest in the field with the limit text", async () => {
+    render(
+      <Harness terms={["a".repeat(100), "b".repeat(100), "c".repeat(100)]} />,
+    );
+    // 312 used, 60 left: "Alpha" (7 with separator) fits; the 60-char one does not
+    fireEvent.change(field(), {
+      target: { value: `Alpha, ${"z".repeat(60)}` },
+    });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(removes().map((b) => b.getAttribute("aria-label"))).toContain(
+      "Remove Alpha",
+    );
+    expect(field()).toHaveValue("z".repeat(60));
+    expect(
+      screen.getAllByText("That is the limit. Remove a term to add more.")
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("keeps the unadded part of a paste in the field", () => {
+    render(<Harness />);
+    fireEvent.paste(field(), {
+      clipboardData: {
+        getData: () => `Okafor, ${"x".repeat(101)}, Utrecht`,
+      },
+    });
+    expect(removes().map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Remove Okafor",
+    ]);
+    expect(field()).toHaveValue(`${"x".repeat(101)}, Utrecht`);
+    expect(screen.getAllByText(/under 100 characters/).length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("clears a lone comma in an empty field", async () => {
+    render(<Harness />);
+    await userEvent.type(field(), ",");
+    expect(field()).toHaveValue("");
+    fireEvent.change(field(), { target: { value: "," } });
+    await userEvent.type(field(), "{Enter}");
+    expect(field()).toHaveValue("");
+    expect(removes()).toHaveLength(0);
   });
 
   it("refuses an entry over 100 characters", async () => {

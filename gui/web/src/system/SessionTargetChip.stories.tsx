@@ -58,7 +58,9 @@ export const Menu: Story = {
   render: (args) => <Choosing {...args} />,
   play: async ({ args, canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Starts the episode" }),
+      within(canvasElement).getByRole("button", {
+        name: "Where this session goes: Starts the episode",
+      }),
     );
     const body = within(document.body);
     await userEvent.click(
@@ -67,7 +69,9 @@ export const Menu: Story = {
     await expect(args.onTarget).toHaveBeenCalledWith("end");
     await waitFor(() => expect(body.queryByRole("menu")).toBeNull());
     await expect(
-      within(canvasElement).getByRole("button", { name: "At the end" }),
+      within(canvasElement).getByRole("button", {
+        name: "Where this session goes: At the end",
+      }),
     ).toBeVisible();
   },
 };
@@ -77,7 +81,9 @@ export const MenuOpen: Story = {
   render: (args) => <Choosing {...args} />,
   play: async ({ canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Starts the episode" }),
+      within(canvasElement).getByRole("button", {
+        name: "Where this session goes: Starts the episode",
+      }),
     );
     await expect(await within(document.body).findByRole("menu")).toBeVisible();
   },

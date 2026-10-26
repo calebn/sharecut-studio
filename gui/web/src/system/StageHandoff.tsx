@@ -29,7 +29,7 @@ export function StageHandoff({
   onActivate,
 }: StageHandoffProps) {
   const reasonId = useId();
-  const disabled = disabledReason !== undefined;
+  const disabled = disabledReason !== undefined && disabledReason !== "";
   const icon = STAGES.find((entry) => entry.id === stage)?.icon ?? "send";
   return (
     <span className={`sys-handoff-wrap sys-handoff-wrap--${size}`}>

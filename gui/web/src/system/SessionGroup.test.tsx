@@ -28,7 +28,9 @@ describe("SessionGroup", () => {
     ).toBeVisible();
     expect(screen.getByText("3 people · 2 takes · 14:20")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Starts the episode" }),
+      screen.getByRole("button", {
+        name: "Where this session goes: Starts the episode",
+      }),
     ).toBeVisible();
     expect(screen.getByText("Takes here")).toBeVisible();
   });

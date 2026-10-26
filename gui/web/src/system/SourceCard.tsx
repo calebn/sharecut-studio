@@ -165,7 +165,7 @@ export function SourceCard({
           <div className="sys-source-controls">
             <Button
               className="ui-control--quiet sys-source-hear"
-              aria-pressed={playing}
+              aria-pressed={playing || undefined}
               onClick={onHear}
             >
               <SystemIcon name={playing ? "pause" : "play"} size={16} />
@@ -181,6 +181,7 @@ export function SourceCard({
                 className="sys-stepper-button"
                 aria-label="Fewer voices"
                 aria-disabled={atFewest || undefined}
+                aria-describedby={atFewest ? reasonId : undefined}
                 onClick={atFewest ? undefined : () => onVoices?.(voices - 1)}
               >
                 <SystemIcon name="minus" size={16} />
@@ -196,6 +197,7 @@ export function SourceCard({
                 className="sys-stepper-button"
                 aria-label="More voices"
                 aria-disabled={atMost || undefined}
+                aria-describedby={atMost ? reasonId : undefined}
                 onClick={atMost ? undefined : () => onVoices?.(voices + 1)}
               >
                 <SystemIcon name="plus" size={16} />
@@ -206,10 +208,7 @@ export function SourceCard({
                 {reason}
               </span>
             ) : null}
-            <Button
-              variant={state === "split-prompt" ? "primary" : "default"}
-              onClick={onSplit}
-            >
+            <Button onClick={onSplit}>
               <SystemIcon name="split" size={14} />
               Split
             </Button>
