@@ -620,7 +620,9 @@ per recording, not per pause.
 ### Reusing an approval check (`PODCAST_VERDICT_CACHE`, #1958)
 
 Approving a source remove observes the cut's neighbourhood (peer speech, acoustic edges, pauses)
-and then checks the written result; that is nearly all of an approval's cost. It is on by default (`PODCAST_VERDICT_CACHE=0` turns it off): the host's idle background warm (`/api/pending-preview/warm`) checks the
+and then checks the written result; that is nearly all of an approval's cost. It is on by
+default: `PODCAST_VERDICT_CACHE=0` (or false, no, off) turns it off, unless `PODCAST_VERDICT_VERIFY=1`
+is also set, which keeps it on. The host's idle background warm (`/api/pending-preview/warm`) checks the
 pending cuts on a copy, at low priority, with the interactive intent Approve all uses (the intent
 is part of the check, so a check made for another intent is never reused), stopping as soon as
 an approval starts, and an approval reuses the check of every cut whose neighbourhood is unchanged. The key
@@ -632,7 +634,7 @@ pads, which must equal what the entry recorded or the full check runs. A check t
 unreadable file is never stored. `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
 hit and fails if it differs; the approve and cut tests pass in that mode except nine that count
 checks (named in `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
-which set the flags themselves. Off by default.
+which set the flags themselves.
 
 ### Which fingerprint answers which question
 
