@@ -52,7 +52,6 @@ const snapFetch = fn();
 const meta: Meta<typeof PendingEditOverlayView> = {
   title: "Templates/PendingEditOverlay",
   component: PendingEditOverlayView,
-  tags: ["autodocs"],
   parameters: {
     ...isolatedStoryParameters,
     layout: "fullscreen",
