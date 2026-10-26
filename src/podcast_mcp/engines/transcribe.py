@@ -80,15 +80,15 @@ ALIGNMENT_SUCCESS_STATUSES = frozenset({"aligned", "cached"})
 
 def _is_gpu_failure(exc: BaseException) -> bool:
     """True when ``exc``, or an exception it was raised from, reads as a GPU error."""
-    if isinstance(exc, ModelMissing | CancelledProgress):
-        return False
     seen: set[int] = set()
     cur: BaseException | None = exc
     while cur is not None and id(cur) not in seen:
+        if isinstance(cur, ModelMissing | CancelledProgress):
+            return False
         if _GPU_ERROR.search(str(cur)):
             return True
         seen.add(id(cur))
-        cur = cur.__cause__ or cur.__context__
+        cur = cur.__cause__ or (None if cur.__suppress_context__ else cur.__context__)
     return False
 
 

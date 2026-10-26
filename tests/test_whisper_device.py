@@ -278,6 +278,36 @@ def test_a_gpu_error_named_only_by_the_cause_falls_back(planted, tmp_path) -> No
         assert _run_with_gpu_error(tmp_path, wrapped) == ["cuda", "cpu"]
 
 
+def test_a_cancel_or_missing_model_in_the_cause_chain_does_not_fall_back(planted, tmp_path) -> None:
+    missing = ModelMissing(
+        id="whisper",
+        model="CUDA",
+        label="CUDA Whisper",
+        purpose="speech-to-text",
+        size="1 GB",
+        size_bytes=None,
+        command="podcast-mcp models fetch",
+        state="missing",
+    )
+    for inner in (CancelledProgress("CUDA cancelled"), missing):
+        try:
+            raise ValueError("transcription failed") from inner
+        except ValueError as wrapped:
+            with pytest.raises(ValueError, match="transcription failed"):
+                _run_with_gpu_error(tmp_path, wrapped)
+
+
+def test_a_suppressed_context_is_not_followed(planted, tmp_path) -> None:
+    try:
+        try:
+            raise RuntimeError("CUDA failed")
+        except RuntimeError:
+            raise ValueError("transcription failed") from None
+    except ValueError as wrapped:
+        with pytest.raises(ValueError, match="transcription failed"):
+            _run_with_gpu_error(tmp_path, wrapped)
+
+
 def test_a_cyclic_cause_chain_terminates(planted, tmp_path) -> None:
     a, b = RuntimeError("one"), RuntimeError("two")
     a.__cause__, b.__cause__ = b, a
