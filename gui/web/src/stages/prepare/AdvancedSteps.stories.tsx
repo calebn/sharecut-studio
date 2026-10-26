@@ -135,7 +135,7 @@ export const StepRunning: Story = {
     const gaps = canvas.getByRole("switch", {
       name: "Fill gaps from the recorder's noise gate",
     });
-    await expect(gaps).toBeDisabled();
+    await expect(gaps).toHaveAttribute("aria-disabled", "true");
     await expect(gaps).toHaveAccessibleDescription(
       "Steps cannot change while one is running.",
     );

@@ -75,12 +75,16 @@ describe("AdvancedSteps", () => {
     expect(screen.queryByRole("switch", { name: "Line up tracks" })).toBeNull();
   });
 
-  it("disables the switches with a written reason while a step runs", async () => {
+  it("holds the switches with a written reason while a step runs", async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
-    render(<Host running={RUNNING} spy={{ onCancel }} />);
+    const onToggle = vi.fn();
+    render(<Host running={RUNNING} spy={{ onCancel, onToggle }} />);
     const gaps = screen.getByRole("switch", { name: GAPS });
-    expect(gaps).toBeDisabled();
+    expect(gaps).toHaveAttribute("aria-disabled", "true");
+    await user.click(gaps);
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(gaps).toBeChecked();
     expect(gaps).toHaveAccessibleDescription(
       "Steps cannot change while one is running.",
     );
@@ -180,6 +184,42 @@ describe("AdvancedSteps", () => {
         name: "Reset to default: Longest gap to fill",
       }),
     ).toHaveAccessibleDescription(reason);
+  });
+
+  it("keeps focus on the setting that has it when a step starts running", async () => {
+    const user = userEvent.setup();
+    const onParam = vi.fn();
+    const onReset = vi.fn();
+    const { rerender } = render(
+      <Host selected="fill-gaps" spy={{ onParam, onReset }} />,
+    );
+    const slider = screen.getByRole("slider", { name: "Longest gap to fill" });
+    slider.focus();
+    rerender(
+      <Host
+        selected="fill-gaps"
+        running={RUNNING}
+        spy={{ onParam, onReset }}
+      />,
+    );
+    expect(slider).toHaveFocus();
+    expect(slider).toHaveAttribute("aria-disabled", "true");
+    fireEvent.change(slider, { target: { value: "3" } });
+    expect(onParam).not.toHaveBeenCalled();
+    const reset = screen.getByRole("button", {
+      name: "Reset to default: Longest gap to fill",
+    });
+    await user.click(reset);
+    expect(onReset).not.toHaveBeenCalled();
+    expect(reset).toHaveFocus();
+  });
+
+  it("keeps focus on a list switch when a step starts running", () => {
+    const { rerender } = render(<Host />);
+    const gaps = screen.getByRole("switch", { name: GAPS });
+    gaps.focus();
+    rerender(<Host running={RUNNING} />);
+    expect(gaps).toHaveFocus();
   });
 
   describe("values it cannot trust", () => {

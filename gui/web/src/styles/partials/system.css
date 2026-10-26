@@ -1381,9 +1381,11 @@
 }
 
 .sys-status-cause {
+  min-inline-size: 0;
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
 }
 
 .modifier-action.danger.sys-danger-outline {
@@ -2372,6 +2374,11 @@
   color: var(--color-text-primary);
 }
 
+.sys-source .ui-field-hint {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
 .sys-source-file {
   margin: 0;
   color: var(--color-text-secondary);
@@ -2799,9 +2806,11 @@
 }
 
 .sys-ready-text {
+  min-inline-size: 0;
   margin: 0 0 var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+  overflow-wrap: anywhere;
 }
 
 .sys-ready-actions {
@@ -2994,9 +3003,11 @@
 
 .sys-adv-reason,
 .sys-adv-result {
+  min-inline-size: 0;
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
 }
 
 .sys-adv-toggle {
@@ -3041,7 +3052,8 @@
   transform: translate(1rem, -50%);
 }
 
-.sys-adv-switch:disabled {
+.sys-adv-switch:disabled,
+.sys-adv-switch[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -3095,7 +3107,8 @@
   cursor: pointer;
 }
 
-.sys-adv-reset:disabled {
+.sys-adv-reset:disabled,
+.sys-adv-reset[aria-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -3123,6 +3136,12 @@
   color: inherit;
   font: inherit;
   font-size: var(--font-size-field);
+}
+
+.sys-adv-range[aria-disabled="true"],
+.sys-adv-select[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .sys-adv-range:focus-visible,
@@ -3204,6 +3223,12 @@
   .sys-adv-reset {
     inline-size: var(--touch-min);
     block-size: var(--touch-min);
+  }
+
+  .sys-prepare-field .ui-segmented > .ui-control,
+  .sys-source-name input,
+  .sys-chips .sys-chips-input {
+    min-block-size: var(--touch-min);
   }
 }
 

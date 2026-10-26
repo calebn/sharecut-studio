@@ -67,7 +67,7 @@ export function StatusRow({
   const cause = details?.trim();
   const showDetails = state === "failed" && Boolean(cause);
   if (!showDetails && detailsOpen) setDetailsOpen(false);
-  const expandable = children !== undefined && children !== null;
+  const expandable = Boolean(children);
   const text = (
     <>
       <span className="sys-status-title">{title}</span>

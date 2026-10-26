@@ -13,16 +13,27 @@ type StatusListProps = {
  * is named inside each row by its glyph, and a row's own button is its one
  * tab stop, so the list adds no key handling. When the button a row acted on
  * goes away with the new state, focus moves to the row's toggle, or to the row
- * itself, instead of falling to the page.
+ * itself, instead of falling to the page. When the row itself goes, it moves to
+ * the nearest row left, or to the list.
  */
 export function StatusList({ label, children }: StatusListProps) {
   const list = useRef<HTMLUListElement>(null);
   useFocusRescue(list, (target) => {
-    const item = target.closest("li");
-    return () => item?.querySelector<HTMLElement>(".sys-status-toggle") ?? item;
+    const items = [...(list.current?.children ?? [])] as HTMLElement[];
+    const at = items.findIndex((item) => item.contains(target));
+    return () => {
+      const near = [...items.slice(at), ...items.slice(0, at).reverse()].find(
+        (item) => item.isConnected,
+      );
+      return (
+        near?.querySelector<HTMLElement>(".sys-status-toggle") ??
+        near ??
+        list.current
+      );
+    };
   });
   return (
-    <ul ref={list} className="sys-status-list" aria-label={label}>
+    <ul ref={list} tabIndex={-1} className="sys-status-list" aria-label={label}>
       {Children.toArray(children)
         .filter(isValidElement)
         .map((child) => (

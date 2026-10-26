@@ -6,6 +6,8 @@ type SessionSourcesProps = {
   session: PrepareSession;
   /** Position of the session's first card among all cards, so "Voice N" is unique. */
   firstIndex: number;
+  /** Lower-case names that more than one voice has, across every session. */
+  repeated?: ReadonlySet<string>;
   actions: SourceActions;
   onTarget?: (target: PrepareSession["target"]) => void;
 };
@@ -14,6 +16,7 @@ type SessionSourcesProps = {
 export function SessionSources({
   session,
   firstIndex,
+  repeated,
   actions,
   onTarget,
 }: SessionSourcesProps) {
@@ -35,6 +38,12 @@ export function SessionSources({
             <SourceCard
               key={source.id}
               {...source}
+              sameNameAs={
+                source.sameNameAs ??
+                (repeated?.has(source.name.trim().toLowerCase())
+                  ? source.name.trim()
+                  : undefined)
+              }
               index={firstIndex + at}
               onName={(name) => actions.onName(source.id, name)}
               onRemove={() => actions.onRemove(source.id)}

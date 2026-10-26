@@ -162,4 +162,16 @@ describe("StatusGlyph progress", () => {
     ).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Out of memory")).toBeNull();
   });
+
+  it.each([false, 0, "", null, undefined])(
+    "is not expandable for children %s",
+    (children) => {
+      render(
+        <StatusRow state="done" title="Add audio">
+          {children}
+        </StatusRow>,
+      );
+      expect(screen.queryByRole("button")).toBeNull();
+    },
+  );
 });
