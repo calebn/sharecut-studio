@@ -133,6 +133,20 @@ describe("PrepareView structure", () => {
     expect(screen.getByRole("region", { name: "Voice 3, Maya" })).toBeVisible();
   });
 
+  it("starts the phone summary open when a row needs you or failed", () => {
+    render(
+      <PrepareView
+        {...props({
+          rows: ROWS.needsModel,
+          readySummary: "Transcribe needs a download",
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /Transcribe needs a download/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("opens and closes the phone summary", async () => {
     const user = userEvent.setup();
     render(<PrepareView {...props()} />);
@@ -293,5 +307,30 @@ describe("PrepareView focus", () => {
     expect(
       screen.getByRole("button", { name: "Keep my fixes" }),
     ).not.toHaveFocus();
+  });
+
+  it("renders the Vocabulary field under Help the transcriber with the named speakers first", () => {
+    render(
+      <PrepareView
+        {...props({
+          terms: ["Quetzalcoatlus"],
+          onTermsChange: vi.fn(),
+          needsRetranscribe: true,
+        })}
+      />,
+    );
+    const help = screen.getByRole("region", { name: "Help the transcriber" });
+    expect(
+      within(help).getByRole("textbox", { name: "Names and terms" }),
+    ).toBeInTheDocument();
+    expect(
+      within(help).getByRole("listitem", { name: "Maya, speaker" }),
+    ).toBeInTheDocument();
+    expect(
+      within(help).getByRole("button", { name: "Re-transcribe" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Help the transcriber" }),
+    ).toHaveLength(1);
   });
 });
