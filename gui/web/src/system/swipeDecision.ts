@@ -1,4 +1,4 @@
-export const SWIPE_THRESHOLD_PX = 80;
+const SWIPE_THRESHOLD_PX = 80;
 
 export type SwipeIntent = "verb" | "keep" | "next";
 
@@ -25,15 +25,7 @@ export function swipeState(dx: number, dy: number): SwipeState {
   };
 }
 
-export type SwipeRelease =
-  | { commit: SwipeIntent; springBack: false }
-  | { commit: null; springBack: boolean };
-
-/** Below the threshold nothing is decided and the card springs back. */
-export function releaseSwipe(dx: number, dy: number): SwipeRelease {
+export function releaseSwipe(dx: number, dy: number): SwipeIntent | null {
   const state = swipeState(dx, dy);
-  if (state.committed && state.intent) {
-    return { commit: state.intent, springBack: false };
-  }
-  return { commit: null, springBack: dx !== 0 || dy !== 0 };
+  return state.committed ? state.intent : null;
 }

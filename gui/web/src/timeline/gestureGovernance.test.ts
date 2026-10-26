@@ -248,6 +248,10 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the transcript edit-boundary mark drags a cut's gap with pointer capture, the same roll as edit.rollClipJoin",
   "transcript/TranscriptWordbar.tsx":
     "the word-boundary sliders preview a word's timing and save one adjustment on release",
+  "system/SuggestionWaveform.tsx":
+    "a suggestion's edge handles move a control inside one Decision card, not a timeline target; they preview the range and the card saves on decision",
+  "system/useSwipeDecision.ts":
+    "the Review card and queue row swipe: right is the verb, left is Keep, up is Later (the Swipe right and Swipe left rows in verbs.ts), 80 px to commit",
   "presence/usePresenceCursorSource.ts":
     "reads the pointer to publish a presence cursor; it starts no gesture",
 };
@@ -261,6 +265,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
   "commands/focusedClipHandle.ts":
     "the focused-handle registry the timeline's arrow edits run through",
   "keymap/registry.ts": "the keymap rows that bind the arrows",
+  "system/SuggestionWaveform.tsx":
+    "a focused suggestion handle moves its edge with the arrows, 0.05 s and 0.5 s with Shift, like a slider",
   "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",
   "ui/useMenuKeyboard.ts": "arrows step through the items of an open menu",
 };

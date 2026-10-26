@@ -4,43 +4,36 @@ import {
   type PointerEvent,
   useRef,
 } from "react";
-import { KIND_META, type ReviewKind } from "../review/reviewKinds";
+import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
-import {
-  clampRange,
-  type SuggestionRange,
-  snapToSilence,
-  WAVEFORM_WINDOW_S,
-} from "./silenceSnap";
+import type { TimeRange } from "./seconds";
+import { clampRange, snapToSilence, WAVEFORM_WINDOW_S } from "./silenceSnap";
 
 const KEY_STEP_S = 0.05;
 const KEY_STEP_BIG_S = 0.5;
 
 export type SuggestionWaveformProps = {
-  kind: Exclude<ReviewKind, "comment" | "check" | "unsure-word">;
+  /** The change's kind glyph. */
+  icon: SystemIconName;
   /** Peaks across the window, 0 to 1. */
   peaks: readonly number[];
-  /** Episode time at the left edge. The window is 12 s: 6 s each side of the change. */
+  /** Episode seconds at the left edge. */
   windowStart: number;
   start: number;
   end: number;
   /** A guest sees the change and cannot move it. */
   readOnly?: boolean;
-  /** The first movement of a drag or key press. */
+  /** Fires on the first movement of a drag and on each key press, never on a tap. */
   onAdjustStart?: () => void;
-  onAdjust?: (range: SuggestionRange) => void;
+  onAdjust?: (range: TimeRange) => void;
   label?: string;
 };
 
 type Edge = "start" | "end";
 
-/**
- * The 96 px waveform of one suggestion, 6 s either side. The proposed range is
- * hatched with a 2 px outline and a kind glyph. Each edge has a 12 px handle
- * with a 44 px hit area. Dragging snaps to silence; hold Alt to move freely.
- */
+/** Dragging snaps to silence; hold Alt to move freely. Handles keep a 44 px hit area around the 12 px knob. */
 export function SuggestionWaveform({
-  kind,
+  icon,
   peaks,
   windowStart,
   start,
@@ -52,7 +45,8 @@ export function SuggestionWaveform({
 }: SuggestionWaveformProps) {
   const track = useRef<HTMLDivElement>(null);
   const dragging = useRef<Edge | null>(null);
-  const bounds: SuggestionRange = {
+  const started = useRef(false);
+  const bounds: TimeRange = {
     start: windowStart,
     end: windowStart + WAVEFORM_WINDOW_S,
   };
@@ -63,9 +57,7 @@ export function SuggestionWaveform({
     const snapped = free
       ? time
       : windowStart +
-        snapToSilence(time - windowStart, peaks, {
-          windowSeconds: WAVEFORM_WINDOW_S,
-        });
+        snapToSilence(time - windowStart, peaks, WAVEFORM_WINDOW_S);
     onAdjust?.(clampRange({ start, end, [edge]: snapped }, edge, bounds));
   };
 
@@ -82,16 +74,21 @@ export function SuggestionWaveform({
   const onDown = (edge: Edge) => (event: PointerEvent<HTMLElement>) => {
     if (readOnly) return;
     dragging.current = edge;
+    started.current = false;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
       // A synthetic pointer has nothing to capture.
     }
-    onAdjustStart?.();
   };
   const onMove = (event: PointerEvent<HTMLElement>) => {
     const edge = dragging.current;
-    if (edge) move(edge, timeAt(event.clientX), event.altKey);
+    if (!edge) return;
+    if (!started.current) {
+      started.current = true;
+      onAdjustStart?.();
+    }
+    move(edge, timeAt(event.clientX), event.altKey);
   };
   const onUp = () => {
     dragging.current = null;
@@ -137,30 +134,26 @@ export function SuggestionWaveform({
 
   const count = Math.max(peaks.length, 1);
   return (
-    <div
-      ref={track}
-      className="sys-wave"
-      data-kind={kind}
-      role="group"
-      aria-label={label}
-    >
+    <div ref={track} className="sys-wave" role="group" aria-label={label}>
       <svg
         viewBox={`0 0 ${count} 1`}
         preserveAspectRatio="none"
         aria-hidden="true"
         focusable="false"
       >
-        {peaks.map((peak, index) => (
-          <rect
-            // biome-ignore lint/suspicious/noArrayIndexKey: fixed order
-            key={index}
-            className="sys-wave-peak"
-            x={index + 0.15}
-            y={(1 - peak) / 2}
-            width={0.7}
-            height={Math.max(peak, 0.04)}
-          />
-        ))}
+        {peaks.map((peak, index) => {
+          const x = index + 0.15;
+          return (
+            <rect
+              key={x}
+              className="sys-wave-peak"
+              x={x}
+              y={(1 - peak) / 2}
+              width={0.7}
+              height={Math.max(peak, 0.04)}
+            />
+          );
+        })}
       </svg>
       <span
         className="sys-wave-region"
@@ -171,7 +164,7 @@ export function SuggestionWaveform({
           } as CSSProperties
         }
       >
-        <SystemIcon name={KIND_META[kind].icon} size={16} />
+        <SystemIcon name={icon} size={16} />
       </span>
       {handle("start")}
       {handle("end")}

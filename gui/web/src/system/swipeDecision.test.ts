@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { releaseSwipe, SWIPE_THRESHOLD_PX, swipeState } from "./swipeDecision";
+import { releaseSwipe, swipeState } from "./swipeDecision";
 
 describe("swipeState", () => {
-  it("uses an 80 px threshold", () => {
-    expect(SWIPE_THRESHOLD_PX).toBe(80);
-  });
-
   it("maps right to the verb, left to keep and up to next", () => {
     expect(swipeState(90, 0).intent).toBe("verb");
     expect(swipeState(-90, 0).intent).toBe("keep");
@@ -40,26 +36,14 @@ describe("swipeState", () => {
 
 describe("releaseSwipe", () => {
   it("decides past the threshold", () => {
-    expect(releaseSwipe(100, 10)).toEqual({
-      commit: "verb",
-      springBack: false,
-    });
-    expect(releaseSwipe(-100, 10)).toEqual({
-      commit: "keep",
-      springBack: false,
-    });
-    expect(releaseSwipe(5, -100)).toEqual({
-      commit: "next",
-      springBack: false,
-    });
+    expect(releaseSwipe(100, 10)).toBe("verb");
+    expect(releaseSwipe(-100, 10)).toBe("keep");
+    expect(releaseSwipe(5, -100)).toBe("next");
   });
 
-  it("springs back below the threshold", () => {
-    expect(releaseSwipe(79, 0)).toEqual({ commit: null, springBack: true });
-    expect(releaseSwipe(0, -79)).toEqual({ commit: null, springBack: true });
-  });
-
-  it("has nothing to spring back from a tap", () => {
-    expect(releaseSwipe(0, 0)).toEqual({ commit: null, springBack: false });
+  it("decides nothing below it or for a tap", () => {
+    expect(releaseSwipe(79, 0)).toBeNull();
+    expect(releaseSwipe(0, -79)).toBeNull();
+    expect(releaseSwipe(0, 0)).toBeNull();
   });
 });

@@ -1,57 +1,32 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
-import { viewportStoryParameters } from "../storybook/storyLayout";
-import type { AuditionSide } from "../system/auditionWindow";
-import { DecisionCard, type DecisionCardProps } from "../system/DecisionCard";
-import { Suggestion } from "../system/Suggestion";
 import {
   FILLER_EXCERPT,
+  FILLER_WAVEFORM,
   FILLER_WITH_UNSURE,
   fillerPeaks,
   pausePeaks,
   UNSURE_EXCERPT,
-} from "./reviewFixtures";
+} from "../storybook/reviewFixtures";
+import { viewportStoryParameters } from "../storybook/storyLayout";
+import type { AuditionSide } from "./auditionWindow";
+import { DecisionCard, type DecisionCardProps } from "./DecisionCard";
+import { Suggestion } from "./Suggestion";
 
-const savedText = (start: number, end: number, keep = 0) =>
-  `Saves ${(end - start - keep).toFixed(1)} s`;
-
-/** Holds the live range and A/B side the way the Review stage will. */
-function Live(props: DecisionCardProps) {
-  const wave = props.waveform;
+/** Keeps the dragged range and the A/B side, as a stage will. */
+function Adjustable(props: DecisionCardProps) {
   const [range, setRange] = useState({
-    start: wave?.start ?? 0,
-    end: wave?.end ?? 0,
+    start: FILLER_WAVEFORM.start,
+    end: FILLER_WAVEFORM.end,
   });
-  const [side, setSide] = useState<AuditionSide>(props.audition?.side ?? "B");
+  const [side, setSide] = useState<AuditionSide>("A");
   return (
     <DecisionCard
       {...props}
-      saves={wave ? savedText(range.start, range.end) : props.saves}
-      waveform={
-        wave
-          ? {
-              ...wave,
-              ...range,
-              onAdjust: (next) => {
-                setRange(next);
-                wave.onAdjust?.(next);
-              },
-            }
-          : undefined
-      }
-      audition={
-        props.audition
-          ? {
-              ...props.audition,
-              side,
-              onSide: (next) => {
-                setSide(next);
-                props.audition?.onSide(next);
-              },
-            }
-          : undefined
-      }
+      savedSeconds={range.end - range.start}
+      waveform={{ ...FILLER_WAVEFORM, ...range, onAdjust: setRange }}
+      audition={{ side, onSide: setSide }}
     />
   );
 }
@@ -61,6 +36,7 @@ const handlers = {
   onKeep: fn(),
   onLater: fn(),
   onOpenInEdit: fn(),
+  onComment: fn(),
 };
 
 const meta: Meta<typeof DecisionCard> = {
@@ -74,17 +50,11 @@ const meta: Meta<typeof DecisionCard> = {
     speaker: { name: "Jon", colorIndex: 1 },
     excerpt: <Suggestion segments={FILLER_EXCERPT} />,
     why: "Jon restarts the sentence; nobody talks over it.",
-    waveform: {
-      peaks: fillerPeaks,
-      windowStart: 1108.8,
-      start: 1114.4,
-      end: 1115.2,
-      onAdjust: fn(),
-    },
+    waveform: { ...FILLER_WAVEFORM, onAdjust: fn() },
+    savedSeconds: 0.8,
     audition: { side: "B", onSide: fn(), onHear: fn() },
     ...handlers,
   },
-  render: (args) => <Live {...args} />,
   decorators: [
     (Story) => (
       <div style={{ padding: "var(--space-5)" }}>
@@ -98,7 +68,7 @@ const meta: Meta<typeof DecisionCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The focus surface for one decidable thing: kind line, plain title, a script excerpt with the Suggestion drawing, a 96 px waveform with edge handles, one plain why line, A/B and the Action bar (Keep left, the verb right, Later, Open in Edit). Kinds: Filler, Pause, Sound, Unsure word, Comment, Check. On phone it fills the screen with the Action bar as a 64 px dock; swipe right does the verb, left keeps, up moves on, from 80 px. Decisions are undoable, so nothing asks first.\n\n**Motion.** Animations come later: the card advances and the verb icon grows under a swipe with `--motion-panel`.",
+          "The focus surface for one decidable thing: kind line, plain title, a script excerpt with the Suggestion drawing, a 96 px waveform with edge handles, one plain why line, A/B and the Action bar (Keep left, the verb right, Later, Open in Edit). Kinds: Filler, Pause, Sound, Unsure word, Comment, Check. On phone it fills the screen with the Action bar as a 64 px dock; swipe right does the verb, left keeps, up moves on, from 80 px. A guest hears and comments but cannot decide, and opens Edit only with `canEdit`. Decisions are undoable, so nothing asks first.\n\n**Motion.** Animations come later: the card advances and the verb icon grows under a swipe with `--motion-panel`.",
       },
     },
   },
@@ -128,8 +98,9 @@ export const Pause: Story = {
     kind: "pause",
     title: "Shorten a 2.9 s pause to 0.6 s",
     time: "24:40",
-    excerpt: <Suggestion kind="pause" length="2.9 s" to="0.6 s" />,
+    excerpt: <Suggestion kind="pause" length={2.9} to={0.6} />,
     why: "Nobody speaks, and the room is quiet.",
+    savedSeconds: 2.3,
     waveform: {
       peaks: pausePeaks,
       windowStart: 1474,
@@ -151,7 +122,7 @@ export const Sound: Story = {
     time: "44:20",
     excerpt: undefined,
     why: "The laugh peaks over Rosa's next sentence.",
-    saves: "Lowers 12 dB",
+    savedSeconds: undefined,
     waveform: {
       peaks: fillerPeaks,
       windowStart: 2654,
@@ -166,9 +137,8 @@ export const Sound: Story = {
   },
 };
 
-/** Moving a handle updates the saved seconds live and switches A/B to B. */
 export const Adjusting: Story = {
-  args: { audition: { side: "A", onSide: fn(), onHear: fn() } },
+  render: (args) => <Adjustable {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "A" })).toHaveAttribute(
@@ -215,7 +185,6 @@ export const UnsureWord: Story = {
   },
 };
 
-/** A cut that touches an unsure word waits until the word is checked. */
 export const CutWithUnsureWord: Story = {
   args: {
     title: "Remove “uh, my”",
@@ -286,7 +255,6 @@ export const Check: Story = {
     why: "Cuts are placed by words, so give the transcript a glance first.",
     waveform: undefined,
     audition: undefined,
-    verbLabel: "Mark as checked",
     unsure: {
       word: "uncle",
       guess: "uncle",
@@ -325,20 +293,34 @@ export const GuestSuggestion: Story = {
   },
 };
 
-/** A guest looking at their own suggestion: Hear and Open in Edit only, handles fixed. */
 export const GuestReadOnly: Story = {
   args: { suggestedBy: "You", readOnly: true },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: "Cut" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Keep" })).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Open in Edit" }),
+    ).toBeNull();
+    await expect(canvas.getByRole("group", { name: "Audition" })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Comment" }));
+    await expect(args.onComment).toHaveBeenCalledOnce();
+  },
+};
+
+export const GuestEditor: Story = {
+  args: { readOnly: true, canEdit: true },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", { name: "Open in Edit" }),
+    ).toBeVisible();
   },
 };
 
 export const Empty: Story = {
   args: {
     state: "empty",
-    emptyAction: { label: "Go to Deliver", onAction: fn() },
+    emptyAction: { label: "Go to Deliver", onClick: fn() },
   },
   play: async ({ canvasElement }) => {
     await expect(
@@ -347,14 +329,10 @@ export const Empty: Story = {
   },
 };
 
-export const Loading: Story = {
-  args: { state: "loading" },
-  render: (args) => <DecisionCard {...args} />,
-};
+export const Loading: Story = { args: { state: "loading" } };
 
 export const LoadError: Story = {
   args: { state: "error", onRetry: fn() },
-  render: (args) => <DecisionCard {...args} />,
   play: async ({ args, canvasElement }) => {
     await userEvent.click(
       within(canvasElement).getByRole("button", { name: "Try again" }),
@@ -403,6 +381,16 @@ export const Phone390: Story = {
   decorators: phoneFrame("24.375rem"),
 };
 
+export const PhoneGuest: Story = {
+  args: { layout: "phone", readOnly: true },
+  decorators: phoneFrame("22.5rem"),
+};
+
+export const PhoneEmpty: Story = {
+  args: { layout: "phone", state: "empty" },
+  decorators: phoneFrame("22.5rem"),
+};
+
 export const PhoneSwipe: Story = {
   args: { layout: "phone" },
   decorators: phoneFrame("22.5rem"),
@@ -436,10 +424,4 @@ export const PhoneSwipe: Story = {
     await swipe(0, -100);
     await expect(args.onLater).toHaveBeenCalledOnce();
   },
-};
-
-export const PhoneEmpty: Story = {
-  args: { layout: "phone", state: "empty" },
-  decorators: phoneFrame("22.5rem"),
-  render: (args) => <DecisionCard {...args} />,
 };

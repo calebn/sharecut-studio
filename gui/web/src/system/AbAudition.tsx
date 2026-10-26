@@ -1,41 +1,29 @@
 import { SegmentedControl, ToggleButton } from "../ui";
-import {
-  type AuditionSegment,
-  type AuditionSide,
-  auditionSegments,
-  REVIEW_PAD_S,
-} from "./auditionWindow";
-import type { SuggestionRange } from "./silenceSnap";
+import { type AuditionSide, auditionSegments } from "./auditionWindow";
+import type { TimeRange } from "./seconds";
+import { hintOf, verbOf } from "./verbDisplay";
 
 export type AbAuditionProps = {
   side: AuditionSide;
-  change: SuggestionRange;
-  /** The person chose a side: A or B was tapped or its key pressed. */
-  onSelect: (side: AuditionSide, segments: AuditionSegment[]) => void;
-  pad?: number;
-  disabled?: boolean;
+  change: TimeRange;
+  /** Called on a tap or key press of A or B. */
+  onSelect: (side: AuditionSide, segments: TimeRange[]) => void;
 };
 
-/** A two-segment control: A is before, B is after. Moving a handle switches it to B. */
-export function AbAudition({
-  side,
-  change,
-  onSelect,
-  pad = REVIEW_PAD_S,
-  disabled = false,
-}: AbAuditionProps) {
+/** Moving a waveform handle switches it to B. */
+export function AbAudition({ side, change, onSelect }: AbAuditionProps) {
+  const before = verbOf("hearBefore");
+  const after = verbOf("hearAfter");
   const choose = (next: AuditionSide) => () =>
-    onSelect(next, auditionSegments(next, change, pad));
-  const reason = disabled ? "Nothing to hear yet" : undefined;
+    onSelect(next, auditionSegments(next, change));
   return (
     <div className="sys-ab">
       <SegmentedControl label="Audition">
         <ToggleButton
           quiet
           pressed={side === "A"}
-          title="Hear before (A)"
-          aria-keyshortcuts="A"
-          disabledReason={reason}
+          title={`${before.label}${hintOf(before)}`}
+          aria-keyshortcuts={before.keys[0]?.key}
           onClick={choose("A")}
         >
           A
@@ -43,15 +31,14 @@ export function AbAudition({
         <ToggleButton
           quiet
           pressed={side === "B"}
-          title="Hear after (B)"
-          aria-keyshortcuts="B"
-          disabledReason={reason}
+          title={`${after.label}${hintOf(after)}`}
+          aria-keyshortcuts={after.keys[0]?.key}
           onClick={choose("B")}
         >
           B
         </ToggleButton>
       </SegmentedControl>
-      <span className="sys-ab-note">{pad} s before and after</span>
+      <span className="sys-ab-note">3 s before and after</span>
     </div>
   );
 }

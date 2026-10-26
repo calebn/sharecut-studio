@@ -1,4 +1,5 @@
 import { isApplePlatform } from "../utils/platform";
+import type { SystemIconName } from "./icons";
 import { type KeySpec, VERBS, type VerbDef, type VerbId } from "./verbs";
 
 export function verbOf(id: VerbId): VerbDef {
@@ -36,4 +37,10 @@ export function capsOf(
 export function hintOf(verb: VerbDef): string {
   const first = verb.keys[0];
   return first ? ` (${capsOf(first).join(" ")})` : "";
+}
+
+export function iconOf(id: VerbId): SystemIconName {
+  const icon = verbOf(id).icon;
+  if (!icon) throw new Error(`Verb ${id} has no icon`);
+  return icon;
 }

@@ -21,6 +21,12 @@ describe("auditionSegments", () => {
   it("does not start before the episode", () => {
     expect(auditionSegments("A", { start: 1, end: 2 })[0]?.start).toBe(0);
   });
+
+  it("leaves out an empty lead-in at the very start", () => {
+    expect(auditionSegments("B", { start: 0, end: 1 })).toEqual([
+      { start: 1, end: 4 },
+    ]);
+  });
 });
 
 describe("AbAudition", () => {

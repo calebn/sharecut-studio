@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import { FILLER_EXCERPT, FILLER_WITH_UNSURE } from "../review/reviewFixtures";
+import {
+  FILLER_EXCERPT,
+  FILLER_WITH_UNSURE,
+} from "../storybook/reviewFixtures";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { Suggestion } from "./Suggestion";
 
@@ -48,7 +51,7 @@ export const Text: Story = {
 };
 
 export const Pause: Story = {
-  args: { kind: "pause", length: "2.9 s", to: "0.6 s" },
+  args: { kind: "pause", length: 2.9, to: 0.6 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("2.9 s")).toBeVisible();
@@ -57,7 +60,7 @@ export const Pause: Story = {
 };
 
 export const PauseRemoved: Story = {
-  args: { kind: "pause", length: "1.4 s", to: undefined },
+  args: { kind: "pause", length: 1.4, to: undefined },
 };
 
 export const UnsureWord: Story = {

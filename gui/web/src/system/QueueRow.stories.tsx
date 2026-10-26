@@ -4,7 +4,7 @@ import {
   FILLER_EXCERPT,
   FILLER_WITH_UNSURE,
   UNSURE_EXCERPT,
-} from "../review/reviewFixtures";
+} from "../storybook/reviewFixtures";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { QueueRow } from "./QueueRow";
 import { Suggestion } from "./Suggestion";
@@ -56,7 +56,7 @@ export const Filler: Story = {
 export const Pause: Story = {
   args: {
     kind: "pause",
-    snippet: <Suggestion kind="pause" length="2.9 s" to="0.6 s" />,
+    snippet: <Suggestion kind="pause" length={2.9} to={0.6} />,
     value: "2.3 s",
   },
 };

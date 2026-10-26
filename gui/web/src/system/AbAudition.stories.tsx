@@ -70,13 +70,4 @@ export const AfterSelected: Story = {
 
 export const BeforeSelected: Story = { args: { side: "A" } };
 
-export const Disabled: Story = {
-  args: { disabled: true },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("button", { name: "A" }),
-    ).toBeDisabled();
-  },
-};
-
 export const Phone: Story = {};

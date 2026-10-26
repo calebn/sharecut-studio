@@ -1,8 +1,4 @@
-/*
- * Review parts of the stage design system: Suggestion, SuggestionWaveform, A/B
- * audition, Queue row, Action bar (inline form) and Decision card. Same rules
- * as system.css: tokens only, rem only, container queries for the narrow forms.
- */
+/* Same rules as system.css: tokens only, rem only, container queries for the narrow forms. */
 
 /* Suggestion */
 
@@ -136,6 +132,22 @@
 
 /* Queue row */
 
+.sys-queue-unread,
+.sys-decision-swatch {
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+}
+
+.sys-queue-unread {
+  background: var(--color-accent);
+}
+
+.sys-decision-swatch {
+  background: var(--swatch);
+}
+
 .sys-queue-row {
   position: relative;
   block-size: 3.5rem;
@@ -210,14 +222,6 @@
   font-size: var(--font-size-small);
 }
 
-.sys-queue-unread {
-  flex: none;
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-  border-radius: 50%;
-  background: var(--color-accent);
-}
-
 .sys-queue-row--decided {
   display: flex;
   align-items: center;
@@ -239,6 +243,12 @@
 
 /* Action bar, inline form */
 
+:is(.sys-actions, .sys-prompt, .sys-decision-unsure) .ui-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .sys-actions {
   display: flex;
   align-items: center;
@@ -255,17 +265,11 @@
   flex: 1;
 }
 
-.sys-actions .ui-control {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
 .sys-actions--dock {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   gap: var(--space-3);
-  block-size: 4rem;
+  block-size: var(--action-dock-height);
   box-sizing: border-box;
   padding: 0 var(--space-4);
   border-block-start: 1px solid var(--color-border);
@@ -307,12 +311,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-}
-
-.sys-prompt .ui-control {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
 }
 
 .sys-prompt-note {
@@ -362,13 +360,6 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-.sys-decision-swatch {
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-  border-radius: 50%;
-  background: var(--swatch);
 }
 
 .sys-decision-guest {
@@ -441,12 +432,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-}
-
-.sys-decision-unsure .ui-control {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
 }
 
 .sys-decision-thread {

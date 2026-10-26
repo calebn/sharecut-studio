@@ -1,8 +1,9 @@
 import type { CSSProperties, ReactNode } from "react";
-import { KIND_META, type ReviewKind } from "../review/reviewKinds";
-import { useSwipeDecision } from "../review/useSwipeDecision";
 import { Avatar } from "../ui";
+import { type DecisionKind, KIND_META } from "./decisionKinds";
 import { SystemIcon } from "./SystemIcon";
+import { SWIPE_IGNORE_ROW, useSwipeDecision } from "./useSwipeDecision";
+import { iconOf } from "./verbDisplay";
 
 export type QueueRowResult = {
   result: "applied" | "kept";
@@ -11,7 +12,7 @@ export type QueueRowResult = {
 };
 
 export type QueueRowProps = {
-  kind: ReviewKind;
+  kind: DecisionKind;
   /** The Suggestion drawing for a proposal, or the quoted comment. */
   snippet: ReactNode;
   /** "18:36" */
@@ -24,7 +25,6 @@ export type QueueRowProps = {
   unread?: boolean;
   /** Waiting to send: the guest is offline. */
   offline?: boolean;
-  /** The row collapses to one line once it is decided. */
   decided?: QueueRowResult;
   onSelect?: () => void;
   /** Swipe right does the primary and left keeps. */
@@ -32,12 +32,12 @@ export type QueueRowProps = {
   onKeep?: () => void;
 };
 
-const RESULT_ICON = { applied: "check", kept: "shield-check" } as const;
+const RESULT_ICON = {
+  applied: iconOf("approve"),
+  kept: iconOf("keep"),
+} as const;
 
-/**
- * A Review queue row: 56 px, with the kind glyph or author, the snippet, the
- * time in mono and a value. A decided row is one quiet line with its result.
- */
+/** 56 px. A decided row is one quiet line with its result. */
 export function QueueRow({
   kind,
   snippet,
@@ -56,7 +56,7 @@ export function QueueRow({
     { verb: onVerb, keep: onKeep },
     {
       disabled: decided !== undefined || (!onVerb && !onKeep),
-      ignore: "input, textarea, select, a",
+      ignore: SWIPE_IGNORE_ROW,
     },
   );
   const meta = KIND_META[kind];
