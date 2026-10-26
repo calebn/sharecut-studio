@@ -511,15 +511,15 @@ def test_decode_leaves_document_database_writable_in_another_process(edit_projec
     import subprocess
     import sys
 
-    from podcast_mcp.engines import ungated_audio
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
     from podcast_mcp.services.document_sync import document_db_path
 
     db = document_db_path(ProjectWorkspace.open(edit_project).project)
     DocumentSyncService.open(edit_project).store.commands_after(0)
-    decode = ungated_audio._decode_f32_uncached
+    decode = FFmpegEngine.decode_full_f32
     probes = []
 
-    def checked_decode(*args, **kwargs):
+    def checked_decode(self, *args, **kwargs):
         if not probes:
             probe = subprocess.run(
                 [
@@ -541,9 +541,9 @@ print("writer acquired")
             assert probe.returncode == 0, probe.stderr
             assert probe.stdout.strip() == "writer acquired"
             probes.append(probe.stdout.strip())
-        return decode(*args, **kwargs)
+        return decode(self, *args, **kwargs)
 
-    monkeypatch.setattr(ungated_audio, "_decode_f32_uncached", checked_decode)
+    monkeypatch.setattr(FFmpegEngine, "decode_full_f32", checked_decode)
     result = _invoke(edit_project, ["strip-silence", "--track", "guest", "--min-duration", "1"])
     assert result.exit_code == 0, result.output
     assert probes == ["writer acquired"]
@@ -566,7 +566,7 @@ def test_every_registered_edit_command_has_a_documented_journal_owner():
 def test_add_chapter_with_fresh_stems_does_not_decode_under_submit(edit_project, monkeypatch):
     import wave
 
-    from podcast_mcp.engines import ungated_audio
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
     from podcast_mcp.engines.play_audit import stem_is_fresh, write_stem_hash
     from podcast_mcp.util.tracks import stem_path
 
@@ -583,13 +583,13 @@ def test_add_chapter_with_fresh_stems_does_not_decode_under_submit(edit_project,
         assert stem_is_fresh(ws.project, track.id, defaults=ws.effective_config())
     ws.save()
     decoded = []
-    decode = ungated_audio._decode_f32_uncached
+    decode = FFmpegEngine.decode_full_f32
 
-    def observe(*args, **kwargs):
+    def observe(self, *args, **kwargs):
         decoded.append(args)
-        return decode(*args, **kwargs)
+        return decode(self, *args, **kwargs)
 
-    monkeypatch.setattr(ungated_audio, "_decode_f32_uncached", observe)
+    monkeypatch.setattr(FFmpegEngine, "decode_full_f32", observe)
     result = _invoke(edit_project, ["add-chapter", "--at-time", "3", "--title", "Topic"])
     assert result.exit_code == 0, result.output
     assert decoded == []

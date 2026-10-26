@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.engines.sample_grid import Piece, lay_out
@@ -23,8 +24,7 @@ from podcast_mcp.util.batch_scope import scoped_by_file, scoped_by_file_if_held,
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import file_stamp
-from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.util.process import CalledProcessError, popen, run
+from podcast_mcp.util.process import CalledProcessError, popen
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.wav import open_wav
 
@@ -34,36 +34,10 @@ def _decode_f32(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[s
         "decode",
         path,
         (sample_rate, ffmpeg, tuple(layout)),
-        lambda: _decode_f32_uncached(path, sample_rate, ffmpeg, layout),
+        lambda: FFmpegEngine(ffmpeg=ffmpeg).decode_full_f32(
+            path, sample_rate=sample_rate, layout=layout
+        ),
     )
-
-
-def _decode_f32_uncached(
-    path: Path, sample_rate: int, ffmpeg: str | None, layout: list[str]
-) -> np.ndarray:
-    result = run(
-        [
-            resolve_ffmpeg_pair(ffmpeg=ffmpeg).ffmpeg,
-            "-v",
-            "error",
-            "-i",
-            str(path),
-            "-map",
-            "0:a:0",
-            *layout,
-            "-ar",
-            str(sample_rate),
-            "-f",
-            "f32le",
-            "pipe:1",
-        ],
-        capture_output=True,
-        check=True,
-    )
-    samples = np.frombuffer(result.stdout, dtype=np.float32)
-    if samples.size == 0:
-        raise NoAudioDecodedError(path)
-    return samples
 
 
 def resample_streams(

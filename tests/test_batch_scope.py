@@ -7,20 +7,30 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.engines import ungated_audio
+from podcast_mcp.engines import ffmpeg
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.util.batch_scope import batch_scope, scoped_by_file
+from podcast_mcp.util.binaries import FFmpegPair
 
 
 @pytest.fixture
 def decodes(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
     seen: list[Path] = []
 
-    def fake(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[str]) -> np.ndarray:
+    def fake(
+        self: ffmpeg.FFmpegEngine, path: Path, *, sample_rate: int, layout: list[str]
+    ) -> np.ndarray:
         seen.append(path)
         return np.zeros(4, dtype=np.float32)
 
-    monkeypatch.setattr(ungated_audio, "_decode_f32_uncached", fake)
+    monkeypatch.setattr(
+        ffmpeg,
+        "resolve_ffmpeg_pair",
+        lambda *args, **kwargs: FFmpegPair(
+            "/admitted/ffmpeg", "/admitted/ffprobe", (9, 0, 2), "explicit"
+        ),
+    )
+    monkeypatch.setattr(ffmpeg.FFmpegEngine, "decode_full_f32", fake)
     return seen
 
 

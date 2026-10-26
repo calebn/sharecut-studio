@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from podcast_mcp.engines import ungated_audio
+from podcast_mcp.engines import ffmpeg, ungated_audio
 from podcast_mcp.util import process
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError
@@ -21,7 +21,7 @@ def admitted(monkeypatch: pytest.MonkeyPatch) -> list[str | None]:
         selectors.append(ffmpeg)
         return FFmpegPair("/admitted/ffmpeg", "/admitted/ffprobe", (9, 0, 2), "explicit")
 
-    monkeypatch.setattr(ungated_audio, "resolve_ffmpeg_pair", resolve)
+    monkeypatch.setattr(ffmpeg, "resolve_ffmpeg_pair", resolve)
     return selectors
 
 
@@ -32,9 +32,11 @@ def test_full_decode_preserves_command_and_float32_bytes(
 ) -> None:
     payload = np.array([0, 0x80000000, 0x3F800000, 0x7FC00001], dtype=np.uint32).tobytes()
     run = MagicMock(return_value=process.CompletedProcess([], 0, payload, b""))
-    monkeypatch.setattr(ungated_audio, "run", run)
+    monkeypatch.setattr(ffmpeg, "run", run)
     path = Path("source with spaces.wav")
-    samples = ungated_audio._decode_f32_uncached(path, sample_rate, "chosen-ffmpeg", layout)
+    samples = ffmpeg.FFmpegEngine(ffmpeg="chosen-ffmpeg").decode_full_f32(
+        path, sample_rate=sample_rate, layout=layout
+    )
     run.assert_called_once_with(
         [
             "/admitted/ffmpeg",
@@ -73,7 +75,7 @@ def test_full_decode_rejects_empty_success_and_does_not_cache_failure(
             process.CompletedProcess([], 0, bytes(4), b""),
         ]
     )
-    monkeypatch.setattr(ungated_audio, "run", run)
+    monkeypatch.setattr(ffmpeg, "run", run)
     with batch_scope():
         with pytest.raises(NoAudioDecodedError, match="no audio decoded"):
             ungated_audio._decode_f32(path, 8000, None, [])
@@ -94,9 +96,9 @@ def test_full_decode_preserves_failure_identity(
     monkeypatch: pytest.MonkeyPatch, admitted: list[str | None], failure: BaseException
 ) -> None:
     run = MagicMock(side_effect=failure)
-    monkeypatch.setattr(ungated_audio, "run", run)
+    monkeypatch.setattr(ffmpeg, "run", run)
     with pytest.raises(type(failure)) as caught:
-        ungated_audio._decode_f32_uncached(Path("source.wav"), 8000, None, [])
+        ffmpeg.FFmpegEngine().decode_full_f32(Path("source.wav"), sample_rate=8000, layout=[])
     assert caught.value is failure
 
 
@@ -106,7 +108,7 @@ def test_full_decode_admits_only_on_cache_misses(
     path = tmp_path / "source.wav"
     path.write_bytes(b"source")
     run = MagicMock(return_value=process.CompletedProcess([], 0, bytes(8), b""))
-    monkeypatch.setattr(ungated_audio, "run", run)
+    monkeypatch.setattr(ffmpeg, "run", run)
     with batch_scope():
         first = ungated_audio._decode_f32(path, 8000, None, [])
         assert ungated_audio._decode_f32(path, 8000, None, []) is first
@@ -126,7 +128,7 @@ def test_full_decode_interrupt_kills_its_child(
     child.communicate.side_effect = failure
     monkeypatch.setattr(process, "_spawn", MagicMock(return_value=child))
     with pytest.raises(KeyboardInterrupt) as caught:
-        ungated_audio._decode_f32_uncached(Path("source.wav"), 8000, None, [])
+        ffmpeg.FFmpegEngine().decode_full_f32(Path("source.wav"), sample_rate=8000, layout=[])
     assert caught.value is failure
     child.kill.assert_called_once_with()
 
@@ -135,9 +137,20 @@ def test_full_decode_preserves_binary_admission_failure(monkeypatch: pytest.Monk
     failure = FFmpegPairResolutionError("selected binary is unavailable")
     resolve = MagicMock(side_effect=failure)
     run = MagicMock()
-    monkeypatch.setattr(ungated_audio, "resolve_ffmpeg_pair", resolve)
-    monkeypatch.setattr(ungated_audio, "run", run)
+    monkeypatch.setattr(ffmpeg, "resolve_ffmpeg_pair", resolve)
+    monkeypatch.setattr(ffmpeg, "run", run)
     with pytest.raises(FFmpegPairResolutionError) as caught:
-        ungated_audio._decode_f32_uncached(Path("source.wav"), 8000, "selected", [])
+        ffmpeg.FFmpegEngine(ffmpeg="selected").decode_full_f32(
+            Path("source.wav"), sample_rate=8000, layout=[]
+        )
     assert caught.value is failure
     run.assert_not_called()
+
+
+def test_full_decode_preserves_malformed_float32_failure(
+    monkeypatch: pytest.MonkeyPatch, admitted: list[str | None]
+) -> None:
+    run = MagicMock(return_value=process.CompletedProcess([], 0, b"bad", b""))
+    monkeypatch.setattr(ffmpeg, "run", run)
+    with pytest.raises(ValueError, match="buffer size must be a multiple"):
+        ffmpeg.FFmpegEngine().decode_full_f32(Path("source.wav"), sample_rate=8000, layout=[])
