@@ -1,4 +1,4 @@
-"""probe().duration_sec is the first audio stream's length from its first sample; audio_start_sec is its lead.
+"""probe().duration_sec is the first audio stream's length; audio_start_sec is its lead.
 
 Expected values are the decoded truth of ``-map 0:a:0``. No libx264 here, so fixtures use
 mpeg4/ffv1; ``.mkv`` is not an importable suffix for add-track, so those are copied to ``.m4a``.
@@ -173,7 +173,7 @@ def test_matroska_piped_without_duration_uses_audio_extent(eng, tmp_path):
 @pytest.mark.parametrize("container", ["mp4", "mkv"])
 def test_late_audio_is_its_own_length_and_reports_its_lead(eng, tmp_path, container):
     codec = ("mpeg4", "aac") if container == "mp4" else ("ffv1", "pcm_s16le")
-    # video outlasts the audio end (3 + 2 = 5 s) so format.duration cannot match by accident
+    # video outlasts audio end (3 + 2 = 5 s) so format.duration cannot match by accident
     path = _av(eng, tmp_path, f"late.{container}", 8, 2, vcodec=codec[0], acodec=codec[1], offset=3)
     probe = eng.probe(path)
     assert probe.duration_sec == pytest.approx(2.0, abs=TOL)
