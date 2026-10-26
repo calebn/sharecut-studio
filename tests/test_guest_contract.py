@@ -220,7 +220,7 @@ def _review(name: str) -> Site:
     return Site(review_share, name)
 
 
-SHARE_PAGE = Site(collaboration, "lookup_share", not_found="not found")
+SHARE_PAGE = Site(collaboration, "lookup_share")
 MCP_PREFLIGHT = Site(remote_mcp, "share_allows_mcp", not_found="share not found")
 RANGE = {"intervals": [{"start": 0, "end": 1}], "track_ids": ["t"], "clips": [], "media_seals": {}}
 UPLOAD = "/api/rec/{token}/upload"
