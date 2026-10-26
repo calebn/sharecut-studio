@@ -10,7 +10,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Generator, Iterable, Iterator
 from contextlib import ExitStack, suppress
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from itertools import pairwise
 from pathlib import Path
 from typing import IO, Any
@@ -105,8 +105,7 @@ _UNTRUSTED_PROTOCOLS = "file,crypto,data"
 _PACKET_SCAN_TIMEOUT_SEC = 120.0
 MAX_PROBED_AUDIO_EXTENT_SEC = 7 * 24 * 3600.0
 _PACKET_RECORD_BYTES = 4096
-# Audio starting this much after the container start is a leading gap, not codec priming. Over-
-# counting a start offset is harmless; under-counting makes the render clip real audio.
+# Audio starting this much after the container start is a leading gap, not codec priming.
 _AUDIO_START_GAP_SEC = 0.02
 
 
@@ -385,9 +384,12 @@ def _annotate_vf(
 
 @dataclass
 class AudioProbe:
+    # Length of the first audio stream, counted from its first sample.
     duration_sec: float
     sample_rate: int
     channels: int
+    # How far that first sample sits past the container start; 0.0 at or below codec priming.
+    audio_start_sec: float = field(kw_only=True)
     duration_estimated: bool = False
     audio_duration_sec: float | None = None
     # The decoder's sample format (``s16``, ``fltp``, ...), when ffprobe reports one.
@@ -451,7 +453,7 @@ class _AudioExtentUnavailable(Exception):
     pass
 
 
-def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> float:
+def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> tuple[float, float]:
     cmd = [
         ffprobe,
         "-v",
@@ -482,6 +484,7 @@ def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> float:
     timer = threading.Timer(_PACKET_SCAN_TIMEOUT_SEC, expire)
     timer.daemon = True
     end = 0.0
+    first_pts: float | None = None
     previous_pts: float | None = None
     try:
         timer.start()
@@ -496,6 +499,8 @@ def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> float:
             if previous_pts is not None and pts <= previous_pts:
                 raise _AudioExtentUnavailable
             previous_pts = pts
+            if first_pts is None:
+                first_pts = pts
             duration = _seconds(fields[1]) if len(fields) > 1 else None
             if duration is not None and duration < 0:
                 raise _AudioExtentUnavailable
@@ -506,9 +511,9 @@ def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> float:
         rc = proc.wait()
         with lock:
             finished = True
-            if expired or rc or end <= 0:
+            if expired or rc or end <= 0 or first_pts is None:
                 raise _AudioExtentUnavailable
-        return end
+        return first_pts, end
     finally:
         with lock:
             finished = True
@@ -523,11 +528,11 @@ def _read_audio_extent(ffprobe: str, path: str, *, untrusted: bool) -> float:
 @functools.lru_cache(maxsize=1024)
 def _cached_audio_extent(
     ffprobe: str, binary_revision: FileRevision, path: str, revision: FileRevision, untrusted: bool
-) -> float:
-    end = _read_audio_extent(ffprobe, path, untrusted=untrusted)
+) -> tuple[float, float]:
+    extent = _read_audio_extent(ffprobe, path, untrusted=untrusted)
     if file_revision(Path(path)) != revision or file_revision(Path(ffprobe)) != binary_revision:
         raise _AudioExtentUnavailable
-    return end
+    return extent
 
 
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
@@ -781,6 +786,12 @@ class FFmpegEngine:
             return False, str(exc)
         return True, "FFmpeg/FFprobe " + ".".join(map(str, pair.version))
 
+    def audio_start_sec(self, path: Path) -> float:
+        """How far ``path``'s first audio sample sits past its container start."""
+        from podcast_mcp.engines.media_probe import audio_start_sec
+
+        return audio_start_sec(path)
+
     def probe(self, path: Path, *, untrusted: bool = False) -> AudioProbe:
         cmd = [
             self.ffprobe,
@@ -807,30 +818,33 @@ class FFmpegEngine:
         if bitrate_estimated:
             audio_duration = None
         scan_failed = False
+        audio_start = 0.0
         if audio_streams:
-            # The renderer trims in container time: the stored extent is where a:0 ends there. A
-            # longer video track must not stretch it, and a late audio start counts.
             container_start = _seconds(fmt.get("start_time")) or 0.0
+            audio_start = (_seconds(stream.get("start_time")) or 0.0) - container_start
             if (
                 not (audio_duration and audio_duration > 0)
                 or bitrate_estimated
                 or _stream_duration_unreliable(data)
             ):
-                end = self._scan_audio_extent(path, untrusted=untrusted)
-                extent = None if end is None else end - container_start
+                scan = self._scan_audio_extent(path, untrusted=untrusted)
                 # Container headers can be stale or short, so they never bound the scan; only an
                 # impossible value (a forged pts) fails it.
-                if extent is None or not 0 < extent <= MAX_PROBED_AUDIO_EXTENT_SEC:
+                if scan is None or not 0 < scan[1] - scan[0] <= MAX_PROBED_AUDIO_EXTENT_SEC:
                     scan_failed = True
                 else:
-                    duration = extent
+                    first_pts, end = scan
+                    audio_start = first_pts - container_start
+                    duration = end - first_pts
             else:
-                gap = (_seconds(stream.get("start_time")) or 0.0) - container_start
-                duration = audio_duration + (gap if gap > _AUDIO_START_GAP_SEC else 0.0)
+                duration = audio_duration
+            # A forged start would push every seek out of range, like a forged extent.
+            scan_failed = scan_failed or audio_start > MAX_PROBED_AUDIO_EXTENT_SEC
         return AudioProbe(
             duration_sec=duration,
             sample_rate=int(stream.get("sample_rate") or 48000),
             channels=int(stream.get("channels") or 1),
+            audio_start_sec=audio_start if audio_start > _AUDIO_START_GAP_SEC else 0.0,
             duration_estimated=not audio_streams or scan_failed or not math.isfinite(duration),
             audio_duration_sec=audio_duration,
             sample_fmt=stream.get("sample_fmt") or None,
@@ -838,8 +852,8 @@ class FFmpegEngine:
             legacy_default_audio_index=_legacy_audio_pick(audio_streams),
         )
 
-    def _scan_audio_extent(self, path: Path, *, untrusted: bool) -> float | None:
-        """End of a:0's last packet (pts + duration), or None when the scan fails."""
+    def _scan_audio_extent(self, path: Path, *, untrusted: bool) -> tuple[float, float] | None:
+        """a:0's first packet pts and the end of its last packet, or None when the scan fails."""
         try:
             resolved = path.resolve()
             binary = Path(self.ffprobe).resolve()
@@ -1021,7 +1035,8 @@ class FFmpegEngine:
             "-threads",
             "1",
         ]
-        seek = MediaSeek.at(start_sec or 0.0)
+        lead_sec = 0.0 if start_sec is None else self.audio_start_sec(path)
+        seek = MediaSeek.at(start_sec or 0.0, lead_sec=lead_sec)
         argv += [
             *seek.input_args(),
             "-i",
@@ -1257,7 +1272,10 @@ class FFmpegEngine:
         for path, seg in zip(source_paths, leaves, strict=True):
             start, end = source_ranges.get(path, (seg.src_start, seg.src_end))
             source_ranges[path] = (min(start, seg.src_start), max(end, seg.src_end))
-        seeks = {path: MediaSeek.at(start) for path, (start, _end) in source_ranges.items()}
+        seeks = {
+            path: MediaSeek.at(start, lead_sec=self.audio_start_sec(path))
+            for path, (start, _end) in source_ranges.items()
+        }
         filters: list[str] = []
         clock_names: list[str] = []
         bindings: dict[str, ClockBinding] = {}
@@ -1306,7 +1324,6 @@ class FFmpegEngine:
             src_labels,
             source_paths=source_paths,
             source_ranges=source_ranges,
-            seeks=seeks,
         )
 
         seg_labels: list[str] = []
@@ -1444,7 +1461,7 @@ class FFmpegEngine:
                             silence_probe = (
                                 self.probe(source_paths[0])
                                 if source_paths
-                                else AudioProbe(0.0, 48000, 2)
+                                else AudioProbe(0.0, 48000, 2, audio_start_sec=0.0)
                             )
                         probe = silence_probe
                         layout = f"{probe.channels}c"
@@ -1585,7 +1602,7 @@ class FFmpegEngine:
                     stderr_path,
                     formats,
                     consumers,
-                    tuple(seeks[path].seek_us for path in source_paths),
+                    tuple(seeks[path].source_seek_us for path in source_paths),
                     tuple(source_node_indices),
                     output_path,
                     audio,
@@ -1602,12 +1619,12 @@ class FFmpegEngine:
         *,
         source_paths: list[Path],
         source_ranges: dict[Path, tuple[float, float]],
-        seeks: dict[Path, MediaSeek],
     ) -> list[str]:
         """Sum each segment's ``fill_path`` under it; returns the fill inputs' ffmpeg args.
 
-        A fill input is read through its segments' media ``MediaSeek`` over the same
-        bounds and trimmed to the same range, so both land on the same samples. The
+        A fill input is a WAV on the audio-relative clock. It is read through a lead-free
+        ``MediaSeek`` over the same bounds and trimmed to the same range, so it lands on the
+        same samples as its media. The
         sum is converted back to the media decoder's sample format, so where the fill
         is digital silence every later filter sees exactly the samples it would
         without the fill.
@@ -1620,7 +1637,7 @@ class FFmpegEngine:
         args: list[str] = []
         formats: dict[Path, str | None] = {}
         for k, ((fill, media), indices) in enumerate(groups.items()):
-            seek = seeks[media]
+            seek = MediaSeek.at(source_ranges[media][0], lead_sec=0.0)
             args.extend([*seek.input_args(source_ranges[media][1]), "-i", str(fill)])
             labels = [f"[fill_in{k}_{j}]" for j in range(len(indices))]
             splitter = f"asplit={len(labels)}" if len(labels) > 1 else "anull"
@@ -1764,7 +1781,7 @@ class FFmpegEngine:
         ``span`` is the ``(start, end)`` seconds of every input to read; ``end`` None is EOF.
         """
         start, end = span
-        seek = MediaSeek.at(start)
+        seek = MediaSeek.at(start, lead_sec=0.0)
         trim = f"atrim=start={seek.offset(start)},asetpts=PTS-STARTPTS," if start else ""
         inputs: list[str] = []
         filters: list[str] = []
@@ -2336,7 +2353,7 @@ class FFmpegEngine:
                 SourceAudio(src, max(0.0, start_sec), end_sec, mute_spans=mute_spans),
                 "anull",
             )
-        seek = MediaSeek.at(max(0.0, start_sec))
+        seek = MediaSeek.at(max(0.0, start_sec), lead_sec=self.audio_start_sec(src))
         cmd = [
             self.ffmpeg,
             "-y",

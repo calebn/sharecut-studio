@@ -864,6 +864,7 @@ def test_low_rate_mp3_encoder_padding_is_not_a_short_decode(tmp_path, declared_p
             sample_rate=probe.sample_rate,
             channels=probe.channels,
             audio_duration_sec=padded_duration,
+            audio_start_sec=0.0,
         )
         with patch.object(FFmpegEngine, "probe", return_value=padded_probe):
             build_pyramid("track:low", key, audio, out)
@@ -1003,7 +1004,7 @@ class _ImmediateTimer:
 
 
 def _probe(*_a, **_k):
-    return AudioProbe(duration_sec=0.0, sample_rate=8000, channels=1)
+    return AudioProbe(duration_sec=0.0, sample_rate=8000, channels=1, audio_start_sec=0.0)
 
 
 @pytest.mark.parametrize(
@@ -1030,7 +1031,11 @@ def test_complete_decode_requires_final_timestamp_evidence(tmp_path, progress):
             eng,
             "probe",
             return_value=AudioProbe(
-                duration_sec=2, sample_rate=8000, channels=1, audio_duration_sec=2
+                duration_sec=2,
+                sample_rate=8000,
+                channels=1,
+                audio_duration_sec=2,
+                audio_start_sec=0.0,
             ),
         ),
         patch("podcast_mcp.engines.ffmpeg.popen", side_effect=spawn),
@@ -1125,6 +1130,7 @@ def test_window_trims_by_timestamp_and_uses_short_timer(tmp_path):
 
     eng = FFmpegEngine()
     with (
+        patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
         patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc) as popen,
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
     ):
@@ -1273,6 +1279,7 @@ def test_stream_clean_eof_and_missing_pipe(tmp_path):
     eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
+        patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
     ):
         with patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc):

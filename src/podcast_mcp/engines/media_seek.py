@@ -14,6 +14,11 @@ the decoder settles inside the pre-roll, and the pre-roll is then dropped by
 timestamp. A whole-second seek point keeps that trim on the microsecond grid that
 ffmpeg parses times on, so the window holds the same samples as a decode from 0.
 ``tests/test_timebase_guards.py`` keeps ``-ss`` out of every other module.
+
+Source time is audio-relative: 0 is the first audio stream's first sample. A file whose
+audio starts ``lead_sec`` after its container start is read at ``lead_sec`` more on the
+container clock that ``-ss`` and ``atrim`` use. WAV and other whole-file reads have no
+lead and pass 0.
 """
 
 from __future__ import annotations
@@ -35,29 +40,43 @@ def _time(us: int) -> str:
 
 
 def _rescale(us: int, sample_rate: int) -> int:
-    """Microseconds to samples, rounded half up like ffmpeg's ``av_rescale_q``."""
+    """Microseconds to samples, rounded half up like ffmpeg's ``av_rescale_q``; signed."""
     return (us * sample_rate + _US_PER_SEC // 2) // _US_PER_SEC
 
 
 @dataclass(frozen=True)
 class MediaSeek:
-    """A read that starts at ``start_us`` from an input seeked to ``seek_us``."""
+    """A read that starts at ``start_us`` from an input seeked to ``seek_us``.
+
+    Both are container-clock microseconds. ``lead_us`` is how far the audio's first sample
+    sits past the container start.
+    """
 
     start_us: int
     seek_us: int
+    lead_us: int
 
     @classmethod
-    def at(cls, start_sec: float) -> MediaSeek:
-        start = _us(start_sec)
+    def at(cls, start_sec: float, lead_sec: float) -> MediaSeek:
+        lead = _us(lead_sec)
+        start = _us(start_sec) + lead
         whole_seconds = max(0, start - _PREROLL_US) // _US_PER_SEC
-        return cls(start_us=start, seek_us=whole_seconds * _US_PER_SEC)
+        return cls(start_us=start, seek_us=whole_seconds * _US_PER_SEC, lead_us=lead)
+
+    @property
+    def source_seek_us(self) -> int:
+        """The seek point on the audio-relative clock; negative when it precedes the audio."""
+        return self.seek_us - self.lead_us
 
     def input_args(self, end_sec: float | None = None) -> list[str]:
         """Options before ``-i``: seek to the pre-roll point, read through ``end_sec``."""
         args = ["-ss", _time(self.seek_us)] if self.seek_us else []
         if end_sec is not None:
-            args += ["-t", _time(max(0, _us(end_sec) - self.seek_us))]
+            args += ["-t", _time(max(0, self._container_us(end_sec) - self.seek_us))]
         return args
+
+    def _container_us(self, t_sec: float) -> int:
+        return _us(t_sec) + self.lead_us
 
     def output_args(self, duration_sec: float | None = None) -> list[str]:
         """Options after ``-i`` for an output fed by this input: drop the pre-roll."""
@@ -69,10 +88,10 @@ class MediaSeek:
 
     def offset(self, t_sec: float) -> str:
         """Source time ``t_sec`` on the seeked input's clock, for a filtergraph ``atrim``."""
-        return _time(max(0, _us(t_sec) - self.seek_us))
+        return _time(max(0, self._container_us(t_sec) - self.seek_us))
 
     def first_sample(self, t_sec: float, sample_rate: int) -> int:
-        """Source sample that ``atrim=start=offset(t_sec)`` keeps first."""
-        return _rescale(self.seek_us, sample_rate) + _rescale(
-            max(0, _us(t_sec) - self.seek_us), sample_rate
+        """Source sample that ``atrim=start=offset(t_sec)`` keeps first, counted from the audio."""
+        return _rescale(self.source_seek_us, sample_rate) + _rescale(
+            max(0, self._container_us(t_sec) - self.seek_us), sample_rate
         )

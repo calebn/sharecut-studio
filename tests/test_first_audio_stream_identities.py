@@ -61,7 +61,7 @@ def mono_wav(tmp_path: Path) -> Path:
 
 def test_probe_counts_audio_streams(tmp_path: Path, mono_wav: Path) -> None:
     assert probe_media(mono_wav).audio_stream_count == 1
-    assert AudioProbe(1.0, 8000, 1).audio_stream_count == 1
+    assert AudioProbe(1.0, 8000, 1, audio_start_sec=0.0).audio_stream_count == 1
     for name in ("st.mkv", "kid.ogg", "two_b.mkv"):
         assert probe_media(media.multistream(tmp_path, name)).audio_stream_count == 2
     assert probe_media(media.video_only(tmp_path)).audio_stream_count == 0

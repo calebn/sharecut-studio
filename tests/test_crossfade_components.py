@@ -80,7 +80,10 @@ def test_deep_connected_chain_traverses_and_compiles_in_order(tmp_path: Path):
         graphs.append(Path(command[command.index("-/filter_complex") + 1]).read_text("utf-8"))
         return CompletedProcess(command, 0)
 
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=read_graph) as run:
+    with (
+        patch.object(FFmpegEngine, "audio_start_sec", return_value=0.0),
+        patch("podcast_mcp.engines.ffmpeg.run", side_effect=read_graph) as run,
+    ):
         FFmpegEngine().render_timeline(tmp_path / "deep.wav", chain, "anull")
 
     command = run.call_args.args[0]

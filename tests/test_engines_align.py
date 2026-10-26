@@ -219,6 +219,7 @@ def test_load_mono_window_falls_through_to_ffmpeg(
 
     monkeypatch.setattr("podcast_mcp.engines.align.run", lambda *_a, **_k: _Result())
     monkeypatch.setattr("podcast_mcp.engines.align.resolve_ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr("podcast_mcp.engines.align.audio_start_sec", lambda _path: 0.0)
     samples = load_mono_window(path, duration_sec=0.1, sample_rate=8000)
     assert samples.size == 16
 
@@ -240,5 +241,6 @@ def test_load_mono_window_ffmpeg_when_wave_raises(
     )
     monkeypatch.setattr("podcast_mcp.engines.align.run", lambda *_a, **_k: _Result())
     monkeypatch.setattr("podcast_mcp.engines.align.resolve_ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr("podcast_mcp.engines.align.audio_start_sec", lambda _path: 0.0)
     samples = load_mono_window(path)
     assert samples.size == 8

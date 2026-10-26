@@ -42,7 +42,9 @@ def test_unverified_extent_cannot_change_track_geometry(minimal_project, sample_
     project.tracks = [track]
     before = project.model_dump()
     monkeypatch.setattr(
-        FFmpegEngine, "probe", lambda *_: AudioProbe(700002, 48000, 1, duration_estimated=True)
+        FFmpegEngine,
+        "probe",
+        lambda *_: AudioProbe(700002, 48000, 1, duration_estimated=True, audio_start_sec=0.0),
     )
     with pytest.raises(ValueError, match="duration is unavailable"):
         apply_full_span_media(project, track, store_path="raw/forged.m4a", audio_path=sample_wav)
