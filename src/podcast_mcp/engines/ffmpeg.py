@@ -2580,7 +2580,9 @@ class FFmpegEngine:
                 text=True,
                 timeout=10,
             )
-        except (FileNotFoundError, TimeoutExpired):
+        except (OSError, TimeoutExpired):
+            return None
+        if r.returncode != 0:
             return None
         names: set[str] = set()
         for line in (r.stdout or "").splitlines():

@@ -1130,13 +1130,25 @@ def test_supports_encode_needs_the_encoder_and_the_muxer_and_a_readable_listing(
     }
 
     def fake_run(cmd, **_kwargs):
-        return MagicMock(stdout=listings[cmd[-1]])
+        return MagicMock(stdout=listings[cmd[-1]], returncode=0)
 
     eng = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake_run):
+    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake_run) as spawned:
         assert eng.supports_encode("aac", "ipod") is True
         assert eng.supports_encode("aac", "ogg") is False
         assert eng.supports_encode("libopus", "ipod") is False
+        assert spawned.call_count == 2
+    half = FFmpegEngine()
+    with patch(
+        "podcast_mcp.engines.ffmpeg.run",
+        side_effect=lambda cmd, **_k: MagicMock(
+            stdout=listings[cmd[-1]], returncode=1 if cmd[-1] == "-muxers" else 0
+        ),
+    ):
+        assert half.supports_encode("aac", "ipod") is None
+    denied = FFmpegEngine()
+    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=PermissionError):
+        assert denied.supports_encode("aac", "ipod") is None
     broken = FFmpegEngine()
     with patch(
         "podcast_mcp.engines.ffmpeg.run", side_effect=subprocess.TimeoutExpired("ffmpeg", 10)

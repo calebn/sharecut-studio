@@ -27,7 +27,8 @@ class ExportFormatSpec:
         ext = str(raw.get("ext") or raw.get("extension") or "").lstrip(".").lower()
         if not ext:
             raise ValueError("export format requires 'ext' (e.g. mp3, flac, opus)")
-        if set(raw) <= {"ext", "extension"} and ext in EXPORT_PRESETS:
+        given = {key for key, value in raw.items() if value not in (None, "", [])}
+        if given <= {"ext", "extension"} and ext in EXPORT_PRESETS:
             return EXPORT_PRESETS[ext]
         extra = raw.get("extra_args") or []
         if isinstance(extra, str):
@@ -60,7 +61,7 @@ def require_preset_encoder(eng: FFmpegEngine, spec: ExportFormatSpec) -> None:
         return
     supported = eng.supports_encode(codec, muxer)
     if supported is None:
-        raise ValueError(f"The {spec.ext} export could not list FFmpeg's encoders. Try again.")
+        raise ValueError(f"The {spec.ext} export could not read FFmpeg's encoder list.")
     if not supported:
         raise ValueError(
             f"The {spec.ext} export needs the {codec} encoder and {muxer} muxer, "

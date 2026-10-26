@@ -86,6 +86,15 @@ describe("exportSettingsFromConfig", () => {
     });
     expect(settings.choices.map((c) => c.key)).toEqual(["m4a", "flac"]);
     expect(settings.choices[0].spec).toEqual(configured);
+    expect(settings.choices[0].label).toBe("M4A");
+  });
+
+  it("sends every checked format, M4A and FLAC together", () => {
+    const settings = exportSettingsFromConfig({ export: { formats: [] } });
+    expect(selectedFormats(settings, ["m4a", "flac"])).toEqual([
+      M4A_PRESET,
+      { ext: "flac", codec: "flac" },
+    ]);
   });
 
   it("offers the M4A spec the server pins in contracts/export-presets.json", () => {
