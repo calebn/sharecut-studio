@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useDawKeymapListener } from "../keymap/listener";
-import { TransportBar } from "../layout/TransportBar";
+import { PlayerBar } from "../stage/frame/PlayerBar";
 import { useDawStore } from "../state/dawStore";
 import { setChrome } from "../test/chrome";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -14,7 +14,7 @@ function TransportHost() {
   useDawKeymapListener();
   return (
     <>
-      <TransportBar />
+      <PlayerBar />
       <div tabIndex={-1} data-testid="timeline">
         Timeline
       </div>
@@ -38,7 +38,6 @@ beforeEach(() => {
     playStartSec: null,
     playheadSec: 0,
     timelineFocused: true,
-    activeTab: "comments",
     followingClientId: null,
   });
 });
@@ -89,18 +88,12 @@ it("keeps loading and empty Space inert, then Space and K control imported track
     fireEvent.keyDown(timeline, { key: " ", code: "Space" });
   });
   expect(useDawStore.getState().isPlaying).toBe(false);
-  expect(
-    screen.getByRole("button", { name: "Play" }),
-  ).toHaveAccessibleDescription("Loading project…");
   act(() => useDawStore.getState().setProject(minimalProject()));
   await act(async () => {
     fireEvent.keyDown(timeline, { key: " ", code: "Space" });
   });
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playStartSec).toBeNull();
-  expect(
-    screen.getByRole("button", { name: "Play" }),
-  ).toHaveAccessibleDescription("Import audio to play.");
 
   act(() => {
     useDawStore.getState().setProject(readyProject());
@@ -118,18 +111,12 @@ it("keeps loading and empty Space inert, then Space and K control imported track
   expect(useDawStore.getState().playheadSec).toBe(12);
 });
 
-it("keeps focused Play inert while loading and empty, then activates without editor focus", async () => {
+it("keeps focused Play inert while empty, then activates without editor focus", async () => {
   const user = userEvent.setup();
-  useDawStore.setState({ project: null, timelineFocused: false });
+  useDawStore.setState({ project: minimalProject(), timelineFocused: false });
   render(<TransportHost />);
   const play = screen.getByRole("button", { name: "Play" });
   play.focus();
-  expect(play).toHaveAccessibleDescription("Loading project…");
-  await user.keyboard(" ");
-  expect(useDawStore.getState().isPlaying).toBe(false);
-  act(() => useDawStore.getState().setProject(minimalProject()));
-  expect(play).toHaveFocus();
-  expect(play).toHaveAccessibleDescription("Import audio to play.");
   await user.click(play);
   expect(useDawStore.getState().isPlaying).toBe(false);
   act(() => {
@@ -140,7 +127,9 @@ it("keeps focused Play inert while loading and empty, then activates without edi
   await user.keyboard(" ");
   expect(useDawStore.getState().isPlaying).toBe(true);
   act(() => useDawStore.getState().setPlayheadSec(20));
-  await user.click(screen.getByRole("button", { name: "Stop playback" }));
+  expect(await executePointerCommand("transport.stop")).toEqual({
+    status: "ok",
+  });
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(8);
 });
@@ -168,28 +157,21 @@ it("keeps Pause and Stop reachable when the last track disappears during playbac
   act(() => useDawStore.getState().setProject(minimalProject()));
   const pause = screen.getByRole("button", { name: "Pause" });
   expect(pause).not.toHaveAttribute("aria-disabled");
-  expect(
-    screen.getByRole("button", { name: "Stop playback" }),
-  ).not.toHaveAttribute("aria-disabled");
   await user.click(pause);
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(25);
-  expect(
-    screen.getByRole("button", { name: "Play" }),
-  ).toHaveAccessibleDescription("Import audio to play.");
   expect(await execute("transport.togglePlay", {}, { skipWhen: true })).toEqual(
     {
       status: "disabled",
       reason: "Import audio to play.",
     },
   );
-  const stop = screen.getByRole("button", { name: "Stop playback" });
-  expect(stop).not.toHaveAttribute("aria-disabled");
-  await user.click(stop);
+  expect(await executePointerCommand("transport.stop")).toEqual({
+    status: "ok",
+  });
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(10);
   expect(useDawStore.getState().playStartSec).toBeNull();
-  expect(stop).toHaveAccessibleDescription("Import audio to play.");
 });
 
 it("lets K finish a paused transport after last-track removal and clamps its return", async () => {

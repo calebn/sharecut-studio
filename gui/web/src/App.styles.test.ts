@@ -18,9 +18,6 @@ describe("App styles", () => {
     );
     expect(src).not.toMatch(/@media\s*\(/);
     expect(src).toMatch(/@container app \(inline-size < 68\.75rem\)/);
-    // Compact menu touch rows live with the menu rules in ui.css.
-    const ui = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
-    expect(ui).toMatch(/@container transport \(inline-size < 68\.75rem\)/);
     const px = [...src.matchAll(/(?<![\d.])(\d+)px\b/g)].map((m) =>
       Number(m[1]),
     );
@@ -50,13 +47,6 @@ describe("App styles", () => {
     expect(ui).toMatch(/\.ui-menu-panel\s*\{[^}]*overflow-y:\s*auto/s);
     expect(ui).toMatch(/--menu-available-height/);
     expect(ui).not.toMatch(/100dvh - var\(--transport-height\)/);
-    const responsive = readFileSync(
-      join(here, "styles/partials/responsive.css"),
-      "utf8",
-    );
-    expect(responsive).not.toMatch(
-      /\.transport-overflow-menu\s*\{[^}]*overflow-y:\s*auto/s,
-    );
   });
 
   it("keeps badge content on one line", () => {
@@ -93,15 +83,6 @@ describe("App styles", () => {
     const body = rule![1] ?? "";
     expect(body).toMatch(/box-shadow:\s*inset/);
     expect(body).not.toMatch(/outline-offset/);
-  });
-
-  it("keeps the failed save light square and the saved light circular (#1540)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const src = readFileSync(join(here, "styles/partials/layout.css"), "utf8");
-    expect(src).toMatch(/\.save-dot::before\s*\{[^}]*border-radius:\s*50%/s);
-    expect(src).toMatch(
-      /\.save-dot\[data-save-state="failed"\]::before\s*\{[^}]*border-radius:\s*var\(--radius-sm\)/s,
-    );
   });
 
   it("gives the lane header's Mute and Solo the touch target on a coarse pointer (#1028)", () => {
@@ -152,7 +133,7 @@ describe("App styles", () => {
     ).toBeGreaterThan(src.indexOf(".ui-control--compact {"));
   });
 
-  it("sizes the segmented track, status bar chips and Listen status row to their containers on a coarse pointer (#1388)", () => {
+  it("sizes the segmented track to its container on a coarse pointer (#1388)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const read = (f: string) => readFileSync(join(here, f), "utf8");
     const ui = read("styles/partials/ui.css");
@@ -162,46 +143,6 @@ describe("App styles", () => {
     expect(track).toBeTruthy();
     expect(track![1]).toMatch(/block-size:\s*auto/);
     expect(track![1]).toMatch(/min-block-size:\s*var\(--control-height\)/);
-    const responsive = read("styles/partials/responsive.css");
-    expect(responsive).toMatch(
-      /@media \(pointer: coarse\) \{\s*\.status-bar \.status-chip \{\s*min-block-size: 0;/,
-    );
-    const chips = responsive.match(/\.mobile-status-chips \{([^}]*)\}/);
-    expect(chips![1]).toMatch(/align-items:\s*center/);
-  });
-
-  it("wraps collapsed transport and Listen hero controls instead of clipping them (#1636)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const transport = readFileSync(
-      join(here, "styles/partials/transport.css"),
-      "utf8",
-    );
-    const collapsed = transport.match(/\.transport--collapsed \{([^}]*)\}/);
-    expect(collapsed).toBeTruthy();
-    expect(collapsed![1]).not.toMatch(/flex-wrap:\s*wrap/);
-    const phone = transport.match(
-      /\.daw-shell--phone \.transport--collapsed \{([^}]*)\}/,
-    );
-    expect(phone).toBeTruthy();
-    expect(phone![1]).toMatch(/flex-wrap:\s*wrap/);
-    const hero = transport.match(/\.listen-hero-controls \{([^}]*)\}/);
-    expect(hero).toBeTruthy();
-    expect(hero![1]).toMatch(/flex-wrap:\s*wrap/);
-    expect(hero![1]).not.toMatch(/grid-template-columns/);
-  });
-
-  it("gives the collapsed transport icon buttons the touch target on a coarse pointer (#1388)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const src = readFileSync(
-      join(here, "styles/partials/transport.css"),
-      "utf8",
-    );
-    const coarse = src.match(
-      /@media \(pointer: coarse\) \{\s*\.transport--collapsed \.transport-icon-btn \{([^}]*)\}/,
-    );
-    expect(coarse).toBeTruthy();
-    expect(coarse![1]).toMatch(/min-width:\s*var\(--touch-min\)/);
-    expect(coarse![1]).toMatch(/min-height:\s*var\(--touch-min\)/);
   });
 
   it("stacks each Tighten hit in a narrow panel so Apply and Skip never sit past the edge (#1029)", () => {
@@ -250,32 +191,5 @@ describe("App styles", () => {
       const body = css.slice(at, css.indexOf("}", at));
       expect(body).toMatch(/-webkit-user-select:\s*none/);
     }
-  });
-
-  it("keeps iOS's native text selection and Share callout off the Listen hero chrome on touch (#1874)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const css = readFileSync(
-      join(here, "styles/partials/transport.css"),
-      "utf8",
-    );
-    const block = css.match(
-      /@media \(pointer: coarse\) \{\s*\.listen-hero \{([^}]*)\}/,
-    );
-    expect(block).toBeTruthy();
-    expect(block![1]).toMatch(/(?<!-)user-select:\s*none/);
-    expect(block![1]).toMatch(/-webkit-user-select:\s*none/);
-    expect(block![1]).toMatch(/-webkit-touch-callout:\s*none/);
-  });
-
-  it("keeps iOS's selection loupe and callout off the editing tool rail on touch so the label peek can show (#1878)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const css = readFileSync(join(here, "styles/partials/layout.css"), "utf8");
-    const block = css.match(
-      /@media \(pointer: coarse\) \{\s*\.editing-tool-rail \{([^}]*)\}/,
-    );
-    expect(block).toBeTruthy();
-    expect(block![1]).toMatch(/(?<!-)user-select:\s*none/);
-    expect(block![1]).toMatch(/-webkit-user-select:\s*none/);
-    expect(block![1]).toMatch(/-webkit-touch-callout:\s*none/);
   });
 });

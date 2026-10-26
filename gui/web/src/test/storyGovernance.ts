@@ -8,7 +8,7 @@ import { parse } from "@babel/parser";
 export const STORY_SUPPORT_MODULES = new Set([
   "record/recordStoryDecorator.tsx",
   "timeline/timelineLaneStoryDecorator.tsx",
-  "layout/dawShellStoryDecorator.tsx",
+  "stage/frame/frameStoryDecorator.tsx",
   "storybook/docsTheme.ts",
   "storybook/StudioDocsContainer.tsx",
   "storybook/openDialog.ts",
@@ -21,8 +21,6 @@ export const STORY_SUPPORT_MODULES = new Set([
 export const CATALOG_ONLY_MODULES = new Set([
   "storybook/StyleGuide.tsx",
   "storybook/StudioStoryTheme.tsx",
-  "layout/shellStoryFixtures.tsx",
-  "layout/shellStoryData.ts",
 ]);
 
 // Literal specifiers only: non-literal `import(x)`, template/concatenated

@@ -1,6 +1,7 @@
 /* Bottom sheet — phone/tablet inspector & quick actions.
- * Portaled to body; inset above shell chrome via html[data-shell] so tabs /
- * mode nav stay visible (z-shell-chrome is a hit-test backup). */
+ * Portaled to body; inset above the frame's bottom chrome via html[data-shell]
+ * so the Player and tab bar stay visible (z-shell-chrome is a hit-test
+ * backup). */
 .bottom-sheet-root {
   position: fixed;
   inset: 0;
@@ -16,17 +17,8 @@
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 
-html[data-shell="phone"] .bottom-sheet-root {
-  bottom: var(--mobile-nav-height);
-}
-
-html[data-shell="tablet"] .bottom-sheet-root {
-  bottom: calc(var(--tabs-height) + var(--status-height));
-}
-
-html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root,
-html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
-  bottom: var(--status-height);
+html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
+  bottom: var(--frame-bottom-chrome);
 }
 
 /* The compact strip stacks above the shell's rows, so the status or nav row
@@ -198,12 +190,6 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   .bottom-sheet--half:has(.modifier-inspector),
   .bottom-sheet--half:has(.range-actions--sheet) {
     height: min(70%, 22rem);
-  }
-
-  /* A sheet that edits a lane gives the tabs row to the lane above it
-     (responsive.css), so it rests on the status row (#1694). */
-  html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--lane-band) {
-    bottom: var(--status-height);
   }
 }
 

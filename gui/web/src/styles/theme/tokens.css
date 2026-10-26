@@ -141,24 +141,14 @@
   /* Control heights: one per role so rows line up. */
   --control-height: 2rem;
   --control-height-compact: 1.75rem;
-  --status-chip-height: 1.5rem;
   /* 44pt touch floor at 16px root; phone/tablet follow chrome via @container */
   --touch-min: 2.75rem;
-  /* Save-state status light: the painted dot, and the box that holds it. The
-     44pt target is the box plus padding, never the painted dot. */
-  --save-dot-size: 0.5rem;
-  --save-dot-stroke: 0.125rem;
-  --save-dot-box: 1.25rem;
   --mix-row-height: 3.5rem;
   --mix-identity-size: 1.5rem;
   --mix-volume-width: 6rem;
   /* A track this listener doesn't hear (saved, listen-only or solo-implied
      mute) greys its waveform and fades it to this; text never fades. */
   --mute-waveform-opacity: 0.5;
-  --status-height: 1.75rem;
-  --tabs-height: 12.5rem;
-  --editor-main-min-height: 7.5rem;
-  --mobile-nav-height: 3.25rem;
   /* The Inspector column beside the timeline on a phone held sideways (#1696):
      a third of the width, never narrower than a readable form or wider than
      the form needs. vw, not %, so the keyboard rule can size it as fixed. */

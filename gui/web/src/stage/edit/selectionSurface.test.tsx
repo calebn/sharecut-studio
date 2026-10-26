@@ -3,15 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import {
-  layoutScreen,
   opensSheet,
   renderSelectionBody,
   SELECTION_SURFACES,
   type SelectionKind,
   type SheetScreen,
-  sheetScreen,
 } from "../../inspector/selectionSurface";
-import { StudioShell } from "../../layout/StudioShell";
 import { useDawStore } from "../../state/dawStore";
 import { DawProvider } from "../../state/store";
 import type { ShellBreakpoint } from "../../state/types";
@@ -25,6 +22,9 @@ import {
 } from "../../test/fixtures";
 import type { Selection } from "../../types/project";
 import { wordSelection } from "../../utils/rangeSelect";
+import { StageFrame } from "../frame/StageFrame";
+import { EditWorkspace } from "./EditWorkspace";
+import { EDIT_SHEETS } from "./editSheets";
 
 const viewport = vi.hoisted(() => ({ shell: "tablet" as ShellBreakpoint }));
 
@@ -262,15 +262,22 @@ const AGENT_RANGE_ADOPTION: Record<SelectionKind, boolean> = {
 function mount(shell: ShellBreakpoint) {
   viewport.shell = shell;
   useDawStore.getState().hydrate("/tmp/p.json", project(), null);
-  useDawStore.getState().setMobileMode("listen");
-  useDawStore.getState().setLayoutMode("default");
-  useDawStore.getState().setActiveTab("transcript");
+  useDawStore.setState({
+    stage: "edit",
+    guestMode: null,
+    scriptCollapsed: false,
+    scriptFocus: false,
+    editSurface: "lanes",
+    openSheet: null,
+  });
   useDawStore.getState().setSelection(null);
   useDawStore.getState().setRangeArmed(false);
   useDawStore.getState().setCompactInspectorView("half");
   return render(
     <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
-      <StudioShell />
+      <StageFrame sheets={EDIT_SHEETS}>
+        <EditWorkspace />
+      </StageFrame>
     </DawProvider>,
   );
 }
@@ -310,8 +317,8 @@ describe("selection surfaces reach every kind on every shell", () => {
         const home = touch
           ? sheet()
           : RANGE_KINDS.includes(kind)
-            ? container.querySelector<HTMLElement>(".daw-shell-transport")
-            : container.querySelector<HTMLElement>("aside.inspector");
+            ? container.querySelector<HTMLElement>(".edit-timeline-col")
+            : container.querySelector<HTMLElement>(".edit-inspector");
         expect(home, "where the selection's surface renders").not.toBeNull();
         if (touch) {
           const body = home!.querySelector(".bottom-sheet-body");
@@ -340,7 +347,7 @@ describe("selection surfaces reach every kind on every shell", () => {
       expect(regions).toHaveLength(1);
       const home =
         shell === "desktop"
-          ? container.querySelector(".daw-shell-transport")
+          ? container.querySelector(".edit-timeline-col")
           : sheet();
       expect(home?.contains(regions[0]!)).toBe(true);
       expect(within(regions[0]!).getByLabelText("In")).toBeVisible();
@@ -359,7 +366,7 @@ describe("selection surfaces reach every kind on every shell", () => {
       expect(regions).toHaveLength(1);
       const home =
         shell === "desktop"
-          ? container.querySelector(".daw-shell-transport")
+          ? container.querySelector(".edit-timeline-col")
           : sheet();
       expect(home?.contains(regions[0]!)).toBe(true);
       if (shell !== "desktop") {
@@ -375,7 +382,7 @@ describe("selection surfaces reach every kind on every shell", () => {
         useDawStore.setState({ sessionRegion: { start_sec: 4, end_sec: 9 } }),
       );
       select(SELECTIONS.clip);
-      const bar = container.querySelector(".daw-shell-transport");
+      const bar = container.querySelector(".edit-timeline-col");
       if (shell === "phone") {
         expect(rangeRegions()).toEqual([]);
       } else if (shell === "tablet") {
@@ -413,7 +420,7 @@ describe("selection surfaces reach every kind on every shell", () => {
       expect(home!.contains(regions[0]!)).toBe(true);
       expect(
         container
-          .querySelector(".daw-shell-transport")
+          .querySelector(".edit-timeline-col")
           ?.querySelector('[aria-label="Range actions"]'),
       ).toBeNull();
       expect(
@@ -433,7 +440,7 @@ describe("selection surfaces reach every kind on every shell", () => {
     const regions = rangeRegions();
     expect(regions).toHaveLength(1);
     expect(
-      container.querySelector(".daw-shell-transport")?.contains(regions[0]!),
+      container.querySelector(".edit-timeline-col")?.contains(regions[0]!),
     ).toBe(true);
   });
 });
@@ -473,8 +480,8 @@ describe("a tapped word is one kind", () => {
   it("puts the range actions in the bar and the word correction in the inspector on the desktop", () => {
     const { container } = mount("desktop");
     select(WORD);
-    const bar = container.querySelector<HTMLElement>(".daw-shell-transport");
-    const rail = container.querySelector<HTMLElement>("aside.inspector");
+    const bar = container.querySelector<HTMLElement>(".edit-timeline-col");
+    const rail = container.querySelector<HTMLElement>(".edit-inspector");
     expect(within(bar!).getByRole("button", { name: "Cut" })).toBeVisible();
     expect(
       within(rail!).getByRole("button", { name: "Suppress" }),
@@ -514,45 +521,21 @@ describe("a tapped word is one kind", () => {
 });
 
 describe("the sheet opens only on the screens a selection belongs to", () => {
-  const SCREENS: SheetScreen[] = [
-    "timeline",
-    "listen",
-    "text",
-    "comments",
-    "impact",
-    "tighten",
-  ];
+  const SCREENS: SheetScreen[] = ["timeline", "text"];
   const ONLY_ON: Partial<Record<SelectionKind, SheetScreen[]>> = {
-    range: ["timeline", "listen", "text"],
-    transcriptRange: ["timeline", "listen", "text"],
-    comment: ["timeline", "listen", "comments"],
-    pending: ["timeline", "listen", "impact", "tighten"],
+    range: ["timeline", "text"],
+    transcriptRange: ["timeline", "text"],
   };
 
   for (const kind of Object.keys(SELECTION_SURFACES) as SelectionKind[]) {
-    it(`${kind} opens it on ${(ONLY_ON[kind] ?? ["timeline", "listen"]).join(", ")}`, () => {
+    it(`${kind} opens it on ${(ONLY_ON[kind] ?? ["timeline"]).join(", ")}`, () => {
       expect(
         SCREENS.filter((screenName) =>
           opensSheet(SELECTIONS[kind], screenName),
         ),
-      ).toEqual(ONLY_ON[kind] ?? ["timeline", "listen"]);
+      ).toEqual(ONLY_ON[kind] ?? ["timeline"]);
     });
   }
-
-  it("shows no sheet on a More page that does not hold the selection", () => {
-    expect(sheetScreen("more", "hub")).toBeNull();
-    expect(sheetScreen("more", "history")).toBeNull();
-    expect(sheetScreen("more", "comments")).toBe("comments");
-    expect(sheetScreen("text", "impact")).toBe("text");
-    expect(sheetScreen("more", "tighten")).toBe("tighten");
-  });
-
-  it("names the tablet's screen from its layout", () => {
-    expect(layoutScreen("default")).toBe("timeline");
-    expect(layoutScreen("timeline")).toBe("timeline");
-    expect(layoutScreen("text")).toBe("text");
-    expect(layoutScreen("review")).toBe("comments");
-  });
 });
 
 describe("automatic reduction occurrence lookup", () => {

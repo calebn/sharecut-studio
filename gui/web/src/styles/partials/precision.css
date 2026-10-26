@@ -58,12 +58,8 @@
   pointer-events: auto;
 }
 
-html[data-shell="phone"] .precision-jog {
-  bottom: var(--mobile-nav-height);
-}
-
-html[data-shell="tablet"] .precision-jog {
-  bottom: var(--status-height);
+html:is([data-shell="phone"], [data-shell="tablet"]) .precision-jog {
+  bottom: var(--frame-bottom-chrome);
 }
 
 .precision-jog-head {

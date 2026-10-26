@@ -1,9 +1,9 @@
 import { commandLabel } from "../../commands/labels";
 import { runPointerCommand } from "../../commands/pointer";
-import { ToolModeToggle } from "../../layout/ToolModeToggle";
 import { canSuggestStructuralOnProject } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import { EditToolStripView } from "./EditToolStripView";
+import { ToolModeToggle } from "./ToolModeToggle";
 
 /** The timeline corner's tools: existing commands only, no new behaviour. */
 export function EditToolStrip() {

@@ -589,7 +589,6 @@ describe("CommentsPanel", () => {
     useDawStore
       .getState()
       .hydrate("share:tok", minimalProject(), "comment", ["view", "comment"]);
-    expect(useDawStore.getState().activeTab).toBe("comments");
     render(<CommentsPanel guestShare />);
     expect(screen.getByRole("textbox", { name: "Comment" })).toBeVisible();
   });

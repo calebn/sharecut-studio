@@ -338,9 +338,6 @@ Branded Chrome keeps its full local inventory. Its `browserName` is `chromium`,
 so those conditional scans do not run there. Comment-undo and wordbar retain
 their existing unconditional helper scans in branded Chrome.
 
-The drawer-drag rows also run on Firefox from the opt-in `playwright.firefox.config.ts`
-(`npm run test:e2e:drawer-firefox`), which is why their Firefox cell stays Not run here.
-
 The touch-nudge strip rows and touch-peek theme and motion row describe
 assertions both engines run. WebKit also scans every collected strip state
 with axe before the collected results are asserted.
@@ -362,18 +359,12 @@ with axe before the collected results are asserted.
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | snap ticks, mute regions and a live trim ghost share the ruler geometry | `gui/web/e2e-compat/timeline-geometry.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the drawer handle drags up and back down repeatedly | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the handle's hit area stays below the timeline's scrollbar and keeps its grip visible | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| double-clicking the drawer handle collapses it and the rail handle reopens it at the same height | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the collapsed rail handle stays above the timeline's horizontal scrollbar | `gui/web/e2e-compat/drawer-scrollbar.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | actual sheet controls and help copy work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| phone zoom keeps the compact transport and Listen timer inside the viewport (#1636) | `gui/web/e2e-compat/phone-transport-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| compact transport at 200% text keeps More History below the bar (#1636) | `gui/web/e2e-compat/phone-transport-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an iPad Air 1180 wide in landscape keeps Select, Blade, Select range, + Track and Import on the rail | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -441,7 +432,6 @@ with axe before the collected results are asserted.
 | Reject all asks with the count, then one Undo brings the pending edits back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a long press then a drag selects a word range, and the sheet clears it | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a finger that moves before the hold scrolls and selects nothing | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the open editor menu draws over the Text panel's Ignore button | `gui/web/e2e-compat/phone-menu-layering.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | native Tab keeps every Primary navigation indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Track actions opens inside a 390 and a 393 wide phone viewport in both detents and its first item works | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |

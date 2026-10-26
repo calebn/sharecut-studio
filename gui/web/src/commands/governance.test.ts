@@ -227,8 +227,6 @@ describe("command bus", () => {
       "ui.toggleCommandPalette",
       "presence.follow",
       "presence.unfollow",
-      "view.setTab",
-      "view.setMobileMode",
     ]) {
       expect(ids).toContain(id);
     }
@@ -253,19 +251,6 @@ describe("command bus", () => {
     expect(await execute("transport.audition", { mode: "mix" })).toEqual({
       status: "ok",
     });
-  });
-
-  it("rejects unknown More destinations including mix", async () => {
-    expect(
-      await execute("view.setMobileMode", {
-        mode: "more",
-        destination: "mix",
-      }),
-    ).toEqual({
-      status: "disabled",
-      reason: "destination unknown",
-    });
-    expect(useDawStore.getState().moreDestination).not.toBe("mix");
   });
 });
 
@@ -520,7 +505,7 @@ describe("breaksFollow", () => {
     clearRegisteredCommands();
     registerCommand("track.muteToggle", () => ({ status: "ok" }));
     registerCommand("track.soloToggle", () => ({ status: "ok" }));
-    registerCommand("view.setTab", () => ({
+    registerCommand("view.zoomIn", () => ({
       status: "disabled",
       reason: "no",
     }));
@@ -529,7 +514,7 @@ describe("breaksFollow", () => {
     expect(useDawStore.getState().followingClientId).toBe("x");
     await execute("track.soloToggle", {}, { skipWhen: true });
     expect(useDawStore.getState().followingClientId).toBe("x");
-    await execute("view.setTab", {}, { skipWhen: true });
+    await execute("view.zoomIn", {}, { skipWhen: true });
     expect(useDawStore.getState().followingClientId).toBe("x");
   });
 

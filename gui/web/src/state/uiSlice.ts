@@ -4,7 +4,6 @@ import {
   readCompactInspectorView,
   writeCompactInspectorView,
 } from "../utils/compactInspectorPref";
-import { readDrawerCollapsed } from "../utils/drawerCollapsedPref";
 import {
   readLaneHeightPref,
   stepLaneHeightPx,
@@ -42,15 +41,11 @@ import type {
   ChromeFlags,
   CommentDraft,
   DawStore,
-  DawTab,
   EnvelopeDraftEntry,
   EnvelopeSaving,
   FeedbackToast,
   LaneHeightMode,
   LayerVisibility,
-  LayoutMode,
-  MobileMode,
-  MoreDestination,
   PointerKind,
   ShellBreakpoint,
   ToastTone,
@@ -71,27 +66,6 @@ export function estimateTimelineViewportWidth(bp: ShellBreakpoint): number {
   if (bp === "tablet") return Math.max(200, w - 200);
   return Math.max(200, w - 500);
 }
-
-/** The one tab a layout shows: null for default (all tabs) and timeline (none). */
-const LAYOUT_TAB: Readonly<Record<LayoutMode, DawTab | null>> = {
-  adaptive: null,
-  default: null,
-  timeline: null,
-  text: "transcript",
-  review: "comments",
-};
-
-/** The panel each More destination shows; the hub shows none. */
-const MORE_DESTINATION_TAB: Readonly<
-  Record<DawStore["moreDestination"], DawTab | null>
-> = {
-  hub: null,
-  comments: "comments",
-  history: "history",
-  impact: "impact",
-  tighten: "tighten",
-  pipeline: "pipeline",
-};
 
 /** A repeat of the last announcement within this window is the same outcome told twice. */
 const REPEAT_WINDOW_MS = 1000;
@@ -137,26 +111,6 @@ function endGestureToast(
   s: Pick<DawStore, "feedbackToast">,
 ): Pick<DawStore, "feedbackToast"> | Record<string, never> {
   return s.feedbackToast?.gesture ? { feedbackToast: null } : {};
-}
-
-/**
- * Switch to `activeTab`, restoring the default layout when the current layout
- * does not show that tab (timeline hides every tab; text/review show only
- * their own) so the requested panel is on screen. Leaving the timeline layout
- * this way also drops the timeline key focus that layout set.
- */
-function revealTab(
-  s: Pick<DawStore, "layoutMode">,
-  activeTab: DawTab,
-): Partial<DawStore> {
-  if (s.layoutMode === "default" || LAYOUT_TAB[s.layoutMode] === activeTab) {
-    return { activeTab };
-  }
-  return {
-    activeTab,
-    layoutMode: "default",
-    ...(s.layoutMode === "timeline" ? { timelineFocused: false } : {}),
-  };
 }
 
 /** Save the waveform view of the open project (per browser). */
@@ -209,7 +163,6 @@ type UiSlice = Pick<
   | "rangeScopeTrackIds"
   | "setRangeScopeTrackIds"
   | "setRangeBusy"
-  | "activeTab"
   | "userZoomed"
   | "layers"
   | "commentMode"
@@ -236,9 +189,6 @@ type UiSlice = Pick<
   | "toolMode"
   | "shellBreakpoint"
   | "pointerKind"
-  | "mobileMode"
-  | "moreDestination"
-  | "layoutMode"
   | "sheetExpanded"
   | "compactInspectorView"
   | "selectionHit"
@@ -254,7 +204,6 @@ type UiSlice = Pick<
   | "setWaveformPostFader"
   | "setScrollLeft"
   | "selectFromInspector"
-  | "setActiveTab"
   | "setTranscriptFollowPlayhead"
   | "toggleTranscriptFollowPlayhead"
   | "setTranscriptInlineCommitPending"
@@ -280,9 +229,6 @@ type UiSlice = Pick<
   | "setToolMode"
   | "setShellBreakpoint"
   | "setPointerKind"
-  | "setMobileMode"
-  | "setMoreDestination"
-  | "setLayoutMode"
   | "setSheetExpanded"
   | "setCompactInspectorView"
   | "setSelectionHit"
@@ -507,7 +453,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ rangeArmed, rangeScopeTrackIds: null }),
     setRangeScopeTrackIds: (rangeScopeTrackIds) => set({ rangeScopeTrackIds }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
-    activeTab: "transcript" as DawTab,
     userZoomed: false,
     layers: {
       showEdits: true,
@@ -532,9 +477,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     // Capability baseline; usePointerType() corrects this from matchMedia
     // before first paint and keeps it live from pointer events.
     pointerKind: "fine" as PointerKind,
-    mobileMode: "listen" as MobileMode,
-    moreDestination: "hub" as MoreDestination,
-    layoutMode: (readDrawerCollapsed() ? "timeline" : "adaptive") as LayoutMode,
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
     drawnLaneHeightPx: null as number | null,
@@ -577,8 +519,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ inspectorSelection: selection });
       get().setSelection(selection);
     },
-    setActiveTab: (activeTab) =>
-      set((s) => ({ ...revealTab(s, activeTab), ...endGestureToast(s) })),
     setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
       set({ transcriptFollowPlayhead }),
     toggleTranscriptFollowPlayhead: () =>
@@ -719,9 +659,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         return {
           commentMode: next,
           commentDraft: next ? s.commentDraft : null,
-          ...(next ? revealTab(s, "comments") : {}),
-          mobileMode: next ? "listen" : s.mobileMode,
-          moreDestination: next ? "comments" : s.moreDestination,
           ...(next ? { toolMode: "select" as ToolMode } : {}),
         };
       }),
@@ -741,29 +678,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         commentDraft: null,
       }),
     setShellBreakpoint: (shellBreakpoint) => {
-      const before = get();
-      set({
-        shellBreakpoint,
-        // The phone shell has no layouts: never carry one into it or back out.
-        ...(shellBreakpoint === "phone"
-          ? { layoutMode: "default" as LayoutMode }
-          : {}),
-      });
-      // Rotating a tablet or desktop window to portrait arrives on the phone shell's
-      // default Listen screen, which shows no selection. Open where it can be seen,
-      // unless Listen is deliberate (the comment composer lives there).
-      if (
-        shellBreakpoint === "phone" &&
-        before.shellBreakpoint !== "phone" &&
-        before.selection != null &&
-        before.mobileMode === "listen" &&
-        !before.commentMode &&
-        !before.rangeArmed
-      ) {
-        get().setMobileMode(
-          before.selection.kind === "transcriptRange" ? "text" : "timeline",
-        );
-      }
+      set({ shellBreakpoint });
       // Re-derive from the live timeline: a registered scrollport that measures
       // 0 (a remount mid shell switch) and no timeline at all both store the
       // new shell's estimate, never the previous shell's.
@@ -771,39 +686,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setPointerKind: (pointerKind) =>
       set((s) => (s.pointerKind === pointerKind ? s : { pointerKind })),
-    setMobileMode: (mobileMode) =>
-      set((s) => ({
-        mobileMode,
-        moreDestination: mobileMode === "more" ? s.moreDestination : "hub",
-        ...(mobileMode === "text"
-          ? { activeTab: "transcript" as DawTab, timelineFocused: false }
-          : {}),
-        ...(mobileMode === "timeline" ? { timelineFocused: true } : {}),
-        ...(mobileMode === "listen" ? { timelineFocused: true } : {}),
-        ...endGestureToast(s),
-      })),
-    setMoreDestination: (moreDestination) =>
-      set((s) => {
-        const tab = MORE_DESTINATION_TAB[moreDestination];
-        return {
-          moreDestination,
-          mobileMode: "more" as const,
-          ...(tab ? revealTab(s, tab) : {}),
-          ...endGestureToast(s),
-        };
-      }),
-    setLayoutMode: (layoutMode) => {
-      const tab = LAYOUT_TAB[layoutMode];
-      set((s) => ({
-        layoutMode,
-        ...(tab
-          ? { activeTab: tab, timelineFocused: false }
-          : layoutMode === "timeline"
-            ? { timelineFocused: true }
-            : {}),
-        ...endGestureToast(s),
-      }));
-    },
     setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),
     setCompactInspectorView: (compactInspectorView) => {
       set({ compactInspectorView });

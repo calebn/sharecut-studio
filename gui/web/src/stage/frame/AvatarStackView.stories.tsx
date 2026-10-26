@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { TransportFrame, TransportZone } from "../../layout/TransportFrame";
 import { disambiguatedNames } from "../../presence/colors";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { sessionClient } from "../../test/fixtures";
@@ -51,13 +50,9 @@ const meta: Meta<typeof AvatarStackView> = {
       }
       return (
         <>
-          <TransportFrame>
-            <TransportZone position="start">{null}</TransportZone>
-            <TransportZone position="center">{null}</TransportZone>
-            <TransportZone position="end">
-              <Story />
-            </TransportZone>
-          </TransportFrame>
+          <header className="stage-frame-header">
+            <Story />
+          </header>
           <main aria-label="Stage" style={{ minBlockSize: "18rem" }} />
         </>
       );

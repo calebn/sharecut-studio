@@ -583,10 +583,8 @@
       ],
       "advisory": {
         "include": [
-          "gui/web/src/layout/MobileShell.tsx",
-          "gui/web/src/layout/StudioShell.tsx",
-          "gui/web/src/layout/ListenHero.tsx",
-          "gui/web/src/layout/ListenPlayhead.tsx",
+          "gui/web/src/stage/frame/StageFrame.tsx",
+          "gui/web/src/stage/frame/StageFrameView.tsx",
           "gui/web/src/hooks/useViewportClass.ts",
           "gui/web/src/hooks/usePointerType.ts",
           "gui/web/src/ui/BottomSheet*",
@@ -893,7 +891,6 @@
           "gui/web/src/panels/TightenPanel.tsx",
           "gui/web/src/panels/WhisperModelPicker.tsx",
           "gui/web/src/panels/WordAlignerStatus.tsx",
-          "gui/web/src/layout/PipelineStatusChip.tsx",
           "gui/web/src/api/pipeline.ts",
           "gui/web/src/types/pipeline.ts",
           "gui/web/src/utils/pipeline.ts"
@@ -1048,7 +1045,7 @@
       ],
       "gate": {
         "include": [
-          "gui/web/src/layout/",
+          "gui/web/src/stage/",
           "gui/web/src/styles/partials/responsive.css",
           "gui/web/src/styles/partials/bottom-sheet.css",
           "gui/web/src/ui/BottomSheet*",

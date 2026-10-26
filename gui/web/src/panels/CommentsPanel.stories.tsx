@@ -88,4 +88,4 @@ export const Viewer: Story = {
   },
 };
 
-export const Phone: Story = { parameters: { dawShellPhone: true } };
+export const Phone: Story = { parameters: { framePhone: true } };

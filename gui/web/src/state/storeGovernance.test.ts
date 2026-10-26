@@ -439,20 +439,6 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "leaf that reads the presence roster itself",
   },
   {
-    file: "layout/ListenPlayhead.tsx",
-    reason: "leaf that reads the live playhead itself",
-  },
-  {
-    file: "layout/PresenceStatus.tsx",
-    reason:
-      "leaf that reads the presence roster itself, isolating StatusBar from presence frames",
-  },
-  {
-    file: "layout/TransportTimecode.tsx",
-    reason:
-      "leaf that reads the live playhead itself, isolating the transport bar from playhead ticks",
-  },
-  {
     file: "panels/TranscriptPanel.tsx",
     reason: "follows the live playhead to auto-scroll the transcript",
   },
@@ -730,8 +716,8 @@ describe("store governance", () => {
   it("flags a hot-field read outside the allowlist", () => {
     const files = [
       { rel: "timeline/TrackLane.tsx", text: "s.playheadSec" },
-      { rel: "layout/TransportTimecode.tsx", text: "s.playheadSec" },
-      { rel: "layout/StatusBar.test.tsx", text: "s.sessionClients" },
+      { rel: "stage/frame/AvatarStack.tsx", text: "s.playheadSec" },
+      { rel: "stage/frame/AvatarStack.test.tsx", text: "s.sessionClients" },
       {
         rel: "timeline/ClipBlock.tsx",
         text: "useDawStore((state) => state.pointerTrackId)",

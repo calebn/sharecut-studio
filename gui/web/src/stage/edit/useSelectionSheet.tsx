@@ -5,18 +5,8 @@ import {
   useMediaQueryStore,
 } from "../../hooks/useMediaQueryStore";
 import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
-import {
-  layoutScreen,
-  opensSheet,
-  type SheetScreen,
-  sheetScreen,
-} from "../../inspector/selectionSurface";
-import type {
-  LayoutMode,
-  MobileMode,
-  MoreDestination,
-  ShellBreakpoint,
-} from "../../state/types";
+import { opensSheet, type SheetScreen } from "../../inspector/selectionSurface";
+import type { ShellBreakpoint } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import type { Selection } from "../../types/project";
 import type { SheetPlacement } from "../../ui/BottomSheet";
@@ -52,19 +42,8 @@ export interface SheetOpenState {
   shell: ShellBreakpoint;
   selection: Selection;
   rangeArmed: boolean;
-  layoutMode: LayoutMode;
-  mobileMode: MobileMode;
-  moreDestination: MoreDestination;
-  /** The screen the Edit stage shows; replaces the layout and mobile mode when given. */
-  screen?: SheetScreen;
-}
-
-/** The screen the shell shows: the phone's mode, the tablet's layout. */
-function shownScreen(s: SheetOpenState): SheetScreen | null {
-  if (s.screen) return s.screen;
-  return s.shell === "phone"
-    ? sheetScreen(s.mobileMode, s.moreDestination)
-    : layoutScreen(s.layoutMode);
+  /** The surface the Edit stage shows. */
+  screen: SheetScreen;
 }
 
 /**
@@ -80,7 +59,7 @@ export function selectionSheetOpen(s: SheetOpenState): boolean {
   if (s.rangeArmed && armedOpens) return true;
   if (s.selection == null) return false;
   if (s.rangeArmed && s.selection.kind === "track") return false;
-  return opensSheet(s.selection, shownScreen(s));
+  return opensSheet(s.selection, s.screen);
 }
 
 export interface SelectionSheet {
@@ -108,21 +87,14 @@ const readLandscape = () =>
 /** The selection sheet for `shell`; closed for a shell without one. */
 export function useSelectionSheet(
   shell: SheetShell | null,
-  screen?: SheetScreen,
+  screen: SheetScreen,
 ): SelectionSheet {
   const column = useInspectorColumn();
-  const compact = useCompactInspector(
-    shell,
-    column,
-    screen ? screen === "timeline" : undefined,
-  );
+  const compact = useCompactInspector(shell, column, screen === "timeline");
   const {
     selection,
     rangeArmed,
     sessionRegion,
-    layoutMode,
-    mobileMode,
-    moreDestination,
     sheetExpanded,
     setSheetExpanded,
     setSelection,
@@ -131,9 +103,6 @@ export function useSelectionSheet(
     selection: s.selection,
     rangeArmed: s.rangeArmed,
     sessionRegion: s.sessionRegion,
-    layoutMode: s.layoutMode,
-    mobileMode: s.mobileMode,
-    moreDestination: s.moreDestination,
     sheetExpanded: s.sheetExpanded,
     setSheetExpanded: s.setSheetExpanded,
     setSelection: s.setSelection,
@@ -145,9 +114,6 @@ export function useSelectionSheet(
       shell,
       selection,
       rangeArmed,
-      layoutMode,
-      mobileMode,
-      moreDestination,
       screen,
     });
   const landscape = useMediaQueryStore(

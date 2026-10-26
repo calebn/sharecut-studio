@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**129** capabilities · **113** ShareCut Studio commands · **58** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
+**123** capabilities · **107** ShareCut Studio commands · **58** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -48,21 +48,17 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Change an applied sound | project | `tighten.reviseSuggested` | — (per-sound select in the last applied batch) | — | `tightenPanel` | `apply_suggested_actions_tool` | `podcast edit apply-suggested` | `podcast-tighten-dialogue` | — | none · none |
 | Preview tighten hit | session | `tighten.previewHit` | `P` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Go to tighten hit | session | `tighten.goToHit` | — (pointer/row action; seek+select) | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |
-| Restore layout | view | `layout.default` | — (Mod+1 is a stage now; the layout presets go with the old shell) | — | `layoutChip` | — | — | — | — | none · none |
-| Maximize timeline | view | `layout.timeline` | — (Mod+2 is a stage now; the layout presets go with the old shell) | — | `transport.layout` | — | — | — | — | none · none |
-| Maximize transcript | view | `layout.text` | — (Mod+3 is a stage now; the layout presets go with the old shell) | — | `transport.menu` | — | — | — | — | none · none |
-| Review layout | view | `layout.review` | — (Mod+4 is a stage now; the layout presets go with the old shell) | — | `transport.menu` | — | — | — | — | none · none |
 | Nudge playhead back | session | `navigation.nudgePlayheadBack` | `ArrowLeft` | — | — | — | — | — | — | — |
 | Nudge playhead forward | session | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — | — |
 | Go to start | session | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
 | Go to end | session | `navigation.goToEnd` | `End` | — | — | — | — | — | — | — |
-| Blade cut | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `editingToolRail`, `timeline`, `timeline.createMenu`, `transport.menu`, `editToolStrip` | `split_clip_tool` | — | — | — | time · none |
+| Blade cut | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `timeline`, `timeline.createMenu`, `editToolStrip` | `split_clip_tool` | — | — | — | time · none |
 | Delete clip | project | `edit.delete` | `Backspace` | — | `clipInspector` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
-| Remove track | project | `track.remove` | `Backspace` | — | `trackInspector`, `transport.menu` | `track_remove_tool` | — | — | — | none · none |
+| Remove track | project | `track.remove` | `Backspace` | — | `trackInspector` | `track_remove_tool` | — | — | — | none · none |
 | Split speakers… | project | `track.splitSpeakers` | — (opens a dialog that asks for the speaker count; reached from the track inspector and the command palette) | — | `SplitSpeakersDialog`, `trackInspector` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
-| Move track up | project | `track.moveUp` | `ArrowUp` | — | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
-| Move track down | project | `track.moveDown` | `ArrowDown` | — | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
+| Move track up | project | `track.moveUp` | `ArrowUp` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
+| Move track down | project | `track.moveDown` | `ArrowDown` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Ripple delete clip | project | `edit.rippleDelete` | `Mod+Backspace` | — | `clipInspector` | `ripple_delete_tool`, `delete_clips_tool` | `podcast edit delete-clips --mode ripple` | — | — | none · none |
 | Copy | session | `edit.copy` | `Mod+C` | — | — | `copy_segment_tool` | `podcast edit copy-segment` | — | — | — |
 | Cut | project | `edit.cut` | `Mod+X` | — | — | `ripple_delete_tool`, `delete_clips_tool`, `propose_range_cut_tool` | `podcast edit propose-range-cut`, `podcast edit approve`, `podcast edit delete-clips --mode ripple` | — | — | — |
@@ -71,11 +67,11 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Deselect all tracks | session | `track.deselectAll` | `Mod+Shift+A` | — | `trackHeadersWell` | — | — | — | — | none · none |
 | Toggle track mute | project | `track.muteToggle` | `M` | — | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
 | Toggle track solo | session | `track.soloToggle` | `S` | — | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
-| Clear solo | session | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | — | `trackHeaders.soloChip`, `mobileShell.statusRow`, `trackMix` | — | — | — | — | none · hear |
+| Clear solo | session | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | — | `trackHeaders.soloChip`, `trackMix` | — | — | — | — | none · hear |
 | Set track volume | project | `track.setVolume` | — (slider: arrow keys step the focused fader) | — | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
-| Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
-| Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editingToolRail`, `transport.menu`, `transport.editControls`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
-| Fit session width | view | `view.fit` | `\` | — | `transport.fit`, `transport.menu`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
+| Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
+| Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
+| Fit session width | view | `view.fit` | `\` | — | `transport.fit`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Go to Record | view | `stage.record` | `Mod+1` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Prepare | view | `stage.prepare` | `Mod+2` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Edit | view | `stage.edit` | `Mod+3` | — | `stageBar` | — | — | — | — | none · look |
@@ -83,19 +79,17 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Go to Deliver | view | `stage.deliver` | `Mod+5` | — | `stageBar` | — | — | — | — | none · look |
 | Show or hide Script | view | `view.toggleScript` | `T` | — | `editCorner` | — | — | — | — | none · none |
 | Script focus | view | `view.scriptFocus` | `Shift+T` | — | — | — | — | — | — | none · none |
-| Switch editor tab | view | `view.setTab` | — (not industry-standard; tab click) | — | `tabBar` | — | — | — | — | anchor · look |
-| Switch phone mode | view | `view.setMobileMode` | — (not industry-standard; tab click) | — | `mobileNav` | — | — | — | — | anchor · look |
-| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `ArrowUp` | — | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeIn`, `viewSheet` | — | — | — | — | time · look |
-| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `ArrowDown` | — | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeOut`, `viewSheet` | — | — | — | — | time · look |
-| Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | — | `transport.fitTracksHeight`, `transport.viewMenu.fitTracksHeight` | — | — | — | — | none · none |
-| Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | `transport.menu`, `viewSheet` | — | — | — | — | none · none |
-| Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | `transport.menu`, `viewSheet` | — | — | — | — | none · none |
-| Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `mobileShell.gesture.twoFingerTap`, `editingToolRail`, `transport.editControls`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
-| Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel`, `editingToolRail`, `transport.editControls` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
-| Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `transport.menu`, `moreHub.searchCommands`, `GesturesSheet` | — | — | — | — | none · none |
-| Refresh mix | project | `render.refreshMix` | `Mod+B` | — | `staleRenderPill`, `transport.menu` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
-| Bounce… | project | `export.bounce` | `Mod+Shift+B` | — | `transport.menu`, `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
-| Share… | project | `share.manage` | — (dialog from Menu) | — | `transport.menu`, `ShareDialog` | — | `podcast review share` | — | yes | none · none |
+| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `ArrowUp` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
+| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `ArrowDown` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
+| Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | — | `transport.fitTracksHeight` | — | — | — | — | none · none |
+| Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | `viewSheet` | — | — | — | — | none · none |
+| Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | `viewSheet` | — | — | — | — | none · none |
+| Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `mobileShell.gesture.twoFingerTap`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
+| Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
+| Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `GesturesSheet` | — | — | — | — | none · none |
+| Refresh mix | project | `render.refreshMix` | `Mod+B` | — | `ShareDialog` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
+| Bounce… | project | `export.bounce` | `Mod+Shift+B` | — | `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
+| Share… | project | `share.manage` | — (dialog from Menu) | — | `ShareDialog` | — | `podcast review share` | — | yes | none · none |
 | Create record room | project | `record.createRoom` | — (empty-state action in the Record room panel) | — | `RecordPanel` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
 | Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
 | Start recording | project | `record.start` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
@@ -103,17 +97,17 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Resume recording | project | `record.resume` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
 | Stop recording | project | `record.stop` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_stop_tool` | `podcast record stop` | `podcast-record-session` | yes | none · none |
 | Land recording on timeline | project | `record.land` | — (chords in a later PR) | — | `RecordPanel` | `record_land_tool` | `podcast record land` | `podcast-record-session` | yes | none · none |
-| Record room… | view | `record.openPanel` | — (chords in a later PR) | — | `RecordPanel`, `transport.menu`, `transport.recChip`, `editPlusMenu` | `record_state_tool` | `podcast record state` | `podcast-record-session` | yes | none · none |
+| Record room… | view | `record.openPanel` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip`, `editPlusMenu` | `record_state_tool` | `podcast record state` | `podcast-record-session` | yes | none · none |
 | Record marker | project | `record.marker` | `M` | — | `LiveComments` | `record_marker_tool` | `podcast record marker` | `podcast-record-session` | yes | none · none |
-| Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `transport.menu`, `HostMcpDialog` | — | — | — | yes | none · none |
-| Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog`, `transport.menu` | — | `podcast doctor --bundle` | — | yes | none · none |
+| Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
+| Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsDialog` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
-| Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `transport.menu`, `ExportDialog` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
-| New project… | project | `project.new` | `Mod+N` | — | `transport.menu` | `episode_create` | `podcast episode init` | — | yes | none · none |
-| Open project… | session | `project.open` | — (Mod+O is All projects (project.home); open from the palette or Home) | — | `transport.menu` | — | — | — | yes | none · none |
+| Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `ExportDialog` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
+| New project… | project | `project.new` | `Mod+N` | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
+| Open project… | session | `project.open` | — (Mod+O is All projects (project.home); open from the palette or Home) | — | — | — | — | — | yes | none · none |
 | All projects | session | `project.home` | `Mod+O` | — | `projectMenu` | — | — | — | yes | none · none |
-| New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `transport.menu`, `editingToolRail`, `trackLane`, `mobileShell.more`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
-| Import audio… | project | `media.import` | `Mod+I` | — | `transport.menu`, `editingToolRail`, `drop`, `mobileShell.more`, `editPlusMenu` | `track_set_media_tool` | — | — | — | none · none |
+| New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `trackLane`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
+| Import audio… | project | `media.import` | `Mod+I` | — | `drop`, `editPlusMenu` | `track_set_media_tool` | — | — | — | none · none |
 | Annotate transcript | view | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | — | `transcript.annotate` | — | — | — | — | none · none |
 | Correct transcript | project | `transcript.correctIntent` | — (toolbar toggle; inline correction uses F2) | `double-tap` | `transcript.correct`, `mobileShell.gesture.doubleTapWord`, `transcript.inlineEdit` | `correct_transcript_tool`, `correct_transcript_phrase_tool` | `podcast transcript correct` | — | — | anchor · look |
 | Adjust word timing | project | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | — | `transcript.wordbar` | `set_word_timing_tool` | `podcast transcript set-word-timing` | — | — | anchor · none |
@@ -126,7 +120,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Show cut away | view | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | — | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | project | `edit.trimClipEdge` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
 | Move clips | project | `edit.moveClips` | — (Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge) | `long-press-arm-drag` | `timeline.clip.body`, `clipInspector` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
-| Add chapter at playhead | project | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `long-press-empty` | `transport.menu`, `mobileShell.more`, `timeline.createMenu`, `editPlusMenu` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
+| Add chapter at playhead | project | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `long-press-empty` | `timeline.createMenu`, `editPlusMenu` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
 | Add envelope point | project | `envelope.addPoint` | — (touch create menu; the envelope inspector's Add point is the keyboard route) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | — | — | — | time · none |
 | Add comment | view | `comment.draftAt` | — (touch create menu; comment mode on the ruler is the pointer route) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · none |
 | Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Bleed reductions inspector; no default shortcut) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | — | — | yes | none · none |
@@ -141,7 +135,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `SpeakerLaneMoveActions` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
 | Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `RangeActions` | `add_comment_tool` | `podcast comment add` | — | — | none · none |
 | Bounce selected range | project | `range.bounce` | — (Context action with explicit range selection) | — | `RangeActions` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
-| Select a range | view | `range.arm` | — (Context action with explicit range selection) | — | `EditingToolRail`, `transport.menu`, `editToolStrip` | — | — | — | — | none · none |
+| Select a range | view | `range.arm` | — (Context action with explicit range selection) | — | `editToolStrip` | — | — | — | — | none · none |
 
 ## Agent workflows
 

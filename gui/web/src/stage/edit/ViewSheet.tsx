@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { capabilityLabel } from "../../capabilities/copy";
 import { runPointerCommand } from "../../commands/pointer";
-import { OverlayLegend } from "../../layout/OverlayLegend";
-import { LegendCheckbox } from "../../layout/OverlayLegendView";
-import { WAVEFORM_SCALES } from "../../layout/waveformScales";
 import { useDaw } from "../../state/useDaw";
 import { CommandButton, SegmentedControl, ToggleButton } from "../../ui";
 import { formatWaveformAmp } from "../../utils/zoom";
+import { OverlayLegend } from "./OverlayLegend";
+import { LegendCheckbox } from "./OverlayLegendView";
+import { WAVEFORM_SCALES } from "./waveformScales";
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (

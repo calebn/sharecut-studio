@@ -235,7 +235,6 @@
       ],
       "surfaces": {
         "command": "review.exitCommentMode",
-        "gui": [],
         "keyboard": "Escape"
       },
       "omit": {}
@@ -491,102 +490,6 @@
       }
     },
     {
-      "id": "daw.layout.default",
-      "label": "Restore layout",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutShell"
-      ],
-      "surfaces": {
-        "command": "layout.default",
-        "gui": [
-          "layoutChip"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "Mod+1 is a stage now; the layout presets go with the old shell"
-      },
-      "tooltip": "Restore layout",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.layout.timeline",
-      "label": "Maximize timeline",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutShell"
-      ],
-      "surfaces": {
-        "command": "layout.timeline",
-        "gui": [
-          "transport.layout"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "Mod+2 is a stage now; the layout presets go with the old shell"
-      },
-      "tooltip": "Maximize timeline",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.layout.text",
-      "label": "Maximize transcript",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutShell"
-      ],
-      "surfaces": {
-        "command": "layout.text",
-        "gui": [
-          "transport.menu"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "Mod+3 is a stage now; the layout presets go with the old shell"
-      },
-      "tooltip": "Maximize transcript",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.layout.review",
-      "label": "Review layout",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutShell"
-      ],
-      "surfaces": {
-        "command": "layout.review",
-        "gui": [
-          "transport.menu"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "Mod+4 is a stage now; the layout presets go with the old shell"
-      },
-      "tooltip": "Review layout",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
       "id": "daw.navigation.nudgePlayheadBack",
       "label": "Nudge playhead back",
       "effect": "session",
@@ -660,10 +563,8 @@
       "surfaces": {
         "command": "edit.bladeCut",
         "gui": [
-          "editingToolRail",
           "timeline",
           "timeline.createMenu",
-          "transport.menu",
           "editToolStrip"
         ],
         "keyboard": "Mod+K",
@@ -720,8 +621,7 @@
       "surfaces": {
         "command": "track.remove",
         "gui": [
-          "trackInspector",
-          "transport.menu"
+          "trackInspector"
         ],
         "keyboard": "Backspace",
         "mcp": [
@@ -806,7 +706,7 @@
       "surfaces": {
         "command": "track.moveUp",
         "gui": [
-          "transport.menu"
+          "trackInspector"
         ],
         "keyboard": "ArrowUp",
         "mcp": [
@@ -833,7 +733,7 @@
       "surfaces": {
         "command": "track.moveDown",
         "gui": [
-          "transport.menu"
+          "trackInspector"
         ],
         "keyboard": "ArrowDown",
         "mcp": [
@@ -1045,7 +945,6 @@
         "command": "track.clearSolo",
         "gui": [
           "trackHeaders.soloChip",
-          "mobileShell.statusRow",
           "trackMix"
         ]
       },
@@ -1098,9 +997,6 @@
       "surfaces": {
         "command": "view.zoomIn",
         "gui": [
-          "editingToolRail",
-          "transport.menu",
-          "transport.editControls",
           "editCorner",
           "viewSheet"
         ],
@@ -1128,9 +1024,6 @@
       "surfaces": {
         "command": "view.zoomOut",
         "gui": [
-          "editingToolRail",
-          "transport.menu",
-          "transport.editControls",
           "editCorner",
           "viewSheet"
         ],
@@ -1159,7 +1052,6 @@
         "command": "view.fit",
         "gui": [
           "transport.fit",
-          "transport.menu",
           "editCorner",
           "viewSheet"
         ],
@@ -1321,7 +1213,6 @@
       ],
       "surfaces": {
         "command": "view.scriptFocus",
-        "gui": [],
         "keyboard": "Shift+T"
       },
       "omit": {},
@@ -1329,57 +1220,6 @@
       "presence": {
         "cursor": "none",
         "follow": "none"
-      }
-    },
-    {
-      "id": "daw.view.setTab",
-      "label": "Switch editor tab",
-      "effect": "view",
-      "service": "ShareCut Studio command bus",
-      "industry_standard_key": false,
-      "gates": [
-        "hasProject"
-      ],
-      "surfaces": {
-        "command": "view.setTab",
-        "gui": [
-          "tabBar"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "not industry-standard; tab click"
-      },
-      "tooltip": "Switch editor tab",
-      "presence": {
-        "cursor": "anchor",
-        "follow": "look",
-        "guest_fallback": "banner",
-        "anchor": "tab:<id>"
-      }
-    },
-    {
-      "id": "daw.view.setMobileMode",
-      "label": "Switch phone mode",
-      "effect": "view",
-      "service": "ShareCut Studio command bus",
-      "industry_standard_key": false,
-      "gates": [
-        "hasProject"
-      ],
-      "surfaces": {
-        "command": "view.setMobileMode",
-        "gui": [
-          "mobileNav"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "not industry-standard; tab click"
-      },
-      "tooltip": "Switch phone Listen / Timeline / Text / More",
-      "presence": {
-        "cursor": "anchor",
-        "follow": "look",
-        "anchor": "mobile-nav:<id>"
       }
     },
     {
@@ -1395,7 +1235,6 @@
         "command": "view.waveformZoomIn",
         "gui": [
           "timeline.waveform",
-          "transport.viewMenu.waveformAmplitudeIn",
           "viewSheet"
         ],
         "keyboard": "ArrowUp"
@@ -1420,7 +1259,6 @@
         "command": "view.waveformZoomOut",
         "gui": [
           "timeline.waveform",
-          "transport.viewMenu.waveformAmplitudeOut",
           "viewSheet"
         ],
         "keyboard": "ArrowDown"
@@ -1447,8 +1285,7 @@
       "surfaces": {
         "command": "view.fitTracksHeight",
         "gui": [
-          "transport.fitTracksHeight",
-          "transport.viewMenu.fitTracksHeight"
+          "transport.fitTracksHeight"
         ]
       },
       "omit": {
@@ -1472,7 +1309,6 @@
       "surfaces": {
         "command": "view.trackHeightIncrease",
         "gui": [
-          "transport.menu",
           "viewSheet"
         ],
         "keyboard": "Alt+="
@@ -1496,7 +1332,6 @@
       "surfaces": {
         "command": "view.trackHeightDecrease",
         "gui": [
-          "transport.menu",
           "viewSheet"
         ],
         "keyboard": "Alt+-"
@@ -1521,8 +1356,6 @@
         "gui": [
           "historyPanel",
           "mobileShell.gesture.twoFingerTap",
-          "editingToolRail",
-          "transport.editControls",
           "transcript.findReplace",
           "transcript.wordbar"
         ],
@@ -1555,9 +1388,7 @@
       "surfaces": {
         "command": "history.redo",
         "gui": [
-          "historyPanel",
-          "editingToolRail",
-          "transport.editControls"
+          "historyPanel"
         ],
         "keyboard": "Mod+Shift+Z",
         "mcp": [
@@ -1585,8 +1416,6 @@
       "surfaces": {
         "command": "ui.toggleCommandPalette",
         "gui": [
-          "transport.menu",
-          "moreHub.searchCommands",
           "GesturesSheet"
         ],
         "keyboard": "?"
@@ -1610,8 +1439,7 @@
       "surfaces": {
         "command": "render.refreshMix",
         "gui": [
-          "staleRenderPill",
-          "transport.menu"
+          "ShareDialog"
         ],
         "keyboard": "Mod+B",
         "mcp": [
@@ -1639,7 +1467,6 @@
       "surfaces": {
         "command": "export.bounce",
         "gui": [
-          "transport.menu",
           "BounceDialog"
         ],
         "keyboard": "Mod+Shift+B",
@@ -1670,7 +1497,6 @@
       "surfaces": {
         "command": "share.manage",
         "gui": [
-          "transport.menu",
           "ShareDialog"
         ],
         "cli": "podcast review share"
@@ -2054,7 +1880,7 @@
     },
     {
       "id": "daw.record.panel",
-      "label": "Record room…",
+      "label": "Record room\u2026",
       "effect": "view",
       "service": "RecordSessionService",
       "industry_standard_key": false,
@@ -2065,7 +1891,6 @@
         "command": "record.openPanel",
         "gui": [
           "RecordPanel",
-          "transport.menu",
           "transport.recChip",
           "editPlusMenu"
         ],
@@ -2079,7 +1904,7 @@
         "keyboard_reason": "chords in a later PR",
         "guest": true
       },
-      "tooltip": "Record room…",
+      "tooltip": "Record room\u2026",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -2127,7 +1952,6 @@
       "surfaces": {
         "command": "mcp.connect",
         "gui": [
-          "transport.menu",
           "HostMcpDialog"
         ]
       },
@@ -2154,8 +1978,7 @@
         "command": "help.diagnosticsBundle",
         "gui": [
           "home.help",
-          "HelpDialog",
-          "transport.menu"
+          "HelpDialog"
         ],
         "cli": "podcast doctor --bundle"
       },
@@ -2212,7 +2035,6 @@
       "surfaces": {
         "command": "export.deliverables",
         "gui": [
-          "transport.menu",
           "ExportDialog"
         ],
         "keyboard": "Mod+Shift+E",
@@ -2233,7 +2055,7 @@
     },
     {
       "id": "daw.project.new",
-      "label": "New project…",
+      "label": "New project\u2026",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -2242,9 +2064,6 @@
       ],
       "surfaces": {
         "command": "project.new",
-        "gui": [
-          "transport.menu"
-        ],
         "keyboard": "Mod+N",
         "mcp": [
           "episode_create"
@@ -2254,7 +2073,7 @@
       "omit": {
         "guest": true
       },
-      "tooltip": "New project…",
+      "tooltip": "New project\u2026",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -2262,7 +2081,7 @@
     },
     {
       "id": "daw.project.open",
-      "label": "Open project…",
+      "label": "Open project\u2026",
       "effect": "session",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
@@ -2270,16 +2089,13 @@
         "canManageProjects"
       ],
       "surfaces": {
-        "command": "project.open",
-        "gui": [
-          "transport.menu"
-        ]
+        "command": "project.open"
       },
       "omit": {
         "guest": true,
         "keyboard_reason": "Mod+O is All projects (project.home); open from the palette or Home"
       },
-      "tooltip": "Open project…",
+      "tooltip": "Open project\u2026",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -2322,10 +2138,7 @@
       "surfaces": {
         "command": "track.add",
         "gui": [
-          "transport.menu",
-          "editingToolRail",
           "trackLane",
-          "mobileShell.more",
           "editPlusMenu"
         ],
         "keyboard": "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
@@ -2343,7 +2156,7 @@
     },
     {
       "id": "daw.media.import",
-      "label": "Import audio…",
+      "label": "Import audio\u2026",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -2353,10 +2166,7 @@
       "surfaces": {
         "command": "media.import",
         "gui": [
-          "transport.menu",
-          "editingToolRail",
           "drop",
-          "mobileShell.more",
           "editPlusMenu"
         ],
         "keyboard": "Mod+I",
@@ -2365,7 +2175,7 @@
         ]
       },
       "omit": {},
-      "tooltip": "Import audio…",
+      "tooltip": "Import audio\u2026",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -3174,8 +2984,6 @@
       "surfaces": {
         "command": "edit.addChapter",
         "gui": [
-          "transport.menu",
-          "mobileShell.more",
           "timeline.createMenu",
           "editPlusMenu"
         ],
@@ -3258,7 +3066,7 @@
       "label": "Restore original audio",
       "effect": "project",
       "tooltip": "Restore one selected automatic reduction in this clip occurrence",
-      "service": "ShareCut Studio → RestoreClipBleed document command",
+      "service": "ShareCut Studio \u2192 RestoreClipBleed document command",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -3604,8 +3412,6 @@
       "surfaces": {
         "command": "range.arm",
         "gui": [
-          "EditingToolRail",
-          "transport.menu",
           "editToolStrip"
         ]
       },

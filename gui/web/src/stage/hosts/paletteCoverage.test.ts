@@ -13,13 +13,10 @@ import { paletteCommands } from "../dialogs/commandPaletteRows";
  * Arena decision 6: every command that was reachable from the transport Menu,
  * the View menu, the layout presets, the phone More hub or the tool rail is
  * still a catalog command the palette lists, or its new home component is
- * there and mounted. This runs before the swap (U6) and deletions (U7), so a
- * removed menu can never take a capability with it.
+ * there and mounted. A removed menu can never take a capability with it.
  *
- * The table is written from architect-sonnet.md section 1.2 (MENU-MAIN) and
- * the sources below. The drift test at the end re-reads those sources while
- * they exist, so a command added to an old menu cannot be missed; U7 deletes
- * the sources and the drift test with them.
+ * The table is written from architect-sonnet.md section 1.2 (MENU-MAIN). The
+ * old sources are deleted, so the table stands alone.
  */
 
 type Surface =
@@ -194,15 +191,18 @@ const REMOVED_SURFACES: Entry[] = [
 
   // Tool rail and the transport bar's own tool buttons.
   entry("tool rail", "Select tool", "tool.select", [
-    { file: "layout/ToolModeToggle.tsx", needle: "tool.select" },
+    { file: "stage/edit/ToolModeToggle.tsx", needle: "tool.select" },
     { file: "stage/edit/EditToolStrip.tsx", needle: "ToolModeToggle" },
   ]),
   entry("tool rail", "Blade tool", "tool.blade", [
-    { file: "layout/ToolModeToggle.tsx", needle: "tool.blade" },
+    { file: "stage/edit/ToolModeToggle.tsx", needle: "tool.blade" },
     { file: "stage/edit/EditToolStrip.tsx", needle: "ToolModeToggle" },
   ]),
   entry("tool rail", "Comment mode", "review.toggleCommentMode", [
-    { file: "layout/ToolModeToggle.tsx", needle: "review.toggleCommentMode" },
+    {
+      file: "stage/edit/ToolModeToggle.tsx",
+      needle: "review.toggleCommentMode",
+    },
     { file: "stage/edit/EditToolStrip.tsx", needle: "ToolModeToggle" },
   ]),
   entry("tool rail", "Select a range", "range.arm", [
@@ -267,55 +267,5 @@ describe("palette coverage of the removed menus", () => {
       expect(seen.has(key), `${key} is listed twice`).toBe(false);
       seen.add(key);
     }
-  });
-});
-
-describe("the removed surfaces' sources", () => {
-  const SOURCES = [
-    "layout/TransportBar.tsx",
-    "layout/MobileShell.tsx",
-    "layout/EditingToolRail.tsx",
-    "layout/EditingToolRailView.tsx",
-    "layout/LayoutControls.tsx",
-    "layout/ZoomControls.tsx",
-    "layout/layoutModes.ts",
-    "layout/ToolModeToggle.tsx",
-    "layout/WaveformViewSections.tsx",
-  ];
-  const PATTERNS = [
-    /commandId="([a-zA-Z.]+)"/g,
-    /runPointerCommand\(\s*"([a-zA-Z.]+)"/g,
-    /command: "([a-zA-Z.]+)"/g,
-  ];
-  // Navigation the stage model replaced: routed by openStage, never a menu row.
-  const ROUTING = new Set(["view.setTab", "view.setMobileMode"]);
-  // Transport verbs: the Player owns them, not a menu.
-  const PLAYER = new Set(["transport.audition"]);
-  const LAYOUT = new Set([
-    "layout.default",
-    "layout.timeline",
-    "layout.text",
-    "layout.review",
-  ]);
-
-  it("lists every command the old menus, hub and rail offered", () => {
-    const listed = new Set(
-      REMOVED_SURFACES.flatMap((e) => (e.command ? [e.command] : [])),
-    );
-    // The palette never lists itself; its search button is the entry.
-    listed.add("ui.toggleCommandPalette");
-    const missing: string[] = [];
-    for (const file of SOURCES) {
-      if (!existsSync(join(SRC_ROOT, file))) continue;
-      const text = read(file);
-      for (const pattern of PATTERNS) {
-        for (const match of text.matchAll(pattern)) {
-          const id = match[1];
-          if (ROUTING.has(id) || PLAYER.has(id) || LAYOUT.has(id)) continue;
-          if (!listed.has(id)) missing.push(`${file}: ${id}`);
-        }
-      }
-    }
-    expect(missing).toEqual([]);
   });
 });

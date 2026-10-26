@@ -26,7 +26,6 @@ export const PALETTE_CATEGORY_LABELS: Readonly<
 > = {
   transport: "Transport",
   tools: "Tools",
-  layout: "Layout",
   navigation: "Navigation",
   review: "Review",
   history: "History",

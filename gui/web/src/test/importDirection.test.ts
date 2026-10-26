@@ -87,7 +87,6 @@ const LAYER_TABLE: readonly {
       "feedback",
       "home",
       "inspector",
-      "layout",
       "models",
       "panels",
       "record",
@@ -400,8 +399,8 @@ describe("sabotage: the checker fails a new back edge", () => {
     [
       "a type import",
       "utils/newHelper.ts",
-      'import type { Props } from "../layout/Panel";',
-      "utils/newHelper.ts -> layout/Panel (type)",
+      'import type { Props } from "../panels/Panel";',
+      "utils/newHelper.ts -> panels/Panel (type)",
     ],
     [
       "an inline type-only import",
@@ -476,20 +475,20 @@ describe("sabotage: the checker fails a new back edge", () => {
           { rel: "state/a.ts", text: 'import { b } from "./b";' },
           { rel: "state/a2.ts", text: 'import { t } from "../utils/time";' },
           {
-            rel: "layout/Panel.tsx",
+            rel: "panels/Panel.tsx",
             text: 'import { s } from "../state/dawStore"; import "./panel.css";',
           },
           {
             rel: "state/a.test.ts",
-            text: 'import { v } from "../layout/Panel";',
+            text: 'import { v } from "../panels/Panel";',
           },
           {
             rel: "utils/Thing.stories.tsx",
-            text: 'import { v } from "../layout/Panel";',
+            text: 'import { v } from "../panels/Panel";',
           },
           {
             rel: "test/fixtures.ts",
-            text: 'import { v } from "../layout/Panel";',
+            text: 'import { v } from "../panels/Panel";',
           },
         ],
         new Set(),

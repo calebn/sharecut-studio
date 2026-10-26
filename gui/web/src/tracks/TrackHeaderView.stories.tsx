@@ -24,7 +24,7 @@ const meta: Meta<typeof TrackHeaderView> = {
   decorators: [
     (Story, context) => (
       <div
-        className={`daw-shell${context.parameters.trackHeaderPhone ? " daw-shell--phone" : ""} timeline-area`}
+        className={`stage-frame stage-frame--${context.parameters.trackHeaderPhone ? "phone" : "desktop"} timeline-area`}
         style={{
           width: context.parameters.trackHeaderPhone ? "360px" : "48rem",
           maxWidth: "100%",

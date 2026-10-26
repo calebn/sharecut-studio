@@ -115,8 +115,8 @@ function clearClearance(): void {
 export function useCompactInspector(
   shell: "phone" | "tablet" | null,
   column: boolean,
-  /** The Edit stage's own answer to "is the timeline on screen"; the phone's mobile mode otherwise. */
-  timelineShown?: boolean,
+  /** Whether the lanes are on screen (the phone also has the Script). */
+  timelineShown: boolean,
 ): CompactInspector | null {
   const {
     project,
@@ -124,7 +124,6 @@ export function useCompactInspector(
     hit,
     view,
     stowed,
-    mobileMode,
     setView,
     inspectorSelection,
     rangeArmed,
@@ -134,7 +133,6 @@ export function useCompactInspector(
     hit: s.selectionHit,
     view: s.compactInspectorView,
     stowed: s.timelineDragging,
-    mobileMode: s.mobileMode,
     setView: s.setCompactInspectorView,
     inspectorSelection: s.inspectorSelection,
     rangeArmed: s.rangeArmed,
@@ -143,9 +141,7 @@ export function useCompactInspector(
   const applies =
     !column &&
     !rangeArmed &&
-    (shell === "phone"
-      ? (timelineShown ?? mobileMode === "timeline")
-      : shell === "tablet");
+    (shell === "phone" ? timelineShown : shell === "tablet");
   const candidate =
     applies && project ? peekTarget(project, selection, hit) : null;
   const [seen, setSeen] = useState<{

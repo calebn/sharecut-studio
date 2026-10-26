@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { ToolModeToggleView } from "../../layout/ToolModeToggleView";
 import { EditToolStripView } from "./EditToolStripView";
+import { ToolModeToggleView } from "./ToolModeToggleView";
 
 const meta: Meta<typeof EditToolStripView> = {
   title: "Stages/Edit/ToolStrip",

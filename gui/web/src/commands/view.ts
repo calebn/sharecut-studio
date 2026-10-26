@@ -1,7 +1,6 @@
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
-import type { DawTab, MobileMode, MoreDestination } from "../state/types";
 import { type ReviewSection, STAGE_IDS, type StageSheet } from "../types/stage";
 import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
@@ -36,49 +35,6 @@ export function registerViewCommands(): void {
       return { status: "disabled", reason: "No project" };
     }
     s.fitToWindow(s.measureTimelineViewport());
-    return { status: "ok" };
-  });
-
-  const TABS = new Set<DawTab>([
-    "transcript",
-    "history",
-    "impact",
-    "tighten",
-    "pipeline",
-    "comments",
-  ]);
-  registerCommand("view.setTab", (args) => {
-    const tab = args.tab;
-    if (typeof tab !== "string" || !TABS.has(tab as DawTab)) {
-      return { status: "disabled", reason: "tab required" };
-    }
-    useDawStore.getState().setActiveTab(tab as DawTab);
-    return { status: "ok" };
-  });
-
-  const MODES = new Set<MobileMode>(["listen", "timeline", "text", "more"]);
-  const DESTINATIONS = new Set<MoreDestination>([
-    "hub",
-    "comments",
-    "history",
-    "impact",
-    "tighten",
-    "pipeline",
-  ]);
-  registerCommand("view.setMobileMode", (args) => {
-    const mode = args.mode;
-    if (typeof mode !== "string" || !MODES.has(mode as MobileMode)) {
-      return { status: "disabled", reason: "mode required" };
-    }
-    const dest = args.destination;
-    if (typeof dest === "string") {
-      if (!DESTINATIONS.has(dest as MoreDestination)) {
-        return { status: "disabled", reason: "destination unknown" };
-      }
-      useDawStore.getState().setMoreDestination(dest as MoreDestination);
-    } else {
-      useDawStore.getState().setMobileMode(mode as MobileMode);
-    }
     return { status: "ok" };
   });
 

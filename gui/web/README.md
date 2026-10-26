@@ -127,9 +127,7 @@ stories pass fixture props and local callbacks only.
 `Templates/TrackMix` renders the production `TrackMixView` with controlled six,
 many, long-name, saved/implied mute, read-only, loading, and empty fixtures.
 `TrackMix` owns one non-hot selector and projects rows outside it; the view owns
-only list composition and shared control presentation. `MobileShellView` takes
-a closed/Inspector/Mix discriminated sheet; `MobileShell` owns transient Mix
-eligibility in the originating More hub. `MoreMix` adds a controlled shell play.
+only list composition and shared control presentation.
 
 `Templates/TrackFader` uses the production `TrackFaderView` shared with the
 inspector and compact Mix rows. Controlled fixtures cover Reset and focus return, read-only saved
@@ -150,13 +148,12 @@ keeps the `useTabsHeight` preference (localStorage and the root
 production `FollowBannerView` and `GuestAttentionBannerView` shared with the
 live `FollowBanner` and `GuestAttentionBanner` adapters, which keep the
 roster/store lookups, IndexedDB polling, and share-vs-host token resolution.
-Both stories share the `dawShellStoryDecorator` `.daw-shell` frame at desktop
+Both stories share the `frameStoryDecorator` `.stage-frame` at desktop
 and 360px widths.
-`Templates/StatusBar`, `Templates/AvatarStack` and `Templates/OverlayLegend`
-show the production `StatusBarView`, `AvatarStackView` and `OverlayLegendView`
-used by the live `StatusBar`, `AvatarStack` and `OverlayLegend` adapters,
-including the `PresenceStatusView` presence slot, desktop/phone/menu-hosted
-variants, and stale-render, loading and overflow states built from the same
+`Templates/AvatarStack` and `Templates/OverlayLegend`
+show the production `AvatarStackView` and `OverlayLegendView`
+used by the live `AvatarStack` and `OverlayLegend` adapters,
+including header-hosted and overflow states built from the same
 fixtures as the app.
 `Templates/EditBoundaryMark` previews the production `EditBoundaryMarkView`
 inline in a transcript row, with a roll join, a live roll drag, a
@@ -197,28 +194,15 @@ screens, and `Atoms/CloseButton` shows the one close affordance `Dialog` and
 with a launcher that replays it, including the disabled-Undo (paused timer)
 state, a toast with nothing to undo, and a 360px phone variant;
 `Organisms/AskDialog` shows the app's confirm and text prompt; `Molecules/FocusPull` shows its initial view
-and the exit/enter transition. `Templates/PipelineStatusChip`'s `Stalled`
-story previews the stall copy against a fixed `nowSec` so it renders
-deterministically instead of depending on a ticking clock — see
+and the exit/enter transition. See
 [design-system.md § Catalog boundary](../../docs/design-system.md#catalog-boundary-store-bound-components)
 for how store-bound components get hydrated stories.
 
-`Templates/MobileShell` and `Templates/StudioShell` compose the props-only
-production `MobileShellView` and `StudioShellView`. The mobile frame is 360 CSS
-pixels wide. Studio fixtures include desktop, tablet, guest, loading, ingest,
-and inspector states. Play functions forward callbacks to `fn()` spies while
-updating local state. Chromium checks in `e2e-storybook/shells.spec.ts` cover fit,
-usable body height, navigation, keyboard panel resizing, and inspector portals
+`Stages/Edit/Frame` composes the app-wired `StageFrame`: header, banners,
+the stage body slot, the Player and, on a phone, the tab bar. Its stories
+cover desktop, tablet, phone, guest, loading, empty and error states, and
+Chromium checks in `e2e-storybook/coverage.spec.ts` cover fit at 360 and 1280
 in both themes.
-
-The shell views own layout, mode navigation, editor tabs, guest visibility,
-More-back, ingest coach, and sheet markup. Their live adapters retain selectors,
-commands, focus and presence bindings, gestures, sheet policy, and the memoized
-timeline header slot. Stories use a representative `TransportFrame` with
-production play and tool controls. Full `TransportBar`, Listen/More bodies,
-connected panels, and the complete DAW timeline remain runtime integration scope.
-Shared fictional regions live in catalog-only `layout/shellStoryFixtures.tsx`.
-Their factory data lives in catalog-only `layout/shellStoryData.ts`.
 
 Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.
 It supplies the `main.cover` shell and centered content; callers provide an
@@ -534,7 +518,7 @@ words people search for it by (file types, synonyms); add them in
 
 Store reads: read the DAW store only through `useDaw(selector)` (`state/useDaw.ts`, which wraps `useDawStore(useShallow(selector))`) or `useDawStore(selector)`. Use `pickDaw("projectPath", "isPlaying")` at module scope for plain field selectors. Pass literal key arguments; governance rejects computed arguments and checks literal hot-field keys against its allowlist. Use a custom `useDaw` selector for conditional projections of store values. Select exactly the values the component uses. Build derived arrays and objects outside the selector with `useMemo`; fresh nested values defeat the one-level `useShallow` comparison. Fresh top-level projections of unchanged store values keep their selected reference. The governance test fails on whole-store reads: `useDaw()` / `useDawStore()` with no selector, or an inline arrow identity selector such as `(s) => s` / `(s: DawState) => s` (also inside `useShallow(...)`). In tests, mock `useDaw` as `(sel) => sel(mockState)`.
 
-Hot fields (`playheadSec`, `scrollLeft`, `sessionClients`, `pointerTrackId`, `bladeHoverSec`) change every playhead/scroll/presence frame; only a memoized leaf may select one directly (e.g. `layout/TransportTimecode.tsx`, `layout/PresenceStatus.tsx`), and a handler that only needs the value at call time reads `useDawStore.getState()` inside the callback instead. `state/storeGovernance.test.ts`'s `HOT_FIELD_ALLOWLIST` names every file allowed to select one, each with a reason; a whole-source scan fails on any other file that does (any `s.<field>` read, or a selector that reads one off its parameter under any name or destructures it, nested patterns included: an arrow or `function` (with or without a return-type annotation) passed inline to `useDaw`/`useDawStore`/`useShallow`, or a hoisted one whose parameter's type names `DawState`; brackets inside strings, template literals and comments are ignored). See `docs/gui-integration.md` § Render isolation for the full leaf list, the per-lane overlay slices (`timeline/laneOverlaySlices.ts`), and `document/reuseUnchanged.ts`.
+Hot fields (`playheadSec`, `scrollLeft`, `sessionClients`, `pointerTrackId`, `bladeHoverSec`) change every playhead/scroll/presence frame; only a memoized leaf may select one directly (e.g. a leaf under `stage/frame/`), and a handler that only needs the value at call time reads `useDawStore.getState()` inside the callback instead. `state/storeGovernance.test.ts`'s `HOT_FIELD_ALLOWLIST` names every file allowed to select one, each with a reason; a whole-source scan fails on any other file that does (any `s.<field>` read, or a selector that reads one off its parameter under any name or destructures it, nested patterns included: an arrow or `function` (with or without a return-type annotation) passed inline to `useDaw`/`useDawStore`/`useShallow`, or a hoisted one whose parameter's type names `DawState`; brackets inside strings, template literals and comments are ignored). See `docs/gui-integration.md` § Render isolation for the full leaf list, the per-lane overlay slices (`timeline/laneOverlaySlices.ts`), and `document/reuseUnchanged.ts`.
 
 The DAW state is one Zustand store (`state/dawStore.ts`) composed from project, transport, presence, and UI slice creators. Cross-slice actions such as `hydrate()` and `applyAgentSession()` use one store update so subscribers see a consistent snapshot. Mounted timeline and lane elements and the fixed-playhead lead pad live in `state/timelineViewportRegistry.ts`, outside reactive state; timeline mount/unmount code registers and clears them. Keep new DOM refs out of store slices, and keep `timelineViewportWidth` as the reactive measured/estimated value. Create no other Zustand store; `state/readmeRuleGovernance.test.ts` allows `state/dawStore.ts` plus the two stores that exist today (`feedback/ask.ts`, `record/hostStore.ts`). Only `document/` and `state/projectSlice.ts` call `setProject(`; `state/setProjectGovernance.test.ts` allowlists the two calls in two other files (`inspector/useNudgeRun.ts`, `timeline/precision/precisionDrivers.ts`). Queued envelope, track metadata, track reorder and clip move edits show through the pending drafts instead: the queue begins the draft before its first await, and the writer calls `redisplayDrafts()` (`document/applyDocumentUpdate.ts`). Layer order and back edges are pinned by `test/importDirection.test.ts`. The editor reaches `record/` only through `record/index.ts` (store, wire, transport chip, helpers); `record/boundary.test.ts` fails any other import from outside `record/` (tests, stories, `test/` support and the `api/sharesRecord.ts` leaf types are exempt).
 
