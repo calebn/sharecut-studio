@@ -91,6 +91,7 @@ const LAYER_TABLE: readonly {
       "models",
       "panels",
       "record",
+      "system",
       "timeline",
       "tracks",
       "transcript",

@@ -1,0 +1,121 @@
+import {
+  ArrowRight,
+  BetweenHorizontalStart,
+  Check,
+  ChevronDown,
+  Circle,
+  CircleCheck,
+  CloudDownload,
+  CloudOff,
+  Copy,
+  DoorOpen,
+  Download,
+  Ear,
+  Ellipsis,
+  Eye,
+  EyeOff,
+  FilePlus,
+  Flag,
+  FoldHorizontal,
+  Headphones,
+  Inbox,
+  LocateFixed,
+  type LucideIcon,
+  MessageSquare,
+  MessageSquareCheck,
+  MicOff,
+  OctagonAlert,
+  Pause,
+  Play,
+  Redo2,
+  Replace,
+  Scissors,
+  Search,
+  Send,
+  ShieldCheck,
+  SlidersHorizontal,
+  Split,
+  SquareSplitHorizontal,
+  TextCursorInput,
+  TextSearch,
+  Trash2,
+  TriangleAlert,
+  Undo2,
+  UserPlus,
+  Volume1,
+  VolumeX,
+  WandSparkles,
+} from "lucide-react";
+
+/**
+ * Design-system icon names (stage design system section 3 and 4.6) mapped to
+ * Lucide. This is the only module that names `lucide-react`; everything else
+ * asks for a DS name through `SystemIcon`.
+ */
+export const LUCIDE_ICONS = {
+  play: Play,
+  pause: Pause,
+  ear: Ear,
+  "shield-check": ShieldCheck,
+  "fold-horizontal": FoldHorizontal,
+  "volume-1": Volume1,
+  scissors: Scissors,
+  replace: Replace,
+  "between-horizontal-start": BetweenHorizontalStart,
+  check: Check,
+  "message-square-check": MessageSquareCheck,
+  "chevron-down": ChevronDown,
+  "square-split-horizontal": SquareSplitHorizontal,
+  "message-square": MessageSquare,
+  "text-cursor-input": TextCursorInput,
+  "trash-2": Trash2,
+  "volume-x": VolumeX,
+  "mic-off": MicOff,
+  headphones: Headphones,
+  "sliders-horizontal": SlidersHorizontal,
+  ellipsis: Ellipsis,
+  "user-plus": UserPlus,
+  copy: Copy,
+  download: Download,
+  "file-plus": FilePlus,
+  "undo-2": Undo2,
+  "redo-2": Redo2,
+  flag: Flag,
+  "text-search": TextSearch,
+  search: Search,
+  "wand-sparkles": WandSparkles,
+  "arrow-right": ArrowRight,
+  "locate-fixed": LocateFixed,
+  "door-open": DoorOpen,
+  "cloud-download": CloudDownload,
+  split: Split,
+  eye: Eye,
+  "eye-off": EyeOff,
+  inbox: Inbox,
+  send: Send,
+  "circle-check": CircleCheck,
+  circle: Circle,
+  "triangle-alert": TriangleAlert,
+  "octagon-alert": OctagonAlert,
+  "cloud-off": CloudOff,
+} as const satisfies Record<string, LucideIcon>;
+
+/** No Lucide equivalent: drawn by hand in `SystemIcon`. */
+export const CUSTOM_ICON_NAMES = [
+  "record",
+  "stage-edit",
+  "progress-ring",
+] as const;
+
+export type LucideIconName = keyof typeof LUCIDE_ICONS;
+export type CustomIconName = (typeof CUSTOM_ICON_NAMES)[number];
+export type SystemIconName = LucideIconName | CustomIconName;
+
+export const SYSTEM_ICON_NAMES: readonly SystemIconName[] = [
+  ...(Object.keys(LUCIDE_ICONS) as LucideIconName[]),
+  ...CUSTOM_ICON_NAMES,
+];
+
+export function isCustomIcon(name: SystemIconName): name is CustomIconName {
+  return (CUSTOM_ICON_NAMES as readonly string[]).includes(name);
+}
