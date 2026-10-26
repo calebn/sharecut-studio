@@ -50,8 +50,6 @@ export type ReadyRowData = {
 
 export type ReadyListProps = {
   rows: readonly ReadyRowData[];
-  /** Names the list for assistive tech. */
-  label?: string;
   onAction: (row: ReadyRowId, action: ReadyAction) => void;
 };
 
@@ -119,16 +117,12 @@ function BodyButtons({
  * onto the Status list. A row with a body opens and closes with its own
  * button; a row that needs you starts open, and opening never moves focus.
  */
-export function ReadyList({
-  rows,
-  label = "Getting ready",
-  onAction,
-}: ReadyListProps) {
+export function ReadyList({ rows, onAction }: ReadyListProps) {
   const [toggled, setToggled] = useState<Partial<Record<ReadyRowId, boolean>>>(
     {},
   );
   return (
-    <StatusList label={label}>
+    <StatusList label="Getting ready">
       {orderRows(rows).map((row) => {
         const expanded = toggled[row.id] ?? defaultExpanded(row);
         const action = row.action;

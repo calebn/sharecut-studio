@@ -25,7 +25,6 @@ export function SessionSources({
       takes={session.takes}
       duration={session.duration}
       target={session.target}
-      targetLocked={session.targetLocked}
       onTarget={onTarget}
       status={session.status}
       progress={session.progress}
