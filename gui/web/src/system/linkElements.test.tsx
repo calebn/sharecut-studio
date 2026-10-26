@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { LinkRow } from "./LinkRow";
 import { middleTruncate } from "./linkText";
@@ -48,6 +49,19 @@ describe("LinkRow", () => {
     expect(
       screen.getByRole("button", { name: /^Press .*C$/ }),
     ).toBeInTheDocument();
+  });
+
+  it("shows each person who opened it by their initials", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        openedBy={[{ name: "Rosa" }, { name: "Jon" }]}
+        onCopy={() => {}}
+      />,
+    );
+    const group = screen.getByRole("img", { name: "Opened by Rosa, Jon" });
+    expect(group.textContent).toBe("RJ");
   });
 
   it("copies from the keyboard", async () => {
@@ -301,5 +315,28 @@ describe("TimeField", () => {
     fireEvent.pointerMove(grip, { clientX: 108, pointerId: 1 });
     fireEvent.pointerUp(grip, { pointerId: 1 });
     expect(onChange).toHaveBeenCalledWith(12);
+  });
+});
+
+describe("TimeField dragging with a parent that applies each change", () => {
+  it("follows the pointer from where the drag began instead of compounding", () => {
+    function Controlled() {
+      const [value, setValue] = useState(10);
+      return (
+        <TimeField label="Gain" value={value} step={1} onChange={setValue} />
+      );
+    }
+    render(<Controlled />);
+    const grip = screen.getByText("Gain");
+    const input = screen.getByRole("textbox", { name: "Gain" });
+    fireEvent.pointerDown(grip, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: 108, pointerId: 1 });
+    expect(input).toHaveValue("12");
+    fireEvent.pointerMove(grip, { clientX: 116, pointerId: 1 });
+    expect(input).toHaveValue("14");
+    fireEvent.pointerMove(grip, { clientX: 124, pointerId: 1 });
+    expect(input).toHaveValue("16");
+    fireEvent.pointerMove(grip, { clientX: 100, pointerId: 1 });
+    expect(input).toHaveValue("10");
   });
 });
