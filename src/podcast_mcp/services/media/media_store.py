@@ -185,11 +185,10 @@ def _finalize_upload(workspace_dir: Path, dest: Path) -> dict[str, Any]:
     try:
         probe = FFmpegEngine().probe(dest, untrusted=True)
         duration = probe.require_duration_sec(maximum_sec=MAX_PROBED_AUDIO_EXTENT_SEC)
-    except LateMpegAudioError:
-        dest.unlink(missing_ok=True)
-        raise
     except (CalledProcessError, TimeoutExpired, ValueError) as exc:
         dest.unlink(missing_ok=True)
+        if isinstance(exc, LateMpegAudioError):
+            raise
         # ffprobe's own error names the upload's host path; keep it in the log.
         log.info("Rejected upload %s: ffprobe could not read it", dest.name, exc_info=True)
         raise CodedValueError("not a playable audio file", code="invalid_audio") from exc

@@ -548,7 +548,6 @@ def test_guest_upload_of_a_late_mpeg_transport_stream_stays_generic(
     assert res.json() == {
         "detail": "This upload is not a playable audio file. Choose a supported audio file and try again."
     }
-    assert "MPEG" not in res.text
     assert res.headers["x-sharecut-error-code"] == "invalid_audio"
 
 
