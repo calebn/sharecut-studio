@@ -73,11 +73,9 @@ def scoped(key: Hashable, make: Callable[[], T]) -> T:
 
 
 def shared_while_batching(key: Hashable, make: Callable[[], T]) -> T:
-    """``make()``, or the earlier result any batch running now stored for ``key``. Outside a scope, ``make()``.
+    """:func:`scoped`, but shared by batches running at once; the last to end frees it.
 
-    For work that is keyed by its content, so two batches at once (an approval and the
-    background warm of its checks) build it once between them. The value is freed when the
-    last running batch ends.
+    For content-keyed work that an approval and its background warm would both build.
     """
     if _scope.get() is None:
         return make()
