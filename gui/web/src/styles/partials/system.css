@@ -1570,9 +1570,14 @@
   color: var(--color-text-primary);
 }
 
-/* The wrapper clips, so a ring drawn outside the button would vanish; keep it inside. */
+/* The wrapper clips and the strip paints over an inner ring, so the ring is drawn on the wrapper. */
 .sys-project :focus-visible {
-  outline-offset: calc(-1 * var(--focus-ring-width));
+  outline: none;
+}
+
+.sys-project:has(:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .sys-project[data-primary] {

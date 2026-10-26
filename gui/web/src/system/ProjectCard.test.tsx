@@ -87,4 +87,16 @@ describe("ProjectCardList", () => {
     await user.click(card);
     expect(onOpen).not.toHaveBeenCalled();
   });
+
+  it("keeps the tab stop on the same card when a card is added before it", async () => {
+    const user = userEvent.setup();
+    const props = { label: "Recent episodes", onOpen: vi.fn() };
+    const { rerender } = render(
+      <ProjectCardList projects={PROJECTS.slice(1)} {...props} />,
+    );
+    await user.tab();
+    const focused = document.activeElement;
+    rerender(<ProjectCardList projects={PROJECTS} {...props} />);
+    expect(focused).toHaveAttribute("tabindex", "0");
+  });
 });

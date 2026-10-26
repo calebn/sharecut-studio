@@ -110,9 +110,10 @@ export function ProjectCardList({
   onOpen,
   onFind,
 }: ProjectCardListProps) {
-  const [active, setActive] = useState(0);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const current = Math.min(active, Math.max(projects.length - 1, 0));
+  const found = projects.findIndex((project) => project.id === activeId);
+  const current = found < 0 ? 0 : found;
 
   const move = (event: KeyboardEvent<HTMLButtonElement>) => {
     const last = projects.length - 1;
@@ -127,7 +128,7 @@ export function ProjectCardList({
     const next = keys[event.key];
     if (next === undefined) return;
     event.preventDefault();
-    setActive(next);
+    setActiveId(projects[next].id);
     listRef.current
       ?.querySelectorAll<HTMLButtonElement>("[data-project-open]")
       [next]?.focus();
@@ -149,7 +150,7 @@ export function ProjectCardList({
             onOpen={onOpen}
             onFind={onFind}
             onKeyDown={move}
-            onFocus={() => setActive(index)}
+            onFocus={() => setActiveId(project.id)}
           />
         </li>
       ))}
