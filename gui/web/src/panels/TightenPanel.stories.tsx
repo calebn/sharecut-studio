@@ -9,6 +9,7 @@ import { TightenPanel } from "./TightenPanel";
 const loaded = {
   episode: { responses: { "/api/pipeline/config": pipelineConfig() } },
 };
+const loadedWithRows = { ...loaded, panelFrameTall: true };
 
 const meta: Meta<typeof TightenPanel> = {
   title: "Templates/Editor · Tighten panel",
@@ -26,7 +27,7 @@ export default meta;
 type Story = StoryObj<typeof TightenPanel>;
 
 export const WithHits: Story = {
-  parameters: loaded,
+  parameters: loadedWithRows,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("4 of 4 hits")).toBeVisible();
@@ -36,7 +37,7 @@ export const WithHits: Story = {
 };
 
 export const FilteredToFillers: Story = {
-  parameters: loaded,
+  parameters: loadedWithRows,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
@@ -90,5 +91,5 @@ export const Viewer: Story = {
 };
 
 export const Phone: Story = {
-  parameters: { ...loaded, dawShellPhone: true },
+  parameters: { ...loadedWithRows, dawShellPhone: true },
 };
