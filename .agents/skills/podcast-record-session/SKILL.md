@@ -29,12 +29,13 @@ use the same path). Comments land as ordinary `review.comments[]` at
 
 | Tool | When |
 |------|------|
-| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links |
+| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`) |
 | `record_state_tool` | Roster, take clock, `start_blockers`, consent |
 | `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
 | `record_room_tone_tool` | Ask every recorded device to capture 3 s of room tone now (lobby or stopped; refused while a take is open or when nobody has joined). Sets `room_tone` and `countdown_left_ms` in the snapshot; Start stays legal during the countdown |
+| `record_target_tool` | Set where this room's session lands (`end`, the default and only target available; `start`, `insert` and `replace` parse but are refused). Refused once any take exists. The first land numbers the session and its undo step reads "Added Session N" |
 | `record_marker_tool` | Stamp the open take now (`body` default `"Marker"`); lands as a timeline comment |
 | `record_land_tool` | Land saved full-quality recordings into `raw/` + clips (idempotent; also runs on file ACK). Refused with "Stop the take to land it on the timeline." while a take is recording or paused |
 | `record_discard_take_tool` | Delete a terminal take (refused while its recordings are still saving) |
@@ -43,7 +44,7 @@ use the same path). Comments land as ordinary `review.comments[]` at
 **CLI:**
 
 ```bash
-podcast review share --kind record --project episode.project.json
+podcast review share --kind record --project episode.project.json   # optional: --target end
 podcast record state --project episode.project.json
 podcast record roster --project episode.project.json
 podcast record start --project episode.project.json
@@ -51,6 +52,7 @@ podcast record pause --project episode.project.json
 podcast record resume --project episode.project.json
 podcast record stop --project episode.project.json
 podcast record room-tone --project episode.project.json
+podcast record target end --project episode.project.json
 podcast record marker --project episode.project.json --body "Retake intro"
 podcast record land --project episode.project.json
 podcast record discard-take --project episode.project.json --take-index 0

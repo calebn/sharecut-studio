@@ -9,6 +9,7 @@ import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record import RecordControlService, RecordLandingError, RecordStateError
+from podcast_mcp.util.coded_error import CodedValueError
 
 record_app = typer.Typer(help="Host control of a live recording room.")
 
@@ -23,7 +24,7 @@ def _invoke(project: Path, op: Callable[[RecordControlService], Any]) -> None:
     except FileNotFoundError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    except (RecordStateError, RecordLandingError) as exc:
+    except (RecordStateError, RecordLandingError, CodedValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(out, indent=2))
@@ -88,6 +89,17 @@ def record_stop(project: Path = typer.Option(..., "--project")) -> None:
 def record_room_tone(project: Path = typer.Option(..., "--project")) -> None:
     """Ask every recorded device to capture 3 s of room tone now (lobby or stopped)."""
     _invoke(project, lambda ctrl: ctrl.room_tone_countdown())
+
+
+@record_app.command("target")
+def record_target(
+    project: Path = typer.Option(..., "--project"),
+    target: str = typer.Argument(
+        "end", help="Where the session lands: end (the only target available yet)"
+    ),
+) -> None:
+    """Set where this room's session lands (before the first take)."""
+    _invoke(project, lambda ctrl: ctrl.set_target(target))
 
 
 @record_app.command("marker")

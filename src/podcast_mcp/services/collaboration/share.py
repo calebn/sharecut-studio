@@ -465,8 +465,13 @@ class ShareService:
         *,
         public_base_url: str | None = None,
         expires_at: str | None = None,
+        target: str | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Mint one room: session_id + guest token + producer token."""
+        """Mint one room: session_id + guest token + producer token.
+
+        ``target`` is where the session lands (default: the end of the episode); every
+        mint states it, so a remint never inherits the previous room's choice by accident.
+        """
         from podcast_mcp.services.record import (
             assert_no_open_take,
             begin_record_session,
@@ -490,7 +495,7 @@ class ShareService:
                     public_base_url=public_base_url,
                     expires_at=expires_at,
                 )
-                begin_record_session(self.ws.project, session_id)
+                begin_record_session(self.ws.project, session_id, target)
             except Exception:
                 self._rollback_room(session_id)
                 raise

@@ -1976,3 +1976,48 @@ def test_room_tone_round_reaches_guests_and_guests_cannot_request_it(
         assert snap["room_tone"]["duration_ms"] == 3000
         assert 0 < snap["countdown_left_ms"] <= 3000
         assert snap["state"] == "lobby"
+
+
+def test_target_is_host_only_and_hidden_from_guests(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    with client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as guest:
+        _join(guest, name="Ava")
+        joined = _drain_until(guest, lambda m: m.get("type") == "Snapshot")
+        assert "target" not in joined["snapshot"]
+        guest.send_json(
+            {
+                "type": "Record",
+                "command_type": "SetTarget",
+                "payload": {"target": {"kind": "end"}},
+                "client_seq": 2,
+            }
+        )
+        err = _drain_until(guest, lambda m: m.get("type") == "Error")
+        assert err["code"] == "forbidden"
+        posted = client.post(
+            "/api/record/command",
+            json={
+                "path": str(ws.path),
+                "command_type": "SetTarget",
+                "payload": {"target": {"kind": "end"}},
+            },
+        )
+        assert posted.status_code == 200, posted.text
+        assert posted.json()["target"] == {"kind": "end"}
+        applied = _drain_until(
+            guest,
+            lambda m: m.get("type") == "Applied" and m["command"]["type"] == "SetTarget",
+        )
+        assert "target" not in applied["snapshot"]
+        refused = client.post(
+            "/api/record/command",
+            json={
+                "path": str(ws.path),
+                "command_type": "SetTarget",
+                "payload": {"target": {"kind": "start"}},
+            },
+        )
+        assert refused.status_code >= 400
+        assert "is not available yet" in refused.text

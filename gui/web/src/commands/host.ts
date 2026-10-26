@@ -287,6 +287,14 @@ export function registerHostCommands(): void {
   registerCommand("record.roomTone", () =>
     runRecordTransportCommand("RoomToneCountdown"),
   );
+  registerCommand("record.setTarget", (args) =>
+    runRecordCommand(async () => {
+      await submitHostRecordTransport("SetTarget", {
+        target: args.target ?? { kind: "end" },
+      });
+      return { status: "ok" };
+    }),
+  );
   registerCommand("record.pause", () => runRecordTransportCommand("Pause"));
   registerCommand("record.resume", () => runRecordTransportCommand("Resume"));
   registerCommand("record.stop", () => runRecordTransportCommand("Stop"));

@@ -14,7 +14,7 @@ from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     parse_comment_id,
 )
-from podcast_mcp.services.record.state import RecordRole
+from podcast_mcp.services.record.state import RecordRole, SessionTarget
 from podcast_mcp.services.session_sync import sanitize_display_name
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -30,6 +30,7 @@ RecordCommandType = Literal[
     "Resume",
     "Stop",
     "RoomToneCountdown",
+    "SetTarget",
     "RemoveParticipant",
     "UpdateName",
     "Comment",
@@ -48,6 +49,7 @@ COMMAND_TYPES: frozenset[str] = frozenset(
         "Resume",
         "Stop",
         "RoomToneCountdown",
+        "SetTarget",
         "RemoveParticipant",
         "UpdateName",
         "Comment",
@@ -55,7 +57,7 @@ COMMAND_TYPES: frozenset[str] = frozenset(
 )
 
 HOST_ONLY: frozenset[str] = frozenset(
-    {"Start", "Pause", "Resume", "Stop", "RoomToneCountdown", "RemoveParticipant"}
+    {"Start", "Pause", "Resume", "Stop", "RoomToneCountdown", "SetTarget", "RemoveParticipant"}
 )
 REQUIRES_JOIN_CAP: frozenset[str] = frozenset({"Consent", "SetMuted"})
 REQUIRES_COMMENT_CAP: frozenset[str] = frozenset({"Comment"})
@@ -99,6 +101,11 @@ class SetMutedPayload(BaseModel):
 class HeadphonesAckPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ok: bool
+
+
+class SetTargetPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    target: SessionTarget
 
 
 class RemoveParticipantPayload(BaseModel):
@@ -161,6 +168,7 @@ _PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "Consent": ConsentPayload,
     "SetMuted": SetMutedPayload,
     "HeadphonesAck": HeadphonesAckPayload,
+    "SetTarget": SetTargetPayload,
     "RemoveParticipant": RemoveParticipantPayload,
     "UpdateName": UpdateNamePayload,
     "Comment": CommentPayload,

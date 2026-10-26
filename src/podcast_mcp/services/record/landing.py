@@ -25,11 +25,13 @@ from podcast_mcp.models import (
     Clip,
     EpisodeProject,
     MediaAsset,
+    RecordSessionRecord,
     SourceClippingRegion,
     SourceRecording,
     Track,
     TrackRole,
 )
+from podcast_mcp.project.history.summary import record_land_title
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import after_agent_mutation
 from podcast_mcp.services.media import schedule_track_waveforms, unique_raw_path
@@ -40,8 +42,10 @@ from podcast_mcp.services.record.landing_math import (
     expected_span_s,
     needs_align_fallback,
     overlap_window_s,
+    record_session_number,
     record_source_prefix,
-    session_origin_s,
+    session_numbered,
+    session_placement,
     session_start_present,
     take_offsets_s,
 )
@@ -500,7 +504,7 @@ class RecordLandingService:
         offsets = take_offsets_s(
             snap.takes,
             tombstoned=tombstoned,
-            origin_s=session_origin_s(self.workspace.project.clips, self.session_id),
+            origin_s=session_placement(self.workspace.project.clips, self.session_id, snap.target),
         )
         names = {
             person.participant_id: person.display_name
@@ -684,6 +688,13 @@ class RecordLandingService:
         # is re-applied (the room-tone set from ``_room_tone_missing``).
         # Re-registering a bed is an idempotent upsert, so a stale planning read
         # cannot drop or corrupt newer project state.
+        session_params: dict[str, Any] = {"session_id": self.session_id}
+        label = "record land"
+        if copied:
+            planned = record_session_number(self.workspace.project, self.session_id)
+            planned_first = not session_numbered(self.workspace.project, self.session_id)
+            label = record_land_title(planned, first=planned_first)
+
         def mutate(project: EpisodeProject) -> dict[str, Any]:
             landed_clips: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
@@ -781,6 +792,17 @@ class RecordLandingService:
                 touched.add(track_id)
                 accepted.append({**item, "prior": prior})
             if landed_clips:
+                number = record_session_number(project, self.session_id)
+                first = not session_numbered(project, self.session_id)
+                if first:
+                    project.editorial.record_sessions.append(
+                        RecordSessionRecord(
+                            session_id=self.session_id,
+                            number=number,
+                            target_kind=snap.target.kind,
+                        )
+                    )
+                session_params.update(session_number=number, session_first=first)
                 refresh_timeline_duration(project)
                 if touched:
                     record_invalidation(project, track_ids=sorted(touched), reason="other")
@@ -794,11 +816,11 @@ class RecordLandingService:
         with self.workspace.transaction():
             try:
                 landed = self.workspace.mutate(
-                    "before record land",
-                    "after record land",
+                    f"before {label}",
+                    f"after {label}",
                     mutate,
                     operation="record_land",
-                    params={"session_id": self.session_id},
+                    params=session_params,
                 )
             except Exception:
                 for item in copied + room_tone_copied:

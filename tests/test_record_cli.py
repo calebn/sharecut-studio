@@ -17,6 +17,7 @@ from podcast_mcp.mcp.tools.record import (
     record_start_tool,
     record_state_tool,
     record_stop_tool,
+    record_target_tool,
 )
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -260,3 +261,60 @@ def test_record_room_tone_tool_is_registered() -> None:
     mcp = MCPServer("t")
     record_tools.register(mcp)
     assert "record_room_tone_tool" in {t.name for t in mcp._tool_manager.list_tools()}
+
+
+def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    _consented_room(ws)
+    runner = CliRunner()
+    done = runner.invoke(cli_app, ["record", "target", "end", "--project", str(minimal_project)])
+    assert done.exit_code == 0, done.output
+    assert json.loads(done.output)["target"] == {"kind": "end"}
+    assert json.loads(record_target_tool(str(minimal_project)))["target"] == {"kind": "end"}
+    for later in ("start", "insert"):
+        refused = runner.invoke(
+            cli_app, ["record", "target", later, "--project", str(minimal_project)]
+        )
+        assert refused.exit_code == 1, refused.output
+    bad = runner.invoke(cli_app, ["record", "target", "middle", "--project", str(minimal_project)])
+    assert bad.exit_code == 1
+    assert "invalid session target" in bad.output
+    with pytest.raises(RecordStateError, match="is not available yet"):
+        RecordControlService(ws).set_target({"kind": "start"})
+    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "end"}
+
+
+def test_record_target_refused_once_a_take_exists(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    _consented_room(ws)
+    host = RecordSessionService(
+        ws.project, session_id=RecordSessionService.active_session_id(ws.project)
+    )
+    host.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="record-join:host",
+        connection_id="c0",
+    )
+    assert json.loads(record_start_tool(str(minimal_project)))["state"] == "recording"
+    runner = CliRunner()
+    refused = runner.invoke(cli_app, ["record", "target", "end", "--project", str(minimal_project)])
+    assert refused.exit_code == 1
+    assert "locked once a take has been recorded" in refused.output
+
+
+def test_record_target_tool_is_registered() -> None:
+    from mcp.server import MCPServer
+
+    from podcast_mcp.mcp.tools import record as record_tools
+
+    mcp = MCPServer("t")
+    record_tools.register(mcp)
+    assert "record_target_tool" in {t.name for t in mcp._tool_manager.list_tools()}

@@ -867,6 +867,12 @@
               },
               "type": "array"
             },
+            "record_sessions": {
+              "items": {
+                "$ref": "#/$defs/RecordSessionRecord"
+              },
+              "type": "array"
+            },
             "retained_bleed_alignments": {
               "items": {
                 "$ref": "#/$defs/RetainedBleedAlignmentDecision"
@@ -1593,6 +1599,32 @@
           "required": [
             "start",
             "end"
+          ],
+          "type": "object"
+        },
+        "RecordSessionRecord": {
+          "properties": {
+            "number": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "target_kind": {
+              "default": "end",
+              "enum": [
+                "start",
+                "end",
+                "insert",
+                "replace"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "number"
           ],
           "type": "object"
         },
@@ -3935,6 +3967,12 @@
               },
               "type": "array"
             },
+            "record_sessions": {
+              "items": {
+                "$ref": "#/$defs/RecordSessionRecord"
+              },
+              "type": "array"
+            },
             "retained_bleed_alignments": {
               "items": {
                 "$ref": "#/$defs/RetainedBleedAlignmentDecision"
@@ -4661,6 +4699,32 @@
           "required": [
             "start",
             "end"
+          ],
+          "type": "object"
+        },
+        "RecordSessionRecord": {
+          "properties": {
+            "number": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "target_kind": {
+              "default": "end",
+              "enum": [
+                "start",
+                "end",
+                "insert",
+                "replace"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "number"
           ],
           "type": "object"
         },
@@ -6179,6 +6243,7 @@
     "ProxyProjectBasis": "ignore",
     "ProxyPublishedArtifact": "ignore",
     "RangeInterval": "forbid",
+    "RecordSessionRecord": "ignore",
     "RenderArtifacts": "ignore",
     "RenderInvalidation": "ignore",
     "RenderSection": "ignore",

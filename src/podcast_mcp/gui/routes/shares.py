@@ -114,6 +114,7 @@ def create_host_record_room(
         room = ShareService(ws).create_record_room(
             public_base_url=origin,
             expires_at=body.expires_at,
+            target=body.target,
         )
     except RecordStaleLinksError as exc:
         detail = {

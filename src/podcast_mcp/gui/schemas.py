@@ -275,6 +275,7 @@ class ShareRevokeRequest(BaseModel):
 class RecordRoomCreateRequest(BaseModel):
     path: str
     expires_at: str | None = None
+    target: dict[str, Any] | None = None
 
 
 class RecordRoomRevokeRequest(BaseModel):

@@ -13,7 +13,13 @@ from fastapi.testclient import TestClient
 from filelock import FileLock
 
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import Clip, SourceClippingRegion, load_project, save_project
+from podcast_mcp.models import (
+    Clip,
+    RecordSessionRecord,
+    SourceClippingRegion,
+    load_project,
+    save_project,
+)
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
@@ -46,8 +52,10 @@ from podcast_mcp.services.record.landing_math import (
     origin_pad_samples,
     overlap_window_s,
     pad_samples,
+    record_session_number,
     record_source_prefix,
     session_origin_s,
+    session_placement,
     take_offsets_s,
 )
 from podcast_mcp.services.record.service import (
@@ -58,7 +66,10 @@ from podcast_mcp.services.record.service import (
 )
 from podcast_mcp.services.record.state import (
     HOST_PARTICIPANT_ID,
+    EndTarget,
+    InsertTarget,
     PauseEntry,
+    StartTarget,
     TakeState,
     take_recording_duration_ms,
 )
@@ -347,6 +358,184 @@ def test_second_session_lands_after_the_existing_episode(
     again = RecordLandingService(ws).land(align=lambda _p: None)
     assert again["clips"] == []
     assert {c.id: c.timeline_start for c in ws.project.clips}["c-existing"] == 10.0
+
+
+def _land_session(ws, *, take_ms: int = 3_000):
+    """Mint a room, record one take of ``take_ms`` and land it; return (room, landed)."""
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=take_ms)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    return room, RecordLandingService(ws).land(align=lambda _p: None)
+
+
+def _session_clips(ws, session_id: str) -> list[tuple]:
+    prefix = record_source_prefix(session_id)
+    return [
+        (c.id, c.track_id, c.source_id, c.timeline_start, c.source_start, c.source_end)
+        for c in ws.project.clips
+        if c.source_id.startswith(prefix)
+    ]
+
+
+def _land_groups(ws) -> list:
+    return [g for g in HistoryService(ws).list_entries().groups if g.operation == "record_land"]
+
+
+def test_session_placement_is_the_end_origin_and_refuses_later_targets() -> None:
+    def clip(source_id: str, start: float, length: float) -> Clip:
+        return Clip(
+            id=f"c-{source_id}",
+            track_id="t",
+            source_id=source_id,
+            source_start=0.0,
+            source_end=length,
+            timeline_start=start,
+        )
+
+    clips = [clip("episode", 0.0, 60.0), clip("pickup", 70.0, 10.0)]
+    assert session_placement(clips, "abc", EndTarget()) == session_origin_s(clips, "abc")
+    assert session_placement([], "abc", EndTarget()) == 0.0
+    for target in (StartTarget(), InsertTarget(at_sec=3.0)):
+        with pytest.raises(ValueError, match="is not available yet"):
+            session_placement(clips, "abc", target)
+
+
+def test_session_number_is_one_past_every_other_session_on_the_timeline(minimal_project) -> None:
+    project = load_project(minimal_project)
+    assert record_session_number(project, "aaaaaaaaaaaa") == 1
+
+    def clip(source_id: str) -> Clip:
+        return Clip(
+            id=f"c-{source_id}",
+            track_id="t",
+            source_id=source_id,
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+        )
+
+    project.clips = [clip("rec-bbbbbbbbbbbb-0-p_host-0"), clip("rec-bbbbbbbbbbbb-1-p_host-0")]
+    assert record_session_number(project, "aaaaaaaaaaaa") == 2
+    assert record_session_number(project, "bbbbbbbbbbbb") == 1
+    project.editorial.record_sessions = [
+        RecordSessionRecord(session_id="cccccccccccc", number=5),
+        RecordSessionRecord(session_id="aaaaaaaaaaaa", number=2),
+    ]
+    assert record_session_number(project, "aaaaaaaaaaaa") == 2
+    assert record_session_number(project, "dddddddddddd") == 6
+
+
+def test_second_session_lands_at_the_end_numbered_and_undoes_as_one_step(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    first_room, _first = _land_session(ws)
+    first_id = first_room["session_id"]
+    assert [
+        (r.session_id, r.number, r.target_kind) for r in ws.project.editorial.record_sessions
+    ] == [(first_id, 1, "end")]
+    [first_group] = _land_groups(ws)
+    assert first_group.label == "Added Session 1"
+    assert first_group.title == "Added Session 1"
+    assert first_group.params["session_number"] == 1
+    session_one = _session_clips(ws, first_id)
+    cuts_before = ws.project.editorial.model_dump(exclude={"record_sessions"})
+    end_of_one = max(c.timeline_end for c in ws.project.clips)
+
+    second_room, second = _land_session(ws)
+    second_id = second_room["session_id"]
+    assert second["clips"][0]["timeline_start"] == pytest.approx(end_of_one + TAKE_GAP_MS / 1000)
+    assert _session_clips(ws, first_id) == session_one
+    assert ws.project.editorial.model_dump(exclude={"record_sessions"}) == cuts_before
+    assert [(r.session_id, r.number) for r in ws.project.editorial.record_sessions] == [
+        (first_id, 1),
+        (second_id, 2),
+    ]
+    groups = _land_groups(ws)
+    assert [g.title for g in groups] == ["Added Session 1", "Added Session 2"]
+    assert sum(1 for g in groups if g.title == "Added Session 2") == 1
+
+    HistoryService(ws).undo()
+    assert [r.session_id for r in ws.project.editorial.record_sessions] == [first_id]
+    assert _session_clips(ws, second_id) == []
+    assert _session_clips(ws, first_id) == session_one
+    assert record_session_number(ws.project, second_id) == 2
+    listed = HistoryService(ws).list_entries()
+    assert listed.can_redo
+    assert listed.entries[listed.cursor].params["session_number"] == 1
+
+
+def test_later_land_of_the_same_session_keeps_its_number(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room, _first = _land_session(ws)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.submit(_cmd("Start"), now_wall_ms=10_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=12_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=1,
+        pid=HOST_PARTICIPANT_ID,
+        segment=0,
+        join_offset_ms=0,
+    )
+    again = RecordLandingService(ws).land(align=lambda _p: None)
+    assert len(again["clips"]) == 1
+    assert [(r.session_id, r.number) for r in ws.project.editorial.record_sessions] == [
+        (room["session_id"], 1)
+    ]
+    assert [g.title for g in _land_groups(ws)] == ["Added Session 1", "Added to Session 1"]
+
+
+def test_session_after_a_legacy_unnumbered_session_gets_the_next_number(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    ws.mutate(
+        "seed legacy session",
+        "seeded legacy session",
+        lambda p: p.clips.append(
+            Clip(
+                id="c-legacy",
+                track_id="legacy",
+                source_id="rec-0123456789ab-0-p_host-0",
+                source_start=0.0,
+                source_end=20.0,
+                timeline_start=0.0,
+            )
+        ),
+    )
+    room, landed = _land_session(ws)
+    assert landed["clips"][0]["timeline_start"] == pytest.approx(20.0 + TAKE_GAP_MS / 1000)
+    assert [(r.session_id, r.number) for r in ws.project.editorial.record_sessions] == [
+        (room["session_id"], 2)
+    ]
+    assert [g.title for g in _land_groups(ws)] == ["Added Session 2"]
+
+
+def test_room_tone_only_land_does_not_number_the_session(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    ShareService(ws).create_record_room()
+    assert RecordLandingService(ws).land(align=lambda _p: None)["clips"] == []
+    assert ws.project.editorial.record_sessions == []
+    assert _land_groups(ws) == []
 
 
 def test_paused_span_does_not_consume_take_offset() -> None:

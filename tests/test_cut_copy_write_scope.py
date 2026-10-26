@@ -217,7 +217,7 @@ def test_the_candidate_owns_the_sections_a_cut_writes_and_shares_the_rest(tmp_pa
 
     for name in ("sources", "mix", "render", "social", "history", "document_sync"):
         assert getattr(candidate, name) is getattr(project, name), name
-    for name in ("retained_bleed_alignments", "sound_actions", "speaker_splits"):
+    for name in ("retained_bleed_alignments", "sound_actions", "speaker_splits", "record_sessions"):
         assert getattr(candidate.editorial, name) is getattr(project.editorial, name), name
     assert candidate.review.versions is project.review.versions
     assert candidate.transcript_data.combined is not project.transcript_data.combined

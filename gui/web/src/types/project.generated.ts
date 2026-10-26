@@ -177,6 +177,7 @@ export interface RecordInviteReplaceRequest {
 export interface RecordRoomCreateRequest {
   path: string;
   expires_at?: string | null;
+  target?: Record<string, unknown> | null;
 }
 
 export interface RecordRoomRevokeRequest {

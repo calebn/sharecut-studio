@@ -262,6 +262,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Capture room tone",
     tooltip: "Capture room tone",
   },
+  "daw.record.setTarget": {
+    label: "Set session target",
+    tooltip: "Set where this session lands",
+  },
   "daw.record.pause": {
     label: "Pause recording",
     tooltip: "Pause recording",

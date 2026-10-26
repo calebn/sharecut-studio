@@ -75,7 +75,8 @@
     ],
     "retained_bleed_alignments": [],
     "sound_actions": [],
-    "speaker_splits": []
+    "speaker_splits": [],
+    "record_sessions": []
   },
   "transcripts": {
     "per_track": [

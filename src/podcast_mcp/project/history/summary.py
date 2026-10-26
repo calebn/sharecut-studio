@@ -15,6 +15,10 @@ def _human_op(operation: str | None, label: str | None) -> str:
     return "snapshot"
 
 
+def record_land_title(number: int, *, first: bool) -> str:
+    return f"Added Session {number}" if first else f"Added to Session {number}"
+
+
 def _track_list(ids: list[Any] | None) -> str | None:
     if not ids:
         return None
@@ -35,6 +39,10 @@ def format_history_group_title(
 ) -> str:
     """One-line title for a history group in list UIs."""
     params = params or {}
+    if operation == "record_land" and params.get("session_number"):
+        return record_land_title(
+            int(params["session_number"]), first=bool(params.get("session_first"))
+        )
     op = _human_op(operation, label)
     bits: list[str] = [op]
 

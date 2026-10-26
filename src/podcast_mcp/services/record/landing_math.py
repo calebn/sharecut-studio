@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
-from podcast_mcp.models import Clip
-from podcast_mcp.services.record.state import TakeState, take_recording_duration_ms
+from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.services.record.state import (
+    SessionTarget,
+    TakeState,
+    take_recording_duration_ms,
+    unsupported_target_message,
+)
 from podcast_mcp.services.record.upload import KEEPER_SAMPLE_RATE
 
 TAKE_GAP_MS = 2000
+_RECORD_SOURCE = re.compile(r"^rec-([0-9a-f]{12})-\d+-")
 ALIGN_DRIFT_MS = 50
 DRIFT_WINDOW_S = 60.0
 
@@ -27,6 +34,36 @@ def session_origin_s(
     prefix = record_source_prefix(session_id)
     ends = [clip.timeline_end for clip in clips if not (clip.source_id or "").startswith(prefix)]
     return max(ends) + take_gap_ms / 1000.0 if ends else 0.0
+
+
+def session_placement(clips: Iterable[Clip], session_id: str, target: SessionTarget) -> float:
+    """Where a session's first take starts for ``target``; the one place landing and the live clock agree."""
+    refusal = unsupported_target_message(target)
+    if refusal is not None:
+        raise ValueError(refusal)
+    return session_origin_s(clips, session_id)
+
+
+def session_numbered(project: EpisodeProject, session_id: str) -> bool:
+    return any(row.session_id == session_id for row in project.editorial.record_sessions)
+
+
+def record_session_number(project: EpisodeProject, session_id: str) -> int:
+    """The session's number: its stored one, else one past every other session on the timeline.
+
+    Sessions landed before numbering existed count by the ``rec-<session_id>-`` prefix of their clips.
+    """
+    stored = project.editorial.record_sessions
+    for row in stored:
+        if row.session_id == session_id:
+            return row.number
+    others = {row.session_id for row in stored}
+    for clip in project.clips:
+        found = _RECORD_SOURCE.match(clip.source_id or "")
+        if found:
+            others.add(found.group(1))
+    others.discard(session_id)
+    return max(len(others), *(row.number for row in stored), 0) + 1
 
 
 def pad_samples(join_offset_ms: int, sample_rate: int = KEEPER_SAMPLE_RATE) -> int:

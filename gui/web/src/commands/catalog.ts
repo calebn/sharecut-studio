@@ -488,6 +488,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Ask every recorded device to capture 3 s of room tone (lobby or stopped)",
   },
+  "record.setTarget": {
+    id: "record.setTarget",
+    category: "ui",
+    label: "Set session target",
+    keywords: ["end", "where", "land", "place"],
+    when: "canManageProjects",
+    notes:
+      "Choose where this session lands (before the first take; only the end is available yet)",
+  },
   "record.pause": {
     id: "record.pause",
     category: "ui",
