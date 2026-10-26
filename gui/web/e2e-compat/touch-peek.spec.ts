@@ -595,10 +595,8 @@ async function dragStowsStrip(
   const opened = await sheetState(page);
   await frame(page, info, `stow-${size}-1-strip-${browserName}`);
 
-  // Drag it again from a chip: the strip stows mid-drag. The finger stops just
-  // inside the chip it slid onto, so the chip settles on a resting finger: one
-  // that keeps sliding inside the chip arms it mid-motion, and its rest point
-  // trails the finger.
+  // Drag it again from a chip: the strip stows mid-drag. Stop just inside the
+  // chip, so it settles under a resting finger, not one still sliding.
   const from = await holdOpen(page, finger);
   const chipBox = await trimChip(page).boundingBox({ timeout: 5000 });
   if (!chipBox) throw new Error("no trim chip");
