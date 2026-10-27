@@ -71,6 +71,11 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
   if (folded) delete root.dataset[FOLD_ATTRIBUTE];
   const height = (selector: string) =>
     frame.querySelector(selector)?.getBoundingClientRect().height ?? 0;
+  // A stage with no Player leaves the tab bar in the grid's flexible row, which
+  // stretches it to the free space: measure it at its natural height.
+  const tabs = frame.querySelector<HTMLElement>(".stage-frame-tabs");
+  const tabsAlign = tabs?.style.alignSelf ?? "";
+  if (tabs) tabs.style.alignSelf = "start";
   const sizes = {
     frameHeight: frame.getBoundingClientRect().height,
     headerHeight: height(".stage-frame-header"),
@@ -85,6 +90,7 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
     ),
     cornerHeight: height(".edit-workspace .edit-corner"),
   };
+  if (tabs) tabs.style.alignSelf = tabsAlign;
   if (folded) root.dataset[FOLD_ATTRIBUTE] = "";
   return sizes;
 }

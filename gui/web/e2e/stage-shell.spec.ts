@@ -17,6 +17,7 @@ import {
   type Stage,
   selectTool,
   setAudition,
+  stageTab,
 } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
@@ -183,6 +184,26 @@ test.describe("Stage shell on desktop", () => {
 
 test.describe("Stage shell on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test("keeps the tab bar on every stage, Record included", async ({
+    page,
+  }) => {
+    await openProject(page);
+    for (const stage of STAGES) {
+      await stageTab(page, stage).click();
+      await expect(page.getByRole("main", { name: /./ }).first()).toBeVisible();
+      await expect(page.locator("html")).not.toHaveAttribute(
+        "data-frame-short",
+        /.*/,
+      );
+      await expect(
+        page
+          .locator(".stage-frame-tabs")
+          .getByRole("tab", { name: new RegExp(`^${stage}`, "i") }),
+      ).toHaveAttribute("aria-selected", "true");
+      await expect(page.locator(".stage-frame-tabs")).toBeVisible();
+    }
+  });
 
   test("shows the tab bar and switches Edit surfaces", async ({ page }) => {
     await openProject(page);
