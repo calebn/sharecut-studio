@@ -94,7 +94,9 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "stage/dialogs/CommandPaletteView.tsx",
   // Enter sends the note and Shift+Enter adds a line, as in the Composer.
   "system/ActionBarInline.tsx",
-  // Cmd or Ctrl+Enter posts the comment from its field or the guest name field.
+  // Enter posts the comment and Shift+Enter adds a line (Return is a new line on
+  // coarse pointers); Cmd or Ctrl+Enter also posts. Enter in the guest name field
+  // moves to the comment field.
   "system/Composer.tsx",
   // A focused suggestion handle moves with the arrow keys, 0.5 s with Shift.
   "system/SuggestionWaveform.tsx",
