@@ -133,6 +133,34 @@ def _index_repo(root: Path, paths: list[str]) -> None:
         (["a/reviewQueue.ts", "a/reviewqueue.tsx"], [["a/reviewQueue.ts", "a/reviewqueue.tsx"]]),
         (["a/fooBar.ts", "a/foobar.tsx"], [["a/fooBar.ts", "a/foobar.tsx"]]),
         (["a/fooBar.ts", "a/foobaz.ts"], []),
+        (
+            [
+                "a/useThingHandlerListItemRendererFactoryhelpeR.ts",
+                "a/useThingHandlerListItemRendererFactoryhelper.tsx",
+            ],
+            [
+                [
+                    "a/useThingHandlerListItemRendererFactoryhelpeR.ts",
+                    "a/useThingHandlerListItemRendererFactoryhelper.tsx",
+                ]
+            ],
+        ),
+        (
+            [
+                "a/UserListItemRendererFactoryHelperAlpha.tsx",
+                "a/UserListItemRendererFactoryHelperBeta.ts",
+            ],
+            [],
+        ),
+        (["a/UserListItemRenderer.tsx", "a/ProductListItemRenderer.ts"], []),
+        (
+            ["docs", "Docs/a/b/c/d/e/f/g/h/i/j/k/l/m.md"],
+            [["Docs/a/b/c/d/e/f/g/h/i/j/k/l/m.md", "docs"]],
+        ),
+        (
+            ["X/a/b/c/d/e/f/g/h/i/j/k/l/l.md", "x/a/b/c/d/e/f/g/h/i/j/k/l/m.md"],
+            [["X/a/b/c/d/e/f/g/h/i/j/k/l/l.md", "x/a/b/c/d/e/f/g/h/i/j/k/l/m.md"]],
+        ),
         (["a/foo.ts", "b/Foo.tsx"], []),
         (["a/Foo.ts", "a/foo.css"], []),
         (["a/Foo.tsx", "a/foo.css"], []),
@@ -246,3 +274,21 @@ def test_non_importable_extensions_never_form_module_collisions(ext: str) -> Non
 def test_only_dot_d_ts_is_a_declaration_form() -> None:
     assert _collisions_among(["a/foo.d.tsx", "a/Foo.tsx"]) == []
     assert _collisions_among(["a/Foo.mts", "a/foo.d.mts"]) == []
+
+
+_LONG_VOCAB = [
+    "a/useThingHandlerListItemRendererFactoryhelpeR.ts",
+    "a/useThingHandlerListItemRendererFactoryhelper.tsx",
+    "a/UserListItemRendererFactoryHelperAlpha.tsx",
+    "a/UserListItemRendererFactoryHelperBeta.ts",
+    "a/UserListItemRenderer.tsx",
+    "a/ProductListItemRenderer.ts",
+    "docs",
+    "Docs/a/b/c/d/e/f/g/h/i/j/k/l/m.md",
+    "X/a/b/c/d/e/f/g/h/i/j/k/l/l.md",
+    "x/a/b/c/d/e/f/g/h/i/j/k/l/m.md",
+]
+
+
+def test_guard_matches_oracle_on_long_names_and_deep_directories() -> None:
+    _assert_matches_oracle(_LONG_VOCAB, 4)
