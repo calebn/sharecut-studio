@@ -8,6 +8,8 @@ import io
 import json
 import os
 import socket
+import socketserver
+import struct
 import sys
 import threading
 from collections.abc import Iterator
@@ -417,6 +419,77 @@ def test_a_studio_nothing_listens_for_is_a_stale_announcement(project: Path) -> 
     sock.close()
     announce_studio_host(project, _host(port=port))
     assert locate_studio(project) is None
+
+
+@pytest.mark.timeout(8)
+@pytest.mark.parametrize("framing", ["content-length", "close-delimited"])
+def test_a_ping_body_reset_after_headers_is_never_bypassed(
+    project: Path, monkeypatch: pytest.MonkeyPatch, framing: str
+) -> None:
+    headers_received = threading.Event()
+    responses: list[http.client.HTTPResponse] = []
+    original_getresponse = http.client.HTTPConnection.getresponse
+
+    def getresponse(conn: http.client.HTTPConnection) -> http.client.HTTPResponse:
+        response = original_getresponse(conn)
+        responses.append(response)
+        headers_received.set()
+        return response
+
+    class Handler(socketserver.BaseRequestHandler):
+        def handle(self) -> None:
+            request = b""
+            while b"\r\n\r\n" not in request:
+                piece = self.request.recv(4096)
+                if not piece:
+                    return
+                request += piece
+            header = (
+                b"Content-Length: 100\r\n"
+                if framing == "content-length"
+                else b"Connection: close\r\n"
+            )
+            self.request.sendall(b"HTTP/1.1 200 OK\r\n" + header + b'\r\n{"')
+            if headers_received.wait(3):
+                linger_format = "hh" if sys.platform == "win32" else "ii"
+                self.request.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_LINGER, struct.pack(linger_format, 1, 0)
+                )
+                self.request.close()
+
+    monkeypatch.setattr(http.client.HTTPConnection, "getresponse", getresponse)
+    with socketserver.TCPServer(("127.0.0.1", 0), Handler) as server:
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            announce_studio_host(project, _host(port=server.server_address[1]))
+            with pytest.raises(StudioBadReply):
+                locate_studio(project)
+        finally:
+            server.shutdown()
+            thread.join(3)
+    assert headers_received.is_set()
+    assert len(responses) == 1
+    assert responses[0].isclosed()
+
+
+def test_a_ping_body_timeout_before_deadline_still_retries(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    responses: list[http.client.HTTPResponse] = []
+
+    def read(response: http.client.HTTPResponse, _size: int) -> bytes:
+        responses.append(response)
+        raise TimeoutError("body read timed out")
+
+    monkeypatch.setattr(http.client.HTTPResponse, "read", read)
+    with ping_answering(200, b"{}") as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioUnresponsive) as caught:
+            locate_studio(project)
+    assert type(caught.value) is StudioUnresponsive
+    assert len(responses) == 2
+    assert all(response.isclosed() for response in responses)
 
 
 def test_a_studio_slow_to_answer_once_is_pinged_again(project: Path, quick_ping: None) -> None:
