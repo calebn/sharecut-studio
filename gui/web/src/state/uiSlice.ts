@@ -249,6 +249,8 @@ type UiSlice = Pick<
   | "setSplitSpeakersReview"
   | "splitSpeakersTrackId"
   | "setSplitSpeakersTrackId"
+  | "prepareFocusTrackId"
+  | "setPrepareFocusTrackId"
   | "setShareDialogOpen"
   | "tightenApplyScope"
   | "setTightenApplyScope"
@@ -297,6 +299,7 @@ export function uiProjectInitial() {
     bounceRangeTarget: null,
     splitSpeakersReview: null,
     splitSpeakersTrackId: null,
+    prepareFocusTrackId: null,
     feedbackToast: null,
     pendingJobResults: {},
     spokenJobResultIds: [] as readonly string[],
@@ -758,6 +761,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ splitSpeakersReview }),
     setSplitSpeakersTrackId: (splitSpeakersTrackId) =>
       set({ splitSpeakersTrackId }),
+    setPrepareFocusTrackId: (prepareFocusTrackId) =>
+      set({ prepareFocusTrackId }),
     setShareDialogOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, shareDialogOpen: on } })),
     tightenApplyScope: { ids: [] },

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { usePipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
@@ -47,6 +47,28 @@ export type PrepareModel = {
 };
 
 /**
+ * "Split speakers…" elsewhere sets a track to look at: scroll to its card
+ * once, and let go of it when the person leaves Prepare.
+ */
+function usePrepareFocus(trackId: string | null, ready: boolean): void {
+  const done = useRef<string | null>(null);
+  useEffect(() => {
+    if (!trackId || !ready || done.current === trackId) return;
+    const card = document.querySelector<HTMLElement>(
+      `[data-source-id="${CSS.escape(trackId)}"]`,
+    );
+    if (!card) return;
+    done.current = trackId;
+    card.scrollIntoView?.({ block: "center" });
+    card.focus({ preventScroll: true });
+  }, [trackId, ready]);
+  useEffect(
+    () => () => useDawStore.getState().setPrepareFocusTrackId(null),
+    [],
+  );
+}
+
+/**
  * The Prepare stage's model: the project, the pipeline job and the model
  * downloads mapped onto the props of the presentational `PrepareView`, with
  * the actions behind its buttons. The mappers are in `prepareMappers.ts`;
@@ -63,6 +85,7 @@ export function usePrepareModel(): PrepareModel {
     ingestBusy,
     isPlaying,
     openStage,
+    focusTrackId,
   } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -74,6 +97,7 @@ export function usePrepareModel(): PrepareModel {
       ingestBusy: s.ingestBusy,
       isPlaying: s.isPlaying,
       openStage: s.openStage,
+      focusTrackId: s.prepareFocusTrackId,
     })),
   );
   const canIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
@@ -135,7 +159,9 @@ export function usePrepareModel(): PrepareModel {
     splitting: sourceState.splitting,
     splitFailed: sourceState.splitFailed,
     job,
+    focusTrackId,
   });
+  usePrepareFocus(focusTrackId, sessions.length > 0);
   const sourceCount = sessions.reduce(
     (sum, one) => sum + one.sources.length,
     0,
@@ -251,7 +277,13 @@ export function usePrepareModel(): PrepareModel {
     dropActive: drop.active,
     dropCount: drop.count,
     failure,
-    sourceActions: sourceState.actions,
+    sourceActions: {
+      ...sourceState.actions,
+      onSplit: (id) => {
+        useDawStore.getState().setPrepareFocusTrackId(null);
+        sourceState.actions.onSplit(id);
+      },
+    },
     onImport: () => {
       void pickAudioFiles(true).then((files) => {
         if (files.length > 0) void ingestFiles(files, { kind: "new" });

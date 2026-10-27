@@ -20,14 +20,14 @@ describe("track.splitSpeakers", () => {
   beforeEach(() => {
     clearRegisteredCommands();
     registerDawCommands();
-    useDawStore.setState({ splitSpeakersTrackId: null, selection: null });
+    useDawStore.setState({ prepareFocusTrackId: null, selection: null });
   });
 
   afterEach(() => {
     clearRegisteredCommands();
   });
 
-  it("opens the dialog for the track named in its args", async () => {
+  it("opens Prepare at the split prompt for the track named in its args", async () => {
     load({ id: "room", media_path: "raw/room.wav" });
     expect(
       await execute(
@@ -36,7 +36,8 @@ describe("track.splitSpeakers", () => {
         { skipWhen: true },
       ),
     ).toEqual({ status: "ok" });
-    expect(useDawStore.getState().splitSpeakersTrackId).toBe("room");
+    expect(useDawStore.getState().prepareFocusTrackId).toBe("room");
+    expect(useDawStore.getState().stage).toBe("prepare");
   });
 
   it("falls back to the track the inspector shows", async () => {
@@ -47,7 +48,7 @@ describe("track.splitSpeakers", () => {
     ).toEqual({
       status: "ok",
     });
-    expect(useDawStore.getState().splitSpeakersTrackId).toBe("room");
+    expect(useDawStore.getState().prepareFocusTrackId).toBe("room");
   });
 
   it.each([
@@ -65,7 +66,7 @@ describe("track.splitSpeakers", () => {
         { skipWhen: true },
       ),
     ).toEqual({ status: "disabled", reason });
-    expect(useDawStore.getState().splitSpeakersTrackId).toBeNull();
+    expect(useDawStore.getState().prepareFocusTrackId).toBeNull();
   });
 
   it("refuses without a track", async () => {
