@@ -27,6 +27,7 @@ from podcast_mcp.services.collaboration.review_shares import (
     revoke_share_for_workspace,
     sidecar_share,
     touch_share_last_used_for_workspace,
+    validate_expires_at,
 )
 from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
 from podcast_mcp.services.collaboration.share_capabilities import (
@@ -486,6 +487,7 @@ class ShareService:
             begin_record_session,
             describe_unsaved_takes,
             invalidate_record_session_cache,
+            parse_session_target,
             refuse_land_first,
             unsaved_fields,
             unsaved_takes,
@@ -496,6 +498,9 @@ class ShareService:
             left = unsaved_takes(self.ws.project)
             landed: dict[str, Any] | None = None
             if land_first and left.takes:
+                # Bad arguments fail before anything lands.
+                parse_session_target(target)
+                validate_expires_at(expires_at)
                 # Land reloads the workspace; callers hand in a fresh request-scoped one.
                 if why := refuse_land_first(left, after_land=False):
                     raise RecordLandingError(why)

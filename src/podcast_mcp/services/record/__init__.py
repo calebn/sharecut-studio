@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.record.preflight import (
         Unsaved,
         describe_unsaved_takes,
+        land_first_would_work,
         refuse_land_first,
         unsaved_fields,
         unsaved_takes,
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.record.state import (
         HOST_PARTICIPANT_ID,
         RecordRole,
+        parse_session_target,
     )
     from podcast_mcp.services.record.upload import (
         CLIPPING_MAX_REGIONS,
@@ -82,7 +84,9 @@ __all__ = [
     "describe_unsaved_takes",
     "filter_record_event_for_guest",
     "invalidate_record_session_cache",
+    "land_first_would_work",
     "parse_participant_id",
+    "parse_session_target",
     "parse_upload_kind",
     "purge_session_land_rollbacks",
     "record_hub_key",
@@ -122,6 +126,7 @@ _MODULE_BY_NAME = {
     "filter_record_event_for_guest": "service",
     "invalidate_record_session_cache": "service",
     "parse_participant_id": "upload",
+    "parse_session_target": "state",
     "parse_upload_kind": "upload",
     "purge_session_land_rollbacks": "landing",
     "record_hub_key": "service",
@@ -131,6 +136,7 @@ _MODULE_BY_NAME = {
     "unsaved_fields": "preflight",
     "unsaved_takes": "preflight",
     "Unsaved": "preflight",
+    "land_first_would_work": "preflight",
     "refuse_land_first": "preflight",
     "with_unsaved_takes": "preflight",
 }

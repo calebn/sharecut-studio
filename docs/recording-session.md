@@ -149,11 +149,23 @@ saved to the episode yet, and a new room leaves it behind...", plus "still savin
 "already accepted or skipped" when that applies; the CLI adds a `--land-first` hint).
 `--land-first` (CLI), `land_first` (MCP tool and route body) lands the
 current room first, then mints; the result adds `landed_first` (the land result).
-It refuses, mints nothing and keeps the old links (400 `record_land_refused` on the
-route) when uploads are still saving ("try again in a moment"), when the room's
-session was already decided, or when the land still leaves a take unsaved (a skipped
-keeper). A land that ran stays saved; retrying is safe. `land_first` with nothing to
-save just mints.
+`land_first_possible` on the snapshot and mint result says whether it would go ahead.
+A bad `target` or `expires_at` is refused before anything lands (a `replace` target is
+checked against the episode after the land, which can change its length).
+
+Land-first refuses, mints nothing and keeps the old links when uploads are still saving
+("try again in a moment, or start anyway"; if a device never finishes, a manual
+`podcast record land` keeps what has saved), when the room's session was already
+decided, or when the land still leaves a take unsaved (a skipped keeper). On the route
+that is a 400 carrying the land's own code (`record_land_refused`, or e.g.
+`session_suggestion_closed`, `insert_anchor_taken`). A land that ran stays saved; retrying
+is safe. `land_first` with nothing to save just mints.
+
+Still saving includes a guest who consented to the take but has uploaded nothing yet (the
+normal gap after Stop) and a Resume segment not started; the host's own recording is not
+expected, because a host whose mic was denied never uploads. Known gap: if an insert or
+replace room's staging land is undone from History, its uploads still read as landed, so
+no warning appears; `podcast record land` stages it again.
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 (live notes — **same create path as review comments**, kind-scoped ACL: guests
