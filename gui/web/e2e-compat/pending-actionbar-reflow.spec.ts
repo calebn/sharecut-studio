@@ -152,6 +152,18 @@ test("pending review: the inspector's inline Approve and Reject stay reachable a
     .click();
   await expect(page.getByRole("alert").first()).toBeVisible();
 
+  // Where the card still has room (360 tall) it floats and stays reachable.
+  await page.setViewportSize({ width: 1280, height: 360 });
+  await settle(page);
+  const floating = page.locator(".pending-actionbar");
+  await expect(floating).toBeVisible();
+  await expectHitTestable(
+    floating.getByRole("button", { name: "Approve", exact: true }),
+  );
+  await expectHitTestable(
+    floating.getByRole("button", { name: "Reject", exact: true }),
+  );
+
   // The stage frame has no bottom panel, so the card only loses its room
   // between the marker lane and the Player at about this height.
   await page.setViewportSize({ width: 1280, height: 260 });

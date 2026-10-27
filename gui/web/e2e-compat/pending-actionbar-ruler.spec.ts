@@ -39,6 +39,7 @@ const VIEWPORTS: Record<
     outcome: "docked",
   },
   "desktop-1195": { width: 1195, height: 820, outcome: "floating" },
+  "desktop-360": { width: 1280, height: 360, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
   // No bottom panel is left in the stage frame, so the card keeps its room
   // between the marker lane and the Player down to about this height.
