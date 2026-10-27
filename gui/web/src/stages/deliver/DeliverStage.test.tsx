@@ -5174,3 +5174,38 @@ describe("host export options", () => {
     expect(document.querySelector(".dv-file-size")).toBeNull();
   });
 });
+
+describe("Bounce section", () => {
+  const bounce = {
+    state: { phase: "idle" },
+    choices: { source: "entire", includeMp3: false, limitToRegion: false },
+    onChoices: vi.fn(),
+    selectedCount: 0,
+    soloCount: 0,
+    hasRegion: false,
+    onBounce: vi.fn(),
+    onCancel: vi.fn(),
+  } as const;
+
+  it("sits after the episode file when the host offers it", () => {
+    setup({ bounce });
+    const titles = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((h) => h.textContent);
+    expect(titles.indexOf("Bounce")).toBe(titles.indexOf("Episode file") + 1);
+  });
+
+  it("is absent without the host's bounce", () => {
+    setup();
+    expect(screen.queryByRole("heading", { name: "Bounce" })).toBeNull();
+  });
+
+  it("is a skeleton while the page loads, and absent for a guest", () => {
+    const { unmount } = setup({ bounce, state: "loading" });
+    expect(screen.queryByRole("button", { name: "Bounce" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Bounce" })).toBeTruthy();
+    unmount();
+    setup({ bounce, guest: true });
+    expect(screen.queryByRole("heading", { name: "Bounce" })).toBeNull();
+  });
+});

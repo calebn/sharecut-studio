@@ -7,6 +7,8 @@ import { VERBS } from "../../system/verbs";
 import type { StageId } from "../../types/stage";
 import { Toast, type ToastState } from "../../ui";
 import { isApplePlatform } from "../../utils/platform";
+import { BounceSection } from "./BounceSection";
+import type { BounceOptions } from "./bounceLogic";
 import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import type { ClipWord } from "./clipTrim";
@@ -87,6 +89,8 @@ export type DeliverStageProps = {
   showLink?: boolean;
   /** Formats, notes and controls the host's export can honour. */
   exportOptions?: ExportOptions;
+  /** Without it the Bounce section is not shown. */
+  bounce?: BounceOptions;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel: () => void;
@@ -132,6 +136,7 @@ export function DeliverStage({
   toastMs = 6000,
   showLink = true,
   exportOptions,
+  bounce,
   onSettings,
   onChapters,
   onClips,
@@ -351,6 +356,9 @@ export function DeliverStage({
               onDownload={onDownload}
               options={exportOptions}
             />
+            {bounce ? (
+              <BounceSection options={bounce} state={sharedState} />
+            ) : null}
             {phone ? null : (
               <>
                 {chaptersPart}
