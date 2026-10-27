@@ -2305,3 +2305,203 @@ describe("every readiness title is on the page", () => {
     ]);
   });
 });
+
+describe("round four of the audit", () => {
+  const clipsFor = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `q${i}`,
+      title: `Clip number ${i + 1}`,
+      start: i * 10,
+      end: i * 10 + 5,
+      score: 0.5,
+      approved: false,
+    }));
+  const listOf = (el: Element | null) =>
+    el?.closest("[data-focus-list]")?.getAttribute("data-focus-list");
+
+  it.each(["Nobody asked the river x", "two  spaces in", "ends with a space "])(
+    "keeps every keystroke of the clip title %j",
+    async (text) => {
+      setup();
+      const input = clipTitle("Nobody asked the river");
+      await userEvent.clear(input);
+      await userEvent.type(input, text);
+      expect(input).toHaveValue(text);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    "after removing clip %i from its menu, focus lands in the Clips list",
+    async (index) => {
+      setup({ initialClips: clipsFor(3) });
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: `More for Clip number ${index + 1}`,
+        }),
+      );
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: "Remove" }),
+      );
+      expect(listOf(document.activeElement)).toBe("clips");
+    },
+  );
+
+  it("after removing a chapter, focus lands in the Chapters list", () => {
+    setup();
+    const button = screen.getByRole("button", { name: "Remove The old mill" });
+    button.focus();
+    fireEvent.click(button);
+    expect(listOf(document.activeElement)).toBe("chapters");
+  });
+
+  it.each([0, 1, 2, 3])(
+    "approving clip %i leaves focus on that clip's own Approved mark",
+    (index) => {
+      setup({ initialClips: clipsFor(4) });
+      const button = screen.getByRole("button", {
+        name: `Approve Clip number ${index + 1}`,
+      });
+      button.focus();
+      fireEvent.click(button);
+      const active = document.activeElement as HTMLElement;
+      expect(active.getAttribute("data-focus-key")).toBe(
+        `clip:q${index}:approve`,
+      );
+      expect(active).toHaveTextContent("Approved");
+      expect(
+        active
+          .closest(".dv-clip")
+          ?.querySelector<HTMLInputElement>(".dv-clip-title")?.value,
+      ).toBe(`Clip number ${index + 1}`);
+    },
+  );
+
+  it.each([
+    [312.4, "5:12.4"],
+    [0.1, "0:00.1"],
+    [59.9, "0:59.9"],
+    [83.5, "1:23.5"],
+    [1180, "19:40.0"],
+    [3119.9, "51:59.9"],
+  ])("shows a chapter at %f s as %s", (at, shown) => {
+    setup({ initialChapters: [{ id: "only", at, title: "Only" }] });
+    expect(screen.getByRole("textbox", { name: "Time of Only" })).toHaveValue(
+      shown,
+    );
+  });
+
+  it.each([
+    [0, "ArrowUp", "0:00.1"],
+    [312.4, "ArrowUp", "5:12.5"],
+    [312.4, "ArrowDown", "5:12.3"],
+    [59.9, "ArrowUp", "1:00.0"],
+  ])("nudges a chapter at %f s with %s to %s", (at, key, shown) => {
+    setup({ initialChapters: [{ id: "only", at, title: "Only" }] });
+    const time = screen.getByRole("textbox", { name: "Time of Only" });
+    time.focus();
+    fireEvent.keyDown(time, { key });
+    expect(screen.getByRole("textbox", { name: "Time of Only" })).toHaveValue(
+      shown,
+    );
+  });
+
+  it("titles the disabled Export button Exporting now. while it runs", () => {
+    setup({ exportState: { phase: "running", progress: 0.2, detail: "x" } });
+    const button = screen.getByRole("button", { name: /^Export/ });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", "Exporting now.");
+  });
+
+  it.each([
+    ["a fresh export", { exportState: NEVER }, "Export"],
+    [
+      "a stale one",
+      { exportState: { ...DONE, phase: "stale" } as ExportState },
+      "Export",
+    ],
+    [
+      "a failed one",
+      { exportState: { phase: "failed", cause: "x" } as ExportState },
+      "Export",
+    ],
+    ["a missing model", { exportState: NEEDS_MODEL }, "Export"],
+    [
+      "one running",
+      {
+        exportState: {
+          phase: "running",
+          progress: 0.2,
+          detail: "x",
+        } as ExportState,
+      },
+      "Export",
+    ],
+    [
+      "a Part range",
+      {
+        initialSettings: {
+          ...SETTINGS,
+          part: { mode: "part", start: 0, end: 60 },
+        } as typeof SETTINGS,
+      },
+      "Export",
+    ],
+    ["an Edit selection", { selection: { start: 40, end: 90 } }, "Export"],
+    ["a done export in the app", { exportState: DONE }, "Show in folder"],
+    [
+      "a done export in the browser",
+      { exportState: DONE, env: "browser" },
+      "Download all",
+    ],
+  ] as const)(
+    "labels the primary button exactly for %s",
+    (_name, extra, label) => {
+      for (const layout of ["desktop", "phone"] as const) {
+        const { container, unmount } = setup({
+          ...(extra as Partial<DeliverStageProps>),
+          layout,
+        });
+        const buttons = container.querySelectorAll(".dv-export");
+        expect(buttons).toHaveLength(1);
+        expect(buttons[0]?.textContent).toBe(label);
+        unmount();
+      }
+    },
+  );
+
+  it("says Reveal in Finder on Apple, exactly", () => {
+    platform.apple = true;
+    const { container } = setup({ exportState: DONE });
+    expect(container.querySelector(".dv-export")?.textContent).toBe(
+      "Reveal in Finder",
+    );
+  });
+
+  it.each([
+    [
+      "stale",
+      { ...DONE, phase: "stale" } as ExportState,
+      "Edited since export",
+    ],
+    ["done", DONE, "Exported"],
+  ])(
+    "a %s export names its time on the status row",
+    (_name, exportState, title) => {
+      setup({ exportState });
+      const row = screen.getByText(title).closest(".sys-status") as HTMLElement;
+      expect(within(row).getByText("Last export 2 h ago")).toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    ["Listen link", {}],
+    ["Captions and transcript are written with every export.", {}],
+    ["Only the host can deliver", { guest: true }],
+    ["You can listen and comment in Review.", { guest: true }],
+    ["Could not load Deliver", { state: "error" }],
+    ["Your edits are saved.", { state: "error" }],
+  ] as const)("shows the exact copy %j", (copy, extra) => {
+    setup(extra as Partial<DeliverStageProps>);
+    expect(screen.getByText(copy)).toBeInTheDocument();
+  });
+});
