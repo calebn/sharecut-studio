@@ -1,5 +1,7 @@
 import { type ReactNode, useId, useState } from "react";
 import { Button } from "../ui";
+import { ActionBar, type ActionBarProps } from "./ActionBar";
+import type { BarId } from "./editActionSets";
 import { SystemIcon } from "./SystemIcon";
 import { capsOf, hintOf, iconOf, verbOf } from "./verbDisplay";
 import { STAGES, type VerbId } from "./verbs";
@@ -57,91 +59,55 @@ export function ActionBarInline({
   onOpenInEdit,
   onComment,
 }: ActionBarInlineProps) {
-  const def = verb ? verbOf(verb) : null;
   const dock = form === "dock";
-  const keepButton = verbButtonProps("keep");
-  const laterButton = verbButtonProps("later");
   const commentButton = verbButtonProps("comment");
-
-  const keep = (
-    <Button onClick={onKeep} title={keepButton.title}>
-      <SystemIcon name={keepButton.icon} size={16} />
-      {keepButton.label}
-    </Button>
-  );
-  const primary =
-    def?.icon && !promptOpen ? (
-      <Button
-        variant="primary"
-        onClick={onVerb}
-        disabledReason={verbDisabledReason}
-        title={`${verbLabel ?? def.label}${hintOf(def)}`}
-      >
-        <SystemIcon name={def.icon} size={16} />
-        {verbLabel ?? def.label}
-      </Button>
-    ) : null;
-  const later = (
-    <Button variant="link" onClick={onLater} title={laterButton.title}>
-      <SystemIcon name={laterButton.icon} size={16} />
-      {laterButton.label}
-    </Button>
-  );
-  const comment = (
-    <Button variant="link" onClick={onComment} title={commentButton.title}>
-      <SystemIcon name={commentButton.icon} size={16} />
-      {commentButton.label}
-    </Button>
-  );
+  const primary: ActionBarProps["primary"] =
+    verb && verbOf(verb).icon && !promptOpen
+      ? { id: verb, label: verbLabel, disabledReason: verbDisabledReason }
+      : undefined;
   const openInEdit = canEdit ? (
     <Button variant="link" onClick={onOpenInEdit} title={editTitle}>
       <SystemIcon name={edit?.icon ?? "stage-edit"} size={16} />
       Open in {edit?.label ?? "Edit"}
     </Button>
   ) : null;
-
-  let body: ReactNode;
-  if (dock) {
-    body = (
-      <>
-        <div className="sys-dock-slot sys-dock-slot--start">
-          {readOnly ? comment : keep}
-        </div>
-        <div className="sys-dock-slot">{center}</div>
-        <div className="sys-dock-slot sys-dock-slot--end">
-          {readOnly ? openInEdit : primary}
-        </div>
-      </>
+  const comment = (
+    <Button variant="link" onClick={onComment} title={commentButton.title}>
+      <SystemIcon name={commentButton.icon} size={16} />
+      {commentButton.label}
+    </Button>
+  );
+  const onBarVerb = (id: BarId) => {
+    if (primary && id === primary.id) onVerb?.();
+    else if (id === "keep") onKeep?.();
+    else if (id === "later") onLater?.();
+    else if (id === "comment") onComment?.();
+  };
+  const placement = { form: dock ? "dock" : "inline" } as const;
+  if (readOnly)
+    return (
+      <ActionBar
+        placement={placement}
+        leading={dock ? undefined : comment}
+        items={dock ? [{ id: "comment" }] : []}
+        center={center}
+        trailing={openInEdit}
+        onVerb={onBarVerb}
+      />
     );
-  } else if (readOnly) {
-    body = (
-      <>
-        {comment}
-        {center}
-        <span className="sys-actions-spacer" />
-        {openInEdit}
-      </>
-    );
-  } else {
-    body = (
-      <>
-        {openInEdit}
-        <span className="sys-actions-decide">
-          {later}
-          {keep}
-          {primary}
-        </span>
-      </>
-    );
-  }
   return (
-    <div
-      className={`sys-actions sys-actions--${form}`}
-      role="group"
-      aria-label="Actions"
-    >
-      {body}
-    </div>
+    <ActionBar
+      placement={placement}
+      leading={dock ? undefined : openInEdit}
+      items={
+        dock
+          ? [{ id: "keep" }]
+          : [{ id: "keep" }, { id: "later", tone: "link" }]
+      }
+      center={center}
+      primary={primary}
+      onVerb={onBarVerb}
+    />
   );
 }
 

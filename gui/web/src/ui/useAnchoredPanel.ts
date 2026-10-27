@@ -25,6 +25,8 @@ export type DialogAnchor = {
   clearRef?: RefObject<HTMLElement | null>;
   /** A value that moves the anchor without a scroll or resize, such as the seam time. */
   moves?: unknown;
+  /** The side tried first; below unless the subject asks to be covered less from above. */
+  prefer?: "below" | "above";
 };
 
 /**
@@ -41,6 +43,7 @@ export function useAnchoredPanel(
   const avoidRef = anchor?.avoidRef;
   const clearRef = anchor?.clearRef;
   const moves = anchor?.moves;
+  const prefer = anchor?.prefer;
   const active = enabled && anchorRef != null;
 
   const place = useStableCallback(() => {
@@ -63,6 +66,7 @@ export function useAnchoredPanel(
       margin: 0.5 * rootPx,
       gap: 0.5 * rootPx,
       align: "center",
+      prefer,
     } as const;
     const clearEl = clearRef?.current;
     const placed = clearEl

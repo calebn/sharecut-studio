@@ -140,7 +140,10 @@ const COVERED: Record<string, string[]> = {
   "POP-SPEAKER": ["Templates/Editor · Transcript editors"],
   "CMP-WORDBAR": ["Templates/Editor · Inspector · Word"],
   "CMP-WORDRANGE": ["Templates/Editor · Inspector · Range"],
-  "CMP-RANGE-ACTIONS": ["Templates/Editor · Inspector · Range"],
+  "CMP-RANGE-ACTIONS": [
+    "Templates/Editor · Inspector · Range",
+    "System/ActionBar",
+  ],
   "CMP-VOCAB": [
     "Templates/Pipeline · Transcript vocabulary",
     "Stages/Prepare/Vocabulary",

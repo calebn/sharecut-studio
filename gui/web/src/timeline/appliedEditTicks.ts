@@ -3,6 +3,7 @@ import type {
   ClipRow,
   ExactRangeTarget,
 } from "../types/project";
+import { isMuteRecord } from "../utils/appliedRecords";
 import { markerLabel } from "../utils/editMarkerRegistry";
 import { capitalize } from "../utils/format";
 import { sourceSecInClipToTimeline } from "../utils/timebase";
@@ -76,14 +77,6 @@ export function splitSourceFor(
     }
   }
   return null;
-}
-
-function isMuteRecord(record: AppliedEditRecord): boolean {
-  return (
-    record.params?.mute === true ||
-    (record.operation === "edit_selected_range" &&
-      record.params?.action === "mute")
-  );
 }
 
 /** Seam anchors (left clip's end, right clip's start) for a removal record. */

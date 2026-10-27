@@ -44,7 +44,7 @@ describe("DecisionCard", () => {
     const names = within(screen.getByRole("group", { name: "Actions" }))
       .getAllByRole("button")
       .map((button) => button.textContent);
-    expect(names).toEqual(["Open in Edit", "Later", "Keep", "Cut"]);
+    expect(names).toEqual(["Open in Edit", "Keep", "Later", "Cut"]);
   });
 
   it.each([
