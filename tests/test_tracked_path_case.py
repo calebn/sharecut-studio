@@ -130,6 +130,9 @@ def _index_repo(root: Path, paths: list[str]) -> None:
         (["a/b/c/foo.ts", "a/b/c/foo.tsx"], []),
         (["foo.d.ts", "Foo.ts"], [["Foo.ts", "foo.d.ts"]]),
         (["docs", "Docs/a/b/c.md"], [["Docs/a/b/c.md", "docs"]]),
+        (["a/reviewQueue.ts", "a/reviewqueue.tsx"], [["a/reviewQueue.ts", "a/reviewqueue.tsx"]]),
+        (["a/fooBar.ts", "a/foobar.tsx"], [["a/fooBar.ts", "a/foobar.tsx"]]),
+        (["a/fooBar.ts", "a/foobaz.ts"], []),
         (["a/foo.ts", "b/Foo.tsx"], []),
         (["a/Foo.ts", "a/foo.css"], []),
         (["a/Foo.tsx", "a/foo.css"], []),
@@ -173,6 +176,7 @@ _VOCAB = [
     "a/Foo.ts", "a/foo.tsx", "a/foo.ts", "a/Foo.tsx", "b/Foo.tsx", "A/x.md", "a/x.md",
     "docs", "Docs/a/b/c.md", "a/foo.css", "a/Foo.TXT", "a/foo.txt", "README.md",
     "readme.txt", "a/foo.d.ts", "a/Foo.d.ts", "a/Foo.TSX", "a/Foo.D.ts", "a/bd.ts",
+    "a/fooBar.ts", "a/foobar.tsx", "a/fooBaz.ts", "a/foo.d.tsx",
     "a/foo.md", "a/foo.json", "a/foo.py", "a/BD.tsx", "a/foo.d.js", "a/Foo.js", "a/b/Foo.js", "a/b/foo.jsx",
 ]  # fmt: skip
 
@@ -218,3 +222,8 @@ def test_non_importable_extensions_never_form_module_collisions(ext: str) -> Non
     assert _collisions_among(["a/Foo.ts", f"a/foo.{ext}"]) == []
     assert _collisions_among([f"a/Foo.{ext}", "a/foo.tsx"]) == []
     assert _collisions_among([f"a/Foo.{ext}", f"a/foo.{other}"]) == []
+
+
+def test_only_dot_d_ts_is_a_declaration_form() -> None:
+    assert _collisions_among(["a/foo.d.tsx", "a/Foo.tsx"]) == []
+    assert _collisions_among(["a/Foo.mts", "a/foo.d.mts"]) == []
