@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ROLES } from "../../system/linkRoles";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
 import { formatTimeShort } from "../../utils/time";
 import { GuestReview, type GuestReviewProps } from "./GuestReview";
@@ -23,33 +24,48 @@ function setup(props: Partial<GuestReviewProps> = {}) {
   );
 }
 
-describe("GuestReview", () => {
-  it("shows the composer slot to a commenter and hides it from a viewer", () => {
-    const { unmount } = setup({ composer: <p>Composer here</p> });
-    expect(screen.getByText("Composer here")).toBeInTheDocument();
-    unmount();
-    setup({ access: "viewer", composer: <p>Composer here</p> });
-    expect(screen.queryByText("Composer here")).toBeNull();
-  });
+const LAYOUTS = ["desktop", "phone"] as const;
+const ROLE_LAYOUTS = ROLES.flatMap((role) =>
+  LAYOUTS.map((layout) => [role, layout] as const),
+);
+const WORDS = SCRIPT_TURNS.flatMap((turn) => turn.words);
+const COMMENTERS = ROLES.filter((role) => role.id !== "viewer");
 
-  it("follows the playhead in the Script", () => {
-    setup({ initialPlayhead: 724 });
-    expect(document.querySelector("[data-playing]")).not.toBeNull();
-  });
+afterEach(() => {
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+});
 
-  it("gives a viewer no composer and no Stage bar", () => {
-    setup({ access: "viewer" });
-    expect(screen.queryByRole("tab")).toBeNull();
-  });
+function startOf(index: number): number {
+  const start = WORD_STARTS[index];
+  if (start === undefined) throw new Error(`no word ${index}`);
+  return start;
+}
+function textOf(index: number): string {
+  const word = WORDS[index];
+  if (word === undefined) throw new Error(`no word ${index}`);
+  return word.text;
+}
+const readout = () =>
+  document.querySelector(".sys-player-readout")?.textContent;
+const clock = (seconds: number) =>
+  `${formatTimeShort(seconds)} / ${formatTimeShort(DURATION)}`;
+const playingWord = () =>
+  document.querySelector(".sys-script-word[data-playing]")?.textContent ?? null;
+const overviewPlayhead = () =>
+  (document.querySelector(".sys-overview-playhead") as HTMLElement).style
+    .insetInlineStart;
+const percentOf = (seconds: number) => `${(seconds / DURATION) * 100}%`;
+const scrollByHand = () => {
+  const body = document.querySelector(".sys-script-body") as HTMLElement;
+  fireEvent.wheel(body);
+  fireEvent.scroll(body);
+};
+const backToPlayhead = () =>
+  screen.queryByRole("button", { name: /Back to playhead/ });
 
-  it("gives an editor Edit and Review", async () => {
-    setup({ access: "editor" });
-    expect(screen.getAllByRole("tab")).toHaveLength(2);
-    await userEvent.click(screen.getByRole("tab", { name: /Edit/ }));
-    expect(screen.getByText("Edit opens here")).toBeInTheDocument();
-  });
-
-  it("shows a Cover with no button for a dead link", () => {
+describe("dead link", () => {
+  it("shows a Cover with no button", () => {
     setup({ state: "bad-link" });
     expect(
       screen.getByRole("heading", { name: "This link doesn't open anything" }),
@@ -58,126 +74,38 @@ describe("GuestReview", () => {
   });
 });
 
-describe("Comment and collapse controls", () => {
-  it.each([
-    ["viewer", "desktop", false],
-    ["viewer", "phone", false],
-    ["commenter", "desktop", true],
-    ["commenter", "phone", true],
-    ["editor", "desktop", true],
-    ["editor", "phone", true],
-  ] as const)("%s on %s has a Comment button: %s", (access, layout, has) => {
-    setup({ access, layout, onComment: () => {} });
-    expect(!!screen.queryByRole("button", { name: "Comment" })).toBe(has);
-  });
-
-  it("collapses the Player only on a phone", () => {
-    const { unmount } = setup({ layout: "desktop" });
-    expect(
-      screen.queryByRole("button", { name: "Collapse player" }),
-    ).toBeNull();
-    unmount();
-    setup({ layout: "phone" });
-    expect(
-      screen.getByRole("button", { name: "Collapse player" }),
-    ).toBeInTheDocument();
-  });
-});
-
-describe("Back to playhead", () => {
-  it("scrolls the playing word into view as well as following again", async () => {
-    const scroll = vi.fn();
-    window.HTMLElement.prototype.scrollIntoView = scroll;
-    setup({ initialPlayhead: 735 });
-    const body = document.querySelector(".sys-script-body") as HTMLElement;
-    fireEvent.wheel(body);
-    fireEvent.scroll(body);
-    expect(
-      screen.getByRole("button", { name: /Back to playhead/ }),
-    ).toBeInTheDocument();
-    scroll.mockClear();
-    await userEvent.click(
-      screen.getByRole("button", { name: /Back to playhead/ }),
-    );
-    expect(scroll).toHaveBeenCalledWith({ block: "center" });
-    expect(
-      screen.queryByRole("button", { name: /Back to playhead/ }),
-    ).toBeNull();
-  });
-});
-
-describe("Role hint", () => {
-  it("shows once on a first visit and tells the app when dismissed", async () => {
-    const seen = vi.fn();
-    setup({ firstVisit: true, onRoleHintSeen: seen });
-    expect(screen.getByRole("note")).toHaveTextContent("The host decides");
-    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
-    expect(screen.queryByRole("note")).toBeNull();
-    expect(seen).toHaveBeenCalledOnce();
-  });
-
-  it("keeps keyboard focus after the hint closes", async () => {
-    setup({ firstVisit: true });
-    screen.getByRole("button", { name: "Dismiss hint" }).focus();
-    await userEvent.keyboard("{Enter}");
-    expect(document.activeElement).not.toBe(document.body);
-  });
-
-  it("stays quiet on a later visit", () => {
-    setup();
-    expect(screen.queryByRole("note")).toBeNull();
-  });
-});
-
-type Access = "viewer" | "commenter" | "editor";
-const ROLES: readonly Access[] = ["viewer", "commenter", "editor"];
-const LAYOUTS = ["desktop", "phone"] as const;
-const WORDS = SCRIPT_TURNS.flatMap((turn) => turn.words);
-const label = (seconds: number) => formatTimeShort(seconds);
-const playingWord = () =>
-  document.querySelector("[data-playing]")?.textContent ?? null;
-const scrollByHand = () => {
-  const body = document.querySelector(".sys-script-body") as HTMLElement;
-  fireEvent.wheel(body);
-  fireEvent.scroll(body);
-};
-
 describe("states", () => {
-  it.each(LAYOUTS)(
-    "loading on %s shows a busy skeleton and no Script",
-    (layout) => {
-      setup({ state: "loading", layout, composer: <p>Composer here</p> });
-      expect(document.querySelector("main")).toHaveAttribute(
-        "aria-busy",
-        "true",
-      );
-      expect(
-        document.querySelector(".sys-skeleton, [class*='skeleton']"),
-      ).not.toBeNull();
-      expect(document.querySelector(".sys-app-header-host")).toHaveAttribute(
-        "aria-busy",
-        "true",
-      );
-      expect(screen.queryByRole("region", { name: "Script" })).toBeNull();
-      expect(screen.queryByText("Composer here")).toBeNull();
-    },
-  );
+  it.each(LAYOUTS)("loading on %s is busy with no Script", (layout) => {
+    setup({ state: "loading", layout });
+    expect(document.querySelector(".gr-body")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(document.querySelector(".sys-skeleton")).not.toBeNull();
+    expect(document.querySelector(".sys-app-header-host")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(screen.queryByRole("region", { name: "Script" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+  });
 
-  it.each([
-    ["with a handler", true],
-    ["without one", false],
-  ])("error %s", async (_name, withRetry) => {
+  it("error offers Try again with a handler, and it fires", async () => {
     const onRetry = vi.fn();
-    setup({ state: "error", onRetry: withRetry ? onRetry : undefined });
+    setup({ state: "error", onRetry });
     expect(
       screen.getByRole("heading", { name: "Could not load this review" }),
     ).toBeInTheDocument();
-    const retry = screen.queryByRole("button", { name: "Try again" });
-    expect(!!retry).toBe(withRetry);
-    if (retry) {
-      await userEvent.click(retry);
-      expect(onRetry).toHaveBeenCalledOnce();
-    }
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("error offers no Try again without a handler", () => {
+    setup({ state: "error" });
+    expect(
+      screen.getByRole("heading", { name: "Could not load this review" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 
   it("says there is nothing to read when there are no turns", () => {
@@ -196,78 +124,131 @@ describe("editor tabs and the Edit slot", () => {
   it.each(LAYOUTS)("an editor on %s has exactly Edit and Review", (layout) => {
     setup({ access: "editor", layout });
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      expect.stringContaining("Edit"),
-      expect.stringContaining("Review"),
+      "Edit",
+      "Review",
     ]);
-    expect(screen.getByRole("tab", { name: /Review/ })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Review" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
   });
 
-  it("puts the phone tabs in their own navigation, not the header", () => {
+  it("puts the phone tabs in their own navigation", () => {
     setup({ access: "editor", layout: "phone" });
     const nav = screen.getByRole("navigation", { name: "Review stages" });
     expect(nav.querySelectorAll('[role="tab"]')).toHaveLength(2);
   });
 
+  it.each(ROLE_LAYOUTS.filter(([role]) => role.id !== "editor"))(
+    "a %s on %s has no tabs",
+    (role, layout) => {
+      setup({ access: role.id, layout });
+      expect(screen.queryByRole("tab")).toBeNull();
+    },
+  );
+
+  it.each(LAYOUTS)("shows the given Edit content on %s", async (layout) => {
+    setup({ access: "editor", layout, edit: <p>Real Edit stage</p> });
+    await userEvent.click(screen.getByRole("tab", { name: "Edit" }));
+    expect(screen.getByText("Real Edit stage")).toBeInTheDocument();
+    expect(screen.queryByText("Edit opens here")).toBeNull();
+  });
+
   it.each(LAYOUTS)(
-    "shows the given Edit content on %s, else the placeholder",
+    "shows the placeholder on %s, and Review comes back",
     async (layout) => {
-      const { unmount } = setup({
-        access: "editor",
-        layout,
-        edit: <p>Real Edit stage</p>,
-      });
-      await userEvent.click(screen.getByRole("tab", { name: /Edit/ }));
-      expect(screen.getByText("Real Edit stage")).toBeInTheDocument();
-      expect(screen.queryByText("Edit opens here")).toBeNull();
-      unmount();
       setup({ access: "editor", layout });
-      await userEvent.click(screen.getByRole("tab", { name: /Edit/ }));
+      await userEvent.click(screen.getByRole("tab", { name: "Edit" }));
       expect(screen.getByText("Edit opens here")).toBeInTheDocument();
-      await userEvent.click(screen.getByRole("tab", { name: /Review/ }));
+      await userEvent.click(screen.getByRole("tab", { name: "Review" }));
       expect(
         screen.getByRole("region", { name: "Script" }),
       ).toBeInTheDocument();
     },
   );
-
-  it.each(["viewer", "commenter"] as const)(
-    "a %s has no tabs on either layout",
-    (access) => {
-      for (const layout of LAYOUTS) {
-        const { unmount } = setup({ access, layout });
-        expect(screen.queryByRole("tab")).toBeNull();
-        unmount();
-      }
-    },
-  );
 });
 
 describe("composer slot", () => {
-  it.each(
-    ROLES.flatMap((access) =>
-      LAYOUTS.map((layout) => [access, layout] as const),
-    ),
-  )("%s on %s", (access, layout) => {
-    setup({ access, layout, composer: <p>Composer here</p> });
-    const found = screen.queryAllByText("Composer here");
-    expect(found).toHaveLength(access === "viewer" ? 0 : 1);
-    const script = screen.getByRole("region", { name: "Script" });
-    const [composer] = found;
-    if (composer) {
-      const after =
-        script.compareDocumentPosition(composer) &
-        Node.DOCUMENT_POSITION_FOLLOWING;
-      expect(!!after).toBe(layout === "phone");
-    }
+  it.each(COMMENTERS.flatMap((r) => LAYOUTS.map((l) => [r, l] as const)))(
+    "%s on %s has the composer once, after the Script only on phone",
+    (role, layout) => {
+      setup({ access: role.id, layout, composer: <p>Composer here</p> });
+      const found = screen.getAllByText("Composer here");
+      expect(found).toHaveLength(1);
+      const script = screen.getByRole("region", { name: "Script" });
+      const follows = script.compareDocumentPosition(found[0] as HTMLElement);
+      expect(Boolean(follows & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(
+        layout === "phone",
+      );
+    },
+  );
+
+  it.each(LAYOUTS)("a viewer on %s has none", (layout) => {
+    setup({ access: "viewer", layout, composer: <p>Composer here</p> });
+    expect(screen.queryByText("Composer here")).toBeNull();
+  });
+});
+
+describe("Comment and collapse controls", () => {
+  it.each(COMMENTERS.flatMap((r) => LAYOUTS.map((l) => [r, l] as const)))(
+    "%s on %s has a Comment button",
+    (role, layout) => {
+      setup({ access: role.id, layout, onComment: () => {} });
+      expect(
+        screen.getByRole("button", { name: "Comment" }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each(LAYOUTS)("a viewer on %s has none", (layout) => {
+    setup({ access: "viewer", layout, onComment: () => {} });
+    expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+  });
+
+  it("collapses the Player with its own button, on a phone only", () => {
+    setup({ layout: "desktop" });
+    expect(
+      screen.queryByRole("button", { name: "Collapse player" }),
+    ).toBeNull();
+  });
+
+  it("collapses to the bar on a phone and expands again", async () => {
+    setup({ layout: "phone" });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Collapse player" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Collapse player" }),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Expand player/ }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Collapse player" }),
+    ).toBeInTheDocument();
+  });
+
+  it("collapses to the bar when the Script is scrolled by hand on a phone", () => {
+    setup({ layout: "phone" });
+    scrollByHand();
+    expect(
+      screen.getByRole("button", { name: /Expand player/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("stays expanded on desktop when the Script is scrolled", () => {
+    setup({ layout: "desktop" });
+    scrollByHand();
+    expect(screen.queryByRole("button", { name: /Expand player/ })).toBeNull();
+    expect(document.querySelector(".sys-player--expanded")).not.toBeNull();
   });
 });
 
 describe("Player and Script wiring", () => {
-  it.each(ROLES)("a %s gets a Player without A/B", (access) => {
-    setup({ access });
+  it.each(ROLES)("a $id gets a Player without A/B", ({ id }) => {
+    setup({ access: id });
+    expect(document.querySelector(".sys-player--expanded")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "A" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Audition" })).toBeNull();
   });
@@ -284,8 +265,8 @@ describe("Player and Script wiring", () => {
   it.each([0, 1, 9, 20, 40, 53])(
     "the playing word at word %i's start is that word",
     (index) => {
-      setup({ initialPlayhead: WORD_STARTS[index] ?? 0 });
-      expect(playingWord()).toBe(WORDS[index]?.text);
+      setup({ initialPlayhead: startOf(index) });
+      expect(playingWord()).toBe(textOf(index));
     },
   );
 
@@ -299,21 +280,17 @@ describe("Player and Script wiring", () => {
     async (index) => {
       setup({ initialPlayhead: 0 });
       await userEvent.click(
-        screen.getByRole("button", { name: WORDS[index]?.text ?? "" }),
+        screen.getByRole("button", { name: textOf(index) }),
       );
-      expect(playingWord()).toBe(WORDS[index]?.text);
-      expect(
-        screen.getAllByText(label(WORD_STARTS[index] ?? 0)).length,
-      ).toBeGreaterThan(0);
+      expect(playingWord()).toBe(textOf(index));
+      expect(readout()).toBe(clock(startOf(index)));
+      expect(overviewPlayhead()).toBe(percentOf(startOf(index)));
     },
   );
 
   it("shows the current and total time in that order", () => {
     setup({ initialPlayhead: 735 });
-    const readout = document.querySelector(
-      ".sys-player-readout",
-    ) as HTMLElement;
-    expect(readout.textContent).toContain(`${label(735)} / ${label(DURATION)}`);
+    expect(readout()).toBe(clock(735));
   });
 
   it.each([
@@ -325,10 +302,8 @@ describe("Player and Script wiring", () => {
   ])("%s from %i lands on %i", async (name, from, to) => {
     setup({ initialPlayhead: from });
     await userEvent.click(screen.getByRole("button", { name }));
-    const readout = document.querySelector(
-      ".sys-player-readout",
-    ) as HTMLElement;
-    expect(readout.textContent).toContain(`${label(to)} / `);
+    expect(readout()).toBe(clock(to));
+    expect(overviewPlayhead()).toBe(percentOf(to));
   });
 
   it.each([
@@ -347,89 +322,78 @@ describe("Player and Script wiring", () => {
 
   it("draws the overview playhead as a share of the episode", () => {
     setup({ initialPlayhead: DURATION / 2 });
-    const overview = document.querySelector(".sys-overview") as HTMLElement;
-    expect(overview.innerHTML).toMatch(/50%|0\.5/);
+    expect(overviewPlayhead()).toBe("50%");
   });
 });
 
 describe("following", () => {
   it.each([0, 20, 45])(
-    "Back to playhead scrolls word %i, the playing one",
+    "Back to playhead scrolls the playing word %i to the centre",
     async (index) => {
-      const scrolled: (string | null)[] = [];
-      window.HTMLElement.prototype.scrollIntoView = function () {
-        scrolled.push(this.textContent);
-      };
-      setup({ initialPlayhead: WORD_STARTS[index] ?? 0 });
+      const scrolled: { text: string | null; block: unknown }[] = [];
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+        configurable: true,
+        value(this: HTMLElement, arg: ScrollIntoViewOptions) {
+          scrolled.push({ text: this.textContent, block: arg.block });
+        },
+      });
+      setup({ initialPlayhead: startOf(index) });
       scrollByHand();
       scrolled.length = 0;
-      await userEvent.click(
-        screen.getByRole("button", { name: /Back to playhead/ }),
-      );
-      expect(scrolled).toEqual([WORDS[index]?.text]);
+      await userEvent.click(backToPlayhead() as HTMLElement);
+      expect(scrolled).toEqual([{ text: textOf(index), block: "center" }]);
+      expect(backToPlayhead()).toBeNull();
     },
   );
 
-  it("resumes following when the follow control is pressed again", async () => {
+  it("shows Back to playhead after a hand scroll", () => {
+    setup();
+    expect(backToPlayhead()).toBeNull();
+    scrollByHand();
+    expect(backToPlayhead()).not.toBeNull();
+  });
+
+  it("follows again when the follow control is pressed", async () => {
     setup();
     scrollByHand();
-    expect(
-      screen.getByRole("button", { name: /Back to playhead/ }),
-    ).toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", { name: "Follow the playhead" }),
     );
+    expect(backToPlayhead()).toBeNull();
     expect(
-      screen.queryByRole("button", { name: /Back to playhead/ }),
-    ).toBeNull();
-  });
-});
-
-describe("phone Player form", () => {
-  it("collapses to the bar when the Script is scrolled by hand and expands again", async () => {
-    setup({ layout: "phone" });
-    expect(
-      screen.getByRole("button", { name: "Collapse player" }),
-    ).toBeInTheDocument();
-    scrollByHand();
-    expect(
-      screen.queryByRole("button", { name: "Collapse player" }),
-    ).toBeNull();
-    await userEvent.click(
-      screen.getByRole("button", { name: /Expand player/ }),
-    );
-    expect(
-      screen.getByRole("button", { name: "Collapse player" }),
-    ).toBeInTheDocument();
-  });
-
-  it("collapses with its own button", async () => {
-    setup({ layout: "phone" });
-    await userEvent.click(
-      screen.getByRole("button", { name: "Collapse player" }),
-    );
-    expect(
-      screen.getByRole("button", { name: /Expand player/ }),
-    ).toBeInTheDocument();
-  });
-
-  it("stays expanded on desktop when the Script is scrolled", () => {
-    setup({ layout: "desktop" });
-    scrollByHand();
-    expect(screen.queryByRole("button", { name: /Expand player/ })).toBeNull();
+      screen.getByRole("button", { name: "Follow the playhead" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });
 
 describe("Role chip and hint per role", () => {
-  it.each(
-    ROLES.flatMap((access) =>
-      LAYOUTS.map((layout) => [access, layout] as const),
-    ),
-  )("%s on %s", (access, layout) => {
-    setup({ access, layout, firstVisit: true });
-    const name = access[0]?.toUpperCase() + access.slice(1);
-    const chip = screen.getByRole("img", { name: new RegExp(`^${name}: `) });
-    expect(chip.textContent).toBe(layout === "phone" ? "" : name);
-    expect(screen.getByRole("note")).toHaveTextContent(ROLE_HINT[access]);
+  it.each(ROLE_LAYOUTS)("%s on %s", (role, layout) => {
+    setup({ access: role.id, layout, firstVisit: true });
+    const chip = screen.getByRole("img", {
+      name: new RegExp(`^${role.label}: `),
+    });
+    expect(chip.textContent).toBe(layout === "phone" ? "" : role.label);
+    expect(screen.getByRole("note")).toHaveTextContent(ROLE_HINT[role.id]);
+  });
+
+  it("shows once on a first visit and tells the app when dismissed", async () => {
+    const seen = vi.fn();
+    setup({ firstVisit: true, onRoleHintSeen: seen });
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(seen).toHaveBeenCalledOnce();
+  });
+
+  it("keeps keyboard focus after the hint closes", async () => {
+    setup({ firstVisit: true });
+    screen.getByRole("button", { name: "Dismiss hint" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("stays quiet on a later visit", () => {
+    setup();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 });
