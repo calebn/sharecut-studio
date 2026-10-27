@@ -1,5 +1,6 @@
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
+import { openHome } from "./home";
 
 const splashUrl = pathToFileURL(
   fileURLToPath(new URL("../../desktop/splash/index.html", import.meta.url)),
@@ -35,11 +36,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     test("the home screen lockup takes the system text colour", async ({
       page,
     }) => {
-      await page.addInitScript(() => {
-        window.localStorage.setItem("sharecut.bootstrap.skip", "1");
-      });
-      await page.goto("/?home=1");
-      await page.getByRole("heading", { name: /^ShareCut Studio$/ }).waitFor();
+      await openHome(page);
       const { canvasText, fills } = await markFills(page, ".brand-lockup path");
       expect(fills.length).toBeGreaterThan(0);
       expect(new Set(fills)).toEqual(new Set([canvasText]));

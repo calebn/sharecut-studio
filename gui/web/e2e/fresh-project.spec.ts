@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { registerE2eCleanupWorkspace } from "./cleanupManifest";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
+import { createEpisodeFromHome, openHome } from "./home";
 import { switchE2eProject } from "./shareableProject";
 import { addTrack, openPanel } from "./stageNav";
 
@@ -20,16 +21,8 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     if (!registered) {
       throw new Error("E2E workspace cleanup registration unavailable");
     }
-    await page.addInitScript(() => {
-      window.localStorage.setItem("sharecut.bootstrap.skip", "1");
-    });
-    await page.goto("/?home=1");
-    await page.getByRole("button", { name: "New project…" }).click();
-    await page.getByRole("textbox", { name: "Name" }).fill("Fresh QA");
-    await page
-      .getByRole("textbox", { name: "Workspace directory" })
-      .fill(workspaceDir);
-    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await openHome(page);
+    await createEpisodeFromHome(page, { name: "Fresh QA", workspaceDir });
 
     const audioError = page.locator(".sys-player-pill", {
       hasText: "Audio error",

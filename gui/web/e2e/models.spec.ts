@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean, expectSurfaceAxeClean } from "./axe";
+import { chooseHomeMenuItem, openHome } from "./home";
 import {
   expectNoHorizontalScroll,
   expectTouchTargets,
@@ -15,7 +16,7 @@ import {
 import { openHostProject } from "./overlayReachability";
 
 /**
- * The first-run wizard and the Models dialog against a mocked `/api/bootstrap/*`: nothing here
+ * The first-run Setup card on Home and the Models dialog against a mocked `/api/bootstrap/*`: nothing here
  * downloads anything. Set MODELS_SHOTS_DIR to also save one screenshot per viewport, theme and case.
  */
 
@@ -26,19 +27,26 @@ for (const viewport of VIEWPORTS) {
         viewport: { width: viewport.width, height: viewport.height },
       });
 
-      test("wizard lists required, recommended and offered rows, and downloads nothing", async ({
+      test("Home offers one Setup card for the bundle, with the full list behind Choose, and downloads nothing", async ({
         page,
       }) => {
         await prepare(page, theme, false);
         const mock = await mockBootstrap(page);
-        await page.goto("/?home=1");
-        const setup = page.getByRole("region", { name: "Setup" });
+        await openHome(page, { dismissSetup: false });
+        const setup = page.getByRole("region", { name: "Get ShareCut ready" });
+        await expect(setup).toBeVisible();
         await expect(
-          setup.getByRole("heading", { name: "Set up ShareCut Studio" }),
+          setup.getByText(/One download, about 1\.6 GB\./),
         ).toBeVisible();
-        await expect(page.locator("li.model-row")).toHaveCount(4);
         await expect(
-          page
+          setup.getByRole("button", { name: "Get ready" }),
+        ).toBeEnabled();
+        await expect(page.locator("li.model-row")).toHaveCount(0);
+        await setup.getByRole("button", { name: "Choose…" }).click();
+        const dialog = page.getByRole("dialog", { name: "Models" });
+        await expect(dialog).toBeVisible();
+        await expect(
+          dialog
             .locator("li.model-row")
             .evaluateAll((els) =>
               els.map((el) => el.getAttribute("data-model")),
@@ -49,59 +57,42 @@ for (const viewport of VIEWPORTS) {
           "word-aligner",
           "speaker-ecapa",
         ]);
-        const whisper = setup.getByRole("checkbox", { name: "Whisper" });
-        await expect(whisper).toBeChecked();
-        await expect(whisper).toBeDisabled();
-        await expect(whisper).toHaveAccessibleDescription(
-          /Required for transcription/,
-        );
         await expect(
-          setup.getByRole("checkbox", { name: "Noise reduction (RNNoise)" }),
-        ).toBeChecked();
-        await expect(
-          setup.getByRole("checkbox", { name: "Word aligner" }),
-        ).not.toBeChecked();
-        await expect(
-          setup.getByRole("checkbox", { name: "Speaker model" }),
-        ).not.toBeChecked();
-        await expect(
-          row(page, "Whisper").getByRole("combobox", { name: "Whisper size" }),
-        ).toBeVisible();
-        await expect(setup.getByText("Download 1.6 GB")).toBeVisible();
-        await expect(
-          setup.getByText("You can download these later from Models."),
+          row(dialog, "Whisper").getByRole("combobox", {
+            name: "Whisper size",
+          }),
         ).toBeVisible();
         await expectNoHorizontalScroll(page);
-        await expectTouchTargets(setup);
+        await expectTouchTargets(dialog);
         await expectReadingSurfaceAxeClean(page);
-        await shot(page, viewport.name, theme, "wizard-initial", true);
+        await shot(page, viewport.name, theme, "setup-choose", true);
         expect(mock.runs).toEqual([]);
       });
 
-      test("Continue shows the live bar on the current row and the others waiting", async ({
+      test("Get ready starts one download for the bundle and the card shows its live bar", async ({
         page,
       }) => {
         await prepare(page, theme, false);
         const mock = await mockBootstrap(page);
-        await page.goto("/?home=1");
-        const setup = page.getByRole("region", { name: "Setup" });
-        await setup.getByRole("button", { name: "Continue" }).click();
+        await openHome(page, { dismissSetup: false });
+        const setup = page.getByRole("region", {
+          name: /ShareCut ready/,
+        });
+        await setup.getByRole("button", { name: "Get ready" }).click();
         await expect.poll(() => mock.runs.length).toBe(1);
         expect(mock.runs[0]).toMatchObject({
           components: ["whisper", "rnnoise"],
         });
-        const bar = row(page, "Whisper").getByRole("progressbar");
-        await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
-        await expect(bar).toHaveAttribute("value", "420000000");
         await expect(
-          row(page, "Noise reduction (RNNoise)").getByRole("status"),
-        ).toHaveText("Waiting");
+          page.getByRole("region", { name: "Getting ShareCut ready" }),
+        ).toBeVisible();
+        await expect(setup.getByText("420 MB of 1.6 GB")).toBeVisible();
         await expect(
-          setup.getByRole("button", { name: "Downloading…" }),
-        ).toBeDisabled();
+          setup.getByRole("button", { name: "Cancel" }),
+        ).toBeEnabled();
         await expectNoHorizontalScroll(page);
         await expectReadingSurfaceAxeClean(page);
-        await shot(page, viewport.name, theme, "wizard-downloading", true);
+        await shot(page, viewport.name, theme, "setup-downloading", true);
       });
 
       test("Models opens from Home with the skip flag and shows every state", async ({
@@ -140,14 +131,11 @@ for (const viewport of VIEWPORTS) {
               },
             })}\n\n`,
         });
-        await page.goto("/?home=1");
+        await openHome(page, { dismissSetup: false });
         await expect(
-          page.getByRole("heading", { name: "ShareCut Studio" }),
-        ).toBeVisible();
-        await expect(page.getByRole("region", { name: "Setup" })).toHaveCount(
-          0,
-        );
-        await page.getByRole("button", { name: "Models", exact: true }).click();
+          page.getByRole("region", { name: "Get ShareCut ready" }),
+        ).toHaveCount(0);
+        await chooseHomeMenuItem(page, "Models");
         const dialog = page.getByRole("dialog", { name: "Models" });
         await expect(dialog).toBeVisible();
         await expect(row(dialog, "Whisper").getByRole("status")).toHaveText(
@@ -203,8 +191,8 @@ for (const viewport of VIEWPORTS) {
             };
           },
         });
-        await page.goto("/?home=1");
-        await page.getByRole("button", { name: /^Models/ }).click();
+        await openHome(page, { dismissSetup: false });
+        await chooseHomeMenuItem(page, "Models");
         const dialog = page.getByRole("dialog", { name: "Models" });
         await expect(dialog).toBeVisible();
 
