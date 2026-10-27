@@ -6,7 +6,6 @@ from typing import get_args
 from podcast_mcp.config.defaults import repo_root
 from podcast_mcp.edits.cut_policy import ReviewKind, review_kind
 from podcast_mcp.edits.edit_reasons import LABELLED_REASON_CODES, LABELLED_REASON_PREFIXES
-from podcast_mcp.edits.tighten_hits import TIGHTEN_REASON_PREFIXES
 
 _UTILS = repo_root() / "gui" / "web" / "src" / "utils"
 
@@ -24,7 +23,7 @@ def _web(rel: str) -> str:
 
 
 def test_every_backend_tighten_prefix_maps_to_a_non_other_review_kind() -> None:
-    for prefix in TIGHTEN_REASON_PREFIXES:
+    for prefix in ("filler:", "pause:", "repetition:", "restart:"):
         assert review_kind(f"{prefix}x") != "other", prefix
     # Acoustic hits are `filler:` reasons, grouped as the Sound chip.
     assert review_kind("filler:acoustic") == "sound"
