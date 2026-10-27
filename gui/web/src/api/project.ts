@@ -138,6 +138,7 @@ export async function loadHistoryDiff(
   });
   return res.json() as Promise<HistoryDiff>;
 }
+/** A blank `workspaceDir` lets the server pick `<workspace root>/<name>` and number it when taken. */
 export async function createEpisodeProject(
   workspaceDir: string,
   name: string,
@@ -167,6 +168,45 @@ export async function openEpisodeProject(
     },
   );
   return res.json() as Promise<{ project_path: string; name: string }>;
+}
+
+/** One entry of Home's recent list, as `GET /api/projects/recent` sends it. */
+export type RecentProject = {
+  /** Absolute path of episode.project.json. */
+  path: string;
+  name: string;
+  opened_at: string;
+  /** The project file's mtime; null when the file is gone. */
+  edited_at: string | null;
+  duration_sec: number | null;
+  stage: "record" | "prepare" | "review" | "edit" | "deliver";
+  /** `state` is a status-pill state; the Home adapter checks it. */
+  chip: { text: string; state: string };
+  /** Whole-episode peaks, 0 to 1; empty until the server has a cache. */
+  peaks: number[];
+  folder_missing: boolean;
+};
+
+/** The last episodes opened on this machine, newest first (host only). */
+export async function listRecentProjects(
+  signal?: AbortSignal,
+): Promise<RecentProject[]> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/projects/recent" },
+    { signal },
+  );
+  const body = (await res.json()) as { projects?: RecentProject[] };
+  return Array.isArray(body.projects) ? body.projects : [];
+}
+
+/** Drops one entry from the recent list; the episode itself is untouched. */
+export async function forgetRecentProject(path: string): Promise<void> {
+  await apiFetch(
+    HOST_KEY,
+    { host: `/api/projects/recent?path=${encodeURIComponent(path)}` },
+    { method: "DELETE" },
+  );
 }
 
 export async function closeEpisodeProject(signal?: AbortSignal): Promise<void> {
