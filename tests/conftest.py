@@ -119,6 +119,9 @@ def _isolate_relay_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     from podcast_mcp.services.collaboration import tunnel_status
 
     monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(tmp_path / "relay.yaml"))
+    # The recent-episodes list and Home's default workspace never touch the developer's home.
+    monkeypatch.setenv("PODCAST_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("PODCAST_WORKSPACE_ROOT", str(tmp_path / "workspaces"))
     monkeypatch.delenv("PODCAST_RELAY_HOST_ID", raising=False)
     for name in ("PODCAST_RELAY_URL", "PODCAST_RELAY_HOST_TOKEN"):
         monkeypatch.delenv(name, raising=False)
