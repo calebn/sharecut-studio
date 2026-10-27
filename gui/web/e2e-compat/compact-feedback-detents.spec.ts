@@ -47,6 +47,11 @@ for (const {
     ),
   ),
 )) {
+  const halfDetent = !(viewport.width > viewport.height && rootPx === 32);
+  const detents = halfDetent
+    ? (["half", "full"] as const)
+    : (["full"] as const);
+  const firstExpand = `Expand to ${detents[0]} height`;
   test.describe(`feedback detents ${inspector} ${viewport.width}x${viewport.height} root${rootPx} ${theme}`, () => {
     test("feedback preserves selected half and full geometry and permitted ruler and lane room", async ({
       page,
@@ -124,8 +129,8 @@ for (const {
       await page.waitForTimeout(350);
       const withoutFeedback: Record<string, number> = {};
       let halfRulerPermitted = false;
-      for (const detent of ["half", "full"] as const) {
-        if (detent === "full")
+      for (const detent of detents) {
+        if (detent === "full" && halfDetent)
           await page
             .getByRole("button", {
               name: "Expand to full height",
@@ -222,10 +227,7 @@ for (const {
         .getByRole("button", { name: "Collapse to strip", exact: true })
         .click();
       await page
-        .getByRole("button", {
-          name: "Expand to half height",
-          exact: true,
-        })
+        .getByRole("button", { name: firstExpand, exact: true })
         .click();
       if (halfRulerPermitted) {
         const slider = page.getByRole("slider", {
@@ -297,9 +299,10 @@ for (const {
       await expect(summary).toHaveAccessibleName(
         "Needs attention details and recovery actions",
       );
-      await page
-        .getByRole("button", { name: "Expand to full height", exact: true })
-        .click();
+      if (halfDetent)
+        await page
+          .getByRole("button", { name: "Expand to full height", exact: true })
+          .click();
       for (const button of await panel
         .locator(".bottom-sheet-header-actions button")
         .all()) {
@@ -377,11 +380,11 @@ for (const {
         .getByRole("button", { name: "Collapse to strip", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "Expand to half height", exact: true })
+        .getByRole("button", { name: firstExpand, exact: true })
         .click();
       const withFeedback: Record<string, number> = {};
-      for (const detent of ["half", "full"] as const) {
-        if (detent === "full")
+      for (const detent of detents) {
+        if (detent === "full" && halfDetent)
           await page
             .getByRole("button", {
               name: "Expand to full height",
@@ -426,22 +429,15 @@ for (const {
             );
         }
       }
-      // At large text on a phone held sideways half and full share a height
-      // (docs/gui-mobile.md): the header never leaves less than 9rem.
-      if (rootPx === 32 && viewport.width > viewport.height)
-        expect(withFeedback.half).toBeLessThanOrEqual(withFeedback.full);
-      else expect(withFeedback.half).toBeLessThan(withFeedback.full);
+      if (halfDetent) expect(withFeedback.half).toBeLessThan(withFeedback.full);
       await page
         .getByRole("button", { name: "Collapse to strip", exact: true })
         .click();
       await page
-        .getByRole("button", {
-          name: "Expand to half height",
-          exact: true,
-        })
+        .getByRole("button", { name: firstExpand, exact: true })
         .click();
       expect((await panel.boundingBox())!.height).toBeCloseTo(
-        withFeedback.half,
+        withFeedback[detents[0]],
         0,
       );
       if (halfRulerPermitted) {

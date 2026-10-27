@@ -436,6 +436,22 @@ html[data-shell="phone"] .bottom-sheet-root {
   flex-wrap: wrap;
 }
 
+html[data-frame-short] .bottom-sheet--compact .bottom-sheet-title {
+  flex: 1 1 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-frame-short] .bottom-sheet--compact .bottom-sheet-grabber {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  margin: 0;
+  pointer-events: none;
+}
+
 .compact-history-controls {
   display: flex;
   flex-wrap: wrap;
@@ -550,6 +566,20 @@ html[data-shell="tablet"]
   flex: 0 0 auto;
   min-height: auto;
   height: auto;
+  overflow: visible;
+}
+
+.bottom-sheet--compact.bottom-sheet--chrome-scrolls {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.bottom-sheet--compact.bottom-sheet--chrome-scrolls .bottom-sheet-chrome {
+  position: static;
+}
+
+.bottom-sheet--compact.bottom-sheet--chrome-scrolls .bottom-sheet-body {
+  flex: 0 0 auto;
   overflow: visible;
 }
 
