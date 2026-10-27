@@ -55,6 +55,7 @@ services import each context's declared symbols from
 may import implementation modules. The pipeline context depends on the existing
 `services.app` facade for `ProjectWorkspace`, and support reads pipeline component status
 through the public facade. Neither context imports CLI, MCP, or GUI modules.
+Review gate status and brief reports use `ProjectWorkspace.effective_config()` so their mode and hint match the configuration staged for that project.
 The document context splits editing by theme, each service under 40 public
 methods and each module under 850 lines: `EditService` (cuts, approval
 decisions, tighten proposals), `TimelineService` (clip geometry, joins, fades,
