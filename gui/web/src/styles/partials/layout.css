@@ -638,20 +638,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   min-height: 2rem;
 }
 
-/* The compact track grows with its buttons: on touch they take the full
-   44pt target, and a fixed-height track (the shared .ui-segmented
-   control-height, which loads after this partial) left them hanging below it. */
-.ui-segmented.tool-mode-toggle--compact {
-  block-size: auto;
-}
-
-.tool-mode-toggle--compact > .ui-control {
-  padding: var(--space-1);
-  font-size: var(--font-size-caption);
-  min-width: 2.25rem;
-  min-height: 2.25rem;
-}
-
 .ui-icon {
   display: block;
   flex: 0 0 auto;
@@ -706,42 +692,11 @@ html[data-shell="phone"] .guest-attention-dismiss {
   pointer-events: none;
 }
 
-/* The rail is a row of touch controls, not copy. Without this, a long-press on
-   an icon button starts iOS's selection loupe or the Copy / Look Up callout,
-   which cancels the pointer sequence before the label peek can show (#1878,
-   #1874). The prefixed pair is what Safari 17 honours. */
-.editing-tool-rail-history {
-  display: flex;
-  flex: none;
-  gap: var(--space-1);
-}
-
-.editing-tool-rail-icon {
+.compact-history-button {
   justify-content: center;
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
   padding: 0;
-}
-
-/* Tapping an unavailable Undo or Redo names why. The note floats over the
-   lanes' bottom edge so it never costs the timeline a row, and it lets
-   touches through to them. */
-.editing-tool-rail-hint {
-  position: absolute;
-  inset-block-end: 100%;
-  inset-inline-end: var(--space-4);
-  margin-block-end: var(--space-1);
-  pointer-events: none;
-}
-
-.editing-tool-rail-hint:not(:empty) {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
-  box-shadow: var(--shadow-raised);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-small);
 }
 
 .overlay-legend {

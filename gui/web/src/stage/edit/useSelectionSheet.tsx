@@ -6,7 +6,6 @@ import {
 } from "../../hooks/useMediaQueryStore";
 import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
 import { opensSheet, type SheetScreen } from "../../inspector/selectionSurface";
-import type { ShellBreakpoint } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import type { Selection } from "../../types/project";
 import type { SheetPlacement } from "../../ui/BottomSheet";
@@ -25,21 +24,11 @@ import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
 import { useKeepEditedLaneClear } from "./useKeepEditedLaneClear";
 import { useRevealEditedLane } from "./useRevealEditedLane";
 
-/**
- * The shells that carry a selection sheet. `armedOpens`: Select range alone
- * opens it, with the In and Out fields in the bottom zone. Doing controls
- * never sit in a card at the top (`docs/interaction-system.md` § Shells and
- * placement), so the tablet does it too (#1793).
- */
-export const SHEET_SHELLS = {
-  phone: { armedOpens: true },
-  tablet: { armedOpens: true },
-} as const satisfies Partial<Record<ShellBreakpoint, { armedOpens: boolean }>>;
+/** The shells that carry a selection sheet. */
+type SheetShell = "phone" | "tablet";
 
-export type SheetShell = keyof typeof SHEET_SHELLS;
-
-export interface SheetOpenState {
-  shell: ShellBreakpoint;
+interface SheetOpenState {
+  shell: SheetShell;
   selection: Selection;
   rangeArmed: boolean;
   /** The surface the Edit stage shows. */
@@ -50,13 +39,12 @@ export interface SheetOpenState {
  * Is the selection sheet open? One rule for every shell: the selection's kind
  * lists the screens it opens on (`SELECTION_SURFACES`), and the phone and the
  * tablet each name the screen they show. Arming a range opens it alone, so the
- * In and Out fields sit in the sheet. The tracks ticked for the range are its
- * scope, not a request to inspect them.
+ * In and Out fields sit in the bottom zone, never in a card at the top
+ * (`docs/interaction-system.md` § Shells and placement, #1793). The tracks
+ * ticked for the range are its scope, not a request to inspect them.
  */
-export function selectionSheetOpen(s: SheetOpenState): boolean {
-  if (s.shell === "desktop") return false;
-  const { armedOpens } = SHEET_SHELLS[s.shell];
-  if (s.rangeArmed && armedOpens) return true;
+function selectionSheetOpen(s: SheetOpenState): boolean {
+  if (s.rangeArmed) return true;
   if (s.selection == null) return false;
   if (s.rangeArmed && s.selection.kind === "track") return false;
   return opensSheet(s.selection, s.screen);
@@ -72,8 +60,6 @@ export interface SelectionSheet {
   /** The panel's class when it is not the compact inspector; none in a column. */
   className: string;
   compact: CompactSheetProps | undefined;
-  /** The editing rail is inert while a full-height compact sheet covers it. */
-  coversTools: boolean;
   rangeActionsInSheet: boolean;
   /** Out of the way while a range is dragged out beneath it. */
   stowed: boolean;
@@ -135,7 +121,6 @@ export function useSelectionSheet(
   useKeepEditedLaneClear(laneTrack);
   useKeepBandClear(open && !column && !compact ? bandLocator(selection) : null);
   useRevealEditedLane(open && column ? editedLaneTrack(selection) : null);
-  const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
   const rangeActionsInSheet =
     open &&
     (rangeArmed ||
@@ -149,7 +134,7 @@ export function useSelectionSheet(
     expanded: sheetExpanded,
     onExpandedChange: setSheetExpanded,
     onClose: () => {
-      if (armedOpens) setRangeArmed(false);
+      if (shell != null) setRangeArmed(false);
       setSelection(null);
       setSheetExpanded(false);
     },
@@ -159,7 +144,6 @@ export function useSelectionSheet(
         ? INSPECTOR_SHEET_CLASS
         : `${INSPECTOR_SHEET_CLASS} ${LANE_BAND_SHEET_CLASS}`,
     compact: compact ? compactSheetProps(compact) : undefined,
-    coversTools: open && compact != null && !compact.stowed,
     content: (
       <SelectionSheetBody
         rangeActionsInSheet={rangeActionsInSheet}

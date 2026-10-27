@@ -8,7 +8,3 @@ export const TAB_LABELS: Record<PresenceTab, string> = {
   tighten: "Tighten",
   pipeline: "Pipeline",
 };
-
-export function tabLabel(tab: PresenceTab): string {
-  return TAB_LABELS[tab] ?? tab;
-}

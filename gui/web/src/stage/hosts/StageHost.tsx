@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../../state/stageRoutes";
 import { Cover } from "../../system/Cover";
-import { STAGES } from "../../system/verbs";
+import { stageLabel } from "../../system/verbs";
 import { EditWorkspace } from "../edit/EditWorkspace";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { DeliverStage } from "./DeliverStage";
@@ -34,13 +34,15 @@ function StageHostAdapter({
   if (!stageAvailable(stage, role)) {
     // A deep link or a stale stage names something this link cannot open.
     const first = stagesForRole(role)[0];
-    const label = STAGES.find((s) => s.id === first)?.label ?? "Review";
     return (
       <Cover
         size="region"
         glyph="triangle-alert"
         title="This link can't open that"
-        primary={{ label: `Go to ${label}`, onClick: () => openStage(first) }}
+        primary={{
+          label: `Go to ${stageLabel(first)}`,
+          onClick: () => openStage(first),
+        }}
       >
         Your link doesn't include this part of the project.
       </Cover>

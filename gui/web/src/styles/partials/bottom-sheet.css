@@ -354,7 +354,7 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
   gap: var(--space-1);
 }
 
-.compact-history-controls .editing-tool-rail-icon {
+.compact-history-controls .compact-history-button {
   position: relative;
 }
 

@@ -3,7 +3,6 @@ import type { ToolMode } from "../../state/types";
 import { Icon, SegmentedControl, ToggleButton } from "../../ui";
 
 export interface ToolModeToggleViewProps {
-  compact?: boolean;
   /** Why each tool is unavailable; omit when it can be used. */
   selectReason?: string;
   bladeReason?: string;
@@ -21,9 +20,8 @@ export interface ToolModeToggleViewProps {
   onToggleComment: () => void;
 }
 
-/** Store-free Select / Blade (and Comment when not compact) tool cluster. */
+/** Store-free Select / Blade / Comment tool cluster. */
 export function ToolModeToggleView({
-  compact = false,
   selectReason,
   bladeReason,
   commentReason,
@@ -43,10 +41,7 @@ export function ToolModeToggleView({
   const bladeActive = toolMode === "blade" && !commentMode;
 
   return (
-    <SegmentedControl
-      label="Timeline tool"
-      className={`tool-mode-toggle${compact ? " tool-mode-toggle--compact" : ""}`}
-    >
+    <SegmentedControl label="Timeline tool" className="tool-mode-toggle">
       <>
         <ToggleButton
           quiet
@@ -71,20 +66,18 @@ export function ToolModeToggleView({
           <Icon name="blade" />
         </ToggleButton>
       </>
-      {!compact ? (
-        <ToggleButton
-          quiet
-          pressed={commentMode}
-          className="comment-mode-btn"
-          disabledReason={commentReason}
-          title={commentTitle}
-          aria-label={commandLabel("review.toggleCommentMode")}
-          aria-keyshortcuts={commentAriaKeyShortcuts}
-          onClick={onToggleComment}
-        >
-          <Icon name="comment" />
-        </ToggleButton>
-      ) : null}
+      <ToggleButton
+        quiet
+        pressed={commentMode}
+        className="comment-mode-btn"
+        disabledReason={commentReason}
+        title={commentTitle}
+        aria-label={commandLabel("review.toggleCommentMode")}
+        aria-keyshortcuts={commentAriaKeyShortcuts}
+        onClick={onToggleComment}
+      >
+        <Icon name="comment" />
+      </ToggleButton>
     </SegmentedControl>
   );
 }

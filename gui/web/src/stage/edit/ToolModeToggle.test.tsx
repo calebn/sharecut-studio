@@ -16,7 +16,7 @@ describe("ToolModeToggle", () => {
   it("includes Comment when expanded", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <ToolModeToggle />
+        <ToolModeToggle bladeAllowed />
       </DawProvider>,
     );
     expect(screen.getByRole("button", { name: "Select tool" })).toBeTruthy();
@@ -29,7 +29,7 @@ describe("ToolModeToggle", () => {
   it("renders the shared segmented track so pressed paint comes from one place", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <ToolModeToggle />
+        <ToolModeToggle bladeAllowed />
       </DawProvider>,
     );
     const group = screen.getByRole("group", { name: "Timeline tool" });
@@ -37,24 +37,11 @@ describe("ToolModeToggle", () => {
     expect(group.classList.contains("tool-mode-toggle")).toBe(true);
   });
 
-  it("omits Comment when compact so collapsed transport owns it", () => {
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <ToolModeToggle compact />
-      </DawProvider>,
-    );
-    expect(screen.getByRole("button", { name: "Select tool" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Blade tool" })).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Toggle comment mode" }),
-    ).toBeNull();
-  });
-
   it("dispatches tool and comment commands through the store on click", async () => {
     const user = userEvent.setup();
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <ToolModeToggle />
+        <ToolModeToggle bladeAllowed />
       </DawProvider>,
     );
     await user.click(screen.getByRole("button", { name: "Blade tool" }));

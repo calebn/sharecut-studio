@@ -6,7 +6,7 @@ import {
 } from "../../presence/followSync";
 import { Avatar } from "../../ui/Avatar";
 import { Button } from "../../ui/Button";
-import { tabLabel } from "./tabLabels";
+import { TAB_LABELS } from "./tabLabels";
 
 export interface FollowBannerViewProps {
   /** Display name of the client being followed. */
@@ -32,7 +32,7 @@ export function FollowBannerView({
   onStopFollowing,
 }: FollowBannerViewProps) {
   const guestMix = guest && degraded.audition ? " · Listening in Mix" : "";
-  const detail = followBannerDetail(degraded, tabLabel);
+  const detail = followBannerDetail(degraded, (tab) => TAB_LABELS[tab]);
   return (
     <div
       className="follow-banner"

@@ -31,16 +31,6 @@ const meta: Meta<typeof LegendHarness> = {
   decorators: [
     (Story, context) => {
       const host = context.parameters.legendHost;
-      if (host === "menu") {
-        return (
-          <div role="menu" aria-label="View menu" className="ui-menu-panel">
-            <div className="ui-menu-section">
-              <span className="ui-menu-section-label">Layers</span>
-              <Story />
-            </div>
-          </div>
-        );
-      }
       if (host === "phone") {
         return (
           <div className="mobile-more-group">
@@ -64,15 +54,6 @@ export const Desktop: Story = {
     ).toBeInTheDocument();
     await expect(canvas.getByLabelText("Pending edits")).toBeInTheDocument();
     await expect(canvas.getByLabelText("Volume envelope")).toBeInTheDocument();
-  },
-};
-
-export const ViewMenu: Story = {
-  parameters: { legendHost: "menu" },
-  args: { menu: true },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("menuitemcheckbox")).toHaveLength(7);
   },
 };
 

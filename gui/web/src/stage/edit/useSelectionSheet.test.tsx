@@ -9,7 +9,7 @@ import { useDawStore } from "../../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import type { Selection } from "../../types/project";
-import { selectionSheetOpen, useSelectionSheet } from "./useSelectionSheet";
+import { useSelectionSheet } from "./useSelectionSheet";
 
 const clip = clipRow({ id: "c2", track_id: "host", timeline_start: 10 });
 
@@ -44,7 +44,6 @@ describe("useSelectionSheet placement", () => {
         open: true,
         placement: "column",
         compact: undefined,
-        coversTools: false,
         className: "",
       });
     },
@@ -246,10 +245,11 @@ function sheetOpen(
   selection: Selection,
   rangeArmed = false,
 ): boolean {
-  return selectionSheetOpen({ shell, selection, rangeArmed, screen });
+  useDawStore.setState({ selection, rangeArmed });
+  return renderHook(() => useSelectionSheet(shell, screen)).result.current.open;
 }
 
-describe("selectionSheetOpen reads one table on the phone and the tablet", () => {
+describe("the selection sheet opens by reading one table on the phone and the tablet", () => {
   it.each(
     KINDS.flatMap((kind) =>
       (["timeline", "text"] as const).map((screen) => [kind, screen] as const),

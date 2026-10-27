@@ -8,7 +8,7 @@ import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { AppHeader } from "../../system/AppHeader";
 import { StageBar } from "../../system/StageBar";
-import { STAGES } from "../../system/verbs";
+import { stageLabel } from "../../system/verbs";
 import type { StageSheet } from "../../types/stage";
 import { BannerStack } from "./BannerStack";
 import { HeaderPeople } from "./HeaderPeople";
@@ -76,12 +76,11 @@ function StageFrameAdapter({
     setTimelineFocused,
   );
 
-  const stageLabel = STAGES.find((s) => s.id === stage)?.label ?? "Stage";
   return (
     <StageFrameView
       shell={shell}
       stage={stage}
-      stageLabel={stageLabel}
+      stageLabel={stageLabel(stage)}
       guest={guestShare}
       following={following}
       header={

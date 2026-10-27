@@ -126,25 +126,6 @@ describe("ToolModeToggleView", () => {
     expect(group.classList.contains("tool-mode-toggle")).toBe(true);
   });
 
-  it("omits Comment and adds the compact class when compact", () => {
-    render(
-      <ToolModeToggleView
-        compact
-        toolMode="select"
-        commentMode={false}
-        selectTitle="Select tool (V)"
-        bladeTitle="Blade tool (C)"
-        commentTitle="Toggle comment mode: tap or drag the ruler to set the comment time (⌘⇧C)"
-        {...actions()}
-      />,
-    );
-    expect(
-      screen.queryByRole("button", { name: "Toggle comment mode" }),
-    ).toBeNull();
-    const group = screen.getByRole("group", { name: "Timeline tool" });
-    expect(group.classList.contains("tool-mode-toggle--compact")).toBe(true);
-  });
-
   it("keeps Select and disabled Blade visible for a viewer", () => {
     render(
       <ToolModeToggleView

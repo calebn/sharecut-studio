@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  type SaveState,
-  type SaveStateInput,
-  saveStateOf,
-  saveStateText,
-} from "./saveState";
+import { saveStateOf } from "./saveState";
+
+type SaveStateInput = Parameters<typeof saveStateOf>[0];
 
 const quiet: SaveStateInput = {
   busy: false,
@@ -92,9 +89,6 @@ describe("saveStateOf", () => {
       cause: "project-unavailable",
       reason: blocking.reason,
     });
-    expect(saveStateText(state as SaveState)).toBe(
-      "Not saved · The project file is missing, so nothing can be saved.",
-    );
     expect(
       saveStateOf({ ...quiet, conflicts: [{ ...blocking, dismissed: true }] }),
     ).toEqual({ kind: "saved" });
@@ -224,29 +218,5 @@ describe("saveStateOf", () => {
       kind: "failed",
       cause: "unreadable",
     });
-  });
-});
-
-describe("saveStateText", () => {
-  const cases: [SaveState, string][] = [
-    [{ kind: "saving" }, "Saving to project…"],
-    [{ kind: "saved" }, "Saved to project"],
-    [{ kind: "waiting", count: 1 }, "Not saved yet · 1 waiting to send"],
-    [{ kind: "waiting", count: 4 }, "Not saved yet · 4 waiting to send"],
-    [
-      { kind: "failed", cause: "unreadable" },
-      "Saved edits could not be read · Retry to read them",
-    ],
-    [
-      {
-        kind: "unknown",
-        reason: "Undo may have been applied",
-        recovery: "inspect-history",
-      },
-      "Outcome unknown · Undo may have been applied. Inspect History before trying again.",
-    ],
-  ];
-  it.each(cases)("%j reads %s", (state, text) => {
-    expect(saveStateText(state)).toBe(text);
   });
 });

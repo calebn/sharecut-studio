@@ -69,7 +69,6 @@ describe("CompactHistoryControls", () => {
         },
         onUndo: vi.fn(),
         onRedo: vi.fn(),
-        variant: "compact" as const,
       };
       const { rerender } = render(<HistoryControls {...props} />);
       const button = screen.getByRole("button", {
@@ -136,14 +135,9 @@ describe("CompactHistoryControls", () => {
     },
   );
 
-  it.each([
-    ["undo", "compact"],
-    ["redo", "compact"],
-    ["undo", "rail"],
-    ["redo", "rail"],
-  ] as const)(
-    "ends the old %s activation on recovery in %s controls",
-    async (action, variant) => {
+  it.each(["undo", "redo"] as const)(
+    "ends the old %s activation on recovery",
+    async (action) => {
       vi.useFakeTimers();
       const label = action === "undo" ? "Undo" : "Redo";
       const reason = action === "undo" ? "Nothing to undo" : "Nothing to redo";
@@ -154,7 +148,6 @@ describe("CompactHistoryControls", () => {
         },
         onUndo: vi.fn(),
         onRedo: vi.fn(),
-        variant,
       };
       const { rerender } = render(<HistoryControls {...props} />);
       const button = screen.getByRole("button", { name: label });
@@ -189,14 +182,9 @@ describe("CompactHistoryControls", () => {
     },
   );
 
-  it.each([
-    ["undo", "compact"],
-    ["redo", "compact"],
-    ["undo", "rail"],
-    ["redo", "rail"],
-  ] as const)(
-    "does not revive the old %s activation after history disappears in %s controls",
-    async (action, variant) => {
+  it.each(["undo", "redo"] as const)(
+    "does not revive the old %s activation after history disappears",
+    async (action) => {
       vi.useFakeTimers();
       const label = action === "undo" ? "Undo" : "Redo";
       const reason = action === "undo" ? "Nothing to undo" : "Nothing to redo";
@@ -207,7 +195,6 @@ describe("CompactHistoryControls", () => {
         },
         onUndo: vi.fn(),
         onRedo: vi.fn(),
-        variant,
       };
       const { rerender } = render(<HistoryControls {...props} />);
       const button = screen.getByRole("button", { name: label });
@@ -252,7 +239,6 @@ describe("CompactHistoryControls", () => {
         },
         onUndo: vi.fn(),
         onRedo: vi.fn(),
-        variant: "compact" as const,
       };
       const { rerender } = render(<HistoryControls {...props} />);
       fireEvent.click(

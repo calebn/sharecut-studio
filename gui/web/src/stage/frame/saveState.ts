@@ -1,4 +1,3 @@
-import { SAVE_STATE_COPY } from "../../record";
 import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
 
 /** What a host can say about the last change, derived from the send and queue state. */
@@ -14,7 +13,7 @@ export type SaveState =
   | { kind: "failed"; cause: "unreadable" }
   | { kind: "failed"; cause: "project-unavailable"; reason: string };
 
-export type SaveStateInput = {
+type SaveStateInput = {
   /** A save, send or replay is in flight in this tab. */
   busy: boolean;
   /** Edits in the offline queue, not yet applied. */
@@ -74,31 +73,4 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
   }
   if (input.pending > 0) return { kind: "waiting", count: input.pending };
   return { kind: "saved" };
-}
-
-export const SAVE_DOT_COPY = {
-  saving: SAVE_STATE_COPY.saving,
-  saved: SAVE_STATE_COPY.saved,
-  waiting: (count: number) => `Not saved yet · ${count} waiting to send`,
-} as const;
-
-/** The dot's accessible name and tooltip. */
-export function saveStateText(state: SaveState): string {
-  const reason = (value: string) => value.replace(/[.!?]+$/, "");
-  switch (state.kind) {
-    case "saving":
-      return SAVE_DOT_COPY.saving;
-    case "saved":
-      return SAVE_DOT_COPY.saved;
-    case "waiting":
-      return SAVE_DOT_COPY.waiting(state.count);
-    case "failed":
-      return state.cause === "project-unavailable"
-        ? `Not saved · ${reason(state.reason)}.`
-        : "Saved edits could not be read · Retry to read them";
-    case "unknown":
-      return state.recovery === "inspect-history"
-        ? `Outcome unknown · ${reason(state.reason)}. Inspect History before trying again.`
-        : `Outcome unknown · ${reason(state.reason)}. Retry the same edit.`;
-  }
 }

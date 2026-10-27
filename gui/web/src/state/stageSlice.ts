@@ -48,7 +48,6 @@ export interface StageSliceState {
   setScriptFocus: (on: boolean) => void;
   setPanelScroll: (stage: StageId, key: string, top: number) => void;
   markLandingSettled: () => void;
-  resetStageViews: () => void;
 }
 
 /** Stage state tied to one project; `hydrate` clears it when the project path changes. */
@@ -139,6 +138,5 @@ export const createStageSlice: StateCreator<
         };
       }),
     markLandingSettled: () => set({ landingSettled: true }),
-    resetStageViews: () => set({ stageViews: {} }),
   };
 };

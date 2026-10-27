@@ -680,6 +680,10 @@ export const STAGES = [
 
 export type { StageId };
 
+export function stageLabel(id: StageId): string {
+  return (STAGES.find((s) => s.id === id) as { label: string }).label;
+}
+
 /** The one status glyph set (section 4.6). */
 export const STATUS_GLYPHS = [
   { state: "done", glyph: "circle-check", tone: "success" },

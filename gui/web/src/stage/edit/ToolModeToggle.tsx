@@ -1,17 +1,13 @@
 import { commandLabel } from "../../commands/labels";
 import { runPointerCommand } from "../../commands/pointer";
 import { ariaKeyShortcutsFor, titleWithShortcut } from "../../keymap/registry";
-import {
-  canSuggestStructuralOnProject,
-  hasShareCapability,
-  isShareProjectKey,
-} from "../../shareMode";
+import { hasShareCapability, isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import { commentModeTitle } from "./commentModeTitle";
 import { ToolModeToggleView } from "./ToolModeToggleView";
 
-/** Select / Blade (and Comment when not compact) tool cluster. */
-export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
+/** Select / Blade / Comment tool cluster. `bladeAllowed` is the strip's gate. */
+export function ToolModeToggle({ bladeAllowed }: { bladeAllowed: boolean }) {
   const {
     toolMode,
     commentMode,
@@ -27,21 +23,14 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
   }));
-  const allowed = canSuggestStructuralOnProject(
-    projectPath,
-    guestMode,
-    shareCapabilities,
-    project != null,
-  );
 
   return (
     <ToolModeToggleView
-      compact={compact}
       selectReason={
         project != null ? undefined : "Open a project to select audio"
       }
       bladeReason={
-        allowed ? undefined : "Blade requires permission to suggest edits"
+        bladeAllowed ? undefined : "Blade requires permission to suggest edits"
       }
       commentReason={
         project != null &&

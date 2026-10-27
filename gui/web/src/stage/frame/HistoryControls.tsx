@@ -8,7 +8,6 @@ import {
 } from "./useHistoryControls";
 
 type HistoryAction = "undo" | "redo";
-type HistoryVariant = "rail" | "compact";
 
 const HISTORY_COPY = {
   undo: {
@@ -26,7 +25,7 @@ const HINT_MS = 3500;
 
 export function CompactHistoryControls() {
   const controls = useHistoryControls();
-  return <HistoryControls {...controls} variant="compact" />;
+  return <HistoryControls {...controls} />;
 }
 
 export function HistoryControls({
@@ -34,14 +33,12 @@ export function HistoryControls({
   saving = false,
   onUndo,
   onRedo,
-  variant = "rail",
 }: {
   history: HistoryAvailability | null;
   /** A save or drain is running: a press waits for it, and the buttons say so. */
   saving?: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  variant?: HistoryVariant;
 }) {
   const [blocked, setBlocked] = useState<{ action: HistoryAction } | null>(
     null,
@@ -66,11 +63,7 @@ export function HistoryControls({
 
   return (
     <div
-      className={
-        variant === "compact"
-          ? "compact-history-controls"
-          : "editing-tool-rail-history"
-      }
+      className="compact-history-controls"
       role="group"
       aria-label="Undo and redo"
     >
@@ -78,7 +71,7 @@ export function HistoryControls({
         action="undo"
         available={history.canUndo}
         saving={saving}
-        showBlockedCaption={variant === "compact" && blockedAction === "undo"}
+        showBlockedCaption={blockedAction === "undo"}
         onClick={onUndo}
         onBlocked={() => setBlocked({ action: "undo" })}
       />
@@ -86,14 +79,11 @@ export function HistoryControls({
         action="redo"
         available={history.canRedo}
         saving={saving}
-        showBlockedCaption={variant === "compact" && blockedAction === "redo"}
+        showBlockedCaption={blockedAction === "redo"}
         onClick={onRedo}
         onBlocked={() => setBlocked({ action: "redo" })}
       />
-      <span
-        className={variant === "compact" ? "sr-only" : "editing-tool-rail-hint"}
-        role="status"
-      >
+      <span className="sr-only" role="status">
         {reason}
       </span>
     </div>
@@ -127,7 +117,7 @@ function HistoryButton({
   const waiting = available && saving ? readyAfterSaveCopy(action) : undefined;
   return (
     <Button
-      className="editing-tool-rail-icon"
+      className="compact-history-button"
       aria-label={label}
       title={available ? (waiting ?? label) : reason}
       aria-disabled={available ? undefined : true}

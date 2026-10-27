@@ -62,20 +62,6 @@ describe("OverlayLegendView", () => {
     ).toBeTruthy();
   });
 
-  it("renders menuitemcheckbox rows inside a menu host", async () => {
-    const { container } = render(
-      <div role="menu" aria-label="View menu">
-        <OverlayLegendView
-          menu
-          layers={layerVisibility()}
-          onLayerChange={vi.fn()}
-        />
-      </div>,
-    );
-    expect(screen.getAllByRole("menuitemcheckbox")).toHaveLength(7);
-    await expectNoA11yViolations(container);
-  });
-
   it("renders a Prosody checkbox by default and reports its toggle", async () => {
     const onLayerChange = vi.fn();
     render(

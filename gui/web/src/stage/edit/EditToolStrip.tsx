@@ -32,7 +32,7 @@ export function EditToolStrip() {
   );
   return (
     <EditToolStripView
-      toolToggle={<ToolModeToggle />}
+      toolToggle={<ToolModeToggle bladeAllowed={bladeAllowed} />}
       rangeArmed={rangeArmed}
       rangeReason={hasProject ? undefined : "Open a project to select a range"}
       rangeTitle={commandLabel("range.arm")}
