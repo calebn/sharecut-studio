@@ -206,6 +206,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Today:** `DLG-ASK-TEXT--*`. A modal asking for a json path, "No native file picker here".
 - **Fate:** merge into SCR-HOME-OPEN (path popover).
 - **Spec:** see SCR-HOME-OPEN. The in-project "Open project" menu item goes to Home.
+- **Built (#2295):** the prompt and `askText` are gone. With no OS picker, `project.open` navigates to `/?home=1&openOther=1`, where Home opens the Open other… path field.
 - **Shared elements used:** popover.
 - **Story to build:** covered by `Stages/Home/OpenOther`.
 

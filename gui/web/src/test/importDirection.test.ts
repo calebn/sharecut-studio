@@ -572,7 +572,9 @@ describe("importEdges", () => {
 
   it("resolves a root file's relative imports", () => {
     expect(
-      importEdges("App.tsx", 'import { a } from "./home/HomeScreen";'),
-    ).toEqual([{ from: "App.tsx", to: "home/HomeScreen", kind: "static" }]);
+      importEdges("App.tsx", 'import { a } from "./stages/home/HomeScreen";'),
+    ).toEqual([
+      { from: "App.tsx", to: "stages/home/HomeScreen", kind: "static" },
+    ]);
   });
 });
