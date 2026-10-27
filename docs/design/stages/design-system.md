@@ -257,11 +257,13 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **16. Track header**
 - Person 28 px with the level ring, name, then on hover or when set: Mute (`volume-x`), Solo (`headphones`), a level Scrub field. Drag to reorder. The wide form (280 px) is the desktop mixer. The phone form is 56 px, avatar only.
+- Mute and Solo are toggles named for their track. A mute that comes only from another track being soloed (an implied mute) is a dashed, unpressed Mute that says why; muted for you alone is dashed and pressed. The controls stay in the accessibility tree while hidden and show on hover, on focus and whenever something is set; under a coarse pointer they are 44 px and always shown. A guest cannot change the level or a mix mute and can still solo. Shift with Up or Down reorders.
 - Used: CMP-TRACK-HEADERS, CMP-TRACK-FADER, CMP-TRACK-MIX, SHEET-PHONE-MIX rows.
 - Story: `System/TrackHeader`.
 
 **17. Clip**
 - A rounded 6 px block in the track colour. Its label shows only when the clip is wider than 80 px. Trim tabs and fade knobs appear on hover and while selected. A muted region is hatched grey with `volume-x`.
+- The clip is one tab stop and Enter selects it. Selected, its four handles are sliders: Left and Right nudge the edge 10 ms (Shift 100 ms), and Escape ends a drag without committing it. A guest sees no handles and cannot drag. An unselected clip's edges are part of its body, so a touch there selects it; only a selected clip's handles grow to 44 px.
 - Used: CMP-CLIP, INT-MOVE, INT-TRIM, INT-FADE.
 - Story: `System/Clip`.
 
