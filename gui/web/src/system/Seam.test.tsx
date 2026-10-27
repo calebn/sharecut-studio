@@ -16,7 +16,7 @@ describe("Seam as a diamond", () => {
     const onSelect = vi.fn();
     render(<Seam {...cut} onSelect={onSelect} />);
     await userEvent.click(
-      screen.getByRole("button", { name: "Cut at 12:04.3" }),
+      screen.getByRole("button", { name: "Cut at 12:04.3, 2.4 s removed" }),
     );
     expect(onSelect).toHaveBeenCalledOnce();
   });
@@ -38,7 +38,6 @@ describe("Seam as a diamond", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Cut at 12:04.32.4 s removed",
     );
-    expect(button).toHaveAccessibleDescription("Cut at 12:04.32.4 s removed");
     fireEvent.pointerLeave(button, { pointerType: "mouse" });
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
@@ -84,6 +83,23 @@ describe("Seam as a text pill", () => {
     render(<Seam {...pill} />);
     const button = screen.getByRole("button", { name: "Cut, 2.4 s removed" });
     expect(button).toHaveTextContent("2.4 s");
+  });
+
+  it("describes the cut words without a tip, as a touch or screen reader meets it", () => {
+    render(<Seam {...pill} />);
+    expect(screen.getByRole("button")).toHaveAccessibleDescription(
+      "so, um, you know",
+    );
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("names a diamond with its detail, and by its label alone without one", () => {
+    const { rerender } = render(<Seam {...cut} />);
+    expect(screen.getByRole("button")).toHaveAccessibleName(
+      "Cut at 12:04.3, 2.4 s removed",
+    );
+    rerender(<Seam {...cut} detail={undefined} />);
+    expect(screen.getByRole("button")).toHaveAccessibleName("Cut at 12:04.3");
   });
 
   it("shows the cut words on hover", () => {

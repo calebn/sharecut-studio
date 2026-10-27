@@ -37,6 +37,9 @@ describe("scrubMath", () => {
     expect(placesOf(1)).toBe(0);
     expect(placesOf(0.5)).toBe(1);
     expect(placesOf(0.25)).toBe(2);
+    expect(placesOf(1e-7)).toBe(7);
+    expect(placesOf(1.5e-7)).toBe(8);
+    expect(placesOf(1e21)).toBe(0);
   });
 
   it("writes a true minus sign", () => {
@@ -51,6 +54,18 @@ describe("scrubMath", () => {
     expect(parseScrub("")).toBeNull();
     expect(parseScrub("12abc")).toBeNull();
     expect(parseScrub("1e3")).toBeNull();
+  });
+
+  it("does not read a thousands comma as a decimal point", () => {
+    expect(parseScrub("1,500", "ms")).toBeNull();
+    expect(parseScrub("1,500 ms", "ms")).toBeNull();
+    expect(parseScrub("1,5")).toBe(1.5);
+    expect(parseScrub("1,5.2")).toBeNull();
+  });
+
+  it("rejects a number too large to hold", () => {
+    expect(parseScrub("1".repeat(400))).toBeNull();
+    expect(roundTo(1e308, 1)).toBe(1e308);
   });
 
   it("tells whether a value is inside the bounds", () => {

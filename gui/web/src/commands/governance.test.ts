@@ -92,6 +92,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // The Stage design system palette (owner-accepted): its combobox keys stay in
   // the view, arrows, Enter and Escape on the search field and Enter or Space on a row.
   "system/Palette.tsx",
+  // The scrub field is a spinbutton: arrows, Home, End, Enter and F2 edit its own value and stop there.
+  "system/ScrubField.tsx",
   "commands/governance.test.ts",
 ]);
 

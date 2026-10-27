@@ -119,6 +119,50 @@ describe("ScrubField drag", () => {
     expect(calls.onCancel).toHaveBeenCalledOnce();
   });
 
+  it("cancels a drag on an empty field that returns to its start", () => {
+    const { calls, field } = setup({ value: null, defaultValue: 3 });
+    dragBy(field(), 5);
+    fireEvent.pointerMove(field(), { clientX: 110, pointerId: 1 });
+    fireEvent.pointerUp(field(), { pointerId: 1 });
+    expect(calls.onCommit).not.toHaveBeenCalled();
+    expect(calls.onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("drops the preview when the field unmounts mid-drag", () => {
+    const onCancel = vi.fn();
+    const { unmount } = render(
+      <ScrubField
+        label="Offset"
+        value={100}
+        onCommit={vi.fn()}
+        onCancel={onCancel}
+      />,
+    );
+    const box = screen.getByRole("spinbutton");
+    dragBy(box, 5);
+    unmount();
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a second pointer during a drag", () => {
+    const { calls, field } = setup();
+    dragBy(field(), 25);
+    fireEvent.pointerDown(field(), { clientX: 50, pointerId: 2, button: 0 });
+    fireEvent.pointerUp(field(), { pointerId: 2 });
+    expect(screen.queryByRole("textbox")).toBeNull();
+    fireEvent.pointerUp(field(), { pointerId: 1 });
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(125);
+  });
+
+  it("drops the preview when the pointer capture is lost", () => {
+    const { calls, field } = setup();
+    dragBy(field(), 25);
+    fireEvent.lostPointerCapture(field(), { pointerId: 1 });
+    fireEvent.pointerMove(field(), { clientX: 200, pointerId: 1 });
+    expect(calls.onCancel).toHaveBeenCalledOnce();
+    expect(calls.onPreview).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores a drag on a read-only field", () => {
     const { calls, field } = setup({ readOnly: true });
     dragBy(field(), 25);
@@ -140,12 +184,20 @@ describe("ScrubField keyboard", () => {
     expect(calls.onCommit.mock.calls).toEqual([[101], [111], [110.9]]);
   });
 
-  it("commits each press as its own step and stays inside the bounds", async () => {
+  it("commits each press as its own step, stays inside the bounds and skips a press that changes nothing", async () => {
     const user = userEvent.setup();
-    const { calls, field } = setup({ min: 0, max: 101 });
+    const { calls, field } = setup({ min: 0, max: 102 });
     field().focus();
-    await user.keyboard("{ArrowRight}{ArrowRight}");
-    expect(calls.onCommit.mock.calls).toEqual([[101], [101]]);
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{End}");
+    expect(calls.onCommit.mock.calls).toEqual([[101], [102]]);
+  });
+
+  it("commits nothing for Home at the minimum or Alt on a whole-number field", async () => {
+    const user = userEvent.setup();
+    const { calls, field } = setup({ value: 0, min: 0, max: 500 });
+    field().focus();
+    await user.keyboard("{Home}{Alt>}{ArrowUp}{/Alt}");
+    expect(calls.onCommit).not.toHaveBeenCalled();
   });
 
   it("jumps to the ends with Home and End", async () => {
@@ -163,6 +215,37 @@ describe("ScrubField keyboard", () => {
     await user.keyboard("{ArrowUp}{Enter}");
     expect(calls.onCommit).not.toHaveBeenCalled();
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+});
+
+describe("ScrubField keys against the window keymap", () => {
+  it("keeps the keys it handles from reaching a window keydown listener", async () => {
+    const user = userEvent.setup();
+    const reached = vi.fn();
+    window.onkeydown = reached;
+    const { field } = setup({ min: 0, max: 500 });
+    field().focus();
+    await user.keyboard(
+      "{ArrowUp}{ArrowDown}{ArrowLeft}{ArrowRight}{Home}{End}",
+    );
+    await user.keyboard("{F2}");
+    expect(reached).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    await user.keyboard("{Enter}");
+    expect(reached).not.toHaveBeenCalled();
+    window.onkeydown = null;
+  });
+
+  it("lets Escape reach the window when no drag is running, and stops it during one", () => {
+    const reached = vi.fn();
+    window.onkeydown = reached;
+    const { field } = setup();
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(reached).toHaveBeenCalledOnce();
+    dragBy(field(), 25);
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(reached).toHaveBeenCalledOnce();
+    window.onkeydown = null;
   });
 });
 
@@ -209,6 +292,23 @@ describe("ScrubField typing", () => {
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(calls.onCommit).not.toHaveBeenCalled();
     expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("announces a bad number once on Enter, not on each keystroke", async () => {
+    const user = userEvent.setup();
+    setup({ min: 0, max: 500 });
+    await user.click(screen.getByRole("spinbutton"));
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "900");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(input).toHaveAccessibleDescription(
+      "Enter a number from 0 to 500 ms",
+    );
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await user.type(input, "1");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("commits a valid number when focus leaves and drops an invalid one", async () => {

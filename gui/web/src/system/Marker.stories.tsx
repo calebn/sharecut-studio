@@ -187,6 +187,31 @@ export const Dense: Story = {
   ),
 };
 
+export const RangeUnderChapter: Story = {
+  render: () => (
+    <Lane
+      markers={[
+        {
+          kind: "comment",
+          author: "Maya",
+          time: "4:10",
+          at: 0.2,
+          to: 0.5,
+          onSelect: noop,
+        },
+        {
+          kind: "chapter",
+          title: "Intro",
+          time: "8:00",
+          at: 0.24,
+          to: 0.4,
+          onSelect: noop,
+        },
+      ]}
+    />
+  ),
+};
+
 export const EmptyLane: Story = {
   render: () => <Lane markers={[]} />,
 };

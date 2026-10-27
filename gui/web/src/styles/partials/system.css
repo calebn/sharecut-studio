@@ -3883,6 +3883,7 @@ button.sys-scope:hover {
   display: flex;
   min-inline-size: 0;
   max-inline-size: calc((1 - var(--sys-marker-at)) * 100%);
+  pointer-events: none;
 }
 
 .sys-marker[data-span] {
@@ -3914,6 +3915,7 @@ button.sys-scope:hover {
   font-size: var(--font-size-small);
   white-space: nowrap;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .sys-marker[data-kind="clip"] .sys-marker-hit,
@@ -4009,7 +4011,13 @@ button.sys-scope:hover {
     block-size: var(--touch-min);
   }
 
-  .sys-seam[data-form="pill"] .sys-seam-hit::after,
+  .sys-seam[data-form="pill"] .sys-seam-hit::after {
+    content: "";
+    position: absolute;
+    inset-block: calc(var(--space-0) * -1);
+    inset-inline: min(0rem, calc((100% - var(--touch-min)) / 2));
+  }
+
   .sys-marker-hit::after {
     content: "";
     position: absolute;
