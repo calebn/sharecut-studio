@@ -45,6 +45,9 @@ import {
   Send,
   Settings,
   ShieldCheck,
+  SignalHigh,
+  SignalLow,
+  SignalZero,
   SlidersHorizontal,
   Split,
   SquareSplitHorizontal,
@@ -126,6 +129,9 @@ export const LUCIDE_ICONS = {
   lock: Lock,
   mic: Mic,
   "panel-right": PanelRight,
+  "signal-high": SignalHigh,
+  "signal-low": SignalLow,
+  "signal-zero": SignalZero,
 } as const satisfies Record<string, LucideIcon>;
 
 /** No Lucide equivalent: drawn by hand in `SystemIcon`. */
