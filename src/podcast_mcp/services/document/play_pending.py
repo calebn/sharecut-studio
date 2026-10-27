@@ -7,7 +7,6 @@ import json
 import logging
 import tempfile
 import threading
-import wave
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -40,6 +39,7 @@ from podcast_mcp.util.project_state import (
     RENDER_LOCK_TIMEOUT_SEC,
     snapshot_project,
 )
+from podcast_mcp.util.wav import open_wav
 
 from .play_compose import _PlayCompose
 from .play_headroom import _PlayHeadroom
@@ -188,7 +188,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         if kind == "suggested":
             # The edited timeline is shorter or longer than the current one by what the edit
             # took out or paced in, so the file's own length says where it ends.
-            with wave.open(str(wav), "rb") as audio:
+            with open_wav(wav) as audio:
                 end = window.play_start + audio.getnframes() / audio.getframerate()
         return PendingPreviewSpan(
             edit_id=window.edit_id,
