@@ -22,7 +22,6 @@ from podcast_mcp.services.record.state import (
     recorded_count,
     start_blockers,
     take_consented_participant_ids,
-    unsupported_target_message,
 )
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
@@ -283,9 +282,6 @@ def apply_record_command(
         if out.takes:
             raise RecordStateError("the target is locked once a take has been recorded")
         session_target = parse_session_target(cmd.payload.get("target"))
-        refusal = unsupported_target_message(session_target)
-        if refusal is not None:
-            raise RecordStateError(refusal)
         out.target = session_target
         return out
     if ctype == "Pause":

@@ -119,11 +119,11 @@ def remap_review_anchors_for_cuts(
     project.editorial.chapters = chapters
 
 
-def _start_after_insert(start: float, at_time: float, duration_sec: float) -> float:
+def start_after_insert(start: float, at_time: float, duration_sec: float) -> float:
     return start + duration_sec if start >= at_time - _EPS else start
 
 
-def _end_after_insert(start: float, end: float, at_time: float, duration_sec: float) -> float:
+def end_after_insert(start: float, end: float, at_time: float, duration_sec: float) -> float:
     moved = start >= at_time - _EPS or end > at_time + _EPS
     return end + duration_sec if moved else end
 
@@ -140,16 +140,16 @@ def shift_review_anchors_for_insert(
     project.review.comments = [
         c.model_copy(
             update={
-                "timeline_start": _start_after_insert(c.timeline_start, at_time, duration_sec),
+                "timeline_start": start_after_insert(c.timeline_start, at_time, duration_sec),
                 "timeline_end": (
                     None
                     if c.timeline_end is None
-                    else _end_after_insert(c.timeline_start, c.timeline_end, at_time, duration_sec)
+                    else end_after_insert(c.timeline_start, c.timeline_end, at_time, duration_sec)
                 ),
                 "timeline_spans": [
                     RangeInterval(
-                        start=_start_after_insert(span.start, at_time, duration_sec),
-                        end=_end_after_insert(span.start, span.end, at_time, duration_sec),
+                        start=start_after_insert(span.start, at_time, duration_sec),
+                        end=end_after_insert(span.start, span.end, at_time, duration_sec),
                     )
                     for span in c.timeline_spans
                 ],
@@ -158,7 +158,7 @@ def shift_review_anchors_for_insert(
         for c in project.review.comments
     ]
     project.editorial.chapters = [
-        ch.model_copy(update={"time": _start_after_insert(ch.time, at_time, duration_sec)})
+        ch.model_copy(update={"time": start_after_insert(ch.time, at_time, duration_sec)})
         for ch in project.editorial.chapters
     ]
 
@@ -188,10 +188,10 @@ def _shifted_decision(edit: EditDecision, at_time: float, duration_sec: float) -
         return edit
     return edit.model_copy(
         update={
-            "start": _start_after_insert(edit.start, at_time, duration_sec),
-            "end": _end_after_insert(edit.start, edit.end, at_time, duration_sec)
+            "start": start_after_insert(edit.start, at_time, duration_sec),
+            "end": end_after_insert(edit.start, edit.end, at_time, duration_sec)
             if edit.end > edit.start
-            else _start_after_insert(edit.end, at_time, duration_sec),
+            else start_after_insert(edit.end, at_time, duration_sec),
         }
     )
 

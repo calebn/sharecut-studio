@@ -1115,14 +1115,13 @@ def test_room_target_defaults_to_end_and_is_set_at_mint(
     }
 
 
-def test_minting_a_room_refuses_the_start_target_until_its_slice(
+def test_minting_a_room_accepts_the_start_target(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_premix(minimal_project, sample_wav)
-    first = ShareService(ws).create_record_room()
-    with pytest.raises(RecordStateError, match="is not available yet"):
-        ShareService(ws).create_record_room(target="start")
-    assert RecordSessionService.active_session_id(ws.project) == first["session_id"]
+    ShareService(ws).create_record_room()
+    second = ShareService(ws).create_record_room(target="start")
+    assert RecordSessionService.active_session_id(ws.project) == second["session_id"]
 
 
 @pytest.mark.parametrize(
@@ -1170,7 +1169,7 @@ def test_minting_a_room_with_a_bare_insert_or_replace_needs_a_time(
     assert RecordSessionService.active_session_id(ws.project) == first["session_id"]
 
 
-def test_host_route_refuses_a_target_that_is_not_available_yet(
+def test_host_route_mints_a_room_for_the_start_target(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1178,8 +1177,7 @@ def test_host_route_refuses_a_target_that_is_not_available_yet(
     resp = client.post(
         "/api/shares/record", json={"path": str(ws.path), "target": {"kind": "start"}}
     )
-    assert resp.status_code == 409
-    assert "is not available yet" in resp.text
+    assert resp.status_code == 200, resp.text
 
 
 def test_minting_a_room_rejects_an_unknown_target(
@@ -1201,6 +1199,5 @@ def test_cli_share_record_target_flag(minimal_project, sample_wav, tmp_workspace
     base = ["review", "share", "--project", str(minimal_project), "--kind", "record"]
     ok = runner.invoke(cli_app, [*base, "--target", "end"])
     assert ok.exit_code == 0, ok.output
-    refused = runner.invoke(cli_app, [*base, "--target", "start"])
-    assert refused.exit_code == 1
-    assert "is not available yet" in refused.output
+    started = runner.invoke(cli_app, [*base, "--target", "start"])
+    assert started.exit_code == 0, started.output

@@ -2017,7 +2017,7 @@ def test_target_is_host_only_and_hidden_from_guests(
             lambda m: m.get("type") == "Applied" and m["command"]["type"] == "SetTarget",
         )
         assert "target" not in applied["snapshot"]
-        refused = client.post(
+        started = client.post(
             "/api/record/command",
             json={
                 "path": str(ws.path),
@@ -2025,8 +2025,7 @@ def test_target_is_host_only_and_hidden_from_guests(
                 "payload": {"target": {"kind": "start"}},
             },
         )
-        assert refused.status_code >= 400
-        assert "is not available yet" in refused.text
+        assert started.status_code == 200, started.text
 
 
 def test_http_set_target_refusals_name_the_field(
