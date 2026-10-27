@@ -46,7 +46,13 @@
 }
 
 .edit-workspace--stacked .edit-timeline-col {
-  min-block-size: var(--stage-stacked-lanes-min);
+  min-block-size: max(
+    var(--stage-stacked-lanes-min),
+    min(
+      var(--stage-stacked-lanes-want),
+      calc(100% - var(--stage-stacked-script-floor))
+    )
+  );
 }
 
 .edit-script {
