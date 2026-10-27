@@ -531,6 +531,13 @@
     flex-wrap: wrap;
   }
 
+  /* The title gives up room to the controls beside it (the More button holds
+     what the right side did) and wraps only when they cannot fit at 6rem. */
+  .sys-header-left > .sys-header-menu,
+  .sys-header-left > .sys-header-guest {
+    flex: 1 1 6rem;
+  }
+
   .sys-header-right {
     display: none;
   }
