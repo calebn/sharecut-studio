@@ -21,7 +21,7 @@ const meta: Meta<typeof StartTile> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'A large tap-and-drop target that starts an episode. Import audio shows the Import key (Mod+I) and Record shows R. Sizes 240 (empty Prepare), 220 (empty Home), 160 (Home), 80 (Prepare Sources footer) and the 72 px phone bar. A disabled tile stays focusable and says why in place of its line, at every size. `variant="primary"` is the filled accent tile for the one action on an empty Home. In drag-hover the line reads "Drop to add N files" when `dragCount` is given.\n\n**Motion.** Hover and drag-hover change the border and fill with `--motion-hover`.',
+          'A large tap-and-drop target that starts an episode. Import audio shows the Import key (Mod+I) and Record shows R; `showKeys={false}` hides them where the keys are not bound (Home). Sizes 240 (empty Prepare), 220 (empty Home), 160 (Home), 80 (Prepare Sources footer) and the 72 px phone bar. A disabled tile stays focusable and says why in place of its line, at every size. `variant="primary"` is the filled accent tile for the one action on an empty Home. In drag-hover the line reads "Drop to add N files" when `dragCount` is given.\n\n**Motion.** Hover and drag-hover change the border and fill with `--motion-hover`.',
       },
     },
   },
@@ -40,6 +40,12 @@ export const ImportRest: Story = {
   },
 };
 export const RecordRest: Story = { args: { kind: "record" } };
+export const NoKeys: Story = {
+  args: { showKeys: false },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector(".sys-keys")).toBeNull();
+  },
+};
 export const Large240: Story = {
   args: { size: 240 },
   play: async ({ canvasElement }) => {
