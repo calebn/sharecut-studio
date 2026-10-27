@@ -812,3 +812,83 @@ def test_the_route_paths_stay_clear_of_the_review_audio_rate_limit() -> None:
         "/api/session-suggestion/warm",
     ):
         assert not is_review_audio_path(path)
+
+
+# --- audit fixes ---
+
+
+def test_a_take_accept_would_refuse_is_refused_whether_or_not_current_was_rendered(ws) -> None:
+    sid = _replace(
+        ws,
+        3.0,
+        5.0,
+        {0: [("host", 0.0, 2.0), ("guest", 0.0, 2.0)], 1: [("host", 0.0, 2.0)]},
+        track_ids=["host", "guest"],
+    )
+    with pytest.raises(CodedValueError) as accepted:
+        _svc(ws).accept(sid, take_index=1, override_audio_checks=True)
+    assert accepted.value.code == "track_not_recorded"
+    for take in (1, 0, 1):
+        if take == 0:
+            assert _hear(ws, sid, mode="current", take_index=0)["current"] is not None
+            continue
+        with pytest.raises(CodedValueError) as refused:
+            _hear(ws, sid, mode="current", take_index=take)
+        assert refused.value.code == "track_not_recorded"
+
+
+@pytest.mark.parametrize("pad", [float("nan"), float("inf"), -1.0, 10.5])
+def test_a_pad_outside_zero_to_ten_seconds_is_refused(ws, pad) -> None:
+    sid = _replace(ws, 3.0, 5.0, {0: [("host", 0.0, 2.0)]})
+    with pytest.raises(CodedValueError) as refused:
+        _hear(ws, sid, pad_sec=pad)
+    assert refused.value.code == "pad_sec_invalid"
+    assert "pad_sec must be a number of seconds from 0 to 10" in str(refused.value)
+
+
+@pytest.mark.parametrize("gap", [float("nan"), float("inf"), -0.1, 1e9])
+def test_a_gap_outside_zero_to_five_seconds_is_refused(ws, gap) -> None:
+    sid = _replace(ws, 3.0, 5.0, {0: [("host", 0.0, 2.0)]})
+    with pytest.raises(CodedValueError) as refused:
+        _hear(ws, sid, mode="ab", gap_sec=gap)
+    assert refused.value.code == "gap_sec_invalid"
+
+
+def test_warm_of_an_unknown_session_is_not_found_like_the_other_calls(ws) -> None:
+    from podcast_mcp.util.coded_error import CodedKeyError
+
+    with pytest.raises(CodedKeyError) as refused:
+        _svc(ws).warm("ss-nope")
+    assert refused.value.code == "session_suggestion_not_found"
+
+
+def test_warm_says_failed_for_a_side_that_could_not_be_written(ws, monkeypatch) -> None:
+    sid = _replace(ws, 3.0, 5.0, {0: [("host", 0.0, 2.0)]})
+    real = SessionSuggestionService._hear
+
+    def failing(self, suggestion_id, **kwargs):
+        if kwargs["mode"] == "suggested":
+            raise OSError("disk full")
+        return real(self, suggestion_id, **kwargs)
+
+    monkeypatch.setattr(SessionSuggestionService, "_hear", failing)
+    assert _svc(ws).warm(sid)["sides"] == {"current": "ready", "suggested": "failed"}
+
+
+def test_the_refine_gate_asks_to_try_again_for_accept_and_preview_alike(ws) -> None:
+    from podcast_mcp.services.document.session_suggestion import REPLACE_REFINE_HINT
+
+    assert "then try again" in REPLACE_REFINE_HINT
+    assert "accept again" not in REPLACE_REFINE_HINT
+
+
+def test_the_gui_warm_of_an_unknown_session_is_a_404(ws) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    res = TestClient(create_app()).post(
+        "/api/session-suggestion/warm", params={"path": str(ws.path), "suggestion_id": "ss-nope"}
+    )
+    assert res.status_code == 404
+    assert res.headers["X-Sharecut-Error-Code"] == "session_suggestion_not_found"
