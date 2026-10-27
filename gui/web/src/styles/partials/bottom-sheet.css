@@ -83,9 +83,22 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
 }
 
 /* A selection the page cannot scroll clear of shortens the half sheet to sit
-   under it (useKeepSelectionClear); the sheet body scrolls. */
+   under it (useKeepSelectionClear); the sheet body scrolls. On a tall screen it
+   also leaves the header, ruler, marker lane and one lane above it, so a pin or
+   a clip stays in reach of the next tap. */
 .bottom-sheet--inspector.bottom-sheet--half {
   max-block-size: min(var(--sheet-cap, 100%), var(--sheet-lane-cap, 100%));
+}
+
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (min-height: 40rem) {
+  .bottom-sheet--inspector.bottom-sheet--half {
+    max-block-size: min(
+      var(--sheet-cap, 100%),
+      var(--sheet-lane-cap, 100%),
+      max(100% - var(--sheet-lane-clearance), min(100%, 9rem))
+    );
+  }
 }
 
 .bottom-sheet--full {
@@ -101,7 +114,7 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
    clearance (not its 50% limit) so the transport, ruler, marker lane and one lane stay in
    view; the sheet body scrolls (#2158). Other peek strips keep their content height. */
 .bottom-sheet--compact.bottom-sheet--peek:has(.transcript-refine-recovery) {
-  max-block-size: max(100% - 13.625rem, min(100%, 9rem));
+  max-block-size: max(100% - var(--sheet-lane-clearance), min(100%, 9rem));
 }
 
 .bottom-sheet--peek .bottom-sheet-header {
@@ -114,7 +127,10 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
    selection stays in view (the inspector scrolls inside). */
 .bottom-sheet--compact.bottom-sheet--half,
 .bottom-sheet--compact.bottom-sheet--half:has(.modifier-inspector) {
-  height: max(min(50%, 26.25rem, 100% - 13.625rem), min(100%, 9rem));
+  height: max(
+    min(50%, 26.25rem, 100% - var(--sheet-lane-clearance)),
+    min(100%, 9rem)
+  );
 }
 
 /* The compact inspector keeps its name, Collapse and Close in reach. A new

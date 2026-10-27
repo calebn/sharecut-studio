@@ -28,6 +28,13 @@ html {
   );
 }
 
+/* What the Edit stage keeps above an open inspector sheet: the header, the
+   surface and tool rows, the ruler, the marker lane and one lane (104) with its
+   bleed band row and the 8 px keep-clear gap. */
+html {
+  --sheet-lane-clearance: 21rem;
+}
+
 html[data-shell="phone"] {
   --frame-bottom-chrome: calc(
     var(--tab-bar-height) +
