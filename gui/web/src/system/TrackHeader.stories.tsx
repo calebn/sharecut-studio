@@ -8,6 +8,7 @@ const meta: Meta<typeof TrackHeader> = {
   component: TrackHeader,
   tags: ["autodocs"],
   args: {
+    id: "track-maya",
     name: "Maya Okafor",
     colorIndex: 0,
     level: 0,
@@ -32,7 +33,7 @@ const meta: Meta<typeof TrackHeader> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The left edge of a track (design-system element 16). Row one is the 28 px avatar in the track's colour with a ring that lights to the live level, and the name. Row two, shown on hover, on focus and whenever something is set, holds Mute (`volume-x`), Solo (`headphones`) and the level Scrub field. Muted shows a filled `volume-x` and greys the avatar and name; muted for you alone is dashed; a track silent only because another is soloed (an implied mute) is a dashed, unpressed Mute that says why; soloed shows a filled `headphones`. While the stem rebuilds the avatar's ring is hollow. The wide form (280 px) is the desktop mixer: the level and a meter are always shown. The phone form is a 56 px column with the avatar alone and a badge for what is set; a tap selects the track and the mix lives in the Mix sheet. Drag the name row to reorder, or press Shift with Up or Down; the column owns the drop line. A guest hears the mix but cannot change the level or a mix mute, and can still solo and mute for themselves. Under a coarse pointer every control is a 44 px target and row two is always shown.\n\n**Motion.** None. Controls appear without easing.",
+          "The left edge of a track (design-system element 16). Row one is the 28 px avatar in the track's colour with a ring that lights to the live level, and the name. Row two, shown on hover, on focus and whenever something is set, holds Mute (`volume-x`), Solo (`headphones`) and the level Scrub field. Muted shows a filled `volume-x` and greys the avatar and name; muted for you alone is dashed; a track silent only because another is soloed (an implied mute) is a dashed, unpressed Mute that says why; soloed shows a filled `headphones`. While the stem rebuilds the avatar's ring is hollow. The wide form (280 px) is the desktop mixer: the level and a meter are always shown. The phone form is a 56 px column with the avatar alone and a badge for what is set; a tap selects the track and the mix lives in the Mix sheet. Drag anywhere on the header except its controls to reorder, or press Shift with Up or Down on the select button; the column owns the drop line. Every callback takes the track's `id` first. A guest hears the mix but cannot change the level or a mix mute, and can still solo and mute for themselves. Under a coarse pointer the default form is one 44 px row, small enough for the shortest lane: the select button, Mute and Solo are 44 px targets, always shown, and the level lives in the Mix sheet. The 280 px form keeps the level in that row. Mute and Solo are 32 px on a desktop.\n\n**Motion.** None. Controls appear without easing.",
       },
     },
   },
@@ -41,8 +42,10 @@ const meta: Meta<typeof TrackHeader> = {
 export default meta;
 type Story = StoryObj<typeof TrackHeader>;
 
-const press = (canvas: ReturnType<typeof within>, name: string) =>
-  userEvent.click(canvas.getByRole("button", { name }));
+const press = async (canvas: ReturnType<typeof within>, name: string) => {
+  canvas.getByRole("button", { name: "Maya Okafor" }).focus();
+  await userEvent.click(canvas.getByRole("button", { name }));
+};
 
 export const Default: Story = {
   play: async ({ canvasElement, args }) => {
@@ -50,9 +53,9 @@ export const Default: Story = {
     await press(canvas, "Mute Maya Okafor");
     await press(canvas, "Solo Maya Okafor");
     await press(canvas, "Maya Okafor");
-    await expect(args.onMute).toHaveBeenCalledTimes(1);
-    await expect(args.onSolo).toHaveBeenCalledTimes(1);
-    await expect(args.onSelect).toHaveBeenCalledTimes(1);
+    await expect(args.onMute).toHaveBeenCalledWith("track-maya");
+    await expect(args.onSolo).toHaveBeenCalledWith("track-maya");
+    await expect(args.onSelect).toHaveBeenCalledWith("track-maya", false);
     await expect(
       canvas.getByRole("spinbutton", { name: "Maya Okafor level" }),
     ).toHaveAttribute("aria-valuetext", "0.0 dB");
@@ -160,10 +163,13 @@ export const Reordering: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const name = canvas.getByRole("button", { name: "Maya Okafor" });
-    await expect(name).toHaveAttribute("draggable", "true");
+    await expect(canvasElement.querySelector(".sys-track")).toHaveAttribute(
+      "draggable",
+      "true",
+    );
     name.focus();
     await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
-    await expect(args.onMove).toHaveBeenCalledWith(1);
+    await expect(args.onMove).toHaveBeenCalledWith("track-maya", 1);
   },
 };
 

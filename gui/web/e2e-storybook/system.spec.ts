@@ -665,7 +665,7 @@ test("System/ScriptPane Up and Down move the caret by line", async ({
   await expect(page.getByRole("status")).toHaveText(/^\d\d words selected: /);
 });
 
-test("System/Clip hover shows the fade knobs and the edge zones, selected shows the trim tabs, and the label rule holds at 79 and 80 px", async ({
+test("System/Clip hover shows the fade knobs and the edge zones, selected shows the trim tabs, and the label rule holds at 80 and 81 px", async ({
   page,
 }) => {
   await open(page, "system-clip--idle", 1280);
@@ -701,6 +701,7 @@ test("System/Clip hover shows the fade knobs and the edge zones, selected shows 
   const tabBox = await page.locator(tab).boundingBox();
   expect([tabBox?.width, tabBox?.height]).toEqual([6, 24]);
   await page.goto(storyUrl("system-clip--label-rule", { theme: "light" }));
+  await expect(page.locator(".sys-clip")).toHaveCount(2);
   const widths = await page
     .locator(".sys-clip")
     .evaluateAll((clips) =>
@@ -710,43 +711,63 @@ test("System/Clip hover shows the fade knobs and the edge zones, selected shows 
       ]),
     );
   expect(widths).toEqual([
-    [79, false],
-    [80, true],
+    [80, false],
+    [81, true],
   ]);
 });
 
-test("System/Clip selected edges and fade knobs are 44 px under a coarse pointer, a real touch lands on them, and an unselected clip's edge selects", async ({
+const handleAt = (
+  page: import("@playwright/test").Page,
+  x: number,
+  y: number,
+) =>
+  page.evaluate(
+    ([px, py]) => {
+      const hit = document.elementFromPoint(px, py);
+      return (
+        hit?.closest("[data-handle]")?.getAttribute("data-handle") ??
+        (hit?.closest(".sys-clip-body")
+          ? `body:${hit.closest(".sys-clip")?.getAttribute("data-clip-id")}`
+          : (hit?.className ?? "none"))
+      );
+    },
+    [x, y],
+  );
+
+test("System/Clip selected handles are 44 px under a coarse pointer, stay inside the clip, and a real touch lands on them", async ({
   browser,
 }) => {
-  const { context, page } = await coarsePage(browser, "system-clip--idle");
-  const body = page.getByRole("button", { name: "Maya, take 2" });
-  await expect(body).toBeVisible();
-  const box = await body.boundingBox();
-  if (!box) throw new Error("Clip did not render");
-  await page.touchscreen.tap(box.x + 3, box.y + box.height / 2);
-  await expect(body).toHaveAttribute("aria-pressed", "false");
-  await page.goto(storyUrl("system-clip--selected", { theme: "light" }));
+  const { context, page } = await coarsePage(browser, "system-clip--touch");
   await expect(page.locator(".sys-clip[data-selected]")).toBeVisible();
+  const clip = await page.locator(".sys-clip").boundingBox();
+  if (!clip) throw new Error("Clip did not render");
   const sizes = await page.locator(".sys-clip-handle").evaluateAll((handles) =>
     handles.map((h) => {
       const r = h.getBoundingClientRect();
       return [
         h.getAttribute("data-handle"),
+        Math.round(r.left),
+        Math.round(r.right),
         Math.round(r.width),
         Math.round(r.height),
       ];
     }),
   );
-  const trims = sizes.filter(([name]) => String(name).startsWith("trim"));
-  const fades = sizes.filter(([name]) => String(name).startsWith("fade"));
-  expect(trims.map(([, w]) => w)).toEqual([44, 44]);
-  expect(fades.map(([, w, h]) => [w, h])).toEqual([
+  const named = (prefix: string) =>
+    sizes.filter(([name]) => String(name).startsWith(prefix));
+  expect(named("trim").map(([, , , w]) => w)).toEqual([44, 44]);
+  expect(named("fade").map(([, , , w, h]) => [w, h])).toEqual([
     [44, 44],
     [44, 44],
   ]);
-  const handle = page.locator(".sys-clip-handle[data-handle=fade-out]");
-  const r = await handle.boundingBox();
-  if (!r) throw new Error("No fade knob");
+  for (const [, left, right] of sizes) {
+    expect(Number(left)).toBeGreaterThanOrEqual(Math.floor(clip.x));
+    expect(Number(right)).toBeLessThanOrEqual(Math.ceil(clip.x + clip.width));
+  }
+  const fadeOut = await page
+    .locator(".sys-clip-handle[data-handle=fade-out]")
+    .boundingBox();
+  if (!fadeOut) throw new Error("No fade knob");
   await page.evaluate(() => {
     const log: string[] = [];
     Object.assign(window, { downs: log });
@@ -766,12 +787,201 @@ test("System/Clip selected edges and fade knobs are 44 px under a coarse pointer
     [19, 19],
     [0, 0],
   ]) {
-    await page.touchscreen.tap(r.x + r.width / 2 + dx, r.y + r.height / 2 + dy);
+    await page.touchscreen.tap(
+      fadeOut.x + fadeOut.width / 2 + dx,
+      fadeOut.y + fadeOut.height / 2 + dy,
+    );
   }
   expect(
     await page.evaluate(() => (window as unknown as { downs: string[] }).downs),
   ).toEqual(["fade-out", "fade-out", "fade-out"]);
   await context.close();
+});
+
+test("System/Clip trim zones win the clip's edges over the fade knobs, and nothing of a selected clip reaches past its box, under touch and a mouse", async ({
+  browser,
+  page,
+}) => {
+  for (const coarse of [true, false]) {
+    const view = coarse
+      ? await coarsePage(browser, "system-clip--touch")
+      : { context: null, page };
+    if (!coarse) {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(storyUrl("system-clip--selected", { theme: "light" }));
+    }
+    await expect(view.page.locator(".sys-clip[data-selected]")).toBeVisible();
+    const clip = await view.page.locator(".sys-clip").boundingBox();
+    if (!clip) throw new Error("Clip did not render");
+    const top = clip.y + 4;
+    const middle = clip.y + clip.height / 2;
+    const inside = coarse ? 5 : 3;
+    expect(await handleAt(view.page, clip.x + inside, top)).toBe("trim-in");
+    expect(await handleAt(view.page, clip.x + inside, middle)).toBe("trim-in");
+    expect(await handleAt(view.page, clip.x + clip.width - inside, top)).toBe(
+      "trim-out",
+    );
+    for (const [x, y] of [
+      [clip.x - 3, top],
+      [clip.x - 20, top],
+      [clip.x + clip.width + 3, top],
+      [clip.x + clip.width + 20, top],
+      [clip.x + clip.width / 2, clip.y - 3],
+      [clip.x + clip.width / 2, clip.y + clip.height + 3],
+    ]) {
+      expect(await handleAt(view.page, x, y)).not.toMatch(/^(trim|fade)/);
+    }
+    await view.context?.close();
+  }
+});
+
+test("System/Clip a tap beside a clip butted against a selected one lands on the neighbour, with a finger and a mouse", async ({
+  browser,
+  page,
+}) => {
+  const { context, page: phone } = await coarsePage(
+    browser,
+    "system-clip--butted",
+  );
+  const seam = async (target: import("@playwright/test").Page) => {
+    const left = await target
+      .getByRole("button", { name: "Maya, intro" })
+      .boundingBox();
+    if (!left) throw new Error("Clip did not render");
+    return left.x + left.width;
+  };
+  const y = (await phone.locator(".sys-clip").first().boundingBox())?.y ?? 0;
+  const seamX = await seam(phone);
+  for (const inset of [6, 15, 20]) {
+    expect(await handleAt(phone, seamX - inset, y + 14)).toBe("body:clip-a");
+  }
+  await phone.touchscreen.tap(seamX - 15, y + 30);
+  await expect(
+    phone.getByRole("button", { name: "Maya, intro" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await context.close();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(
+    `${storyUrl("system-clip--butted", { theme: "light" })}&args=touch:!false`,
+  );
+  const edge = await seam(page);
+  const top = (await page.locator(".sys-clip").first().boundingBox())?.y ?? 0;
+  for (const inset of [1, 3, 5]) {
+    expect(await handleAt(page, edge - inset, top + 14)).toBe("body:clip-a");
+  }
+});
+
+test("System/Clip a swipe starting on an unselected clip or a guest's clip pans the lane, and only a selected clip moves under one finger", async ({
+  browser,
+}) => {
+  const touchDrag = async (
+    cdp: import("@playwright/test").CDPSession,
+    x: number,
+    y: number,
+    dx: number,
+  ) => {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y }],
+    });
+    for (let step = 1; step <= 10; step++) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: x + (dx * step) / 10, y }],
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  };
+  for (const [id, label] of [
+    ["stages-edit-tracks--three-tracks", "unselected clip"],
+    ["stages-edit-tracks--read-only-guest", "guest clip"],
+  ] as const) {
+    const { context, page } = await coarsePage(browser, id);
+    const cdp = await context.newCDPSession(page);
+    const scroller = page.locator("[role=group][aria-label=Tracks]");
+    const clip = await page
+      .getByRole("button", { name: "Anneke, answer" })
+      .boundingBox();
+    if (!clip) throw new Error("Clip did not render");
+    expect(await scroller.evaluate((el) => el.scrollLeft), label).toBe(0);
+    await touchDrag(cdp, clip.x + 20, clip.y + clip.height / 2, -150);
+    await expect
+      .poll(() => scroller.evaluate((el) => el.scrollLeft), { message: label })
+      .toBeGreaterThan(100);
+    await context.close();
+  }
+  const { context, page } = await coarsePage(browser, "system-clip--trimming");
+  const cdp = await context.newCDPSession(page);
+  const start = () =>
+    page
+      .getByRole("slider", { name: /^Trim start/ })
+      .getAttribute("aria-valuenow");
+  const body = page.locator(".sys-clip-body");
+  const touchAction = () =>
+    body.evaluate((el) => getComputedStyle(el).touchAction);
+  const box = await body.boundingBox();
+  if (!box) throw new Error("Clip did not render");
+  expect(await touchAction()).toBe("none");
+  expect(await start()).toBe("4");
+  await touchDrag(cdp, box.x + box.width / 2, box.y + box.height / 2, 80);
+  await expect.poll(start).toBe("6");
+  await page.goto(
+    `${storyUrl("system-clip--trimming", { theme: "light" })}&args=selected:!false`,
+  );
+  await expect(page.locator(".sys-clip")).toBeVisible();
+  expect(await touchAction()).toBe("pan-x pan-y");
+  const fresh = await body.boundingBox();
+  if (!fresh) throw new Error("Clip did not render");
+  await touchDrag(
+    cdp,
+    fresh.x + fresh.width / 2,
+    fresh.y + fresh.height / 2,
+    80,
+  );
+  await page.waitForTimeout(300);
+  expect(await start()).toBe("4");
+  expect(
+    await page.locator(".sys-clip").getAttribute("data-dragging"),
+  ).toBeNull();
+  await context.close();
+});
+
+test("System/Clip Escape cancels a mouse drag wherever focus is, and the release that follows commits nothing", async ({
+  page,
+}) => {
+  await open(page, "system-clip--trimming", 1280);
+  const body = page.locator(".sys-clip-body");
+  const start = () =>
+    page
+      .getByRole("slider", { name: /^Trim start/ })
+      .getAttribute("aria-valuenow");
+  const box = await body.boundingBox();
+  if (!box) throw new Error("Clip did not render");
+  expect(await start()).toBe("4");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2, {
+    steps: 5,
+  });
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2, {
+    steps: 5,
+  });
+  await expect(page.locator(".sys-clip")).toHaveAttribute(
+    "data-dragging",
+    "move",
+  );
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sys-clip")).not.toHaveAttribute(
+    "data-dragging",
+    /.*/,
+  );
+  expect(await start()).toBe("4");
+  await page.mouse.up();
+  expect(await start()).toBe("4");
 });
 
 test("System/Clip draws its selection, handles and muted hatch with borders and outlines under forced colors", async ({
@@ -832,7 +1042,11 @@ test("System/TrackHeader is 168, 280 and 56 px wide, shows row two on hover unti
     ),
   }));
   expect(fit.scroll).toBeLessThanOrEqual(fit.client);
-  expect(fit.box).toBe(24);
+  expect(fit.box).toBe(32);
+  await page.goto(storyUrl("system-trackheader--default", { theme: "light" }));
+  const toggle = await mute.boundingBox();
+  expect([toggle?.width, toggle?.height]).toEqual([32, 32]);
+  expect((await header.boundingBox())?.height).toBeLessThanOrEqual(72);
   for (const [id, width] of [
     ["system-trackheader--wide", 280],
     ["system-trackheader--phone", 56],
@@ -858,6 +1072,10 @@ test("Stages/Edit/Tracks header controls are 44 px, hit-testable all over, and r
   const solo = page.getByRole("button", { name: "Solo Maya Okafor" });
   const name = page.getByRole("button", { name: "Maya Okafor", exact: true });
   await expect(mute).toBeVisible();
+  const headers = await page
+    .locator(".sys-track")
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+  expect(headers.every((height) => height <= 72)).toBe(true);
   for (const target of [mute, solo, name]) {
     const box = await target.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
@@ -874,4 +1092,80 @@ test("Stages/Edit/Tracks header controls are 44 px, hit-testable all over, and r
     page.getByRole("button", { name: "Mute Anneke de Vries" }),
   ).toHaveAccessibleDescription(/silent because you soloed another track/);
   await context.close();
+});
+
+test("System/TrackHeader controls hidden by their opacity cannot be hit, and a drag from the empty header starts a reorder while one from a control does not", async ({
+  page,
+}) => {
+  await open(page, "system-trackheader--reordering", 1280);
+  const header = page.locator(".sys-track");
+  const mute = page.getByRole("button", { name: "Mute Maya Okafor" });
+  await expect(header).toBeVisible();
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.mouse.move(0, 0);
+  expect(
+    await page
+      .locator(".sys-track-controls")
+      .evaluate((el) => getComputedStyle(el).opacity),
+  ).toBe("0");
+  const m = await mute.boundingBox();
+  if (!m) throw new Error("Mute did not render");
+  const hitMute = () =>
+    page.evaluate(
+      ([x, y]) =>
+        document.elementFromPoint(x, y)?.closest("button")?.ariaLabel ?? null,
+      [m.x + m.width / 2, m.y + m.height / 2],
+    );
+  expect(await hitMute()).toBeNull();
+  await page.evaluate(() => {
+    const log: boolean[] = [];
+    Object.assign(window, { drags: log });
+    document.addEventListener("dragstart", (event) =>
+      log.push(event.defaultPrevented),
+    );
+  });
+  const box = await header.boundingBox();
+  if (!box) throw new Error("Header did not render");
+  await page.mouse.move(box.x + 3, box.y + 3);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 30, box.y + 40, { steps: 6 });
+  await page.mouse.up();
+  expect(await hitMute()).toBe("Mute Maya Okafor");
+  await page.mouse.move(m.x + m.width / 2, m.y + m.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(m.x + m.width / 2 + 30, m.y + m.height / 2 + 40, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { drags: boolean[] }).drags,
+    ),
+  ).toEqual([false, true]);
+});
+
+test("System/TrackHeader the phone select button is a 44 px target and a coarse header fits the shortest lane", async ({
+  browser,
+}) => {
+  const phone = await coarsePage(browser, "system-trackheader--phone");
+  const main = await phone.page.locator(".sys-track-main").boundingBox();
+  expect([main?.width, main?.height]).toEqual([44, 44]);
+  expect(
+    await hitsAround(phone.page.locator(".sys-track-main"), [-19, 0, 19]),
+  ).toEqual([true, true, true]);
+  await phone.context.close();
+  for (const [id, expected] of [
+    ["system-trackheader--default", 168],
+    ["system-trackheader--wide", 280],
+  ] as const) {
+    const { context, page } = await coarsePage(browser, id);
+    const header = await page.locator(".sys-track").boundingBox();
+    expect(header?.width).toBe(expected);
+    expect(header?.height).toBeLessThanOrEqual(72);
+    for (const name of ["Mute Maya Okafor", "Solo Maya Okafor"]) {
+      const box = await page.getByRole("button", { name }).boundingBox();
+      expect([box?.width, box?.height]).toEqual([44, 44]);
+    }
+    await context.close();
+  }
 });

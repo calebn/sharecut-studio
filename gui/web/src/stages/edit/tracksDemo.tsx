@@ -77,6 +77,7 @@ export function Tracks({
           return (
             <div key={track.id} style={{ display: "flex" }}>
               <TrackHeader
+                id={track.id}
                 name={track.name}
                 colorIndex={track.colorIndex}
                 form={form}
@@ -87,10 +88,10 @@ export function Tracks({
                 selected={picked === track.id}
                 reorder={reorder?.id === track.id ? reorder.state : undefined}
                 readOnly={readOnly}
-                onSelect={() => setPicked(track.id)}
+                onSelect={setPicked}
                 onMute={() => change(track.id, { muted: !now.muted })}
                 onSolo={() => change(track.id, { solo: !now.solo })}
-                onLevel={(level) => change(track.id, { level })}
+                onLevel={(_, level) => change(track.id, { level })}
               />
               <div
                 style={{
@@ -109,13 +110,14 @@ export function Tracks({
                   >
                     <Clip
                       {...item}
+                      id={item.name}
                       colorIndex={track.colorIndex}
                       pxPerSecond={PX_PER_SECOND}
                       peaks={VOICE_PEAKS}
                       room={{ before: 1, after: 1 }}
                       selected={clip === item.name}
                       readOnly={readOnly}
-                      onSelect={() => setClip(item.name)}
+                      onSelect={setClip}
                     />
                   </div>
                 ))}
