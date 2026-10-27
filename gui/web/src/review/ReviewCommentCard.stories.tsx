@@ -70,8 +70,6 @@ export const Replying: Story = {
       body: "",
       onBodyChange: fn(),
       onSubmit: fn(),
-      submitLabel: "Reply",
-      placeholder: "Reply to Rosa",
     },
   },
 };
@@ -79,11 +77,29 @@ export const Replying: Story = {
 export const Resolved: Story = { args: { comment: RESOLVED_COMMENT } };
 
 export const Queued: Story = {
-  args: { comment: { ...OPEN_COMMENT, pending: "queued" } },
+  args: { pending: { state: "queued" } },
 };
 
-export const ReadOnly: Story = {
-  args: { comment: COMMENT_WITH_ACTIONS, readOnly: true },
+export const Failed: Story = {
+  args: {
+    pending: { state: "failed", onRetry: fn(), onRemove: fn() },
+  },
+  play: playInCanvas(async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Try again" }),
+    );
+    if (args.pending?.state !== "failed") throw new Error("expected failed");
+    await expect(args.pending.onRetry).toHaveBeenCalled();
+  }),
+};
+
+export const Commenter: Story = {
+  args: {
+    comment: COMMENT_WITH_ACTIONS,
+    onResolve: undefined,
+    onToggleAction: undefined,
+    reply: { body: "", onBodyChange: fn(), onSubmit: fn() },
+  },
 };
 
 export const Phone: Story = {
@@ -93,8 +109,6 @@ export const Phone: Story = {
       body: "",
       onBodyChange: fn(),
       onSubmit: fn(),
-      submitLabel: "Reply",
-      compact: true,
     },
   },
   decorators: [

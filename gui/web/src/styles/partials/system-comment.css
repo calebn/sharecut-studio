@@ -7,7 +7,27 @@
   min-inline-size: 0;
 }
 
+.sys-composer-who {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.sys-composer-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-height-compact);
+  block-size: var(--control-height-compact);
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+}
+
 .sys-composer-name {
+  flex: 1;
+  min-inline-size: 0;
   margin-bottom: 0;
 }
 
@@ -81,11 +101,41 @@ button.sys-composer-chip {
   cursor: pointer;
 }
 
-.sys-composer-submit {
+.sys-composer-anchor {
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: var(--space-1);
+}
+
+.sys-composer-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.sys-composer-clear:hover {
+  background: var(--color-hover);
+}
+
+.sys-composer-submit {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  min-block-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border-radius: 50%;
   margin-inline-start: auto;
 }
 
@@ -96,19 +146,19 @@ button.sys-composer-chip {
 
 .sys-composer[data-compact] .sys-composer-body {
   field-sizing: content;
-  max-block-size: 6rem;
-}
-
-.sys-composer-note {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
+  max-block-size: calc(4lh + 2 * var(--space-1));
 }
 
 @media (pointer: coarse) {
-  .sys-composer-chip,
-  .sys-composer-submit {
+  .sys-composer-chip {
     min-block-size: var(--touch-min);
+  }
+
+  .sys-composer-clear,
+  .sys-composer-submit {
+    inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+    block-size: var(--touch-min);
   }
 }
 
@@ -209,11 +259,33 @@ button.sys-comment-main:hover {
     var(--color-border-strong);
 }
 
-.sys-comment-action {
+.sys-comment[data-pending="queued"] .sys-comment-body {
+  color: var(--color-text-secondary);
+}
+
+.sys-comment-retry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-4);
+}
+
+.sys-comment-retry .ui-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sys-comment-action,
+.sys-comment-action-label {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-block-size: var(--control-height-compact);
+}
+
+.sys-comment-action-label {
+  min-block-size: 0;
 }
 
 .sys-comment-action [data-done] {

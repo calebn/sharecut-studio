@@ -10,7 +10,7 @@ const meta: Meta<typeof ComposerHarness> = {
   component: Composer as never,
   render: (args) => <ComposerHarness {...args} />,
   tags: ["autodocs"],
-  args: { onSubmit: fn(), onPinTime: fn(), onUnpinTime: fn() },
+  args: { onSubmit: fn(), onAnchor: fn() },
   decorators: [
     (Story) => (
       <div style={{ padding: "var(--space-5)", maxInlineSize: "30rem" }}>
@@ -24,7 +24,7 @@ const meta: Meta<typeof ComposerHarness> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The one comment field, props only. The time chip leads inside the field and pins on the first keystroke; click the pinned chip to follow the playhead again. Cmd or Ctrl+Enter posts. Post stays off until there is text (and a name, when a guest must give one) and the control says why. Offline, the label is Queue comment with the offline glyph. A viewer sees the field read-only with the reason beneath it.\n\n**Motion.** Animations come later: the chip settles when it pins.",
+          "The one comment field, props only. The anchor chip leads inside the field and pins on the first keystroke. Tap the chip to move it to the playhead or the selection, and clear it for a whole-episode note. Enter posts and Shift+Enter adds a line; on a phone Return adds a line and the arrow posts. Post stays off until there is text and the control says why. A guest's name is optional, and a blank name posts as Guest. Offline, the arrow is named Queue comment and shows the offline glyph.\n\n**Motion.** Animations come later: the chip settles when it pins.",
       },
     },
   },
@@ -36,21 +36,32 @@ type Story = StoryObj<typeof ComposerHarness>;
 export const Empty: Story = {};
 
 export const Anchored: Story = {
-  args: { time: { seconds: 702.3, pinned: false } },
+  args: { anchor: { kind: "follow", seconds: 724 } },
   play: playInCanvas(async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Comment" }),
       "Hm",
     );
-    await expect(args.onPinTime).toHaveBeenCalled();
-    await userEvent.click(canvas.getByRole("button", { name: /Pinned at/ }));
-    await expect(args.onUnpinTime).toHaveBeenCalledOnce();
+    await expect(args.onAnchor).toHaveBeenCalledWith("pin");
+    await userEvent.click(canvas.getByRole("button", { name: /^Pinned at/ }));
+    await expect(args.onAnchor).toHaveBeenLastCalledWith("here");
   }),
 };
 
 export const Pinned: Story = {
-  args: { time: { seconds: 702.3, pinned: true }, start: "Cough here" },
+  args: { anchor: { kind: "pinned", start: 724 }, start: "Cough here" },
+};
+
+export const Selection: Story = {
+  args: {
+    anchor: { kind: "pinned", start: 724, end: 729 },
+    start: "Cough here",
+  },
+};
+
+export const WholeEpisode: Story = {
+  args: { anchor: { kind: "episode" }, start: "Great episode" },
 };
 
 export const Posting: Story = {
@@ -63,15 +74,11 @@ export const Offline: Story = {
 
 export const GuestFirstPost: Story = {
   args: {
-    name: { value: "", onChange: fn(), required: true },
+    name: { value: "", onChange: fn() },
     start: "Cough here",
   },
 };
 
-export const ReadOnly: Story = {
-  args: { disabledReason: "Viewers can read comments, not write them." },
-};
-
 export const Compact: Story = {
-  args: { compact: true, time: { seconds: 702.3, pinned: true } },
+  args: { compact: true, anchor: { kind: "pinned", start: 724 } },
 };
