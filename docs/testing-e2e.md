@@ -22,7 +22,7 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 | US-6 | #6 | Partial | `gui/web/e2e/fade-curves.spec.ts`, `gui/web/e2e/applied-edit-seams.spec.ts`, `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/src/panels/HistoryPanel.test.tsx`, `tests/test_history.py`, `tests/test_pending_preview.py` | Listening by ear, a mid-run Cancel |
 | US-7 | #7 | Partial | `gui/web/e2e/review-surface.spec.ts`, `tests/test_review_share.py`, `tests/test_relay_proxy.py` | Host visibility of time-anchored playback feedback and host-offline fallback |
 | US-8 | #11 | Partial | `gui/web/src/shareMode.test.ts`, `tests/test_share_pending_preview.py` | Two-browser suggest/approve |
-| US-9 | #8 | Partial | `gui/web/src/stages/prepare/usePrepareRun.test.tsx`, `gui/web/e2e/pipeline-warning-layout.spec.ts`, `tests/test_pipeline_run_result.py`, `tests/test_gui_export_jobs.py`, `tests/test_bounce.py` | A mid-run Cancel |
+| US-9 | #8 | Partial | `gui/web/src/stages/prepare/usePrepareRun.test.tsx`, `gui/web/e2e/prepare.spec.ts`, `tests/test_pipeline_run_result.py`, `tests/test_gui_export_jobs.py`, `tests/test_bounce.py` | A mid-run Cancel |
 
 The record-lobby touch-target check holds guest room-sync frames to verify the
 connecting view has no controls, then waits for **Allow microphone** before
