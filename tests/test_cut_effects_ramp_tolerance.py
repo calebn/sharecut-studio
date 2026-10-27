@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits import cut_effects
+from podcast_mcp.engines.audio import GainRamp
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
 
 
@@ -60,3 +61,18 @@ def test_a_real_ramp_change_is_still_reported(tmp_path, change):
         project, candidate, frozenset({"remove"}), defaults={}
     )
     assert [e for e in effects if e.envelope is not None]
+
+
+@pytest.mark.parametrize(
+    ("other", "same"),
+    [
+        (GainRamp(1.0 + 1e-14, 2.0 - 1e-14, True, "tri"), True),
+        (GainRamp(1.0 + 9e-7, 2.0, True, "tri"), True),
+        (GainRamp(1.0 + 2e-6, 2.0, True, "tri"), False),
+        (GainRamp(1.0, 2.0 + 2e-6, True, "tri"), False),
+        (GainRamp(1.0, 2.0, False, "tri"), False),
+        (GainRamp(1.0, 2.0, True, "qsin"), False),
+    ],
+)
+def test_same_envelope_tolerates_only_float_noise(other, same):
+    assert cut_effects._same_envelope(GainRamp(1.0, 2.0, True, "tri"), other) is same
