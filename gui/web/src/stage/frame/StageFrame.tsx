@@ -10,6 +10,7 @@ import { AppHeader } from "../../system/AppHeader";
 import { StageBar } from "../../system/StageBar";
 import { stageLabel } from "../../system/verbs";
 import type { StageSheet } from "../../types/stage";
+import { ToolsButton } from "../edit/ToolsButton";
 import { AvatarStack } from "./AvatarStack";
 import { BannerStack } from "./BannerStack";
 import type { LoadFailure } from "./LoadFailureBanner";
@@ -19,6 +20,7 @@ import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
 import { StatusLive } from "./StatusLive";
 import { useHeaderProps } from "./useHeaderProps";
 import { useShellAttributes } from "./useShellAttributes";
+import { useShortFrame } from "./useShortFrame";
 import { useStageBarProps } from "./useStageBarProps";
 
 export type StageFrameProps = {
@@ -53,6 +55,7 @@ function StageFrameAdapter({
   const stageBar = useStageBarProps();
   const rootRef = useRef<HTMLDivElement>(null);
   usePresenceCursorSource(rootRef);
+  const shortFrame = useShortFrame(rootRef);
   const undoEnabled = useDawStore(
     (s) =>
       s.project != null &&
@@ -94,6 +97,12 @@ function StageFrameAdapter({
           }
           peopleSlot={<AvatarStack variant="header" />}
           menuPeople={<AvatarStack variant="menu" />}
+          compact={shortFrame}
+          toolsSlot={
+            shortFrame && stage === "edit" && shell === "phone" ? (
+              <ToolsButton />
+            ) : null
+          }
         />
       }
       banners={

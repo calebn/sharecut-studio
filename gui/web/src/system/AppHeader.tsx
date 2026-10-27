@@ -14,6 +14,7 @@ import {
 import type { SystemIconName } from "./icons";
 import { SaveIndicator, type SaveIndicatorProps } from "./SaveIndicator";
 import { StageBar, type StageBarProps } from "./StageBar";
+import { StageMenu } from "./StageMenu";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
 import { capsOf, verbOf } from "./verbDisplay";
@@ -31,6 +32,10 @@ export type AppHeaderProps = {
   peopleSlot?: ReactNode;
   /** The People rows (Follow) in the Project menu, for a window too short for the header's right side. */
   menuPeople?: ReactNode;
+  /** A short window folds the tab bar and the Edit tools into the header: the Tools button goes here. */
+  toolsSlot?: ReactNode;
+  /** The window is short: the Stage menu and the Tools slot show, because the tab bar and the Edit rows are folded in. */
+  compact?: boolean;
   /** A guest: the title gets a second line with the version and a Role chip. */
   guest?: { version: string; role: "Editor" | "Commenter" | "Viewer" };
   recent?: readonly string[];
@@ -208,6 +213,8 @@ export function AppHeader({
   people = [],
   peopleSlot,
   menuPeople,
+  toolsSlot,
+  compact = false,
   guest,
   recent,
   appearance,
@@ -281,6 +288,12 @@ export function AppHeader({
                 />
               </span>
             </>
+          ) : null}
+          {compact && (stages || toolsSlot) ? (
+            <div className="sys-header-short">
+              {stages ? <StageMenu {...stages} /> : null}
+              {toolsSlot}
+            </div>
           ) : null}
         </div>
         {stages ? (
