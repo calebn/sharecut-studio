@@ -33,7 +33,7 @@ describe("AppHeader Project menu", () => {
     render(
       <AppHeader
         title="Episode"
-        guest={{ version: "Shared link", role: "Viewer" }}
+        guest={{ version: "Shared link", role: "viewer" }}
         onInvite={() => undefined}
       />,
     );
@@ -42,7 +42,7 @@ describe("AppHeader Project menu", () => {
 
   it("gives a link that is not the host no Invite, whatever its role", async () => {
     const user = userEvent.setup();
-    for (const role of ["Editor", "Commenter", "Viewer"] as const) {
+    for (const role of ["editor", "commenter", "viewer"] as const) {
       const { unmount } = render(
         <AppHeader
           title="Episode"
@@ -69,7 +69,7 @@ describe("AppHeader Stage menu", () => {
     onSelect: () => undefined,
   } as const;
 
-  it.each(["Editor", "Commenter", "Viewer"] as const)(
+  it.each(["editor", "commenter", "viewer"] as const)(
     "keeps Follow and search reachable for a %s link while the right side gives way",
     async (role) => {
       const user = userEvent.setup();
@@ -78,7 +78,7 @@ describe("AppHeader Stage menu", () => {
         <AppHeader
           title="Episode"
           guest={{ version: "Shared link", role }}
-          stages={role === "Viewer" ? undefined : stages}
+          stages={role === "viewer" ? undefined : stages}
           onPalette={onPalette}
           menuPeople={<div role="menuitem">Maya · Follow</div>}
           compact
@@ -87,7 +87,7 @@ describe("AppHeader Stage menu", () => {
       expect(screen.queryByRole("button", { name: /Palette/ })).toBeNull();
       await user.click(
         screen.getByRole("button", {
-          name: role === "Viewer" ? "More" : "Stage menu, Review",
+          name: role === "viewer" ? "More" : "Stage menu, Review",
         }),
       );
       expect(

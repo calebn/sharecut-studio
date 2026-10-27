@@ -1,4 +1,4 @@
-import type { StageId } from "../../system/verbs";
+import type { StageId } from "../../types/stage";
 
 export type GuestRole = "viewer" | "commenter" | "editor";
 

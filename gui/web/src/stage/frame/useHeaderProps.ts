@@ -5,7 +5,6 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
-import type { StageRole } from "../../types/stage";
 import { useHistoryControls } from "./useHistoryControls";
 import { useSaveIndicator } from "./useSaveIndicator";
 import { useStageBarProps } from "./useStageBarProps";
@@ -17,16 +16,6 @@ const MENU_COMMANDS: Record<string, string> = {
   agent: "mcp.connect",
   help: "help.diagnosticsBundle",
 };
-
-/** The Role chip's text for each guest role. */
-const GUEST_ROLE_LABEL = {
-  editor: "Editor",
-  commenter: "Commenter",
-  viewer: "Viewer",
-} as const satisfies Record<
-  Exclude<StageRole, "host">,
-  NonNullable<AppHeaderProps["guest"]>["role"]
->;
 
 /**
  * Everything `AppHeader` needs from the app, except the people slot: title,
@@ -59,10 +48,7 @@ export function useHeaderProps(): Omit<
     loading: title === null,
     save: save ?? undefined,
     stages,
-    guest:
-      role === "host"
-        ? undefined
-        : { version: "Shared link", role: GUEST_ROLE_LABEL[role] },
+    guest: role === "host" ? undefined : { version: "Shared link", role },
     canUndo: history.history?.canUndo ?? false,
     canRedo: history.history?.canRedo ?? false,
     onUndo: history.onUndo,
