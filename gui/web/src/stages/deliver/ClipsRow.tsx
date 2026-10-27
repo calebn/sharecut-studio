@@ -6,6 +6,13 @@ import { TimeField } from "../../system/TimeField";
 import { VerbButton } from "../../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../../system/verbDisplay";
 import { Button, EmptyState, Menu, MenuItem } from "../../ui";
+import { ClipTrimWave } from "./ClipTrimWave";
+import {
+  type ClipWord,
+  peaksForWindow,
+  type TimeWindow,
+  trimWindow,
+} from "./clipTrim";
 import { DeliverSection } from "./DeliverSection";
 import {
   type Clip,
@@ -23,6 +30,10 @@ type Props = {
   state?: "ready" | "loading";
   /** The clip whose In and Out are open for trimming. */
   trimming?: string | null;
+  /** Episode words in seconds, sorted; the handles snap to them. Without them the handles move freely. */
+  words?: readonly ClipWord[];
+  /** Peaks spread evenly over the episode, 0 to 1. Without them the strip shows a flat line. */
+  peaks?: readonly number[];
   onRetitle: (id: string, title: string) => void;
   onTrim: (id: string, edge: "start" | "end", at: number) => void;
   onPlay: (id: string) => void;
@@ -83,6 +94,8 @@ export function ClipsRow({
   total,
   state = "ready",
   trimming: initialTrimming = null,
+  words = [],
+  peaks = [],
   onRetitle,
   onTrim,
   onPlay,
@@ -91,7 +104,13 @@ export function ClipsRow({
   onOpenInEdit,
   onFind,
 }: Props) {
-  const [trimming, setTrimming] = useState<string | null>(initialTrimming);
+  const [trimming, setTrimming] = useState<{
+    id: string;
+    window: TimeWindow;
+  } | null>(() => {
+    const clip = clips.find((c) => c.id === initialTrimming);
+    return clip ? { id: clip.id, window: trimWindow(clip, total) } : null;
+  });
   const names = itemNames(
     clips.map((c) => c.title),
     "clip",
@@ -120,7 +139,7 @@ export function ClipsRow({
           {clips.map((clip, index) => {
             const name = names[index] ?? clip.title;
             const strength = clipStrength(clip.score);
-            const trim = trimming === clip.id;
+            const trim = trimming?.id === clip.id;
             return (
               <li
                 key={clip.id}
@@ -140,8 +159,17 @@ export function ClipsRow({
                   value={clip.title}
                   onChange={(event) => onRetitle(clip.id, event.target.value)}
                 />
-                {trim ? (
+                {trim && trimming ? (
                   <div className="dv-clip-trim">
+                    <ClipTrimWave
+                      name={name}
+                      peaks={peaksForWindow(peaks, total, trimming.window)}
+                      window={trimming.window}
+                      start={clip.start}
+                      end={clip.end}
+                      words={words}
+                      onTrim={(edge, at) => onTrim(clip.id, edge, at)}
+                    />
                     <TimeField
                       label={`In of ${name}`}
                       value={clip.start}
@@ -205,7 +233,13 @@ export function ClipsRow({
                   <ClipMenu
                     name={name}
                     trimming={trim}
-                    onTrim={() => setTrimming(trim ? null : clip.id)}
+                    onTrim={() =>
+                      setTrimming(
+                        trim
+                          ? null
+                          : { id: clip.id, window: trimWindow(clip, total) },
+                      )
+                    }
                     onOpenInEdit={() => onOpenInEdit(clip.id)}
                     onRemove={() => onRemove(clip.id)}
                   />

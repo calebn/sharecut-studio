@@ -8,6 +8,7 @@ import { Toast, type ToastState } from "../../ui";
 import { isApplePlatform } from "../../utils/platform";
 import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
+import type { ClipWord } from "./clipTrim";
 import {
   addChapterAt,
   approveClip,
@@ -56,6 +57,10 @@ export type DeliverStageProps = {
   playhead: number;
   /** A range selected in Edit; Mod+E exports it instead of the Deliver In and Out. */
   selection?: TimeSpan | null;
+  /** Episode words in seconds, sorted by start; clip trim handles snap to them. Without them the handles move freely. */
+  words?: readonly ClipWord[];
+  /** Peaks spread evenly over the episode, 0 to 1, for the clip trim strip. */
+  peaks?: readonly number[];
   link: {
     url: string | null;
     copyState?: LinkCopyState;
@@ -103,6 +108,8 @@ export function DeliverStage({
   clock,
   playhead,
   selection = null,
+  words,
+  peaks,
   link,
   pinnedTo,
   layout = "desktop",
@@ -260,6 +267,8 @@ export function DeliverStage({
       clips={clips}
       total={total}
       state={sharedState}
+      words={words}
+      peaks={peaks}
       onRetitle={(id, title) => setClips((now) => retitleClip(now, id, title))}
       onTrim={(id, edge, at) =>
         setClips((now) => trimClip(now, id, edge, at, total))

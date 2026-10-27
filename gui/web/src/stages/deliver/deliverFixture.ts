@@ -1,3 +1,4 @@
+import type { ClipWord } from "./clipTrim";
 import {
   type Chapter,
   type Clip,
@@ -127,3 +128,56 @@ export const OPENED_BY = [
   { name: "Rosa", colorIndex: 2 },
   { name: "Jon", colorIndex: 1 },
 ];
+
+const SAMPLE_TEXT = [
+  "So",
+  "nobody",
+  "asked",
+  "the",
+  "river",
+  "what",
+  "it",
+  "wanted",
+  "and",
+  "that",
+  "is",
+  "the",
+  "whole",
+  "story",
+];
+
+/** Words around the three clips, deterministic: a word every 0.45 to 0.7 s with short gaps. */
+export const WORDS: readonly ClipWord[] = (() => {
+  const words: ClipWord[] = [];
+  for (const [from, to] of [
+    [0, 40],
+    [606, 660],
+    [1834, 1874],
+  ] as const) {
+    let t = from;
+    let i = 0;
+    while (t < to) {
+      const length = 0.3 + ((i * 7) % 5) * 0.08;
+      words.push({
+        text: SAMPLE_TEXT[i % SAMPLE_TEXT.length] as string,
+        start: Number(t.toFixed(2)),
+        end: Number((t + length).toFixed(2)),
+      });
+      t += length + 0.1 + ((i * 3) % 4) * 0.05;
+      i += 1;
+    }
+  }
+  return words;
+})();
+
+/** Two peaks a second over the whole episode, deterministic. */
+export const PEAKS: readonly number[] = Array.from(
+  { length: TOTAL * 2 },
+  (_, i) =>
+    Number(
+      Math.min(
+        1,
+        0.15 + Math.abs(Math.sin(i * 0.37)) * 0.55 + ((i * 13) % 7) * 0.04,
+      ).toFixed(2),
+    ),
+);

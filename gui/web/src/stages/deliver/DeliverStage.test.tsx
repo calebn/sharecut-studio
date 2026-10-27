@@ -12,11 +12,14 @@ import {
   NEEDS_MODEL,
   NEVER,
   OPEN_FACTS,
+  PEAKS,
   REQUEST,
   SETTINGS,
   TOTAL,
+  WORDS,
 } from "./deliverFixture";
 import type { ExportState } from "./deliverLogic";
+import { formatClock } from "./deliverLogic";
 
 const platform = vi.hoisted(() => ({ apple: false }));
 vi.mock("../../utils/platform", () => ({
@@ -4661,5 +4664,118 @@ describe("round eight of the audit", () => {
       .mocked(all.onExport)
       .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
     expect(at).toBe(312.4);
+  });
+});
+
+describe("clip trim handles in the stage", () => {
+  const openTrim = async () => {
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Nobody asked the river" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+  };
+  const handle = (edge: "In" | "Out") =>
+    screen.getByRole("slider", {
+      name: `${edge} handle of Nobody asked the river`,
+    });
+  const input = (edge: "In" | "Out") =>
+    screen.getByRole("textbox", { name: `${edge} of Nobody asked the river` });
+
+  it("shows the strip only for the clip being trimmed", async () => {
+    setup({ words: WORDS, peaks: PEAKS });
+    expect(screen.queryByRole("group", { name: /^Waveform of/ })).toBeNull();
+    await openTrim();
+    expect(screen.getAllByRole("group", { name: /^Waveform of/ })).toHaveLength(
+      1,
+    );
+    expect(
+      screen.getByRole("group", { name: "Waveform of Nobody asked the river" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Nobody asked the river" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Done trimming" }),
+    );
+    expect(screen.queryByRole("group", { name: /^Waveform of/ })).toBeNull();
+  });
+
+  it.each([
+    ["In", "ArrowRight", {}, "start", 612.85],
+    ["In", "ArrowLeft", {}, "start", 611.56],
+    ["Out", "ArrowLeft", {}, "end", 652.18],
+    [
+      "Out",
+      "ArrowRight",
+      {},
+      "end",
+      WORDS[WORDS.findIndex((w) => w.end === 652.66) + 1]?.end ?? 0,
+    ],
+  ] as const)(
+    "%s %s moves one word and the field follows",
+    async (edge, key, init, _kind, expected) => {
+      setup({ words: WORDS, peaks: PEAKS });
+      await openTrim();
+      fireEvent.keyDown(handle(edge), { key, ...init });
+      expect(input(edge)).toHaveValue(formatClock(expected));
+    },
+  );
+
+  it("moves ten words with Shift, and the fields and handles agree", async () => {
+    setup({ words: WORDS, peaks: PEAKS });
+    await openTrim();
+    fireEvent.keyDown(handle("In"), { key: "ArrowRight", shiftKey: true });
+    expect(input("In")).toHaveValue(formatClock(618.7));
+    expect(handle("In")).toHaveAttribute("aria-valuenow", "618.7");
+  });
+
+  it("moves 10 ms with Alt and the field shows the tenth", async () => {
+    const { stage, all } = setup({ words: WORDS, peaks: PEAKS });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve Nobody asked the river" }),
+    );
+    await openTrim();
+    fireEvent.keyDown(handle("In"), { key: "ArrowRight", altKey: true });
+    modE(stage());
+    const clip = vi
+      .mocked(all.onExport)
+      .mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
+    expect(clip?.start).toBeCloseTo(612.01, 6);
+  });
+
+  it("moves freely by 10 ms without words", async () => {
+    const { stage, all } = setup();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve Nobody asked the river" }),
+    );
+    await openTrim();
+    fireEvent.keyDown(handle("Out"), { key: "ArrowLeft" });
+    fireEvent.keyDown(handle("Out"), { key: "ArrowLeft", shiftKey: true });
+    modE(stage());
+    const clip = vi
+      .mocked(all.onExport)
+      .mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
+    expect(clip?.end).toBeCloseTo(653 - 0.01 - 0.1, 6);
+  });
+
+  it("keeps a typed In in step with the handle", async () => {
+    setup({ words: WORDS, peaks: PEAKS });
+    await openTrim();
+    const start = input("In");
+    await userEvent.clear(start);
+    await userEvent.type(start, "10:15{Enter}");
+    expect(handle("In")).toHaveAttribute("aria-valuenow", "615");
+  });
+
+  it("never lets the handles cross", async () => {
+    setup({ words: WORDS, peaks: PEAKS });
+    await openTrim();
+    for (let i = 0; i < 6; i += 1)
+      fireEvent.keyDown(handle("In"), { key: "ArrowRight", shiftKey: true });
+    const start = Number(handle("In").getAttribute("aria-valuenow"));
+    const end = Number(handle("Out").getAttribute("aria-valuenow"));
+    expect(end - start).toBeGreaterThanOrEqual(1);
   });
 });
