@@ -9,8 +9,8 @@ import {
 const stops = new Set<() => void>();
 
 /**
- * Answer every `askConfirm` / `askText` question with `reply` (true goes
- * ahead, null backs out, a string is typed text) and record each question.
+ * Answer every `askConfirm` question with `reply` (true goes ahead, null
+ * backs out) and record each question.
  * Setup stops it after the test.
  */
 export function answerQuestions(

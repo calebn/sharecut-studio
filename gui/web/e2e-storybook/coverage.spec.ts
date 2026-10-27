@@ -40,11 +40,7 @@ const widthsFor = (story: IndexEntry) =>
 
 /** Full-geometry stories: the shell fits the viewport; the others fit the root. */
 const SHELL_TITLES = ["Stages/Edit/Frame"];
-const ROOT_FIT_TITLES = [
-  "Templates/Editor · Transcript panel",
-  "Templates/Home",
-  "Templates/Home · Setup wizard",
-];
+const ROOT_FIT_TITLES = ["Templates/Editor · Transcript panel"];
 
 base.describe.configure({ mode: "parallel" });
 

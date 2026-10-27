@@ -264,10 +264,10 @@ the empty state, not a separate discovery task.
   the announce pipeline. Code asks with `gui/web/src/feedback/ask.ts`:
   `await askConfirm(...)` opens the app's `AskDialog` (the shared
   `Dialog`, a bottom sheet on phones) with the consequence, Keep first
-  and focused, and the action last, `danger` when it discards work;
-  `await askText(...)` replaces `window.prompt()` with a `Field`. While
-  either is open it holds every app shortcut, as the native `confirm()`
-  did, so nothing changes behind the question. #1027
+  and focused, and the action last, `danger` when it discards work. While
+  it is open it holds every app shortcut, as the native `confirm()`
+  did, so nothing changes behind the question. A path is asked on Home
+  (Open other…), never in a dialog. #1027
   and #1031 replaced every native dialog, and oxlint's `no-alert` rule
   rejects new ones (see Governance). The
   blade-cut confirm sheet (`edit.bladeCut`) (named target, time,
@@ -654,7 +654,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   searchable from **?** or More → **Search commands**.
 - 2026-10-07 — Feedback primitives (#1031): every announcement shows in the
   app toast with a scoped Undo where history recorded the change; the last
-  native dialogs became `askConfirm` / `askText` in `AskDialog`; oxlint
+  native dialogs became `askConfirm` / `askText` in `AskDialog` (`askText` was removed in #2295: a path is asked on Home); oxlint
   `no-alert` is an error; `Field` wires its hint and error. Review round:
   the toast's Undo names its history entry and the server refuses it once
   another edit is the latest ("Can't undo: the project changed since.

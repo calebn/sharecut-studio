@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("App styles", () => {
-  it("imports daw.css so HomeScreen is styled before a project opens", () => {
+  it("imports daw.css so Home is styled before a project opens", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "App.tsx"), "utf8");
     expect(src).toMatch(/import ["']\.\/styles\/daw\.css["']/);

@@ -4,64 +4,25 @@
    live in cover-layout.css (synced from deploy/brand/). Timeline z-index is
    paint order, not elevation. */
 
-.home-screen,
 .loading-screen,
 .error-screen,
-.review-shell,
-.bootstrap-wizard {
+.review-shell {
   font-size: var(--font-size-review);
   line-height: 1.5;
 }
 
-.home-screen .modifier-action,
-.bootstrap-wizard .modifier-action {
-  min-block-size: var(--tap-comfortable);
-  padding-inline: var(--s1);
-}
-
-:is(.home-screen, .review-shell, .bootstrap-wizard)
-  .ui-control:not(.dialog-close) {
+.review-shell .ui-control:not(.dialog-close) {
   min-block-size: var(--touch-min);
   font-size: var(--font-size-review);
 }
 
-:is(.home-screen, .review-shell, .bootstrap-wizard)
-  :is(.ui-field-label, .ui-field-hint, .inline-error) {
+.review-shell :is(.ui-field-label, .ui-field-hint, .inline-error) {
   font-size: var(--font-size-body);
 }
 
 .home-screen-error {
   color: var(--color-danger);
   margin: 0;
-}
-
-.home-screen input:not([type="checkbox"], [type="radio"], [type="range"]),
-.home-screen select,
-.bootstrap-wizard select {
-  font: inherit;
-  font-size: var(--font-size-field-current);
-  padding: var(--space-3) var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-canvas);
-  color: var(--color-text-primary);
-  min-block-size: var(--tap-min);
-  inline-size: 100%;
-}
-
-.home-screen select:disabled,
-.bootstrap-wizard select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.home-screen .ui-field {
-  margin-bottom: 0;
-}
-
-:is(.home-screen, .bootstrap-wizard)
-  label:has(input[type="checkbox"], input[type="radio"]) {
-  min-block-size: var(--touch-min);
 }
 
 .transcript-wordbar {
