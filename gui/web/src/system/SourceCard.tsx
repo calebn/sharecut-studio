@@ -161,6 +161,7 @@ export function SourceCard({
           density="inline"
           state="running"
           title="Uploading"
+          barLabel={`Uploading ${fileName}`}
           progress={progress ?? 0}
           detail={`${percentOf(progress)}%`}
           valueText={`${percentOf(progress)} percent`}

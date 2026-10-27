@@ -148,6 +148,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
               action
                 ? {
                     label: action.label,
+                    name: `${action.label}, ${row.title}`,
                     icon: action.icon,
                     onAction: () => onAction(row.id, action.run),
                   }

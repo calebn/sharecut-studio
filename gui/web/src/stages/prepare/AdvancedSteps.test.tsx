@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AdvancedSteps, type AdvancedStepsProps } from "./AdvancedSteps";
 import { GROUPS, RUNNING } from "./advancedFixture";
@@ -93,6 +94,68 @@ describe("AdvancedSteps", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["list", undefined],
+    ["detail", "align"],
+  ])(
+    "keeps focus off the page when Cancel goes away in the %s view",
+    async (_, selected) => {
+      const user = userEvent.setup();
+      function Cancelable() {
+        const [running, setRunning] =
+          useState<AdvancedStepsProps["running"]>(RUNNING);
+        return (
+          <Host
+            selected={selected}
+            running={running}
+            spy={{ onCancel: () => setRunning(undefined) }}
+          />
+        );
+      }
+      render(<Cancelable />);
+      const cancel = screen.getByRole("button", { name: "Cancel" });
+      cancel.focus();
+      await user.keyboard("{Enter}");
+      expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { level: 2 }),
+      );
+    },
+  );
+
+  it("reads a fractional value without float noise", () => {
+    const groups = GROUPS.map((group) => ({
+      ...group,
+      steps: group.steps.map((step) => ({
+        ...step,
+        params: step.params.map((param) =>
+          param.kind === "scrub"
+            ? { ...param, min: 0, max: 1, step: 0.1, value: 0.1 + 0.2 }
+            : param,
+        ),
+      })),
+    }));
+    function Noise() {
+      const spy = {
+        onSelect: vi.fn(),
+        onBack: vi.fn(),
+        onToggle: vi.fn(),
+        onParam: vi.fn(),
+        onReset: vi.fn(),
+        onRunFromHere: vi.fn(),
+        onCancel: vi.fn(),
+      };
+      const demo = useAdvancedDemo(groups, "align", spy);
+      return <AdvancedSteps {...demo} />;
+    }
+    render(<Noise />);
+    expect(screen.getByRole("slider")).toHaveAttribute(
+      "aria-valuetext",
+      "0.3 seconds",
+    );
   });
 
   it("is a native slider read in plain units, so the arrow keys work in the browser", () => {

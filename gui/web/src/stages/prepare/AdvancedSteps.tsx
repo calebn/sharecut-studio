@@ -78,7 +78,7 @@ function clampedValue(param: ScrubParam): number {
 
 function valueText(param: ScrubParam): string {
   const [one, many] = param.unit;
-  const value = clampedValue(param);
+  const value = Number(clampedValue(param).toFixed(6));
   return `${value} ${value === 1 ? one : many}`;
 }
 
@@ -249,6 +249,7 @@ export function AdvancedSteps({
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const rows = useRef(new Map<string, HTMLButtonElement>());
   const heading = useRef<HTMLHeadingElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const shown = useRef(selectedId);
   const locked = running !== undefined;
   const steps = groups.flatMap((group) => group.steps);
@@ -261,6 +262,10 @@ export function AdvancedSteps({
     if (selectedId) heading.current?.focus();
     else if (before) rows.current.get(before)?.focus();
   }, [selectedId]);
+
+  useFocusRescue(root, (target) =>
+    target.closest(".sys-adv-running") ? () => heading.current : () => null,
+  );
 
   const status = running ? (
     <div className="sys-adv-running">
@@ -280,7 +285,7 @@ export function AdvancedSteps({
   if (selected) {
     const off = selected.optional && !selected.enabled;
     return (
-      <div className="sys-adv">
+      <div ref={root} className="sys-adv">
         <div className="sys-adv-bar">
           <Button onClick={onBack}>
             <SystemIcon name="chevron-left" size={16} />
@@ -328,8 +333,8 @@ export function AdvancedSteps({
   }
 
   return (
-    <div className="sys-adv">
-      <h2 id={titleId} className="sys-adv-title">
+    <div ref={root} className="sys-adv">
+      <h2 ref={heading} tabIndex={-1} id={titleId} className="sys-adv-title">
         Advanced steps
       </h2>
       {status}
