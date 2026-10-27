@@ -32,6 +32,8 @@ flowchart TD
 
 A Viewer (listen-only) link shows no comment field.
 
+The Guest Review stage's Composer (built in Storybook, not yet mounted in the app) works the same way with one shared set of keys. The time chip follows the playhead until the first keystroke pins it as a time such as 12:15; pressing the chip moves it to the playhead, and its cross makes the note about the whole episode, which posts with no time. On a laptop Enter posts, Shift+Enter adds a line and Cmd or Ctrl+Enter also posts; on a touch screen Return adds a line and the arrow button posts. A blank name posts as Guest. A comment waiting for the network shows "Waiting to send"; one the server refused shows "Not sent" with **Try again** and **Remove**. A Viewer link has no Composer.
+
 An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link does not open the project. Ask the person who shared it for a new link."
 
 The comment fields fit narrow phones without horizontal page scrolling.
