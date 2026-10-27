@@ -398,10 +398,16 @@ export function TranscriptPanel() {
 
   useEffect(() => {
     const onUp = () => {
+      if (draggingRef.current)
+        useDawStore.getState().setTimelineDragging(false);
       draggingRef.current = false;
     };
     window.addEventListener("mouseup", onUp);
-    return () => window.removeEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mouseup", onUp);
+      if (draggingRef.current)
+        useDawStore.getState().setTimelineDragging(false);
+    };
   }, []);
 
   const seekTurnSoon = (sec: number) => {
@@ -1481,6 +1487,9 @@ export function TranscriptPanel() {
                             }
                             e.preventDefault();
                             draggingRef.current = true;
+                            // Stow the compact range sheet so it cannot
+                            // cover the words while the drag extends.
+                            useDawStore.getState().setTimelineDragging(true);
                             dragExtendedRef.current = false;
                             rangeAnchorRef.current = {
                               trackId: u.track_id,

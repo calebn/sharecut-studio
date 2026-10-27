@@ -75,6 +75,8 @@ export interface SelectionSheet {
   /** The editing rail is inert while a full-height compact sheet covers it. */
   coversTools: boolean;
   rangeActionsInSheet: boolean;
+  /** Out of the way while a range is dragged out beneath it. */
+  stowed: boolean;
   content: ReactNode;
 }
 
@@ -99,6 +101,7 @@ export function useSelectionSheet(
     setSheetExpanded,
     setSelection,
     setRangeArmed,
+    timelineDragging,
   } = useDaw((s) => ({
     selection: s.selection,
     rangeArmed: s.rangeArmed,
@@ -107,6 +110,7 @@ export function useSelectionSheet(
     setSheetExpanded: s.setSheetExpanded,
     setSelection: s.setSelection,
     setRangeArmed: s.setRangeArmed,
+    timelineDragging: s.timelineDragging,
   }));
   const open =
     shell != null &&
@@ -141,6 +145,7 @@ export function useSelectionSheet(
     open,
     placement: column ? "column" : "sheet",
     rangeActionsInSheet,
+    stowed: !compact && timelineDragging && isRangeSelection(selection),
     expanded: sheetExpanded,
     onExpandedChange: setSheetExpanded,
     onClose: () => {

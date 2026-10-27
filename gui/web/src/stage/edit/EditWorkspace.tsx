@@ -1,4 +1,11 @@
-import { memo, type RefCallback, useCallback, useMemo, useState } from "react";
+import {
+  memo,
+  type RefCallback,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import { isRangeSelection } from "../../edit/rangeSelection";
 import {
@@ -191,10 +198,21 @@ function EditWorkspaceAdapter({
     </div>
   );
 
-  const showInspector =
+  const inspectorWanted =
     shell === "desktop" &&
     selection != null &&
     (!isRangeSelection(selection) || oneWordOf(selection) !== null);
+  // A word drag grows the range past one word, which would drop the column
+  // and slide the Script list out from under the pointer. The column holds
+  // until the drag lets go.
+  const heldInspector = useRef(inspectorWanted);
+  const selectionDragging = useDawStore((s) => s.timelineDragging);
+  if (!selectionDragging || inspectorWanted) {
+    heldInspector.current = inspectorWanted;
+  }
+  const showInspector = selectionDragging
+    ? heldInspector.current
+    : inspectorWanted;
   const rangeActions =
     selectionSheet.rangeActionsInSheet || phone ? null : <RangeActions />;
   const corner = <EditCorner showScript={!phone} />;

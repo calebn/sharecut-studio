@@ -191,3 +191,12 @@ it("preserves global Escape tool exit without resurrecting the prior draft", () 
     clearRegisteredCommands();
   }
 });
+
+it("announces where the comment lands, a span included, in comment mode", () => {
+  const { ruler } = setup();
+  expect(ruler.getAttribute("aria-valuetext")).toBe("Comment at 0:02");
+  act(() => {
+    useDawStore.getState().setCommentDraft({ startSec: 4, endSec: 10 });
+  });
+  expect(ruler.getAttribute("aria-valuetext")).toBe("Comment at 0:04–0:10");
+});

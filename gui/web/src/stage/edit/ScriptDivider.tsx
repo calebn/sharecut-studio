@@ -16,7 +16,8 @@ const rootPx = () =>
 
 /**
  * The plain divider between the timeline and the Script pane. Drag it, press
- * the arrows (1 rem, Shift 4 rem) or Enter or double-click to reset. No text
+ * the arrows (1 rem, Shift 4 rem), Home or End (smallest or largest), or Enter
+ * or double-click to reset. No text
  * buttons.
  */
 export function ScriptDivider({
@@ -49,6 +50,8 @@ export function ScriptDivider({
     // The divider moves with the arrow, so the pane on its right grows leftward.
     if (e.key === "ArrowLeft") onResize(widthRem + step);
     else if (e.key === "ArrowRight") onResize(widthRem - step);
+    else if (e.key === "Home") onResize(SCRIPT_WIDTH_MIN_REM);
+    else if (e.key === "End") onResize(SCRIPT_WIDTH_MAX_REM);
     else if (e.key === "Enter") onReset();
     else return;
     e.preventDefault();
