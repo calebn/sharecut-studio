@@ -31,7 +31,10 @@ export const ThreeTracks: Story = {
     ).toHaveAttribute("aria-pressed", "true");
     await expect(
       canvas.getAllByRole("slider").filter((handle) => handle.tabIndex === 0),
-    ).toHaveLength(4);
+    ).toHaveLength(0);
+    await expect(
+      canvas.getByRole("button", { name: "Maya, take 2" }),
+    ).toHaveAttribute("tabindex", "0");
     await expect(
       canvas.getByRole("button", { name: "Maya, intro" }),
     ).toHaveAttribute("aria-pressed", "false");
@@ -42,6 +45,7 @@ export const Soloed: Story = {
   args: { selectedTrack: "anneke" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    canvas.getByRole("button", { name: "Anneke de Vries" }).focus();
     await userEvent.click(
       canvas.getByRole("button", { name: "Solo Anneke de Vries" }),
     );

@@ -347,7 +347,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Today:** INS-CLIP--desktop-light.png, POP-JOIN--desktop-light.png. Direct manipulation: trim handles and fade corners are invisible until you know where to hover; numbers live in a form. Language: "reference · 1m 0s" label repeats the track name on every clip.
 - **Fate:** restyle.
 - **Spec:**
-  - Label only when useful: take name or source file, top-left 11 px, hidden when the clip is narrower than 80 px.
+  - Label only when useful: take name or source file, top-left 11 px, hidden when the clip is 80 px wide or narrower (design-system element 17: shown only when wider than 80 px).
   - Hover (pointer): 8 px trim zones at both edges show a ↔ cursor; fade knobs (10 px circles) appear at the top corners. Selected: 2 px accent outline, trim handles become visible 6 × 24 px tabs, fade knobs stay visible; on touch the handles' hit areas grow to 44 px.
   - Fades draw as a curve in the top corners with the faded area at 40 % opacity.
   - Seams between adjacent clips draw as NEW: Seam marks (6 px diamond on the lane's top edge).
@@ -484,10 +484,10 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Today:** SCR-SHELL-DESKTOP--shell1280-light.png, SCR-SHELL-TABLET--tablet-light.png, SCR-PHONE-TIMELINE--phone-light.png. Hierarchy: name, role, M, S, FX chip, a tiny fader and a grip in 180 px. Language: M/S letters, "FX 1", "Out 0.0 dB". Touch: phone headers are a circle and an unlabeled slider.
 - **Fate:** restyle.
 - **Spec:**
-  - Desktop 168 px. Row 1: 28 px avatar (Person tile avatar form: photo or initials in the track color) with a level ring that lights during playback; name 13/600 (click to rename inline); a stale-stem glyph as a hollow ring on the avatar while rebuilding. Row 2 (shown on hover, focus or when set): mute (speaker-slash icon) and solo (headphones icon) 24 px toggles; level as a thin 64 px bar showing gain, drag horizontally to set (readout chip), double-click resets to 0 dB.
+  - Desktop 168 px. Row 1: 28 px avatar (Person tile avatar form: photo or initials in the track color) with a level ring that lights during playback; name 13/600 (click to rename inline); a stale-stem glyph as a hollow ring on the avatar while rebuilding. Row 2 (shown on hover, focus or when set): mute (speaker-slash icon) and solo (headphones icon) toggles, 32 px (design-system 4.4; 44 px on touch); level as a thin 64 px bar showing gain, drag horizontally to set (readout chip), double-click resets to 0 dB.
   - Set states stay visible without hover: muted shows a filled speaker-slash and greys the lane; soloed shows a filled headphones icon.
   - Effects count and role leave the header (track inspector).
-  - Drag anywhere on the header (not on a control) to reorder.
+  - Drag anywhere on the header (not on a control) to reorder. The drag starts from the whole header; only its controls refuse it.
   - Widen the column by dragging its right edge to 280 px: rows then show the full fader with dB and a meter (desktop mixer view).
   - Phone: 56 px column, avatar only with level ring; tap selects the track (action bar: Mute, Solo, Hear, Inspect); mix controls in SHEET-PHONE-MIX.
 - **Keyboard:** M mute, S solo on the focused or targeted track; Shift+↑/↓ reorder.
