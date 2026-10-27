@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 const missingModelPath =
   "/very-long-project-directory-name/with-a-deeply-nested-model-cache/that-must-wrap-at-tablet-width/rnnoise-model-weights.bin";
@@ -39,14 +40,11 @@ test.describe("Pipeline bootstrap warning layout", () => {
       });
     });
 
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Pipeline", exact: true })
-      .click();
+    await openPanel(page, "pipeline");
 
     const warning = page.locator(".pipeline-components li", {
       hasText: "Missing rnnoise",

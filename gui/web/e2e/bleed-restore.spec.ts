@@ -4,6 +4,7 @@ import { expectPageAxeClean } from "./axe";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 
 function createBleedRestoreProject(prefix: string) {
   const relocated = createRelocatedE2eProject(prefix);
@@ -41,7 +42,7 @@ for (const viewport of [
         );
         await page.setViewportSize(viewport);
         if (viewport.width === 390) await rememberInspectorDetent(page, "half");
-        await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+        await openProject(page, projectPath);
         await expect(page.getByRole("heading", { level: 1 })).toContainText(
           /aligned dialogue/i,
         );

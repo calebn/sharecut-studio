@@ -214,10 +214,10 @@ describe("useViewportPan", () => {
     expect(window.requestAnimationFrame).not.toHaveBeenCalled();
   });
 
-  it("is applied to the fixed touch shells by layout.css", () => {
-    const css = readFileSync("src/styles/partials/layout.css", "utf8");
+  it("is applied to the fixed touch frames by stage-frame.css", () => {
+    const css = readFileSync("src/styles/partials/stage-frame.css", "utf8");
     expect(css).toMatch(
-      /html\[data-viewport-pan\]\[data-shell="phone"\] \.daw-shell[\s\S]*?inset-block: var\(--viewport-pan-top\) auto;[\s\S]*?block-size: var\(--viewport-pan-height\)/,
+      /html\[data-viewport-pan\]\[data-shell="phone"\] \.stage-frame[\s\S]*?inset-block: var\(--viewport-pan-top\) auto;[\s\S]*?block-size: var\(--viewport-pan-height\)/,
     );
   });
 });

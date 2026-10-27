@@ -8,11 +8,11 @@ import {
   savedEnvelope,
   test,
 } from "../e2e/compactChromeFixture";
-
 import {
   openPhoneTimeline,
   rememberInspectorDetent,
 } from "../e2e/phoneTimeline";
+import { openProject } from "../e2e/stageNav";
 import { lane } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
@@ -47,7 +47,7 @@ test("an agent's selection and a peer's edit that remove the focused Undo hand f
   const { action } = await focusCompactToastAction(page, "Undo");
   const peer = await context.newPage();
   await peer.setViewportSize(SIZES.portrait);
-  await peer.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(peer, projectPath);
   await openPhoneTimeline(peer);
   const selected = await peer.request.post(
     `/api/session/command?path=${encodeURIComponent(projectPath)}`,
@@ -128,7 +128,7 @@ async function checkRemount(
 ) {
   const { panel, action } = await focusCompactToastAction(page, name);
   await page.setViewportSize(SIZES.landscape);
-  await expect(page.locator('.daw-shell[data-shell="phone"]')).toBeVisible();
+  await expect(page.locator(".stage-frame--phone")).toBeVisible();
   await expect(panel).toBeVisible();
   await page.waitForTimeout(350);
   await receipt(info, `remount-${name}`, {
@@ -154,7 +154,7 @@ async function checkColumnHandoff(
 ) {
   const { action } = await focusCompactToastAction(page, name);
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.locator('.daw-shell[data-shell="tablet"]')).toBeVisible();
+  await expect(page.locator(".stage-frame--tablet")).toBeVisible();
   const column = page.locator(".bottom-sheet--column");
   await expect(column).toBeVisible();
   await receipt(info, `column-${name}`, {

@@ -338,9 +338,6 @@ Branded Chrome keeps its full local inventory. Its `browserName` is `chromium`,
 so those conditional scans do not run there. Comment-undo and wordbar retain
 their existing unconditional helper scans in branded Chrome.
 
-The drawer-drag rows also run on Firefox from the opt-in `playwright.firefox.config.ts`
-(`npm run test:e2e:drawer-firefox`), which is why their Firefox cell stays Not run here.
-
 The touch-nudge strip rows and touch-peek theme and motion row describe
 assertions both engines run. WebKit also scans every collected strip state
 with axe before the collected results are asserted.
@@ -362,22 +359,16 @@ with axe before the collected results are asserted.
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | snap ticks, mute regions and a live trim ghost share the ruler geometry | `gui/web/e2e-compat/timeline-geometry.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the drawer handle drags up and back down repeatedly | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the handle's hit area stays below the timeline's scrollbar and keeps its grip visible | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| double-clicking the drawer handle collapses it and the rail handle reopens it at the same height | `gui/web/e2e-compat/drawer-drag.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the collapsed rail handle stays above the timeline's horizontal scrollbar | `gui/web/e2e-compat/drawer-scrollbar.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | actual sheet controls and help copy work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| phone zoom keeps the compact transport and Listen timer inside the viewport (#1636) | `gui/web/e2e-compat/phone-transport-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| compact transport at 200% text keeps More History below the bar (#1636) | `gui/web/e2e-compat/phone-transport-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an iPad Air 1180 wide in landscape keeps Select, Blade, Select range, + Track and Import on the rail | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an iPad Pro 11 1194 wide in landscape keeps Select, Blade, Select range, + Track and Import on the rail (#1674) | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a phone in portrait keeps Undo and Redo in the header, the tools on one row and four whole lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a 360px phone keeps the tools, Zoom, Undo and Redo whole and in reach, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an iPad Air 1180 wide in landscape keeps Select, Blade, Select range and the add-track button on the tool strip | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an iPad Pro 11 1194 wide in landscape keeps Select, Blade, Select range and the add-track button on the tool strip (#1674) | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: the edited lane stays above the sheet and Add point and Done are in reach | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: the form, Save and Cancel are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: Add point, Save and Cancel run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -385,7 +376,7 @@ with axe before the collected results are asserted.
 | 914x331: the form, Save and Cancel are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 914x331: Add point, Save and Cancel run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a typed envelope draft survives rotating from portrait to landscape | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the bottom panel splitter can shrink a short window's default panel | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 914x331 with the envelope sheet open: the Player and the save state stay | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 667x375 phone shell (iPhone SE): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 740x360 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 767x375 phone shell (widest phone width): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -405,30 +396,27 @@ with axe before the collected results are asserted.
 | 932x430 idle: the marker rows stay pinned under the ruler | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 1194x834 idle: the marker rows stay pinned under the ruler | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 1024x768 idle: the marker rows stay pinned under the ruler | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 914x331 with the envelope sheet open: the status line, its live region and the save state stay | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 914x331 with a failed save and the envelope sheet open: the status line keeps the save state and the sheet rests on it | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 914x331 with a failed save and the envelope sheet open: the save state stays and the sheet rests on the Player | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a soloed track keeps Clear solo tappable at the top of the timeline at 914x331 while the envelope sheet is open | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| fresh short landscape exposes both tracks and explicit panel access | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| adaptive Panels leaves tool rail targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| fresh short landscape exposes both tracks and keeps their Mute and Solo reachable | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the tool strip leaves its targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a native guest Mute center tap stays at scrollTop zero while acknowledgment is pending | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Close keeps fresh adaptive panels stowed | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 844x390: Close keeps an explicitly maximized timeline collapsed | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| with Safari's chrome collapsed the column stops above the Player, not over the focused field | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a clip's Inspector is a column beside a whole timeline, and Close returns the shell | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an envelope point's lane stays whole and uncovered beside the column | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a pending edit's Approve and Reject float beside the column, not under it | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | with the keyboard up the column shortens to the visible viewport and keeps its header | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| with Safari's chrome collapsed the column stops above the status strip, not over the focused field | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | turning upright keeps an unsaved draft and its focus in the Inspector | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Inspector stays a bottom sheet | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | rotating a phone from portrait to landscape moves the open Inspector into a column and back | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | tablet and desktop shells keep every control a finger can use across 768 to 1195 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| loaded tablet playback stays inline at 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| loaded tablet Player stays reachable at 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a track with an envelope and an effect chain keeps every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending-edit and transcript-word sheet bodies keep every control reachable | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Pipeline native targets stay clear in the original short panel | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Pipeline native targets stay clear in the Pipeline panel | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Pipeline retains a scrolled focused control across viewport resizes | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Pipeline keeps an oversized native control targetable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Pipeline native flow keeps phone and coarse-pointer targets usable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -441,12 +429,11 @@ with axe before the collected results are asserted.
 | Reject all asks with the count, then one Undo brings the pending edits back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a long press then a drag selects a word range, and the sheet clears it | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a finger that moves before the hold scrolls and selects nothing | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the open editor menu draws over the Text panel's Ignore button | `gui/web/e2e-compat/phone-menu-layering.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| native Tab keeps every Primary navigation indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| native Tab keeps every Stage bar indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Track actions opens inside a 390 and a 393 wide phone viewport in both detents and its first item works | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an app toast stays topmost and tappable over a transport menu opened after it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an app toast stays topmost and tappable over a transport menu that was open before it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an app toast stays topmost and tappable over the Project menu opened after it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an app toast stays topmost and tappable over the Project menu that was open before it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Undo survives a phone turning sideways | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Dismiss survives a phone turning sideways | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Undo stays in the column or its toast when a phone turns to 844x390 | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -457,7 +444,6 @@ with axe before the collected results are asserted.
 | unavailable history feedback stays above a real inspector refusal | `gui/web/e2e-compat/compact-history-hint.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | every native compact Tab target paints its focus indicator inside actual clips | `gui/web/e2e-compat/compact-painted-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | scrolled fades and pinned actions retain pointer and keyboard ownership | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| native traversal skips covered tools and Close restores them | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | one finger moving never edits; a long-press arms, and the armed point drags in time and level | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | an armed drag holds at a soft boundary, and saves there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -511,8 +497,7 @@ with axe before the collected results are asserted.
 | floats between the ruler and the bottom panel | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | leaves Approve and Reject to the inspector | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending card: a marker lane that grows while it floats moves the card clear of the lane | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending card: a bottom panel that grows while it floats moves the card clear of the panel | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 360 | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 260 | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Expand keeps the header, Collapse and Close usable at 636x390 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Expand keeps the header, Collapse and Close usable at 636x390 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | the half drawer keeps a readable title at 390x844 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |

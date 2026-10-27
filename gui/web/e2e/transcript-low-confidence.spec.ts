@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 /** Lower exactly one word in each selected turn of the repeated speech fixture.
  * The stops are reference index 3 at 2.97s, reference index 24 at 35.97s,
@@ -36,14 +37,11 @@ test.describe("Transcript low-confidence walkthrough (#634)", () => {
       },
     );
 
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .click();
+    await openPanel(page, "transcript");
 
     const annotateBtn = page.getByRole("button", {
       name: /^(Annotate:|Hide annotate)/,

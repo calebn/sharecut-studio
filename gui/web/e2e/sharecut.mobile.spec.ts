@@ -6,6 +6,14 @@ import { e2eProjectPath } from "./env";
 import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
+import {
+  collapsePlayer,
+  expandPlayer,
+  openProject,
+  openProjectDialog,
+  phone,
+  projectMenuButton,
+} from "./stageNav";
 import { parseTimecodeSec } from "./timecode";
 
 async function expectInspectorFooterTouchTargets(page: Page) {
@@ -50,63 +58,64 @@ async function expectInspectorFooterTouchTargets(page: Page) {
 test.describe("ShareCut Studio mobile smoke", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("phone shell shows mode nav and is axe-clean", async ({ page }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  test("phone shell shows the tab bar and is axe-clean", async ({ page }) => {
+    await openProject(page, e2eProjectPath);
 
-    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await expect(page.locator(".stage-frame--phone")).toBeVisible();
+    const tabs = page.getByRole("tablist", { name: "Stages" });
+    await expect(tabs).toBeVisible();
+    for (const name of ["Record", "Prepare", "Edit", "Review", "Deliver"]) {
+      await expect(
+        tabs.getByRole("tab", { name: new RegExp(`^${name}\\b`) }),
+      ).toBeVisible();
+    }
+    const surfaces = page.getByRole("group", { name: "Edit surface" });
     await expect(
-      page.getByRole("navigation", { name: "Primary" }),
+      surfaces.getByRole("button", { name: "Timeline", exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Listen" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Timeline" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Text" })).toBeVisible();
     await expect(
-      page.getByRole("navigation", { name: "Primary" }).getByRole("button", {
-        name: "More",
-      }),
+      surfaces.getByRole("button", { name: "Script", exact: true }),
     ).toBeVisible();
-    await expect(page.locator("header.transport")).toHaveCount(0);
-    await expect(page.locator(".listen-hero")).toHaveCount(1);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    // Hero controls meet the 44pt touch floor.
-    for (const name of ["Play", "Stop playback", "−15s", "+15s"]) {
-      const box = await page
-        .locator(".listen-hero")
+    // Player controls meet the 44pt touch floor: Play in the bar, the skips in
+    // the expanded form (the bar hides them on a phone).
+    const playBox = await page
+      .getByRole("group", { name: "Player" })
+      .getByRole("button", { name: "Play", exact: true })
+      .boundingBox();
+    expect(playBox?.height ?? 0, "Play").toBeGreaterThanOrEqual(44);
+    const expanded = await expandPlayer(page);
+    for (const name of ["Play", "Back 15 seconds", "Forward 15 seconds"]) {
+      const box = await expanded
         .getByRole("button", { name, exact: true })
         .boundingBox();
       expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44);
     }
+    await collapsePlayer(page);
 
-    const shell = page.locator(".daw-shell--phone");
-    const listenBody = page.locator(".mobile-mode-body");
+    const shell = page.locator(".stage-frame--phone");
+    const body = page.locator(".stage-frame-body");
     const shellBox = await shell.boundingBox();
-    const listenBodyBox = await listenBody.boundingBox();
+    const headerBox = await page.locator(".stage-frame-header").boundingBox();
+    const bodyBox = await body.boundingBox();
     expect(shellBox).toBeTruthy();
-    expect(listenBodyBox).toBeTruthy();
-    expect(listenBodyBox!.y).toBeLessThanOrEqual(shellBox!.y + 1);
+    expect(headerBox).toBeTruthy();
+    expect(bodyBox).toBeTruthy();
+    expect(bodyBox!.y).toBeGreaterThanOrEqual(
+      headerBox!.y + headerBox!.height - 1,
+    );
 
     await openPhoneTimeline(page);
     await expect(page.locator(".timeline-area--fixed-playhead")).toBeVisible();
-    await expect(page.locator("header.transport")).toHaveCount(1);
-    const timelineBodyBox = await listenBody.boundingBox();
-    expect(timelineBodyBox).toBeTruthy();
-    expect(timelineBodyBox!.y).toBeGreaterThan(shellBox!.y);
 
-    await page.getByRole("button", { name: "Text" }).click();
-    await expect(page.locator(".mobile-text-mode")).toBeVisible();
-
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More" })
-      .click();
-    await expect(page.locator(".mobile-more-hub")).toBeVisible();
+    await phone.showText(page);
+    await expect(page.locator(".phone-edit-script")).toBeVisible();
 
     // Primary chrome stays in viewport (not cropped)
-    const comment = page.getByRole("button", {
-      name: "Toggle comment mode",
-      exact: true,
-    });
-    const menu = page.getByRole("button", { name: "Menu", exact: true });
+    const comment = page
+      .getByRole("group", { name: "Player" })
+      .getByRole("button", { name: "Comment", exact: true });
+    const menu = projectMenuButton(page);
     await expect(comment).toBeVisible();
     await expect(menu).toBeVisible();
     const vw = page.viewportSize()?.width ?? 390;
@@ -123,7 +132,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
   test("phone lanes show who each track is", async ({ page }) => {
     // Identity first (#20 review): a lane-colored initials chip per lane, the
     // lane color on the rail edge, and the full name on the lane's clips.
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await openPhoneTimeline(page);
     const lanes = await page.evaluate(() =>
       [...document.querySelectorAll(".track-header-row")].map((row) => {
@@ -160,7 +169,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
   test("selection More offers live commands in an accessible phone sheet", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await openPhoneTimeline(page);
 
     await page.locator(".lane-row .clip-block").first().click();
@@ -207,7 +216,10 @@ test.describe("ShareCut Studio mobile smoke", () => {
       page.evaluate(() => {
         const line = document.querySelector(".playhead--fixed");
         const time = document.querySelector(".timeline-time");
-        const clock = document.querySelector(".transport .timecode");
+        const now = document.querySelector(
+          ".stage-frame-player .sys-player-now",
+        );
+        const clock = now;
         const scroll = document.querySelector(".timeline-scroll");
         const headers = document.querySelector(
           ".timeline-scroll .track-headers",
@@ -217,9 +229,13 @@ test.describe("ShareCut Studio mobile smoke", () => {
         }
         const lineBox = line.getBoundingClientRect();
         const timeBox = time.getBoundingClientRect();
-        const [current, total] = (clock.getAttribute("title") ?? "").split(
-          " / ",
-        );
+        const current = (clock.textContent ?? "").trim();
+        const total = (
+          document.querySelector(".stage-frame-player .sys-player-total")
+            ?.textContent ?? ""
+        )
+          .replace("/", "")
+          .trim();
         return {
           lineX: lineBox.left + lineBox.width / 2,
           timeLeft: timeBox.left,
@@ -255,7 +271,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
     test("loads with time 0 beside the track headers and the playhead on it (#1707)", async ({
       page,
     }) => {
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await openProject(page, e2eProjectPath);
       await openPhoneTimeline(page);
       const t = await readTimes(page);
       // No empty gap: the ruler starts at the headers' edge, the line on it.
@@ -264,10 +280,10 @@ test.describe("ShareCut Studio mobile smoke", () => {
       expect(parseTimecodeSec(t.current)).toBe(0);
     });
 
-    test("the line sits on the transport time from start to end", async ({
+    test("the line sits on the Player time from start to end", async ({
       page,
     }) => {
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await openProject(page, e2eProjectPath);
       // Classic (space-taking) scrollbars on every platform, as on Linux and
       // Windows, with the vertical one showing: the line must sit at the
       // center of the time viewport, which excludes it, not of the area.
@@ -275,18 +291,25 @@ test.describe("ShareCut Studio mobile smoke", () => {
         content:
           ".timeline-scroll { overflow-y: scroll; } .timeline-scroll::-webkit-scrollbar { width: 0.75rem; height: 0.75rem; }",
       });
-      const hero = page.locator(".listen-hero");
+      const player = page.getByRole("group", { name: "Player" });
       await expect(
-        hero.getByRole("button", { name: "Play", exact: true }),
+        player.getByRole("button", { name: "Play", exact: true }),
       ).toBeEnabled();
-      await hero.getByRole("button", { name: "+15s" }).click();
+      const expanded = await expandPlayer(page);
+      await expanded
+        .getByRole("button", { name: "Forward 15 seconds" })
+        .click();
+      await collapsePlayer(page);
       await openPhoneTimeline(page);
 
       // Switching modes must not move the playhead (it once jumped to the end).
-      await expect(page.locator(".transport .timecode-current")).toHaveText(
-        "00:15.000",
+      await expect(
+        page.locator(".stage-frame-player .sys-player-now"),
+      ).toHaveText("00:15.000");
+      await expectLineOnTransport(
+        page,
+        "after the Player skip, on the Timeline",
       );
-      await expectLineOnTransport(page, "after Listen → Timeline");
 
       // Tap the visible ruler: its left edge walks back to 0 and its right
       // edge out to the end, a viewport at a time. Each tap must seek to the
@@ -345,17 +368,11 @@ test.describe("ShareCut Studio mobile smoke", () => {
     });
   });
 
-  test("More opens a truthful, app-level gestures cheatsheet", async ({
+  test("the Palette opens a truthful, app-level gestures cheatsheet", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More" })
-      .click();
-
-    const trigger = page.getByRole("button", { name: "Gestures" });
-    await trigger.click();
+    await openProject(page, e2eProjectPath);
+    await openProjectDialog(page, "gestures");
 
     const gestures = page.getByRole("dialog", { name: "Gestures" });
     await expect(gestures).toBeVisible();
@@ -410,12 +427,9 @@ test.describe("ShareCut Studio mobile smoke", () => {
         body: "{}",
       });
     });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    const shell = page.locator(".daw-shell--phone");
+    await openProject(page, e2eProjectPath);
+    const shell = page.locator(".stage-frame--phone");
     await expect(shell).toBeVisible();
-    await expect(page.locator(".mobile-listen[aria-busy='true']")).toHaveCount(
-      0,
-    );
     await expect(
       page.getByRole("button", { name: "Play", exact: true }),
     ).toBeEnabled();
@@ -460,8 +474,8 @@ test.describe("ShareCut Studio mobile smoke", () => {
     page,
     context,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page.getByRole("button", { name: "Text" }).click();
+    await openProject(page, e2eProjectPath);
+    await phone.showText(page);
     // The first transcript chip can be a temporary turn-level placeholder.
     const word = page
       .locator('[data-transcript-word][data-word-index="0"]')
@@ -495,8 +509,8 @@ test.describe("ShareCut Studio mobile smoke", () => {
   });
 
   test("touch double-tap opens word correction", async ({ page, context }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page.getByRole("button", { name: "Text" }).click();
+    await openProject(page, e2eProjectPath);
+    await phone.showText(page);
     // Wait for a word-level chip before capturing coordinates for both taps.
     const word = page
       .locator('[data-transcript-word][data-word-index="0"]')
@@ -534,7 +548,7 @@ test.describe("Inspector footer with a desktop coarse pointer", () => {
   test.use({ viewport: { width: 1440, height: 900 }, hasTouch: true });
 
   test("every footer control reaches the touch target", async ({ page }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.locator("html")).toHaveAttribute("data-shell", "desktop");
     expect(
       await page.evaluate(() => matchMedia("(pointer: coarse)").matches),

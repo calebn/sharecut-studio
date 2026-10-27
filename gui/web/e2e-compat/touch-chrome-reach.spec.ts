@@ -35,6 +35,14 @@ async function cutIsTappable(
     await page.waitForTimeout(60);
     await finger.up();
   };
+  // A window 16rem tall or less folds the tool strip behind the header's Tools
+  // button, and the Blade cut button sits in that sheet with the tools; taller
+  // ones show the strip.
+  const tools = page.getByRole("button", { name: "Tools", exact: true });
+  const strip = page.getByRole("group", { name: "Editing tools" });
+  await expect(tools.or(strip)).toBeVisible();
+  const folded = await tools.isVisible();
+  if (folded) await tapCentre(tools);
   await tapCentre(
     page.getByRole("button", { name: "Blade tool", exact: true }).first(),
   );

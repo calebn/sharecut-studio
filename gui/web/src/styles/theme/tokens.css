@@ -120,6 +120,8 @@
   /* Layout — rem chrome; px canvas (lane/ruler/marker px in utils/layout.ts) */
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas lane height */
   --lane-height: 72px;
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas touch lane height (COMPACT_LANE_HEIGHT) */
+  --lane-height-touch: 104px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas ruler height */
   --ruler-height: 24px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas marker lane height */
@@ -137,28 +139,67 @@
   --join-hit-min: calc(2 * var(--clip-inset-top));
   --header-width: 11.25rem;
   --inspector-width: 17.5rem;
-  --transport-height: 3.5rem;
+  /* Edit stage, side by side: the timeline never gets narrower than the lane
+     floor, and the Script pane gives way first, down to its own floor. */
+  --stage-lane-min: 22rem;
+  --stage-script-floor: 12rem;
+  /* Edit stacked over the Script: the timeline keeps the ruler, one marker row
+     (the same height as the ruler) and two lanes, so a pin, a clip and its band
+     stay clear of the corner controls over the lanes' foot. */
+  --stage-stacked-lanes-min: calc(
+    2 *
+    var(--ruler-height) +
+    2 *
+    var(--lane-height)
+  );
+  /* Where the height allows, the stacked timeline keeps a third lane (a phone
+     held sideways), and the Script pane keeps its toolbar and a few lines of
+     reading under it. */
+  --stage-stacked-lanes-want: calc(
+    2 *
+    var(--ruler-height) +
+    3 *
+    var(--lane-height)
+  );
+  --stage-stacked-script-floor: 8rem;
+  /* What the Edit stage keeps above an open inspector sheet so the page still
+     reads as the page: the app header (a phone's sheet starts below it, so
+     bottom-sheet.css zeroes --sheet-header-clearance there), the row the surface switch and the
+     tools share (a control and its padding), the ruler and the marker lane.
+     Where those two rows stack (a container under 22rem, as at large text),
+     bottom-sheet.css counts the second row too. */
+  --sheet-edit-row: calc(var(--control-height) + 2 * var(--space-1));
+  --sheet-header-clearance: var(--app-header-height);
+  --sheet-chrome-clearance: calc(
+    var(--sheet-header-clearance) +
+    var(--sheet-edit-row) +
+    var(--ruler-height) +
+    var(--marker-lane-height)
+  );
+  /* What a pin or a clip needs on top of that to stay in reach of the next
+     tap: one lane with its bleed band row and the keep-clear gap. */
+  --sheet-lane-extra: calc(
+    var(--lane-height) +
+    var(--control-height) +
+    var(--space-3)
+  );
+  --sheet-lane-clearance: calc(
+    var(--sheet-chrome-clearance) +
+    var(--sheet-lane-extra)
+  );
+  --player-height: 3.5rem;
   /* Control heights: one per role so rows line up. */
   --control-height: 2rem;
   --control-height-compact: 1.75rem;
-  --status-chip-height: 1.5rem;
+  --pill-height: 1.5rem;
   /* 44pt touch floor at 16px root; phone/tablet follow chrome via @container */
   --touch-min: 2.75rem;
-  /* Save-state status light: the painted dot, and the box that holds it. The
-     44pt target is the box plus padding, never the painted dot. */
-  --save-dot-size: 0.5rem;
-  --save-dot-stroke: 0.125rem;
-  --save-dot-box: 1.25rem;
   --mix-row-height: 3.5rem;
   --mix-identity-size: 1.5rem;
   --mix-volume-width: 6rem;
   /* A track this listener doesn't hear (saved, listen-only or solo-implied
      mute) greys its waveform and fades it to this; text never fades. */
   --mute-waveform-opacity: 0.5;
-  --status-height: 1.75rem;
-  --tabs-height: 12.5rem;
-  --editor-main-min-height: 7.5rem;
-  --mobile-nav-height: 3.25rem;
   /* The Inspector column beside the timeline on a phone held sideways (#1696):
      a third of the width, never narrower than a readable form or wider than
      the form needs. vw, not %, so the keyboard rule can size it as fixed. */
@@ -237,7 +278,7 @@
 }
 
 /* Stage layout (design system section 4). Additive: no value above changes.
-   Reuse --transport-height (Player bar), --touch-min, --control-height,
+   Reuse --player-height (Player bar), --touch-min, --control-height,
    --focus-ring-width and the --color-selection roles instead of renaming them.
    Numbers in --space-N are steps, not px/4. */
 :root {
@@ -245,7 +286,6 @@
   --app-header-height: 3rem;
   --app-header-height-phone: 2.75rem;
   --alert-slot-height: 2.75rem;
-  --rail-width: 22.5rem;
   --script-pane-width: 25rem;
   --script-pane-width-min: 20rem;
   --script-pane-width-max: 40rem;
@@ -253,7 +293,6 @@
   --action-bar-height: 2.5rem;
   --action-bar-height-touch: 2.75rem;
   --action-dock-height: 4rem;
-  --record-dock-height: 5rem;
   --tab-bar-height: 3.5rem;
 
   /* Spacing (4.2): 32 and 48 continue the --space-N steps */

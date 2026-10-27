@@ -13,6 +13,7 @@ import { rulerWidthPx } from "./deepZoom";
 import { postDocumentCommand } from "./documentCommand";
 import { layer } from "./lifecycleAudit";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { openProject } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
 /*
@@ -189,8 +190,8 @@ export async function openTimeline(
   theme: Theme,
 ): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
@@ -201,10 +202,17 @@ export async function openTimeline(
 
 /** Fit, then `steps` zoom-ins; returns px per second. */
 export async function setZoom(page: Page, steps: number): Promise<number> {
-  await page
-    .locator(".time-ruler")
-    .first()
-    .click({ position: { x: 4, y: 4 } });
+  const ruler = page.locator(".time-ruler").first();
+  // A timeline scrolled sideways slides the ruler's start under the pinned
+  // track headers, so click just past them when they cover its corner.
+  const covered = await ruler.evaluate((el) => {
+    const headers = document.querySelector(".track-headers");
+    if (!headers) return 0;
+    const overlap =
+      headers.getBoundingClientRect().right - el.getBoundingClientRect().left;
+    return Math.max(0, overlap);
+  });
+  await ruler.click({ position: { x: Math.max(4, covered + 4), y: 4 } });
   await page.keyboard.press("\\");
   for (let i = 0; i < steps; i += 1) await page.keyboard.press("=");
   await page.keyboard.press("Escape");

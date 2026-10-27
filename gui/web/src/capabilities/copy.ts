@@ -84,22 +84,6 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Go to tighten hit",
     tooltip: "Seek the playhead to a tighten hit",
   },
-  "daw.layout.default": {
-    label: "Restore layout",
-    tooltip: "Restore layout",
-  },
-  "daw.layout.timeline": {
-    label: "Maximize timeline",
-    tooltip: "Maximize timeline",
-  },
-  "daw.layout.text": {
-    label: "Maximize transcript",
-    tooltip: "Maximize transcript",
-  },
-  "daw.layout.review": {
-    label: "Review layout",
-    tooltip: "Review layout",
-  },
   "daw.navigation.nudgePlayheadBack": {
     label: "Nudge playhead back",
   },
@@ -192,13 +176,37 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Fit session width",
     tooltip: "Fit session width",
   },
-  "daw.view.setTab": {
-    label: "Switch editor tab",
-    tooltip: "Switch editor tab",
+  "daw.stage.record": {
+    label: "Go to Record",
+    tooltip: "Go to Record",
   },
-  "daw.view.setMobileMode": {
-    label: "Switch phone mode",
-    tooltip: "Switch phone Listen / Timeline / Text / More",
+  "daw.stage.prepare": {
+    label: "Go to Prepare",
+    tooltip: "Go to Prepare",
+  },
+  "daw.stage.edit": {
+    label: "Go to Edit",
+    tooltip: "Go to Edit",
+  },
+  "daw.stage.review": {
+    label: "Go to Review",
+    tooltip: "Go to Review",
+  },
+  "daw.stage.deliver": {
+    label: "Go to Deliver",
+    tooltip: "Go to Deliver",
+  },
+  "daw.edit.history": {
+    label: "Open history",
+    tooltip: "Open history",
+  },
+  "daw.view.toggleScript": {
+    label: "Show or hide Script",
+    tooltip: "Show or hide Script",
+  },
+  "daw.view.scriptFocus": {
+    label: "Script focus",
+    tooltip: "Script focus",
   },
   "daw.view.waveformZoomIn": {
     label: "Waveform amplitude zoom in",
@@ -351,6 +359,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.project.open": {
     label: "Open project…",
     tooltip: "Open project…",
+  },
+  "daw.project.home": {
+    label: "All projects",
+    tooltip: "All projects",
   },
   "daw.track.add": {
     label: "New track",
@@ -549,13 +561,10 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "presence.avatarStack": "daw.presence.follow",
   "presence.followBanner": "daw.presence.unfollow",
   toolModeToggle: "daw.tool.blade",
+  editToolStrip: "daw.range.arm",
   "transport.comment": "daw.review.toggleCommentMode",
   "mobileShell.gesture.swipeLeftComment": "daw.review.resolveComment",
   tightenPanel: "daw.tighten.goToHit",
-  layoutChip: "daw.layout.default",
-  "transport.layout": "daw.layout.timeline",
-  "transport.menu": "daw.range.arm",
-  editingToolRail: "daw.media.import",
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",
@@ -564,28 +573,23 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   trackHeader: "daw.track.soloToggle",
   trackHeadersWell: "daw.track.deselectAll",
   "trackHeaders.soloChip": "daw.track.clearSolo",
-  "mobileShell.statusRow": "daw.track.clearSolo",
   trackMix: "daw.track.clearSolo",
-  "transport.editControls": "daw.history.redo",
+  editCorner: "daw.view.toggleScript",
+  viewSheet: "daw.view.trackHeightDecrease",
   "transport.fit": "daw.view.fit",
-  tabBar: "daw.view.setTab",
-  mobileNav: "daw.view.setMobileMode",
-  "timeline.waveform": "daw.view.waveformZoomOut",
-  "transport.viewMenu.waveformAmplitudeIn": "daw.view.waveformZoomIn",
-  "transport.viewMenu.waveformAmplitudeOut": "daw.view.waveformZoomOut",
-  "transport.fitTracksHeight": "daw.view.fitTracksHeight",
-  "transport.viewMenu.fitTracksHeight": "daw.view.fitTracksHeight",
+  stageBar: "daw.stage.deliver",
   historyPanel: "daw.history.redo",
+  "timeline.waveform": "daw.view.waveformZoomOut",
+  "transport.fitTracksHeight": "daw.view.fitTracksHeight",
   "mobileShell.gesture.twoFingerTap": "daw.history.undo",
   "transcript.findReplace": "daw.transcript.findReplace",
   "transcript.wordbar": "daw.transcript.adjustTiming",
-  "moreHub.searchCommands": "daw.ui.toggleCommandPalette",
   GesturesSheet: "daw.ui.toggleCommandPalette",
-  staleRenderPill: "daw.render.refreshMix",
-  BounceDialog: "daw.export.bounce",
   ShareDialog: "daw.share.manage",
+  BounceDialog: "daw.export.bounce",
   RecordPanel: "daw.record.panel",
   "transport.recChip": "daw.record.panel",
+  editPlusMenu: "daw.edit.addChapter",
   LiveComments: "daw.record.marker",
   HostMcpDialog: "daw.mcp.connect",
   "home.help": "daw.help.diagnosticsBundle",
@@ -593,8 +597,8 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "home.models": "daw.models.open",
   ModelsDialog: "daw.models.open",
   ExportDialog: "daw.export.deliverables",
+  projectMenu: "daw.project.home",
   trackLane: "daw.track.add",
-  "mobileShell.more": "daw.edit.addChapter",
   drop: "daw.media.import",
   "transcript.annotate": "daw.view.transcriptAnnotate",
   "transcript.correct": "daw.transcript.correct",
@@ -618,7 +622,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.join.badge": "daw.edit.setClipJoin",
   RangeActions: "daw.range.bounce",
   SpeakerLaneMoveActions: "daw.range.moveSpeakerLaneSpan",
-  EditingToolRail: "daw.range.arm",
 };
 
 export function capabilityTooltip(

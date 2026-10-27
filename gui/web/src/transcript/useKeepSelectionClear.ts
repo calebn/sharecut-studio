@@ -1,5 +1,5 @@
 import { type RefObject, useLayoutEffect } from "react";
-import { KEEP_CLEAR_PX } from "../layout/useCompactInspector";
+import { KEEP_CLEAR_PX } from "../stage/edit/useCompactInspector";
 import type { Selection } from "../types/project";
 import {
   capInspectorSheet,

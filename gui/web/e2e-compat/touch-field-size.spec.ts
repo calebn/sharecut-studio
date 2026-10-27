@@ -6,6 +6,7 @@ import {
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { openPanel } from "../e2e/stageNav";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
 
@@ -55,6 +56,7 @@ test.describe("touch field size", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await withShareableProject(async (projectPath) => {
       await openHostShare(page, projectPath);
+      await openPanel(page, "comments");
       const comment = page.getByRole("textbox", {
         name: "Comment",
         exact: true,

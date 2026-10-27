@@ -39,56 +39,63 @@ attaches the local ZIP there. Guests never see these controls.
 
 ```mermaid
 flowchart TB
-  subgraph phone [Phone shell]
-    M{Mode}
-    M --> L[Listen]
-    M --> T[Compact header transport outside Listen]
-    T --> TL[Timeline]
-    T --> TX[Text]
-    T --> MO[More hub]
-    MO --> G[Gestures cheatsheet]
-    SEL[Selection] --> BS[Bottom sheet: inspector + related commands]
+  subgraph frame [Stage frame: every shell]
+    HD[App header: Project menu, save, Undo/Redo, people, Invite, search]
+    SB[Stage bar: Record · Prepare · Edit · Review · Deliver]
+    ST[Stage content]
+    PL[Player bar]
+    HD --> SB --> ST --> PL
   end
 
-  subgraph desktop [Desktop shell]
-    TR[Transport]
+  subgraph edit [Edit stage]
     TH[Track headers] --> TIM[Timeline]
-    TR --> TIM
-    INS[Inspector]
-    TAB[Bottom tabs: Comments History Impact Tighten Pipeline]
-    ST[Status bar]
+    CORNER[Corner: tool strip + eye sheet] --> TIM
+    SC[Script pane: T shows or hides, Shift+T focuses]
+    INS[Inspector: column or sheet]
   end
+
+  subgraph review [Review stage]
+    RV[Comments · Impact · Tighten]
+  end
+
+  ST --> edit
+  ST --> review
+  ST --> PREP[Prepare: import and pipeline]
+  ST --> REC[Record: launcher and live take]
+  ST --> DEL[Deliver: export, bounce, share]
+  SEL[Selection] --> BS[Bottom sheet: inspector + related commands]
 ```
+
+On a phone the Stage bar is the bottom tab bar, Edit shows one of Timeline or Script at a time, and the people slot shows one avatar plus a count. A Commenter share link is Review alone, with no Stage bar.
 
 ---
 
-## Shared: Transport bar
+## Shared: App header, Stage bar and Player bar
+
+The transport bar, status bar, Menu, View menu and bottom dock tabs of earlier releases were replaced by one frame (#2292). Each of their items has a home below.
 
 | | |
 |--|--|
-| **Purpose** | Playhead control, audition mode, comment entry, zoom Fit session width, track height, View and project menus |
-| **Layout (wide)** | Three zones: project name · Play/Stop, timecode, and audition mode centered · render status, tools, desktop **Undo/Redo** and **Zoom out/in**, Fit session width, **Fit tracks to window height**, **View** menu, and **Menu** on the right. When status pills widen the right zone, the center shifts left and the project name truncates (at any title length); zones never overlap. Play is the only orange control and is disabled until the project has media. The Menu tooltip names only the sections shown (host: Project, media, markers, and help; edit share: Media and help; view, suggest, or comment share: Help). The Mix out of date pill's accessible name never repeats a clause. A project with no rendered mix (never rendered, or a failed render left none) keeps one status pill and swaps its words: **No mix yet · Refresh** for a host or Editor, plain **No mix yet** for a guest, who cannot refresh. No second pill is added, so the project name keeps its width at 1280 and 1400 px. The reason ("Full mix is silent until you refresh the mix."; a guest reads "…until the host refreshes the mix.") sits in the Full mix segment's tooltip and description and in the collapsed Menu's Mix status. Other audio errors ("Audio failed to load", "Tap Play to start") collapse desktop chrome and mark Menu with a warning icon; its tooltip names the error and directs the person to open Menu for the complete Mix status details. |
-| **Primary actions** | Play / Stop, seek via timecode context, Select/Blade/Comment when expanded; collapsed desktop Menu → Timeline tools keeps Select tool, Blade tool, and Blade cut when Blade is active outside Comment mode; desktop Undo/Redo for editors and Zoom out/in for everyone, Fit session width, Fit tracks to window height (wide only), Layout (maximize/restore), View, Menu |
-| **Always visible (collapsed)** | Desktop: Play/Stop, compact playhead time, Undo/Redo for editors, Zoom out/in, Comment icon, Fit session width, Layout, and Menu icon (a warning icon when an audio error needs attention). Phone/tablet outside Listen: Play/Stop, compact playhead time, Comment icon, Fit session width, and Menu icon. Those phone controls wrap onto another row when Safari page zoom or large text makes one row too tight, so History and the rest of More stay below the bar. Listen uses its own body transport and no header transport; its hero shows the same Menu icon beside the project name, and −15s / +15s wrap with the time instead of clipping. |
-| **Menu → Project (host)** | New / Open, then the export pair Bounce… and Export deliverables… (a dialog: formats, with **Export** disabled and its reason shown as a note while the settings load or no format is chosen, progress with Cancel export, which stays disabled with its reason shown as a note until the export has started, then the written files; when the mix needs a model that is not downloaded, Export and Bounce ask inside the dialog, then run once after Download), then **Share…** (collaboration extension), Record room… and **Connect agent…** (local Streamable HTTP MCP URL). A divider separates the three groups. |
-| **Menu → Media / Markers (host) / Help** | Import audio, track add / remove / move; **Markers → Add chapter at playhead** (`edit.addChapter`, host only, titles the chapter from the playhead time and turns the Markers layer on); Export diagnostics… and Commands and shortcuts (the command palette). Items show their shortcut (⌘ on Apple platforms, Ctrl elsewhere) and sections carry visible labels. |
-| **View menu (wide)** | Trigger is a text button labeled **View** (Menu stays an icon). Layer toggles — **Pending edits**, **Volume envelope**, Markers, Comments, **Silence shading**, **Snap points** and host-only **Prosody** — each with a swatch, **Waveform scale** Auto/Linear/Log radios, **Waveform amplitude −/+** with a ×N readout, **Show waveforms post-fader**, a **Zoom** section (zoom −/+, **Track height −/+** and **Fit tracks to window height** checkbox, Fit session width if omitted), Layout and Theme radio groups,. View and Menu are exclusive: opening one closes the other, and Escape returns focus to the button that opened the current menu. |
-| **Menu (collapsed)** | One combined menu: desktop-only **Timeline tools** (Select tool, Blade tool, and Blade cut when Blade is active outside Comment mode), Project, Media, host-only **Markers** (Add chapter at playhead), audition Full mix/Edited stems/Original, session, **Refresh mix** when render is stale, layers, Zoom (incl. track height), Help |
-| **Data shown** | Playhead (timeline sec) · duration · audition kind · optional stale-render note |
-| **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, Play/Stop remain focusable and show “Loading project…” Zero tracks after load: ingest “Drop audio files” (not the loading well), and Play/Stop show “Import audio to play.” The visible reason wraps beneath the controls and describes each unavailable button; activation is ignored while unavailable through buttons, commands and shortcuts. After the final track is removed, an active Pause and Stop remain available. While paused with a saved start, Play remains unavailable and Stop still returns there, clamped to the current timeline, then clears the saved start. Host with no path: home launch. Guest: token/project load failure. The empty stage names the import shortcut in platform form (⌘I on Apple platforms, Ctrl+I elsewhere) and uses themed ink on the light stage. |
-| **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
+| **Purpose** | Move between stages, run the one transport, and reach project-level actions |
+| **App header** | Project menu (project title dropdown: All projects, Settings, Connect agent, Help, Appearance System/Light/Dark; no disabled rows. New project is `Mod+N` and the palette; Open… is on Home and in the palette) · save indicator · Undo/Redo · people (avatar stack; phone: one avatar plus a count; follow/unfollow) · Invite (hosts) · search (opens the command palette, also `?`; its Gestures link opens the gestures sheet) |
+| **Stage bar** | Record, Prepare, Edit, Review, Deliver on `Mod+1` to `Mod+5`; badges: Review comment count, Record live elapsed, Prepare running or needs you, Deliver ready. Centered in the header on desktop and tablet, a bottom tab bar on a phone |
+| **Player bar** | Play/Pause, Stop, time and edited length, **Hear original** (press and hold, or right-click, for Full mix · Without mix processing · Original; guests get the mix only), mix ring (**Mix out of date**, **Updating mix…** or **No mix yet**; `render.refreshMix` is in the palette and Deliver; Mod+B updates now), Solo chip, comment at the playhead. Phone: swipe up for the expanded Player with ±15 s skips |
+| **Edit corner** | Tool strip: Select/Blade, Comment mode, Range arm, Blade cut. Corner: Fit, Zoom out/in, Script toggle, and the eye (View options) opening the eye sheet: layers (Pending edits, Volume envelope, Markers, Comments, Silence shading, Snap points, host-only Prosody), Waveform scale, Waveform amplitude, Track height, Fit tracks to window height. **+** under the last track: Import audio, Empty track, Record a take |
+| **Old homes** | Bounce… → Deliver and `Mod+Shift+B` · Export deliverables… → Deliver (`Mod+Shift+E`) · Share… → Invite and Deliver → Share for review · Record room… → Record · Import audio, New track → Prepare and the **+** menu · Add chapter at playhead → the **+** menu (host) and the palette · Select a range → drag an empty lane or arm Range · Audition → Hear original menu · Mix status → mix ring · Presence, People → header avatars · Theme → Project menu → Appearance · Layouts → `T` and `Shift+T` · Commands and shortcuts → search |
+| **Data shown** | Playhead (timeline sec) · duration · hear mode · optional stale-render note |
+| **Empty / error** | Known `?project=` but shell not yet: the frame with skeleton content, **Loading episode…**, Play/Stop focusable and showing “Loading project…”. Zero tracks after load: ingest “Drop audio files” (not the loading well), and Play/Stop show “Import audio to play.” |
+| **Out of scope** | Full mixer; pipeline step runner (Prepare) |
 
-The overflow Menu panel opens below its trigger, flips above it when that side has more room, stays inside the visible screen on every shell, caps to the space on that side (`min(90dvh, var(--menu-available-height))`) and scrolls so **Commands and shortcuts** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
-
-**Collapsed when:** phone, tablet compact, measured bar width ≤1240px, or extra importing, layout Restore, audio-error, audition-region, or recording status needs space. When Blade cut is available, the bar reserves another 44px before expanding. Desktop keeps its four editing controls; secondary status and audition details move into Menu.
+Menu panels (the Project menu, the hear menu) open below their trigger, flip above it when that side has more room, stay inside the visible screen on every shell, cap to the space on that side (`min(90dvh, var(--menu-available-height))`) and scroll so **Appearance** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
 
 ```
-┌─ ▶  12:34 / 58:39  [Cmt*] [Fit*] [⋯*] ─┐
-│ * icon buttons (bubble / fit / menu)  │
+┌─ Project ▾  ●  ↶ ↷ │ Record Prepare Edit Review Deliver │ ◉◉ + 🔍 ┐
+│ stage content                                                    │
+├─ ▶  12:34 / 58:39      Hear original   mix ring ───────────────┤
 ```
 
 Storybook `Templates/BounceDialog` previews the production `BounceDialogView`
-behind Menu → Project → Bounce…; the live `BounceDialog` keeps the job
+behind Deliver and `Mod+Shift+B`; the live `BounceDialog` keeps the job
 start/follow and DAW selection.
 Source choices and export checkboxes share aligned control/text columns and
 44 px minimum label targets. Source, the two export options, and the action
@@ -102,7 +109,7 @@ their first line. Errors appear above the right-aligned Bounce action.
 | | |
 |--|--|
 | **Purpose** | Manage public review links and record-room guest / producer invites for the open episode |
-| **Open** | Menu → Project → **Share…** (`share.manage`; collaboration extension slot `share.ui.menu`) |
+| **Open** | Header **Invite** and Deliver → Share for review (`share.manage`; collaboration extension slot `share.ui.menu`) |
 | **Primary actions** | Role radios under **Anyone with the link** (Viewer / Commenter / Editor, each with a one-line description; default Commenter) · **Allow AI assistants (MCP)** with its consequence note (“Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions.”) · **Create review link** (pinned footer) · **Create record links** · per review link **Copy link**, **Copy MCP URL** and **Stop sharing** · Copy guest / producer links · Replace a closed record invite · per room **Open room panel** and **End room** |
 | **Data shown** | Online sharing line at the top (when the `tunnel.status` feature is present): “Guests can open your links”, “Connecting…”, “Reconnecting… guests may see a brief interruption” with a “Trying again in N s” countdown (a still clock time under reduced motion), “Not reachable online: guests can't open links until you're back online” with a **How to fix** disclosure and guide link, or “Online sharing is off” with **How to turn it on**; no line on a local-only host; each review link named by its role (“Commenter link”) with its review mix label, “AI assistants allowed” when it has an MCP URL, when it was created and last opened, a host-chosen expiry only if one was set on the CLI or MCP, and its coolname as the address; each record room with its guest and producer links and invite closure state |
 | **Empty / error** | Quiet “No review links yet.” / “No record rooms yet.” text (no field-like box), with **Create record links** under the rooms. Create publishes a **Share mix** review version if none exists (needs premix/mastered). A project with no mix yet says “This project has no mix yet. Refresh the mix to create the link.” and a stale preview gets a friendly alert; both show **Refresh mix**, and after a successful render, Create retries once. A stale master explains that a new master is needed and does not offer preview refresh. |
@@ -129,7 +136,7 @@ with fictional links, including its in-place confirmations. The live
 | | |
 |--|--|
 | **Purpose** | Copy the local Streamable HTTP MCP URL so Cursor/Claude talk to the running DAW |
-| **Open** | Menu → Project → **Connect agent…** (`mcp.connect`); home **Connect agent…** |
+| **Open** | Project menu → **Connect agent…** (`mcp.connect`); home **Connect agent…** |
 | **Primary actions** | **Copy URL** (`http://127.0.0.1:8765/mcp`) · **Copy snippet** (Cursor `mcpServers` JSON) |
 | **Data shown** | Loopback MCP URL; client snippet; reminder to keep ShareCut Studio running |
 | **Empty / error** | No episode open: URL still copies, tools error until a project is open |
@@ -159,55 +166,52 @@ error inline; timeline handles and phone nudges show the same recovery in a toas
 
 ---
 
-## Phone — Listen
+## Phone — Review (the old Listen)
 
 | | |
 |--|--|
-| **Purpose** | Guest-style review: scrub mix, scan comments, jump from chips |
-| **Primary actions** | Coarse scrub · ±15s · type a comment and **Post comment** · open comment · tap status chip → destination |
-| **Always visible** | Listen hero (the project name as the visible heading with the app **Menu** beside it, large timecode, full-width scrubber (slim transport-ink track, orange thumb, 44pt tall), −15s · Play · Stop · +15s; in a short window such as a phone held sideways the card goes two columns, title, time and scrubber beside the controls, so Play is never under the comment field, #1982) · comment list · for anyone who can comment, the comment field docked above the mode nav (field, **at 0:12** comment time chip, **Post comment**; #1338) · icon mode nav |
-| **Fit** | Not shown on Listen; use Timeline for timeline fit |
-| **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale chips |
-| **Empty** | “No comments yet.” (the shared quiet empty state). With no tracks yet and no playback to finish, Play and Stop are unavailable (“Import audio to play.”), like the desktop strip. If the final track disappears during playback, Pause remains available; Stop also remains available while playing or with a saved start after Pause. While episode JSON is loading: disabled Listen body transport + “Loading episode…” well (not the ingest coach) |
+| **Purpose** | Guest-style review: play the mix, scan comments, jump from badges |
+| **Primary actions** | Player scrub and ±15s · type a comment and **Post comment** · open comment · tap a Stage bar badge |
+| **Always visible** | App header · Review sections (Comments · Impact · Tighten; guests see Comments) · Player bar · the five-tab Stage bar (none for a Commenter link). A comment field with the **at 0:12** chip and **Post comment** |
+| **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale badges |
+| **Empty** | “No comments yet.” (the shared quiet empty state). With no tracks yet and no playback to finish, Play and Stop are unavailable (“Import audio to play.”). If the final track disappears during playback, Pause remains available |
 | **Out of scope** | Multitrack waveform editing |
 
 ```
-┌─ Episode name ──────────────── [≡] ┐
-│ 12:34 / 58:39                        │
-│ ══════════●═══════════════════     │
-│     −15s  (▶)  ■  +15s               │
-└──────────────────────────────────────┘
-│ Pending: 3 · Mix out of date          │
-│ ● 04:12  “level feels low”         │
-│ ○ 11:02  “cut cold open?”          │
-├──────────────────────────────────────┤
-│ [Add a comment…                    ] │
-│ [at 12:34]          [Post comment]   │
-├─ Listen │ Timeline │ Text │ More ──┤
+┌─ Project ▾   ●   ↶ ↷        ◉ +2 ┐
+│ Comments · Impact · Tighten         │
+│ ● 04:12  “level feels low”          │
+│ ○ 11:02  “cut cold open?”           │
+├─────────────────────────────────────┤
+│ [Add a comment…                   ] │
+│ [at 12:34]          [Post comment]  │
+├─ ▶ 12:34   Hear original ───────────┤
+├─ Record │ Prepare │ Edit │ Review │ Deliver ─┤
 ```
 
-Audition Full mix / Edited stems / Original remains available in the compact transport Menu on Timeline, Text, and More; Listen keeps its review controls deliberately focused on playback, scrub, and comments.
+Hear original’s menu (Full mix / Without mix processing / Original) is on every stage; Review keeps its controls focused on playback and comments.
 
 ---
 
-## Phone — Timeline
+## Phone — Edit: Timeline
 
 | | |
 |--|--|
 | **Purpose** | Spatial seek/edit with **a playhead that starts at 0**; drag timeline to scrub. The timeline loads with time 0 right after the track headers and the line on it, with no gap. The line shows the transport time at its place in the view, from 0 to the end even at Fit, with overlay or classic scrollbars: playback moves it right until it reaches the center and then holds it there while the timeline scrolls. Margins before 0 and after the end give a scrub the room to reach either end, and switching Listen → Timeline, fitting, or zooming from the menu or keys never moves the time. Pinch zooms anywhere on the timeline except the lane rail, and scrubbing stops at the session end: zoomed out below Fit, the lanes and ruler end there and the margin shows beyond it. |
 | **Primary actions** | Scrub · Fit · layer chips · select clip/edit → sheet · drag clip (Select tool) · tap lane gutter → track sheet |
-| **Always visible** | Transport (Comment + Fit) · layer chips · sticky lane gutter (44pt lane-colored initials chip per lane, lane-colored edge, compact playback meter and clearable clip light) + waveforms whose clip labels lead with speaker or track identity and a readable duration · Select/Blade rail · mode nav |
+| **Always visible** | Player bar (comment at the playhead) · tool strip (Fit) · eye sheet ·  sticky lane gutter (44pt lane-colored initials chip per lane, lane-colored edge, compact playback meter and clearable clip light) + waveforms whose clip labels lead with speaker or track identity and a readable duration · Select/Blade rail · mode nav |
 | **Data shown** | `timeline.tracks` · `timeline.clips` rectangles · overlay layers (edits/levels/markers/comments) |
 | **Empty** | Loading episode: skeleton lanes in the same header/gutter grid. No tracks after load → ghost drop lane + dismissible coach (“one file per speaker”, and “One recording of everyone? Import it, then choose Split speakers.”); tracks with no clips → empty lane until Import/Replace |
 | **Out of scope** | Desktop moving-playhead metaphor; dense mixer strip on narrow panes; disconnected chip strip above lanes; full-page upload card |
 
 ```
-┌─ Play  12:34  [Cmt] [Fit] [⋯] ──────┐
+┌─ header ─────────────  [👁] ────────┐
 │ Pending edits  Volume envelope  Markers  Comments │
 │ ref │░░░░│░░░░░│░░░░░░░░░░░░░░░░   │
 │ gue │░░░░│░░░░░░░░│░░░░░▼░░░░░░░   │  ← Ferrite gutter + CapCut ▼
-│ [Select][Blade] [Range] [−][+] [↶][↷] │  ← editing rail: tools, Zoom, Undo/Redo (Comment is on transport)
-├─ Listen │ Timeline │ Text │ More ──┤
+│ [Select][Blade] [Range]  [Fit][−][+][👁] │  ← tool strip and corner (Undo/Redo are in the header)
+├─ ▶ 12:34   Hear original ────────────┤
+├─ Record │ Prepare │ Edit │ Review │ Deliver ─┤
 │ ┌ sheet: track / Pending cut ── X ┐ │
 │ │ Track: M/S/Volume + Track actions │ │
 │ │ Clip: paired fades / transition │ │
@@ -221,7 +225,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 
 ---
 
-## Phone — Text
+## Phone — Edit: Script
 
 | | |
 |--|--|
@@ -229,7 +233,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | **Primary actions** | Follow playhead · Correct / Select modes (hint states text-only vs audio) · double-click word or focus word + F2 → inline fix (one at a time; a pending save finishes first and the mode hint says it is saving; a late failure shows under the hint with Dismiss) · tap word → sheet · suppress / correct / ignore (Ignore strikes through and mutes at render, no cut; Restore brings it back — always visible under touch, no hover needed) · Annotate → Previous / Next low-confidence word (wraps) |
 | **Data shown** | Speaker labels · `transcripts` words (text, confidence, suppressed, ignored, suspect_hallucination) · selection range |
 | **Empty / loading** | No transcript yet · low-confidence chips when present |
-| **Out of scope** | Full desktop bottom-tab bundle |
+| **Out of scope** | Review sections and Pipeline (their own stages) |
 
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
@@ -269,44 +273,46 @@ while a correction is saving. Enter retains the native Correct/Select word
 action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ```
-┌─ Play  12:34  Follow · Edit ────────┐
+┌─ header      Follow · Edit ────────┐
 │ HOST                                 │
 │ so we ┌were┐ talking about …         │
 │ GUEST                                │
 │ yeah and the ┌launch┐ …              │
-├─ Listen │ Timeline │ Text │ More ───┤
+├─ ▶ 12:34   Hear original ────────────┤
+├─ Record │ Prepare │ Edit │ Review │ Deliver ─┤
 ```
 
 ---
 
 ## Phone — Mix
 
-More → Mix opens a full-height sheet for all roles. Each ordered row has lane
+The Mix button on the Edit stage opens a full-height sheet for all roles. Each ordered row has lane
 initials, a track name, M, S, and Volume. Hosts and editors save M and Volume;
 listeners use local M and see why Volume is read-only. S is always local.
 Shared playback uses Full mix, so local listen controls may not be audible.
-Close or Escape returns to More; navigation or a new inspection closes Mix.
-The sheet scrolls above the bottom nav, with 44px controls and growing rows
+Close or Escape returns to the Mix button; navigation or a new inspection closes Mix.
+The sheet scrolls above the Player bar and tab bar, with 44px controls and growing rows
 under text scaling. Swipe-to-mix is deferred.
 
-## Phone — More hub
+## Phone — where the More hub went
 
-**Host** destinations:
+The More hub was removed. Its destinations:
 
-| Destination | Shows | Source |
-|-------------|-------|--------|
-| Mix | Full-height track sheet; saved Volume/M and local S | Existing mix/listen state |
-| Comments | Thread list / detail | `review.comments` |
-| History | Undo/redo · grouped steps (follows document snapshots) | `history` |
-| Impact | Pending bulk + removed duration | `editorial.edit_decisions` + impact report |
-| Tighten | Searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts (a pause trim that waits for review is never in the batch: apply it alone after listening) · **Applying N suggested actions…** with a pulse and elapsed time while Apply waits; the control stays busy, the Status column says **Applying…** where visible, and phone rows show disabled Apply and Skip controls. **Just applied (N)** after an apply-all (one action select per sound of the latest batch; changing one keeps the rest) · Intensity (Light/Medium/Aggressive; locked while saving or a job runs, load Retry) + Find hits (loads no model, so it never asks to download one; confirms before replacing listed hits, shows job errors; starting it clears an earlier intensity save error; a re-found hit keeps its id, so its Ask thread stays on it) | pending tighten decisions |
-| Pipeline | Step checklist · params · Analyze · Batch/gates · run · progress (headline + bar/elapsed) | working-set config + live job |
+| Old destination | Now | Source |
+|-----------------|-----|--------|
+| Mix | Mix button on Edit: full-height track sheet; saved Volume/M and local S | Existing mix/listen state |
+| Comments | Review → Comments: thread list / detail | `review.comments` |
+| History | Edit → History sheet (right-click the header's Undo, or the palette): undo/redo · grouped steps (follows document snapshots) | `history` |
+| Impact | Review → Impact: pending bulk + removed duration | `editorial.edit_decisions` + impact report |
+| Tighten | Review → Tighten: searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts (a pause trim that waits for review is never in the batch: apply it alone after listening) · **Applying N suggested actions…** with a pulse |
+| Pipeline | Prepare: step checklist · params · Analyze · Batch/gates · run · progress (headline + bar/elapsed) | working-set config + live job |
+| Commands and shortcuts | Header search | command catalog |
+| Gestures | Commands and shortcuts → Gestures | static |
+| Overlay legend | Eye sheet | static |
 
-A field-styled **Commands and shortcuts** row sits above the list and opens **Commands and shortcuts** with Search focused. Destinations render as one settings-style list (hairline rows, 44pt targets), not stacked slabs. Plus **Overlay legend** and, host only, **Add chapter at playhead** (`edit.addChapter`) on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination. The bottom mode nav shows icon + label tabs; the active tab is tinted with an accent top indicator.
+**Guest** (Commenter): Review alone, with Comments and the Overlay legend. History / Impact / Tighten / Pipeline stay host-only.
 
-**Guest** More hub: Mix + Comments + Overlay legend (History / Impact / Tighten / Pipeline stay host-only).
-
-Long-lived panels; do not stack sheets to reach these — navigate More.
+Long-lived panels are stages or sections; do not stack sheets to reach them.
 
 ---
 
@@ -315,32 +321,32 @@ Long-lived panels; do not stack sheets to reach these — navigate More.
 | | |
 |--|--|
 | **Purpose** | Timeline-first with peek inspector; side inspector when wide enough |
-| **Layout** | Transport (often collapsed) · headers + timeline · tabs band (~40–45%, capped to viewport). Ordinary modifier sheets dock above the tabs when the tabs are visible and scroll their heading, actions, fields, errors, related commands, and audition footer together. Maximize timeline hides the tabs and docks the sheet above the status row. The compact inspector docks above the status row with a pinned header and one bounded body scroller for feedback and fields. |
+| **Layout** | Header with the Stage bar · headers + timeline · Player bar. Ordinary modifier sheets dock above the Player bar and scroll their heading, actions, fields, errors, related commands, and audition footer together. Maximize timeline hides the tabs and docks the sheet above the status row. The compact inspector docks above the status row with a pinned header and one bounded body scroller for feedback and fields. |
 | **Playhead** | Moving (desktop-like), not the phone playhead that holds the center once passed |
-| **Out of scope** | Phone bottom mode nav as primary IA |
+| **Out of scope** | Phone bottom tab bar as primary IA |
 
 ```
-┌─ Transport ─────────────────────────────┐
+┌─ Header · Stage bar ────────────────────┐
 │ Headers │ Timeline    ┌ peek inspector ┐│
 ├─────────┴─────────────┴────────────────┤
-│ Transcript / Comments / … (tabs band)  │
+│ Player bar                             │
 └────────────────────────────────────────┘
 ```
 
 ---
 
-## Desktop — four-pane grid
+## Desktop — Edit stage
 
 ```mermaid
 flowchart TB
-  TR[Transport bar]
-  subgraph main [Main]
+  HD[App header + Stage bar]
+  subgraph main [Edit body]
     H[Track headers] --- TL[Timeline + layers]
+    TL --- SC[Script pane]
     TL --- INS[Inspector]
   end
-  TABS[Comments · History · Impact · Tighten · Pipeline · Transcript]
-  ST[Status bar chips]
-  TR --> main --> TABS --> ST
+  PL[Player bar]
+  HD --> main --> PL
 ```
 
 | Region | Content schema |
@@ -348,26 +354,25 @@ flowchart TB
 | **Track headers** | Horizontal playback peak meter with a clearable clip light, retained after Pause/Stop; reduced motion freezes its bar while clip detection continues. Identity bar in the lane color · track name · stem status icon (trailing; check = up to date, refresh = stale, both with an accessible name) · M/S named "Mute/Solo `<track>`" (M solid = saved mix mute, dashed = only you; S listen-only, lit as an amber tint with dark amber text that keeps 4.5:1 over every row paint, light and dark; a track your solo silences goes grey (row, lane, clips, waveform) with a dashed identity stripe, and **Solo on · Clear solo** shows in the corner above the headers, at the ruler row) · FX badge · subtitle (role and speaker, each dropped when it repeats the name) · **Out** text readout (output gain: staging + volume + the volume envelope at the playhead, so it moves while you play or drag the playhead; silence reads −∞ dB; the phone rail hides it, and the phone Mix sheet shows **Plays at {dB}** over the fader of a track with a volume envelope); content is top-aligned, selected = neutral chip. Space/Enter on any header button (open, reorder handle, M, S, clip clear) activate that button rather than the window shortcut (play / tighten hit); Mod/Alt chords still reach the shortcut. |
 | **Timeline** | Clips · body-drag move (Select tool) · fades/joins (fades draw as ramps over the waveform; the fade handle sits at the clip's top corner, slides inward and shows a live ms readout while dragged; trim strips on the clip edges and a zero-length fade's corner show on hover (mouse or trackpad), keyboard focus or selection; a click on a handle only selects; a trim ripples, and its drag shows that: the grabbed edge follows the pointer, a **Ripple** mark (a wave) reads "later −0.4 s", a trimmed start outlines where the clip lands, and arrows on an edited or moving-peer lane show each whole follower moving, including clips that already overlap the anchor; lanes without a moving edge show the shifted pieces left by the time splice, and the other lanes dim the span they lose; the clips slide there after save; a trim that would newly move a follower before the timeline starts is refused, keeps the last valid preview and arrows, and shows an error; drag, keyboard and strip nudge release save only the last valid value; if the project or its authoritative document changes during a held strip nudge, repeats stop, release leaves the new project in place, and the release click cannot start another nudge; a comment, metadata or other edit publication during a held strip nudge immediately removes its detachable unsaved preview while retaining the update and pending moves, including original split or deleted clip material; an unchanged pending mix leaves the hold active; a drag past the source's end stops with a bump and a note; a grab at a join rolls it; a small edit marker at the top of each join shows its type at any zoom (\| cut, ╲╱ fade, ✕ crossfade, each in its own hue), and the marker shrinks to a small tag as a crossfade draws wider and shows a label like "Crossfade 120 ms" at high zoom when it fits; joins closer than 24 px fold into a count that zooms in on tap; click a marker for a popover to switch Cut / Fade / Crossfade, edit Length and audition the join; drag the lower seam line to roll its boundary; a blending crossfade also draws a centered overlap X, with a connected endpoint grip in a reserved row below the timeline lanes; dragging saves both participating fades in one Undo step) · layer overlays · moving playhead · pinch/ctrl-wheel zoom (under the pointer; keyboard/menu zoom anchors on a visible playhead). Lanes grow to fill the stage when every track fits (72–240px, with a 104px minimum for coarse pointers) and scroll beyond that; the marker lane shows only rows with content (chapters, social, comments) and collapses to one 24px row when empty; chapter diamonds show their title, truncated before the next chapter (full title on hover) |
 | **Inspector** | Track selection adds the mixer group and, with edit access, **Track actions → Smooth all joins** (applies the recommended fade at every join), and for the host **Split speakers…** beside **Replace audio…** (one recording of several people → one track per speaker: opening the dialog checks whether speaker recognition is available on this computer; if unavailable it says so plainly, links to the speaker setup instructions, and keeps splitting disabled; a failed check says to close and reopen the dialog to retry. When the speaker model is missing, **Download speaker model** fetches it, and starting a split without it asks inside the dialog first (progress bar, **Not now** keeps the split pressable and offers **Manage models**); a failed download says "Couldn't download the speaker model" with the diagnostics step, never an internal id, setting name or path, and splitting stays disabled. This check reports backend availability, not downloaded model weights or model readiness. Once available, the dialog asks the speaker count and optional names (while no selection fits, **Use selection** stays disabled and the reason shows once as a note above the name fields), shows progress with **Cancel split**, then lists the new tracks and saved unsure/overlapping stretches with timeline start, length, speaker tracks and **Go to** for each surviving placement (fully cut-away spans show recording time and explain why Go to is disabled), before one **Undo split**; **Review split…** returns to the saved list after you close the dialog to listen, while no later history edit has replaced the split; the split action stays disabled after an edit or when the track has no audio): M/S and the saved **Volume** fader (−60 to +12 dB; double-click or **Reset** sets 0 dB; read-only without edit, with the reason shown). A clip has editable numeric **Source start** and **Source end** fields with one Apply per boundary, plus 10 ms and 100 ms nudges that respect the current source, minimum-span and neighbor limits. Pending source boundaries have 10 ms and 100 ms nudge buttons. A selected saved envelope point has 10 ms and 100 ms time nudges and ±0.5 dB level nudges. Each accepted change is one undoable edit. At an exact zero envelope level, +0.5 dB starts from the existing −60 dB floor; −0.5 dB stays at zero. Positive levels below −60 dB keep their multiplicative steps. A clip also has paired **Fade in / Fade out** sliders that preview together and commit once on release, relevant key release, or ordinary blur; each edge clamps to the track cap, clip length and remaining room at the opposite edge. **Incoming transition** describes the join from the previous clip into this one (hidden on a track's first clip), with an optional length used once and cleared. Pending timing exposes **Snap to silence** separately from Approve. Re-checking it snaps the stored bounds once. Current and suggested source bounds show endpoint shifts and a signed duration change; **Use suggestion** accepts the displayed range after typed timing is applied. Clip headings name the speaker and timeline bounds, with the ID once in details and destructive actions after editing controls. Selection modifier (same shapes as sheet): eyebrow badge, title, subtitle only when it differs, full-width fields, one section gap; the body scrolls with edge shadows · footers: **Seek** / **Play around** icon buttons (track: **Go to start** / **Preview effects at track start**); stem **Up to date / Out of date**; effect params as readable text |
-| **Comments** | Filter segmented control (Open · Open actions · Resolved · All) · list + thread · timeline seek · action items · **Commenting as <name>** with a **Change** button (defaults to the session display name; a guest is asked for a name once on the first Post) |
-| **History** | Groups · Undo/Redo · step count (“No edits yet” when empty) · diff affordances (a step that leaves the list clears its selection and diff); lists of 200+ steps render only the visible window (selected and focused steps stay mounted); list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/MIX/COMMENTS patches) |
-| **Impact** | Pending count · bulk Approve all / Reject all, each asking first with the pending-edit and track counts (and how many are flagged risky), shows "Approving N edits…" in place (with elapsed time once it passes 2 s) while it runs, then answers with a toast Undo ("Applied N, held M" when blocked cuts stay pending, each named with its reason) · removed duration |
-| **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) · **Applying N suggested actions…** with a pulse and elapsed time while confirmed Apply waits; Apply stays busy until its outcome. The Status column says **Applying…** where visible; phone rows show disabled Apply and Skip controls. **Just applied (N)** list of the last batch with an action select per sound (change one, keep the rest) · Intensity (Light/Medium/Aggressive) + Find hits (loads no model, so it never asks to download one). |
-| **Pipeline** | Checklist (empty state until Analyze) · param inspector · Analyze (runs as a cancellable job with a live phase headline + `n/N tracks` bar; each reason shows its evidence as key=value, an Uncheck-step hint when applicable, and a collapsible per-track measurements list; other viewers of a running Analyze also show its result) · Batch vs leave-gates (align + refine) · Terms and guest-name vocabulary editor with a live Whisper prompt character budget and an explanation when Save is disabled above the limit; successful refreshes clear load and busy errors, while validation and conflict messages stay visible; a re-transcribe action appears when the saved list changes · Precise word boundaries shows aligner readiness (a snapshot that fails its pin says to download it again); if a saved explicit request is blocked because the model is missing, the checked control can be switched off, while an unset request stays unavailable · A failed word-aligner or Whisper download says "Couldn't download the word aligner" (or "the Whisper model") with the diagnostics step, never an internal id, setting name or path · Download word aligner / Re-time words (still gated on the Whisper weights, because that run also transcribes any dialogue track with no stored transcript; Re-time words and Re-transcribe are mutually exclusive — the API rejects `retime_words` together with `force_transcribe`) · Run, Re-transcribe, Re-time words and Precise word boundaries ask before they need a model that is not installed: a dialog names the model and size, **Download** shows a byte progress bar and then continues the run once, **Not now** leaves the button pressable with a **Manage models** hint, and a failed download offers Retry · SSE progress (live headline) |
-| **Transcript** | Follow/edit (also layout `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns; Annotate → Previous / Next low-confidence walkthrough. With View › Layers **Prosody** on (host), prominent words from the prosody profile render bold with a top rule (no top rule where a strike or the suspect underline already marks the word; "emphasized" for screen readers); a stale profile still marks a word a re-alignment re-timed; the timeline's own Prosody layer briefly hides after a clip edit until the refetch lands, but transcript emphasis stays; a run started from a terminal (outside the app) is picked up by toggling the Prosody layer off and back on. On the timeline, non-fresh lane labels are plain text; a single sr-only status region announces a combined summary ("Prosody: no profile on 2 tracks") instead of one per lane. |
-| **Status** | Actionable chips (**Presence: You + N guests**, **Cut m:ss of m:ss** (dialogue source vs dialogue timeline length), pending, **Edits in removed audio (N)** (pending edits whose span was cut away), **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); chips only switch tabs (when the current layout does not show that tab, they restore the default layout first); overflow-x on narrow |
+| **Comments** (Review) | Filter segmented control (Open · Open actions · Resolved · All) · list + thread · timeline seek · action items · **Commenting as <name>** with a **Change** button (defaults to the session display name; a guest is asked for a name once on the first Post) |
+| **History** (Edit sheet) | Groups · Undo/Redo · step count (“No edits yet” when empty) · diff affordances (a step that leaves the list clears its selection and diff); lists of 200+ steps render only the visible window (selected and focused steps stay mounted); list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/MIX/COMMENTS patches) |
+| **Impact** (Review) | Pending count · bulk Approve all / Reject all, each asking first with the pending-edit and track counts (and how many are flagged risky), shows "Approving N edits…" in place (with elapsed time once it passes 2 s) while it runs, then answers with a toast Undo ("Applied N, held M" when blocked cuts stay pending, each named with its reason) · removed duration |
+| **Tighten** (Review) | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) · **Applying N suggested actions…** with a pulse and elapsed time while confirmed Apply waits; Apply stays busy until its outcome. The Status column says **Applying…** where visible; phone rows show disabled Apply and Skip controls. **Just applied (N)** list of the last batch with an action select per sound (change one, keep the rest) · Intensity (Light/Medium/Aggressive) + Find hits (loads no model, so it never asks to download one). |
+| **Pipeline** (Prepare) | Checklist (empty state until Analyze) · param inspector · Analyze (runs as a cancellable job with a live phase headline + `n/N tracks` bar; each reason shows its evidence as key=value, an Uncheck-step hint when applicable, and a collapsible per-track measurements list; other viewers of a running Analyze also show its result) · Batch vs leave-gates (align + refine) · Terms and guest-name vocabulary editor with a live Whisper prompt character budget and an explanation when Save is disabled above the limit; successful refreshes clear load and busy errors, while validation and conflict messages stay visible; a re-transcribe action appears when the saved list changes · Precise word boundaries shows aligner readiness (a snapshot that fails its pin says to download it again); if a saved explicit request is blocked because the model is missing, the checked control can be switched off, while an unset request stays unavailable · A failed word-aligner or Whisper download says "Couldn't download the word aligner" (or "the Whisper model") with the diagnostics step, never an internal id, setting name or path · Download word aligner / Re-time words (still gated on the Whisper weights, because that run also transcribes any dialogue track with no stored transcript; Re-time words and Re-transcribe are mutually exclusive — the API rejects `retime_words` together with `force_transcribe`) · Run, Re-transcribe, Re-time words and Precise word boundaries ask before they need a model that is not installed: a dialog names the model and size, **Download** shows a byte progress bar and then continues the run once, **Not now** leaves the button pressable with a **Manage models** hint, and a failed download offers Retry · SSE progress (live headline) |
+| **Script** | Follow/edit (`T` shows or hides it, `Shift+T` focuses it); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns; Annotate → Previous / Next low-confidence walkthrough. With View › Layers **Prosody** on (host), prominent words from the prosody profile render bold with a top rule (no top rule where a strike or the suspect underline already marks the word; "emphasized" for screen readers); a stale profile still marks a word a re-alignment re-timed; the timeline's own Prosody layer briefly hides after a clip edit until the refetch lands, but transcript emphasis stays; a run started from a terminal (outside the app) is picked up by toggling the Prosody layer off and back on. On the timeline, non-fresh lane labels are plain text; a single sr-only status region announces a combined summary ("Prosody: no profile on 2 tracks") instead of one per lane. |
+| **Status** (Stage bar badges and Player bar) | Actionable badges (**Presence: You + N guests**, **Cut m:ss of m:ss** (dialogue source vs dialogue timeline length), pending, **Edits in removed audio (N)** (pending edits whose span was cut away), **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); chips only switch tabs (when the current layout does not show that tab, they restore the default layout first); overflow-x on narrow |
 
 In the desktop transcript, Shift-click extends a range from the original word on the same track. Shift-click on another track selects that word and starts a new range. Mouse dragging ignores other tracks and resumes when the pointer returns to its starting track.
 
-### Layouts (desktop/tablet)
+### Script (desktop/tablet)
 
-| Layout | Key | Effect |
-|--------|-----|--------|
-| default (**Restore layout**) | `Mod+1` | Full grid |
-| timeline (**Maximize timeline**) | `Mod+2` | Collapse bottom tabs — more lane height. Dragging the tabs band's handle below its minimum, double-clicking it, or End on it reaches the same state; the **Show editor panels** grab handle on the timeline's bottom edge reopens it |
-| text (**Maximize transcript**) | `Mod+3` | Expand transcript; shrink timeline |
-| review (**Review layout**) | `Mod+4` | Comments-forward + mix-oriented chrome |
+| Command | Key | Effect |
+|---------|-----|--------|
+| Show or hide Script (`view.toggleScript`) | `T` | Hides the Script pane for more lane width, or brings it back |
+| Script focus (`view.scriptFocus`) | `Shift+T` | Grows the Script pane and shrinks the timeline |
+| Resize Script | Divider: drag, arrows, Home/End, Enter or double-click resets | Sets the pane width; saved as a browser preference |
 
-The transport layout control maximizes/restores (named **Maximize timeline** or **Restore layout** for what a click does), and a "… · Restore" chip in the transport leaves any non-default layout. Every layout keeps the banner, transport and status rows (geometry covered by `gui/web/e2e/layout-modes.spec.ts`); only the timeline and bottom-tab areas resize. Starting to follow shows the leader's tab; after that, following keeps your layout until the leader changes tab. Play, Pause and Stop tooltips carry their keyboard shortcut, as do Select, Blade, Comment mode, Fit session width and Blade cut (each also sets `aria-keyshortcuts`). Stop returns the playhead to where playback last started; Pause keeps the position, and any playhead move while stopped or paused, including following someone or an agent seek, becomes the new start. An agent's stop (MCP or CLI) pauses in place instead of returning to the start.
+The old layout presets (Restore layout, Maximize timeline, Maximize transcript, Review layout) and their `Mod+1` to `Mod+4` keys were removed; those keys now go to stages. Every stage keeps the header, Player bar and banner rows in place (geometry guard: `stage/frame/StageFrame.test.tsx`).
 
 ---
 
@@ -386,7 +391,7 @@ flowchart LR
 
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
-| Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Timeline / Listen / Text / More gated by role. Mode **banner** at top. |
+| Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter link is Review alone). Mode **banner** at top. |
 | Any capability set without `view` (API only, no role mints one) | **Error screen** | "This link does not open the project." with "Ask the person who shared it for a new link." beneath it in muted text. |
 
 Step flows: [Guest journeys](#/journeys).
@@ -412,13 +417,11 @@ Step flows: [Guest journeys](#/journeys).
 | *Shared comment view · You can comment and suggest edits* | Commenter (`comment`) |
 | *Shared read-only view* | Viewer (`view`; listen + inspect, not “no audio”) |
 
-**Approve without Impact:** Impact is **always host-only**. Editors approve/reject from Timeline overlay + inspector (pending chip on Listen routes to Timeline).
+**Approve without Impact:** Impact is **always host-only**. Editors approve/reject from Timeline overlay + inspector (the Review badge routes to Edit).
 
 **Playback:** prefer **proxy media** (short MP3 listen chunks, often via CDN) so ordinary listen does not pull long host WAVs through the tunnel. Fallback to WAV when proxies are unavailable.
 
-**More hub (guest):** Mix + Comments + Overlay legend.
-
-**AI assistants (`mcp`):** Hosts copy the MCP URL from Menu → Share… after creating the link with **Allow AI assistants (MCP)**. The assistant connects through an MCP client such as Claude or ChatGPT — not a guest Settings pane. Same role as the human on that share. Listen-first Suggested is HTTP (`guest_pending_preview` / `GET …/daw/pending-preview`), not host speakers.
+**AI assistants (`mcp`):** Hosts copy the MCP URL from Invite (or Deliver → Share for review) after creating the link with **Allow AI assistants (MCP)**. The assistant connects through an MCP client such as Claude or ChatGPT — not a guest Settings pane. Same role as the human on that share. Listen-first Suggested is HTTP (`guest_pending_preview` / `GET …/daw/pending-preview`), not host speakers.
 
 ---
 
@@ -452,16 +455,16 @@ Prefix `/rec/` with a review token opens the recording invalid-link cover: “Th
 | State | Where surfaced |
 |-------|----------------|
 | **Pending edits** | Host Impact · chips · edit overlay · inspector (guests: Timeline/inspector, not Impact) |
-| **Mix out of date** | Status · Listen chips · wide-bar transport pill (reads **Mix out of date**, or **No mix yet** when nothing is rendered; the host's mix rebuilds on its own and the pill reads **Updating mix…** meanwhile; Mod+B updates it now); collapsed Menu → **Mix out of date** or **No mix yet** (**· Refresh** only on a share that refreshes by hand). On an edit share, Refresh mix starts a host job immediately; the guest waits on token-scoped status reads, then hears the refreshed mix or sees a failure. While another render holds the lock, a rerender request plays the previous render (the audio response carries `X-Sharecut-Render-Busy: 1`, which the transport does not read yet; the Mix out of date chip stays because the stem was not rebuilt). |
-| **Transcript stale / reconcile** | Status · Text affordances |
-| **Pipeline / activity running** | Pipeline tab lists pipeline jobs in the summary. While bounce/export/`render_preview` occupy the shared pipeline-slot, Run is disabled and Cancel is on the Pipeline tab. Host StatusBar + phone Listen chip show the most recent live job (`status-pipeline` chrome: truncated headline, dim **stale “last update Ns ago”** companion, elapsed, pulse; phone chip ellipsizes overflow). Guests also see the chip on phone Listen (non-interactive — Pipeline tab is host-only). Non-pipeline kinds (`agent` from in-process host MCP, `bounce`, `export`, `render_preview`, guest remote MCP) use **Activity** copy; a count badge (“2 activities”) when more than one job is live. Chip/Listen open Pipeline only for slot jobs; agent chips are not a navigation target. Instant tools never flash a chip. A host job that failed for a model that is not downloaded shows **Download {model}** beside the chip (status bar, phone Listen) and under the Pipeline tab's error; it opens the model prompt only when pressed, and a failed Refresh mix resumes once after it. |
+| **Mix out of date** | Stage bar badge · Player bar mix ring (reads **Mix out of date**, or **No mix yet** when nothing is rendered; the host's mix rebuilds on its own and the pill reads **Updating mix…** meanwhile; Mod+B updates it now); the mix ring’s tooltip reads **Mix out of date** or **No mix yet** (**· Refresh** only on a share that refreshes by hand). On an edit share, Refresh mix starts a host job immediately; the guest waits on token-scoped status reads, then hears the refreshed mix or sees a failure. While another render holds the lock, a rerender request plays the previous render (the audio response carries `X-Sharecut-Render-Busy: 1`, which the Player bar does not read yet; the Mix out of date chip stays because the stem was not rebuilt). |
+| **Transcript stale / reconcile** | Stage bar **Reconcile** badge · Script affordances |
+| **Pipeline / activity running** | Prepare lists pipeline jobs in the summary. While bounce/export/`render_preview` occupy the shared pipeline-slot, Run is disabled and Cancel is in Prepare. The Prepare badge and Player status show the most recent live job (`status-pipeline` chrome: truncated headline, dim **stale “last update Ns ago”** companion, elapsed, pulse; phone chip ellipsizes overflow). Guests also see the chip in Review (non-interactive — Prepare is host-only). Non-pipeline kinds (`agent` from in-process host MCP, `bounce`, `export`, `render_preview`, guest remote MCP) use **Activity** copy; a count badge (“2 activities”) when more than one job is live. Chip/Listen open Pipeline only for slot jobs; agent chips are not a navigation target. Instant tools never flash a chip. A host job that failed for a model that is not downloaded shows **Download {model}** beside the chip (status bar, phone Listen) and under the Pipeline tab's error; it opens the model prompt only when pressed, and a failed Refresh mix resumes once after it. |
 | **Loading episode** | `?project=` known, shell not yet (HTTP or document WS): DAW grid/skeleton chrome (“Loading episode…”). Distinct from zero-track ingest coach. A shell load the server never answers (30 s) shows the banner “Could not load transcript and history. The server didn't answer.” with Retry, in every browser. When the episode is already open but a warm shell reload times out while the host is busy (for example a long Approve all), the same banner row shows a polite status line—“Still loading transcript and history. The server is still working. Retrying…”—without Retry until retries are exhausted; then the failure copy and Retry return. After shell, live edits update the visible document while compatible word chips remain hydrated |
-| **Result toast** | Every status message (“Reordered track”, “Removed guest”, “Mix preview refreshed”, export results) shows as one toast, centred above the status bar on desktop and tablet. On a phone it sits just above whatever is docked at the bottom (an open sheet, the Timeline tool row, the mode nav) and below the transport; on a short phone it moves above Listen's Play row, never over it. On every screen size it stays off the comment field, the **Commenting as** line and the name step: it moves above or below them, and in a window too short for a free band it covers the content above them instead. A visible compact inspector places feedback first inside the same bounded body scroller as its fields, below the pinned header. The focused or just-pressed control keeps its place when feedback arrives. At large text sizes ordinary body scroll exposes feedback or a full native label separately; field focus reveals the control and its complete label below the pinned header when it fits. Compact half and full detents keep the same outer height with or without the card. Dismiss removes it without changing detent height or lane room. One card pauses expiry while clipped and retains its remaining visible time across floating and inspector hosts. Keeping every visible control clear remains a beta requirement; screen readers hear the same words, even when the same message repeats. **Undo** appears on every edit the toast reports (delete, cut, paste, trim, fade, chapter and envelope point add, track reorder and removal, tighten apply, skip and Apply suggested actions) and disappears once anything else moves history; while an edit is still saving it says “Undo ready after save”, and a press waits for the save and runs only if the change is still the latest step (otherwise it says nothing was undone). Dismiss closes it; it closes after 8 s of unpaused visible time. Job progress stays on the job chip, presence joins on the avatars and the Needs attention summary on its banner, so they don't toast. **Resolved comment** uses the same toast, and its Undo reopens the comment. A failure reads in an error look that names what failed and the next step. A message about a gesture, such as an armed clip, leaves when the finger lifts or the mode changes. |
+| **Result toast** | Every status message (“Reordered track”, “Removed guest”, “Mix preview refreshed”, export results) shows as one toast, centred above the Player bar on desktop and tablet. On a phone it sits just above whatever is docked at the bottom (an open sheet, the Edit tool strip, the tab bar) and below the header; on a short phone it moves above the Player's Play button, never over it. On every screen size it stays off the comment field, the **Commenting as** line and the name step: it moves above or below them, and in a window too short for a free band it covers the content above them instead. A visible compact inspector places feedback first inside the same bounded body scroller as its fields, below the pinned header. The focused or just-pressed control keeps its place when feedback arrives. At large text sizes ordinary body scroll exposes feedback or a full native label separately; field focus reveals the control and its complete label below the pinned header when it fits. Compact half and full detents keep the same outer height with or without the card. Dismiss removes it without changing detent height or lane room. One card pauses expiry while clipped and retains its remaining visible time across floating and inspector hosts. Keeping every visible control clear remains a beta requirement; screen readers hear the same words, even when the same message repeats. **Undo** appears on every edit the toast reports (delete, cut, paste, trim, fade, chapter and envelope point add, track reorder and removal, tighten apply, skip and Apply suggested actions) and disappears once anything else moves history; while an edit is still saving it says “Undo ready after save”, and a press waits for the save and runs only if the change is still the latest step (otherwise it says nothing was undone). Dismiss closes it; it closes after 8 s of unpaused visible time. Job progress stays on the job chip, presence joins on the avatars and the Needs attention summary on its banner, so they don't toast. **Resolved comment** uses the same toast, and its Undo reopens the comment. A failure reads in an error look that names what failed and the next step. A message about a gesture, such as an armed clip, leaves when the finger lifts or the mode changes. |
 | **Confirm / ask dialog** | Actions that discard work ask first in the app's own dialog (a bottom sheet on phone): the question names the target, one line gives the consequence, **Keep** comes first and focused, the action comes last (red when it discards work). Remove track, replace a track's audio, Find hits again, Apply suggested actions, and replacing hand-edited transcripts use it. When the file picker is unavailable, Open project asks for the path in the same dialog, with the error under the field. Escape closes only the dialog: the Inspector or sheet behind it stays open, and focus returns to the button that asked. There are no browser pop-ups. |
 | **Offline host (relay)** | Share/tunnel offline page |
 | **Offline edit queue** | Host and guest edits wait offline and drain on reconnect; guest structural ops demote to propose. Pending drag and mixer values stay visible while peer edits arrive. Replaying an older queued value does not replace a newer pending value. |
 | **Offline attention** | Host pending count and host/guest conflicts appear in **Needs attention**; conflicts are dismissible |
-| **Presence** | Transport **avatar stack** (follow/unfollow, each avatar titled "Follow `<name>`" / "Stop following `<name>`"); ghost cursors on timeline lanes and DAW chrome (`data-presence-anchor`); unresolved anchors hidden. Follow mirrors tab/transcript/audition/selection when capable. Status-bar roster (“You + N guests”, names in the tooltip) on desktop/tablet; phone **More → People**. Follow banner is a dedicated shell row (guest Mix / host-only tab hints). Phone Listen = listen-along; phone Timeline = colored center needle (not a copied zoom window). Follower count only; followers do not broadcast a lagging playhead. Guests never draw their own cursor. Remote playhead ghosts move between presence frames at the leader’s rate, hold when paused, and clamp to the session length. Follow corrects local audio drift on a timer. Leaders send playback updates once per second and immediately on play, pause, seek, or rate changes. Invalid positions are ignored. The server drops an invalid presence playhead and keeps the last good one. Roster names (tooltip, More → People, avatars) are cleaned on the server: control characters are dropped, names are capped at 40 characters, and a guest named "Host" shows as "Host (guest)". |
+| **Presence** | Header **avatar stack** (follow/unfollow, each avatar titled "Follow `<name>`" / "Stop following `<name>`"); ghost cursors on timeline lanes and DAW chrome (`data-presence-anchor`); unresolved anchors hidden. Follow mirrors tab/transcript/audition/selection when capable. Header avatars (names in the tooltip; the phone shows one avatar plus a count, and tapping it opens the roster sheet). Follow banner is a dedicated shell row (guest Mix / host-only tab hints). Phone Review = listen-along; phone Timeline = colored center needle (not a copied zoom window). Follower count only; followers do not broadcast a lagging playhead. Guests never draw their own cursor. Remote playhead ghosts move between presence frames at the leader’s rate, hold when paused, and clamp to the session length. Follow corrects local audio drift on a timer. Leaders send playback updates once per second and immediately on play, pause, seek, or rate changes. Invalid positions are ignored. The server drops an invalid presence playhead and keeps the last good one. Roster names (tooltip, More → People, avatars) are cleaned on the server: control characters are dropped, names are capped at 40 characters, and a guest named "Host" shows as "Host (guest)". |
 
 ---
 
@@ -469,10 +472,10 @@ Prefix `/rec/` with a review token opens the recording invalid-link cover: “Th
 
 Use this when auditing mocks:
 
-- [ ] Transport primary vs Menu secondary on ≤720px width  
-- [ ] Phone Listen hides Fit from primary bar  
+- [ ] Header, Stage bar and Player bar fit on ≤720px width  
+- [ ] Phone Review has no Fit control  
 - [ ] Sheet Close + no stacking  
-- [x] Listen-first footer on every modifier (pending: Current / Suggested / A/B) 
+- [x] Player-first footer on every modifier (pending: Current / Suggested / A/B) 
 - [ ] Guest capability chrome  
 - [x] Record lobby / room / full / declined (`/rec/{token}`); full-quality recording + mix-minus shipped  
 - [ ] Empty comments / no transcript / no pending  

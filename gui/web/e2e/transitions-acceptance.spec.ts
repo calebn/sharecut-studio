@@ -10,6 +10,7 @@ import {
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { openProject, waitForLanding } from "./stageNav";
 
 let projectPath: string;
 let workspaceDir: string;
@@ -158,6 +159,7 @@ test("pending suggestions preserve drafts and save the displayed full range once
     // The phone timeline's drawer opens at full height, with the inspector.
     await rememberInspectorDetent(phone, "full");
     await phone.goto(page.url());
+    await waitForLanding(phone);
     await openPhoneTimeline(phone);
     await phone
       .locator(`.pending-overlay[data-pending-id="${editId}"] .pending-hit`)
@@ -216,7 +218,7 @@ test("clip names identify audio and pending hatching fills the lane", async ({
 test("the seam line rolls one join and Undo restores both clip bounds", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   const clips = page.locator(".lane-row").first().locator(".clip-block");
   await expect(clips).toHaveCount(1);
   await page.keyboard.press("Shift+ArrowRight");
@@ -292,7 +294,7 @@ test("the seam line rolls one join and Undo restores both clip bounds", async ({
 test("crossfade endpoint saves block competing pointer fades until acknowledged", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   const lane = page.locator(".lane-row").first();
   await expect(lane.locator(".clip-block")).toHaveCount(1);
   await page.keyboard.press("Shift+ArrowRight");
@@ -380,7 +382,7 @@ test("touch seam, fade corners, and trim strips retain distinct hit areas", asyn
   );
   try {
     const page = await context.newPage();
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const lane = page.locator(".lane-row").first();
     await expect(lane.locator(".clip-block")).toHaveCount(1);
     await page.keyboard.press("Shift+ArrowRight");

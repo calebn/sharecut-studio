@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
 import { seekTransport } from "../commands/seek";
 import { rangeClips } from "../edit/rangeSelection";
-import type { LayoutMode, MobileMode, MoreDestination } from "../state/types";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeActions } from "../timeline/RangeActions";
 import type { ProjectView, Selection } from "../types/project";
@@ -37,41 +36,8 @@ type SelectionOf<K extends SelectionKind> = Extract<
   { kind: K }
 >;
 
-/** The screens where a selection sheet can open, on the phone and the tablet. */
-export type SheetScreen =
-  | "timeline"
-  | "listen"
-  | "text"
-  | "comments"
-  | "impact"
-  | "tighten";
-
-/** The phone screen a mobile mode and More destination put on screen. */
-export function sheetScreen(
-  mode: MobileMode,
-  destination: MoreDestination,
-): SheetScreen | null {
-  if (mode !== "more") return mode;
-  return destination === "comments" ||
-    destination === "impact" ||
-    destination === "tighten"
-    ? destination
-    : null;
-}
-
-/** The tablet screen a layout puts on screen: the timeline, the transcript or the comments. */
-export function layoutScreen(layout: LayoutMode): SheetScreen {
-  switch (layout) {
-    case "text":
-      return "text";
-    case "review":
-      return "comments";
-    case "adaptive":
-    case "default":
-    case "timeline":
-      return "timeline";
-  }
-}
+/** The Edit surfaces where a selection sheet can open: the lanes or the Script. */
+export type SheetScreen = "timeline" | "text";
 
 export interface SurfaceContext {
   project: ProjectView;
@@ -85,9 +51,8 @@ const notFound = (what: string) => <aside className="inspector">{what}</aside>;
 /**
  * What one kind of selection puts on screen. `body` fills the inspector, and
  * the touch sheet, with the selection's fields and actions. `screens` are the
- * screens, on the phone and the tablet alike, where the selection opens the
- * sheet: the Timeline and Listen screens always, the rest only where the
- * selection belongs. `peek` is the compact strip for a timeline target (null
+ * Edit surfaces, on the phone and the tablet alike, where the selection opens
+ * the sheet: the lanes always, the Script only where the selection belongs. `peek` is the compact strip for a timeline target (null
  * opens the full body). `related` and `more` are the Related and More commands
  * under the body.
  */
@@ -107,8 +72,8 @@ export interface SelectionSurface<K extends SelectionKind> {
   ) => readonly RelatedCommandDescriptor[];
 }
 
-const ANYWHERE: readonly SheetScreen[] = ["timeline", "listen"];
-const WITH_TEXT: readonly SheetScreen[] = ["timeline", "listen", "text"];
+const ANYWHERE: readonly SheetScreen[] = ["timeline"];
+const WITH_TEXT: readonly SheetScreen[] = ["timeline", "text"];
 
 const noPeek = () => null;
 const noRelated = () => [];
@@ -171,7 +136,7 @@ export const SELECTION_SURFACES: {
   },
   pending: {
     ...plain,
-    screens: [...ANYWHERE, "impact", "tighten"],
+    screens: ANYWHERE,
     peek: peekPending,
     body: (sel, { project }) => {
       const edit = project.pending_edits.find((e) => e.id === sel.id);
@@ -234,7 +199,7 @@ export const SELECTION_SURFACES: {
   },
   comment: {
     ...plain,
-    screens: [...ANYWHERE, "comments"],
+    screens: ANYWHERE,
     body: (sel, { project }) => {
       const comment = (project.comments ?? []).find((c) => c.id === sel.id);
       if (!comment) return notFound("Comment not found");

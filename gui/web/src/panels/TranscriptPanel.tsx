@@ -5,7 +5,6 @@ import { DOUBLE_TAP_MS, withinGhostClick } from "../hooks/gestureConstants";
 import { useLongPress } from "../hooks/useLongPress";
 import { useUserScrollIntent } from "../hooks/useUserScrollIntent";
 import { useVirtualTurns } from "../hooks/useVirtualTurns";
-import { TranscriptWordInspector } from "../inspector/views/TranscriptWordInspector";
 import {
   presenceAnchor,
   presenceAnchorProps,
@@ -155,7 +154,6 @@ export function TranscriptPanel() {
     toggleTranscriptAnnotate,
     showCutAwayUtterances,
     setShowCutAwayUtterances,
-    layoutMode,
     shellBreakpoint,
     followingClientId,
     stopFollow,
@@ -183,7 +181,6 @@ export function TranscriptPanel() {
     toggleTranscriptAnnotate: s.toggleTranscriptAnnotate,
     showCutAwayUtterances: s.showCutAwayUtterances,
     setShowCutAwayUtterances: s.setShowCutAwayUtterances,
-    layoutMode: s.layoutMode,
     shellBreakpoint: s.shellBreakpoint,
     followingClientId: s.followingClientId,
     stopFollow: s.stopFollow,
@@ -401,10 +398,16 @@ export function TranscriptPanel() {
 
   useEffect(() => {
     const onUp = () => {
+      if (draggingRef.current)
+        useDawStore.getState().setTimelineDragging(false);
       draggingRef.current = false;
     };
     window.addEventListener("mouseup", onUp);
-    return () => window.removeEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mouseup", onUp);
+      if (draggingRef.current)
+        useDawStore.getState().setTimelineDragging(false);
+    };
   }, []);
 
   const seekTurnSoon = (sec: number) => {
@@ -967,13 +970,6 @@ export function TranscriptPanel() {
     toolbarHint = TRANSCRIPT_INLINE_SAVING_STATUS;
   }
 
-  const dockedWord =
-    layoutMode === "text" &&
-    shellBreakpoint === "desktop" &&
-    intent === "correct"
-      ? oneWordOf(selection)
-      : null;
-
   const intentLabel =
     intent === "correct"
       ? " · correct mode"
@@ -1179,21 +1175,6 @@ export function TranscriptPanel() {
           >
             Dismiss
           </Button>
-        </div>
-      ) : null}
-      {dockedWord ? (
-        <div className="transcript-docked-editor">
-          <TranscriptWordInspector
-            key={JSON.stringify([
-              dockedWord.trackId,
-              dockedWord.sourceId,
-              dockedWord.wordIndex,
-            ])}
-            trackId={dockedWord.trackId}
-            sourceId={dockedWord.sourceId}
-            wordIndex={dockedWord.wordIndex}
-            embedded
-          />
         </div>
       ) : null}
       {hostEditable && findReplaceOpen && (
@@ -1506,6 +1487,9 @@ export function TranscriptPanel() {
                             }
                             e.preventDefault();
                             draggingRef.current = true;
+                            // Stow the compact range sheet so it cannot
+                            // cover the words while the drag extends.
+                            useDawStore.getState().setTimelineDragging(true);
                             dragExtendedRef.current = false;
                             rangeAnchorRef.current = {
                               trackId: u.track_id,

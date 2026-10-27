@@ -1,3 +1,4 @@
+import type { StageId } from "../types/stage";
 import type { SystemIconName } from "./icons";
 
 /**
@@ -507,12 +508,13 @@ export const VERBS = [
     ],
     touch: "tap",
     surfaces: ["stage-bar", "hand-off", "readiness-fix", "decision-card"],
-    status: "conflict",
-    replaces: [
-      "layout.default",
-      "layout.timeline",
-      "layout.text",
-      "layout.review",
+    status: "bound",
+    commandId: "stage.edit",
+    alsoBound: [
+      "stage.record",
+      "stage.prepare",
+      "stage.review",
+      "stage.deliver",
     ],
     note: "Mod+1 to Mod+5 are stages, Mod+Enter hands off, E opens the object in Edit.",
   },
@@ -670,13 +672,15 @@ export const STAGES = [
   { id: "review", label: "Review", icon: "inbox", key: mod("4") },
   { id: "deliver", label: "Deliver", icon: "send", key: mod("5") },
 ] as const satisfies readonly {
-  id: string;
+  id: StageId;
   label: string;
   icon: SystemIconName;
   key: KeySpec;
 }[];
 
-export type StageId = (typeof STAGES)[number]["id"];
+export function stageLabel(id: StageId): string {
+  return (STAGES.find((s) => s.id === id) as { label: string }).label;
+}
 
 /** The one status glyph set (section 4.6). */
 export const STATUS_GLYPHS = [

@@ -11,13 +11,17 @@ export type KeymapOverrides = Record<string, string[]>;
 
 let memory: KeymapOverrides | null = null;
 
-/** Remaps saved under renamed command ids (#525: focus.* became layout.*); null = removed. */
+/** Remaps saved under command ids that were renamed or removed; null = removed (the dock layouts went with the old shell). */
 const RENAMED_COMMANDS: Readonly<Record<string, string | null>> = {
-  "focus.default": "layout.default",
-  "focus.timeline": "layout.timeline",
-  "focus.text": "layout.text",
-  "focus.review": "layout.review",
+  "focus.default": null,
+  "focus.timeline": null,
+  "focus.text": null,
+  "focus.review": null,
   "focus.cycle": null,
+  "layout.default": null,
+  "layout.timeline": null,
+  "layout.text": null,
+  "layout.review": null,
 };
 
 /** Move renamed ids to their new id (an existing remap there wins); drop removed ones. */

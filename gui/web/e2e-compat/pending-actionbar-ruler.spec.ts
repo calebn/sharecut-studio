@@ -13,6 +13,7 @@ import {
 } from "../e2e/pendingActionbar";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import { save } from "../e2e/touchTimeline";
 
@@ -38,8 +39,11 @@ const VIEWPORTS: Record<
     outcome: "docked",
   },
   "desktop-1195": { width: 1195, height: 820, outcome: "floating" },
+  "desktop-360": { width: 1280, height: 360, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
-  "desktop-short": { width: 1280, height: 440, outcome: "inline" },
+  // No bottom panel is left in the stage frame, so the card keeps its room
+  // between the marker lane and the Player down to about this height.
+  "desktop-short": { width: 1280, height: 260, outcome: "inline" },
 };
 
 let projectPath: string;
@@ -88,11 +92,11 @@ async function expectCardOutcome(
   test.setTimeout(40_000);
   const { outcome, ...size } = VIEWPORTS[name];
   await page.setViewportSize(size);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await seedMarkersAndSuggestion(page);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (name === "phone") await openPhoneTimeline(page);
   await setTheme(page, theme);
   await page

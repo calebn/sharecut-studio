@@ -45,6 +45,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "ui/useDialogModal.ts",
   "ui/useMenuKeyboard.ts",
   "commands/governance.test.ts",
+  "stage/edit/ScriptDivider.test.tsx",
   "record/useRecordLiveComments.ts",
   // Sheets and dialogs render through portals; a native root listener keeps their keys out of the stage.
   "review/ReviewStage.tsx",
@@ -77,6 +78,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/TranscriptWordbar.tsx",
   "transcript/TranscriptSpeakerEditor.tsx",
   "layout/BottomTabsSplitterView.tsx",
+  // The separator pattern: arrows resize the Script pane, Enter resets it.
+  "stage/edit/ScriptDivider.tsx",
   "tracks/TrackHeaderView.tsx",
   "tracks/TrackMuteSoloButtonsView.tsx",
   "tracks/TrackHeader.tsx",
@@ -85,7 +88,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // Enter saves and Escape cancels the comment name and comment time fields.
   "comments/InlineEditInput.tsx",
   // Palette search: Enter runs the top match and arrows step through results.
-  "layout/CommandPaletteView.tsx",
+  "stage/dialogs/CommandPaletteView.tsx",
   // Enter sends the note and Shift+Enter adds a line, as in the Composer.
   "system/ActionBarInline.tsx",
   // A focused suggestion handle moves with the arrow keys, 0.5 s with Shift.
@@ -113,7 +116,7 @@ describe("command bus", () => {
     registerDawCommands();
     useDawStore.setState({
       timelineFocused: true,
-      activeTab: "transcript",
+      stage: "edit",
       commentMode: false,
       projectPath: "/tmp/ep",
       guestMode: null,
@@ -134,7 +137,7 @@ describe("command bus", () => {
   });
 
   it("disables tool.select when timeline not focused", async () => {
-    useDawStore.setState({ timelineFocused: false, activeTab: "history" });
+    useDawStore.setState({ timelineFocused: false, stage: "review" });
     const r = await execute("tool.select");
     expect(r.status).toBe("disabled");
   });
@@ -142,7 +145,7 @@ describe("command bus", () => {
   it("runs pointer commands past keyboard gates and applies their effect", async () => {
     useDawStore.setState({
       timelineFocused: false,
-      activeTab: "history",
+      stage: "review",
       toolMode: "blade",
     });
     expect((await execute("tool.select")).status).toBe("disabled");
@@ -237,8 +240,6 @@ describe("command bus", () => {
       "ui.toggleCommandPalette",
       "presence.follow",
       "presence.unfollow",
-      "view.setTab",
-      "view.setMobileMode",
     ]) {
       expect(ids).toContain(id);
     }
@@ -263,19 +264,6 @@ describe("command bus", () => {
     expect(await execute("transport.audition", { mode: "mix" })).toEqual({
       status: "ok",
     });
-  });
-
-  it("rejects unknown More destinations including mix", async () => {
-    expect(
-      await execute("view.setMobileMode", {
-        mode: "more",
-        destination: "mix",
-      }),
-    ).toEqual({
-      status: "disabled",
-      reason: "destination unknown",
-    });
-    expect(useDawStore.getState().moreDestination).not.toBe("mix");
   });
 });
 
@@ -487,7 +475,7 @@ describe("command governance", () => {
   });
 
   it("evaluateWhen editorFocused matches buildCommandContext", () => {
-    useDawStore.setState({ timelineFocused: false, activeTab: "history" });
+    useDawStore.setState({ timelineFocused: false, stage: "review" });
     const ctx = buildCommandContext();
     expect(evaluateWhen("editorFocused", ctx).ok).toBe(false);
     useDawStore.setState({ timelineFocused: true });
@@ -530,7 +518,7 @@ describe("breaksFollow", () => {
     clearRegisteredCommands();
     registerCommand("track.muteToggle", () => ({ status: "ok" }));
     registerCommand("track.soloToggle", () => ({ status: "ok" }));
-    registerCommand("view.setTab", () => ({
+    registerCommand("view.zoomIn", () => ({
       status: "disabled",
       reason: "no",
     }));
@@ -539,7 +527,7 @@ describe("breaksFollow", () => {
     expect(useDawStore.getState().followingClientId).toBe("x");
     await execute("track.soloToggle", {}, { skipWhen: true });
     expect(useDawStore.getState().followingClientId).toBe("x");
-    await execute("view.setTab", {}, { skipWhen: true });
+    await execute("view.zoomIn", {}, { skipWhen: true });
     expect(useDawStore.getState().followingClientId).toBe("x");
   });
 

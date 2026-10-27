@@ -9,6 +9,7 @@ import {
 } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import { setTheme, type Theme, withAppearance } from "./theme";
 import { lane, projectJson, shot, TRACK, touch } from "./touchTimeline";
 
@@ -39,7 +40,7 @@ test.beforeEach(async ({ page }) => {
   projectPath = fixture.projectPath;
   workspaceDir = fixture.workspaceDir;
   await switchE2eProject(projectPath);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
 });
 
 test.afterEach(async () => {
@@ -108,8 +109,8 @@ async function openAtFit(
   theme: Theme,
 ): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
   await setTheme(page, theme);
   await page
@@ -342,8 +343,8 @@ test.describe("coarse pointer", () => {
     const box = await glyphAt(page, 0);
     await page.touchscreen.tap(box.x - 30, box.y + box.height / 2);
     await expect(joinDialog(page)).toHaveCount(0);
-    expect(await playheadSec(page)).toBeGreaterThan(30);
-    expect(await playheadSec(page)).toBeLessThan(40);
+    await expect.poll(() => playheadSec(page)).toBeGreaterThan(30);
+    await expect.poll(() => playheadSec(page)).toBeLessThan(40);
   });
 
   test("a touch in the lane's bottom gutter, under a chip, seeks", async ({
@@ -357,8 +358,8 @@ test.describe("coarse pointer", () => {
       laneBox.y + laneBox.height - 4,
     );
     await expect(joinDialog(page)).toHaveCount(0);
-    expect(await playheadSec(page)).toBeGreaterThan(9);
-    expect(await playheadSec(page)).toBeLessThan(13);
+    await expect.poll(() => playheadSec(page)).toBeGreaterThan(9);
+    await expect.poll(() => playheadSec(page)).toBeLessThan(13);
   });
 
   test("a touch in the lane above a glyph seeks", async ({ page }) => {
@@ -373,8 +374,8 @@ test.describe("coarse pointer", () => {
       above.y + above.height - 4,
     );
     await expect(joinDialog(page)).toHaveCount(0);
-    expect(await playheadSec(page)).toBeGreaterThan(25);
-    expect(await playheadSec(page)).toBeLessThan(35);
+    await expect.poll(() => playheadSec(page)).toBeGreaterThan(25);
+    await expect.poll(() => playheadSec(page)).toBeLessThan(35);
   });
 
   test("a long press 30 px beside a glyph opens the create menu", async ({

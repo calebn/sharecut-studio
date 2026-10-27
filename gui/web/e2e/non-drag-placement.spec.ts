@@ -11,6 +11,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { openProjectDialog } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
 function placementFixture(prefix: string) {
@@ -68,20 +69,6 @@ const cells = [
     touch: false,
     role: "editor",
     large: true,
-  },
-  {
-    name: "tablet Commenter touch",
-    viewport: { width: 1024, height: 600 },
-    touch: true,
-    role: "commenter",
-    large: true,
-  },
-  {
-    name: "phone Viewer touch",
-    viewport: { width: 390, height: 667 },
-    touch: true,
-    role: "viewer",
-    large: false,
   },
 ] as const;
 
@@ -206,10 +193,11 @@ test("queued Apply retains the exact placement preview until the prior track sav
             exact: true,
           })
           .click();
-        await page.getByRole("button", { name: "Menu", exact: true }).click();
+        await openProjectDialog(page, "palette");
         await page
-          .getByRole("menuitem", { name: "Move track down", exact: true })
-          .click();
+          .getByRole("combobox", { name: "Search commands" })
+          .fill("Move track down");
+        await page.keyboard.press("Enter");
         await expect.poll(() => reorderStatus).toBe(200);
         await expect.poll(() => reorderApplied).toBe(true);
         await expect
@@ -224,6 +212,10 @@ test("queued Apply retains the exact placement preview until the prior track sav
         expect(
           read(projectPath).timeline.tracks.map((track) => track.id),
         ).toEqual(["guest", "reference"]);
+        // The Inspector column narrows a fitted timeline until a short clip is
+        // all trim handle; zoom in so the clip body stays pressable.
+        for (let step = 0; step < 4; step++)
+          await page.getByRole("button", { name: /^Zoom in/ }).click();
         await clip.locator(".clip-hit").click();
         stage = "Move clip admission";
         const entry = page.getByRole("button", {
@@ -315,7 +307,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
       isMobile: cell.viewport.width < 768,
       reducedMotion: reducedMotion ? "reduce" : "no-preference",
     });
-    test("pointer placement and panel preferences", async ({ page }, info) => {
+    test("pointer placement", async ({ page }, info) => {
       await rememberInspectorDetent(page, "half");
       await withShareableProject(
         async (projectPath) => {
@@ -352,8 +344,15 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
               true,
             );
           });
+          // Large text widens the trim handles over a short clip; zoom until the
+          // clip body is wide enough to press without landing on a handle.
+          if (cell.large)
+            for (let step = 0; step < 4; step++)
+              await activate(
+                page.getByRole("button", { name: /^Zoom in/ }),
+                cell.touch,
+              );
           const before = snapshot(projectPath);
-          const bytes = fs.readFileSync(projectPath, "utf8");
           await activate(
             clipBlock(page, "placement-first").locator(".clip-hit"),
             cell.touch,
@@ -362,10 +361,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
             name: "Move clip",
             exact: true,
           });
-          if (cell.role === "commenter" || cell.role === "viewer") {
-            await expect(entry).toBeDisabled();
-            expect(snapshot(projectPath)).toEqual(before);
-          } else {
+          {
             await activate(entry, cell.touch);
             const pointer = await page
               .locator("html")
@@ -478,180 +474,6 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
               if (recoveryPage !== page) await recoveryPage.close();
             }
           }
-          if (cell.viewport.width < 768) {
-            await expect(
-              page.getByRole("separator", { name: "Resize editor panels" }),
-            ).toHaveCount(0);
-            await expect(
-              page.getByRole("group", { name: "Panel size", exact: true }),
-            ).toHaveCount(0);
-          } else {
-            const sheet = page.locator(".bottom-sheet");
-            if (await sheet.isVisible()) {
-              await activate(
-                sheet.getByRole("button", { name: "Close", exact: true }),
-                cell.touch,
-              );
-            }
-            const panel = page.locator(".bottom-tabs");
-            const height = await panel.evaluate(
-              (element) => element.getBoundingClientRect().height,
-            );
-            const rem = await page.evaluate(() =>
-              Number.parseFloat(
-                getComputedStyle(document.documentElement).fontSize,
-              ),
-            );
-            await info.attach("panel-geometry.json", {
-              body: JSON.stringify(
-                await panel.evaluate((element) => {
-                  const shell = element.parentElement!;
-                  const main =
-                    shell.querySelector<HTMLElement>(":scope > .daw-main")!;
-                  return {
-                    panelHeight: element.getBoundingClientRect().height,
-                    mainHeight: main.getBoundingClientRect().height,
-                    mainMinHeight: getComputedStyle(main).minHeight,
-                    mainFloor: getComputedStyle(shell).getPropertyValue(
-                      "--shell-main-min-height",
-                    ),
-                    shellHeight: shell.getBoundingClientRect().height,
-                    gridRows: getComputedStyle(shell).gridTemplateRows,
-                    mainRow:
-                      getComputedStyle(shell).getPropertyValue(
-                        "--shell-main-row",
-                      ),
-                    requestedHeight:
-                      getComputedStyle(element).getPropertyValue(
-                        "--tabs-height",
-                      ),
-                    preference: localStorage.getItem("sharecut.tabsHeight"),
-                  };
-                }),
-              ),
-              contentType: "application/json",
-            });
-            const prior = snapshot(projectPath);
-            const mutations = commands.length;
-            const separator = page.getByRole("separator", {
-              name: "Resize editor panels",
-            });
-            const taller = page.getByRole("button", {
-              name: "Taller",
-              exact: true,
-            });
-            const maximumRem = Number(
-              await separator.getAttribute("aria-valuemax"),
-            );
-            const currentRem = Number(
-              await separator.getAttribute("aria-valuenow"),
-            );
-            expect(currentRem).toBeGreaterThanOrEqual(
-              Number(await separator.getAttribute("aria-valuemin")),
-            );
-            expect(currentRem).toBeLessThanOrEqual(maximumRem);
-            if (Math.abs(height - maximumRem * rem) < 2) {
-              await expect(taller).toBeDisabled();
-              await expect(taller).toHaveAccessibleDescription(
-                "Panel is at its tallest size.",
-              );
-              expect(
-                await page.evaluate(() =>
-                  localStorage.getItem("sharecut.tabsHeight"),
-                ),
-              ).toBeNull();
-              expect(snapshot(projectPath)).toEqual(prior);
-              expect(commands).toHaveLength(mutations);
-            }
-            if (cell.name === "desktop short large text Editor") {
-              const capacity = await panel.evaluate((element) => {
-                const shell = element.parentElement!;
-                const main = shell.querySelector(":scope > .daw-main")!;
-                const floorRem = Number.parseFloat(
-                  getComputedStyle(shell).getPropertyValue(
-                    "--shell-main-min-height",
-                  ),
-                );
-                const rootRem = Number.parseFloat(
-                  getComputedStyle(document.documentElement).fontSize,
-                );
-                return (
-                  element.getBoundingClientRect().height +
-                  main.getBoundingClientRect().height -
-                  floorRem * rootRem
-                );
-              });
-              expect(height).toBeCloseTo(capacity, 0);
-              await expect(taller).toBeDisabled();
-            }
-            await activate(
-              page.getByRole("button", { name: "Shorter", exact: true }),
-              cell.touch,
-            );
-            await expect
-              .poll(() =>
-                panel.evaluate(
-                  (element) => element.getBoundingClientRect().height,
-                ),
-              )
-              .toBeCloseTo(height - rem, 0);
-            expect(
-              Number(
-                await page.evaluate(() =>
-                  localStorage.getItem("sharecut.tabsHeight"),
-                ),
-              ),
-            ).toBeCloseTo(height / rem - 1, 4);
-            await activate(taller, cell.touch);
-            await expect
-              .poll(() =>
-                panel.evaluate(
-                  (element) => element.getBoundingClientRect().height,
-                ),
-              )
-              .toBeCloseTo(height, 0);
-            const stored = await page.evaluate(() =>
-              localStorage.getItem("sharecut.tabsHeight"),
-            );
-            expect(Number(stored)).toBeCloseTo(height / rem, 4);
-            await info.attach("panel-step", {
-              body: await page.screenshot({
-                path: info.outputPath("panel-step.png"),
-              }),
-              contentType: "image/png",
-            });
-            await page.reload();
-            await expect(separator).toBeVisible();
-            const admittedMin = Number(
-              await separator.getAttribute("aria-valuemin"),
-            );
-            const admittedMax = Number(
-              await separator.getAttribute("aria-valuemax"),
-            );
-            expect(
-              Number(
-                await page.evaluate(() =>
-                  localStorage.getItem("sharecut.tabsHeight"),
-                ),
-              ),
-            ).toBeCloseTo(
-              Math.min(admittedMax, Math.max(admittedMin, Number(stored))),
-              4,
-            );
-            await activate(
-              page.getByRole("button", { name: "Reset panel size" }),
-              cell.touch,
-            );
-            expect(
-              await page.evaluate(() =>
-                localStorage.getItem("sharecut.tabsHeight"),
-              ),
-            ).toBeNull();
-            expect(snapshot(projectPath)).toEqual(prior);
-            expect(commands).toHaveLength(mutations);
-          }
-          if (cell.role === "commenter" || cell.role === "viewer")
-            expect(fs.readFileSync(projectPath, "utf8")).toBe(bytes);
           await info.attach("input-provenance.json", {
             body: JSON.stringify({
               shell: cell.name,
@@ -679,6 +501,10 @@ test("group pointer steps save exact 7/27 placements, refusal recovers and one U
   await withShareableProject(
     async (projectPath) => {
       await openHostShare(page, projectPath);
+      // The Inspector column narrows a fitted timeline until a short clip is
+      // all trim handle; zoom in so the clip body stays pressable.
+      for (let step = 0; step < 2; step++)
+        await page.getByRole("button", { name: /^Zoom in/ }).click();
       const before = snapshot(projectPath);
       await activate(
         clipBlock(page, "placement-first").locator(".clip-hit"),
@@ -781,185 +607,4 @@ test("group pointer steps save exact 7/27 placements, refusal recovers and one U
     undefined,
     placementFixture,
   );
-});
-
-test("panel bounds preserve an oversized preference across passive banner and font changes", async ({
-  page,
-}, info) => {
-  await page.setViewportSize({ width: 1280, height: 600 });
-  await page.addInitScript(() =>
-    localStorage.setItem("sharecut.tabsHeight", "12"),
-  );
-  await withShareableProject(
-    async (projectPath) => {
-      await openHostShare(page, projectPath);
-      const before = snapshot(projectPath);
-      const commands: Command[] = [];
-      page.on("request", (request) => {
-        if (
-          request.method() === "POST" &&
-          new URL(request.url()).pathname.endsWith("/document/command")
-        )
-          commands.push(request.postDataJSON());
-      });
-      const panel = page.locator(".bottom-tabs");
-      const separator = page.getByRole("separator", {
-        name: "Resize editor panels",
-      });
-      const taller = page.getByRole("button", { name: "Taller", exact: true });
-      const preference = () =>
-        page.evaluate(() => localStorage.getItem("sharecut.tabsHeight"));
-      const height = () =>
-        panel.evaluate((element) => element.getBoundingClientRect().height);
-      const assertRange = async () => {
-        const actualRem = await panel.evaluate(
-          (element) =>
-            element.getBoundingClientRect().height /
-            Number.parseFloat(
-              getComputedStyle(document.documentElement).fontSize,
-            ),
-        );
-        await expect
-          .poll(async () =>
-            Number(await separator.getAttribute("aria-valuenow")),
-          )
-          .toBe(Math.round(actualRem * 10) / 10);
-        const current = Number(await separator.getAttribute("aria-valuenow"));
-        expect(current).toBeGreaterThanOrEqual(
-          Number(await separator.getAttribute("aria-valuemin")),
-        );
-        expect(current).toBeLessThanOrEqual(
-          Number(await separator.getAttribute("aria-valuemax")),
-        );
-      };
-      await page.evaluate(() => {
-        document.documentElement.style.fontSize = "24px";
-      });
-      await assertRange();
-      expect(await preference()).toBe("12");
-      const beforeBanner = await height();
-      await page.locator(".daw-shell-banners").evaluate((element) => {
-        element.style.blockSize = "2rem";
-      });
-      await expect.poll(height).toBeLessThan(beforeBanner);
-      await assertRange();
-      await expect(taller).toBeDisabled();
-      await expect(taller).toHaveAccessibleDescription(
-        "Panel is at its tallest size.",
-      );
-      expect(await preference()).toBe("12");
-      const ceiling = await height();
-      await page.getByRole("button", { name: "Shorter", exact: true }).click();
-      await expect.poll(height).toBeCloseTo(ceiling - 24, 0);
-      await taller.click();
-      await expect.poll(height).toBeCloseTo(ceiling, 0);
-      const stepped = await preference();
-      expect(Number(stepped)).toBeCloseTo(ceiling / 24, 4);
-      await page.evaluate(() => {
-        document.documentElement.style.fontSize = "20px";
-      });
-      await assertRange();
-      await expect(taller).toBeEnabled();
-      expect(await preference()).toBe(stepped);
-      await page.locator(".daw-shell-banners").evaluate((element) => {
-        element.style.removeProperty("block-size");
-      });
-      await assertRange();
-      expect(await preference()).toBe(stepped);
-      await page.getByRole("button", { name: "Reset panel size" }).click();
-      expect(await preference()).toBeNull();
-      expect(snapshot(projectPath)).toEqual(before);
-      expect(commands).toHaveLength(0);
-      await info.attach("passive-panel-layout-provenance.json", {
-        body: JSON.stringify({
-          storedRem: 12,
-          beforeBanner,
-          ceiling,
-          stepped,
-          syntheticAssistance: [
-            "24px and 20px root font",
-            "2rem existing banner row size",
-          ],
-          physicalDevice: false,
-        }),
-        contentType: "application/json",
-      });
-    },
-    undefined,
-    placementFixture,
-  );
-});
-
-test("Shorter clamps a retained panel preference to fresh bounds", async ({
-  page,
-}, info) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.addInitScript(() =>
-    localStorage.setItem("sharecut.tabsHeight", "30"),
-  );
-  await withShareableProject(async (projectPath) => {
-    await openHostShare(page, projectPath);
-    const before = snapshot(projectPath);
-    const commands: Command[] = [];
-    page.on("request", (request) => {
-      if (
-        request.method() === "POST" &&
-        new URL(request.url()).pathname.endsWith("/document/command")
-      )
-        commands.push(request.postDataJSON());
-    });
-    const panel = page.locator(".bottom-tabs");
-    const preference = () =>
-      page.evaluate(() => localStorage.getItem("sharecut.tabsHeight"));
-    const height = () =>
-      panel.evaluate((element) => element.getBoundingClientRect().height);
-
-    expect(
-      await page.evaluate(() =>
-        Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
-      ),
-    ).toBe(16);
-    await expect.poll(height).toBeCloseTo(480, 0);
-    const initialVisibleHeightPx = await height();
-    expect(await preference()).toBe("30");
-    await page.evaluate(() => {
-      document.documentElement.style.fontSize = "24px";
-    });
-    await expect.poll(height).toBeCloseTo(594, 0);
-    const passiveVisibleHeightPx = await height();
-    expect(await preference()).toBe("30");
-
-    await page.getByRole("button", { name: "Shorter", exact: true }).click();
-    await expect.poll(height).toBeCloseTo(464.4, 0);
-    expect(Number(await preference())).toBeCloseTo(19.35, 2);
-    expect(snapshot(projectPath)).toEqual(before);
-    expect(commands).toEqual([]);
-
-    const metrics = {
-      viewport: { width: 1440, height: 900 },
-      storedPreferenceBefore: 30,
-      initialVisibleHeightPx,
-      syntheticRootFontPx: 24,
-      preferenceAfterPassiveFontChange: 30,
-      visibleHeightAfterPassiveFontChangePx: passiveVisibleHeightPx,
-      preferenceAfterShorter: Number(await preference()),
-      visibleHeightAfterShorterPx: await height(),
-      documentCommands: commands,
-      projectAndHistoryUnchanged: snapshot(projectPath),
-      physicalDevice: "not verified",
-      listening: "not verified",
-    };
-    const metricsPath = info.outputPath("retained-panel-bound-metrics.json");
-    fs.writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
-    await info.attach("retained-panel-bound-metrics.json", {
-      path: metricsPath,
-      contentType: "application/json",
-    });
-    const screenshot = info.outputPath("retained-panel-bound.png");
-    await page.screenshot({ path: screenshot });
-    await info.attach("retained-panel-bound.png", {
-      path: screenshot,
-      contentType: "image/png",
-    });
-  });
 });

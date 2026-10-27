@@ -2610,7 +2610,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -2669,7 +2668,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -2728,7 +2726,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -2790,7 +2787,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -2853,7 +2849,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -2922,7 +2917,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -2961,7 +2955,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3010,7 +3003,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3069,7 +3061,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3128,7 +3119,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3190,7 +3180,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3251,7 +3240,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3311,7 +3299,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3370,7 +3357,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3429,7 +3415,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3488,7 +3473,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3547,7 +3531,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3609,7 +3592,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3672,7 +3654,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3741,7 +3722,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3781,7 +3761,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3830,7 +3809,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3889,7 +3867,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -3948,7 +3925,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -4010,7 +3986,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -4071,7 +4046,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -4131,7 +4105,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",
@@ -4190,7 +4163,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Forward 15 seconds",
             "A",
             "B",
-            "Comment",
           ],
           "regions": [
             "Deliver",

@@ -11,10 +11,6 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
-import {
-  readShortTouchLandscape,
-  resolveLayoutMode,
-} from "../state/layoutPresentation";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
@@ -66,7 +62,11 @@ function editUnsaved(projectPath: string): boolean {
 
 export function buildCommandContext(): CommandContext {
   const s = useDawStore.getState();
-  const transcriptFocused = s.activeTab === "transcript";
+  const transcriptFocused =
+    s.stage === "edit" &&
+    (s.shellBreakpoint === "phone"
+      ? s.editSurface === "text"
+      : !s.scriptCollapsed);
   const selection = s.selection;
   const selectedTrackIndex =
     selection?.kind === "track"
@@ -134,14 +134,7 @@ export function buildCommandContext(): CommandContext {
     hasInspectorSelection: selection != null,
     following: s.followingClientId != null,
     recordPanelOpen: s.chrome.recordPanelOpen,
-    // The timeline layout hides the bottom tabs, so the Tighten panel too.
-    tightenPanelOpen:
-      s.activeTab === "tighten" &&
-      resolveLayoutMode(
-        s.layoutMode,
-        s.shellBreakpoint,
-        readShortTouchLandscape(),
-      ) !== "timeline",
+    tightenPanelOpen: s.stage === "review" && s.reviewSection === "tighten",
   };
 }
 
@@ -174,10 +167,6 @@ export function evaluateWhen(
         : { ok: false, reason: "No trim handle focused" };
     case "always":
       return { ok: true };
-    case "layoutShell":
-      return ctx.shellBreakpoint !== "phone"
-        ? { ok: true }
-        : { ok: false, reason: "Layouts need the desktop or tablet shell" };
     case "editorFocused":
       return ctx.editorFocused
         ? { ok: true }

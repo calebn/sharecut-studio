@@ -96,7 +96,7 @@ export function pipelineStateSentence(
   }
 }
 
-/** StatusBar prefix: "Pipeline" only for pipeline jobs; "Activity" otherwise. */
+/** Chip prefix: "Pipeline" only for pipeline jobs; "Activity" otherwise. */
 export function pipelineKindLabel(
   kind: PipelineJobSnapshot["kind"] | undefined,
 ): string {
@@ -106,7 +106,7 @@ export function pipelineKindLabel(
   return "Activity";
 }
 
-/** Compact StatusBar / phone chip text for a live job. */
+/** Compact chip text for a live job. */
 export function pipelineChromeLabel(
   job: PipelineJobSnapshot,
   options?: { headlineMax?: number },

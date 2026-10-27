@@ -72,9 +72,9 @@ state**, most significant first.
 
 **Space** — `--space-<step>` (`--space-0…--space-6`) on a 4px rhythm: 2, 4, 8, 12, 16, and 24px. The legacy `--space-2` / `--space-05` / `--space-45` names are gone (they duplicated space-3/4/5); use `--space-0/1/3/4/5/6`. Chrome geometry that
 repeats becomes a layout token (`--header-width`); one-off element sizes stay
-literals. The Studio-only `--editor-main-min-height` supplies the desktop grid
-floor. The shell exposes it as `--shell-main-min-height` in rem so the splitter
-reads the same constraint when it measures available panel space.
+literals. The Studio-only `--editor-main-min-height` supplied the desktop grid
+floor for the removed bottom-dock splitter (#2292); the stage frame sizes the
+Edit body from `--frame-bottom-chrome` and the header and Player heights instead.
 Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 The pinned pending-review card uses `--pending-review-feedback-max-height`
 to cap scrollable supplementary errors at 30dvh. Review buttons keep their
@@ -174,7 +174,7 @@ category-first pattern (`bg` category, rung as role).
 | Rung | Token | Used for |
 | ---- | ----- | -------- |
 | **canvas** | `--color-bg-canvas` | App background; the bottom of the stack. |
-| **base** | `--color-bg-base` | Panes, chrome, sidebars: track headers, bottom panel, tool rail. (Studio name for the shared `--color-bg-surface`.) |
+| **base** | `--color-bg-base` | Panes, chrome, sidebars: track headers, Script pane, tool strip. (Studio name for the shared `--color-bg-surface`.) |
 | **raised** | `--color-bg-raised` | Inspector, cards, and badges that sit above base. (Studio name for the shared `--color-bg-elevated`.) |
 | **overlay** | `--color-bg-overlay` | Menus, dialogs, popovers, toasts, bottom sheets — anything floating above the app. |
 | **sunken** | `--color-bg-sunken` | Recessed wells, inputs, code blocks — visually *below* base. |
@@ -199,7 +199,7 @@ Three roles sit beside the ladder:
   components never restate it; checked menu radios add a check mark.
   Quiet standalone toggles and tabs use full-strength text and a neutral
   underline instead; grouped `.ui-segmented` controls retain the chip.
-  Another exception: the phone tab bar (`.mobile-nav`) marks the current
+  Another exception: the phone Stage tab bar marks the current
   location with an accent top indicator and accent label, following the iOS
   and Android tab-bar convention; it is navigation, not a selected value.
 - `--color-hover` — the hover wash: a faint `--color-text-primary` tint that
@@ -401,17 +401,19 @@ freezes the existing values. All values are rem or a percentage.
 
 | Family | Tokens |
 | ------ | ------ |
-| Regions | `--app-header-height`, `--app-header-height-phone`, `--alert-slot-height`, `--rail-width`, `--script-pane-width` (+ `-min`, `-max`, `-wide`), `--action-bar-height` (+ `-touch`), `--action-dock-height`, `--record-dock-height`, `--tab-bar-height` |
+| Regions | `--app-header-height`, `--app-header-height-phone`, `--alert-slot-height`, `--script-pane-width` (+ `-min`, `-max`, `-wide`), `--action-bar-height` (+ `-touch`), `--action-dock-height`, `--tab-bar-height` |
 | Spacing | `--space-7` (2rem), `--space-8` (3rem), `--content-max-wide`, `--content-max-narrow` |
 | Sheets and widths | `--sheet-peek-min/max`, `--sheet-detent-half/full`, `--sheet-grip-width/height`, `--menu-width`, `--anchored-card-width`, `--side-panel-width`, `--centered-card-width`, `--palette-width` |
 | Targets | `--target-dock-button`, `--target-dock-primary`, `--target-primary-phone/desktop/page`, `--handle-visual-width/height` |
 | Type | `--font-size-card-title`, `--font-size-page-title`, `--font-size-reading-phone` |
 | Selection | `--selection-outline-width`, `--selection-row-edge-width`, `--selection-remote-width` |
 
-The Player bar reuses `--transport-height`, touch targets reuse `--touch-min`,
+The Player bar reuses `--player-height`, touch targets reuse `--touch-min`,
 the desktop icon button reuses `--control-height`, and keyboard focus keeps
-`--focus-ring-width` and `--focus-ring-offset`. `--mobile-nav-height` (3.25rem)
-stays until the phone tab bar (`--tab-bar-height`, 3.5rem) is wired.
+`--focus-ring-width` and `--focus-ring-offset`. The phone Stage tab bar uses
+`--tab-bar-height` (3.5rem); `--mobile-nav-height` was removed with the old
+mode nav (#2292), and `--frame-bottom-chrome` sums the tab bar and Player for
+sheet, jog and toast offsets.
 
 `--color-record` is the one new colour role, declared in all three theme views
 next to `--color-danger` and starting on the same primitive. Record red marks

@@ -7,8 +7,12 @@ import {
 } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { clickHTMLElement } from "./domClick";
-import { followUntilBannerVisible, waitForFollowBanner } from "./followBanner";
-import { openTransportMenu } from "./overlayReachability";
+import {
+  followUntilBannerVisible,
+  openPeopleMenu,
+  peopleButton,
+  waitForFollowBanner,
+} from "./followBanner";
 import { scrollTimelineBy } from "./scroll";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -16,58 +20,44 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import {
+  type Audition,
+  goToStage,
+  openPanel,
+  phone,
+  setAudition,
+} from "./stageNav";
 import { zoomTimelineIn } from "./timelineZoom";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
+const AUDITION_NAMES: Record<Audition, string> = {
+  mix: "Full mix",
+  fx: "Without mix processing",
+  raw: "Original",
+};
 const DESKTOP = { width: 1440, height: 900 };
 const TABLET = { width: 820, height: 1180 };
 const PHONE = { width: 390, height: 844 };
 /** Matches the Storybook `recordMobileViewport` width used by Templates/FollowBanner PhoneLongName. */
 const NARROW_PHONE = { width: 360, height: 800 };
-async function transportTimecode(page: Page): Promise<string> {
-  // Phone Listen renders a full pair in its body; other shells use header
-  // transport's compact timecode. Compare the shared playhead portion.
-  const [timecode = ""] = await page
-    .locator(".listen-hero .timecode, header.transport .timecode")
-    .allTextContents();
-  return timecode.split("/")[0]?.trim() ?? "";
+async function playerTimecode(page: Page): Promise<string> {
+  const now = page.locator(".stage-frame-player .sys-player-now").first();
+  return ((await now.textContent()) ?? "").trim();
 }
 
 /** Shared GUI process keeps leftover roster entries; prove the peer is this leader. */
 async function seekLeaderPlayhead(leader: Page): Promise<string> {
+  await phone.showTimeline(leader);
   const ruler = leader.getByRole("slider", { name: "Timeline position" });
-  const scrub = leader.locator(".mobile-scrub");
-  if (await ruler.count()) {
-    await expect(ruler).toBeVisible();
-    await ruler.focus();
-    await ruler.press("Home");
-    await expect.poll(() => transportTimecode(leader)).toMatch(/^00:00/);
-    await ruler.press("End");
-  } else {
-    await expect(scrub).toBeVisible();
-    await scrub.evaluate((el) => {
-      const input = el as HTMLInputElement;
-      const max = Number(input.max) || 2;
-      const desc = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      );
-      if (desc?.set) {
-        desc.set.call(input, "0");
-      }
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      if (desc?.set) {
-        desc.set.call(input, String(max));
-      }
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-  }
+  await expect(ruler).toBeVisible();
+  await ruler.focus();
+  await ruler.press("Home");
+  await expect.poll(() => playerTimecode(leader)).toMatch(/^00:00/);
+  await ruler.press("End");
   await expect
-    .poll(() => transportTimecode(leader), { timeout: 8_000 })
+    .poll(() => playerTimecode(leader), { timeout: 8_000 })
     .not.toMatch(/^00:00\.000/);
-  return transportTimecode(leader);
+  return playerTimecode(leader);
 }
 
 async function expectFollowerMatchesLeaderPlayhead(
@@ -76,7 +66,7 @@ async function expectFollowerMatchesLeaderPlayhead(
 ): Promise<void> {
   const expected = await seekLeaderPlayhead(leader);
   await expect
-    .poll(() => transportTimecode(follower), { timeout: 8_000 })
+    .poll(() => playerTimecode(follower), { timeout: 8_000 })
     .toBe(expected);
 }
 
@@ -107,36 +97,51 @@ async function movePointer(
   return box!;
 }
 
+/** The hear menu shows `mode` as the one chosen. */
+async function expectAudition(page: Page, mode: Audition): Promise<void> {
+  const row = page.getByRole("menuitemradio", { name: AUDITION_NAMES[mode] });
+  await expect(async () => {
+    await page.getByRole("button", { name: "Hear options" }).click();
+    await expect(row).toHaveAttribute("aria-checked", "true", {
+      timeout: 1_000,
+    });
+  }).toPass({ timeout: 8_000 });
+  await page.keyboard.press("Escape");
+  await expect(row).toBeHidden();
+}
+
 async function expectGuestListeningInMix(page: Page): Promise<void> {
   await expect(page.locator(".follow-banner")).toContainText(
     /Listening in Mix/,
   );
-  await expect(
-    page.locator('[data-presence-anchor="audition:mix"][aria-pressed="true"]'),
-  ).toBeVisible();
-  const fx = page.locator('[data-presence-anchor="audition:fx"]');
-  const raw = page.locator('[data-presence-anchor="audition:raw"]');
-  await expect(fx).toBeDisabled();
-  await expect(raw).toBeDisabled();
-  await expect(fx).not.toHaveAttribute("aria-pressed", "true");
+  // A guest hears the mix only: the Player has no hear menu to change it.
+  await expect(page.getByRole("button", { name: "Hear options" })).toHaveCount(
+    0,
+  );
 }
 
-async function followMenuPeerUntilPlayheadMoves(
+async function followPeerUntilPlayheadMirrors(
   follower: Page,
   leader: Page,
-  openMenu: () => Promise<void>,
 ): Promise<void> {
-  await openMenu();
-  const people = follower.getByRole("menuitem", { name: /Follow/ });
-  await expect(people.first()).toBeVisible({ timeout: 15_000 });
-  const peopleBox = await people.first().boundingBox();
-  expect(peopleBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const n = await people.count();
+  const rows = () =>
+    follower
+      .getByRole("menu", { name: "People" })
+      .getByRole("menuitem", { name: /· Follow$/ });
+  await openPeopleMenu(follower);
+  await expect(rows().first()).toBeVisible({ timeout: 15_000 });
+  const peopleBox = await rows().first().boundingBox();
+  // Menu rows take the touch floor on a coarse pointer, not by width.
+  if (await follower.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
+    expect(peopleBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+  const n = await rows().count();
   for (let i = 0; i < n; i++) {
     if (i > 0) {
-      await openMenu();
+      await stopFollowing(follower);
+      await openPeopleMenu(follower);
     }
-    await clickHTMLElement(people.nth(i));
+    await clickHTMLElement(rows().nth(i));
     if (!(await waitForFollowBanner(follower))) {
       continue;
     }
@@ -148,32 +153,6 @@ async function followMenuPeerUntilPlayheadMoves(
     }
   }
   throw new Error("no live Follow peer mirrored the leader playhead");
-}
-
-async function followUntilLeaderPlayheadMirrors(
-  follower: Page,
-  leader: Page,
-): Promise<void> {
-  const buttons = follower.getByRole("button", { name: /Follow / });
-  await expect(buttons.first()).toBeVisible({ timeout: 15_000 });
-  const n = await buttons.count();
-  for (let i = 0; i < n; i++) {
-    await stopFollowing(follower);
-    await follower
-      .getByRole("button", { name: /Follow / })
-      .nth(i)
-      .click();
-    if (!(await waitForFollowBanner(follower))) {
-      continue;
-    }
-    try {
-      await expectFollowerMatchesLeaderPlayhead(leader, follower);
-      return;
-    } catch {
-      await stopFollowing(follower);
-    }
-  }
-  throw new Error("no Follow peer mirrored the leader playhead");
 }
 
 async function withTwoStudioPages<T>(
@@ -257,7 +236,7 @@ test.describe("presence follow desktop", () => {
   }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await zoomTimelineIn(pageA, { maxSteps: 16, minRangePx: 200 });
-      await followUntilLeaderPlayheadMirrors(pageB, pageA);
+      await followPeerUntilPlayheadMirrors(pageB, pageA);
       await expect(
         pageB.locator(".timeline-area[data-following]"),
       ).toBeVisible();
@@ -272,27 +251,26 @@ test.describe("presence follow desktop", () => {
     });
   });
 
-  test("follows Comments tab then unfollows on Transcript click", async ({
+  test("follows the Comments section then unfollows on a stage change", async ({
     browser,
   }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
-      await followUntilLeaderPlayheadMirrors(pageB, pageA);
+      await followPeerUntilPlayheadMirrors(pageB, pageA);
+      await openPanel(pageA, "comments");
       const comments = pageA.locator('[data-presence-anchor="tab:comments"]');
-      await comments.click();
       await expect(comments).toHaveAttribute("aria-selected", "true");
       await expect(
         pageB.locator('[data-presence-anchor="tab:comments"]'),
       ).toHaveAttribute("aria-selected", "true");
       await expect(pageB.locator(".follow-banner")).toBeVisible();
-      await pageB.locator('[data-presence-anchor="tab:transcript"]').click();
+      await goToStage(pageB, "edit");
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
     });
   });
 
   test("ghost on chrome then hides off-surface", async ({ browser }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
-      const follow = pageB.getByRole("button", { name: /Follow / }).first();
-      await expect(follow).toBeVisible({ timeout: 15_000 });
+      await expect(peopleButton(pageB)).toBeVisible({ timeout: 15_000 });
       await pageA.bringToFront();
       await movePointer(
         pageA,
@@ -310,9 +288,7 @@ test.describe("presence follow desktop", () => {
 
   test("timeline ghost hides below the last lane", async ({ browser }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
-      await expect(
-        pageB.getByRole("button", { name: /Follow / }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(peopleButton(pageB)).toBeVisible({ timeout: 15_000 });
       await pageA.bringToFront();
       const lastLane = pageA.locator(".lane-row[data-track-id]").last();
       await expect(lastLane).toBeVisible();
@@ -337,13 +313,9 @@ test.describe("presence follow desktop", () => {
     browser,
   }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
-      await followUntilLeaderPlayheadMirrors(pageB, pageA);
-      await pageA.locator('[data-presence-anchor="audition:fx"]').click();
-      await expect(
-        pageB.locator(
-          '[data-presence-anchor="audition:fx"][aria-pressed="true"]',
-        ),
-      ).toBeVisible({ timeout: 8_000 });
+      await followPeerUntilPlayheadMirrors(pageB, pageA);
+      await setAudition(pageA, "fx");
+      await expectAudition(pageB, "fx");
       // Both tabs are the host, so M saves the mute for everyone (#386).
       const muteA = pageA.locator('[data-presence-anchor="track:guest:mute"]');
       const muteB = pageB.locator('[data-presence-anchor="track:guest:mute"]');
@@ -365,13 +337,9 @@ test.describe("presence follow desktop", () => {
 test.describe("presence follow tablet", () => {
   test("follows from Menu People then unfollows", async ({ browser }) => {
     await withTwoStudioPages(browser, TABLET, async (pageA, pageB) => {
-      await expect(pageA.locator(".daw-shell--tablet")).toBeVisible();
-      await expect(pageB.locator(".daw-shell--tablet")).toBeVisible();
-      await followUntilBannerVisible(pageB, async () => {
-        await pageB
-          .getByRole("button", { name: "Menu" })
-          .click({ force: true });
-      });
+      await expect(pageA.locator(".stage-frame--tablet")).toBeVisible();
+      await expect(pageB.locator(".stage-frame--tablet")).toBeVisible();
+      await followUntilBannerVisible(pageB);
       await expect(pageB.locator(".follow-banner")).toBeVisible();
       await expect(pageB.locator(".presence-overlay")).toBeAttached();
 
@@ -386,14 +354,8 @@ test.describe("presence follow tablet", () => {
 test.describe("presence follow phone", () => {
   test("follow banner then unfollow on Listen", async ({ browser }) => {
     await withTwoStudioPages(browser, PHONE, async (pageA, pageB) => {
-      await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
-      await followMenuPeerUntilPlayheadMoves(pageB, pageA, async () => {
-        await pageB
-          .getByRole("navigation", { name: "Primary" })
-          .getByRole("button", { name: "More" })
-          .click({ force: true });
-        await pageB.getByRole("button", { name: /^People/ }).click();
-      });
+      await expect(pageB.locator(".stage-frame--phone")).toBeVisible();
+      await followPeerUntilPlayheadMirrors(pageB, pageA);
       const banner = pageB.locator(".follow-banner");
       await expect(banner).toBeVisible();
       const bannerBox = await banner.boundingBox();
@@ -402,10 +364,7 @@ test.describe("presence follow phone", () => {
       expect(bannerBox!.x).toBeGreaterThanOrEqual(0);
       expect(bannerBox!.x + bannerBox!.width).toBeLessThanOrEqual(vw + 1);
 
-      await pageB
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "Listen" })
-        .click();
+      await phone.showListen(pageB);
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
     });
   });
@@ -415,14 +374,8 @@ test.describe("presence follow phone", () => {
       browser,
       DESKTOP,
       async (_pageA, pageB) => {
-        await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
-        await followUntilBannerVisible(pageB, async () => {
-          await pageB
-            .getByRole("navigation", { name: "Primary" })
-            .getByRole("button", { name: "More" })
-            .click({ force: true });
-          await pageB.getByRole("button", { name: /^People/ }).click();
-        });
+        await expect(pageB.locator(".stage-frame--phone")).toBeVisible();
+        await followUntilBannerVisible(pageB);
         const banner = pageB.locator(".follow-banner");
         await expect(banner).toBeVisible();
         const label =
@@ -431,11 +384,11 @@ test.describe("presence follow phone", () => {
           label.match(/^Following\s+(.+?)(?:\s+·|$)/)?.[1]?.trim() ?? "";
         expect(followed).not.toBe("");
         await pageB.setViewportSize(DESKTOP);
-        await expect(pageB.locator(".daw-shell--phone")).toHaveCount(0, {
+        await expect(pageB.locator(".stage-frame--phone")).toHaveCount(0, {
           timeout: 8_000,
         });
         await expect(
-          pageB.locator(".daw-shell--desktop.daw-shell--following"),
+          pageB.locator(".stage-frame--desktop.stage-frame--following"),
         ).toBeVisible();
         await expect(banner).toBeVisible();
         await expect(banner).toContainText(`Following ${followed}`);
@@ -448,24 +401,19 @@ test.describe("presence follow phone", () => {
 test.describe("presence follow guest share", () => {
   test("guest follows host on a share token", async ({ browser }) => {
     await withHostGuestPages(browser, "viewer", async (pageA, pageB) => {
-      await pageA.locator('[data-presence-anchor="tab:pipeline"]').click();
-      const followHost = pageB.getByRole("button", {
-        name: "Follow Host",
-        exact: true,
-      });
+      await goToStage(pageA, "prepare");
+      const menu = await openPeopleMenu(pageB);
+      const followHost = menu.getByRole("menuitem", { name: /Host · Follow$/ });
       await expect(followHost).toBeVisible({ timeout: 15_000 });
       await followHost.click();
       const followBanner = pageB.locator(".follow-banner");
       await expect(followBanner).toBeVisible();
-      await expect(pageB.locator(".presence-overlay")).toBeAttached();
+      // A viewer has no timeline, so there is no presence overlay to attach.
       await expect(followBanner).toContainText(/in Pipeline \(host-only\)/);
-      await expect(
-        pageB.locator(
-          '[data-presence-anchor="tab:transcript"][aria-selected="true"]',
-        ),
-      ).toBeVisible();
+      // A viewer has Review only, so the host's Prepare stage stays out of reach.
+      await expect(pageB.getByRole("main", { name: "Review" })).toBeVisible();
 
-      await pageA.locator('[data-presence-anchor="audition:fx"]').click();
+      await setAudition(pageA, "fx");
       await expect(pageB.locator(".follow-banner")).toContainText(
         /auditioning FX/,
       );
@@ -480,12 +428,10 @@ test.describe("presence follow guest share", () => {
       browser,
       "viewer",
       async (host, guest) => {
-        await expect(guest.locator(".daw-shell--phone")).toBeVisible();
-        await host.locator('[data-presence-anchor="tab:pipeline"]').click();
-        await followUntilBannerVisible(guest, async () => {
-          await openTransportMenu(guest);
-        });
-        await host.locator('[data-presence-anchor="audition:fx"]').click();
+        await expect(guest.locator(".stage-frame--phone")).toBeVisible();
+        await goToStage(host, "prepare");
+        await followUntilBannerVisible(guest);
+        await setAudition(host, "fx");
         const banner = guest.locator(".follow-banner");
         // The degrade detail makes the text longer than a 360px row.
         await expect(banner).toContainText(/auditioning FX/);
@@ -494,7 +440,7 @@ test.describe("presence follow guest share", () => {
         await expect
           .poll(() => text.evaluate((el) => el.scrollWidth > el.clientWidth))
           .toBe(true);
-        const shellBox = await guest.locator(".daw-shell").boundingBox();
+        const shellBox = await guest.locator(".stage-frame").boundingBox();
         const stopBox = await guest
           .locator(".follow-banner-stop")
           .boundingBox();
@@ -511,10 +457,11 @@ test.describe("presence follow guest share", () => {
   test("editor guest Mix lock after host FX", async ({ browser }) => {
     await withHostGuestPages(browser, "editor", async (pageA, pageB) => {
       await test.step("publish host FX presence", async () => {
-        await pageA.locator('[data-presence-anchor="audition:fx"]').click();
+        await setAudition(pageA, "fx");
       });
       await test.step("follow host FX presence", async () => {
-        const follows = pageB.getByRole("button", { name: /Follow / });
+        const menu = await openPeopleMenu(pageB);
+        const follows = menu.getByRole("menuitem", { name: /· Follow$/ });
         await expect(follows).toHaveCount(1, { timeout: 15_000 });
         await follows.click();
         await expect(pageB.locator(".follow-banner")).toContainText(

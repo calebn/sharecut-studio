@@ -55,7 +55,7 @@ make them feel the software is fragile.
     gate. (Surface 1)
 - Teach in the empty moment, then get out of the way.
   - Do: "No tracks yet. Import Audio adds one dialogue track per
-    file." (MobileShell — the pattern to copy)
+    file." (the Edit stage's empty session — the pattern to copy)
   - Don't: "No live room snapshot yet. Mint a record room from
     Share…" — never send the user to another surface when the
     action can live here. (Surface 1)
@@ -148,7 +148,7 @@ is the fix, enforced in copy review.
 - **Bottom zone is for doing; top zone is for knowing.** Primary and
   frequent actions live in the bottom easy-reach zone; the top is
   reserved for titles, status, and infrequent controls. (Surfaces 1,
-  3, 5 — the phone bottom nav and EditingToolRail are the reference
+  3, 5 — the phone Stage tab bar, the Player bar and the blade confirm sheet are the reference
   implementations, with Undo and Redo in the compact inspector header
   while a selection is open and Zoom beside them; the REC chip stranded in
   the top bar is the violation, and zoom buried in the top overflow menu was
@@ -200,8 +200,8 @@ decided-by: calebn
 evidence:
 - #1326 owner decision https://github.com/calebn/sharecut-studio/issues/1326#issuecomment-6151053529, add visible Undo, Redo, Zoom out, and Zoom in to the desktop transport
 enforced-by:
-- gui/web/src/layout/TransportBar.editControls.test.tsx::keeps history and zoom visible when desktop chrome collapses
-- gui/web/src/layout/TransportBar.editControls.test.tsx::places history then zoom before tools on a wide desktop for an editor
+- gui/web/src/stage/edit/EditCorner.test.tsx::zooms through view.zoomIn and view.zoomOut
+- gui/web/src/stage/frame/HistoryControls.test.tsx::uses authorized guest history availability and the same command path
 -->
 
 Desktop keeps **Undo**, **Redo**, **Zoom out**, and **Zoom in** visible in the
@@ -230,7 +230,7 @@ choice; phone and tablet keep their existing editing rail and compact inspector.
   [gui-mobile.md](gui-mobile.md), never by omission. (Surfaces 3, 4, 5.)
 - **Frequent actions have a direct control.** Menus are shortcuts, not
   the only path, for frequent actions: those belong in the main UI,
-  such as the tool rail or the bottom zone. Infrequent actions may live
+  such as the Edit tool strip or the bottom zone. Infrequent actions may live
   only in More or the overflow menu, as long as that path exists on
   every shell. (Surfaces 3, 5 — Apple HIG.)
 - **Defaults are opt-in (least privilege).** A control that mints
@@ -270,7 +270,7 @@ the empty state, not a separate discovery task.
   did, so nothing changes behind the question. #1027
   and #1031 replaced every native dialog, and oxlint's `no-alert` rule
   rejects new ones (see Governance). The
-  blade-cut confirm sheet in `EditingToolRail` (named target, time,
+  blade-cut confirm sheet in `EditToolStrip` (named target, time,
   Cancel safe-left, action right) is the model. Inside an open
   `Dialog`, confirm in place with `ui/InlineConfirm` instead of
   stacking a second dialog: the row swaps its actions for the
@@ -284,7 +284,7 @@ the empty state, not a separate discovery task.
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
-  centred at the bottom above the status bar on desktop and tablet. On a
+  centred at the bottom above the Player bar on desktop and tablet. On a
   phone it docks above bottom chrome. A visible compact inspector instead
   supplies a host first inside the same body scroller as its fields, below
   the pinned header. Feedback preserves selected half and full heights. A focused
@@ -436,8 +436,8 @@ audited finding.
 - [ ] Every pointer action has a keyboard path (real `<button>`s, not
   handler-spans; visible focus).
 - [ ] The feature is reachable in all three shells (phone / tablet /
-  desktop) — check the More hub, the overflow menu, and the tool
-  rail, not just the desktop layout.
+  desktop) — check the Project menu, the eye sheet, and the tool
+  strip, not just the desktop layout.
 - [ ] Mutations offer local undo or toast-with-undo; undo is reachable
   near the action, not only in History.
 - [ ] Empty states include the recovery action; error states name the
@@ -644,7 +644,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   Nothing was undone."); `InlineError` alerts for action errors and
   speaks saved-state errors politely, once. Second review round: on
   phones the toast docks above the highest bottom chrome shown (sheet,
-  Timeline tool rail, mode nav) and below the transport, so it covers
+  tool strip, Stage tab bar) and below the header, so it covers
   no controls; a repeated identical announcement is spoken again; a
   refused undo is announced once. Third review round: an open confirm
   holds every app shortcut as the native `confirm()` did (Mod+Z no
@@ -675,8 +675,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   recovery.
 - 2026-10-13 Hung boundary load (#1314). The dialog now offers **Try again**
   beside that message instead of only Close.
-- 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sit in
-  the phone and tablet tool rail; Impact's Approve all and Reject all ask first
+- 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sat in
+  the phone and tablet tool rail (now the Edit tool strip); Impact's Approve all and Reject all ask first
   with counts and answer with one toast Undo; the tablet lane header's M and S
   reach the 44 px target on touch. Track lock stays out of scope: it was a
   product gap, not an established violation.

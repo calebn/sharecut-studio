@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openSuggestedPendingEdit } from "./pendingEdit";
+import { phone as stagePhone } from "./stageNav";
 
 const SERVER_TEXT =
   "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine, then `podcast transcript refine-done`, or `podcast transcript refine-waive --reason ...`.";
@@ -38,7 +39,7 @@ for (const phone of PHONES) {
     await page.setViewportSize({ width: 1280, height: 720 });
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize(phone);
-    await page.getByRole("button", { name: "Timeline" }).click();
+    await stagePhone.showTimeline(page);
     const sheet = page.locator(".bottom-sheet--compact");
     await sheet
       .getByRole("button", { name: "Approve", exact: true })
@@ -55,7 +56,7 @@ for (const phone of PHONES) {
     const waive = banner.getByRole("button", { name: "Waive with reason" });
     await expect(waive).toBeVisible();
     await expect(waive).toBeInViewport();
-    const nav = page.getByRole("navigation", { name: "Primary" });
+    const nav = page.locator(".stage-frame-player");
     const field = banner.getByLabel("Waiver reason");
     await expect(field).toBeInViewport();
     await expect

@@ -1,6 +1,6 @@
 /**
  * Viewport shell breakpoints for ShareCut Studio (phone / tablet / desktop).
- * Align with docs/gui-mobile.md and CSS data-shell / .daw-shell--*.
+ * Align with docs/gui-mobile.md and CSS data-shell / .stage-frame--*.
  *
  * Prefer matchMedia (same CSS px as layout) over window.outerWidth. DevTools
  * device-metrics override can desync outer window size from the CSS viewport;

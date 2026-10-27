@@ -128,7 +128,7 @@ Accent identifies actions and focus; small links use the darker `--color-accent-
 
 `rem` / `em` / `ch` for type and space. Chrome padding, margin, gap, font-size, radius, and color come from theme tokens (`--space-*`, `--s*` for modular type, `--font-size-*`, `--radius-*`). Layout geometry (`width` / `height` / flex-basis) may use rem literals — do not force those onto `--space-*`. `px` only for `1px` hairlines, timeline canvas math (`layout.ts` lane heights), and consent-gated sentinels. Do not set `html { font-size: 62.5% }`. Do not size type with `vw` alone.
 
-Prefer layout that wraps from leftover space (`flex-wrap` + `gap` + `flex-basis`) over width breakpoints. Named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`) when leftover-space wrap is not enough; any fluid type still includes a rem term. Do not use viewport-size `@media` (`min/max-width/height`) for chrome density — shell phone/tablet/desktop stays JS `useViewportClass`. Capability media (`hover`, `pointer`, `prefers-*`) may stay `@media`.
+Prefer layout that wraps from leftover space (`flex-wrap` + `gap` + `flex-basis`) over width breakpoints. Named `@container` (`app` on `.stage-frame`, `timeline` on `.timeline-area`) when leftover-space wrap is not enough; any fluid type still includes a rem term. Do not use viewport-size `@media` (`min/max-width/height`) for chrome density — shell phone/tablet/desktop stays JS `useViewportClass`. Capability media (`hover`, `pointer`, `prefers-*`) may stay `@media`.
 
 Bottom-sheet controls draw their focus outlines inside their border boxes;
 primary controls use `--color-accent-on-solid` so the inset outline remains

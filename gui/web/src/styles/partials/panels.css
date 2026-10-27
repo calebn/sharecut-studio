@@ -227,21 +227,6 @@ html[data-shell="phone"] .impact-pending-select {
   font-size: var(--font-size-review);
 }
 
-/* Docked on the phone Listen view: one quiet row of text, then the chip and
-   Post. Fields stay at 1rem so iOS does not zoom in on focus. */
-.comment-compose--dock {
-  padding: 0;
-  gap: var(--space-3);
-  background: transparent;
-  border: none;
-}
-
-.comment-compose--dock textarea {
-  font-size: var(--font-size-review);
-  resize: none;
-  min-block-size: var(--touch-min);
-}
-
 @media (pointer: coarse) {
   .comment-compose input:not([type="checkbox"]),
   .comment-compose textarea,
@@ -1581,50 +1566,6 @@ button.history-row {
 
 .step-error {
   color: var(--color-danger);
-}
-
-.status-pipeline {
-  /* Interaction paint from .ui-control; link-style chip */
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  max-width: 100%;
-  min-width: 0;
-  background: transparent;
-  border-color: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-weight: 500;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 0.125rem;
-}
-
-.status-pipeline-copy {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status-pipeline.running {
-  color: var(--color-accent-fg);
-}
-
-.status-pipeline.running .pipeline-stale {
-  color: var(--color-text-secondary);
-}
-
-.status-pipeline--static {
-  text-decoration: none;
-  cursor: default;
-}
-
-.activity-count-badge {
-  font-size: var(--font-size-small);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  text-decoration: none;
 }
 
 .tighten-panel {

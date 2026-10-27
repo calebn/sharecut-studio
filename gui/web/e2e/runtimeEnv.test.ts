@@ -17,6 +17,19 @@ describe("e2eRuntimeEnv", () => {
   afterEach(() => {
     fs.rmSync(manifest.manifestDir, { recursive: true, force: true });
   });
+  it("points the model cache inside the owned manifest directory", () => {
+    const env = e2eRuntimeEnv(
+      {
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
+        PODCAST_MCP_CACHE: "/Users/developer/.cache/podcast_mcp",
+      },
+      "test-run",
+    );
+
+    expect(env.PODCAST_MCP_CACHE).toBe(
+      path.join(ownedE2eManifestDirectory(manifest.manifestPath), "cache"),
+    );
+  });
   it("removes every relay and object-store deployment setting", () => {
     const env = e2eRuntimeEnv(
       {

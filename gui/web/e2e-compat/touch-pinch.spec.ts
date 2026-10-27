@@ -8,6 +8,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import {
   buildFixture,
   type CaseFixtures,
@@ -180,7 +181,7 @@ async function secondFingerCancels(
   info: TestInfo,
 ): Promise<void> {
   const viewport = SIZES[size];
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const rows: Record<string, unknown>[] = [];
   for (const [start, { clipAt, select, dragPx, locate }] of Object.entries(
@@ -188,8 +189,8 @@ async function secondFingerCancels(
   )) {
     const p = await context.newPage();
     await p.setViewportSize(viewport);
-    await p.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(p.locator(".daw-shell")).toBeVisible();
+    await openProject(p, projectPath);
+    await expect(p.locator(".stage-frame")).toBeVisible();
     if (viewport.width < 768) await openPhoneTimeline(p);
     await setZoom(p, 4);
     const fingers = await twoFingers(context, p, browserName);

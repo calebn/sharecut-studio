@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 /** Lock reference:"delighted" (word_index 3, t=2.97s) via a stubbed ProjectView
  * response, the same word `transcript-low-confidence.spec.ts` uses. */
@@ -51,14 +52,11 @@ test.describe("Audibility lock indicator (#781)", () => {
       },
     );
 
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .click();
+    await openPanel(page, "transcript");
 
     const chip = page
       .locator(".transcript-list")
@@ -105,14 +103,11 @@ test.describe("Audibility lock indicator (#781)", () => {
       },
     );
 
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .click();
+    await openPanel(page, "transcript");
     await page.getByRole("button", { name: /^Correct:/i }).click();
 
     const chip = page
@@ -155,14 +150,11 @@ test.describe("Audibility lock indicator (#781)", () => {
       },
     );
 
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .click();
+    await openPanel(page, "transcript");
 
     const annotateBtn = page.getByRole("button", {
       name: /^(Annotate:|Hide annotate)/,

@@ -404,7 +404,7 @@ export function registerTightenCommands(): void {
     }
     s.setSelection({ kind: "pending", id: edit.id, trackId: edit.track_id });
     s.setPlayheadSec(Math.max(0, edit.timeline_start));
-    s.setActiveTab("tighten");
+    s.openStage("review", { section: "tighten" });
     return { status: "ok" };
   });
 }

@@ -17,6 +17,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import {
@@ -90,7 +91,7 @@ const pointTime = async (page: Page, id: string) =>
  * pending cut whose start is 0.5 s after the next one's end (28 s).
  */
 async function fixture(page: Page) {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const points = (await saved(page)).envelopes.find(
     (e) => e.track_id === TRACK,
@@ -117,8 +118,8 @@ async function fixture(page: Page) {
 
 async function open(page: Page, size: SizeName, theme: "dark" | "light") {
   await page.setViewportSize(SIZES[size]);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (SIZES[size].width < 768) await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
@@ -217,7 +218,7 @@ test("a held nudge stops at a soft boundary with a cue; a fresh press goes past"
   const announced = () =>
     page.evaluate(
       () =>
-        document.querySelector(".daw-shell [role='status'][aria-live]")
+        document.querySelector(".stage-frame [role='status'][aria-live]")
           ?.textContent ?? null,
     );
 

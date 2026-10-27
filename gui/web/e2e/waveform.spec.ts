@@ -10,6 +10,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { openProject } from "./stageNav";
 import { zoomTimelineIn } from "./timelineZoom";
 import {
   crashWaveformWorker,
@@ -71,8 +72,8 @@ test.describe("pyramid waveforms", () => {
     browserName,
   }) => {
     const seen = watchWaveformTraffic(page);
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await expect(page.locator(".daw-shell")).toBeVisible();
+    await openProject(page, e2eProjectPath);
+    await expect(page.locator(".stage-frame")).toBeVisible();
     await page.locator(".timeline-scroll").waitFor({ state: "visible" });
 
     const backend = await waveformBackend(page);
@@ -123,8 +124,8 @@ test.describe("pyramid waveforms", () => {
     page,
     browserName,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await expect(page.locator(".daw-shell")).toBeVisible();
+    await openProject(page, e2eProjectPath);
+    await expect(page.locator(".stage-frame")).toBeVisible();
     await page.locator(".timeline-scroll").waitFor({ state: "visible" });
     const backend = await waveformBackend(page);
     await expectPaintedWaveformTile(page);
@@ -150,8 +151,8 @@ test.describe("pyramid waveforms", () => {
     page,
   }) => {
     const seen = watchWaveformTraffic(page);
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await expect(page.locator(".daw-shell")).toBeVisible();
+    await openProject(page, e2eProjectPath);
+    await expect(page.locator(".stage-frame")).toBeVisible();
     await page.locator(".timeline-scroll").waitFor({ state: "visible" });
     await expectPaintedWaveformTile(page);
 
@@ -206,7 +207,9 @@ test.describe("pyramid waveforms", () => {
       try {
         const host = await hostContext.newPage();
         await openHostShare(host, projectPath);
-        const token = await createReviewShare(host, projectPath);
+        // A viewer link opens on Review, which has no timeline; an editor link
+        // opens on the Edit stage, where the waveforms are.
+        const token = await createReviewShare(host, projectPath, "editor");
 
         const guest = await guestContext.newPage();
         const seen = watchWaveformTraffic(guest);

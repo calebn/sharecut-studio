@@ -20,28 +20,37 @@ and [consistency audit](design-system-audit.md) for checked examples and remaini
 phone coverage. Guest review bounds its reading column and lets native composer
 fields shrink to fit narrow viewports.
 
-The live `MobileShell` and `StudioShell` adapters render props-only shell views.
-`MobileShellView` owns the four-mode chrome, More-back, and the single Inspector or Mix sheet.
-`StudioShellView` owns desktop/tablet chrome, editor tabs, and ingest target/coach.
-The adapters retain viewport effects, commands, focus/presence refs, selection
-policy, and memoized timeline headers. The catalog composes these views with
-fictional bounded regions and representative transport controls. It includes
-360px phone and desktop/tablet fixtures without mounting the full DAW runtime.
+The `StageFrame` adapter (`gui/web/src/stage/frame/`) renders the props-only `StageFrameView`
+on every viewport class: header, Stage bar (a bottom tab bar on a phone), stage
+content, Player bar and banners. Each stage has a host in `src/stage/hosts/` and
+the Edit stage a workspace in `src/stage/edit/`. The adapters retain viewport
+effects, commands, focus/presence refs and selection policy. The catalog
+composes these views with fictional bounded regions at 360px phone and
+desktop/tablet sizes (`Stages/Edit/Frame`, `Stages/<Stage>/`) without mounting
+the full DAW runtime. See [shell chrome](design-system.md#shell-chrome) for the
+catalog boundary and [the stage specs](design/stages/spec-edit.md) for the design.
+
+**Vocabulary since #2292.** The sections below keep their history. Where they
+say transport bar, status bar, tool rail, bottom dock tabs, splitter, layout
+presets, Listen, Text, More hub, Menu or View menu, read the replacement in the
+[feature map](#feature--home-map) and [Player bar and Edit tool strip](#player-bar-and-edit-tool-strip):
+the old chrome and its `layout/` code were deleted. `.daw-shell*` classes are now
+`.stage-frame*`.
 See [shell chrome](design-system.md#shell-chrome) for the catalog boundary.
 
 ## Breakpoints
 
 | Shell | Width | Root class | Layout |
 |-------|-------|------------|--------|
-| Phone | `< 768px` | `data-shell="phone"` / `.daw-shell--phone` | Four modes + selection sheet |
-| Tablet | `768–1194px` | `data-shell="tablet"` / `.daw-shell--tablet` | Timeline + peek inspector sheet (portrait); side inspector when wide enough |
-| Desktop | `> 1194px` | `data-shell="desktop"` | Reaper four-pane grid + optional layouts |
+| Phone | `< 768px` | `data-shell="phone"` / `.stage-frame--phone` | Stage tab bar + Player bar + selection sheet |
+| Tablet | `768–1194px` | `data-shell="tablet"` / `.stage-frame` | Stage bar in the header, Edit with a peek inspector sheet (portrait); side inspector when wide enough |
+| Desktop | `> 1194px` | `data-shell="desktop"` | Stage bar in the header; Edit shows Timeline, Script and an Inspector column |
 
-iPad 11″ landscape is 1180 CSS px wide on the Air and 1194 on the Pro. The tablet band used to end at 1100px, which put that orientation on the desktop shell and hid Select, Blade, and Select range behind collapsed transport chrome (#1632). It then ended at 1180, which still left the Pro on the desktop shell (#1674). `TABLET_MAX_PX` now includes 1194 so both keep the bottom editing tool rail. A desktop shell whose transport bar has collapsed lists **Select a range** with Select tool and Blade tool under Timeline tools in Menu, not further down in its own Selection group. On a short tablet viewport the rail scrolls sideways instead of wrapping into clipped rows.
+iPad 11″ landscape is 1180 CSS px wide on the Air and 1194 on the Pro. The tablet band used to end at 1100px, which put that orientation on the desktop shell and hid Select, Blade, and Select range behind collapsed transport chrome (the transport is gone; the Edit tool strip now holds them on every shell) (#1632). It then ended at 1180, which still left the Pro on the desktop shell (#1674). `TABLET_MAX_PX` now includes 1194 so both keep the tablet frame.
 
-Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewportClass.ts) reads a first-render snapshot through the shared media-query subscription in `useMediaQueryStore.ts` (`matchMedia` + `visualViewport` resize). Pointer capability and Storybook docs theme use that subscription too; pointer events still select the last used device. Store mirrors `shellBreakpoint`. CSS class stem `.daw-shell*` is frozen BEM (`StudioShell` / `MobileShell`); do not rename it in lockstep with the TypeScript component.
+Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewportClass.ts) reads a first-render snapshot through the shared media-query subscription in `useMediaQueryStore.ts` (`matchMedia` + `visualViewport` resize). Pointer capability and Storybook docs theme use that subscription too; pointer events still select the last used device. Store mirrors `shellBreakpoint`. CSS class stem is `.stage-frame*` (`StageFrame`).
 
-Chrome type/space is rem via theme tokens, and Studio color consumers use semantic `--color-*` roles. Pane density (status chips, pipeline, header rail) follows named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`), not viewport-width `@media`. Short-viewport `@media (max-height: 40rem)` for portaled sheets is a documented exception (`-- user-approved:`). Policy: [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md).
+Chrome type/space is rem via theme tokens, and Studio color consumers use semantic `--color-*` roles. Pane density (Stage bar, pipeline, header) follows named `@container` (`app` on `.stage-frame`, `timeline` on `.timeline-area`), not viewport-width `@media`. Short-viewport `@media (max-height: 40rem)` for portaled sheets is a documented exception (`-- user-approved:`). Policy: [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md).
 
 ## Browser chrome, safe areas and Home Screen (#1077)
 
@@ -83,7 +92,7 @@ full-screen path.**
 - **Add to Home Screen hint.** In an iPhone or iPad Safari tab
   (`navigator.standalone === false`, touch points, `display-mode: browser`;
   `utils/homeScreenHint.ts`, so desktop Safari and the Home Screen app stay
-  quiet), both touch shells show a banner in their banner row (`layout/HomeScreenHint.tsx`):
+  quiet), both touch shells show a banner in their banner row (`stage/frame/HomeScreenHint.tsx`):
   "In Safari's Share menu, choose Add to Home Screen to open ShareCut full
   screen." with **Dismiss**. Dismissing it is remembered in this browser
   (`localStorage` `sharecut.homeScreenHintDismissed`, read and written through
@@ -123,9 +132,9 @@ held sideways) compact the editor:
   on) the selection Inspector is a column on the inline end of the shell
   instead of a bottom sheet. The decision lives in `SelectionSheet.placement`
   (`useSelectionSheet`), flows through `SheetPresentation` and `MobileSheet`
-  into `BottomSheet`'s `placement="column"`, and the shell views put
-  `daw-shell--inspector-column` on `.daw-shell`, so no CSS repeats the media
-  query. The column renders in place, as a grid child of `.daw-shell` (no
+  into `BottomSheet`'s `placement="column"`, and the frame's
+  `:has(.bottom-sheet--column)` rule adds the second grid column, so no CSS repeats the media
+  query. The column renders in place, as a grid child of `.stage-frame` (no
   portal), in a second grid column of `--inspector-column-width`
   (`clamp(16rem, 32vw, 22rem)`). Transport, banners and the status line keep
   the whole width; the timeline keeps the whole main row; the tablet's bottom
@@ -136,8 +145,8 @@ held sideways) compact the editor:
   Phone navigation returns. It has the title, **Close**, Escape and focus
   restore of any sheet, and none of the sheet's other parts: no scrim, no
   drawer or detents, no Expand or Collapse, no slide-up, and no compact strip
-  (the strip and its Undo and Redo header belong to the sheet; the tool rail
-  stays usable beside the column, so `coversTools` is false). The panel carries
+  (the strip and its Undo and Redo header belong to the sheet; the tool strip
+  stays usable beside the column). The panel carries
   none of `bottom-sheet--inspector`, `--compact` or `--lane-band`, so
   `inspectorSheetPanel`, `keepTargetClear`, `useKeepSelectionClear`,
   `useKeepEditedLaneClear` and the pending edit card's docking all find no
@@ -154,8 +163,8 @@ held sideways) compact the editor:
   software keyboard up (`html[data-keyboard="open"]`) the column leaves the
   grid flow (its track stays, so the timeline does not move) and takes the
   visible band of the viewport: `--visual-viewport-top` down by
-  `--visual-viewport-height`, with `grid-area: auto` and never below the tablet
-  status strip (`--column-floor`), so its header and Close stay on screen and
+  `--visual-viewport-height`, with `grid-area: auto` and never below the Player
+  (`--column-floor`, less the part the keypad covers), so its header and Close stay on screen and
   the body scrolls above the keypad. Turning the phone
   keeps the Inspector mounted: the sheet and the column portal into one host
   element that only changes parent (`ui/sheetHost.tsx`), so a draft, the
@@ -264,7 +273,7 @@ fields and track checkboxes, and the More tab's overlay toggle rows, all hold th
 as `block-size` because WebKit ignores `min-block-size` on one. Transcript
 **Find and replace** and Pipeline **Add term** rows wrap their controls on a
 coarse pointer so landscape panels do not overflow (#1433). The Pipeline panel's
-selects, its From / Only shortcuts summary and the More hub's back button hold the
+selects, its From / Only shortcuts summary and the sheet back buttons hold the
 floor too (#1445). Pipeline uses one panel scroller at every size. Its toolbar
 scrolls with the content at every height. The original pinned-on-tall behavior is
 removed to avoid an overlay and scroll-owner switches during resize. Controls
@@ -295,7 +304,7 @@ Home Screen banner (shown in an emulated iPhone Safari tab, gone after Dismiss
 and a reload), in Chromium and WebKit. A real iPhone check remains for the
 Dynamic Island side in landscape.
 
-Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport override can leave the CSS viewport at tablet width while the OS window is narrower — hard refresh does not clear that; clear the override (or set 390×844) before judging Listen / Text.
+Phone chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport override can leave the CSS viewport at tablet width while the OS window is narrower — hard refresh does not clear that; clear the override (or set 390×844) before judging the phone frame.
 
 ## Software keyboard and bottom sheets (#1335)
 
@@ -321,57 +330,43 @@ the portal changes document order. `--z-toast` stays above fallback menus, and
 native menus keep the toast ordering in
 [design-tokens.md § Top layer](design-tokens.md#top-layer).
 
-## Phone: four modes + one sheet
+## Phone: five stages + one sheet
 
 ```
 ┌─────────────────────────────┐
-│ Compact transport           │
+│ App header                  │
 ├─────────────────────────────┤
-│ MODE CONTENT (flex)         │
+│ STAGE CONTENT (flex)        │
 ├─────────────────────────────┤
-│ Listen | Timeline | Text |  │
-│ More                        │
+│ Player bar                  │
+├─────────────────────────────┤
+│ Record | Prepare | Edit |   │
+│ Review | Deliver            │
 └─────────────────────────────┘
      ↑ selection → BottomSheet
 ```
 
-| Mode | Content | Primary jobs |
-|------|---------|--------------|
-| **Listen** | Mix-oriented scrubber, comment list, status chips; a comment field docked above the mode bar for anyone who can comment | Guest review and comments, audition |
-| **Timeline** | Playhead that starts at 0 and holds the center once passed; drag to scrub, Ferrite lane gutter (sticky identity), layer chips | Spatial edit / seek |
-| **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
-| **More** | Hub → **Commands and shortcuts**, Mix sheet, Comments, History, Impact, Tighten, Pipeline, settings | Track mixing, long-lived panels, command discovery |
+| Stage | Content | Primary jobs |
+|-------|---------|--------------|
+| **Record** | Launcher with live-take status; the record dialog stays mounted in `DawApp`, so a take survives stage switches | Capture |
+| **Prepare** | Import, pipeline jobs, vocabulary | Get audio ready |
+| **Edit** | Timeline surface (playhead that starts at 0 and holds the center once passed; Ferrite lane gutter; eye sheet) and Script surface (transcript), switched by an icon pair | Spatial edit, word fix, suggest cut |
+| **Review** | Comments, Impact, Tighten | Guest review and comments, approve or reject edits |
+| **Deliver** | Export, Bounce, Share for review | Hand off |
 
-The compact header transport (Timeline, Text, More) and the Listen hero wrap
-their controls when one row cannot hold Play, Stop, time, Comment, Fit and
-Menu. That happens at Safari page zoom 200% on a phone, and at 200% text. The
-phone transport grid row grows with that wrap
-(`minmax(var(--transport-height), auto)`), so More hub rows such as History
-start below the bar instead of scrolling under overflow. Targets stay
-`--touch-min`. This is not pinch-zoom on the timeline.
-`gui/web/e2e-compat/phone-transport-zoom.spec.ts` uses a 215×466 layout viewport
-as a page-zoom substitute (half of iPhone 15 Plus CSS) plus a 32 px root at
-430×932. A physical iPhone Safari 200% Aa zoom remains a Mac-simulator check.
-Tablet collapsed transport keeps loaded Play and Stop on one line so a short
-landscape window at 200% text cannot grow the bar over the ruler. The shared
-playback group wraps only when it contains an unavailable-action reason; that
-reason-bearing strip grows to fit its controls and text.
+Guests see only the stages their role allows (`stagesForRole`): a Commenter link is Review alone and has no Stage bar.
 
-The Listen hero's Menu keeps project actions such as Export deliverables and
-Share, audition choices, status, theme and Help. Timeline-only selection,
-track reordering, waveform and zoom controls stay in the Timeline menu. Every
-phone menu row uses the 44 px touch target, and phone menus omit visible
-keyboard shortcut hints.
+The Player bar and the header wrap their controls when one row cannot hold them, which happens at Safari page zoom 200% on a phone and at 200% text. The bar grows with the wrap so the stage content starts below it. Targets stay `--touch-min`. This is not pinch-zoom on the timeline. A physical iPhone Safari 200% Aa zoom remains a Mac-simulator check. Phone menu rows use the 44px touch target and omit keyboard shortcut hints.
+**The short fold is a measured fit, not a size threshold (R-short-9).** `useShortFrame` (`gui/web/src/stage/frame/useShortFrame.ts`) folds the frame when its height is less than the full header, the full Player, the tab bar and `--stage-stacked-lanes-min` together (`frameFolds`, pinned in `useShortFrame.test.ts`). The hook lifts the fold, reads the natural heights of `.stage-frame-header`, `.stage-frame-player` and `.stage-frame-tabs` and resolves the lane floor token, then restores the fold in the same task before paint, so the fold tracks text size, header wrapping and the safe area with no `rem` breakpoint. Its only observer is the governed `useResizeObserver`. A folded frame sets `data-frame-short` on `<html>` (system.css and stage-frame.css key on it): the tab bar becomes the header's Stage menu, the Edit rows and the corner (zoom, the eye and, off the phone, the Script toggle) become the header's Tools button and its sheet, and the Player is one touch-height row. The stacked lanes' floor is capped at the workspace height, so a frame too short even when folded keeps its lanes inside the body, not clipped under the Player.
 
-While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
+While `project === null` (progressive load), the frame shows the header and Stage bar with skeleton content and a disabled Player bar ("Loading episode…"). That chrome is not the ingest empty-session coach.
 
-**Listen comment field (#1338).** Commenting is the job of a Commenter or Editor review link, so Listen docks a comment field in its own grid row (`dock`) between the scrolling view and the mode bar: the bottom zone for doing. From opening the link, a guest taps the field, types, and taps **Post comment**, with no mode, menu or ruler first. **Post comment** enables once the field has text, and the **at 0:12** chip beside it shows where the comment lands (the selected range, else the playhead; see [timeline-comments.md](timeline-comments.md#daw-viewer)). With the software keyboard up, iOS Safari lifts the dock and mode bar above the keyboard, so the field, the chip and **Post comment** stay visible on an iPhone SE. Posting closes the software keyboard on purpose (the guest goes back to listening, and an open keyboard covers half the Listen view; tablet and desktop keep the field focused for the next comment), and announces "Comment posted at 0:12" in the app toast, which docks above the field (`.mobile-dock` is a toast floor in `feedback/toastDock.ts`), and the comment joins the Listen list; it does not open the Inspector. A guest's first **Post comment** asks for a name instead of posting (#2164): a **Your name** field takes focus beside **Post as Guest**, the typed text stays in the comment field, and **Post comment**, Enter in the name field or **Post as Guest** posts it (a polite live region announces the prompt; **Post as Guest** always posts this comment as Guest, even if another tab saved a name meanwhile, and is unavailable while the comment is empty; in a short window the dock grows to 60% of the shell while the name step is open, and a named guest's dock gets the same 60% only while a text field in it has focus (the Commenting as line adds a row, and the keyboard is up), and pressing a dock button keeps that text field focused (a `mousedown` default is cancelled in `ListenCommentComposer.tsx`, so keyboard, Tab, Enter and Space still work), so the relief holds through the tap and Change or Post comment never moves out from under the finger, so the buttons stay whole and tappable down to 320x300, while an unfocused named dock keeps the 35% cap, and in a wide short window (a phone held sideways, at least 30rem, 480 px at a 16 px root, of container width) the **Commenting as** line sits beside the field instead of above it (a long unbroken name wraps inside its column, and the Change field stays in it), so naming takes no Listen height and Play stays in view as before (#1982); if the post then fails, focus returns to the comment field and the error shows). On the phone the **Commenting as** line shows only after the guest has named themselves, so the name step is the only way to name; on the tablet and desktop Comments panel the line is always there, and tapping **Change** before the first Post counts as naming, so the guest is not asked again. The name (40 code points at most) is remembered in this browser under its own guest-only `localStorage` key that the host's name field never reads or writes (guarded; a **Post as Guest** is stored as an empty value and never overwrites a saved name; without storage the guest is asked on every page load), **Post as Guest** or an empty name keeps **Guest** and is not asked again while storage works, a reply uses the chosen name or Guest without asking, and afterwards **Commenting as <name>** with its own **Change** button sits above the field. The host's phone is never asked. The field is 1rem so iOS does not zoom in on focus. A Viewer link and a project still loading show no dock. In a short window (container height under 24rem, such as a phone held sideways at 460x320 to 667x375) the scrolling view is only about 136 px tall, so the Listen hero switches to two columns (title, time and scrubber on the left, the controls row on the right) and Play opens in view without scrolling (#1982); narrower short windows and the loading or no-tracks reason case keep the stack with a tighter card. Two other placements were tried on an iPhone SE and rejected: a field inline under the Listen card moves down with every status chip and banner and scrolls away with the comment list, and a fifth **Comments** tab takes a third tap and hides the player while composing.
-
+**Commenting (#1338).** Commenting is the job of a Commenter or Editor review link, so the Player bar always carries a comment-at-playhead control and Review holds the list and `CommentCompose`. A guest types, taps **Post comment**, and the **at 0:12** chip shows where the comment lands (the selected range, else the playhead; see [timeline-comments.md](timeline-comments.md#daw-viewer)). A guest's first post asks for a name instead of posting (#2164): a **Your name** field takes focus beside **Post as Guest** (`GuestNameStep`), the typed text stays, and the post is announced in a polite live region ("Comment posted at 0:12") and in the toast, which docks above the Player bar. The name (40 code points at most) is remembered in a guest-only `localStorage` key the host's name field never reads or writes; **Post as Guest** or an empty name keeps **Guest**. A reply uses the chosen name or Guest without asking. The field is 1rem so iOS does not zoom in on focus. On the phone the keyboard lifts the composer above it, and posting closes the keyboard on purpose. A Viewer link shows no composer.
 A share link never opens the Inspector by itself: a stored or remote selection whose target is gone clears silently, and no tab, host or guest, takes on another viewer's selection (see [session-sync.md](session-sync.md)) (#1339).
 
 A timeline or transcript range opens the same sheet with **Range actions** as its body on the phone and the tablet (`Inspector` renders `RangeActions`; the tablet no longer draws them in the bar under the scrim). While **Select range** is armed over a clip, track or other selection, the sheet carries the In and Out fields above that selection's inspector (`SelectionSheetBody`, shared by both shells). On a tablet, an agent range moves the existing In and Out fields, selected-track checkboxes and explicit **Use agent range on selected tracks** action into any open selection sheet. The agent range is not adopted automatically. The sheet keeps those controls in one place, including at compact peek, where they appear above the peek inspector and scroll with the sheet body. The selected target and saved sheet detent do not change. Arming **Select range** with nothing selected opens the sheet on the tablet too (#1793), as it does on the phone, so In, Out, the track checkboxes, Select range and Cancel never sit in a card at the top. On the tablet's half sheet that holds only those fields, the sheet is as tall as they are (`bottom-sheet.css`, `.range-numeric`), so the lanes the range is dragged across stay in view. Only the desktop shell keeps them in the transport bar. Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap. **Expand** and **Collapse** change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor. Only the compact inspector below swipes.
 
-**Split speakers…** is a track-inspector button, so the same sheet carries it on a phone, and the More hub's empty-session hint ("One recording of everyone? Import it, then choose Split speakers.") points there. Its dialog is a bottom sheet with **Split speakers**, **Cancel split** or **Undo split** and **Done** pinned in the footer ([communication-philosophy.md](communication-philosophy.md#terminology) names the terms). After a split, the scrollable result lists saved unsure and overlapping stretches with timeline start, length and speaker tracks; repeated timeline placements have separate **Go to** buttons. A stretch removed from the timeline shows recording time and explains why **Go to** is unavailable. Close the sheet to listen with the lane Solo controls, then choose **Review split…** in that track's inspector to return to the list. The review entry is session-scoped and expires after any saved project edit, including a saved mute change; listen-only Solo keeps it available.
+**Split speakers…** is a track-inspector button, so the same sheet carries it on a phone, and the Prepare stage's empty-session hint ("One recording of everyone? Import it, then choose Split speakers.") points there. Its dialog is a bottom sheet with **Split speakers**, **Cancel split** or **Undo split** and **Done** pinned in the footer ([communication-philosophy.md](communication-philosophy.md#terminology) names the terms). After a split, the scrollable result lists saved unsure and overlapping stretches with timeline start, length and speaker tracks; repeated timeline placements have separate **Go to** buttons. A stretch removed from the timeline shows recording time and explains why **Go to** is unavailable. Close the sheet to listen with the lane Solo controls, then choose **Review split…** in that track's inspector to return to the list. The review entry is session-scoped and expires after any saved project edit, including a saved mute change; listen-only Solo keeps it available.
 
 A timeline selection in Timeline mode, or on the tablet shell upright or
 sideways (#1871), opens the **compact inspector** instead: a peek strip with the target's name, its key
@@ -603,7 +598,7 @@ ordinary lane measurements.
 
 ### One selection surface table
 
-`gui/web/src/inspector/selectionSurface.tsx` holds `SELECTION_SURFACES`, a table keyed by every selection kind (`range`, `transcriptRange`, `clip`, `pending`, `applied`, `track`, `chapter`, `social`, `comment`, `envelope`, `envelopePoint`). Each entry supplies the inspector `body`, the screens where the selection opens the sheet (`screens`), its `peek` actions, its `related` commands and its `more` destination. A tapped word is a one-word `transcriptRange`. `Inspector` (the desktop aside) and `SelectionSheetBody` (the sheet on the phone and the tablet) both render from it, and `useSelectionSheet` (`layout/useSelectionSheet.tsx`) holds the one open rule: the phone and the tablet each name the screen they show (the phone's mode, the tablet's layout) and open on a selection whose kind lists that screen, or on an armed **Select range** on the phone and the tablet; the desktop has no sheet. A new selection kind that is missing from the table fails to compile. `SHEET_SHELLS` records which shell lets an armed range open the sheet alone (the phone and the tablet, so the fields sit in the bottom zone).
+`gui/web/src/inspector/selectionSurface.tsx` holds `SELECTION_SURFACES`, a table keyed by every selection kind (`range`, `transcriptRange`, `clip`, `pending`, `applied`, `track`, `chapter`, `social`, `comment`, `envelope`, `envelopePoint`). Each entry supplies the inspector `body`, the screens where the selection opens the sheet (`screens`), its `peek` actions, its `related` commands and its `more` destination. A tapped word is a one-word `transcriptRange`. `Inspector` (the desktop aside) and `SelectionSheetBody` (the sheet on the phone and the tablet) both render from it, and `useSelectionSheet` (`stage/edit/useSelectionSheet.tsx`) holds the one open rule: the phone and the tablet each name the screen they show (the phone's mode, the tablet's layout) and open on a selection whose kind lists that screen, or on an armed **Select range** on the phone and the tablet; the desktop has no sheet. A new selection kind that is missing from the table fails to compile.
 
 The sheet body is the same on both touch shells: Select range's In and Out fields while armed, the selection's inspector or compact peek, then the three-zone commands below. On the tablet, a session region keeps **Range actions** in the sheet for every selection kind that does not already contain a selected range. The controls remain in the sheet at compact peek, above the peek inspector. The transport bar keeps one copy only on the desktop shell. This keeps the agent's range out from behind the sheet scrim, where the tool rail cannot arm **Select range** (Ledger on #1445). `selectionSurface.test.tsx` covers each selection kind and checks whether agent-range adoption applies. The related and more zones take the inspector's gutter inside the sheet (`e2e-compat/selection-sheet-zones.spec.ts`). `e2e-compat/reachability-sweep.spec.ts` measures every interactive element at the boundary sizes and text scales (see [testing.md](testing.md)).
 
@@ -624,29 +619,31 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 
 ### Feature → home map
 
-| Desktop region | Phone home |
-|----------------|------------|
-| Transport play/time/audition | Listen hero (`layout/ListenHero`, story `Templates/ListenHero`); compact header transport on Timeline, Text, and More (the project name moves to the Listen hero when the bar is under 30rem); audition/zoom in Menu. The Listen hero carries the same Menu beside the project name, so Listen reaches Bounce, Export deliverables, Share, audition and Help without switching modes |
-| Mode nav | Icon + label tabs; the active tab is tinted with an accent top indicator (no filled block) |
-| Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
-| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). More → Mix adjusts all tracks without changing selection. Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down. On a tablet with a coarse pointer the wide header's **M** and **S** are 44px touch targets like the track sheet's, and the role beside them gives way (the track sheet still names it), as compact lanes do (#1028) |
-| Timeline overlays | Timeline mode + layer chips |
+| Old home | Phone home now |
+|----------|----------------|
+| Listen hero (play, time, scrub) | Player bar on every stage; swipe up for the Player sheet. Guests and passive listening land in Review |
+| Mode nav (Listen, Timeline, Text, More) | Stage tab bar: Record, Prepare, Edit, Review, Deliver (`stage.*`, Mod+1 to Mod+5). Edit holds the Timeline and Script surfaces behind a waveform and text icon switch; selection and playhead carry across |
+| Comment / Fit | Comment at the playhead in the Player bar; Fit in the Edit corner |
+| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). The mix sheet adjusts all tracks without changing selection. Header mixer chrome is hidden when the timeline pane is narrow; reorder by dragging the header or the track sheet's Move up and Move down. On a tablet with a coarse pointer the wide header's **M** and **S** are 44px touch targets like the track sheet's (#1028) |
+| Timeline overlays (layer chips) | Eye sheet in the Edit corner |
 | Inspector | Selection sheet |
-| Transcript tab | Text mode |
-| Comments | Listen list, the Listen comment field, and More → Comments |
-| History / Impact / Tighten / Pipeline | More hub |
-| Command palette (`?`) | More hub → **Commands and shortcuts**, a field-styled row at the top of the hub that opens the palette as a bottom sheet with Search focused |
-| Status bar | Actionable chips (tap → panel) except **Activity** (`kind=agent`), which is status-only until the activity-history drawer; Listen **Pending** selects first review-required pending and opens Timeline; **Mix out of date** (**No mix yet** when nothing is rendered) uses the shared render-status breakdown, so a new empty project stays fresh; **Pipeline** chip shows truncated headline, elapsed, and pulse (not `●`) and opens Pipeline; **Activity** chip uses the same chrome plus a count badge when more than one job is live |
-
+| Transcript tab | Edit → Script surface |
+| Comments | Review → Comments, and the comment field in the Player |
+| History | Edit → History sheet (right-click the header's Undo, or the palette) |
+| Impact / Tighten | Review sections |
+| Pipeline | Prepare |
+| Command palette (`?`) | Header search button, or `?` and `/`; opens as a bottom sheet with Search focused |
+| Theme | Project menu → Appearance |
+| Status bar chips | Stage bar badges (Review count, Prepare running or needs you, Record live, Deliver ready); **Mix out of date** is the Player bar mix ring (**No mix yet** when nothing is rendered), and a new empty project stays fresh |
 ### Gestures
 
-Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Commands and shortcuts**; that dialog links back to Gestures without stacking. Two-finger Undo is an optional ShareCut shortcut, not an iOS system convention; the Timeline tool rail has visible Undo and Redo, and More has the History route. Pinch zoom remains available, and it never edits: a second finger on the timeline cancels any one-finger drag or press in progress without saving it and puts the selection back ([decision](touch-editor-decisions.md#pinch-never-edits-1051-round-4)). Timeline editing follows the [touch input grammar](touch-editor-decisions.md#decision-one-touch-input-grammar-for-timeline-editing): one finger moving scrolls and never edits, a tap selects, a long press arms a target (the chooser when targets crowd) and only an armed target drags, along its own axes, with a brief detent at each soft boundary; a long press on a movable clip's body, away from its handles, arms the clip, which then moves in time within its lane and bumps at the session start; a long press on empty timeline space opens the create menu (add envelope point, blade cut, add chapter, add comment), with each entry the link cannot run disabled beside its reason ([round 4b](touch-editor-decisions.md#touch-grammar-round-4b-1051)). Every timeline target kind's touch, drag and key behaviour comes from one contract, `gui/web/src/timeline/inputContract.ts`. Visible command routes remain available for the shipped gesture shortcuts; the cheatsheet lists only shipped gestures. Remaining non-drag edit alternatives are tracked in [the touch-editor decision record](touch-editor-decisions.md). Gesture thresholds (hold time, touch slop, click-versus-drag distances, drag detent, drawer swipe and flick, ghost-click window, double-tap gap, swipe distances and drag cap) live in one module, `gui/web/src/hooks/gestureConstants.ts`, which every gesture reads. The hold is 500 ms and a held finger may drift 10 px, after iOS's long-press defaults (0.5 s, 10 pt) and inside Android's (400–500 ms, 8 dp touch slop); the module cites the platform sources. Long-press selection varies by target (clip, comment, track, or transcript word), so it is explicitly exempt from a single command ID; each target keeps its existing selection or correction action.
+Touch gestures for common actions, documented in the **Gestures** cheatsheet (Commands and shortcuts → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Commands and shortcuts**; that dialog links back to Gestures without stacking. Two-finger Undo is an optional ShareCut shortcut, not an iOS system convention; the app header has visible Undo and Redo, and the Edit stage has the History sheet. Pinch zoom remains available, and it never edits: a second finger on the timeline cancels any one-finger drag or press in progress without saving it and puts the selection back ([decision](touch-editor-decisions.md#pinch-never-edits-1051-round-4)). Timeline editing follows the [touch input grammar](touch-editor-decisions.md#decision-one-touch-input-grammar-for-timeline-editing): one finger moving scrolls and never edits, a tap selects, a long press arms a target (the chooser when targets crowd) and only an armed target drags, along its own axes, with a brief detent at each soft boundary; a long press on a movable clip's body, away from its handles, arms the clip, which then moves in time within its lane and bumps at the session start; a long press on empty timeline space opens the create menu (add envelope point, blade cut, add chapter, add comment), with each entry the link cannot run disabled beside its reason ([round 4b](touch-editor-decisions.md#touch-grammar-round-4b-1051)). Every timeline target kind's touch, drag and key behaviour comes from one contract, `gui/web/src/timeline/inputContract.ts`. Visible command routes remain available for the shipped gesture shortcuts; the cheatsheet lists only shipped gestures. Remaining non-drag edit alternatives are tracked in [the touch-editor decision record](touch-editor-decisions.md). Gesture thresholds (hold time, touch slop, click-versus-drag distances, drag detent, drawer swipe and flick, ghost-click window, double-tap gap, swipe distances and drag cap) live in one module, `gui/web/src/hooks/gestureConstants.ts`, which every gesture reads. The hold is 500 ms and a held finger may drift 10 px, after iOS's long-press defaults (0.5 s, 10 pt) and inside Android's (400–500 ms, 8 dp touch slop); the module cites the platform sources. Long-press selection varies by target (clip, comment, track, or transcript word), so it is explicitly exempt from a single command ID; each target keeps its existing selection or correction action.
 
 - **Long-press** (`useLongPress`) selects a comment or track and opens the existing inspector sheet; on a transcript word it opens correction, and in Select mode a hold followed by a drag selects a word range instead (`transcript/useWordRangeDrag.ts`: one finger moving before the hold scrolls, a second finger cancels, a hold that does not move is still correction). Range actions carry **Add word before / after** and **Drop first / last word** (hold to repeat) for every shell, and the sheet never covers the selected words: the transcript, then any scrolling ancestor, scrolls them clear of the sheet's real top and the visual viewport (the toolbar's Add to Home Screen banner and the iOS keypad both shorten it) and the list gains room under its last turn (`--sheet-clearance`). When no scroll can lift them clear, the half sheet shortens to sit under the range (`--sheet-cap`, never below one readable strip) and its body scrolls. The same sheet carries **Ignore** / **Restore** for the range (host only), with a toast Undo. Every hold-to-repeat button shares the `hold-repeat` class (`user-select: none`, `-webkit-touch-callout: none`) from `useHoldRepeat`, so iOS draws no selection handles or loupe on a held Words button. A timeline touch selects a clip only on a tap and never while scrolling (see [touch-editor-decisions.md](touch-editor-decisions.md#touch-target-chooser-1051)), so clips have no separate recognizer and a hold never reselects or collapses a multi-selection. Movement, cancellation, and a second finger (even on an element that stops propagation) abort it. It fires on release and consumes the synthesized click; a press whose click never arrives is flushed by the next pointerdown rather than dropped. On coarse pointers, transcript words and comment headers set `user-select: none` / `-webkit-touch-callout: none`, and the native context menu is suppressed while a press is armed, so the OS selection UI does not claim the hold. Physical iOS/Android verification is still required; CDP touch in CI does not trigger native selection.
 - **Double-tap word**: the first tap seeks immediately (no added latency); a second tap on the same word within the double-tap gap opens correction. `.transcript-list` sets `touch-action: manipulation` so browser double-tap zoom cannot eat the second tap. On desktop, a host's double-click opens inline word editing instead (the first click still seeks); touch double-tap keeps the correction sheet. The navigate-mode hint under the transcript toolbar follows the pointer: coarse pointers read "Double-tap a word to correct its text…" and fine pointers get the inline Enter/Esc hint. The split is deliberate: the sheet leaves room for the on-screen keyboard and keeps Suppress and phrase (End index) correction one tap away, which a chip-sized inline input cannot. Both paths submit through `submitWordCorrection` (`gui/web/src/transcript/wordCorrection.ts`), so they cannot drift.
 - **Word correction from a gesture is scoped to that gesture**: it switches the panel to Correct only while the word sheet is open; closing restores the previous mode (and a Select range). Gestures only open correction for hosts with hydrated words — guests and unhydrated transcripts keep tap-to-seek and never enter Correct.
 - **Swipe left** invokes `comment.resolve` through the shared comment mutation path for an open comment in the comments list (hosts only; opt-in via `swipeToResolve`, so embedded threads such as the pending-edit Ask thread never resolve from a stray drag). It gives up on vertical travel, must finish before a long-press would, and the card keeps `touch-action: pan-y pinch-zoom`. Controls inside the card (checkbox labels, links, inputs, reply rows) keep their own behavior. While the drag is tracked, the card follows the finger leftward, capped at 2× the resolve threshold, and a `Resolve` cue fills the gap it opens; the cue switches to the accent style once travel reaches the threshold, exactly when release would resolve. The card snaps back on release, vertical travel, pointer cancel, or a hold past long-press, so the cue never shows for a swipe that cannot resolve. With `prefers-reduced-motion: reduce`, the card does not move; the cue instead overlays the card's inline end. Resolving from either the swipe or the footer **Resolve** button shows an Undo toast (`Resolved comment at <time>`, shown through the shared feedback toast and spoken once by the shell's status region, 60 s auto-dismiss like every Undo toast, paused while a mouse or pen hovers it, while focus is inside it, or while Undo is disabled by another pending comment change; touch contact does not pause it). Only the latest resolve has a toast: resolving another comment replaces it. **Undo** reopens the comment and moves keyboard focus to the Comments panel (including when the browser blurs Undo to the page body while it is disabled during the reopen request); reopening from the card's **Reopen** button still works after the toast is gone or was replaced.
-- In **More → Comments**, selecting a comment (tap, long-press, or posting a new one) opens the Inspector sheet, matching Listen. In **More → Impact**, selecting a pending edit opens the same Inspector.
+- In **Review → Comments**, selecting a comment (tap, long-press, or posting a new one) opens the Inspector sheet, matching the Player. In **Review → Impact**, selecting a pending edit opens the same Inspector.
 
 The Comments panel owns its scroll area so the Undo toast stays reachable while
 the list scrolls. Closing a focused toast returns focus to the panel with
@@ -667,23 +664,16 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 
 ## Wireframes (ASCII)
 
-### Phone — Listen
+### Phone — Review (the old Listen)
 
 ```
-┌─ Episode name ────────────── [≡] ┐  ← hero card (fixed-dark transport tokens); [≡] is the app Menu
-│ 12:34 / 58:39                     │
-│ ══════════●═══════════════════    │  ← coarse scrub (44px, brand accent)
-│     −15s  (▶)  ■  +15s            │  ← 44px targets; Play is the only orange control
-└───────────────────────────────────┘
-│ Pending: 3  ·  Mix out of date       │  ← chips (Pending → Timeline + first review-required)
-│ Activity: running · Aligning… 0:12│  ← Pipeline chip taps More/Pipeline; Activity chip is status-only
-│ ───────────────────────────────── │
-│ ● 04:12  “level feels low”        │
-│ ○ 11:02  “cut cold open?”         │
-│ …                                 │
-├─ Listen | Timeline | Text | More ─┤
+┌─ Project   save   ↶ ↷   1 avatar +2 ┐
+│ Comments · Impact · Tighten           │  ← Review sections
+│ ● 04:12  “level feels low”            │
+│ ○ 11:02  “cut cold open?”             │
+├─ Player: ▶ 12:34   Hear original ────┤
+├─ Record | Prepare | Edit | Review | Deliver ─┤
 ```
-
 ### Phone — Timeline (fixed playhead)
 
 ```
@@ -693,7 +683,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 │ │gue│░░░░░░░░░░░░░░░░░░░▼░░░░░░ │ │  ← slim sticky gutter + CapCut ▼
 │ └────┴───────────────────────────┘ │
 │         drag timeline to scrub    │
-├─ Listen | Timeline | Text | More ─┤
+├─ Record | Prepare | Edit | Review | Deliver ─┤
 │ ┌ sheet: track / Pending cut ─ X ┐ │
 │ │ M · S · Volume / Approve       │ │
 │ └───────────────────────────────┘ │
@@ -737,37 +727,26 @@ and phone shells; see [design tokens](design-tokens.md#elevation).
 │ so we ┌were┐ talking about …      │  ← tap seek / edit sheet
 │ GUEST                             │
 │ yeah and the ┌launch┐ …           │
-├─ Listen | Timeline | Text | More ─┤
+├─ Record | Prepare | Edit | Review | Deliver ─┤
 ```
 
-### Tablet — portrait peek
-
-Bottom tabs default to ~40–45% of space below transport/status, capped so the shell grid never exceeds the viewport (`--tabs-height` on `html[data-shell="tablet"]`). Short viewports (`@media (max-height: 40rem)`) shrink the tabs further, to 38% of the space under the transport and status rows (about 94px at 331px tall). The splitter's floor is 8rem, or 4.5rem where that default is already under 8rem (`minTabsHeightRem`), so a drag there can shrink the panel as well as grow it; before #1694 every drag in a 914×331 window clamped up to 8rem. On the desktop shell only, the grid's main row keeps at least 7.5rem (`--editor-main-min-height` in the theme, exposed as `--shell-main-min-height` in `layout.css`) and the bottom tabs row (`--shell-tabs-row`) gives up height first, so a short window with a banner open never lets the tabs cover the inspector's controls; the tablet and phone shells size their sheets from `--tabs-height` and keep it whole. Hosts may drag the top edge of the tabs band to resize (same splitter as desktop); a stored `sharecut.tabsHeight` overrides the CSS default until reset. Passive font or banner changes keep the saved preference; the next explicit resize uses current bounds and may clamp it. Dragging past the minimum by 1.5rem (the grip turns accent and the separator reads "Release to collapse"), or pressing End on it, collapses the drawer to the tool rail: the same timeline layout as **Maximize timeline** (below), one state with two ways in. Collapse keeps the saved preference, and **Show editor panels** (tap, Enter, Space or swipe up) reopens the drawer at the height resolved within current bounds. An overshoot release first restores the prior height through `onResize`, whose resize policy may clamp it to current bounds; canceling a drag uses the same rollback path. Selection peek sheet docks **above** that band (and above phone mode nav) and sizes to the remaining slot (`max-height: 100%`); text/review focus hides the sheet so the expanded panel stays readable.
+### Tablet and desktop — Edit
 
 ```
-┌─ Transport (decluttered) ─────────────────┐
-│ Headers │ Timeline (moving playhead)      │
-│         │         ┌ peek inspector ┐      │
-├─────────┴─────────┴────────────────┴──────┤
-│ Transcript / Comments / … (tabs band)     │
-└───────────────────────────────────────────┘
+┌─ Project  save  Undo Redo │ Record Prepare Edit Review Deliver │ people ─┐
+├───────────────────────────────────────────────────────────────┤
+│ Headers │ Timeline (moving playhead) │ Script ┊ │ Inspector column  │
+│         │ [tool strip]  [Fit − + Script 👁] │ (wide only)       │
+├───────────────────────────────────────────────────────────────┤
+│ Player bar                                                        │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-### Desktop — layouts
+### Desktop — Script and Timeline
 
-| Layout | Command | Effect |
-|--------|---------|--------|
-| `default` | `layout.default` — **Restore layout** | Full grid |
-| `timeline` | `layout.timeline` — **Maximize timeline** (also: drag the splitter below its minimum, or End on it) | Collapse bottom tabs to the tool rail (more lane height) |
-| `text` | `layout.text` — **Maximize transcript** | Expand transcript; shrink timeline; dock Correct word editor when a word is selected |
-| `review` | `layout.review` — **Review layout** | Comments tab + mix-oriented chrome |
+Layout presets (`layout.default`, `layout.timeline`, `layout.text`, `layout.review`, Mod+1 to Mod+4 and View › Layout) were removed with the splitter and the bottom dock tabs. **Show or hide Script** (`T`, `view.toggleScript`) and **Script focus** (`Shift+T`, `view.scriptFocus`) replace them, and the Script and Timeline divider is dragged or moved by keyboard (`ScriptDivider`). Review and Comments are the Review stage, not a layout. Mod+1 to Mod+5 now go to stages; a browser tab may keep them for tab switching (the desktop app does not), so click the Stage bar there.
 
-One transport control (an expand/restore icon whose name says what a click does: **Maximize timeline** or **Restore layout**) maximizes the timeline, or restores from any layout; View › Layout radios reach the transcript and review layouts. A persistent "… · Restore" pill sits in the transport, which no layout hides (collapsed bar: "Restore"). The splitter is hidden outside the default layout; in the timeline layout the **Show editor panels** grab handle sits on the main area's bottom edge instead (`layout/CollapsedDrawerHandle.tsx`, a `layout.default` command). Whether the timeline layout was left on persists per device as `sharecut.tabsCollapsed` (`utils/drawerCollapsedPref.ts`); the phone, which has no layouts, neither reads nor clears it. Status-bar chips and other tab jumps (comment markers, comment mode, `view.setTab`, tighten go-to-hit, pipeline runs, follow) only switch tabs. When the current layout does not show the requested tab (any tab in the timeline layout, which hides the tabs; any tab but Transcript in the transcript layout, or but Comments in the review layout), they first restore the default layout so the panel is visible. Leaving the timeline layout this way also clears timeline key focus. The old per-pane **Focus** buttons are gone. Starting to follow (or switching whom you follow) shows the leader's tab, restoring the default layout if yours hides it. After that, Follow switches tabs only when the leader's tab changes, so a follower's own layout or tab survives the leader's audition or transcript-anchor changes, and a leader moving to the tab a follower holds behind the timeline layout still reveals it.
-
-Keyboard: `Mod+1` restore, `Mod+2` maximize timeline, `Mod+3` maximize transcript, `Mod+4` review layout. These work from anywhere except text inputs; bare digits do nothing. A browser tab may keep Ctrl/⌘+1–4 for tab switching (the desktop app does not); use the transport layout control or View › Layout there. View › Layout and View › Theme are radio groups (no cycling). Layouts exist only on the desktop and tablet shells: the `layout.*` commands are disabled on phone (`layoutShell` gate), and entering the phone shell resets the layout to default.
-
-The shell grid uses named areas (`banners / follow / transport / main / tabs / status`); modes only resize the `main` and `tabs` tracks, so banners, transport and status rows never move (`layout/shellGrid.test.ts`).
-
+The frame grid uses named rows (`header / banners / alerts / body inspector / player / tabs`); stages only change what the body holds, so banners and the Player bar never move (`stage/frame/StageFrame.test.tsx`).
 ## Interaction principles
 
 1. One job per phone screen (no timeline + full transcript + inspector).
@@ -775,31 +754,31 @@ The shell grid uses named areas (`banners / follow / transport / main / tabs / s
 3. Sheets: Close + dismiss; never stack.
 4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Native Menu panels use the top layer; API-unavailable menus portal the same panel to `document.body`. Both use `ui/anchoredPlacement.ts` (#1372): below the trigger, flipped above when that side has more room, and clamped `--menu-edge-margin` inside every visual viewport edge. They cap to `min(90dvh, var(--menu-available-height))`; the cap is re-measured every frame while open so a banner row cannot leave it stale. Panels scroll internally so every item stays reachable on short viewports. The `.ui-menu-root` keeps row sizing in `--menu-item-min-block-size`; the named transport container sets the touch size, which fallback placement copies from the trigger. Phone modifier-footer menus also use the touch size. The active phone navigation item keeps a transparent tab with an accent label and accent top indicator (the platform tab-bar convention for the current location); its state transition is disabled for reduced motion. The centered phone playhead uses `--color-timeline-playhead` so it remains visible in the dark timeline well.
 5. Snap only to on-screen anchors.
-6. Listen-first: every edit surface keeps Play around / seek footer.
+6. Listen-first: every edit surface keeps the Player bar and a seek footer.
 7. Progressive complexity via `shareMode` capabilities.
 8. Waveforms paint at a DPR capped at 2 (`paintDpr`, on a 1/8 grid). The phone shell uses smaller waveform caches: 48 MB of bitmaps and 32 MB of data tiles, against 128 MB and 64 MB on desktop ([waveform.md § Renderer](waveform.md#renderer)). Guests on phones draw from pyramid tiles only, never raw PCM.
 
-## Transport chrome (narrow)
+## Player bar and Edit tool strip
 
-The transport is **collapsed** on tablet/phone, when its measured width is at most 1240px, or when extra importing, layout Restore, audio-error, audition-region, or recording status needs space. Desktop keeps its visible Undo, Redo, Zoom out, and Zoom in. When Blade cut is available, the bar reserves another 44px before expanding. Its collapsed Menu → **Timeline tools** retains Select, Blade, and Blade cut. A desktop audio error changes Menu to a warning icon whose tooltip points to the full Mix status details. Session-region details move into Menu; recording keeps its visible chip. `ui/useResizeObserver` measures the bar.
+The transport bar, status bar and tool rail are gone (#2292). Their jobs moved
+to three places, on every shell; there is no narrow or collapsed variant to
+test any more.
 
-The host recording chip remains a full touch target in the collapsed tablet transport. On phone it occupies a persistent status row above every mode body, leaving the header controls reachable. The same row shows **Solo on · Clear solo** (44 px) while any track is soloed, in Listen too, where the transport is hidden. The row sits under sheets, like the transport, so the Mix sheet's own chip stays visible. The save light in that row is read-only in every state and adds no row height outside Listen; the Needs attention banner is its control (#1539). During a healthy take it shows a red dot, REC, and the running take clock; PAUSED and local capture failure use distinct text. Its accessible description includes the current take time. Reduced-motion settings keep the dot static.
+| Piece | Where | Holds |
+|-------|-------|-------|
+| App header | Top, 48px (phone: 44px under the safe area) | Project menu (All projects, Settings, Connect agent, Help, Appearance), save indicator, Undo and Redo (right-click Undo opens History), people (`AvatarStack`; phone: one avatar plus a count), Invite for hosts, search; the Stage bar sits centered on desktop and tablet |
+| Stage bar | Header (desktop, tablet) or the bottom tab bar (phone, 56px plus safe area) | Record, Prepare, Edit, Review, Deliver with badges, on Mod+1 to Mod+5 |
+| Player bar | Above the tab bar, 56px, every stage | Play and Pause, time, edited length, **Hear original**, the mix ring, the Solo chip, comment-at-playhead |
+| Edit tool strip and corner | Timeline corner (`EditToolStrip`, `EditCorner`) | Strip: Select and Blade, Comment mode, Range arm, Blade cut. Corner: Fit, Zoom out and Zoom in, the Script toggle, and the eye (View options), which opens the View sheet (layers, waveform scale, amplitude, track height, zoom) |
 
-| Tier | Controls |
-|------|----------|
-| Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (session width, except Listen), Menu icon; desktop/tablet also **Layout** (maximize/restore) and, on the wide bar, a **Fit tracks to window height** icon beside Fit |
-| Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
-| Menu → Project (host) | New / Open, then the export pair Bounce… and Export deliverables…, then **Share…** (collaboration extension), Record room… and **Connect agent…**, with a divider between the three groups. Selection (**Select a range**) follows Markers, so Help sits right under the view sections. A collapsed desktop bar moves **Select a range** up beside Select tool and Blade tool under Timeline tools and drops the Selection group. Home also has **Connect agent…** |
-| Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Full mix/Edited stems/Original, **Refresh mix** when render is stale, layers, zoom, **Track height −/+** and **Fit tracks to window height** checkbox, layout, theme, Fit session width if omitted from bar, Help (wide desktop splits layers/zoom/track height/layout/theme into a **View** menu) |
-
-### Editing tool rail (phone / tablet Timeline)
-
-Ferrite-style bottom rail (`EditingToolRail`): **Select | Blade** icon toggle (structural guests; its track grows to hold the 44px touch buttons rather than leave them hanging below it), **Blade cut**, and a confirm sheet for blade cuts (tracks + timecode; a fit-height sheet, so Cancel and Cut sit above the bottom tabs on a phone held sideways). When the compact inspector is closed, **Undo** and **Redo** icon buttons close the rail at its inline end for the host and `edit` guests (#1077, the #1028 phone scope). When it is open, the same buttons appear in the inspector header at peek, half and full height. Both routes call `history.undo` / `history.redo` on the command bus and share authorization and unavailable-action feedback. Each is a 44px square. With nothing to undo or redo it is dimmed and disabled, the platform convention; a screen reader hears why ("Nothing to undo", "Nothing to redo") through `aria-describedby`, and a mouse or pen sees it as the tooltip. The pair never wraps or shrinks (`flex: none`), and buttons never break their labels. In a rail at most 40rem wide (`@container app`: a phone in portrait, or any screen at large text) **+ Track** and **Import** leave the rail, because the row cannot hold them beside Undo and Redo without wrapping and costing the lanes 52px; both stay in Menu → Media and in More. Wider rails keep them. An unavailable Undo or Redo is `aria-disabled`, not `disabled`, so a finger can tap it. In the rail, the tap shows its reason ("Nothing to undo", "Nothing to redo") in a note above the rail for a few seconds. In the compact inspector header, the tapped button briefly shows a two-line "No" plus its action caption inside its existing target; its accessible description retains the full reason and a stable `role="status"` announces it. Both feedback forms expire after 3.5 seconds, when the action becomes available, or when the history controls disappear, without changing control or lane geometry. Later unavailability needs another activation before feedback appears. The two-finger tap and More → History remain. **Comment** stays on the collapsed transport so Listen/More still have it (compact `ToolModeToggle` omits Comment to avoid a duplicate). Desktop uses the expanded transport toggle (**V** / **C** when timeline-focused; same `execute` command bus as the rail — see `gui/web/src/keymap/` + `gui/web/src/commands/`); in blade mode a pointer-following cut preview marks target lanes, and click on **clip / empty-lane / ruler** splits immediately (no confirm sheet). Multi-track selection: Shift/Cmd-click track headers; blade with no selection targets all dialogue tracks.
-
-**Zoom in the rail (#1028).** **Zoom out** and **Zoom in** are 44px icon buttons in one group named Zoom, before Undo and Redo. They run `view.zoomOut` and `view.zoomIn` on the command bus, the same steps as `-` and `=`. At a zoom limit a button is `aria-disabled` with its reason ("Fully zoomed out", "Fully zoomed in") rather than `disabled`, so a finger can still tap it and focus stays. Zoom shows for everyone who can open the timeline, so a Viewer's rail holds Zoom alone. In a rail at most 40rem wide **Select range** shows its dashed-marquee icon in place of its label (its accessible name stays "Select range"), and the rail trades its padding and gaps for the room, so seven 44px targets keep one row at 360px (`e2e-compat/phone-chrome.spec.ts`). A narrower rail wraps to a second row like any rail. Pinch and Menu → Zoom remain.
-
-Labeled audition/pills do not stay in the bar when collapsed — that was clipping Comment/Fit/Menu off-screen. The **Mix out of date** pill is wide-bar only; collapsed transport keeps timecode pinned (`flex: 0 0 auto`) and moves refresh into Menu so digits cannot paint over status. A missing mix is the same single status, reworded: the pill, the Menu's refresh item and the phone status chip read **No mix yet** (**No mix yet · Refresh** where the person can refresh; a guest sees **No mix yet** only) instead of **Mix out of date**. The Menu's Mix status section adds "Full mix is silent until you refresh the mix." above the refresh item, and the wide bar puts the same reason on the Full mix segment.
-
+- **Hear menu.** Long-press (touch) or right-click the Hear original button for Full mix (default), Without mix processing and Original. Guests get the mix only. `render.refreshMix` is in the palette and Deliver.
+- **Zoom (#1028).** Zoom out and Zoom in (in the corner) run `view.zoomOut` and `view.zoomIn` on the command bus, the same steps as `-` and `=`. At a limit the button is `aria-disabled` with its reason, not `disabled`, so a finger can still tap it and focus stays. Zoom shows for everyone who can open the timeline.
+- **Touch targets.** The corner packs its controls into the 48px chrome; buttons are 28px there, below the 44px floor. This is a known limit; the Player bar and tab bar keep `var(--touch-min)`.
+- **The phone sheet never covers the header row** (R-short-8). At every detent its slot starts at the header's bottom edge (`bottom-sheet.css`, `--app-header-height-phone` plus the top safe area), so the Stage menu and Tools button stay reachable while a selection is open, including at 200% text. The clearance tokens then count only the rows under the header (`--sheet-header-clearance` is 0 on the phone).
+- **Blade cut** is a confirm sheet on touch (tracks and timecode), as before; the sheet rests above the tab bar and Player (`--frame-bottom-chrome`).
+- **Undo and Redo** live in the app header on every shell. When the compact inspector is closed they are not repeated in the strip.
+- The `--mobile-nav-height`, `--tabs-height` and `--status-height` tokens are replaced by `--frame-bottom-chrome` for sheets, jog and toast offsets.
+- The host recording chip is a Record-stage badge on the Stage bar. **Solo on · Clear solo** is the Player bar's Solo chip, 44px.
 ## Desktop / tablet back-apply
 
 Keep the Reaper grid. Shared polish:
@@ -825,13 +804,13 @@ touch targets for opening track details and clearing clipping. On a short
 screen the minimum is 72px, or 3.25rem with large text (#1077). The saved track
 height still applies when it is larger than that minimum.
 
-- Transport overflow (theme, layers, zoom; host-only More → Add chapter at playhead, `edit.addChapter`)
-- Layouts (above)
+- Project menu Appearance row and eye sheet (theme, layers, zoom; add chapter at the playhead is `edit.addChapter` in the **+** menu)
+- Script toggle (`T`, `view.toggleScript`) and Script focus (`Shift+T`, `view.scriptFocus`) instead of layout presets
 - Wider invisible hit targets for fades/envelopes
-- Actionable status chips → Impact / Pipeline / Comments
+- Status that opens its panel: the Player bar mix ring and Review/Prepare badges on the Stage bar
 - Capability-aware chrome for guests
 - Pinch-to-zoom on timeline (all shells; spatial claim on `.timeline-scroll` + shared `applyAnchoredZoom` with keys; browser page-zoom does not fight); **the phone-only playhead that holds the center once passed (#1707)**
-- Follow: tablet slaves viewport like desktop (People in Menu). Phone is listen-along — banner is its own grid row (`daw-shell--following`); Listen scrub/±15s unfollows; Timeline colors the phone needle and still draws other ghosts (never the local guest, whose share WS id is `guest-{token}-…`). Touch floors are `var(--touch-min)` in rem via `@container app` (banner, More hub) and `@container transport` (Menu rows), not `@media` viewport queries.
+- Follow: tablet slaves viewport like desktop (People in the header). Phone is listen-along — the Follow banner is its own frame row (`stage-frame--following`); scrubbing the Player unfollows; Timeline colors the phone needle and still draws other ghosts (never the local guest, whose share WS id is `guest-{token}-…`). Touch floors are `var(--touch-min)` in rem via `@container app` (banner, sheets) and `@container transport` (Project menu rows), not `@media` viewport queries.
 - Track headers lock vertically with lanes inside one scroller (sticky on inline-start). The ruler and marker row stay pinned above the lanes as you scroll vertically. They keep panning horizontally with the lanes, while the phone's playhead stays in the viewport. Density (gutter vs mixer rail) follows `@container timeline` on `.timeline-area`. Zoom hit-tests the time column, not mute/solo.
 - Desktop and tablet timelines keep a vertical scrollbar present so the time viewport width stays steady as track overflow changes. Phone fixed-playhead mode shows the vertical scrollbar only when tracks overflow.
 
@@ -854,10 +833,10 @@ enforced-by:
 Host offline command attention occupies its own shell row on phone, tablet, and desktop; queued host edits stay visible while reconnect/replay is pending, and conflict rows can be dismissed. While a compact inspector is open, the one native Details disclosure moves into its existing feedback body header, below the pinned inspector controls. Its explanation and recovery actions use the inspector body scroller; the header actions keep their own space at every detent. In compact half and full detents, the existing Pending review toolbar also starts the scrolling body, so it does not consume the pinned header budget. Peek and regular inspector placement stay unchanged, and the same toolbar keeps its callbacks, review draft and focus across those moves. Otherwise, Details opens a bounded dropdown below the shell row. The shell slot keeps its compact footprint and inspector detents stay unchanged. A stable local portal container preserves native open state and focused recovery controls when the existing host closes, stows, or returns. Switching projects resets the disclosure. Outside the inspector, the dropdown height subtracts its measured row bottom and the bottom safe-area inset. Removing attention or unmounting removes the portal container and cancels position updates. The share-mode label remains guest-only.
 
 ## Testing
-
-- Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, layout CSS classes, shell grid areas (`layout/shellGrid.test.ts`), layout controls; Playwright `e2e/layout-modes.spec.ts` (layout × attention × following geometry at 1512×805)
-- Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit
-- Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, rail Undo and Redo, a page that never scrolls under the shell, and the once-per-browser Add to Home Screen banner, in Chromium and WebKit with touch emulation
+- Vitest: `useViewportClass`, `BottomSheet`, `stage/frame/StageFrame.test.tsx` (phone tab bar, Script and Timeline surfaces, guest stages), follow live region, `stage/hosts/paletteCoverage.test.tsx` (every command that lived in the removed menus is still a catalog command, or its new home is rendered and runs it)
+- Playwright: phone viewport (`390×844`) asserts `.stage-frame--phone` and the Stage tab bar (`e2e/stage-shell.spec.ts`); `e2e/overlay-viewport.spec.ts` Project menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit. Specs reach chrome only through `e2e/stageNav.ts` ([testing-e2e.md](testing-e2e.md#stage-navigation-helpers))
+- Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, the tool strip, a page that never scrolls under the frame, and the once-per-browser Add to Home Screen banner, in Chromium and WebKit with touch emulation
+- Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
 See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-integration.md) § Responsive shells.

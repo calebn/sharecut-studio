@@ -11,6 +11,7 @@ import {
   waiveRefineGate,
 } from "../e2e/documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "../e2e/env";
+import { openProject } from "../e2e/stageNav";
 import { type BrowserName, ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import { DOCUMENT_COMMAND_TIMEOUT_MS } from "../src/api/documentTransport";
@@ -37,7 +38,7 @@ async function proveHungLoad(
     testInfo.outputPath("boundary-timeout");
   fs.mkdirSync(shots, { recursive: true });
   await page.setViewportSize(viewport);
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );

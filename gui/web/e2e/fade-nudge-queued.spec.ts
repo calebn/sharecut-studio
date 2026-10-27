@@ -1,6 +1,7 @@
 import { expect, type Route, test } from "@playwright/test";
 import { hostOfflineQueueCount } from "./offlineQueue";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 
 type FadeCommand = { command_id: string; type: string };
 
@@ -17,7 +18,7 @@ test("a fade nudge that queues offline stays shown, then saves once online", asy
       commands.push(command);
       return offline ? route.abort("failed") : route.continue();
     });
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const block = page.locator(".lane-row").first().locator(".clip-block");
     await expect(block).toHaveCount(1);
     const clipId = await block.getAttribute("data-clip-id");

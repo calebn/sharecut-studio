@@ -52,10 +52,10 @@ and their rendered panel height, or the prop height when layout is unavailable.
 A clamped no-op creates no preference; Reset clears it.
 A button press during a drag cancels that drag without also stepping. Sizing
 creates no project write or document History. Phone retains Expand and Collapse
-and has no desktop splitter. Coarse-pointer controls have a 2.75rem target floor.
+and has no Script divider. Coarse-pointer controls have a 2.75rem target floor.
 
 Focused Vitest coverage lives in `edit/clipPlacement.test.ts`,
-`inspector/views/ClipPlacementControls.test.tsx`, and the splitter tests.
+`inspector/views/ClipPlacementControls.test.tsx`, and the Script divider tests.
 `e2e/non-drag-placement.spec.ts` defines pointer initiation, intermediate geometry,
 exact 7/27-second placements and lanes, refusal/recovery, Undo, preferences, and
 role/shell/appearance cells. Browser touch automation is not physical-device
@@ -368,12 +368,12 @@ The command catalog says **"Undo the last action. Optional ShareCut shortcut."**
 The inaccurate hook comment is removed. The implementation still calls
 `execute("history.undo")`. The recognizer and its tests are unchanged. No help copy claims an iOS convention or a
 particular visible Undo route. Source confirms More contains a History route in
-`gui/web/src/layout/MobileShell.tsx`; help copy does not depend on it.
+the phone More hub (`layout/MobileShell.tsx`); since #2292 the hub is gone and History is an Edit sheet. Help copy does not depend on either.
 Apple's [iPhone Undo and redo guide](https://support.apple.com/en-au/guide/iphone/iph1a9cae52c/ios)
 documents the three-finger text editing gesture. That system convention does
 not establish ShareCut's separate two-finger shortcut.
 
-Exact seek remains outside this patch. `layout/TransportTimecode.tsx` uses
+Exact seek remains outside this patch. the transport timecode (now the Player bar's time, `System/Player`) uses
 `ui/Timecode.tsx` for the text readout. `commands/seek.ts` dispatches existing
 seek commands. Arbitrary timestamp entry remains a precision candidate for
 follow-up.
@@ -389,19 +389,19 @@ or named test owns that behavior; it does not certify unrun combinations.
 |---|---|---|---|
 | Timeline navigation: `timelineZoomGestures.ts`, `TimelineView` | One-finger pan and pinch zoom; visible zoom controls and Fit | Timeline gesture handlers own navigation and focal zoom. Pan/zoom are view changes, not document commits; no document History. Existing navigation is shared by shell role policy. Phone keeps fixed-center playhead; tablet/desktop retain their timeline layout. | **Keep.** #878 documents tested bounds and known residual combinations. No global gesture rewrite. |
 | Ruler seek and comment-span draft: `TimeRulerView.tsx`, `commentAnchorSession.ts`, comment composer | Tap ruler to seek; visible time/playhead; comment span can be drafted by dragging | Tap seeks immediately. Comment-mode pointer capture previews an anchor draft; a span must reach 4 CSS pixels (`COMMENT_SPAN_MIN_PX`) at the current zoom to get an end time. Pointer cancel, capture loss, unmount, or leaving comment mode calls `cancelDrag`; project/comment-state invalidation is owned by `beginCommentAnchorSession`. Accepted release finishes the local draft. Explicit comment submission persists it. The existing comment composer owns submission failure and permission feedback; no new History entry occurs until comment creation. No new sheet or seek input. | **Keep.** `TimeRulerView.tsx`, `commentAnchorSession.ts`, and `ruler-recovery.spec.ts` identify these paths; #878 evidence covers only its named cases. Arbitrary exact seek remains an open precision gap, while ruler tap is an existing single-pointer navigation path. |
-| Select range: `useRangeGesture.ts`, `EditingToolRail` | Armed range drag; visible Select range mode, In/Out, lane controls and action card | Explicitly arm before drag. Draft is local until Cut/Mute/Comment/Bounce. Existing Cancel/Escape and permission paths own cancellation/failure; one accepted document operation uses existing History. Phone/tablet rail and numeric controls remain. | **Keep and clarify armed state through existing UI.** `contextual-range.spec.ts` covers exact targets and policy; phone dispatched events are synthetic as recorded in #878. |
+| Select range: `useRangeGesture.ts`, `EditToolStrip` (was `EditingToolRail`) | Armed range drag; visible Select range mode, In/Out, lane controls and action card | Explicitly arm before drag. Draft is local until Cut/Mute/Comment/Bounce. Existing Cancel/Escape and permission paths own cancellation/failure; one accepted document operation uses existing History. The tool strip's Range arm and the numeric controls remain. | **Keep and clarify armed state through existing UI.** `contextual-range.spec.ts` covers exact targets and policy; phone dispatched events are synthetic as recorded in #878. |
 | Clip move: `ClipBlockView.tsx`, clip move owner | Drag visible clip body/grip; click selects and modifier click extends selection | Owner previews destination before `MoveClips`; accepted changed release commits once; Escape, capture loss, blur, unmount cancel. Existing command permission and Undo apply. Move clip in the inspector previews time and track placement through native fields and pointer step buttons before Apply move or Cancel. | **Keep drag and add inspector placement.** `ClipBlock.test.tsx`, `edit/clipMove.test.ts`, and `inventory-audit.spec.ts` are the cited coverage. Exact 7/27-second persistence remained failed in the #878 record. |
 | Trim, fade, roll and crossfade: clip handles, join controls, inspector | Drag visible edge/seam; native numeric/range fields and keyboard nudges | Local preview follows the active owner. Accepted changes use existing commands; Escape/cancel does not save. Save failures stay in current inspector error routes; accepted edits use document History. Touch and dense-target behavior vary by timeline width. | **Keep.** `fade-curves.spec.ts`, `crossfade-length.spec.ts`, `transitions-acceptance.spec.ts`, and `edit-boundary-precision.spec.ts` retain existing evidence. Do not add another gesture system. |
 | Pending range, chapter, social markers: `MarkerLane`, pending inspector | Drag eligible visible handles/body; inspector numeric timing and Edit timing | Draft remains local before the existing command. Escape, lost ownership, blur, and unmount cancel owned previews. Host/guest permissions remain at current command boundaries; accepted edits are undoable. Phone dense pending handles can give way to Edit timing. | **Keep.** `pending-edge-controls.spec.ts`, `MarkerLane.test.tsx`, and #878 inventory cover named paths; not every interruption combination. |
 | Join endpoint / transition length: join glyph and inspector | Select join; numeric transition length | Endpoint row is separated from neighboring actions. Numeric field is the exact visible equivalent; preview/save/failure follow current inspector command. Existing History applies to accepted edit. | **Keep.** `transitions-acceptance.spec.ts` checks saved bounds and Undo. Do not add rotate or hidden pinch. |
 | Envelope points and creation: envelope overlay / #950 inspector | Existing point editing; creation is missing | Point selection/edit behavior remains in #950's ownership. Its future edit contract must define preview, apply/cancel, save failure, permission, History and narrow responsive behavior at that boundary. | **Keep point editing; route creation to #950.** This patch touches none of the #950-owned files or claims. |
-| Desktop/tablet editor splitter: `BottomTabsSplitterView.tsx` | Drag separator; Shorter/Taller/Reset panel size buttons; Arrow keys, Home/End, Enter reset | Existing separator owns preview and Escape cancellation; accepted view sizing may persist its preference but creates no document History. It remains a desktop/tablet surface with a 10 CSS-pixel measured pointer strip in #878. | **Keep drag and add native size buttons.** `splitter-recovery.spec.ts` is current cancellation evidence. The #1033 native size buttons add the non-drag route without widening the separator. |
+| Script divider: `stage/edit/ScriptDivider.tsx` (replaced `BottomTabsSplitterView.tsx` and its Shorter/Taller/Reset buttons in #2292) | Drag separator; Arrow keys (Shift for 4 rem), Home/End, Enter or double-click reset | Existing separator owns preview and Escape cancellation; accepted view sizing may persist its preference but creates no document History. It remains a desktop/tablet surface with a 10 CSS-pixel measured pointer strip in #878. | **Keep drag and add native size buttons.** Keyboard resizing is the non-drag route; `ScriptDivider.test.tsx` is the evidence now that `splitter-recovery.spec.ts` and the size buttons are gone. |
 | Track order and gutter: `RelatedCommands`, track reorder controller | Existing Move up/down buttons; reorder grip drag remains available where permitted | Move up/down are single-pointer buttons that invoke current track-order commands; command permission and Undo paths remain authoritative. If a selection has no related or overflow command, `RelatedCommands` renders no empty command region. The reorder grip owns drag preview/drop. No new gutter drag ownership, auto-scroll, or selection model. | **Keep Move up/down as the non-drag route and keep the reorder grip.** Source confirms the alternate action already exists; task-path comparison between the buttons and drag remains open. |
 | Mix: `MixSheet`, native controls, `useCommitRange` | Native volume range and M/S controls; More → Mix | Volume follows the existing preview/commit lifecycle and permission reason; M/S and local/shared listening distinctions remain. Accepted host/editor volume writes use the existing document command. Sheet layout supports row scrolling and text wrapping. | **Keep.** Do not add swipe-to-mix. Existing `phone-mix.spec.ts` covers its current path; failure/cancel combinations not asserted there remain unverified. |
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: comment list/controller | Swipe left resolves; visible Resolve/Reopen and Undo toast | Only enabled for eligible open host comments in the list. Preview reveals a cue; threshold release uses `comment.resolve`; vertical movement, cancel, or hold restores the row. Existing command failures and latest-only Undo toast remain. Embedded threads do not opt in. | **Keep.** Existing comment recovery browser coverage includes Chromium/WebKit phone; physical device verification remains pending. |
 | BottomSheet: `ui/BottomSheet.tsx` | **Only the compact inspector's drawer drags and flicks** (its header, round 4b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (peek/half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it is clear at the strip and dims the timeline at half and full; confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
-| Transport, Gestures help and History: `MobileShell` More hub, command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. Phone More lists History and Gestures. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional ShareCut copy. |
+| Transport, Gestures help and History: phone More hub (removed in #2292), command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. History is an Edit sheet and Gestures is in the Project menu. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional ShareCut copy. |
 
 ## Explicit disposition
 
@@ -420,7 +420,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 
 The inventory does not claim keyboard operation alone meets WCAG 2.5.7. Existing
 visible actions are credited only where the same operation has a single-pointer
-non-drag path. Clip movement and desktop/tablet splitter resizing now have native non-drag
+non-drag path. Clip movement and Script divider resizing now have native non-drag
 controls described in #1033 above. Automated Chrome and WebKit cases cover their
 preview, commit, cancellation, recovery and local-preference contract. Physical
 acceptance stays separate. Track order already has Move up/down buttons; how well those buttons and
@@ -823,7 +823,7 @@ A timeline selection on a phone-sized screen opens a peek
 strip instead of the half sheet. Phone-sized means the phone shell in
 Timeline mode, or the tablet shell on a screen at most 40rem tall (a phone
 held sideways). Taller tablets and desktop keep their inspector.
-`layout/useCompactInspector.ts` decides this for both shells. Where the
+`stage/edit/useCompactInspector.ts` decides this for both shells. Where the
 Inspector is a [column](#decision-the-inspector-is-a-column-on-a-short-wide-touch-screen),
 at least 40rem wide on a coarse pointer, there is no strip: the measurements
 below for 800×360 and 844×390 sideways are the strip's, before the column.
@@ -894,16 +894,16 @@ evidence:
 - #1696: owner request (calebn, 2026-10-17, project chat) to present the selection Inspector as a side column on a phone held sideways
 - #1694 and #1714: the lane band kept the lane and the form on screen, but they shared a short vertical space and the keypad squeezed both
 enforced-by:
-- gui/web/src/layout/useInspectorColumn.test.ts::asks for a short, wide screen whose primary pointer is coarse
-- gui/web/src/layout/useSelectionSheet.test.tsx::puts the %s shell's inspector in a column on a short wide touch screen
+- gui/web/src/stage/edit/useInspectorColumn.test.ts::asks for a short, wide screen whose primary pointer is coarse
+- gui/web/src/stage/edit/useSelectionSheet.test.tsx::puts the %s shell's inspector in a column on a short wide touch screen
 - gui/web/src/ui/compactSheet.test.ts::is invisible to every keep-clear helper, which look for the sheet class
 - gui/web/e2e-compat/inspector-column.spec.ts::a clip's Inspector is a column beside a whole timeline, and Close returns the shell
 - gui/web/e2e-compat/inspector-column.spec.ts::with the keyboard up the column shortens to the visible viewport and keeps its header
 - gui/web/e2e-compat/inspector-column.spec.ts::with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice
 - gui/web/e2e-compat/inspector-column.spec.ts::turning upright keeps an unsaved draft and its focus in the Inspector
-- gui/web/e2e-compat/inspector-column.spec.ts::with Safari's chrome collapsed the column stops above the status strip, not over the focused field
+- gui/web/e2e-compat/inspector-column.spec.ts::with Safari's chrome collapsed the column stops above the Player, not over the focused field
 - gui/web/src/ui/BottomSheet.test.tsx::keeps the draft, the elements and the focus when the phone rotates and back
-- gui/web/src/layout/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
+- gui/web/src/stage/edit/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
 -->
 
 On a coarse primary pointer at most 40rem tall and at least 40rem wide, the
@@ -923,7 +923,7 @@ ends above the tablet's status strip. Turning
 the phone upright shows the full Inspector, not the peek strip.
 This replaces the lane band and the compact strip on those screens, and no
 other. A gesture that needs the compact strip's Undo header does not exist
-there: Undo and Redo stay on the tool rail, which the column leaves usable.
+there: Undo and Redo are in the app header, which the column leaves usable.
 
 ### Pinch never edits (#1051 round 4)
 
@@ -974,7 +974,7 @@ enforced-by:
 - gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
 -->
 
-The strip covers the tool rail again. Its header keeps the shared Undo and
+The strip covers the Player bar again. Its header keeps the shared Undo and
 Redo controls visible at peek, half and full height. The rail and header use
 one authorization check, one unavailable-action message and the existing
 `history.undo` / `history.redo` command bus path, including its wait for this
@@ -1171,7 +1171,7 @@ chooser lab until the owner made it the default (2026-10-07).
   there the popover owns the edit and the pinch-from-the-grip case cannot
   arise; in portrait the grip is reachable and its pinch rule is pinned live.
   A toast no longer covers the grip there either: the phone toast docks above
-  an open crossfade rail as it does above the tool rail.
+  an open crossfade rail as it does above the Player bar.
 
 ### Decision: Compact feedback and fields share one body scroller
 

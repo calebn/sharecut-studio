@@ -29,9 +29,9 @@ test("tablet Select range puts In, Out, Select range and Cancel in the sheet at 
   });
   await expect(cancel).toBeVisible();
 
-  // Nothing of it hangs under the transport bar at the top.
+  // Nothing of it hangs under the App header at the top.
   await expect(
-    page.locator(".daw-shell-transport").getByRole("region", {
+    page.locator(".stage-frame-header").getByRole("region", {
       name: "Range actions",
     }),
   ).toHaveCount(0);

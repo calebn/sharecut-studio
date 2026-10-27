@@ -219,7 +219,8 @@ describe("TightenPanel", () => {
     vi.mocked(startPipelineRun).mockImplementation(async () => job());
     useDawStore.getState().hydrate("/tmp/p.json", projectWithHits());
     useDawStore.setState({
-      activeTab: "tighten",
+      stage: "review",
+      reviewSection: "tighten",
       guestMode: null,
       shareCapabilities: [],
       pipelineJob: null,
@@ -267,7 +268,7 @@ describe("TightenPanel", () => {
     await waitFor(() =>
       expect(useDawStore.getState().pipelineJob?.id).toBe("job1"),
     );
-    expect(useDawStore.getState().activeTab).toBe("tighten");
+    expect(useDawStore.getState().stage).toBe("review");
     await expectNoA11yViolations(container);
   });
 

@@ -117,20 +117,6 @@ export const FindAndReplace: Story = {
   },
 };
 
-export const TextLayoutCorrecting: Story = {
-  parameters: {
-    episode: {
-      selection: selections.word,
-      state: { layoutMode: "text", shellBreakpoint: "desktop" },
-    },
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("heading", { name: "After" }),
-    ).toBeVisible();
-  },
-};
-
 export const LoadingWords: Story = {
   parameters: {
     episode: {
@@ -172,7 +158,7 @@ export const Viewer: Story = {
 
 export const Phone: Story = {
   parameters: {
-    dawShellPhone: true,
+    framePhone: true,
     episode: { state: { shellBreakpoint: "phone", pointerKind: "coarse" } },
   },
   play: async ({ canvasElement }) => {

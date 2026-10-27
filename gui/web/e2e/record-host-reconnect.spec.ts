@@ -4,7 +4,6 @@ import { type Browser, expect, test } from "@playwright/test";
 import {
   HOST_OFFLINE_COPY,
   hostReconnectPauseCopy,
-  REC_CHIP_OFFLINE_LABEL,
   RECORD_ROOM_RECONNECTING_COPY,
   UPLOAD_DONE_COPY,
 } from "../src/record/types";
@@ -214,9 +213,6 @@ test.describe("record host reconnect", () => {
 
           await expect(
             roomDlg.getByText(RECORD_ROOM_RECONNECTING_COPY),
-          ).toBeVisible();
-          await expect(
-            host.getByRole("button", { name: REC_CHIP_OFFLINE_LABEL }),
           ).toBeVisible();
 
           await expect

@@ -3,6 +3,7 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { withShareableProject } from "./shareableProject";
+import { openPanel, openProject } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
 /** The app toast and both its buttons sit inside the viewport and take the pointer. */
@@ -61,26 +62,12 @@ export async function exerciseCommentUndo(
         projectPath,
       );
     }
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const phone = (page.viewportSize()?.width ?? 0) < 720;
     await expect(
-      page.locator(`.daw-shell--${phone ? "phone" : "desktop"}`),
+      page.locator(`.stage-frame--${phone ? "phone" : "desktop"}`),
     ).toBeVisible();
-    if (phone) {
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "More", exact: true })
-        .click();
-      await page
-        .locator(".mobile-more-list")
-        .getByRole("button", { name: "Comments", exact: true })
-        .click();
-    } else {
-      await page
-        .getByLabel("Editor panels")
-        .getByRole("tab", { name: "Comments", exact: true })
-        .click();
-    }
+    await openPanel(page, "comments");
     const panel = page.locator(".comments-panel");
     await expect(panel).toBeVisible();
     await setTheme(page, theme);
@@ -112,7 +99,7 @@ export async function exerciseCommentUndo(
     await expect(panel).toBeFocused();
     await expect(
       page
-        .locator('.daw-shell .sr-only[role="status"]')
+        .locator('.stage-frame .sr-only[role="status"]')
         .filter({ hasText: "Comment reopened" }),
     ).toHaveText("Comment reopened");
     await expect.poll(savedResolved).toBe(false);
@@ -241,7 +228,7 @@ export async function exerciseCommentUndo(
     await expect.poll(savedResolved).toBe(false);
     await expect(
       page
-        .locator('.daw-shell .sr-only[role="status"]')
+        .locator('.stage-frame .sr-only[role="status"]')
         .filter({ hasText: "Comment reopened" }),
     ).toHaveText("Comment reopened");
     await page.unrouteAll({ behavior: "wait" });

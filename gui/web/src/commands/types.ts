@@ -3,7 +3,6 @@
 export type CommandCategory =
   | "transport"
   | "tools"
-  | "layout"
   | "navigation"
   | "review"
   | "edit"
@@ -17,7 +16,6 @@ export type ContextPredicateId =
   | "focusedFadeHandle"
   | "focusedTrimHandle"
   | "always"
-  | "layoutShell"
   | "editorFocused"
   | "timelineFocused"
   | "commentMode"

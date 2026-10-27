@@ -21,7 +21,7 @@ import {
   useLayoutEffect,
   useState,
 } from "react";
-import { remToPx } from "./useTabsHeight";
+import { remToPx } from "../utils/remToPx";
 import {
   VIRTUALIZE_OFF_ROWS,
   VIRTUALIZE_ON_ROWS,

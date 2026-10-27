@@ -7,32 +7,21 @@ const stored = () => JSON.parse(localStorage.getItem(KEY) ?? "{}") as unknown;
 describe("keymap remaps", () => {
   beforeEach(() => _resetKeymapOverridesForTests());
 
-  it("moves saved focus.* remaps to layout.* and drops focus.cycle", () => {
+  it("drops saved remaps for the removed focus.* and layout.* commands", () => {
     localStorage.setItem(
       KEY,
       JSON.stringify({
         "focus.timeline": ["G"],
         "focus.cycle": ["F"],
+        "layout.text": ["Y"],
         "tool.select": ["B"],
       }),
     );
-    expect(getKeymapOverride("layout.timeline")).toEqual(["G"]);
     expect(getKeymapOverride("focus.timeline")).toBeUndefined();
     expect(getKeymapOverride("focus.cycle")).toBeUndefined();
+    expect(getKeymapOverride("layout.text")).toBeUndefined();
     expect(getKeymapOverride("tool.select")).toEqual(["B"]);
-    expect(stored()).toEqual({
-      "layout.timeline": ["G"],
-      "tool.select": ["B"],
-    });
-  });
-
-  it("keeps an existing layout.* remap over the old focus.* one", () => {
-    localStorage.setItem(
-      KEY,
-      JSON.stringify({ "focus.text": ["T"], "layout.text": ["Y"] }),
-    );
-    expect(getKeymapOverride("layout.text")).toEqual(["Y"]);
-    expect(stored()).toEqual({ "layout.text": ["Y"] });
+    expect(stored()).toEqual({ "tool.select": ["B"] });
   });
 
   it("leaves a map without renamed ids untouched", () => {

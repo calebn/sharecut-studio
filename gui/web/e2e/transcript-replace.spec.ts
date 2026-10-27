@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -9,7 +10,7 @@ import {
 test("reviewed replace all is one command and one Undo restores every instance", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
   const word = list
     .locator(".utterance-word")
