@@ -117,7 +117,7 @@ export const ErrorState: Story = {
   play: playInCanvas(async ({ canvasElement, args }) => {
     await expectCoverFills(canvasElement, 0.5);
     await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Try again" }),
+      within(canvasElement).getByRole("button", { name: /^Try again/ }),
     );
     await expect(args.onRetry).toHaveBeenCalledOnce();
   }),
@@ -249,10 +249,10 @@ export const FailedComment: Story = {
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByText("Not sent")).toBeInTheDocument();
-    await userEvent.click(view.getByRole("button", { name: "Try again" }));
+    await userEvent.click(view.getByRole("button", { name: /^Try again/ }));
     await expect(args.onRetryComment).toHaveBeenCalledTimes(1);
     await expect(args.onRetryComment).toHaveBeenCalledWith("c1");
-    await userEvent.click(view.getByRole("button", { name: "Remove" }));
+    await userEvent.click(view.getByRole("button", { name: /^Remove/ }));
     await expect(args.onRemoveComment).toHaveBeenCalledTimes(1);
     await expect(args.onRemoveComment).toHaveBeenCalledWith("c1");
   }),
