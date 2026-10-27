@@ -73,6 +73,11 @@ function openDetails() {
     fireEvent.click(details);
 }
 
+function getActionButton(name: string) {
+  openDetails();
+  return screen.getByRole("button", { name });
+}
+
 function mountBannerTarget() {
   const banner = document.createElement("div");
   banner.id = ATTENTION_BANNER_ID;
@@ -241,6 +246,91 @@ describe("useSaveState", () => {
     expect(
       screen.queryByRole("region", { name: /Needs attention/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("reveals dismissed History as inspect-only and keeps its queue reservation", async () => {
+    const history = offlineConflict({
+      kind: "unknown",
+      reason: "Undo may have been applied.",
+      recovery: "inspect-history",
+      command: { command_id: "undo-1", type: "UndoHistory" },
+    });
+    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    offlineStore.loadHostConflicts.mockResolvedValue([history]);
+    offlineStore.dismissHostConflicts.mockResolvedValue({
+      pending: 1,
+      conflicts: [{ ...history, dismissed: true }],
+    });
+    const tree = (
+      <>
+        <SaveDot />
+        <GuestAttentionBanner />
+      </>
+    );
+    const rendered = render(tree);
+    await settle();
+
+    fireEvent.click(getActionButton("Dismiss all"));
+    await settle();
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 pending/);
+    rendered.unmount();
+    offlineStore.loadHostConflicts.mockResolvedValue([
+      { ...history, dismissed: true },
+    ]);
+    render(tree);
+    await settle();
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 pending/);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^Retry/,
+      }),
+    );
+
+    const banner = screen.getByRole("region", { name: /Needs attention/ });
+    await settle();
+    expect(banner).toHaveFocus();
+    expect(banner.querySelector("details")).toHaveAttribute("open");
+    expect(getActionButton("Inspect History")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(getActionButton("Inspect History"));
+    expect(useDawStore.getState().openSheet).toBe("history");
+    expect(drain.requestHostDrain).not.toHaveBeenCalled();
+  });
+
+  it("focuses the Needs attention banner that a dismissed History outcome brings back", async () => {
+    const history = offlineConflict({
+      kind: "unknown",
+      reason: "Undo may have been applied.",
+      recovery: "inspect-history",
+      command: { command_id: "undo-2", type: "UndoHistory" },
+    });
+    offlineStore.loadHostConflicts.mockResolvedValue([
+      { ...history, dismissed: true },
+    ]);
+    render(
+      <>
+        <SaveDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Retry/ }));
+    await settle();
+
+    const banner = screen.getByRole("region", { name: /Needs attention/ });
+    expect(banner).toHaveFocus();
+    expect(banner.querySelector("details")).toHaveAttribute("open");
+    expect(getActionButton("Inspect History")).toBeInTheDocument();
   });
 
   it("shows nothing to a share guest and reads no host queue", async () => {
