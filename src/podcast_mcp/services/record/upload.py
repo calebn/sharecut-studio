@@ -1321,6 +1321,20 @@ class RecordUploadService:
     def tombstoned_takes(self, session_id: str) -> set[int]:
         return self._store.tombstoned_takes(parse_session_id(session_id))
 
+    def segment_last_activity_ms(
+        self, session_id: str, take_index: int, participant_id: str, segment_index: int
+    ) -> int | None:
+        """Wall time (ms) of the newest part saved for a segment; None if no part file is left."""
+        folder = self._root / parse_session_id(session_id) / str(take_index) / participant_id
+        newest: float | None = None
+        try:
+            for path in (folder / str(segment_index)).glob("*.part"):
+                mtime = path.stat().st_mtime
+                newest = mtime if newest is None else max(newest, mtime)
+        except OSError:
+            return None
+        return None if newest is None else int(newest * 1000)
+
     def take_manifest_terminal(self, session_id: str, take_index: int) -> bool:
         return self._store.take_manifest_terminal(
             parse_session_id(session_id),

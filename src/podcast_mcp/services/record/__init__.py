@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         Unsaved,
         describe_unsaved_takes,
         land_first_would_work,
+        left_behind_message,
         refuse_land_first,
         unsaved_fields,
         unsaved_takes,
@@ -85,6 +86,7 @@ __all__ = [
     "filter_record_event_for_guest",
     "invalidate_record_session_cache",
     "land_first_would_work",
+    "left_behind_message",
     "parse_participant_id",
     "parse_session_target",
     "parse_upload_kind",
@@ -137,6 +139,7 @@ _MODULE_BY_NAME = {
     "unsaved_takes": "preflight",
     "Unsaved": "preflight",
     "land_first_would_work": "preflight",
+    "left_behind_message": "preflight",
     "refuse_land_first": "preflight",
     "with_unsaved_takes": "preflight",
 }
