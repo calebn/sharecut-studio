@@ -9,21 +9,39 @@ export interface FrameFitSizes {
   tabsHeight: number;
   /** The lanes' own floor (`--stage-stacked-lanes-min`). */
   lanesMin: number;
+  /** One lane (`--lane-height`): the corner may cover the foot of one. */
+  laneHeight: number;
+  /** The Edit lanes' column and the corner floating over its foot; 0 off Edit. */
+  laneAreaHeight: number;
+  cornerHeight: number;
 }
 
 /**
  * Whether the frame folds: it cannot hold its full header, the full Player,
- * the tab bar and the lanes' floor together. A size that did not measure
- * (NaN, or a frame not laid out yet) never folds.
+ * the tab bar and the lanes' floor together, or (on Edit) the corner would
+ * cover more than the foot of one lane. A size that did not measure (NaN, or a
+ * frame not laid out yet) never folds.
  */
 export function frameFolds(sizes: FrameFitSizes): boolean {
-  const { frameHeight, headerHeight, playerHeight, tabsHeight, lanesMin } =
-    sizes;
+  const {
+    frameHeight,
+    headerHeight,
+    playerHeight,
+    tabsHeight,
+    lanesMin,
+    laneHeight,
+    laneAreaHeight,
+    cornerHeight,
+  } = sizes;
   const need = headerHeight + playerHeight + tabsHeight + lanesMin;
   if (!(frameHeight > 0) || Number.isNaN(need)) {
     return false;
   }
-  return frameHeight < need;
+  if (frameHeight < need) {
+    return true;
+  }
+  const covered = laneAreaHeight > 0 && cornerHeight > 0;
+  return covered && laneAreaHeight - cornerHeight < lanesMin - laneHeight;
 }
 
 const FOLD_ATTRIBUTE = "frameShort";
@@ -55,6 +73,11 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
     playerHeight: height(".stage-frame-player"),
     tabsHeight: height(".stage-frame-tabs"),
     lanesMin: tokenHeightPx(frame, "--stage-stacked-lanes-min"),
+    laneHeight: tokenHeightPx(frame, "--lane-height"),
+    laneAreaHeight: height(
+      ".edit-workspace .edit-timeline-col, .phone-edit-lanes",
+    ),
+    cornerHeight: height(".edit-workspace .edit-corner"),
   };
   if (folded) root.dataset[FOLD_ATTRIBUTE] = "";
   return sizes;

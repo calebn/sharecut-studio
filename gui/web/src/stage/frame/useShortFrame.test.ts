@@ -7,6 +7,9 @@ const fits: FrameFitSizes = {
   playerHeight: 80,
   tabsHeight: 56,
   lanesMin: 200,
+  laneHeight: 84,
+  laneAreaHeight: 0,
+  cornerHeight: 0,
 };
 
 describe("frameFolds", () => {
@@ -24,6 +27,15 @@ describe("frameFolds", () => {
     expect(frameFolds({ ...fits, frameHeight: 450, headerHeight: 150 })).toBe(
       true,
     );
+  });
+
+  it("folds when the corner would cover more than the foot of one lane", () => {
+    const edit = { ...fits, laneAreaHeight: 205, cornerHeight: 54 };
+    expect(frameFolds(edit)).toBe(false);
+    expect(frameFolds({ ...edit, cornerHeight: 202 })).toBe(true);
+    // 205 - 89 = 116 is exactly the lanes' floor less one lane.
+    expect(frameFolds({ ...edit, cornerHeight: 89 })).toBe(false);
+    expect(frameFolds({ ...edit, cornerHeight: 90 })).toBe(true);
   });
 
   it("never folds on a size that did not measure", () => {
