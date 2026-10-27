@@ -447,6 +447,7 @@ class RecordLandingService:
         self._bound_project: EpisodeProject | None = None
         self._bound_room: RecordSessionService | None = None
         self._bound_upload: RecordUploadService | None = None
+        self._plan: dict[str, TrackMatch] | None = None
 
     # Bound to the current ``workspace.project``: ``reload()``
     # replaces that object during a land (#503); ``mutate()`` adopts a newer saved project in
@@ -538,12 +539,30 @@ class RecordLandingService:
         reload: bool = True,
         session_closed: bool | None = None,
     ) -> dict[str, Any]:
+        try:
+            return self._land_planned(
+                align=align, drift_ms=drift_ms, reload=reload, session_closed=session_closed
+            )
+        finally:
+            self._plan = None
+
+    def _land_planned(
+        self,
+        *,
+        align: AlignFn | None,
+        drift_ms: float | None,
+        reload: bool = True,
+        session_closed: bool | None = None,
+    ) -> dict[str, Any]:
         if reload:
             # Land callers open their workspace before the body read / land lock wait;
             # adopt any land another request committed meanwhile (#503).
             self.workspace.reload()
         self._retry_deferred_rollbacks()
         snap = self._snapshot()
+        # One answer to "who is on which track" for this whole land, so the pre-lock checks and
+        # the placement under the lock cannot disagree.
+        self._plan = self._track_matches(self.workspace.project, snap)
         tombstoned = self._upload.tombstoned_takes(self.session_id)
         staged = snap.target.kind in STAGED_TARGET_KINDS
         anchor_s = (
@@ -786,7 +805,7 @@ class RecordLandingService:
             staged_takes: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
             touched: set[str] = set()
-            matches = self._track_matches(project, snap)
+            matches = self._plan if self._plan is not None else self._track_matches(project, snap)
             for item in copied:
                 if not self._copied_raw_matches(project, item):
                     self._mark_copied_failed(item)
@@ -1189,7 +1208,8 @@ class RecordLandingService:
         )
 
     def _track_id_for(self, participant_id: str) -> str:
-        match = self._track_matches(self.workspace.project).get(participant_id)
+        plan = self._plan if self._plan is not None else self._track_matches(self.workspace.project)
+        match = plan.get(participant_id)
         return match.track_id if match is not None else slug_track_id(participant_id)
 
     def _room_tone_missing(self, participant_id: str, staged: bool = False) -> bool:

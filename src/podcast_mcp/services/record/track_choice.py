@@ -49,7 +49,7 @@ class RecordTrackService:
         Allowed until the session is accepted or placed on the timeline. When their takes are
         already staged in a pending suggestion that is one undo step; before landing only the
         host's choice is kept. Refusals: ``unknown_participant``, ``unknown_track``,
-        ``track_taken``, ``session_already_accepted``, ``session_skipped``.
+        ``track_taken``, ``replace_target_track``, ``session_already_accepted``, ``session_skipped``.
         """
         self.workspace.reload()
         project = self.workspace.project
@@ -57,19 +57,27 @@ class RecordTrackService:
         match = current.get(participant_id)
         if match is None:
             raise CodedKeyError(
-                f"unknown participant: {participant_id}. List the people in this session to see "
-                "their ids.",
+                f"unknown participant: {participant_id}. Run `podcast record tracks` "
+                "(record_tracks_tool) to list the people in this session and their ids.",
                 code="unknown_participant",
             )
         suggestion = suggestion_for_session(project, self.session_id)
         self._require_open(project, suggestion, match)
         target, label = self._target(project, current, match, track)
-        if target == match.track_id:
-            return {**match.as_dict(), "changed": False}
         sources = _own_sources(project, self.session_id, participant_id, suggestion)
-        if suggestion is not None and (
-            sources or _has_bed(suggestion, self.session_id, participant_id)
-        ):
+        staged = suggestion is not None and (
+            bool(sources) or _has_bed(suggestion, self.session_id, participant_id)
+        )
+        if target == match.track_id:
+            # Pin it: a name match stays put (or an ambiguous flag is dismissed) later on.
+            # Staged takes already say where the person is, so nothing needs storing then.
+            if not staged:
+                self._room.set_track_choice(participant_id, target)
+                match = self._matches(self.workspace.project)[participant_id]
+            return {**match.as_dict(), "changed": False}
+        if not staged:
+            self._require_target_stays(match)
+        if suggestion is not None and staged:
             title = f"Moved {match.display_name} to {label}"
             self.workspace.mutate(
                 f"before {title}",
@@ -81,6 +89,7 @@ class RecordTrackService:
                     bed_path=room_tone_raw_rel(self.session_id, participant_id),
                     track_id=target,
                     track_label=label,
+                    old_track_id=match.track_id,
                 ),
                 operation="remap_session_track",
                 params={
@@ -90,9 +99,23 @@ class RecordTrackService:
                     "title": title,
                 },
             )
-        self._room.set_track_choice(participant_id, target)
+        if not staged:
+            # Staged takes are the record of the move (it undoes with them); only a person who
+            # has nothing staged yet needs the choice remembered.
+            self._room.set_track_choice(participant_id, target)
         after = self._matches(self.workspace.project)[participant_id]
         return {**after.as_dict(), "changed": True}
+
+    def _require_target_stays(self, match: TrackMatch) -> None:
+        """A replace room names the tracks it covers; their person cannot leave before staging."""
+        target = RecordSnapshot.model_validate(self._room.snapshot()).target
+        if target.kind == "replace" and match.track_id in target.track_ids:
+            raise CodedValueError(
+                f'This session replaces audio on "{match.track_label}", which is where '
+                f"{match.display_name} is recorded. Change the session target instead, or move "
+                "them after their takes are staged.",
+                code="replace_target_track",
+            )
 
     def _require_open(
         self, project: EpisodeProject, suggestion: SessionSuggestion | None, match: TrackMatch
@@ -128,8 +151,9 @@ class RecordTrackService:
                 (slug_track_id(pid) for pid in current),
             )
             if track not in pool:
+                names = ", ".join(f'"{label}" ({tid})' for tid, label in sorted(pool.items()))
                 raise CodedKeyError(
-                    f"unknown track: {track}. Use one of: {', '.join(sorted(pool)) or 'none yet'}, "
+                    f"unknown track: {track}. Use one of: {names or 'none yet'}, "
                     'or "new" for a new track.',
                     code="unknown_track",
                 )

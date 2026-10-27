@@ -73,37 +73,45 @@ def _ack(ws, room, pid: str, take: int, *, seconds: float = 0.5) -> None:
     )
 
 
+def _join_guest(svc, room, name: str, i: int) -> str:
+    echo, _snap = svc.join(
+        token=room["guest"]["token"],
+        role="guest",
+        display_name=name,
+        client_id=f"rec-guest-{i}",
+        connection_id=f"c{i}",
+        capabilities=CAPS,
+        client_seq=1,
+    )
+    apply_record_ws_message(
+        svc,
+        {
+            "type": "Record",
+            "command_type": "Consent",
+            "payload": {"accepted": True},
+            "client_seq": 2,
+        },
+        client_id=f"rec-guest-{i}",
+        role="guest",
+        participant_id=echo["participant_id"],
+        seq=2,
+        capabilities=CAPS,
+        connection_id=f"c{i}",
+    )
+    return echo["participant_id"]
+
+
+def _late_guest(ws, room, name: str) -> str:
+    """A guest who joins a room after its take stopped, with nothing recorded yet."""
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    return _join_guest(svc, room, name, 9)
+
+
 def _room(ws, names: list[str], *, target=None, land: bool = False):
     """A room whose guests (``names``) all consented and recorded one take."""
     room = ShareService(ws).create_record_room(target=target)
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    pids: list[str] = []
-    for i, name in enumerate(names):
-        echo, _snap = svc.join(
-            token=room["guest"]["token"],
-            role="guest",
-            display_name=name,
-            client_id=f"rec-guest-{i}",
-            connection_id=f"c{i}",
-            capabilities=CAPS,
-            client_seq=1,
-        )
-        apply_record_ws_message(
-            svc,
-            {
-                "type": "Record",
-                "command_type": "Consent",
-                "payload": {"accepted": True},
-                "client_seq": 2,
-            },
-            client_id=f"rec-guest-{i}",
-            role="guest",
-            participant_id=echo["participant_id"],
-            seq=2,
-            capabilities=CAPS,
-            connection_id=f"c{i}",
-        )
-        pids.append(echo["participant_id"])
+    pids = [_join_guest(svc, room, name, i) for i, name in enumerate(names)]
     svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
     svc.submit(_cmd("Start"), now_wall_ms=0)
     svc.submit(_cmd("Stop"), now_wall_ms=3_000)
@@ -450,3 +458,264 @@ def test_surfaces_are_host_only_and_guests_never_see_it(
     assert "track" not in json.dumps(svc.snapshot()).replace("track_ids", "")
     ws.reload()
     assert "host_choice" not in json.dumps(svc.snapshot())
+
+
+def _person(pid: str, name: str, *, removed: bool = False):
+    from podcast_mcp.services.record.state import ParticipantState
+
+    return ParticipantState(
+        participant_id=pid, role="guest", display_name=name, joined_wall_ms=0, removed=removed
+    )
+
+
+def _sam_project(ws) -> str:
+    """Session 1 left a track 'sam' labelled Sam with audio on it."""
+
+    def seed(p) -> None:
+        p.tracks.append(Track(id="sam", label="Sam", role=TrackRole.DIALOGUE))
+        p.clips.append(
+            Clip(
+                id="s1",
+                track_id="sam",
+                source_id="src-s",
+                source_start=0.0,
+                source_end=2.0,
+                timeline_start=0.0,
+            )
+        )
+
+    ws.mutate("sam", "sam", seed)
+    return "sam"
+
+
+def test_a_renamed_host_and_a_guest_with_the_hosts_old_name_do_not_share_a_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+
+    def seed(p) -> None:
+        p.tracks.append(Track(id="p_host", label="Caleb", role=TrackRole.DIALOGUE))
+        p.clips.append(
+            Clip(
+                id="h1",
+                track_id="p_host",
+                source_id="src-h",
+                source_start=0.0,
+                source_end=2.0,
+                timeline_start=0.0,
+            )
+        )
+
+    ws.mutate("host", "host", seed)
+    _room(ws, ["Caleb"])
+    rows = {r["display_name"]: r for r in RecordControlService(ws).tracks()["participants"]}
+    assert rows["Host"]["track_id"] == "p_host"
+    guest = rows["Caleb"]
+    assert (guest["status"], guest["reason"]) == ("ambiguous", "track_in_use")
+    assert guest["track_id"] != "p_host" and "already used by someone else" in guest["message"]
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    on_host = {c.source_id for c in ws.project.clips if c.track_id == "p_host"}
+    assert not any("rec-" in (s or "") for s in on_host)
+
+
+def test_a_host_choice_keeps_its_track_when_a_same_named_guest_joins_later(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room, [alex] = _room(ws, ["Alex"])
+    RecordControlService(ws).assign_track(alex, sam)
+    late = _late_guest(ws, room, "sam")
+    rows = _by_pid(ws)
+    assert rows[alex]["track_id"] == sam
+    assert (rows[late]["status"], rows[late]["reason"]) == ("ambiguous", "track_in_use")
+    assert rows[late]["track_id"] not in (sam, alex)
+
+
+def test_staged_takes_keep_their_track_against_a_late_same_named_joiner(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room, [first] = _room(ws, ["Sam"], target=INSERT, land=True)
+    late = _late_guest(ws, room, "SAM")
+    rows = _by_pid(ws)
+    assert (rows[first]["track_id"], rows[first]["reason"]) == (sam, "held")
+    assert rows[late]["status"] == "ambiguous" and rows[late]["track_id"] != sam
+
+
+def test_removed_people_do_not_make_a_name_ambiguous() -> None:
+    from podcast_mcp.models import EpisodeProject
+    from podcast_mcp.services.record.track_match import resolve_session_tracks
+
+    project = EpisodeProject.create("t", "/tmp/never-written")
+    people = [_person("p_a", "Ava", removed=True), _person("p_b", "ava")]
+    out = resolve_session_tracks(project, "s" * 12, people, {})
+    assert out["p_b"].status == "new"
+
+
+def test_two_same_named_people_with_no_track_yet_are_ambiguous_each_on_their_own() -> None:
+    from podcast_mcp.models import EpisodeProject
+    from podcast_mcp.services.record.track_match import resolve_session_tracks
+
+    project = EpisodeProject.create("t", "/tmp/never-written")
+    out = resolve_session_tracks(
+        project, "s" * 12, [_person("p_a", "Ava"), _person("p_b", "ava")], {}
+    )
+    assert {m.status for m in out.values()} == {"ambiguous"}
+    assert out["p_a"].track_id != out["p_b"].track_id
+
+
+def test_a_blank_name_reads_cleanly() -> None:
+    from podcast_mcp.models import EpisodeProject
+    from podcast_mcp.services.record.track_match import resolve_session_tracks
+
+    project = EpisodeProject.create("t", "/tmp/never-written")
+    [m] = resolve_session_tracks(project, "s" * 12, [_person("p_a", "")], {}).values()
+    assert m.message == "This person is new here, so they get a new track."
+
+
+def test_the_host_can_pin_a_match_and_dismiss_an_ambiguous_flag(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room, [first] = _room(ws, ["Sam"])
+    ctrl = RecordControlService(ws)
+    out = ctrl.assign_track(first, sam)  # already matched there: pins, changes nothing
+    assert out["changed"] is False
+    store = RecordSessionService(ws.project, session_id=room["session_id"])
+    assert store.track_choices() == {first: sam}
+    late = _late_guest(ws, room, "sam")
+    assert _by_pid(ws)[first]["track_id"] == sam  # the pin holds
+    assert _by_pid(ws)[late]["status"] == "ambiguous"
+    dismissed = ctrl.assign_track(late, "new")
+    assert dismissed["changed"] is False and dismissed["status"] == "new"
+    assert store.track_choices()[late] == late
+
+
+def test_a_choice_for_a_deleted_track_is_worked_out_again(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    _, [eva] = _room(ws, ["Eva"])
+    RecordControlService(ws).assign_track(eva, sam)
+    ws.mutate(
+        "drop",
+        "drop",
+        lambda p: (
+            p.tracks.remove(p.track_by_id(sam)),
+            p.clips.__setitem__(slice(None), [c for c in p.clips if c.track_id != sam]),
+        ),
+    )
+    [row] = _rows(ws)
+    assert row["track_id"] == eva and row["status"] == "new"
+    assert "is gone" in row["message"]
+    RecordLandingService(ws).land(align=lambda _p: None)
+    assert sam not in _tracks(ws)
+
+
+def test_undoing_a_staged_move_and_the_staging_land_leaves_the_name_match(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    _room_, [pid] = _room(ws, ["Sam"], target=INSERT, land=True)
+    RecordControlService(ws).assign_track(pid, "new")
+    assert RecordSessionService(ws.project, session_id=_room_["session_id"]).track_choices() == {}
+    HistoryService(ws).undo()  # the move
+    HistoryService(ws).undo()  # the staging land
+    ws.reload()
+    RecordLandingService(ws).land(align=lambda _p: None)
+    [row] = _rows(ws)
+    assert (row["track_id"], row["reason"]) == (sam, "held")
+
+
+def _replace_setup(ws):
+    """Ava is on track A and Ben on track B from Session 1; Session 2 replaces Ava's range."""
+    _room(ws, ["Ava", "Ben"], land=True)
+    labels = _tracks(ws)
+    track_a = next(t for t, label in labels.items() if label == "Ava")
+    track_b = next(t for t, label in labels.items() if label == "Ben")
+    target = {"kind": "replace", "from_sec": 0.1, "to_sec": 0.3, "track_ids": [track_a]}
+    return track_a, track_b, target
+
+
+def test_moving_a_replaced_person_keeps_the_replace_target_acceptable(
+    minimal_project, sample_wav, tmp_workspace
+):
+    for destination in ("new", "other"):
+        ws = (
+            _seed(minimal_project, sample_wav)
+            if destination == "new"
+            else _seed_again(minimal_project, sample_wav)
+        )
+        _track_a, track_b, target = _replace_setup(ws)
+        room, [pid] = _room(ws, ["Ava"], target=target, land=True)
+        sid = f"ss-{room['session_id']}"
+        dest = "new" if destination == "new" else track_b
+        steps = len(HistoryService(ws).list_entries().groups)
+        RecordControlService(ws).assign_track(pid, dest)
+        assert len(HistoryService(ws).list_entries().groups) == steps + 1
+        ws.reload()
+        row = next(s for s in ws.project.editorial.session_suggestions if s.id == sid)
+        moved_to = pid if dest == "new" else track_b
+        assert row.track_ids == [moved_to]
+        SessionSuggestionService(ws).accept(sid)  # no track_not_recorded
+
+
+def test_a_replace_room_refuses_to_move_the_replaced_person_before_staging(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _track_a, _track_b, target = _replace_setup(ws)
+    _room(ws, ["Ava"], target=target)
+    [row] = _rows(ws)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(row["participant_id"], "new")
+    assert caught.value.code == "replace_target_track"
+
+
+def test_new_routes_refuse_a_relayed_request_and_answer_409_for_refusals(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    _room(ws, ["Ava", "Ben"], land=True)
+    room, [ava, ben] = _room(ws, ["Ava", "Ben"], target=INSERT, land=True)
+    path = str(minimal_project)
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    client = TestClient(create_app())
+    code = "X-Sharecut-Error-Code"
+    relayed = {"X-Sharecut-Relayed": "1"}
+    res = client.get("/api/record/tracks", params={"path": path}, headers=relayed)
+    assert res.status_code == 403 and res.headers[code] == "authz_denied"
+    body = {"path": path, "participant_id": ava, "track": "new"}
+    res = client.post("/api/record/assign-track", json=body, headers=relayed)
+    assert res.status_code == 403 and res.headers[code] == "authz_denied"
+
+    rows = {
+        r["participant_id"]: r
+        for r in client.get("/api/record/tracks", params={"path": path}).json()["participants"]
+    }
+    taken = {**body, "track": rows[ben]["track_id"]}
+    res = client.post("/api/record/assign-track", json=taken)
+    assert res.status_code == 409 and res.headers[code] == "track_taken"
+    SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    res = client.post("/api/record/assign-track", json=body)
+    assert res.status_code == 409 and res.headers[code] == "session_already_accepted"
+
+
+def test_a_skipped_session_answers_409_over_the_route(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    room, [pid] = _room(ws, ["Ben"], target=INSERT, land=True)
+    SessionSuggestionService(ws).skip(f"ss-{room['session_id']}")
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    res = TestClient(create_app()).post(
+        "/api/record/assign-track",
+        json={"path": str(minimal_project), "participant_id": pid, "track": "new"},
+    )
+    assert res.status_code == 409 and res.headers["X-Sharecut-Error-Code"] == "session_skipped"

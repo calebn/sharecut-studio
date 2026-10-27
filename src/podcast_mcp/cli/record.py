@@ -147,5 +147,8 @@ def record_assign_track(
         ..., "--track", help='An existing track id, or "new" for a new track'
     ),
 ) -> None:
-    """Correct which track a person's recordings land on, until the session is accepted (one undo step)."""
+    """Correct which track a person's recordings land on, until the session is accepted.
+
+    Staged takes move in one undo step; before landing the choice is remembered. The same track again pins it; `new` dismisses an ambiguous flag.
+    """
     _invoke(project, lambda ctrl: ctrl.assign_track(participant, track))
