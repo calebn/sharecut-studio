@@ -93,6 +93,42 @@ describe("LinkRow", () => {
     expect(group.textContent).toBe("ABC");
   });
 
+  it("says which key to press, with the modifier first", () => {
+    const blocked = () =>
+      render(
+        <LinkRow
+          access="viewer"
+          link={LINK}
+          copyState="blocked"
+          onCopy={() => {}}
+        />,
+      );
+    const first = blocked();
+    expect(
+      screen.getByRole("button", { name: "Press Ctrl C" }),
+    ).toBeInTheDocument();
+    first.unmount();
+    const platform = vi
+      .spyOn(navigator, "platform", "get")
+      .mockReturnValue("MacIntel");
+    try {
+      blocked();
+      expect(
+        screen.getByRole("button", { name: "Press ⌘ C" }),
+      ).toBeInTheDocument();
+    } finally {
+      platform.mockRestore();
+    }
+  });
+
+  it("announces the copy result politely", () => {
+    render(<LinkRow access="viewer" link={LINK} onCopy={() => {}} />);
+    expect(screen.getByRole("button", { name: "Copy" })).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+  });
+
   it("copies from the keyboard", async () => {
     const onCopy = vi.fn();
     render(<LinkRow access="viewer" link={LINK} onCopy={onCopy} />);
@@ -386,5 +422,26 @@ describe("TimeField dragging with a parent that applies each change", () => {
     expect(input).toHaveValue("16");
     fireEvent.pointerMove(grip, { clientX: 100, pointerId: 1 });
     expect(input).toHaveValue("10");
+  });
+});
+
+describe("middleTruncate", () => {
+  const text = (n: number) => "abcdefghij".repeat(10).slice(0, n);
+  it.each([0, 1, 15, 16, 28, 29])("leaves %i characters alone", (n) => {
+    expect(middleTruncate(text(n))).toBe(text(n));
+  });
+  it.each([30, 31, 60])(
+    "cuts %i characters to the first 14, a gap and the last 14",
+    (n) => {
+      const link = text(n);
+      const cut = middleTruncate(link);
+      expect(cut).toBe(`${link.slice(0, 14)}…${link.slice(-14)}`);
+      expect(cut).toHaveLength(29);
+    },
+  );
+  it("takes its own keep length", () => {
+    expect(middleTruncate("abcdefghijkl", 3)).toBe("abc…jkl");
+    expect(middleTruncate("abcdefg", 3)).toBe("abcdefg");
+    expect(middleTruncate("abcdefgh", 3)).toBe("abc…fgh");
   });
 });

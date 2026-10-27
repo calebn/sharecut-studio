@@ -571,3 +571,110 @@ describe("comparing what an export wrote", () => {
     );
   });
 });
+
+describe("round three of the audit", () => {
+  it.each([
+    [[], 7, "Chapter 1"],
+    [["Chapter 1"], 5, "Chapter 2"],
+    [["Chapter 2"], 5, "Chapter 3"],
+    [["Chapter 2", "Chapter 3"], 5, "Chapter 4"],
+    [["Chapter 3", "Chapter 4"], 5, "Chapter 5"],
+    [["Intro", "Chapter 2", "Chapter 3"], 5, "Chapter 4"],
+    [["Chapter 2", "Chapter 3", "Chapter 4"], 5, "Chapter 5"],
+  ])("names the chapter after %j as %s", (titles, _at, expected) => {
+    const chapters = titles.map((title, i) => ({ id: `c${i}`, at: i, title }));
+    const next = addChapterAt(chapters, 99, "new");
+    expect(next.find((c) => c.id === "new")?.title).toBe(expected);
+  });
+
+  it.each([
+    ["1:23", 83],
+    [" 1:23 ", 83],
+    ["1:23 ", 83],
+    [" 1:23", 83],
+    ["\t83.5\n", 83.5],
+    ["1:23.5", 83.5],
+    ["0", 0],
+    ["83.5s", null],
+    ["1:2:3", null],
+    ["1:23x", null],
+    ["x1:23", null],
+    ["-5", null],
+    ["", null],
+    ["  ", null],
+    ["1:", null],
+    [":23", null],
+    ["1.5:23", null],
+  ])("reads %j as %s", (text, seconds) => {
+    expect(parseClock(text)).toBe(seconds);
+  });
+
+  it.each([
+    [
+      ["a", "b"],
+      ["a", "b"],
+    ],
+    [
+      ["a", "a"],
+      ["a 1", "a 2"],
+    ],
+    [
+      ["a", "a ", " a"],
+      ["a 1", "a 2", "a 3"],
+    ],
+    [
+      ["", "  ", "b"],
+      ["x 1", "x 2", "b"],
+    ],
+    [
+      ["b", "", "b"],
+      ["b 1", "x 2", "b 3"],
+    ],
+  ])("names %j as %j", (titles, names) => {
+    expect(itemNames(titles, "x")).toEqual(names);
+  });
+
+  it("reads a decided count out of the total for suggestions and comments", () => {
+    const rows = readinessRows({
+      ...CLEAR_FACTS,
+      suggestions: { decided: 10, total: 14 },
+      comments: { resolved: 1, total: 3 },
+    });
+    expect(rows.find((r) => r.id === "suggestions")?.detail).toBe("10 of 14");
+    expect(rows.find((r) => r.id === "comments")?.detail).toBe("1 of 3");
+  });
+
+  it.each([
+    ["podcast", "−16.0 LUFS target, will be checked"],
+    ["broadcast", "−23.0 LUFS target, will be checked"],
+    ["streaming", "−14.0 LUFS target, will be checked"],
+  ] as const)(
+    "gives the %s loudness row its own target",
+    (loudness, detail) => {
+      expect(
+        readinessRows({ ...CLEAR_FACTS, loudness }).find(
+          (r) => r.id === "loudness",
+        )?.detail,
+      ).toBe(detail);
+    },
+  );
+
+  it("blocks Export while the model is missing, before any other reason", () => {
+    const needs = { phase: "needs-model", model: "m", size: "1 GB" } as const;
+    expect(exportBlocker(SETTINGS, needs)).toBe(
+      "Needs the transcription model.",
+    );
+    expect(exportBlocker({ ...SETTINGS, formats: [] }, needs)).toBe(
+      "Needs the transcription model.",
+    );
+    expect(exportBlocker(SETTINGS)).toBeUndefined();
+  });
+
+  it("keeps Out inside the episode when In is the episode end", () => {
+    expect(clampPart({ start: 3120, end: 3120 }, 3120)).toEqual({
+      mode: "part",
+      start: 3119,
+      end: 3120,
+    });
+  });
+});

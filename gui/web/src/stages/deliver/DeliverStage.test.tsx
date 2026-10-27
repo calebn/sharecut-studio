@@ -2000,3 +2000,276 @@ describe("what the last audit found unguarded", () => {
     }
   });
 });
+
+describe("round three of the audit: what the page shows", () => {
+  it.each([
+    [{ decided: 10, total: 14 }, "10 of 14"],
+    [{ decided: 0, total: 3 }, "0 of 3"],
+    [{ decided: 14, total: 14 }, "14 of 14"],
+  ])("reads suggestions %o as %s", (suggestions, detail) => {
+    setup({ facts: { ...CLEAR_FACTS, suggestions } });
+    expect(screen.getByText(detail)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["podcast", "−16.0 LUFS target, will be checked"],
+    ["broadcast", "−23.0 LUFS target, will be checked"],
+    ["streaming", "−14.0 LUFS target, will be checked"],
+  ] as const)("shows the %s loudness target", (loudness, detail) => {
+    setup({ facts: { ...CLEAR_FACTS, loudness } });
+    expect(screen.getByText(detail)).toBeInTheDocument();
+  });
+
+  it("shows the real progress of a running export", () => {
+    setup({ exportState: { phase: "running", progress: 0.3, detail: "x" } });
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "30",
+    );
+  });
+
+  it("disables Export with the reason while the model is missing", async () => {
+    const { all, stage } = setup({ exportState: NEEDS_MODEL });
+    const button = screen.getByRole("button", { name: /^Export/ });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", "Needs the transcription model.");
+    modE(stage());
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2])(
+    "lists %i exported file(s), each with its own action",
+    (count) => {
+      const files = exportedState(REQUEST).files.slice(0, count);
+      const { container } = setup({
+        exportState: { ...DONE, files } as ExportState,
+      });
+      const list = within(container.querySelector(".dv-files") as HTMLElement);
+      expect(list.getAllByRole("button", { name: "Reveal" })).toHaveLength(
+        count,
+      );
+      for (const file of files)
+        expect(list.getByText(file.name)).toBeInTheDocument();
+    },
+  );
+
+  it("shows one clip with Find clips still on offer", async () => {
+    const { all } = setup({
+      initialClips: [CLIPS[0] as (typeof CLIPS)[number]],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+    expect(all.onFindClips).toHaveBeenCalledOnce();
+  });
+
+  it("names the summary heading as a polite live region that labels the section", () => {
+    setup({ facts: OPEN_FACTS });
+    const heading = screen.getByRole("heading", {
+      name: "2 things left. You can still export.",
+    });
+    expect(heading).toHaveAttribute("aria-live", "polite");
+    expect(
+      screen.getByRole("region", { name: heading.textContent as string }),
+    ).toBeInTheDocument();
+  });
+
+  it("makes the Approved mark no tab stop", () => {
+    setup();
+    const mark = screen.getByText("Approved");
+    expect(mark.getAttribute("tabindex")).not.toBe("0");
+    expect(mark.tabIndex).toBeLessThan(0);
+  });
+});
+
+describe("round three of the audit: names that tell items apart", () => {
+  const titled = (titles: string[]) =>
+    titles.map((title, i) => ({
+      id: `n${i}`,
+      title,
+      start: i * 10,
+      end: i * 10 + 5,
+      score: 0.5,
+      approved: false,
+    }));
+
+  it.each([
+    [
+      ["Alpha", "Beta", "Gamma"],
+      ["Alpha", "Beta", "Gamma"],
+    ],
+    [
+      ["Same", "Same", "Other"],
+      ["Same 1", "Same 2", "Other"],
+    ],
+    [
+      ["", "Beta", "  "],
+      ["clip 1", "Beta", "clip 3"],
+    ],
+    [
+      ["Intro", "Intro ", " Intro"],
+      ["Intro 1", "Intro 2", "Intro 3"],
+    ],
+  ])(
+    "every clip button and field is named by its own clip: %j",
+    (titles, names) => {
+      setup({ initialClips: titled(titles) });
+      for (const name of names) {
+        expect(
+          screen.getByRole("textbox", { name: `Title of ${name}` }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: `Play ${name}` }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: `Approve ${name}` }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: `More for ${name}` }),
+        ).toBeInTheDocument();
+      }
+    },
+  );
+
+  it("acts on the clip named, not the first", async () => {
+    const { all } = setup({ initialClips: titled(["Same", "Same", "Other"]) });
+    await userEvent.click(screen.getByRole("button", { name: "Play Same 2" }));
+    expect(all.onPlayClip).toHaveBeenLastCalledWith("n1");
+    await userEvent.click(screen.getByRole("button", { name: "Play Other" }));
+    expect(all.onPlayClip).toHaveBeenLastCalledWith("n2");
+  });
+
+  it("names chapters the same way", () => {
+    setup({
+      initialChapters: [
+        { id: "a", at: 1, title: "Intro" },
+        { id: "b", at: 2, title: "Intro " },
+        { id: "c", at: 3, title: "   " },
+      ],
+    });
+    for (const name of ["Intro 1", "Intro 2", "chapter 3"]) {
+      expect(
+        screen.getByRole("textbox", { name: `Title of ${name}` }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("textbox", { name: `Time of ${name}` }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: `Remove ${name}` }),
+      ).toBeInTheDocument();
+    }
+  });
+});
+
+describe("round three of the audit: chapters", () => {
+  it("never lets a chapter go below zero by arrow, Shift-arrow or drag", () => {
+    const { stage, all } = setup();
+    const time = screen.getByRole("textbox", { name: "Time of Cold open" });
+    time.focus();
+    fireEvent.keyDown(time, { key: "ArrowDown" });
+    fireEvent.keyDown(time, { key: "ArrowDown", shiftKey: true });
+    const grip = screen.getByText("Time of Cold open");
+    fireEvent.pointerDown(grip, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: 20, pointerId: 1 });
+    fireEvent.pointerUp(grip, { pointerId: 1 });
+    modE(stage());
+    const sent = vi.mocked(all.onExport).mock.calls[0]?.[0].chapters ?? [];
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent.every((c) => c.at >= 0)).toBe(true);
+    expect(sent.find((c) => c.id === "c1")?.at).toBe(0);
+  });
+
+  it.each([
+    [0, "The old mill"],
+    [1, "What the river wanted"],
+    [2, "Listener mail"],
+    [3, "What the river wanted"],
+  ])(
+    "after removing chapter %i, focus lands in the chapters list on %s",
+    (index, expected) => {
+      setup();
+      const titles = [
+        "Cold open",
+        "The old mill",
+        "What the river wanted",
+        "Listener mail",
+      ];
+      const button = screen.getByRole("button", {
+        name: `Remove ${titles[index]}`,
+      });
+      button.focus();
+      fireEvent.click(button);
+      const active = document.activeElement as HTMLElement;
+      expect(
+        active.closest("[data-focus-list]")?.getAttribute("data-focus-list"),
+      ).toBe("chapters");
+      expect(
+        active
+          .closest(".dv-chapter")
+          ?.querySelector<HTMLInputElement>(".dv-chapter-title")?.value,
+      ).toBe(expected);
+    },
+  );
+
+  it("after removing the last chapter focus lands on the new last one", () => {
+    setup();
+    const button = screen.getByRole("button", { name: "Remove Listener mail" });
+    button.focus();
+    fireEvent.click(button);
+    const row = (document.activeElement as HTMLElement).closest(".dv-chapter");
+    expect(
+      row?.querySelector<HTMLInputElement>(".dv-chapter-title")?.value,
+    ).toBe("What the river wanted");
+  });
+});
+
+describe("round three of the audit: In at the end of the episode", () => {
+  it("keeps Out inside the episode", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    const start = screen.getByRole("textbox", { name: "In" });
+    await userEvent.clear(start);
+    await userEvent.type(start, "52:00{Enter}");
+    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("51:59.0");
+    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("52:00.0");
+  });
+});
+
+describe("round three of the audit: the listen link through the stage", () => {
+  const URL = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
+  const link = { url: URL, openedBy: [{ name: "Rosa" }, { name: "Jon" }] };
+
+  it.each(["desktop", "phone"] as const)(
+    "passes the whole link and openers on %s",
+    (layout) => {
+      const { container } = setup({ layout, link });
+      expect(container.querySelector(".sys-link-text")).toHaveAttribute(
+        "title",
+        URL,
+      );
+      expect(
+        screen.getByRole("img", { name: "Opened by Rosa, Jon" }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    ["desktop", "copied", "Copied"],
+    ["phone", "copied", "Copied"],
+    ["desktop", "blocked", "Press Ctrl C"],
+    ["phone", "blocked", "Share"],
+  ] as const)("on %s a %s clipboard says %s", (layout, copyState, label) => {
+    const { container } = setup({ layout, link: { ...link, copyState } });
+    expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    expect(container.querySelector(".sys-link")).toHaveAttribute(
+      "data-copy",
+      copyState,
+    );
+  });
+
+  it("says Press ⌘ C on Apple platforms", () => {
+    platform.apple = true;
+    setup({ link: { ...link, copyState: "blocked" } });
+    expect(
+      screen.getByRole("button", { name: "Press ⌘ C" }),
+    ).toBeInTheDocument();
+  });
+});
