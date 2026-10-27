@@ -69,17 +69,17 @@ describe("PrepareView structure", () => {
     expect(container.querySelector("h1, main")).toBeNull();
     expect(
       screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
-    ).toEqual(["Getting ready", "Sources", "Help the transcriber"]);
+    ).toEqual(["Sources", "Getting ready", "Help the transcriber"]);
     expect(
       screen.getByRole("heading", { level: 3, name: "Cleanup" }),
     ).toBeVisible();
   });
 
-  it("keeps the DOM order of the phone: Getting ready, Sources, Help, Cleanup, then the hand-off", () => {
+  it("keeps one DOM order: Sources, Getting ready, Help, Cleanup, then the hand-off", () => {
     render(<PrepareView {...props()} />);
     const order = [
-      screen.getByRole("heading", { name: "Getting ready" }),
       screen.getByRole("heading", { name: "Sources" }),
+      screen.getByRole("heading", { name: "Getting ready" }),
       screen.getByRole("heading", { name: "Help the transcriber" }),
       screen.getByRole("heading", { name: "Cleanup" }),
       screen.getByRole("button", { name: /Review suggestions/ }),
@@ -92,7 +92,7 @@ describe("PrepareView structure", () => {
     }
   });
 
-  it("tabs through the stage in that order", async () => {
+  it("tabs through the stage in DOM order", async () => {
     const user = userEvent.setup();
     render(<PrepareView {...props({ rows: ROWS.queued })} />);
     const seen: string[] = [];
@@ -104,8 +104,8 @@ describe("PrepareView structure", () => {
     }
     const at = (pattern: RegExp) =>
       seen.findIndex((name) => pattern.test(name));
-    expect(at(/Advanced/)).toBeLessThan(at(/Add audio|Import audio/));
-    expect(at(/Add audio|Import audio/)).toBeLessThan(at(/Light/));
+    expect(at(/Add audio|Import audio/)).toBeLessThan(at(/Advanced/));
+    expect(at(/Advanced/)).toBeLessThan(at(/Light/));
     expect(at(/Light/)).toBeLessThan(at(/Podcast/));
     expect(at(/Podcast/)).toBeLessThan(at(/Review suggestions/));
   });

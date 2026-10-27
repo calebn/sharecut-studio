@@ -426,13 +426,14 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - The voice-count stepper (2 to 8) and Split show only on the split prompt (`canSplit`); every other card is one voice. The stepper stops at its limits with a written reason and keeps focus.
 - The More menu has Replace audio and Merge, plus Move up and Move down so reordering never depends on dragging; the ends of a session omit the one that cannot apply. Every control name carries the card's name, and two cards with one name read "Name, voice N".
 - When the control that has focus goes away with a state change (Split, Cancel splitting, Try again), focus moves to the card; when the card itself is removed, to the next card, else the previous, else the Import tile.
+- Section order on Prepare: Sources comes first in the DOM, then Getting ready, Help the transcriber, Cleanup (see item 39).
 - Used: SCR-PREPARE, DLG-SPLIT, landed takes.
 - Story: `System/SourceCard`.
 
 **39. Session group**
 - Header: session name (Fix text), Session target chip (locked after landing), stats ("3 people · 2 takes · 14:20"), Status ring. Body: Source cards (and, while recording, Take Status rows).
 - Footer: the Stage hand-off ("Edit Session 2", or "Review pickup"). It is optional: Prepare omits it and draws the one Stage hand-off for the whole stage instead.
-- Prepare order: the DOM is the phone order (Getting ready, Sources, Help the transcriber, Cleanup, hand-off). At 60 rem and wider a grid moves Sources to the left column, so Tab reaches Getting ready before Sources; that is the cost of keeping one DOM order and no script-driven reordering.
+- Prepare order: the DOM is Sources, Getting ready, Help the transcriber, Cleanup, hand-off at every width. At 60 rem and wider the grid columns follow it, so Tab order equals the visual order. On phone only, CSS `order` shows Getting ready (the collapsed summary) first, above Sources; Tab and reading order there still start with Sources, the accepted cost of the one-stop summary.
 - Used: the Prepare Sources column, the Record Takes rail.
 - Replaces: Session summary card, Takes tray grouping (record); the Prepare session grouping (rdp).
 - Story: `System/SessionGroup`.
