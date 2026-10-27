@@ -117,15 +117,11 @@ describe("stageSlice", () => {
     }).toEqual(before);
   });
 
-  it("closes sheets on a switch unless asked to keep them", () => {
+  it("closes sheets on a switch", () => {
     useDawStore.setState({ openSheet: "view", sheetExpanded: true });
     st().openStage("review");
     expect(st().openSheet).toBeNull();
     expect(st().sheetExpanded).toBe(false);
-
-    useDawStore.setState({ openSheet: "mix" });
-    st().openStage("edit", { keepSheet: true });
-    expect(st().openSheet).toBe("mix");
 
     st().openStage("review", { sheet: "history" });
     expect(st().openSheet).toBe("history");
@@ -173,6 +169,16 @@ describe("stageSlice", () => {
     });
     st().openStage("edit");
     expect(Object.keys(localStorage)).toEqual([]);
+  });
+
+  it.each([
+    ["view", "review"],
+    ["comment", "review"],
+    ["edit", "edit"],
+    [null, "edit"],
+  ] as const)("seeds a %s link's first stage as %s", (mode, stage) => {
+    st().hydrate("share:abc", minimalProject(), mode);
+    expect(st().stage).toBe(stage);
   });
 
   it("clears stage state on a project switch but not on a refresh", () => {

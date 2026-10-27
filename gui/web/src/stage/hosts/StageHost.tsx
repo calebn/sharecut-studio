@@ -1,6 +1,7 @@
 import { memo, type RefCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
+import { useViewportClass } from "../../hooks/useViewportClass";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../../state/stageRoutes";
 import { Cover } from "../../system/Cover";
@@ -8,6 +9,7 @@ import { stageLabel } from "../../system/verbs";
 import { EditWorkspace } from "../edit/EditWorkspace";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { DeliverStage } from "./DeliverStage";
+import { HostBody } from "./HostBody";
 import { stageAvailable } from "./hostModels";
 import { PrepareStage } from "./PrepareStage";
 import { RecordStage } from "./RecordStage";
@@ -24,10 +26,28 @@ function StageHostAdapter({
   feedbackHostRef,
   loadFailure,
 }: StageHostProps) {
-  const { stage, guestMode } = useDawStore(
-    useShallow((s) => ({ stage: s.stage, guestMode: s.guestMode })),
+  const { stage, guestMode, loaded } = useDawStore(
+    useShallow((s) => ({
+      stage: s.stage,
+      guestMode: s.guestMode,
+      loaded: s.project != null,
+    })),
   );
+  const shell = useViewportClass();
   const role = stageRoleOf(guestMode);
+  if (!loaded) {
+    // The link's role is known only with the project, so nothing is judged yet.
+    return (
+      <HostBody
+        stage={stage}
+        shell={shell}
+        state={loadFailure ? "error" : "loading"}
+        failure={loadFailure}
+      >
+        {null}
+      </HostBody>
+    );
+  }
   if (!stageAvailable(stage, role)) {
     // A deep link or a stale stage names something this link cannot open.
     const first = stagesForRole(role)[0];
