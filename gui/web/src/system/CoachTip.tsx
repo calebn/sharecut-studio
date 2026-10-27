@@ -7,6 +7,8 @@ export type CoachTipProps = {
   /** One line. */
   text: string;
   placement?: "below" | "above";
+  /** The tip anchors to the nearest positioned ancestor, for an anchor too far from the edge to fit it. */
+  edge?: boolean;
   /** The caller shows it once. */
   shown: boolean;
   /** Called by the close button and by any click or key activation on the anchor. */
@@ -18,22 +20,26 @@ export function CoachTip({
   children,
   text,
   placement = "below",
+  edge = false,
   shown,
   onDismiss,
 }: CoachTipProps) {
   const anchorRef = useRef<HTMLSpanElement>(null);
   // The close button unmounts with the tip; hand focus back to the anchor.
   const dismissFromClose = () => {
-    anchorRef.current
-      ?.querySelector<HTMLElement>("button, a[href], input, select, textarea")
-      ?.focus({ preventScroll: true });
+    const target =
+      anchorRef.current?.querySelector<HTMLElement>(
+        "button, a[href], input, select, textarea",
+      ) ?? anchorRef.current;
+    target?.focus({ preventScroll: true });
     onDismiss();
   };
   return (
-    <span className="sys-coach">
+    <span className={edge ? "sys-coach sys-coach--edge" : "sys-coach"}>
       {/* Capture, so the anchor's own handler still runs. Not an interactive role: it only listens. */}
       <span
         ref={anchorRef}
+        tabIndex={-1}
         className="sys-coach-anchor"
         onClickCapture={shown ? onDismiss : undefined}
       >

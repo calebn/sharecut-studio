@@ -21,10 +21,8 @@ export type AppHeaderProps = {
   /** A guest: the title gets a second line with the version and a Role chip. */
   guest?: {
     version: string;
-    role: "Editor" | "Commenter" | "Viewer";
-    /** Phone: the Role chip is its icon alone. */
+    role: LinkRole;
     compact?: boolean;
-    /** The one-time hint on the Role chip; the caller shows it once. */
     hint?: { text: string; shown: boolean; onDismiss: () => void };
   };
   recent?: readonly string[];
@@ -44,13 +42,14 @@ export type AppHeaderProps = {
 const MAX_AVATARS = 3;
 
 function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
-  const chip = (
-    <RoleChip
-      access={guest.role.toLowerCase() as LinkRole}
-      compact={guest.compact}
-    />
+  const chip = <RoleChip access={guest.role} compact={guest.compact} />;
+  return guest.hint ? (
+    <CoachTip edge {...guest.hint}>
+      {chip}
+    </CoachTip>
+  ) : (
+    chip
   );
-  return guest.hint ? <CoachTip {...guest.hint}>{chip}</CoachTip> : chip;
 }
 
 function Row({ icon, children }: { icon: SystemIconName; children: string }) {
@@ -158,7 +157,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const shown = people.slice(0, MAX_AVATARS);
   const extra = people.length - shown.length;
-  const canEdit = !guest || guest.role === "Editor";
+  const canEdit = !guest || guest.role === "editor";
   return (
     <header className="sys-app-header-host" aria-busy={loading || undefined}>
       <div className="sys-app-header">

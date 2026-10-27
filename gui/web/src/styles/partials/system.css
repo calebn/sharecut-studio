@@ -4368,3 +4368,16 @@ button.sys-script-speaker {
     outline: 1px dashed var(--color-accent);
   }
 }
+
+.sys-coach--edge {
+  position: static;
+}
+
+.sys-coach--edge .sys-coach-tip {
+  inset-inline-start: var(--space-3);
+  max-inline-size: calc(100% - var(--space-5));
+}
+
+.sys-app-header-host:has(.sys-coach--edge) {
+  position: relative;
+}
