@@ -1,16 +1,16 @@
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { AppHeader, type HeaderPerson } from "../../system/AppHeader";
 import { Cover } from "../../system/Cover";
 import type { OverviewTick } from "../../system/OverviewStrip";
 import { Player } from "../../system/Player";
 import type { SaveIndicatorProps } from "../../system/SaveIndicator";
-import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
 import { Skeleton } from "../../system/Skeleton";
 import { StageBar } from "../../system/StageBar";
 import type { ScriptTurn } from "../../system/scriptPieces";
 import type { StageId } from "../../types/stage";
-import { clamp, lastIndexAtOrBefore } from "../../utils/math";
+import { clamp } from "../../utils/math";
 import { formatTimeShort } from "../../utils/time";
+import { GuestScript } from "./GuestScript";
 import { type GuestRole, guestStages, ROLE_HINT } from "./guestLogic";
 
 export type GuestReviewProps = {
@@ -65,9 +65,7 @@ export function GuestReview({
 }: GuestReviewProps) {
   const [playhead, setPlayhead] = useState(initialPlayhead);
   const [playing, setPlaying] = useState(initialPlaying);
-  const [following, setFollowing] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
-  const pane = useRef<ScriptPaneHandle>(null);
   const [hintShown, setHintShown] = useState(firstVisit);
   const [tab, setTab] = useState<StageId>("review");
   const phone = layout === "phone";
@@ -156,32 +154,19 @@ export function GuestReview({
       />
     );
     const composerPart = access !== "viewer" ? composer : null;
-    const word = lastIndexAtOrBefore(wordStarts, playhead);
-    const script =
-      turns.length === 0 ? (
-        <Cover size="region" glyph="inbox" title="Nothing to read yet">
-          The host has not made a transcript of this version.
-        </Cover>
-      ) : (
-        <ScriptPane
-          ref={pane}
-          turns={turns}
-          layout={layout}
-          guest={access === "viewer" ? "viewer" : "commenter"}
-          playing={word}
-          following={following}
-          onSeek={(word) => seek(wordStarts[word] ?? playhead)}
-          onUserScroll={() => {
-            setFollowing(false);
-            if (phone) setCollapsed(true);
-          }}
-          onBackToPlayhead={() => {
-            setFollowing(true);
-            if (word !== undefined) pane.current?.scrollToWord(word, "center");
-          }}
-          onFollowChange={setFollowing}
-        />
-      );
+    const script = (
+      <GuestScript
+        access={access}
+        layout={layout}
+        turns={turns}
+        wordStarts={wordStarts}
+        playhead={playhead}
+        onSeek={seek}
+        onUserScroll={() => {
+          if (phone) setCollapsed(true);
+        }}
+      />
+    );
     content = (
       <div className="gr-column">
         <div className="gr-player">{player}</div>
