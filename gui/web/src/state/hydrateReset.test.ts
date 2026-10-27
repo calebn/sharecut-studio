@@ -52,8 +52,6 @@ const RESET_ON_SWITCH: Reset = {
   rangeScopeTrackIds: null,
   rangeBusy: false,
   bounceRangeTarget: null,
-  splitSpeakersReview: null,
-  splitSpeakersTrackId: null,
   prepareFocusTrackId: null,
   selection: null,
   pendingJobResults: {},

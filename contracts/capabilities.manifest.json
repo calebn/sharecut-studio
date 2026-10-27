@@ -647,7 +647,7 @@
       "surfaces": {
         "command": "track.splitSpeakers",
         "gui": [
-          "SplitSpeakersDialog",
+          "SourceCard",
           "trackInspector"
         ],
         "mcp": [
@@ -657,7 +657,7 @@
         "skill": "podcast-speaker-attribution"
       },
       "omit": {
-        "keyboard_reason": "opens a dialog that asks for the speaker count; reached from the track inspector and the command palette"
+        "keyboard_reason": "opens Prepare at the track's split prompt, which asks for the speaker count; reached from the track inspector and the command palette"
       },
       "tooltip": "Split this track into one track per speaker",
       "presence": {
