@@ -53,3 +53,21 @@ describe("frameFolds", () => {
     expect(frameFolds({ ...fits, lanesMin: Number.NaN })).toBe(false);
   });
 });
+
+describe("frameFolds on a frame with no Player", () => {
+  it("fits a Record-like frame whose tab bar is measured at its natural height", () => {
+    const record = {
+      frameHeight: 844,
+      headerHeight: 45,
+      playerHeight: 0,
+      tabsHeight: 56,
+      rowsHeight: 0,
+      lanesMin: 192,
+      laneHeight: 84,
+      laneAreaHeight: 0,
+      cornerHeight: 0,
+    };
+    expect(frameFolds(record)).toBe(false);
+    expect(frameFolds({ ...record, tabsHeight: 682 })).toBe(true);
+  });
+});
