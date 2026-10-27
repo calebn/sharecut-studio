@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import math
 import threading
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
@@ -30,6 +31,7 @@ from podcast_mcp.edits import cut_policy
 from podcast_mcp.edits.cut_placement import (
     CutRejected,
     held_pause_observation_span,
+    pause_neighbours,
     pause_words,
 )
 from podcast_mcp.edits.cut_quality import fade_reach_sec
@@ -300,6 +302,7 @@ def _payload(
         ],
         "media": media,
         "words": words,
+        "pause": _pause_words_seen(project, edit, near),
         "batch": chosen,
         "disk": _disk_stamps(project),
         "policy": [
@@ -308,6 +311,27 @@ def _payload(
         ],
     }
     return payload
+
+
+def _pause_words_seen(
+    project: EpisodeProject, edit: EditDecision, near: Callable[..., Any]
+) -> list[Any] | None:
+    """What a pause reads from the transcript with no source id, which ``words`` may not hold.
+
+    ``pause_words`` reads that transcript (not the clips' own), and settles on the nearest kept
+    word on each side of the cut. Everything between and including those two decides it; a side
+    with none is open ended, as a word added anywhere on it would end the rejection.
+    """
+    if not (edit.reason or "").startswith("pause:"):
+        return None
+    before, after = pause_neighbours(project, edit.track_id, edit.start, edit.end)
+    lo = before.start if before is not None else -math.inf
+    hi = after.end if after is not None else math.inf
+    return [
+        before.model_dump(mode="json") if before is not None else None,
+        after.model_dump(mode="json") if after is not None else None,
+        near(edit.track_id, None, lo, hi),
+    ]
 
 
 def _heard(clip: Any, lo: float, hi: float) -> list[Any]:

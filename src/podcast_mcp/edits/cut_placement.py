@@ -495,9 +495,10 @@ def original_pause_support(
     return OriginalQuietSupport(tuple(pieces))
 
 
-def pause_words(
+def pause_neighbours(
     project: EpisodeProject, track_id: str, start: float, end: float
-) -> tuple[TranscriptWord, TranscriptWord] | CutRejected:
+) -> tuple[TranscriptWord | None, TranscriptWord | None]:
+    """The kept words a pause sits between, from the transcript with no source id."""
     transcript = project.transcript_for_source(track_id, None)
     words = (
         [w for w in transcript.words if not w.suppressed and not w.ignored and w.end > w.start]
@@ -514,6 +515,13 @@ def pause_words(
         key=lambda w: w.start,
         default=None,
     )
+    return before, after
+
+
+def pause_words(
+    project: EpisodeProject, track_id: str, start: float, end: float
+) -> tuple[TranscriptWord, TranscriptWord] | CutRejected:
+    before, after = pause_neighbours(project, track_id, start, end)
     if before is None or after is None:
         return CutRejected("no_air")
     timeline = SessionTimeline(project)
