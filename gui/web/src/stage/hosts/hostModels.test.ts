@@ -3,7 +3,6 @@ import type { RecordSnapshot } from "../../record";
 import {
   deliverReadiness,
   effectiveSection,
-  prepareHandoff,
   recordStatusOf,
   reviewSectionsFor,
   stageAvailable,
@@ -52,27 +51,6 @@ describe("review sections", () => {
     expect(effectiveSection("impact", reviewSectionsFor("host"))).toBe(
       "impact",
     );
-  });
-});
-
-describe("prepareHandoff", () => {
-  it("offers Review with the count once decisions wait, primary when idle", () => {
-    expect(prepareHandoff({ busy: false, pendingReviewCount: 14 })).toEqual({
-      label: "Review 14 suggestions",
-      target: "review",
-      primary: true,
-    });
-    expect(prepareHandoff({ busy: true, pendingReviewCount: 1 })).toMatchObject(
-      { label: "Review 1 suggestion", primary: false },
-    );
-  });
-
-  it("offers Edit when nothing waits", () => {
-    expect(prepareHandoff({ busy: false, pendingReviewCount: 0 })).toEqual({
-      label: "Edit",
-      target: "edit",
-      primary: true,
-    });
   });
 });
 
