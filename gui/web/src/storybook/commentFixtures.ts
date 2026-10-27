@@ -3,7 +3,7 @@ import type { CommentCardData } from "../system/CommentCard";
 export const OPEN_COMMENT: CommentCardData = {
   id: "c1",
   author: "Rosa",
-  seconds: 702.3,
+  at: { start: 724 },
   body: "Can we lose the cough before the story starts?",
   resolved: false,
   replies: [],

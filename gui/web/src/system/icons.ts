@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  ArrowUp,
   BetweenHorizontalStart,
   Check,
   ChevronDown,
@@ -114,6 +115,7 @@ export const LUCIDE_ICONS = {
   search: Search,
   "wand-sparkles": WandSparkles,
   "arrow-right": ArrowRight,
+  "arrow-up": ArrowUp,
   "locate-fixed": LocateFixed,
   "door-open": DoorOpen,
   "cloud-download": CloudDownload,

@@ -32,7 +32,7 @@ const meta: Meta<typeof CommentCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "A comment as plain data: author, time in mono, body, replies and action items. Select jumps the playhead. Resolve hands the Undo toast to the caller. A guest viewer sees no resolve and no action toggles. An unsent comment shows the offline glyph, or Not sent when the server refused it. Replying reuses the Composer.\n\n**Motion.** Animations come later: a resolved card settles to its quiet line. Swipe to resolve returns with the wiring.",
+          "A comment as plain data: author, time in mono, body, replies and action items. Select jumps the playhead. Resolve hands the Undo toast to the caller. A callback left out removes its control: with no resolve and no toggles the action items are a plain list, and with no reply the card has no field. An unsent comment shows the offline glyph, or Not sent with Try again and Remove when the server refused it. Replying reuses the Composer.\n\n**Motion.** Animations come later: a resolved card settles to its quiet line. Swipe to resolve returns with the wiring.",
       },
     },
   },
@@ -62,8 +62,6 @@ export const Replying: Story = {
       body: "",
       onBodyChange: fn(),
       onSubmit: fn(),
-      submitLabel: "Reply",
-      placeholder: "Reply to Rosa",
     },
   },
 };
@@ -71,13 +69,27 @@ export const Replying: Story = {
 export const Resolved: Story = { args: { comment: RESOLVED_COMMENT } };
 
 export const Queued: Story = {
-  args: { comment: { ...OPEN_COMMENT, pending: "queued" } },
+  args: { pending: { state: "queued" } },
 };
 
 export const Failed: Story = {
-  args: { comment: { ...OPEN_COMMENT, pending: "failed" } },
+  args: {
+    pending: { state: "failed", onRetry: fn(), onRemove: fn() },
+  },
+  play: playInCanvas(async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Try again" }),
+    );
+    if (args.pending?.state !== "failed") throw new Error("expected failed");
+    await expect(args.pending.onRetry).toHaveBeenCalled();
+  }),
 };
 
-export const ReadOnly: Story = {
-  args: { comment: COMMENT_WITH_ACTIONS, readOnly: true },
+export const Commenter: Story = {
+  args: {
+    comment: COMMENT_WITH_ACTIONS,
+    onResolve: undefined,
+    onToggleAction: undefined,
+    reply: { body: "", onBodyChange: fn(), onSubmit: fn() },
+  },
 };
