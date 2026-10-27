@@ -343,11 +343,15 @@ def _words_near(project: EpisodeProject) -> Callable[[str, str | None, float, fl
     def near(track_id: str, source_id: str | None, first: float, last: float) -> list[Any] | None:
         if (track_id, source_id) not in index:
             transcript = project.transcript_for_source(track_id, source_id)
-            ordered = sorted(transcript.words, key=lambda w: w.start) if transcript else None
-            index[track_id, source_id] = ordered and (
-                ordered,
-                [w.start for w in ordered],
-                list(accumulate((w.end for w in ordered), max)),
+            ordered = sorted(transcript.words, key=lambda w: w.start) if transcript else []
+            index[track_id, source_id] = (
+                (
+                    ordered,
+                    [w.start for w in ordered],
+                    list(accumulate((w.end for w in ordered), max)),
+                )
+                if transcript
+                else None
             )
         found = index[track_id, source_id]
         if found is None:

@@ -15,6 +15,7 @@ from podcast_mcp.edits import verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.models import (
     Clip,
+    ClipJoinMode,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -121,6 +122,60 @@ def _set(index: int, field: str, ms: int) -> Callable[[list[Clip]], None]:
 def test_a_cached_verdict_equals_a_cold_check_when_a_clip_ramp_outside_the_window_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: Callable[[list[Clip]], None]
 ) -> None:
+    _cached_equals_cold(tmp_path, monkeypatch, lambda clips: None, change)
+
+
+def _join(index: int, mode: ClipJoinMode, fade_in: int, prev_out: int) -> Callable:
+    def apply(clips: list[Clip]) -> None:
+        clips[index].join_in_mode = mode
+        clips[index].fade_in_ms = fade_in
+        clips[index - 1].fade_out_ms = prev_out
+
+    return apply
+
+
+def _fade_join(index: int, fade_in: int, prev_out: int) -> Callable:
+    return _join(index, ClipJoinMode.FADE, fade_in, prev_out)
+
+
+# Warm on a FADE join, then change only the join mode: a cut drops the fade, a crossfade blends.
+@pytest.mark.parametrize(
+    ("index", "mode", "fade_in", "prev_out"),
+    [
+        pytest.param(i, mode, fi, fo, id=f"clip{i}_{mode.value}_in{fi}_out{fo}")
+        for i, mode, fi, fo in [
+            (3, ClipJoinMode.CUT, 900, 900),
+            (3, ClipJoinMode.CUT, 0, 1000),
+            (3, ClipJoinMode.CUT, 0, 900),
+            (2, ClipJoinMode.CUT, 900, 0),
+            (3, ClipJoinMode.CROSSFADE, 50, 900),
+            (3, ClipJoinMode.CROSSFADE, 900, 1000),
+            (3, ClipJoinMode.CROSSFADE, 0, 1000),
+        ]
+    ],
+)
+def test_a_cached_verdict_equals_a_cold_check_when_only_the_join_mode_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    index: int,
+    mode: ClipJoinMode,
+    fade_in: int,
+    prev_out: int,
+) -> None:
+    _cached_equals_cold(
+        tmp_path,
+        monkeypatch,
+        _fade_join(index, fade_in, prev_out),
+        _join(index, mode, fade_in, prev_out),
+    )
+
+
+def _cached_equals_cold(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    warm: Callable[[list[Clip]], None],
+    change: Callable[[list[Clip]], None],
+) -> None:
     hits: list[bool] = []
     lookup = verdict_cache.lookup
 
@@ -135,8 +190,8 @@ def test_a_cached_verdict_equals_a_cold_check_when_a_clip_ramp_outside_the_windo
     cold = _outcome(_project(tmp_path, change))
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
     verdict_cache._STORE.clear()
-    _outcome(_project(tmp_path, lambda clips: None))
+    _outcome(_project(tmp_path, warm))
     assert not hits
-    _outcome(_project(tmp_path, lambda clips: None))
+    _outcome(_project(tmp_path, warm))
     assert hits, "the unchanged project must hit the cache"
     assert _outcome(_project(tmp_path, change)) == cold
