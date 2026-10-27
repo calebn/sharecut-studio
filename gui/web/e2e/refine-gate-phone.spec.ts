@@ -79,7 +79,7 @@ for (const [width, height] of [
     expect(layout.recoveryScrolls, "the form has no inner scroller").toBe(
       false,
     );
-    // 13.625rem of transport, ruler and lanes stays above the sheet.
+    // The sheet clearance (header, rows, ruler and a lane) stays above it.
     expect(layout.sheetTop).toBeGreaterThanOrEqual(200);
   });
 }

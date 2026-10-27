@@ -160,12 +160,7 @@ for (const { cell: width, theme } of withAppearance([1440, 360])) {
         end: 15,
       });
       applied = true;
-      await page
-        .getByRole(width < 720 ? "button" : "tab", {
-          name: width < 720 ? "Text" : "Transcript",
-          exact: true,
-        })
-        .click();
+      await openPanel(page, "transcript");
       const annotate = page.locator(".transcript-annotate-btn");
       if ((await annotate.getAttribute("aria-pressed")) !== "true")
         await annotate.click();

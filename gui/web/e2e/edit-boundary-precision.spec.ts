@@ -12,7 +12,7 @@ import {
   waiveRefineGate,
 } from "./documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
-import { openProject, phone } from "./stageNav";
+import { openProject, phone, reloadProject } from "./stageNav";
 import { setTheme } from "./theme";
 
 const CLIENT_ID = "e2e-edit-boundary-precision";
@@ -348,7 +348,7 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     expect(applyPayload?.delta_sec).toBeCloseTo(1.5, 3);
     expect(applyPayload?.expected_token).toBeTruthy();
 
-    await page.reload();
+    await reloadProject(page);
     const restoredResponse = await page.request.get(
       `/api/project?path=${encodeURIComponent(e2eProjectPath)}&phase=full`,
     );
