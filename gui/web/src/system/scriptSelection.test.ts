@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { ScriptPiece, ScriptStop } from "./scriptPieces";
 import {
+  dragEdge,
+  edgePosition,
   extendTo,
+  handleStep,
+  marginStep,
   navigate,
+  nearestStop,
+  type StopRect,
   selectionSummary,
   spanOf,
+  stepEdge,
+  verticalStop,
 } from "./scriptSelection";
 
 // word 0, word 1, a cut pill over 2 to 4, word 5, a run over 6 to 7, word 8.
@@ -185,5 +193,213 @@ describe("selectionSummary", () => {
       "20 words selected: w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 ...",
     );
     expect(selectionSummary(pieces, null)).toBe("");
+  });
+});
+
+const box = (left: number, right: number, top: number): StopRect => ({
+  left,
+  right,
+  top,
+  bottom: top + 20,
+});
+
+// Line 0 holds stops 0 to 2, line 1 stops 3 and 4, line 2 stop 5.
+const rects: (StopRect | null)[] = [
+  box(0, 40, 0),
+  box(50, 90, 0),
+  box(100, 200, 0),
+  box(0, 30, 26),
+  box(40, 160, 26),
+  box(0, 60, 52),
+];
+
+describe("verticalStop", () => {
+  it("lands on the place under the column, or the nearest one on that line", () => {
+    expect(verticalStop(rects, 1, 1, 70)).toBe(4);
+    expect(verticalStop(rects, 2, 1, 150)).toBe(4);
+    expect(verticalStop(rects, 0, 1, 10)).toBe(3);
+    expect(verticalStop(rects, 4, 1, 100)).toBe(5);
+    expect(verticalStop(rects, 4, -1, 60)).toBe(1);
+    expect(verticalStop(rects, 3, -1, 500)).toBe(2);
+  });
+
+  it("takes the earlier place when two are equally far", () => {
+    expect(verticalStop(rects, 4, -1, 95)).toBe(1);
+  });
+
+  it("finds nothing past the first or last line", () => {
+    expect(verticalStop(rects, 0, -1, 10)).toBeNull();
+    expect(verticalStop(rects, 5, 1, 10)).toBeNull();
+  });
+
+  it("skips places that are not drawn and treats a few pixels of drift as one line", () => {
+    const drift = [
+      box(0, 40, 0),
+      null,
+      null,
+      box(0, 30, 27),
+      box(40, 160, 25),
+      null,
+    ];
+    expect(verticalStop(drift, 0, 1, 100)).toBe(4);
+    expect(verticalStop(drift, 4, 1, 0)).toBeNull();
+    expect(verticalStop([null], 0, 1, 0)).toBeNull();
+  });
+});
+
+describe("nearestStop", () => {
+  it("picks the line first and the place along it second", () => {
+    expect(nearestStop(rects, 20, 30)).toBe(3);
+    expect(nearestStop(rects, 500, 5)).toBe(2);
+    expect(nearestStop(rects, 70, 24)).toBe(4);
+    expect(nearestStop(rects, 10, 200)).toBe(5);
+  });
+
+  it("finds nothing when no place is drawn", () => {
+    expect(nearestStop([], 0, 0)).toBeNull();
+    expect(nearestStop([null, null], 0, 0)).toBeNull();
+  });
+});
+
+describe("navigate by line", () => {
+  const vertical = { rects, goalX: 70 };
+
+  it("moves the caret to the place on the next or previous line", () => {
+    expect(navigate(stops, 1, "ArrowDown", false, null, vertical)).toEqual({
+      to: 4,
+      caret: 6,
+    });
+    expect(navigate(stops, 4, "ArrowUp", false, null, vertical)).toEqual({
+      to: 1,
+      caret: 1,
+    });
+  });
+
+  it("extends the selection to the far edge of the place it reaches", () => {
+    expect(navigate(stops, 1, "ArrowDown", true, null, vertical)).toEqual({
+      to: 4,
+      selection: words(1, 7),
+    });
+    expect(navigate(stops, 4, "ArrowUp", true, words(1, 7), vertical)).toEqual({
+      to: 1,
+      selection: words(1, 1),
+    });
+  });
+
+  it("does nothing on the first or last line or without positions", () => {
+    expect(navigate(stops, 0, "ArrowUp", false, null, vertical)).toBeNull();
+    expect(navigate(stops, 5, "ArrowDown", true, null, vertical)).toBeNull();
+    expect(navigate(stops, 1, "ArrowDown", false, null)).toBeNull();
+  });
+});
+
+describe("dragEdge", () => {
+  it("moves the start or the end onto the place it is dragged to", () => {
+    expect(dragEdge(stops, words(1, 5), "start", stops[0])).toEqual(
+      words(0, 5),
+    );
+    expect(dragEdge(stops, words(1, 5), "end", stops[5])).toEqual(words(1, 8));
+    expect(dragEdge(stops, words(5, 8), "start", stops[2])).toEqual(
+      words(2, 8),
+    );
+    expect(dragEdge(stops, words(0, 1), "end", stops[4])).toEqual(words(0, 7));
+  });
+
+  it("stops the start on the last place and the end on the first", () => {
+    expect(dragEdge(stops, words(1, 5), "start", stops[5])).toEqual(
+      words(5, 5),
+    );
+    expect(dragEdge(stops, words(1, 5), "end", stops[0])).toEqual(words(1, 1));
+  });
+
+  it("keeps which side the anchor is on", () => {
+    expect(dragEdge(stops, words(5, 1), "start", stops[0])).toEqual(
+      words(5, 0),
+    );
+    expect(dragEdge(stops, words(5, 1), "end", stops[5])).toEqual(words(8, 1));
+  });
+
+  it("reports nothing when the edge stays or the selection is not words", () => {
+    expect(dragEdge(stops, words(1, 5), "start", stops[1])).toBeNull();
+    expect(dragEdge(stops, words(1, 1), "start", stops[3])).toBeNull();
+    expect(
+      dragEdge(stops, { kind: "cut", id: "c" }, "end", stops[5]),
+    ).toBeNull();
+    expect(dragEdge(stops, null, "end", stops[5])).toBeNull();
+  });
+});
+
+describe("stepEdge", () => {
+  it("moves the start one place back to grow and forward to shrink", () => {
+    expect(stepEdge(stops, words(1, 5), "start", -1)).toEqual(words(0, 5));
+    expect(stepEdge(stops, words(1, 5), "start", 1)).toEqual(words(2, 5));
+  });
+
+  it("moves the end one place on to grow and back to shrink, taking a run whole", () => {
+    expect(stepEdge(stops, words(1, 5), "end", 1)).toEqual(words(1, 7));
+    expect(stepEdge(stops, words(1, 5), "end", -1)).toEqual(words(1, 4));
+  });
+
+  it("goes to the first or last place", () => {
+    expect(stepEdge(stops, words(1, 5), "end", "first")).toEqual(words(1, 1));
+    expect(stepEdge(stops, words(1, 5), "start", "last")).toEqual(words(5, 5));
+    expect(stepEdge(stops, words(1, 5), "start", "first")).toEqual(words(0, 5));
+    expect(stepEdge(stops, words(1, 5), "end", "last")).toEqual(words(1, 8));
+  });
+
+  it("does not shrink below one place or grow past the ends", () => {
+    expect(stepEdge(stops, words(1, 1), "start", 1)).toBeNull();
+    expect(stepEdge(stops, words(1, 1), "end", -1)).toBeNull();
+    expect(stepEdge(stops, words(0, 8), "end", 1)).toBeNull();
+    expect(stepEdge(stops, words(0, 8), "start", -1)).toBeNull();
+  });
+
+  it("does nothing without a run of words", () => {
+    expect(stepEdge(stops, null, "end", 1)).toBeNull();
+    expect(stepEdge([], words(1, 5), "end", 1)).toBeNull();
+    expect(stepEdge(stops, words(40, 41), "end", 1)).toBeNull();
+  });
+});
+
+describe("edgePosition and handleStep", () => {
+  it("counts an edge's place from one", () => {
+    expect(edgePosition(stops, words(1, 5), "start")).toBe(2);
+    expect(edgePosition(stops, words(1, 5), "end")).toBe(4);
+    expect(edgePosition(stops, words(3, 3), "start")).toBe(3);
+    expect(edgePosition(stops, null, "end")).toBe(0);
+  });
+
+  it("reads keys as a slider does", () => {
+    expect(
+      [
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowLeft",
+        "ArrowDown",
+        "Home",
+        "End",
+        "a",
+      ].map(handleStep),
+    ).toEqual([1, 1, -1, -1, "first", "last", null]);
+  });
+});
+
+describe("marginStep", () => {
+  const both = ["speaker", "time"] as const;
+
+  it("walks the controls with Up and Down", () => {
+    expect(marginStep(both, 0, "ArrowDown")).toEqual({
+      kind: "control",
+      at: 1,
+    });
+    expect(marginStep(both, 1, "ArrowUp")).toEqual({ kind: "control", at: 0 });
+    expect(marginStep(both, 1, "ArrowDown")).toBeNull();
+    expect(marginStep(both, 0, "ArrowUp")).toBeNull();
+  });
+
+  it("returns to the words with Right and leaves for the turn before with Left", () => {
+    expect(marginStep(both, 0, "ArrowRight")).toEqual({ kind: "text" });
+    expect(marginStep(both, 1, "ArrowLeft")).toEqual({ kind: "before" });
+    expect(marginStep(both, 0, "x")).toBeNull();
   });
 });

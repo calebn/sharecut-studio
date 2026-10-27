@@ -222,6 +222,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **13. Selection handles**
 - Caret handles with 12 px knobs (44 px hit) at both ends of a text selection, adjusting by word.
+- Each handle is a slider over the places the keyboard stops (right or up is one place on, either edge) and is not a tab stop: Shift+arrows (Up and Down by line) extend the selection and Alt+Shift+Left or Right moves its start back or on, so the keyboard does everything a drag does.
 - Used: PNL-TRANSCRIPT, CMP-WORDRANGE, the Decision card excerpt, guest transcript.
 - Story: `System/SelectionHandles`.
 
@@ -233,6 +234,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Drag, Shift-click or double-click to select.
   - Typing on a selection is Fix text.
   - Backspace on a selection is Cut.
+  - Esc clears the selection. Left from a turn's first word enters its margin (speaker name, then time; Up and Down walk them, Right returns to the words).
 - Its header holds `text-search` (find), the unsure-words "? 3" chip, the show-cut-text `eye` and the follow pin. Region notices are compact Status rows in that header.
 - Read-only variant for guests and the Decision card excerpt (two sentences of context).
 - Used: PNL-TRANSCRIPT, CMP-TURN, SCR-PHONE-TEXT, SCR-GUEST-COMMENTER transcript, the Decision card excerpt.
@@ -604,6 +606,7 @@ Desktop widths: Menu 280, anchored card 320, side panel 400, centered card 400, 
 | Phone primary (sheet footer, Cover, hand-off) | 48 tall, full width, in the bottom thumb zone |
 | Desktop primary | 36 inline, 40 page-level (Export, Join, hand-off promoted) |
 | Edge handles (trim, suggestion, selection) | 6 × 24 visual, 44 hit on touch |
+| Words and suggested runs in running text | the line pitch tall (26, phone 28) and as wide as the word. A 44 px square would cross into the lines above and below and take their presses. The cut pill, the speaker name and the turn time in the margin are real 44 px targets |
 
 ### 4.5 Type
 

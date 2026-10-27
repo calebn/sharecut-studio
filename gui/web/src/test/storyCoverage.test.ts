@@ -14,7 +14,10 @@ const COVERED: Record<string, string[]> = {
     "System/ScriptPane",
     "Stages/Edit/ScriptPane",
   ],
-  "CMP-FINDREPLACE": ["Templates/Editor · Transcript panel"],
+  "CMP-FINDREPLACE": [
+    "Templates/Editor · Transcript panel",
+    "Stages/Edit/FindBar",
+  ],
   "DLG-PRECISION": [
     "Templates/Editor · Precision boundary dialog",
     "System/ScrubField",
@@ -169,10 +172,20 @@ const COVERED: Record<string, string[]> = {
   "DLG-RECORD": ["Templates/Record · Host panel"],
   "DLG-MODELS": ["Templates/Models dialog"],
   "DLG-MODEL-GATE": ["Templates/Model gate"],
-  "POP-WORD-EDIT": ["Templates/Editor · Transcript editors"],
-  "POP-SPEAKER": ["Templates/Editor · Transcript editors"],
+  "POP-WORD-EDIT": [
+    "Templates/Editor · Transcript editors",
+    "Stages/Edit/ScriptPane",
+  ],
+  "POP-SPEAKER": [
+    "Templates/Editor · Transcript editors",
+    "Stages/Edit/SpeakerPopover",
+  ],
   "CMP-WORDBAR": ["Templates/Editor · Inspector · Word", "System/ScrubField"],
-  "CMP-WORDRANGE": ["Templates/Editor · Inspector · Range"],
+  "CMP-WORDRANGE": [
+    "Templates/Editor · Inspector · Range",
+    "System/SelectionHandles",
+    "Stages/Edit/ScriptPane",
+  ],
   "CMP-RANGE-ACTIONS": [
     "Templates/Editor · Inspector · Range",
     "System/ActionBar",

@@ -67,4 +67,48 @@ describe("PersonPicker", () => {
     await userEvent.click(second);
     expect(onPick).toHaveBeenCalledWith("sam-b");
   });
+
+  it("swaps one row for the rename field and gives focus back to its Fix text button", () => {
+    const rename = (person: { name: string }) => (
+      <input
+        aria-label={`Name for ${person.name}`}
+        defaultValue={person.name}
+      />
+    );
+    const { rerender } = render(
+      <PersonPicker
+        people={PEOPLE}
+        currentId="maya"
+        onPick={vi.fn()}
+        onRename={vi.fn()}
+        renamingId="anneke"
+        renderRename={rename}
+      />,
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Name for Anneke de Vries" }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByRole("radio").map((r) => r.getAttribute("value")),
+    ).toEqual(["maya", "joss"]);
+    expect(
+      screen
+        .getAllByRole("button", { name: /^Fix text/ })
+        .map((b) => b.getAttribute("aria-label")),
+    ).toEqual(["Fix text for Maya Okafor", "Fix text for Joss"]);
+    rerender(
+      <PersonPicker
+        people={PEOPLE}
+        currentId="maya"
+        onPick={vi.fn()}
+        onRename={vi.fn()}
+        renderRename={rename}
+      />,
+    );
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(
+      screen.getByRole("button", { name: "Fix text for Anneke de Vries" }),
+    ).toHaveFocus();
+  });
 });
