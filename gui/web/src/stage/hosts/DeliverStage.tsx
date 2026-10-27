@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   addChapter,
@@ -36,6 +36,8 @@ import {
   clipsOf,
   deliverFacts,
   fixRoute,
+  sameChapters,
+  sameClipBounds,
 } from "./deliverModel";
 import { deliverReadiness, hostStateOf, type ReadinessRow } from "./hostModels";
 
@@ -89,6 +91,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   } | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pending, setPending] = useState(0);
+  const [epoch, setEpoch] = useState(0);
   const seed = useMemo(
     () => ({
       chapters: chaptersOf(project?.chapters ?? []),
@@ -96,18 +100,39 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     }),
     // Seeded once per project; later edits come from the stage itself.
     // biome-ignore lint/correctness/useExhaustiveDependencies: see above
-    [projectPath, state === "ready"],
+    [projectPath, state === "ready", epoch],
   );
   if (saved.current?.from !== seed) saved.current = { from: seed, ...seed };
   const send = (work: (path: string) => Promise<void>) => {
     if (!projectPath) return;
+    setPending((n) => n + 1);
     queue.current = queue.current
       .then(() => work(projectPath))
       .then(() => setSaveError(null))
       .catch((error: unknown) =>
         setSaveError(error instanceof Error ? error.message : String(error)),
-      );
+      )
+      .finally(() => setPending((n) => n - 1));
   };
+  // A new history revision (Undo, Redo, an outside edit) that leaves the
+  // chapters or clips different from what the page holds re-seeds the stage.
+  // Never while a save is in flight, so an unsaved edit is not lost.
+  const revision = project?.history.head_id;
+  useEffect(() => {
+    const held = saved.current;
+    if (pending > 0 || !held || state !== "ready") return;
+    const now = {
+      chapters: chaptersOf(project?.chapters ?? []),
+      clips: clipsOf(project?.social_clips ?? []),
+    };
+    if (
+      !sameChapters(held.chapters, now.chapters) ||
+      !sameClipBounds(held.clips, now.clips)
+    ) {
+      setEpoch((n) => n + 1);
+    }
+    // biome-ignore lint/correctness/useExhaustiveDependencies: runs per revision and when saves settle
+  }, [revision, pending, state]);
   const onChapters = (next: readonly Chapter[]) => {
     const base = saved.current?.chapters ?? [];
     const ops = chapterOps(base, next);
@@ -204,7 +229,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         </div>
       ) : null}
       <DeliverStageBody
-        key={projectPath ?? "none"}
+        key={`${projectPath ?? "none"}:${epoch}`}
         facts={facts}
         total={project.timeline_duration_sec}
         initialSettings={{
