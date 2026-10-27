@@ -485,6 +485,9 @@ def _trickling_ping(framing: str) -> Iterator[tuple[int, list[None], threading.E
             except OSError:
                 pass
 
+        def do_POST(self) -> None:
+            self.do_GET()
+
         def log_message(self, *_args: object) -> None:
             return None
 
@@ -528,6 +531,44 @@ def test_a_trickling_ping_expires_both_attempts_without_bypassing_studio(
             stop.set()
             worker.join(3)
             assert not worker.is_alive(), "Studio discovery did not stop after the peer closed"
+
+
+@pytest.mark.timeout(8)
+@pytest.mark.parametrize("framing", ["headers", "content-length", "chunked", "close-delimited"])
+def test_cancel_acknowledgment_has_one_deadline_and_closes_response(
+    quick_ping: None, monkeypatch: pytest.MonkeyPatch, framing: str
+) -> None:
+    responses: list[http.client.HTTPResponse] = []
+    original_getresponse = http.client.HTTPConnection.getresponse
+
+    def getresponse(conn: http.client.HTTPConnection) -> http.client.HTTPResponse:
+        response = original_getresponse(conn)
+        responses.append(response)
+        return response
+
+    monkeypatch.setattr(http.client.HTTPConnection, "getresponse", getresponse)
+    with _trickling_ping(framing) as (port, requests, stop):
+        outcome: list[BaseException | None] = []
+
+        def cancel() -> None:
+            try:
+                outcome.append(studio_host_module._cancel(_host(port=port), "active-run"))
+            except BaseException as exc:
+                outcome.append(exc)
+
+        worker = threading.Thread(target=cancel)
+        worker.start()
+        try:
+            worker.join(2)
+            assert not worker.is_alive(), "trickling bytes kept Studio cancellation blocked"
+            assert len(requests) == 1
+            assert outcome == [None]
+            assert len(responses) == (0 if framing == "headers" else 1)
+            assert all(response.isclosed() for response in responses)
+        finally:
+            stop.set()
+            worker.join(3)
+            assert not worker.is_alive(), "Studio cancellation did not stop after the peer closed"
 
 
 def test_localhost_uses_numeric_loopbacks_and_closes_failed_candidate(
