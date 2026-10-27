@@ -98,8 +98,9 @@ function dropLabel(count: number | undefined): string {
  * The Prepare stage: Getting ready, Sources, Help the transcriber and
  * Cleanup, then the one hand-off. A stage inside the shell, so a plain div
  * with h2 sections: the shell owns main and the page heading. The DOM order is
- * the spec's phone order; the three-column desktop layout moves Sources to the
- * left with grid areas. One polite status line speaks the phase when it
+ * Sources, Getting ready, Help the transcriber, Cleanup, hand-off, so Tab
+ * follows the desktop columns. On a phone Getting ready is shown first with
+ * CSS `order`, the one place the reading order differs. One polite status line speaks the phase when it
  * changes, never a progress tick.
  */
 export function PrepareView({
@@ -240,6 +241,35 @@ export function PrepareView({
   return (
     <div ref={root} className="sys-prepare" data-phase={phase}>
       <div className="sys-prepare-layout">
+        <section className="sys-prepare-sources" aria-labelledby={ids.sources}>
+          <h2 id={ids.sources} className="sys-prepare-title">
+            Sources
+          </h2>
+          <div className="sys-start-pair">
+            <StartTile
+              kind="import"
+              size={80}
+              state={tileState}
+              dragCount={dropCount}
+              onActivate={onImport}
+            />
+            <StartTile kind="record" size={80} onActivate={onRecord} />
+          </div>
+          {sessions.map((session, at) => {
+            return (
+              <SessionSources
+                key={session.id}
+                session={session}
+                firstIndex={firstIndexes[at]}
+                repeated={repeated}
+                actions={sourceActions}
+                onTarget={
+                  onTarget ? (to) => onTarget(session.id, to) : undefined
+                }
+              />
+            );
+          })}
+        </section>
         <section className="sys-prepare-ready" aria-labelledby={ids.ready}>
           <div className="sys-prepare-head">
             <h2 id={ids.ready} className="sys-prepare-title">
@@ -270,35 +300,6 @@ export function PrepareView({
           >
             <ReadyList rows={rows} onAction={onRowAction} />
           </div>
-        </section>
-        <section className="sys-prepare-sources" aria-labelledby={ids.sources}>
-          <h2 id={ids.sources} className="sys-prepare-title">
-            Sources
-          </h2>
-          <div className="sys-start-pair">
-            <StartTile
-              kind="import"
-              size={80}
-              state={tileState}
-              dragCount={dropCount}
-              onActivate={onImport}
-            />
-            <StartTile kind="record" size={80} onActivate={onRecord} />
-          </div>
-          {sessions.map((session, at) => {
-            return (
-              <SessionSources
-                key={session.id}
-                session={session}
-                firstIndex={firstIndexes[at]}
-                repeated={repeated}
-                actions={sourceActions}
-                onTarget={
-                  onTarget ? (to) => onTarget(session.id, to) : undefined
-                }
-              />
-            );
-          })}
         </section>
         <section className="sys-prepare-aside" aria-labelledby={ids.help}>
           <h2 id={ids.help} className="sys-prepare-title">
