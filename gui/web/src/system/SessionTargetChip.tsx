@@ -16,6 +16,8 @@ export type SessionTargetChipProps = {
   /** Locked once the first take landed. */
   locked?: boolean;
   onTarget?: (target: SessionTarget) => void;
+  /** The session it belongs to, added to the control name. */
+  session?: string;
 };
 
 /**
@@ -26,6 +28,7 @@ export function SessionTargetChip({
   target,
   locked = false,
   onTarget,
+  session,
 }: SessionTargetChipProps) {
   const [open, setOpen] = useState(false);
   const reasonId = useId();
@@ -34,7 +37,7 @@ export function SessionTargetChip({
       <span
         className="sys-target-chip sys-target-chip--locked"
         role="group"
-        aria-label={SUBJECT}
+        aria-label={session ? `${SUBJECT}, ${session}` : SUBJECT}
         aria-describedby={reasonId}
       >
         <SystemIcon name="lock" size={14} />
@@ -55,7 +58,7 @@ export function SessionTargetChip({
         <Button
           {...props}
           className="sys-target-trigger"
-          aria-label={`${SUBJECT}: ${TARGET_TEXT[target]}`}
+          aria-label={`${SUBJECT}: ${TARGET_TEXT[target]}${session ? `, ${session}` : ""}`}
         >
           <span>{TARGET_TEXT[target]}</span>
           <SystemIcon name="chevron-down" size={14} />

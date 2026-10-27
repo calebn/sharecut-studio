@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PrepareView, type PrepareViewProps } from "./PrepareView";
@@ -502,9 +502,36 @@ describe("PrepareView focus", () => {
     expect(
       screen.getByRole("button", { name: "Remove Maya, voice 3" }),
     ).toBeVisible();
+    expect(screen.queryByText(/Another voice is also called/)).toBeNull();
+    expect(
+      screen.getByRole("button", {
+        name: "Where this session goes: At the end, Session 2 · 2 Nov",
+      }),
+    ).toBeVisible();
+  });
+
+  it("says a name is shared only when one session has it twice", () => {
+    render(
+      <PrepareView
+        {...props({
+          sessions: [
+            session({
+              sources: [
+                ...NAMED_TAKES.slice(0, 1),
+                { ...NAMED_TAKES[0], id: "maya-b" },
+              ],
+            }),
+            SECOND_SESSION,
+          ],
+        })}
+      />,
+    );
     expect(
       screen.getAllByText("Another voice is also called Maya."),
     ).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Remove Maya, voice 3" }),
+    ).toBeVisible();
   });
 
   it("leaves a name that only one voice has as it was", () => {
@@ -517,6 +544,27 @@ describe("PrepareView focus", () => {
     );
     expect(screen.getByRole("button", { name: "Remove Maya" })).toBeVisible();
     expect(screen.queryByText(/Another voice is also called/)).toBeNull();
+  });
+
+  it("returns focus to the session target control after Escape and a choice", async () => {
+    const onTarget = vi.fn();
+    render(
+      <PrepareView
+        {...props({ sessions: [session({ sources: [] })], onTarget })}
+      />,
+    );
+    const chip = screen.getByRole("button", {
+      name: /Where this session goes/,
+    });
+    await userEvent.click(chip);
+    act(() => screen.getByRole("menuitem", { name: /Starts/ }).focus());
+    await userEvent.keyboard("{Escape}");
+    expect(document.activeElement).toBe(chip);
+    await userEvent.click(chip);
+    act(() => screen.getByRole("menuitem", { name: /Starts/ }).focus());
+    await userEvent.keyboard("{Enter}");
+    expect(onTarget).toHaveBeenCalled();
+    expect(document.activeElement).toBe(chip);
   });
 
   it("moves focus to the next session when the session of the focused chip is removed", () => {

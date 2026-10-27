@@ -54,8 +54,10 @@ export type SourceCardProps = {
   cause?: string;
   onRetry?: () => void;
   onDetails?: () => void;
-  /** Another card carries this name too. */
+  /** Another card in this session carries this name too: said aloud and shown. */
   sameNameAs?: string;
+  /** A card in another session carries this name: only the control names differ. */
+  nameElsewhere?: string;
 };
 
 function hasAudio(state: SourceCardState): boolean {
@@ -106,16 +108,16 @@ export function SourceCard({
   onRetry,
   onDetails,
   sameNameAs,
+  nameElsewhere,
 }: SourceCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const card = useRef<HTMLElement>(null);
   useFocusRescue(card, () => () => card.current);
-  const stepperId = useId();
   const reasonId = useId();
   const named = name.trim();
   const who = !named
     ? `voice ${index}`
-    : sameNameAs
+    : sameNameAs || nameElsewhere
       ? `${named}, voice ${index}`
       : named;
   const splittable = canSplit ?? state === "split-prompt";
@@ -259,11 +261,7 @@ export function SourceCard({
                     >
                       <SystemIcon name="minus" size={16} />
                     </Button>
-                    <output
-                      id={stepperId}
-                      className="sys-stepper-value"
-                      aria-live="polite"
-                    >
+                    <output className="sys-stepper-value" aria-live="polite">
                       {voices}
                     </output>
                     <Button
