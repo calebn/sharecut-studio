@@ -306,6 +306,39 @@ def test_only_defined_pre_execution_responses_are_refusals(
         assert caught.value.code == code
 
 
+def test_a_deeply_nested_refusal_body_is_reported_as_uncertain(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = b"[" * 10000
+
+    class Response:
+        status = 503
+
+        def read(self) -> bytes:
+            return body
+
+    class Connection:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> Response:
+            return Response()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: Connection())
+    with pytest.raises(HandoffLost, match="may have changed the project"):
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+
+
 def test_post_transport_error_does_not_expose_exception_text(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
