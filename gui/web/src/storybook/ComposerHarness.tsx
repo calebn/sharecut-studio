@@ -1,20 +1,27 @@
 import { useState } from "react";
 import { Composer, type ComposerProps } from "../system/Composer";
+import {
+  idleAnchor,
+  nextAnchor,
+  type Playhead,
+} from "../system/composerAnchor";
 
 type HarnessProps = Partial<ComposerProps> & { start?: string };
 
-/** A Composer that owns its text and pins its time on the first keystroke, as the host will. */
+/** The playhead every story shares: 12:04. */
+const STORY_PLAYHEAD: Playhead = { seconds: 724 };
+
+/** A Composer that owns its text and anchor and applies `nextAnchor` against a fixed playhead, as the host will. */
 export function ComposerHarness({
   start = "",
-  time: initialTime,
+  anchor: initialAnchor,
   name: initialName,
   onSubmit,
-  onPinTime,
-  onUnpinTime,
+  onAnchor,
   ...rest
 }: HarnessProps) {
   const [body, setBody] = useState(start);
-  const [time, setTime] = useState(initialTime);
+  const [anchor, setAnchor] = useState(initialAnchor);
   const [name, setName] = useState(initialName?.value ?? "");
   return (
     <Composer
@@ -24,15 +31,12 @@ export function ComposerHarness({
       onSubmit={() => {
         onSubmit?.();
         setBody("");
+        if (initialAnchor) setAnchor(idleAnchor(STORY_PLAYHEAD));
       }}
-      time={time}
-      onPinTime={() => {
-        onPinTime?.();
-        setTime((t) => (t ? { ...t, pinned: true } : t));
-      }}
-      onUnpinTime={() => {
-        onUnpinTime?.();
-        setTime((t) => (t ? { ...t, pinned: false } : t));
+      anchor={anchor}
+      onAnchor={(intent) => {
+        onAnchor?.(intent);
+        setAnchor((a) => a && nextAnchor(a, intent, STORY_PLAYHEAD));
       }}
       name={
         initialName

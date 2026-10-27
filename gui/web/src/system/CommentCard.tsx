@@ -1,38 +1,57 @@
+import { useId } from "react";
 import { Avatar, Button } from "../ui";
 import { Composer, type ComposerProps } from "./Composer";
+import { type AnchorSpan, formatAnchor } from "./composerAnchor";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
-import { formatSeconds } from "./seconds";
 import { iconOf, verbOf } from "./verbDisplay";
 
 export type CommentCardData = {
   id: string;
   author: string;
-  seconds: number;
+  /** Absent: a whole-episode note, with no time shown. */
+  at?: AnchorSpan;
   body: string;
   resolved: boolean;
   resolvedBy?: string;
   replies: { id: string; author: string; body: string }[];
   actions: { id: string; text: string; done: boolean; doneBy?: string }[];
-  /** Waiting in the offline queue, or refused by the server. */
-  pending?: "queued" | "failed";
 };
 
+/** Offline-queue state. It comes from a different source than the comment, so it is a prop, not data. */
+export type CommentPending =
+  | { state: "queued" }
+  | { state: "failed"; onRetry: () => void; onRemove: () => void };
+
+export type ReplyComposerProps = Pick<
+  ComposerProps,
+  "body" | "onBodyChange" | "onSubmit" | "state" | "name" | "inputRef"
+>;
+
+/**
+ * Announcements belong to the shell's one polite live region
+ * (`ui/StatusLiveRegion`), so this part renders no `aria-live`, `role="status"`
+ * or `role="alert"`. The caller announces through `statusAnnouncement`:
+ * "Comment posted", "Comment saved. It sends when you're back online." and,
+ * when a queued comment flips to failed, "Comment not sent. Try again is on
+ * the comment."
+ */
 export type CommentCardProps = {
   comment: CommentCardData;
+  pending?: CommentPending;
   selected?: boolean;
-  /** A guest viewer or commenter: no resolve, no action toggles. */
-  readOnly?: boolean;
   /** Jump the playhead to the comment's time. */
   onSelect?: () => void;
-  /** The caller owns the Undo toast. */
+  /** Absent: no Resolve or Reopen. The caller owns the Undo toast. */
   onResolve?: (resolved: boolean) => void;
+  /** Absent: action items render as a static list. */
   onToggleAction?: (id: string, done: boolean) => void;
-  /** Replying reuses the Composer. */
-  reply?: ComposerProps;
+  /** Absent: no reply field (viewer). */
+  reply?: ReplyComposerProps;
 };
 
 const RESOLVE = verbOf("resolve");
+const REMOVE = verbOf("remove");
 const PENDING_TEXT = {
   queued: "Waiting to send",
   failed: "Not sent",
@@ -44,33 +63,39 @@ const repliesText = (count: number) =>
 /** A comment with its replies and action items, restyled on the Review queue row. */
 export function CommentCard({
   comment: c,
+  pending,
   selected = false,
-  readOnly = false,
   onSelect,
   onResolve,
   onToggleAction,
   reply,
 }: CommentCardProps) {
-  const settled = c.pending === undefined;
-  const canResolve = !readOnly && settled && onResolve !== undefined;
-  const canToggle = !readOnly && settled && onToggleAction !== undefined;
+  const settled = pending === undefined;
+  const canResolve = settled && onResolve !== undefined;
+  const canToggle = settled && onToggleAction !== undefined;
   const head = (
     <>
-      <Avatar name={c.author} size="sm" />
+      <span aria-hidden="true">
+        <Avatar name={c.author} size="sm" />
+      </span>
       <span className="sys-comment-text">
         <span className="sys-comment-by">
           <span className="sys-comment-author">{c.author}</span>
-          <span className="sys-mono sys-comment-time">
-            {formatSeconds(c.seconds)}
-          </span>
-          {c.pending ? (
-            <span className="sys-comment-pending sys-tone-warning">
+          {c.at ? (
+            <span className="sys-mono sys-comment-time">
+              {formatAnchor(c.at)}
+            </span>
+          ) : null}
+          {pending ? (
+            <span
+              className={`sys-comment-pending sys-tone-${pending.state === "queued" ? "warning" : "danger"}`}
+            >
               <StatusGlyph
-                state={c.pending === "queued" ? "offline" : "failed"}
+                state={pending.state === "queued" ? "offline" : "failed"}
                 size={14}
                 text={false}
               />
-              {PENDING_TEXT[c.pending]}
+              {PENDING_TEXT[pending.state]}
             </span>
           ) : null}
         </span>
@@ -83,14 +108,13 @@ export function CommentCard({
       className="sys-comment"
       data-selected={selected || undefined}
       data-resolved={c.resolved || undefined}
-      data-pending={c.pending}
+      data-pending={pending?.state}
     >
       {onSelect ? (
         <button
           type="button"
           className="sys-comment-main"
           aria-current={selected ? "true" : undefined}
-          aria-label={`${c.author}, ${formatSeconds(c.seconds)}: ${c.body}`}
           onClick={onSelect}
         >
           {head}
@@ -98,24 +122,27 @@ export function CommentCard({
       ) : (
         <div className="sys-comment-main sys-comment-main--static">{head}</div>
       )}
+      {pending?.state === "failed" ? (
+        <div className="sys-comment-retry">
+          <Button onClick={pending.onRetry}>Try again</Button>
+          <Button variant="link" onClick={pending.onRemove}>
+            <SystemIcon name={iconOf("remove")} size={14} />
+            {REMOVE.label}
+          </Button>
+        </div>
+      ) : null}
       {c.actions.length > 0 ? (
         <ul className="sys-comment-actions" aria-label="Action items">
           {c.actions.map((a) => (
             <li key={a.id}>
-              <label className="sys-comment-action">
-                <input
-                  type="checkbox"
-                  checked={a.done}
-                  disabled={!canToggle}
-                  onChange={(event) =>
-                    onToggleAction?.(a.id, event.target.checked)
-                  }
+              {canToggle ? (
+                <ActionToggle
+                  action={a}
+                  onToggle={(done) => onToggleAction?.(a.id, done)}
                 />
-                <span data-done={a.done || undefined}>{a.text}</span>
-                {a.done && a.doneBy ? (
-                  <span className="sys-comment-meta">{a.doneBy}</span>
-                ) : null}
-              </label>
+              ) : (
+                <ActionStatic action={a} />
+              )}
             </li>
           ))}
         </ul>
@@ -133,9 +160,15 @@ export function CommentCard({
           ))}
         </ul>
       ) : null}
-      {reply ? (
+      {reply && settled ? (
         <div className="sys-comment-reply">
-          <Composer {...reply} />
+          <Composer
+            {...reply}
+            compact
+            label={`Reply to ${c.author}`}
+            placeholder={`Reply to ${c.author}`}
+            submitLabel="Reply"
+          />
         </div>
       ) : null}
       {c.resolved || canResolve ? (
@@ -147,18 +180,61 @@ export function CommentCard({
             </span>
           ) : null}
           {canResolve ? (
-            <Button onClick={() => onResolve(!c.resolved)}>
-              {c.resolved ? (
-                "Reopen"
-              ) : (
-                <>
-                  <SystemIcon name={iconOf("resolve")} size={14} />
-                  {RESOLVE.label}
-                </>
-              )}
-            </Button>
+            c.resolved ? (
+              <Button variant="link" onClick={() => onResolve(false)}>
+                Reopen
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={() => onResolve(true)}>
+                <SystemIcon name={iconOf("resolve")} size={14} />
+                {RESOLVE.label}
+              </Button>
+            )
           ) : null}
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+type Action = CommentCardData["actions"][number];
+
+function ActionToggle({
+  action: a,
+  onToggle,
+}: {
+  action: Action;
+  onToggle: (done: boolean) => void;
+}) {
+  const metaId = useId();
+  const by = a.done && a.doneBy;
+  return (
+    <div className="sys-comment-action">
+      <label className="sys-comment-action-label">
+        <input
+          type="checkbox"
+          checked={a.done}
+          aria-describedby={by ? metaId : undefined}
+          onChange={(event) => onToggle(event.target.checked)}
+        />
+        <span data-done={a.done || undefined}>{a.text}</span>
+      </label>
+      {by ? (
+        <span id={metaId} className="sys-comment-meta">
+          {a.doneBy}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function ActionStatic({ action: a }: { action: Action }) {
+  return (
+    <div className="sys-comment-action">
+      <StatusGlyph state={a.done ? "done" : "not-yet"} size={14} />
+      <span data-done={a.done || undefined}>{a.text}</span>
+      {a.done && a.doneBy ? (
+        <span className="sys-comment-meta">{a.doneBy}</span>
       ) : null}
     </div>
   );
