@@ -36,7 +36,6 @@ from podcast_mcp.edits.cut_placement import (
 )
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
-from podcast_mcp.models import ClipJoinMode
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
 
@@ -234,24 +233,11 @@ def _payload(
     s_lo, s_hi = edit.start - reach, edit.end + reach
     heard = []
     elsewhere = []
-    downstream = []
     near = _words_near(project)
     for c in project.clips:
         in_window = c.timeline_start < hi and c.timeline_end > lo
         if in_window:
             heard.append(_heard(c, lo, hi))
-        if in_window or c.timeline_end >= lo:
-            # The check assesses every ramp, so one outside the window (the far end of a clip
-            # straddling its edge, or a whole clip past it) still moves the verdict.
-            ramps = _outside_ramps(
-                c,
-                near,
-                c.timeline_start < lo or not in_window,
-                c.timeline_end > hi or not in_window,
-            )
-            if ramps:
-                downstream.append(ramps)
-        if in_window:
             continue
         if (
             c.source_end > s_lo
@@ -263,7 +249,6 @@ def _payload(
             )
     heard.sort(key=repr)
     elsewhere.sort(key=repr)
-    downstream.sort(key=repr)
     track_ids = [t.id for t in project.tracks]
     pairs: set[tuple[str, str | None]] = {(str(h[0]), h[1]) for h in heard}
     pairs |= {(str(e[0]), cast("str | None", e[1])) for e in elsewhere}
@@ -291,7 +276,6 @@ def _payload(
         "span": [float(span[0]), float(span[1])],
         "heard": heard,
         "elsewhere": elsewhere,
-        "downstream": downstream,
         "tracks": [t.model_dump(mode="json") for t in project.tracks],
         "sources": [s.model_dump(mode="json") for s in project.sources],
         "chains": [c.model_dump(mode="json") for c in project.processing_chains],
@@ -388,31 +372,6 @@ def _words_near(project: EpisodeProject) -> Callable[[str, str | None, float, fl
         ]
 
     return near
-
-
-def _outside_ramps(
-    clip: Any, near: Callable[..., Any], opens: bool, closes: bool
-) -> list[Any] | None:
-    """The fade ends of a clip lying outside the window, on the source clock, with their words."""
-
-    def edge(at: float, fade_ms: int) -> list[Any]:
-        return [
-            at,
-            fade_ms,
-            near(clip.track_id, clip.source_id, at - fade_ms / 1000 - 1, at + fade_ms / 1000 + 1),
-        ]
-
-    # A non-fade join is hashed with the in-edge: it is a ramp the check assesses too.
-    ramp_in = opens and (clip.fade_in_ms or clip.join_in_mode != ClipJoinMode.FADE)
-    ramp_out = closes and clip.fade_out_ms
-    if not (ramp_in or ramp_out):
-        return None
-    return [
-        clip.track_id,
-        clip.source_id,
-        [*edge(clip.source_start, clip.fade_in_ms), clip.join_in_mode.value] if ramp_in else None,
-        edge(clip.source_end, clip.fade_out_ms) if ramp_out else None,
-    ]
 
 
 def _disk_stamps(project: EpisodeProject) -> list[list[str]]:
