@@ -652,3 +652,39 @@ def test_optimize_and_assess_shares_jump_cache_with_fade_recommendation():
             defaults=load_defaults(),
         )
     assert measure.call_count == 2
+
+
+def _fade_reach(crossfade_ms=4, tighten=None, **clip):
+    from podcast_mcp.edits.cut_quality import fade_reach_sec
+    from podcast_mcp.models import Clip, EditDecision, EditDecisionType, EpisodeProject
+
+    defaults = load_defaults()
+    defaults["tighten"] = {
+        **defaults["tighten"],
+        "filler_post_pad_fade_in_min_ms": 1,
+        "filler_post_pad_fade_in_max_ms": 2,
+        "filler_pre_pad_fade_out_ms": 3,
+        **(tighten or {}),
+    }
+    project = EpisodeProject.create("fade reach", "/tmp/fade-reach")
+    project.clips = [
+        Clip(id="c", track_id="t", source_start=0, source_end=9, timeline_start=0, **clip)
+    ]
+    edit = EditDecision(
+        id="e",
+        track_id="t",
+        type=EditDecisionType.REMOVE,
+        start=1,
+        end=2,
+        crossfade_ms=crossfade_ms,
+    )
+    return fade_reach_sec(project, edit, defaults)
+
+
+def test_fade_reach_is_the_longest_of_the_cut_the_pads_and_the_clips():
+    assert _fade_reach() == 0.004
+    assert _fade_reach(crossfade_ms=80) == 0.08
+    assert _fade_reach(tighten={"filler_post_pad_fade_in_max_ms": 90}) == 0.09
+    assert _fade_reach(tighten={"filler_pre_pad_fade_out_ms": 70}) == 0.07
+    assert _fade_reach(fade_in_ms=250) == 0.25
+    assert _fade_reach(fade_out_ms=300) == 0.3

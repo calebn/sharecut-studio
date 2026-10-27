@@ -627,11 +627,15 @@ pending cuts on a copy, at low priority, with the interactive intent Approve all
 is part of the check, so a check made for another intent is never reused), stopping as soon as
 an approval starts, and an approval reuses the check of every cut whose neighbourhood is unchanged. The key
 (`edits/verdict_cache.py`) hashes the cut, the intent, the whole settings mapping, what every
-track plays within 6 s of the cut plus the longest fade (cut crossfade, pad fade or clip fade), and for a pause at least 13 s out and out to the words its check observes (not clip ids or ends outside that window), the words there,
+track plays within 6 s of the cut plus the longest fade (cut crossfade, pad fade or clip fade;
+a project with any clip fade over 1 s is never cached), and for a pause at least 13 s out and out
+to the words its check observes (not clip ids or ends outside that window), the words there,
 the recordings' file revisions, the policy tables and the speaker-profile files. The cheap,
 timeline-dependent part always runs again: the placement, the written cut, and the room-tone
 pads, which must equal what the entry recorded or the full check runs. A check that read an
-unreadable file is never stored. `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
+unreadable file is never stored. A batch applied from the end backward builds its timeline loudness
+once and carries it while each next cut lies beyond that same reach of every applied cut
+(`CarriedTimelineRms`). `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
 hit and fails if it differs; the approve and cut tests pass in that mode except nine that count
 checks (named in `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
 which set the flags themselves.
