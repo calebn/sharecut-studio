@@ -299,7 +299,7 @@ def session_suggestion_select_take(
     request: Request,
     path: str = Query(...),
     suggestion_id: str = Query(...),
-    take_index: int = Query(..., ge=0),
+    take_index: int = Query(...),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):

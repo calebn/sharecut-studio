@@ -63,11 +63,13 @@ def accept_session_suggestion_tool(
     An insert opens the session's length at its insert point on every dialogue track and places
     its takes, room-tone beds and live comments there. A replace removes its range on every
     dialogue track and puts one take in its place (take_index, else the selected or last take)
-    and discards the other takes' staged segments (undo brings them back; the recordings stay in
-    the project); its range is found again from the audio it was staged on. Refuses a session that is not
-    pending, a range or insert point that is gone or changed (stale_anchor), an unknown take
-    (take_not_found), a take_index on an insert (take_not_applicable), a track the take did not
-    record (track_not_recorded) and pending edits inside the range (pending_edits_in_range).
+    and discards the other takes' staged segments and the live comments held on them (the
+    result's discarded_takes, comments_not_placed and discard_message say what; one Undo brings
+    them back; the recordings stay in the project). Its range is found again from the audio it
+    was staged on. Refuses a session that is not pending, a range or insert point that is gone
+    or changed (stale_anchor), an unknown take (take_not_found), a take_index on an insert
+    (take_not_applicable), a track the take did not record (track_not_recorded) and pending
+    edits inside the range (pending_edits_in_range).
     A replace that also removes another track's speech stays unchanged and returns
     needs_confirmation until you repeat with override_audio_checks=true (recorded).
     The result lists non-dialogue tracks that did not move (unmoved_track_ids).
@@ -88,8 +90,9 @@ def list_session_takes_tool(project_path: str, suggestion_id: str) -> str:
     Per take: take_index, duration_s (and per track), word_count and speech_text (a snippet;
     null for a take nobody has transcribed), chosen (the one select_session_take_tool picked),
     default (the one accept_session_suggestion_tool places when no take_index is given) and
-    refusal ({code, message}) when accepting that take would be refused. An insert is
-    selectable: false, its takes play in order.
+    refusal ({code, message}) when accepting that take would be refused. selectable is false
+    for an insert (its takes play in order), a session that is not pending and a replace with
+    one take.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 

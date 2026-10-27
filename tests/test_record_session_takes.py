@@ -23,7 +23,7 @@ from podcast_mcp.project.history.summary import format_history_group_title
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService, PlayService
 from podcast_mcp.util.coded_error import CodedValueError
-from test_record_replace_accept import _everything, _stage_replace, _words
+from test_record_replace_accept import SID, _everything, _stage_replace, _words
 from test_record_session_preview import (
     _hear,
     _insert,
@@ -317,6 +317,9 @@ def test_accept_keeps_only_the_chosen_takes_staged_rows_and_every_recording(ws) 
     result = _svc(ws).accept(sid, take_index=1)
     assert result["discarded_takes"] == [0, 2]
     assert result["comments_not_placed"] == 2
+    assert result["discard_message"] == (
+        "The other takes (0, 2) were discarded. 2 comments on them left out. Undo brings them back."
+    )
     ws.reload()
     row = _row(ws)
     assert {t.take_index for t in row.takes} == {1}
@@ -435,14 +438,15 @@ def test_the_limits_are_named_by_the_cli_help_and_the_mcp_docstring() -> None:
 def test_a_collapsed_range_has_its_own_words_not_the_stale_anchor_ones(ws, monkeypatch) -> None:
     from podcast_mcp.edits import insert_anchor
 
-    sid = _replace(ws, 3.0, 5.0, {0: [("host", 0.0, 2.0)]})
+    _replace(ws, 3.0, 5.0, {0: [("host", 0.0, 2.0)]})
     monkeypatch.setattr(insert_anchor, "resolve_insert_anchor", lambda _p, _a: 3.0)
     with pytest.raises(CodedValueError) as collapsed:
         resolve_range(ws.project, _row(ws))
     assert collapsed.value.code == "stale_anchor"
     assert "has been cut away" in str(collapsed.value)
     assert "no longer on the timeline" not in str(collapsed.value)
-    assert sid
+    # The same range that changed under it keeps the stale-anchor words.
+    assert "has changed since" not in str(collapsed.value)
 
 
 def test_the_reworded_accept_messages_are_pinned(ws) -> None:
@@ -511,13 +515,16 @@ def test_cli_lists_and_picks_and_the_footer_says_replace(ws, minimal_project) ->
     assert "take_not_found" in refused.output
 
 
-def test_the_cut_command_footer_still_says_this_cut() -> None:
+def test_the_cut_command_footer_still_says_this_cut(capsys) -> None:
     import typer
 
     from podcast_mcp.cli.cut_speech import require_cut_applied
 
     with pytest.raises(typer.Exit):
         require_cut_applied(lambda: {"needs_confirmation": {"message": "held"}})
+    err = capsys.readouterr().err
+    assert "held" in err
+    assert "To apply this cut as is, repeat the command with --override-audio-checks." in err
 
 
 def test_mcp_lists_and_picks(ws, minimal_project) -> None:
@@ -552,3 +559,140 @@ def test_the_gui_routes_list_and_pick(ws) -> None:
     )
     assert missing.status_code == 404
     assert missing.headers["X-Sharecut-Error-Code"] == "session_suggestion_not_found"
+
+
+def test_accept_says_how_many_comments_on_the_other_takes_were_left_out(ws) -> None:
+    sid = _replace(
+        ws, 3.0, 5.0, {0: [("host", 0.0, 1.0)], 1: [("host", 0.0, 2.0)]}, comments={0: [("a", 100)]}
+    )
+    result = _svc(ws).accept(sid, take_index=1)
+    assert result["discard_message"] == (
+        "The other take (0) was discarded. 1 comment on it left out. Undo brings it back."
+    )
+    assert result["comments_not_placed"] == 1
+    assert not [c for c in ws.project.comments if c.id.startswith("live-0")]
+    HistoryService(ws).undo()
+    assert [c.id for t in _row(ws).takes for c in t.comments] == ["live-0-0"]
+
+
+def test_no_discard_message_when_nothing_was_discarded(ws) -> None:
+    sid = _replace(ws, 3.0, 5.0, {0: [("host", 0.0, 2.0)]})
+    assert _svc(ws).accept(sid)["discard_message"] is None
+
+
+def test_a_pick_whose_recording_was_deleted_is_cleared_not_reported(ws) -> None:
+    from podcast_mcp.edits.session_suggestions import drop_staged_segment
+
+    sid = _replace(ws, 3.0, 5.0, THREE_TAKES)
+    _svc(ws).select_take(sid, 2)
+    gone = next(t.source_id for t in _row(ws).takes if t.take_index == 2)
+    ws.mutate("drop", "dropped", lambda p: drop_staged_segment(p, SID, gone))
+    row = _row(ws)
+    assert row.selected_take is None
+    listed = _svc(ws).takes(sid)
+    assert (listed["selected_take"], listed["default_take"]) == (None, 1)
+    # A pick left dangling by older data is not reported either.
+    ws.mutate(
+        "dangle",
+        "dangled",
+        lambda p: setattr(p.editorial.session_suggestions[0], "selected_take", 2),
+    )
+    listed = _svc(ws).takes(sid)
+    assert (listed["selected_take"], [t["chosen"] for t in listed["takes"]]) == (
+        None,
+        [False, False],
+    )
+
+
+@pytest.mark.parametrize("decide", ["skip", "accept"])
+def test_a_decided_sessions_takes_are_not_acceptable_or_selectable(ws, decide) -> None:
+    sid = _replace(ws, 3.0, 5.0, THREE_TAKES)
+    if decide == "skip":
+        _svc(ws).skip(sid)
+    else:
+        _svc(ws).accept(sid, take_index=1)
+    listed = _svc(ws).takes(sid)
+    assert listed["selectable"] is False
+    assert listed["status"] == ("skipped" if decide == "skip" else "accepted")
+    assert listed["takes"]
+    for take in listed["takes"]:
+        assert take["acceptable"] is False
+        assert take["refusal"]["code"] == "session_suggestion_not_pending"
+
+
+@pytest.mark.parametrize("bad", [True, False, -1, 1.0, "1"])
+def test_a_take_index_that_is_not_a_whole_take_number_is_take_not_found(ws, bad) -> None:
+    sid = _replace(ws, 3.0, 5.0, THREE_TAKES)
+    with pytest.raises(CodedValueError) as refused:
+        _svc(ws).select_take(sid, bad)
+    assert refused.value.code == "take_not_found"
+    assert _row(ws).selected_take is None
+
+
+def test_a_pick_of_the_take_already_previewed_stays_a_cache_hit(ws, monkeypatch) -> None:
+    from test_record_session_preview import _Spy
+
+    sid = _replace(ws, 3.0, 5.0, THREE_TAKES)
+    spy = _Spy(monkeypatch)
+    first = _hear(ws, sid, mode="suggested", take_index=1)
+    count = (spy.snapshots, spy.accepts)
+    _svc(ws).select_take(sid, 1)
+    again = _hear(ws, sid, mode="suggested")
+    assert again["take_index"] == 1
+    assert (spy.snapshots, spy.accepts) == count
+    assert again["suggested"]["wav"] == first["suggested"]["wav"]
+    # A pick of another take still plays that take.
+    other = _hear(ws, sid, mode="suggested", take_index=0)
+    assert other["take_index"] == 0
+    assert other["suggested"]["wav"] != first["suggested"]["wav"]
+
+
+def test_the_new_tools_docstrings_name_their_codes_and_the_discard() -> None:
+    from podcast_mcp.mcp.tools.review import (
+        accept_session_suggestion_tool,
+        list_session_takes_tool,
+        select_session_take_tool,
+    )
+
+    listed = list_session_takes_tool.__doc__ or ""
+    assert "selectable is false" in listed and "refusal" in listed
+    picked = select_session_take_tool.__doc__ or ""
+    for code in ("take_not_found", "take_not_applicable", "session_suggestion_not_pending"):
+        assert code in picked
+    accepted = accept_session_suggestion_tool.__doc__ or ""
+    assert "discard_message" in accepted and "Undo brings" in accepted
+    assert max(len(line) for line in accepted.split("\n")) <= 100
+
+
+def test_a_relayed_request_is_refused_on_both_gui_routes(ws) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    sid = _replace(ws, 3.0, 5.0, THREE_TAKES)
+    client = TestClient(create_app())
+    query = {"path": str(ws.path), "suggestion_id": sid}
+    relayed = {"x-sharecut-relayed": "1"}
+    got = client.get("/api/session-suggestion/takes", params=query, headers=relayed)
+    assert got.status_code == 403
+    posted = client.post(
+        "/api/session-suggestion/select-take",
+        params={**query, "take_index": 0},
+        headers=relayed,
+    )
+    assert posted.status_code == 403
+    assert _row(ws).selected_take is None
+
+
+def test_a_negative_take_index_on_the_gui_route_is_take_not_found(ws) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    sid = _replace(ws, 3.0, 5.0, THREE_TAKES)
+    refused = TestClient(create_app()).post(
+        "/api/session-suggestion/select-take",
+        params={"path": str(ws.path), "suggestion_id": sid, "take_index": -1},
+    )
+    assert refused.status_code == 400
+    assert refused.headers["X-Sharecut-Error-Code"] == "take_not_found"

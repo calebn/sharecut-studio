@@ -158,9 +158,10 @@ def review_accept_session_suggestion_cmd(
     """Place a pending session on the timeline in one undo step.
 
     An insert opens the session's length at its insert point on every dialogue track. A replace
-    removes its range on every dialogue track and puts one take in its place and discards the
-    other takes (undo brings them back); if that also removes speech of a track the take did
-    not record, nothing changes until you repeat with --override-audio-checks.
+    removes its range on every dialogue track, puts one take in its place and discards the
+    other takes and the comments held on them (the result counts them; undo brings them back).
+    If that also removes speech of a track the take did not record, nothing changes until you
+    repeat with --override-audio-checks.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
