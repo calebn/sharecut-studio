@@ -678,3 +678,36 @@ describe("round three of the audit", () => {
     });
   });
 });
+
+describe("every readiness row keeps its exact title", () => {
+  const worst = {
+    ...CLEAR_FACTS,
+    suggestions: { decided: 1, total: 14 },
+    comments: { resolved: 0, total: 3 },
+    unsureWordsLeft: 2,
+    mixUpToDate: false,
+    truePeak: -0.5,
+  };
+  it.each([
+    ["all clear", CLEAR_FACTS, "done"],
+    ["everything open", worst, "needs-you"],
+  ] as const)("%s", (_name, facts, state) => {
+    const rows = readinessRows(facts);
+    expect(rows.map((r) => [r.id, r.title])).toEqual([
+      ["suggestions", "Suggestions decided"],
+      ["comments", "Comments resolved"],
+      ["unsure", "Unsure words checked"],
+      ["mix", "Mix up to date"],
+      ["loudness", "Loudness"],
+      ["peaks", "Peaks under −1.5 dBTP"],
+      ["chapters", "Chapters"],
+      ["saved", "Edits saved"],
+    ]);
+    const flagged = rows.filter((r) => r.state === "needs-you");
+    expect(flagged.map((r) => r.id)).toEqual(
+      state === "done"
+        ? []
+        : ["suggestions", "comments", "unsure", "mix", "peaks"],
+    );
+  });
+});
