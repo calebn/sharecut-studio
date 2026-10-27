@@ -19,7 +19,6 @@ import {
   wordAtSeconds,
 } from "./guestLogic";
 
-const SKIP = 15;
 const ROLE_LABEL = {
   viewer: "Viewer",
   commenter: "Commenter",
@@ -27,7 +26,7 @@ const ROLE_LABEL = {
 } as const;
 
 export type GuestReviewProps = {
-  role: GuestRole;
+  access: GuestRole;
   title: string;
   /** "Rough cut · 25 Oct". */
   version: string;
@@ -57,7 +56,7 @@ export type GuestReviewProps = {
 };
 
 export function GuestReview({
-  role,
+  access,
   title,
   version,
   people,
@@ -85,7 +84,7 @@ export function GuestReview({
   const [hintShown, setHintShown] = useState(firstVisit);
   const [tab, setTab] = useState<StageId>("review");
   const phone = layout === "phone";
-  const stages = guestStages(role);
+  const stages = guestStages(access);
 
   if (state === "bad-link") {
     return (
@@ -114,10 +113,10 @@ export function GuestReview({
       people={people}
       guest={{
         version,
-        role: ROLE_LABEL[role],
+        role: ROLE_LABEL[access],
         compact: phone,
         hint: {
-          text: roleHint(role),
+          text: roleHint(access),
           shown: hintShown,
           onDismiss: () => {
             setHintShown(false);
@@ -164,14 +163,12 @@ export function GuestReview({
         playhead={playhead / duration}
         onPlayPause={() => setPlaying((now) => !now)}
         onSkip={(seconds) => seek(playhead + seconds)}
-        onComment={
-          canComment(role) ? () => composer.current?.focus() : undefined
-        }
+        onComment={canComment(access) ? onComment : undefined}
         onExpand={() => setCollapsed(false)}
         onCollapse={() => setCollapsed(true)}
       />
     );
-    const composerPart = canComment(role) ? composer : null;
+    const composerPart = canComment(access) ? composer : null;
     const script =
       turns.length === 0 ? (
         <Cover size="region" glyph="inbox" title="Nothing to read yet">
@@ -181,7 +178,7 @@ export function GuestReview({
         <ScriptPane
           turns={turns}
           layout={layout}
-          guest={role === "viewer" ? "viewer" : "commenter"}
+          guest={access === "viewer" ? "viewer" : "commenter"}
           playing={wordAtSeconds(wordStarts, playhead)}
           following={following}
           onSeek={(word) => seek(wordStarts[word] ?? playhead)}
@@ -209,7 +206,11 @@ export function GuestReview({
       <main className="gr-body" aria-busy={state === "loading" || undefined}>
         {content}
       </main>
-      {phone && tabs ? <StageBar {...tabs} form="tabs" /> : null}
+      {phone && tabs ? (
+        <nav aria-label="Review stages">
+          <StageBar {...tabs} form="tabs" />
+        </nav>
+      ) : null}
     </div>
   );
 }

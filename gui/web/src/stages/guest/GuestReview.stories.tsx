@@ -38,7 +38,7 @@ const meta: Meta<typeof GuestReview> = {
     ),
   ],
   args: {
-    role: "commenter",
+    access: "commenter",
     title: "Field Notes 14",
     version: "Rough cut · 25 Oct",
     people: PEOPLE,
@@ -78,7 +78,7 @@ export const Commenter: Story = {
 };
 
 export const Viewer: Story = {
-  args: { role: "viewer" },
+  args: { access: "viewer" },
   play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
     await expect(
@@ -89,7 +89,7 @@ export const Viewer: Story = {
 };
 
 export const Editor: Story = {
-  args: { role: "editor" },
+  args: { access: "editor" },
   play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
     await userEvent.click(view.getByRole("tab", { name: /Edit/ }));
@@ -137,7 +137,7 @@ export const BadLink: Story = {
 
 function phoneStory(role: "viewer" | "commenter" | "editor"): Story {
   return {
-    args: { role, layout: "phone" },
+    args: { access: role, layout: "phone" },
     parameters: isolatedStoryParameters,
     globals: phone,
   };
