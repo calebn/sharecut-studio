@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PrepareView, type PrepareViewProps } from "./PrepareView";
 import { prepareAnnouncement } from "./prepareAnnouncement";
 import {
@@ -32,7 +32,7 @@ function props(over: Partial<PrepareViewProps> = {}): PrepareViewProps {
     phase: "transcribing",
     sessions: [session({ status: "running", progress: 0.4 })],
     rows: ROWS.running,
-    readySummary: "Transcribing 2 of 3",
+    readySummary: "Getting ready: 2 of 3 done",
     cleanup: { tight: "medium", loudness: "podcast" },
     handoff: {
       label: "Review suggestions",
@@ -48,6 +48,27 @@ function props(over: Partial<PrepareViewProps> = {}): PrepareViewProps {
     ...over,
   };
 }
+
+/** The stage is this wide, in CSS px (jsdom has no layout, so it reads 0 and the wide layout stands). */
+function atWidth(width: number) {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    width,
+    height: 800,
+    top: 0,
+    left: 0,
+    right: width,
+    bottom: 800,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+}
+const PHONE_WIDTH = 360;
+const SUMMARY = /Getting ready: 2 of 3 done/;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function live(container: HTMLElement): string {
   return (
@@ -134,6 +155,7 @@ describe("PrepareView structure", () => {
   });
 
   it("starts the phone summary open when a row needs you or failed", () => {
+    atWidth(PHONE_WIDTH);
     render(
       <PrepareView
         {...props({
@@ -148,12 +170,72 @@ describe("PrepareView structure", () => {
   });
 
   it("opens and closes the phone summary", async () => {
+    atWidth(PHONE_WIDTH);
     const user = userEvent.setup();
     render(<PrepareView {...props()} />);
-    const summary = screen.getByRole("button", { name: /Transcribing 2 of 3/ });
+    const summary = screen.getByRole("button", { name: SUMMARY });
     expect(summary).toHaveAttribute("aria-expanded", "false");
     await user.click(summary);
     expect(summary).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Enter}");
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("has no summary line at the three-column width, and the card stays in the middle", () => {
+    atWidth(1200);
+    render(<PrepareView {...props()} />);
+    expect(screen.queryByRole("button", { name: SUMMARY })).toBeNull();
+    expect(
+      screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+    ).toEqual(["Sources", "Getting ready", "Help the transcriber"]);
+  });
+
+  it("puts the summary first on a phone, and the card opens in place under it", async () => {
+    atWidth(PHONE_WIDTH);
+    const user = userEvent.setup();
+    const { container } = render(<PrepareView {...props()} />);
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: SUMMARY,
+    });
+    const summary = within(heading).getByRole("button");
+    expect(
+      screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+    ).toEqual([
+      "RunningGetting ready: 2 of 3 done",
+      "Sources",
+      "Help the transcriber",
+    ]);
+    expect(
+      container.querySelector(".sys-prepare-layout")?.firstElementChild,
+    ).toBe(heading.closest("section"));
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+    const body = () =>
+      screen
+        .getByRole("list", { name: "Getting ready" })
+        .closest("[data-open]");
+    expect(body()).toHaveAttribute("data-open", "false");
+    await user.click(summary);
+    expect(body()).toHaveAttribute("data-open", "true");
+    expect(heading.closest("section")).toContainElement(body() as HTMLElement);
+  });
+
+  it("tabs from the phone summary to Sources, then on in DOM order", async () => {
+    atWidth(PHONE_WIDTH);
+    const user = userEvent.setup();
+    render(<PrepareView {...props({ rows: ROWS.queued })} />);
+    const seen: string[] = [];
+    for (let step = 0; step < 40; step += 1) {
+      await user.tab();
+      const name = document.activeElement?.textContent ?? "";
+      seen.push(name);
+      if (/Review suggestions/.test(name)) break;
+    }
+    const at = (pattern: RegExp) =>
+      seen.findIndex((name) => pattern.test(name));
+    expect(at(SUMMARY)).toBe(0);
+    expect(at(SUMMARY)).toBeLessThan(at(/Add audio|Import audio/));
+    expect(at(/Add audio|Import audio/)).toBeLessThan(at(/Light/));
   });
 
   it("passes Cleanup and row choices on", async () => {
@@ -236,7 +318,7 @@ describe("PrepareView live region", () => {
             rows: ROWS.running.map((row) =>
               row.state === "running" ? { ...row, progress } : row,
             ),
-            readySummary: `Transcribing ${Math.round(progress * 3)} of 3`,
+            readySummary: `Getting ready: ${Math.round(progress * 3)} of 3 done`,
           })}
         />,
       );
@@ -466,9 +548,10 @@ describe("PrepareView focus", () => {
   });
 
   it("opens the Getting ready summary when a row needs you after mount, and keeps a manual close", async () => {
+    atWidth(PHONE_WIDTH);
     const user = userEvent.setup();
     const { rerender } = render(<PrepareView {...props()} />);
-    const summary = screen.getByRole("button", { name: /Transcribing 2 of 3/ });
+    const summary = screen.getByRole("button", { name: SUMMARY });
     expect(summary).toHaveAttribute("aria-expanded", "false");
     rerender(<PrepareView {...props({ rows: ROWS.failed })} />);
     expect(summary).toHaveAttribute("aria-expanded", "true");
