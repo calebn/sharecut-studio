@@ -318,7 +318,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "hasProject",
+    when: "editStage",
     notes: "Mod+C",
   },
   {
@@ -329,7 +329,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "canApplyPass12",
+    when: "editStagePass12",
     notes: "Mod+X",
   },
   {
@@ -340,7 +340,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "canApplyPass12",
+    when: "editStagePass12",
     notes: "Mod+V: same-track at playhead",
   },
   {
@@ -428,7 +428,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Delete clip",
     keys: ["Backspace", "Delete"],
     bareKey: true,
-    when: "canSuggestStructural",
+    when: "editStageStructural",
   },
   {
     id: "edit.rippleDelete",
@@ -438,7 +438,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "canSuggestStructural",
+    when: "editStageStructural",
     notes: "Mod+Backspace",
   },
   {
@@ -449,7 +449,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "canSuggestStructural",
+    when: "editStageStructural",
     notes: "Mod+K: cut at playhead",
     collision: "Mod+K cuts; K alone stops playback",
   },

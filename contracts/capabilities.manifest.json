@@ -558,7 +558,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canSuggestStructural"
+        "editStageStructural"
       ],
       "surfaces": {
         "command": "edit.bladeCut",
@@ -589,7 +589,7 @@
       "service": "ShareCut Studio command bus \u2192 DeleteClip document command (mode gap)",
       "industry_standard_key": true,
       "gates": [
-        "canSuggestStructural"
+        "editStageStructural"
       ],
       "surfaces": {
         "command": "edit.delete",
@@ -755,7 +755,7 @@
       "service": "ShareCut Studio command bus \u2192 DeleteClip document command (mode ripple; asks before cutting another track's speech)",
       "industry_standard_key": true,
       "gates": [
-        "canSuggestStructural"
+        "editStageStructural"
       ],
       "surfaces": {
         "command": "edit.rippleDelete",
@@ -783,7 +783,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "editStage"
       ],
       "surfaces": {
         "command": "edit.copy",
@@ -802,7 +802,7 @@
       "service": "ShareCut Studio command bus \u2192 DeleteClip / CutRange document command (mode ripple; asks before cutting another track's speech)",
       "industry_standard_key": true,
       "gates": [
-        "canApplyPass12"
+        "editStagePass12"
       ],
       "surfaces": {
         "command": "edit.cut",
@@ -827,7 +827,7 @@
       "service": "ShareCut Studio command bus \u2192 PasteSegment document command (mode ripple or gap)",
       "industry_standard_key": true,
       "gates": [
-        "canApplyPass12"
+        "editStagePass12"
       ],
       "surfaces": {
         "command": "edit.paste",
