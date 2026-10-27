@@ -311,11 +311,11 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
     assert done.exit_code == 0, done.output
     assert json.loads(done.output)["target"] == {"kind": "end"}
     assert json.loads(record_target_tool(str(minimal_project)))["target"] == {"kind": "end"}
-    refused = runner.invoke(
+    started = runner.invoke(
         cli_app, ["record", "target", "start", "--project", str(minimal_project)]
     )
-    assert refused.exit_code == 1, refused.output
-    assert "the start target is not available yet" in refused.output
+    assert started.exit_code == 0, started.output
+    assert json.loads(started.output)["target"] == {"kind": "start"}
     for bare in ("insert", "replace"):
         needs_time = runner.invoke(
             cli_app, ["record", "target", bare, "--project", str(minimal_project)]
@@ -325,9 +325,7 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
     bad = runner.invoke(cli_app, ["record", "target", "middle", "--project", str(minimal_project)])
     assert bad.exit_code == 1
     assert "invalid session target" in bad.output
-    with pytest.raises(RecordStateError, match="is not available yet"):
-        RecordControlService(ws).set_target({"kind": "start"})
-    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "end"}
+    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "start"}
 
 
 def test_record_target_cli_and_mcp_refuse_a_replace_over_an_unknown_track(

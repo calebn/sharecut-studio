@@ -999,11 +999,9 @@ def test_set_target_end_is_stored_before_the_first_take() -> None:
     assert out.state == "lobby"
 
 
-def test_set_target_refuses_start_until_its_slice() -> None:
+def test_set_target_accepts_start() -> None:
     snap = _room_tone_room()
-    with pytest.raises(RecordStateError, match="the start target is not available yet"):
-        _set_target(snap, {"kind": "start"})
-    assert snap.target.kind == "end"
+    assert _set_target(snap, {"kind": "start"}).target.kind == "start"
 
 
 @pytest.mark.parametrize(

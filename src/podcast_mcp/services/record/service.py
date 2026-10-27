@@ -57,7 +57,6 @@ from podcast_mcp.services.record.state import (
     room_tone_countdown_left_ms,
     start_blockers,
     take_containing_wall,
-    unsupported_target_message,
 )
 from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.services.session_sync import (
@@ -333,9 +332,6 @@ def begin_record_session(
     ``target`` is where the session lands (default: the end of the episode).
     """
     room_target = parse_session_target(target)
-    refusal = unsupported_target_message(room_target)
-    if refusal is not None:
-        raise RecordStateError(refusal)
     check_target_for_project(room_target, project)
     hub = record_hub_key(project)
     store = _store_for(project)
