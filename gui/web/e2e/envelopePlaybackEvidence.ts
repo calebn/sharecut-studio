@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { type CDPSession, expect, type Page } from "@playwright/test";
 import type { InteractionReceipt } from "./interactionEvidence";
+import { setAudition } from "./stageNav";
 
 export type NativeEnvelopeMedia = {
   time: number;
@@ -290,10 +291,7 @@ export async function proveHostEnvelopePlayback(
         url.searchParams.get("kind") === "stem"
       );
     });
-    const [, response] = await Promise.all([
-      page.getByRole("button", { name: "Edited stems", exact: true }).click(),
-      pending,
-    ]);
+    const [, response] = await Promise.all([setAudition(page, "fx"), pending]);
     expect([200, 206]).toContain(response.status());
     expect(response.headers()["content-type"]).toMatch(/audio\//);
     const url = new URL(response.url());
