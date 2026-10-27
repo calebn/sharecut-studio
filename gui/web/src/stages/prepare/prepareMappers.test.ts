@@ -523,6 +523,20 @@ describe("preparePhase", () => {
     ).toBe("done");
   });
 
+  it("is done, not transcribing, while only word timing waits to be downloaded", () => {
+    expect(
+      preparePhase({
+        sources: 2,
+        ingestBusy: false,
+        checking: false,
+        rows: rows({
+          transcribed: true,
+          approximateTiming: { size: "360 MB", downloading: false },
+        }),
+      }).phase,
+    ).toBe("done");
+  });
+
   it("is failed with the step and its plain cause", () => {
     const failing = rows({
       job: pipelineJobSnapshot({
