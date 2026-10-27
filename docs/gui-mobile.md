@@ -163,8 +163,8 @@ held sideways) compact the editor:
   software keyboard up (`html[data-keyboard="open"]`) the column leaves the
   grid flow (its track stays, so the timeline does not move) and takes the
   visible band of the viewport: `--visual-viewport-top` down by
-  `--visual-viewport-height`, with `grid-area: auto` and never below the tablet
-  status strip (`--column-floor`), so its header and Close stay on screen and
+  `--visual-viewport-height`, with `grid-area: auto` and never below the Player
+  (`--column-floor`, less the part the keypad covers), so its header and Close stay on screen and
   the body scrolls above the keypad. Turning the phone
   keeps the Inspector mounted: the sheet and the column portal into one host
   element that only changes parent (`ui/sheetHost.tsx`), so a draft, the
