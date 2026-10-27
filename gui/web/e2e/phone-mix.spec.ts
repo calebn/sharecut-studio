@@ -8,7 +8,7 @@ import {
 } from "./phoneMix";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
-import { openProject } from "./stageNav";
+import { openProject, openProjectDialog } from "./stageNav";
 import { withAppearance } from "./theme";
 
 for (const { cell: viewport, theme } of withAppearance([
@@ -61,6 +61,64 @@ test("phone Mix persists native edits, keeps S private and undoes saved changes"
     await checkNativeMixEdits(page, projectPath);
   });
 });
+/**
+ * The stage shell gives a Viewer link the Review stage only, so its Mix has no
+ * sheet to open: the sliders the old case found disabled are not there at all.
+ * The guarantee that stays is the one the case existed for: a viewer neither
+ * changes the saved mix nor gets a way to.
+ */
+test("viewer link has no Mix sheet and cannot override saved mute", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await withShareableProject(async (projectPath) => {
+    await openProject(page, projectPath);
+    const token = await createReviewShare(page, projectPath);
+    const before = await savedMix(page, projectPath);
+    await postDocumentCommand(
+      page,
+      "mix-readonly",
+      "SetTrackMute",
+      { track_id: before[1].id, muted: true },
+      projectPath,
+    );
+    const persisted = await savedMix(page, projectPath);
+    expect(persisted[1].muted).toBe(true);
+
+    const posted: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        /\/document\/command/.test(request.url())
+      )
+        posted.push(request.url());
+    });
+    await page.goto(`/r/${token}`);
+    await expect(page.locator(".stage-frame--phone")).toBeVisible();
+    await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
+    await expect(page.getByRole("tablist", { name: "Stages" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Mix", exact: true }),
+    ).toHaveCount(0);
+
+    // The palette lists Go to Edit, and the link refuses it.
+    await openProjectDialog(page, "palette");
+    const search = page.getByRole("combobox", { name: "Search commands" });
+    await search.fill("Go to Edit");
+    await search.press("Enter");
+    await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Mix", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Mix", exact: true }),
+    ).toHaveCount(0);
+
+    expect(posted).toEqual([]);
+    expect(await savedMix(page, projectPath)).toEqual(persisted);
+  });
+});
+
 test("editor Mix commits saved volume through guest capabilities", async ({
   page,
 }) => {

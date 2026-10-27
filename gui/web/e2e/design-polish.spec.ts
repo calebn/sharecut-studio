@@ -197,6 +197,57 @@ test("light Player keeps a stable play hover paint and track rows lift on hover"
   expect(rowHover).not.toBe(rowRest);
 });
 
+test("Player zones never overlap across widths", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openProject(page, e2eProjectPath);
+  await expect(page.getByRole("group", { name: "Player" })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  for (const width of [320, 360, 390, 600, 900, 1100, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const zones = await page.evaluate(() =>
+      [".sys-player-left", ".sys-player-center", ".sys-player-right"].map(
+        (selector) => {
+          const box = document
+            .querySelector(`[role="group"][aria-label="Player"] ${selector}`)
+            ?.getBoundingClientRect();
+          return { selector, left: box?.left ?? 0, right: box?.right ?? 0 };
+        },
+      ),
+    );
+    const [left, center, right] = zones;
+    expect(left.right, `left meets center at ${width}px`).toBeLessThanOrEqual(
+      center.left + 0.5,
+    );
+    expect(
+      center.right,
+      `center meets right at ${width}px`,
+    ).toBeLessThanOrEqual(right.left + 0.5);
+    expect(
+      right.right,
+      `right fits the window at ${width}px`,
+    ).toBeLessThanOrEqual(width + 0.5);
+  }
+});
+
+test("Player timecode total is visually hidden in a narrow Player but stays announced", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openProject(page, e2eProjectPath);
+  const player = page.getByRole("group", { name: "Player" });
+  const total = player.locator(".sys-player-total");
+  await expect(total).toBeVisible();
+  expect((await total.boundingBox())?.width ?? 0).toBeGreaterThan(1);
+  const clock = player.locator(".sys-player-time");
+  const name = await clock.getAttribute("aria-label");
+  expect(name).toMatch(/\d+:\d+(\.\d+)? \/ \d+:\d+/);
+
+  await page.setViewportSize({ width: 360, height: 900 });
+  await expect(total).toBeHidden();
+  await expect(clock).toHaveAttribute("aria-label", name ?? "");
+});
+
 test("compact light Player keeps Comment readable", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 800 });
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
