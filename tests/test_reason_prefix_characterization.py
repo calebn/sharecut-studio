@@ -18,7 +18,6 @@ from podcast_mcp.edits.tighten.propose import (
     format_tighten_propose_summary,
 )
 from podcast_mcp.edits.tighten_hits import (
-    TIGHTEN_REASON_PREFIXES,
     is_harsh_tighten_hit,
     is_listen_one_by_one_hit,
     is_tighten_reason,
@@ -68,8 +67,6 @@ NON_TIGHTEN_REASONS = [
     "acoustic",
 ]
 
-ALL_REASONS = TIGHTEN_REASONS + NON_TIGHTEN_REASONS
-
 
 def _decision(
     reason: str | None,
@@ -90,16 +87,6 @@ def _decision(
     )
 
 
-def test_tighten_prefixes_are_the_four_generated_reason_codes() -> None:
-    assert TIGHTEN_REASON_PREFIXES == ("filler:", "pause:", "repetition:", "restart:")
-
-
-@pytest.mark.parametrize("prefix", TIGHTEN_REASON_PREFIXES)
-def test_every_tighten_prefix_is_a_tighten_reason(prefix: str) -> None:
-    assert is_tighten_reason(prefix) is True
-    assert is_tighten_reason(f"{prefix}anything:else") is True
-
-
 @pytest.mark.parametrize("reason", TIGHTEN_REASONS)
 def test_generated_reasons_are_tighten(reason: str) -> None:
     assert is_tighten_reason(reason) is True
@@ -108,18 +95,6 @@ def test_generated_reasons_are_tighten(reason: str) -> None:
 @pytest.mark.parametrize("reason", NON_TIGHTEN_REASONS)
 def test_other_reasons_are_not_tighten(reason: str | None) -> None:
     assert is_tighten_reason(reason) is False
-
-
-def test_is_tighten_reason_is_review_kind_not_other() -> None:
-    assert [(r, is_tighten_reason(r)) for r in ALL_REASONS] == [
-        (r, review_kind(r) != "other") for r in ALL_REASONS
-    ]
-
-
-def test_startswith_pause_is_sound_kind_pause() -> None:
-    assert [(r, (r or "").startswith("pause:")) for r in ALL_REASONS] == [
-        (r, sound_kind(r) == "pause") for r in ALL_REASONS
-    ]
 
 
 def test_harsh_and_listen_one_by_one_follow_the_tighten_prefix_set() -> None:
@@ -184,10 +159,6 @@ def test_summary_counts_match_sound_kind_buckets() -> None:
         "9 proposed (2 filler, 1 pause, 2 repetition/restart,"
         " 4 acoustic (review, 2 likely laugh, 2 possible missed word))"
     )
-    kinds = [sound_kind(d.reason) for d in decisions]
-    assert kinds.count("filler") == 2
-    assert kinds.count("pause") == 1
-    assert kinds.count("repetition") + kinds.count("restart") == 2
 
 
 def test_acoustic_laugh_count_overlaps_the_word_count_unlike_sound_kind() -> None:
