@@ -44,3 +44,19 @@ def test_ripple_does_not_make_downstream_fade_ramps_look_new(tmp_path, shift):
     )
     downstream = [e for e in effects if e.envelope is not None]
     assert downstream == []
+
+
+@pytest.mark.parametrize("change", ["fade_in", "fade_out", "move"])
+def test_a_real_ramp_change_is_still_reported(tmp_path, change):
+    project, candidate = _project(tmp_path, 0.7)
+    clip = candidate.clips[1]
+    if change == "fade_in":
+        clip.fade_in_ms = 201
+    elif change == "fade_out":
+        clip.fade_out_ms = 299
+    else:
+        clip.source_start += 2e-6
+    effects = cut_effects.completed_audio_effects(
+        project, candidate, frozenset({"remove"}), defaults={}
+    )
+    assert [e for e in effects if e.envelope is not None]
