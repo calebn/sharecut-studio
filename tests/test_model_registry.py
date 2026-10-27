@@ -81,6 +81,21 @@ def test_component_status_lists_every_registry_model(monkeypatch: pytest.MonkeyP
     assert status["models"][0]["tier"] == "required"
 
 
+def test_missing_speaker_override_status_keeps_bootstrap_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(tmp_path / "missing.onnx"))
+
+    status = boot.model_status("speaker-ecapa")
+
+    assert status["state"] == "missing"
+    assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in status["hint"]
+    assert "missing" in status["hint"]
+    assert "working ONNX file" in status["hint"]
+    assert "unset" in status["hint"]
+    assert status["bootstrap"] == "podcast bootstrap --component speaker-ecapa"
+
+
 def test_rnnoise_status_follows_the_model_file(tmp_path: Path, monkeypatch) -> None:
     model = tmp_path / "model.rnnn"
     monkeypatch.setenv("PODCAST_MCP_RNNOISE_MODEL", str(model))

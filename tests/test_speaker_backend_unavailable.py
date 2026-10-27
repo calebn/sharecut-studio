@@ -88,6 +88,11 @@ def test_an_override_that_is_missing_is_never_a_download(
     with pytest.raises(SpeakerBackendUnavailable) as auto:
         resolve_speaker_backend("auto")
     assert not isinstance(auto.value, ModelMissing)
+    assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in str(auto.value)
+    assert "missing" in str(auto.value)
+    assert "working ONNX file" in str(auto.value)
+    assert "unset" in str(auto.value)
+    assert "podcast bootstrap" not in str(auto.value)
     with pytest.raises(ImportError) as explicit:
         resolve_speaker_backend("ecapa-onnx")
     assert not isinstance(explicit.value, ModelMissing)
