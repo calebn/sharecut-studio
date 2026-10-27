@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import io
 import json
@@ -409,6 +410,78 @@ def test_a_studio_slow_to_answer_once_is_pinged_again(project: Path, quick_ping:
     assert located is not None
     assert located.instance == instance
     assert pings["count"] == 2
+
+
+@contextlib.contextmanager
+def _trickling_ping(framing: str) -> Iterator[tuple[int, list[None], threading.Event]]:
+    stop = threading.Event()
+    requests: list[None] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            requests.append(None)
+            self.close_connection = True
+            if framing == "headers":
+                prefix = b"HTTP/1.1 200 OK\r\nX-Pad: "
+                piece = b"x"
+            else:
+                headers = {
+                    "content-length": b"Content-Length: 1000000\r\n",
+                    "chunked": b"Transfer-Encoding: chunked\r\n",
+                    "close-delimited": b"Connection: close\r\n",
+                }
+                prefix = b"HTTP/1.1 200 OK\r\n" + headers[framing] + b"\r\n"
+                piece = b"1\r\nx\r\n" if framing == "chunked" else b"x"
+            try:
+                self.connection.sendall(prefix)
+                while not stop.wait(0.025):
+                    self.connection.sendall(piece)
+            except OSError:
+                pass
+
+        def log_message(self, *_args: object) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = False
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    try:
+        yield server.server_port, requests, stop
+    finally:
+        stop.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(3)
+
+
+@pytest.mark.timeout(12)
+@pytest.mark.parametrize("framing", ["headers", "content-length", "chunked", "close-delimited"])
+def test_a_trickling_ping_expires_both_attempts_without_bypassing_studio(
+    project: Path, quick_ping: None, framing: str
+) -> None:
+    with _trickling_ping(framing) as (port, requests, stop):
+        announce_studio_host(project, _host(port=port))
+        outcome: list[BaseException | StudioHost | None] = []
+
+        def locate() -> None:
+            try:
+                outcome.append(locate_studio(project))
+            except BaseException as exc:
+                outcome.append(exc)
+
+        worker = threading.Thread(target=locate)
+        worker.start()
+        try:
+            worker.join(3)
+            assert not worker.is_alive(), "trickling bytes kept Studio discovery blocked"
+            assert len(requests) == 2
+            assert len(outcome) == 1
+            assert type(outcome[0]) is StudioUnresponsive
+        finally:
+            stop.set()
+            worker.join(3)
+            assert not worker.is_alive(), "Studio discovery did not stop after the peer closed"
 
 
 @pytest.mark.parametrize("body", [b"", b"[]", b"not json", b"null"])
