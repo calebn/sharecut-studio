@@ -184,6 +184,7 @@ describe("LinkRow", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Refresh mix" }));
     expect(onRefresh).toHaveBeenCalledOnce();
+    expect(screen.getByText("Make a mix to share")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
   });
 
@@ -290,6 +291,24 @@ describe("TimeField", () => {
     await userEvent.type(input, "15");
     await userEvent.tab();
     expect(onChange).toHaveBeenLastCalledWith(15);
+  });
+
+  it("reads typed text with the parser it was given, on Enter and on blur", async () => {
+    const parse = (text: string) => (text === "seven" ? 7 : null);
+    const { onChange, input } = setup({ parse });
+    await userEvent.clear(input);
+    await userEvent.type(input, "seven{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith(7);
+    onChange.mockClear();
+    await userEvent.clear(input);
+    await userEvent.type(input, "seven");
+    await userEvent.tab();
+    expect(onChange).toHaveBeenLastCalledWith(7);
+    onChange.mockClear();
+    await userEvent.clear(input);
+    await userEvent.type(input, "15");
+    await userEvent.tab();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("rejects text it cannot read", async () => {

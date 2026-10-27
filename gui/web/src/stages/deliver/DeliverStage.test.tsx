@@ -1382,3 +1382,468 @@ describe("more of what the page shows", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("chapters added at the playhead keep their own ids", () => {
+  const add = () =>
+    userEvent.click(screen.getByRole("button", { name: "Add at playhead" }));
+  const title = (name: string) =>
+    screen.getByRole("textbox", { name: `Title of ${name}` });
+  const time = (name: string) =>
+    screen.getByRole("textbox", { name: `Time of ${name}` });
+
+  it("retitles, retimes and removes one of two added chapters without touching the other", async () => {
+    setup();
+    await add();
+    await add();
+    const secondTitle = title("Chapter 6");
+    const secondTime = time("Chapter 6");
+    await userEvent.clear(secondTitle);
+    await userEvent.type(secondTitle, "Second");
+    expect(title("Chapter 5")).toHaveValue("Chapter 5");
+    expect(time("Chapter 5")).toHaveValue("12:04.0");
+    await userEvent.clear(secondTime);
+    await userEvent.type(secondTime, "1:40{Enter}");
+    expect(time("Second")).toHaveValue("1:40.0");
+    expect(time("Chapter 5")).toHaveValue("12:04.0");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove Second" }),
+    );
+    expect(title("Chapter 5")).toHaveValue("Chapter 5");
+    expect(
+      screen.queryByRole("textbox", { name: "Title of Second" }),
+    ).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(title("Second")).toHaveValue("Second");
+    expect(title("Chapter 5")).toHaveValue("Chapter 5");
+  });
+
+  it("removes only the chapter asked for, whichever of the two it is", async () => {
+    setup();
+    await add();
+    await add();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove Chapter 5" }),
+    );
+    expect(title("Chapter 6")).toHaveValue("Chapter 6");
+    expect(
+      screen.queryByRole("textbox", { name: "Title of Chapter 5" }),
+    ).toBeNull();
+  });
+
+  it("gives chapters added after a remove an id that is not in use", async () => {
+    setup();
+    await add();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove Chapter 5" }),
+    );
+    await add();
+    await add();
+    const values = () =>
+      screen
+        .getAllByRole("textbox", { name: /^Title of/ })
+        .filter((el) => el.classList.contains("dv-chapter-title"))
+        .map((el) => (el as HTMLInputElement).value);
+    const before = values();
+    expect(new Set(before).size).toBe(before.length);
+    const added = screen.getByRole("textbox", { name: "Title of Chapter 6" });
+    await userEvent.clear(added);
+    await userEvent.type(added, "Changed");
+    const after = values();
+    expect(after.filter((v) => v === "Changed")).toHaveLength(1);
+    expect(after).toHaveLength(before.length);
+  });
+});
+
+describe.each(["desktop", "phone"] as const)(
+  "every action on the %s layout",
+  (layout) => {
+    it("Export sends the request, from a fresh state and from a stale one", async () => {
+      const fresh = setup({ layout });
+      await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
+      expect(fresh.all.onExport).toHaveBeenCalledOnce();
+      expect(fresh.all.onExport).toHaveBeenCalledWith(REQUEST);
+      expect(fresh.all.onReveal).not.toHaveBeenCalled();
+      expect(fresh.all.onDownload).not.toHaveBeenCalled();
+      fresh.unmount();
+      const stale = setup({
+        layout,
+        exportState: { ...DONE, phase: "stale" } as ExportState,
+      });
+      await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
+      expect(stale.all.onExport).toHaveBeenCalledOnce();
+      expect(stale.all.onReveal).not.toHaveBeenCalled();
+      expect(stale.all.onDownload).not.toHaveBeenCalled();
+    });
+
+    it("Mod+E exports the same request the button does", () => {
+      const { stage, all } = setup({ layout });
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledWith(REQUEST);
+    });
+
+    it("Reveal reaches onReveal alone, with no file", async () => {
+      const { all } = setup({ layout, exportState: DONE });
+      await userEvent.click(screen.getByRole("button", { name: REVEAL }));
+      expect(all.onReveal).toHaveBeenCalledOnce();
+      expect(all.onReveal).toHaveBeenCalledWith();
+      expect(all.onDownload).not.toHaveBeenCalled();
+      expect(all.onExport).not.toHaveBeenCalled();
+    });
+
+    it("Download all reaches onDownload alone, with no file", async () => {
+      const { all } = setup({ layout, exportState: DONE, env: "browser" });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Download all" }),
+      );
+      expect(all.onDownload).toHaveBeenCalledOnce();
+      expect(all.onDownload).toHaveBeenCalledWith();
+      expect(all.onReveal).not.toHaveBeenCalled();
+      expect(all.onExport).not.toHaveBeenCalled();
+    });
+
+    it("a file row acts on its own file in the app, done or stale", async () => {
+      for (const phase of ["done", "stale"] as const) {
+        const { all, unmount } = setup({
+          layout,
+          exportState: { ...DONE, phase } as ExportState,
+        });
+        const rows = screen.getAllByRole("button", { name: "Reveal" });
+        await userEvent.click(rows[1] as HTMLElement);
+        expect(all.onReveal).toHaveBeenCalledOnce();
+        expect(all.onReveal).toHaveBeenCalledWith(
+          expect.objectContaining({ name: "field-notes.wav" }),
+        );
+        await userEvent.click(rows[0] as HTMLElement);
+        expect(all.onReveal).toHaveBeenLastCalledWith(
+          expect.objectContaining({ name: "field-notes.mp3" }),
+        );
+        expect(all.onDownload).not.toHaveBeenCalled();
+        unmount();
+      }
+    });
+
+    it("a file row acts on its own file in the browser, done or stale", async () => {
+      for (const phase of ["done", "stale"] as const) {
+        const { all, unmount } = setup({
+          layout,
+          env: "browser",
+          exportState: { ...DONE, phase } as ExportState,
+        });
+        const rows = screen.getAllByRole("button", { name: "Download" });
+        await userEvent.click(rows[1] as HTMLElement);
+        expect(all.onDownload).toHaveBeenCalledOnce();
+        expect(all.onDownload).toHaveBeenCalledWith(
+          expect.objectContaining({ name: "field-notes.wav" }),
+        );
+        await userEvent.click(rows[0] as HTMLElement);
+        expect(all.onDownload).toHaveBeenLastCalledWith(
+          expect.objectContaining({ name: "field-notes.mp3" }),
+        );
+        expect(all.onReveal).not.toHaveBeenCalled();
+        unmount();
+      }
+    });
+
+    it("Copy or Share reaches onCopyLink alone, in every phase", async () => {
+      const label = layout === "phone" ? "Share" : "Copy";
+      for (const exportState of [NEVER, DONE]) {
+        const { all, unmount } = setup({
+          layout,
+          exportState,
+          link: { url: "https://x.test/l/abc" },
+        });
+        await userEvent.click(screen.getByRole("button", { name: label }));
+        expect(all.onCopyLink).toHaveBeenCalledOnce();
+        expect(all.onExport).not.toHaveBeenCalled();
+        unmount();
+      }
+    });
+
+    it("Undo brings back a removed chapter and a removed clip", async () => {
+      setup({ layout });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Remove The old mill" }),
+      );
+      expect(screen.queryByDisplayValue("The old mill")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+      expect(screen.getByDisplayValue("The old mill")).toBeInTheDocument();
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: "More for The boat was still there",
+        }),
+      );
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: "Remove" }),
+      );
+      expect(screen.queryByDisplayValue("The boat was still there")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+      expect(
+        screen.getByDisplayValue("The boat was still there"),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    });
+
+    it("Dismiss closes the toast without undoing", async () => {
+      setup({ layout });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Remove The old mill" }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+      expect(screen.queryByText("Removed The old mill")).toBeNull();
+      expect(screen.queryByDisplayValue("The old mill")).toBeNull();
+    });
+
+    it("every other host callback gets its own argument", async () => {
+      const app = setup({
+        layout,
+        facts: OPEN_FACTS,
+        exportState: NEEDS_MODEL,
+        link: { url: null, noMix: true },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Get" }));
+      expect(app.all.onGetModel).toHaveBeenCalledOnce();
+      await userEvent.click(screen.getByRole("button", { name: "Change" }));
+      expect(app.all.onChangeFolder).toHaveBeenCalledOnce();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Refresh mix" }),
+      );
+      expect(app.all.onRefreshMix).toHaveBeenCalledOnce();
+      await userEvent.click(screen.getByRole("button", { name: "Resolve" }));
+      expect(app.all.onFix).toHaveBeenCalledWith("review", "comments");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Play from The old mill" }),
+      );
+      expect(app.all.onPlayFrom).toHaveBeenCalledWith(312.4);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Play Nobody asked the river" }),
+      );
+      expect(app.all.onPlayClip).toHaveBeenCalledWith("k1");
+      await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+      expect(app.all.onFindClips).toHaveBeenCalledOnce();
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: "More for The boat was still there",
+        }),
+      );
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: "Open in Edit" }),
+      );
+      expect(app.all.onOpenClipInEdit).toHaveBeenCalledWith("k2");
+    });
+
+    it("Cancel reaches onCancel while exporting, and Export is off", async () => {
+      const { all } = setup({
+        layout,
+        exportState: { phase: "running", progress: 0.3, detail: "x" },
+      });
+      expect(screen.getByRole("button", { name: /^Export/ })).toBeDisabled();
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(all.onCancel).toHaveBeenCalledOnce();
+      expect(all.onExport).not.toHaveBeenCalled();
+    });
+
+    it("shows a guest only the cover, with no dock and no controls", () => {
+      const { container } = setup({ layout, guest: true });
+      expect(screen.getByText("Only the host can deliver")).toBeInTheDocument();
+      expect(container.querySelector(".dv-foot")).toBeNull();
+      expect(screen.queryAllByRole("button")).toHaveLength(0);
+      expect(container.querySelector(".dv-stage")).toHaveAttribute(
+        "data-layout",
+        layout,
+      );
+    });
+
+    it("shows an error only the cover, with Try again", async () => {
+      const onRetry = vi.fn();
+      const { container } = setup({ layout, state: "error", onRetry });
+      expect(container.querySelector(".dv-foot")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(onRetry).toHaveBeenCalledOnce();
+    });
+  },
+);
+
+describe("toasts and timers", () => {
+  const remove = (name: string) =>
+    fireEvent.click(screen.getByRole("button", { name: `Remove ${name}` }));
+  const wait = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+
+  it("a second toast replaces the first and gets its full time", () => {
+    vi.useFakeTimers();
+    try {
+      setup({ toastMs: 5000 });
+      remove("The old mill");
+      wait(4000);
+      remove("What the river wanted");
+      expect(screen.queryByText("Removed The old mill")).toBeNull();
+      expect(
+        screen.getByText("Removed What the river wanted"),
+      ).toBeInTheDocument();
+      wait(4000);
+      expect(
+        screen.getByText("Removed What the river wanted"),
+      ).toBeInTheDocument();
+      wait(1500);
+      expect(screen.queryByText("Removed What the river wanted")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Undo after a second removal brings back only the second", () => {
+    vi.useFakeTimers();
+    try {
+      setup();
+      remove("The old mill");
+      remove("What the river wanted");
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      expect(
+        screen.getByDisplayValue("What the river wanted"),
+      ).toBeInTheDocument();
+      expect(screen.queryByDisplayValue("The old mill")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a toast that timed out leaves no Undo behind", () => {
+    vi.useFakeTimers();
+    try {
+      setup({ toastMs: 1000 });
+      remove("The old mill");
+      wait(1500);
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves no timer running once unmounted, with a toast and an export in flight", () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount, all, stage } = setup({ toastMs: 5000 });
+      remove("The old mill");
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+      wait(10_000);
+      expect(error).not.toHaveBeenCalled();
+      error.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets Export run again 2 seconds after an answer that never came", () => {
+    vi.useFakeTimers();
+    try {
+      const { stage, all } = setup();
+      modE(stage());
+      wait(1900);
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledOnce();
+      wait(200);
+      modE(stage());
+      expect(all.onExport).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the stage keeps its layout name in every state", () => {
+  it.each(["desktop", "phone"] as const)(
+    "marks the %s layout while ready, loading and on error",
+    (layout) => {
+      for (const state of ["ready", "loading", "error"] as const) {
+        const { container, unmount } = setup({ layout, state });
+        expect(container.querySelector(".dv-stage")).toHaveAttribute(
+          "data-layout",
+          layout,
+        );
+        unmount();
+      }
+    },
+  );
+
+  it("is the desktop layout unless told otherwise", () => {
+    const { container } = setup({ layout: undefined });
+    expect(container.querySelector(".dv-stage")).toHaveAttribute(
+      "data-layout",
+      "desktop",
+    );
+    expect(container.querySelector(".dv-foot .dv-export")).toBeNull();
+  });
+});
+
+describe("timers that depend on the host's settings", () => {
+  const wait = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+
+  it("keeps the Undo toast for six seconds when the host does not say", () => {
+    vi.useFakeTimers();
+    try {
+      setup({ toastMs: undefined });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Remove The old mill" }),
+      );
+      wait(5900);
+      expect(screen.getByText("Removed The old mill")).toBeInTheDocument();
+      wait(200);
+      expect(screen.queryByText("Removed The old mill")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the double-export guard through re-renders until the host answers", async () => {
+    const { stage, all } = setup();
+    modE(stage());
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove The old mill" }),
+    );
+    modE(stage());
+    expect(all.onExport).toHaveBeenCalledOnce();
+  });
+});
+
+describe("loading skeletons and the toast dock", () => {
+  it("draw each section in its own layout and row count", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = setup({ state: "loading" });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      const blocks = [...container.querySelectorAll(".sys-skeleton-blocks")];
+      expect(
+        blocks.map((b) => [b.className.split("--")[1], b.children.length]),
+      ).toEqual([
+        ["list", 4],
+        ["list", 4],
+        ["list", 3],
+        ["cards", 3],
+        ["list", 2],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("puts the toast region in the dock", () => {
+    const { container } = setup();
+    expect(container.querySelector(".ui-toast-region")).toHaveClass(
+      "sys-toast-dock",
+    );
+  });
+});
