@@ -1,6 +1,6 @@
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
-import type { StageId } from "../../system/verbs";
+import type { StageId } from "../../types/stage";
 
 export type FormatId = "mp3" | "wav" | "flac";
 
