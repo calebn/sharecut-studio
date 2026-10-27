@@ -4779,3 +4779,27 @@ describe("clip trim handles in the stage", () => {
     expect(end - start).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("the Listen link reach in the stage", () => {
+  it.each(["desktop", "phone"] as const)(
+    "says only this network can listen on %s",
+    (layout) => {
+      setup({
+        layout,
+        link: { url: "https://share.example.app/l/abc", reach: "network" },
+      });
+      expect(
+        screen.getByText(
+          "Only people on this network can listen. Turn on online sharing to reach anyone.",
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("says nothing when the link reaches anywhere", () => {
+    setup({
+      link: { url: "https://share.example.app/l/abc", reach: "anywhere" },
+    });
+    expect(screen.queryByText(/Only people on this network/)).toBeNull();
+  });
+});

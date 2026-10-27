@@ -3,7 +3,7 @@ import { useState } from "react";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { ClipsRow } from "./ClipsRow";
-import { CLIPS, TOTAL } from "./deliverFixture";
+import { CLIPS, PEAKS, TOTAL, WORDS } from "./deliverFixture";
 import { approveClip, type Clip, removeClip, trimClip } from "./deliverLogic";
 
 function Live(props: React.ComponentProps<typeof ClipsRow>) {
@@ -50,7 +50,7 @@ const meta: Meta<typeof ClipsRow> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Clip ideas as cards: play, a title edited in place, the length, one to three strength bars and Approve. Approved clips export with the episode and show up as files next to it. Trim opens In and Out from the more menu; dragging handles on a waveform is not built in this slice.\n\n**Motion.** Animations come later: approving fills the card border with `--motion-hover`.",
+          "Clip ideas as cards: play, a title edited in place, the length, one to three strength bars and Approve. Approved clips export with the episode and show up as files next to it. Trim opens a waveform strip with In and Out handles, and the In and Out fields. Handles snap to word starts and ends when the host passes words; hold Alt to move freely. Left and Right move one word, Shift ten words, Alt 10 ms. Without words the handles move freely.\n\n**Motion.** Animations come later: approving fills the card border with `--motion-hover`.",
       },
     },
   },
@@ -90,6 +90,55 @@ export const Trimming: Story = {
     await expect(out).toHaveValue("10:50.0");
     await expect(view.getByText("38.0 s")).toBeInTheDocument();
   },
+};
+
+export const TrimmingWithWords: Story = {
+  args: { trimming: "k1", words: WORDS, peaks: PEAKS },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    const handle = view.getByRole("slider", {
+      name: "In handle of Nobody asked the river",
+    });
+    const before = handle.getAttribute("aria-valuenow");
+    handle.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await expect(handle.getAttribute("aria-valuenow")).not.toBe(before);
+    await expect(
+      view.getByRole("textbox", { name: "In of Nobody asked the river" }),
+    ).not.toHaveValue("10:12.0");
+  },
+};
+
+export const TrimmingNoWords: Story = {
+  args: { trimming: "k1", peaks: PEAKS },
+  play: async ({ canvasElement }) => {
+    const handle = within(canvasElement).getByRole("slider", {
+      name: "Out handle of Nobody asked the river",
+    });
+    handle.focus();
+    await userEvent.keyboard("{ArrowLeft}");
+    await expect(handle).toHaveAttribute("aria-valuenow", "652.99");
+  },
+};
+
+export const TrimmingNoData: Story = {
+  args: { trimming: "k1" },
+};
+
+export const TrimmingPhone: Story = {
+  args: { trimming: "k1", words: WORDS, peaks: PEAKS },
+  decorators: [
+    (Story) => (
+      <div style={{ inlineSize: "22.5rem", maxInlineSize: "100%" }}>
+        <Story />
+      </div>
+    ),
+  ],
+};
+
+export const TrimmingDark: Story = {
+  args: { trimming: "k1", words: WORDS, peaks: PEAKS },
+  globals: { theme: "dark" },
 };
 
 export const Approved: Story = {

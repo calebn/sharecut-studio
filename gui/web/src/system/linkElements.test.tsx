@@ -462,3 +462,42 @@ describe("middleTruncate", () => {
     expect(middleTruncate("abcdefgh", 3)).toBe("abc…fgh");
   });
 });
+
+describe("LinkRow reach", () => {
+  const LINK = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
+  const SENTENCE =
+    "Only people on this network can listen. Turn on online sharing to reach anyone.";
+
+  it.each([
+    ["network", true],
+    ["anywhere", false],
+    [undefined, false],
+  ] as const)("reach %s says who can listen: %s", (reach, shown) => {
+    const { container } = render(
+      <LinkRow access="viewer" link={LINK} reach={reach} onCopy={() => {}} />,
+    );
+    expect(screen.queryByText(SENTENCE) !== null).toBe(shown);
+    expect(container.querySelector(".sys-link-reach") !== null).toBe(shown);
+    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+  });
+
+  it("keeps the link icon beside the sentence", () => {
+    const { container } = render(
+      <LinkRow access="viewer" link={LINK} reach="network" onCopy={() => {}} />,
+    );
+    expect(container.querySelector(".sys-link-reach svg")).not.toBeNull();
+  });
+
+  it("says nothing about reach when there is no mix", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={null}
+        reach="network"
+        noMix={{ onRefresh: () => {} }}
+        onCopy={() => {}}
+      />,
+    );
+    expect(screen.queryByText(SENTENCE)).toBeNull();
+  });
+});

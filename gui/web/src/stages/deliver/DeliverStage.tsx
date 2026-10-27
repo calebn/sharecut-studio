@@ -66,6 +66,8 @@ export type DeliverStageProps = {
     copyState?: LinkCopyState;
     openedBy?: readonly { name: string; colorIndex?: number }[];
     noMix?: boolean;
+    /** `network`: only people on this network can open the link. */
+    reach?: "anywhere" | "network";
   };
   /** The exported version the listen link is pinned to. */
   pinnedTo: string;
@@ -328,6 +330,7 @@ export function DeliverStage({
                 link={link.url}
                 copyState={link.copyState}
                 openedBy={link.openedBy}
+                reach={link.reach}
                 noMix={link.noMix ? { onRefresh: onRefreshMix } : undefined}
                 share={phone}
                 compact={phone}

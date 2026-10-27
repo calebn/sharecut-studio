@@ -23,6 +23,8 @@ export type LinkRowProps = {
   /** One short note, such as "Pinned to Rough cut". */
   note?: ReactNode;
   compact?: boolean;
+  /** Who can open the link. `network`: only people on this network; the row says so in one sentence. */
+  reach?: "anywhere" | "network";
   onCopy: () => void;
 };
 
@@ -36,6 +38,7 @@ export function LinkRow({
   highlight = false,
   note,
   compact = false,
+  reach = "anywhere",
   onCopy,
 }: LinkRowProps) {
   if (noMix) {
@@ -71,6 +74,13 @@ export function LinkRow({
         </span>
       </div>
       {note ? <span className="sys-link-note">{note}</span> : null}
+      {reach === "network" ? (
+        <span className="sys-link-reach">
+          <SystemIcon name={iconOf("copyLink")} size={14} />
+          Only people on this network can listen. Turn on online sharing to
+          reach anyone.
+        </span>
+      ) : null}
       <div className="sys-link-side">
         {openedBy.length > 0 ? (
           <span

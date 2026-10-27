@@ -54,3 +54,30 @@ export const Pinned: Story = {
 };
 
 export const AfterExport: Story = { args: { link: null, highlight: true } };
+
+export const OfflineOnly: Story = {
+  args: { link: LINK, reach: "network" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(
+        "Only people on this network can listen. Turn on online sharing to reach anyone.",
+      ),
+    ).toBeInTheDocument();
+  },
+};
+
+export const OfflineOnlyPhone: Story = {
+  args: { link: LINK, reach: "network", share: true, compact: true },
+  decorators: [
+    (Story) => (
+      <div style={{ inlineSize: "22.5rem", maxInlineSize: "100%" }}>
+        <Story />
+      </div>
+    ),
+  ],
+};
+
+export const OfflineOnlyDark: Story = {
+  args: { link: LINK, reach: "network" },
+  globals: { theme: "dark" },
+};
