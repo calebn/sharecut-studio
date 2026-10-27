@@ -105,6 +105,24 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
   height: min(100%, 56.25rem);
 }
 
+/* The Edit stage's surface switch and tool strip stack under 22rem wide
+   (src/styles/partials/stage-edit.css), so the sheet keeps clear of both rows. */
+@container sheet-slot (max-width: 22rem) {
+  .bottom-sheet {
+    --sheet-chrome-clearance: calc(
+      var(--app-header-height) +
+      2 *
+      var(--sheet-edit-row) +
+      var(--ruler-height) +
+      var(--marker-lane-height)
+    );
+    --sheet-lane-clearance: calc(
+      var(--sheet-chrome-clearance) +
+      var(--sheet-lane-extra)
+    );
+  }
+}
+
 /* A strip as tall as its content: the selection's name, value and nudges. */
 .bottom-sheet--peek {
   height: auto;
