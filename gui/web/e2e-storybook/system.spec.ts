@@ -1066,6 +1066,40 @@ test("System/TrackHeader is 168, 280 and 56 px wide, shows row two on hover unti
   ).toBeVisible();
 });
 
+test("System/TrackHeader default form keeps the whole signed level inside its field at -12, -60 and 6 dB", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  for (const [db, text] of [
+    [-12, "\u221212.0"],
+    [-60, "\u221260.0"],
+    [6, "6.0"],
+  ] as const) {
+    await page.goto(
+      `${storyUrl("system-trackheader--default", { theme: "light" })}&args=level:${db}`,
+    );
+    const value = page.locator(".sys-track .sys-scrub-value");
+    await expect(value).toHaveText(text);
+    const fit = await page
+      .locator(".sys-track .sys-scrub-box")
+      .evaluate((box) => {
+        const range = document.createRange();
+        range.selectNodeContents(
+          box.querySelector(".sys-scrub-value") as Element,
+        );
+        const text = range.getBoundingClientRect();
+        const field = box.getBoundingClientRect();
+        return {
+          left: text.left - field.left,
+          right: field.right - text.right,
+        };
+      });
+    expect(fit.left).toBeGreaterThanOrEqual(0);
+    expect(fit.right).toBeGreaterThanOrEqual(0);
+  }
+});
+
 test("Stages/Edit/Tracks header controls are 44 px, hit-testable all over, and real touches mute and solo under a coarse pointer", async ({
   browser,
 }) => {

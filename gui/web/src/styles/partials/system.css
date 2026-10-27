@@ -5024,6 +5024,10 @@ input.sys-edit-fix {
   padding-inline: var(--space-1);
 }
 
+.sys-track[data-form="default"] .sys-scrub-unit {
+  display: none;
+}
+
 .sys-track-toggle {
   position: relative;
   display: inline-flex;

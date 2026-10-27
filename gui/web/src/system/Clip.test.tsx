@@ -587,6 +587,55 @@ describe("Clip under a finger", () => {
   });
 });
 
+describe("Clip when the grabbed handle goes away mid-drag", () => {
+  const touch = (pointerId: number, clientX: number) => ({
+    pointerId,
+    pointerType: "touch",
+    clientX,
+  });
+
+  it("ends the drag once when edit rights are lost, and takes a new finger afterwards", () => {
+    const { handle, onDragEnd, onDrag, rerender } = setup({ selected: true });
+    fireEvent.pointerDown(handle("Trim end"), touch(5, 50));
+    fireEvent.pointerMove(handle("Trim end"), touch(5, 120));
+    expect(onDrag).toHaveBeenCalledTimes(1);
+    rerender(
+      <Clip
+        {...base}
+        selected
+        readOnly
+        onDragEnd={onDragEnd}
+        onDrag={onDrag}
+      />,
+    );
+    expect(onDragEnd.mock.calls).toEqual([["clip-1", "trim-out", false]]);
+    rerender(<Clip {...base} selected onDragEnd={onDragEnd} onDrag={onDrag} />);
+    fireEvent.pointerDown(handle("Trim end"), touch(6, 50));
+    fireEvent.pointerMove(handle("Trim end"), touch(6, 120));
+    fireEvent.pointerUp(handle("Trim end"), touch(6, 120));
+    expect(onDrag).toHaveBeenCalledTimes(2);
+    expect(onDragEnd.mock.calls).toEqual([
+      ["clip-1", "trim-out", false],
+      ["clip-1", "trim-out", true],
+    ]);
+  });
+
+  it("ends a fade drag once when the clip narrows below the fade handles", () => {
+    const { handle, onDragEnd, rerender } = setup({ selected: true });
+    fireEvent.pointerDown(handle("Fade in"), touch(5, 50));
+    fireEvent.pointerMove(handle("Fade in"), touch(5, 120));
+    rerender(
+      <Clip
+        {...base}
+        selected
+        duration={CLIP_NARROW_WIDTH / base.pxPerSecond - 0.1}
+        onDragEnd={onDragEnd}
+      />,
+    );
+    expect(onDragEnd.mock.calls).toEqual([["clip-1", "fade-in", false]]);
+  });
+});
+
 describe("Clip as a guest sees it", () => {
   it("has no handles and cannot be dragged by a mouse or a finger, but can be selected", async () => {
     const user = userEvent.setup();
