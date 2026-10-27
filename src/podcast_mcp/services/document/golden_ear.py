@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
-from podcast_mcp.edits.pending_preview import resolve_pending_preview
+from podcast_mcp.edits.pending_preview import resolve_pending_preview, validate_pad_sec
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.engines.audio_audit import detect_mains_hum
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -419,7 +419,7 @@ def build_golden_ear(
     class_names = parse_classes(classes)
     cap = bound_limit(limit)
     tier = normalize_tighten_intensity(intensity)
-    pad = max(0.05, min(10.0, float(pad_sec)))
+    pad = validate_pad_sec(pad_sec)
     for answers in (out / LISTEN_DIRNAME / "answers.csv", out / "answers.csv"):
         if answers_have_preferences(answers) and not force:
             raise FileExistsError(

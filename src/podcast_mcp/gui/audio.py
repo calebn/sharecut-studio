@@ -59,23 +59,33 @@ def resolve_viewer_transport(
     )
 
 
+# Cross-origin pages (guest and relay) may read these; the CORS middleware exposes them.
+PENDING_PREVIEW_HEADER_NAMES = (
+    "X-Preview-Edit-Id",
+    "X-Preview-Mode",
+    "X-Preview-Pad-Sec",
+    "X-Preview-Start-Sec",
+    "X-Preview-End-Sec",
+    "X-Preview-Edit-Start-Sec",
+    "X-Preview-Edit-End-Sec",
+)
+
+
 def pending_preview_headers(span: PendingPreviewSpan) -> dict[str, str]:
     """Where a pending-preview file sits (seconds), so the page can place A / B playheads.
 
     ``Start`` / ``End`` bound the file on its own timeline; ``Edit-Start`` / ``Edit-End``
     are the edit on the current timeline.
     """
-    headers = {
+    return {
         "X-Preview-Edit-Id": span.edit_id,
         "X-Preview-Mode": span.mode,
-        "X-Preview-Pad-Sec": f"{span.pad_sec:g}",
-        "X-Preview-Start-Sec": f"{span.start_sec:g}",
-        "X-Preview-End-Sec": f"{span.end_sec:g}",
-        "X-Preview-Edit-Start-Sec": f"{span.edit_start_sec:g}",
-        "X-Preview-Edit-End-Sec": f"{span.edit_end_sec:g}",
+        "X-Preview-Pad-Sec": f"{span.pad_sec:.3f}",
+        "X-Preview-Start-Sec": f"{span.start_sec:.3f}",
+        "X-Preview-End-Sec": f"{span.end_sec:.3f}",
+        "X-Preview-Edit-Start-Sec": f"{span.edit_start_sec:.3f}",
+        "X-Preview-Edit-End-Sec": f"{span.edit_end_sec:.3f}",
     }
-    headers["Access-Control-Expose-Headers"] = ", ".join(headers)
-    return headers
 
 
 def audio_cache_headers(st: stat_result) -> dict[str, str]:

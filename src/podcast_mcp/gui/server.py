@@ -19,6 +19,7 @@ from filelock import Timeout
 from podcast_mcp import __version__, settings
 from podcast_mcp.config.runtime import normalize_exact_origin
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
+from podcast_mcp.gui.audio import PENDING_PREVIEW_HEADER_NAMES
 from podcast_mcp.gui.host_mcp import host_mcp_lifespan, mount_host_mcp
 from podcast_mcp.gui.job_events import gui_agent_job_progress_sink, gui_sse_progress_sink
 from podcast_mcp.gui.middleware_host_binding import HostOriginBindingMiddleware
@@ -285,7 +286,7 @@ def create_app(
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=[ERROR_CODE_HEADER, "Retry-After"],
+        expose_headers=[ERROR_CODE_HEADER, "Retry-After", *PENDING_PREVIEW_HEADER_NAMES],
     )
     app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(MaxBodySizeMiddleware, limit=gui_max_body_bytes())
