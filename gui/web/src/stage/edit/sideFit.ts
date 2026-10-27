@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 
 /** Which pane steps aside when the side layout cannot hold them all. */
@@ -64,7 +64,35 @@ function readSizes(el: Element, inlinePx: number): SideSizes {
   };
 }
 
-/** Watches the workspace's inline size and says which pane yields. */
+/**
+ * An unseen element one rem wide in the workspace. A text-size change leaves
+ * the workspace's own width as it was while every rem token grows, so only a
+ * box that tracks the root font size can say the tokens moved.
+ */
+function useRemProbe(root: Element | null): Element | null {
+  const [probe, setProbe] = useState<Element | null>(null);
+  useLayoutEffect(() => {
+    if (!root) {
+      return;
+    }
+    const el = document.createElement("div");
+    el.setAttribute("aria-hidden", "true");
+    el.style.cssText =
+      "position:absolute;visibility:hidden;pointer-events:none;inline-size:1rem;block-size:0";
+    root.appendChild(el);
+    setProbe(el);
+    return () => {
+      el.remove();
+      setProbe(null);
+    };
+  }, [root]);
+  return probe;
+}
+
+/**
+ * Watches the workspace's inline size and the root text size, and says which
+ * pane yields.
+ */
 export function useSideYield(
   root: Element | null,
   inspectorOpen: boolean,
@@ -73,17 +101,25 @@ export function useSideYield(
   const [sizes, setSizes] = useState<SideSizes | null>(null);
   const measure = useCallback(
     (entries: readonly ResizeObserverEntry[]) => {
-      const entry = entries[entries.length - 1];
-      if (!root || !entry) {
+      if (!root) {
         return;
       }
-      const next = readSizes(root, entry.contentRect.width);
-      setSizes((prev) =>
-        prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
-      );
+      // The probe reports a text-size change; the width is then the last one.
+      const own = entries.findLast((entry) => entry.target === root);
+      setSizes((prev) => {
+        const inlinePx = own ? own.contentRect.width : prev?.inlinePx;
+        if (inlinePx === undefined) {
+          return prev;
+        }
+        const next = readSizes(root, inlinePx);
+        return prev && JSON.stringify(prev) === JSON.stringify(next)
+          ? prev
+          : next;
+      });
     },
     [root],
   );
-  useResizeObserver(root, measure);
+  const probe = useRemProbe(root);
+  useResizeObserver([root, probe], measure);
   return sizes ? sideYield(sizes, inspectorOpen, scriptFocus) : null;
 }
