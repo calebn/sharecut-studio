@@ -3257,22 +3257,8 @@
     border-color: var(--color-accent);
   }
 
-  .sys-adv-switch {
-    forced-color-adjust: none;
-    border-color: ButtonText;
-    background: Canvas;
-  }
-
   .sys-adv-switch::before {
-    background: ButtonText;
-  }
-
-  .sys-adv-switch:checked {
-    border-color: Highlight;
-    background: Highlight;
-  }
-
-  .sys-adv-switch:checked::before {
-    background: HighlightText;
+    box-sizing: border-box;
+    border: 0.375rem solid var(--color-text-secondary);
   }
 }
