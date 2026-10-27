@@ -97,6 +97,11 @@ def _index_repo(root: Path, paths: list[str]) -> None:
         (["Foo.TXT", "foo.txt"], [["Foo.TXT", "foo.txt"]]),
         (["docs/a.md", "Docs/b.md"], [["Docs/b.md", "docs/a.md"]]),
         (["docs", "Docs/x.md"], [["Docs/x.md", "docs"]]),
+        (["a/Foo.js", "a/foo.jsx"], [["a/Foo.js", "a/foo.jsx"]]),
+        (["a/Foo.mjs", "a/foo.cjs"], [["a/Foo.mjs", "a/foo.cjs"]]),
+        (["a/Foo.mts", "a/foo.cts"], [["a/Foo.mts", "a/foo.cts"]]),
+        (["a/Foo.TSX", "a/foo.ts"], [["a/Foo.TSX", "a/foo.ts"]]),
+        (["a/foo.d.js", "a/Foo.js"], []),
         (["foo.d.ts", "Foo.ts"], [["Foo.ts", "foo.d.ts"]]),
     ],
 )
