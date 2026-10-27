@@ -16,26 +16,19 @@ function setup(props: Partial<GuestReviewProps> = {}) {
       duration={DURATION}
       peaks={PEAKS}
       initialPlayhead={735}
+      onPost={() => {}}
       {...props}
     />,
   );
 }
 
 describe("GuestReview", () => {
-  it("shows the composer slot to a commenter and hides it from a viewer", () => {
-    const { unmount } = setup({ composer: <p>Composer here</p> });
-    expect(screen.getByText("Composer here")).toBeInTheDocument();
-    unmount();
-    setup({ access: "viewer", composer: <p>Composer here</p> });
-    expect(screen.queryByText("Composer here")).toBeNull();
-  });
-
   it("follows the playhead in the Script", () => {
     setup({ initialPlayhead: 724 });
     expect(document.querySelector("[data-playing]")).not.toBeNull();
   });
 
-  it("gives a viewer no composer and no Stage bar", () => {
+  it("gives a viewer no Stage bar", () => {
     setup({ access: "viewer" });
     expect(screen.queryByRole("tab")).toBeNull();
   });
