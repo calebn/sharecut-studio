@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.review_gate import ReviewGate, ReviewSource, check_gate_text_length
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 
@@ -22,11 +21,11 @@ class ReviewGateService:
 
     def status(self) -> dict[str, Any]:
         self.ws.reload()
-        return self.gate.report(self.ws.project, load_defaults())
+        return self.gate.report(self.ws.project, self.ws.effective_config())
 
     def brief(self) -> dict[str, Any]:
         self.ws.reload()
-        return self.gate.brief(self.ws.project, load_defaults())
+        return self.gate.brief(self.ws.project, self.ws.effective_config())
 
     def mark_done(
         self, *, notes: str | None = None, source: ReviewSource = "cli"
