@@ -28,7 +28,7 @@ def _take_words(project: EpisodeProject, takes: list[StagedTake]) -> list[Transc
     found = False
     words: list[TranscriptWord] = []
     for take in sorted(takes, key=lambda item: (item.offset_s, item.segment_index)):
-        for transcript in project.transcripts.per_track:
+        for transcript in project.transcripts:
             if transcript.track_id == take.track_id and transcript.source_id == take.source_id:
                 found = True
                 words.extend(word for word in transcript.words if not word.suppressed)
