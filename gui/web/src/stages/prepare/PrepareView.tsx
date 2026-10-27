@@ -1,4 +1,12 @@
-import { type ReactNode, useId, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { DropOverlay } from "../../system/DropOverlay";
 import { StageHandoff } from "../../system/StageHandoff";
 import { StartTile } from "../../system/StartTile";
@@ -7,6 +15,7 @@ import type { StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { useFocusRescue } from "../../system/useFocusRescue";
 import { Button, SegmentedControl, ToggleButton } from "../../ui";
+import { useResizeObserver } from "../../ui/useResizeObserver";
 import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 import {
@@ -43,7 +52,7 @@ export type PrepareViewProps = {
   phase: PreparePhase;
   sessions: readonly PrepareSession[];
   rows: readonly ReadyRowData[];
-  /** The phone's collapsed line: "Transcribing 2 of 3". */
+  /** The one line the phone shows first: "Getting ready: 2 of 3 done". */
   readySummary: string;
   /** Names and terms. The speakers come from the named Source cards. */
   terms?: readonly string[];
@@ -71,6 +80,30 @@ export type PrepareViewProps = {
   onRowAction: (row: ReadyRowId, action: ReadyAction) => void;
   onHandoff: () => void;
 };
+
+/** The Getting ready card sits in the middle column from this container width. */
+const WIDE_FROM_REM = 60;
+
+/**
+ * True while the stage is narrower than the three-column layout. The summary
+ * line and the card's place in the DOM follow it, so reading order, Tab order
+ * and what is drawn are one order at every width. Where no width can be read
+ * (a hidden or unmeasured container) the wide layout stands.
+ */
+function useCompact(root: RefObject<HTMLElement | null>): boolean {
+  const [compact, setCompact] = useState(false);
+  const measure = useCallback(() => {
+    const width = root.current?.getBoundingClientRect().width ?? 0;
+    if (width <= 0) return;
+    const rem =
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+      16;
+    setCompact(width < WIDE_FROM_REM * rem);
+  }, [root]);
+  useLayoutEffect(measure, [measure]);
+  useResizeObserver(root, measure);
+  return compact;
+}
 
 /** The worst state among the rows, for the phone's one-line summary. */
 function summaryState(rows: readonly ReadyRowData[]): StatusRowState {
@@ -141,6 +174,7 @@ export function PrepareView({
     if (attention.some((id) => !seen.includes(id))) setReadyOpen(true);
   }
   const root = useRef<HTMLDivElement>(null);
+  const compact = useCompact(root);
   useFocusRescue(root, (target) => {
     const near = (items: HTMLElement[], at: number) =>
       items.slice(at + 1).find((item) => item.isConnected) ??
@@ -237,9 +271,53 @@ export function PrepareView({
   const repeated = new Set(
     [...counts].filter(([, count]) => count > 1).map(([key]) => key),
   );
+  const advanced = (
+    <Button onClick={onAdvanced}>
+      <SystemIcon name="settings" size={14} />
+      Advanced
+    </Button>
+  );
+  const ready = compact ? (
+    <section className="sys-prepare-ready" aria-labelledby={ids.ready}>
+      <h2 id={ids.ready} className="sys-prepare-title">
+        <button
+          type="button"
+          className="sys-prepare-summary"
+          aria-expanded={readyOpen}
+          aria-controls={ids.readyBody}
+          onClick={() => setReadyOpen((open) => !open)}
+        >
+          <StatusGlyph state={GLYPH[state]} />
+          <span className="sys-prepare-summary-text">{readySummary}</span>
+          <span className="sys-prepare-chevron">
+            <SystemIcon name="chevron-down" size={16} />
+          </span>
+        </button>
+      </h2>
+      <div
+        id={ids.readyBody}
+        className="sys-prepare-ready-body"
+        data-open={readyOpen}
+      >
+        <div className="sys-prepare-head">{advanced}</div>
+        <ReadyList rows={rows} onAction={onRowAction} />
+      </div>
+    </section>
+  ) : (
+    <section className="sys-prepare-ready" aria-labelledby={ids.ready}>
+      <div className="sys-prepare-head">
+        <h2 id={ids.ready} className="sys-prepare-title">
+          Getting ready
+        </h2>
+        {advanced}
+      </div>
+      <ReadyList rows={rows} onAction={onRowAction} />
+    </section>
+  );
   return (
     <div ref={root} className="sys-prepare" data-phase={phase}>
       <div className="sys-prepare-layout">
+        {compact ? ready : null}
         <section className="sys-prepare-sources" aria-labelledby={ids.sources}>
           <h2 id={ids.sources} className="sys-prepare-title">
             Sources
@@ -269,37 +347,7 @@ export function PrepareView({
             );
           })}
         </section>
-        <section className="sys-prepare-ready" aria-labelledby={ids.ready}>
-          <div className="sys-prepare-head">
-            <h2 id={ids.ready} className="sys-prepare-title">
-              Getting ready
-            </h2>
-            <Button onClick={onAdvanced}>
-              <SystemIcon name="settings" size={14} />
-              Advanced
-            </Button>
-          </div>
-          <button
-            type="button"
-            className="sys-prepare-summary"
-            aria-expanded={readyOpen}
-            aria-controls={ids.readyBody}
-            onClick={() => setReadyOpen((open) => !open)}
-          >
-            <StatusGlyph state={GLYPH[state]} />
-            <span className="sys-prepare-summary-text">{readySummary}</span>
-            <span className="sys-prepare-chevron">
-              <SystemIcon name="chevron-down" size={16} />
-            </span>
-          </button>
-          <div
-            id={ids.readyBody}
-            className="sys-prepare-ready-body"
-            data-open={readyOpen}
-          >
-            <ReadyList rows={rows} onAction={onRowAction} />
-          </div>
-        </section>
+        {compact ? null : ready}
         <section className="sys-prepare-aside" aria-labelledby={ids.help}>
           <h2 id={ids.help} className="sys-prepare-title">
             Help the transcriber
