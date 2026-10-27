@@ -340,9 +340,19 @@ export async function openProjectDialog(
         .getByRole("button", { name: /^(Open|Back to) the room$/ })
         .click();
       return;
-    case "palette":
-      await page.getByRole("button", { name: /^Palette\b/ }).click();
+    case "palette": {
+      const search = page.getByRole("button", { name: /^Palette\b/ });
+      if (await search.isVisible()) {
+        await search.click();
+        return;
+      }
+      // A folded or narrow header gives its right side to the Project menu.
+      const menu = await openProjectMenu(page);
+      await menu
+        .getByRole("menuitem", { name: "Search commands and people" })
+        .click();
       return;
+    }
     case "gestures":
       await openProjectDialog(page, "palette");
       await page

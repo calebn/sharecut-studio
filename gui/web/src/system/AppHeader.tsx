@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, type RefObject, useRef, useState } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import type { ThemePreference } from "../hooks/useTheme";
 import {
@@ -10,6 +10,7 @@ import {
   Pill,
   SegmentedControl,
   ToggleButton,
+  useResizeObserver,
 } from "../ui";
 import type { SystemIconName } from "./icons";
 import { SaveIndicator, type SaveIndicatorProps } from "./SaveIndicator";
@@ -199,6 +200,23 @@ function ProjectMenu({
   );
 }
 
+/** The header width (rem) at and under which its right side gives way (system.css). */
+const RIGHT_SIDE_MIN_REM = 20;
+
+/**
+ * Whether the header is too narrow for its right side. The side is not
+ * rendered then, so a control the layout hides is not left in the tree.
+ */
+function useNarrowHeader(host: RefObject<HTMLElement | null>): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useResizeObserver(host, (entries) => {
+    const width = entries.at(-1)?.contentRect.width ?? 0;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    setNarrow(width > 0 && width <= RIGHT_SIDE_MIN_REM * rem);
+  });
+  return narrow;
+}
+
 /**
  * The 48 px App header (44 on phone, by container width). Left: Project menu,
  * Save indicator, Undo and Redo. Center: the Stage bar. Right: people, Invite,
@@ -233,8 +251,14 @@ export function AppHeader({
   const shown = people.slice(0, MAX_AVATARS);
   const extra = people.length - shown.length;
   const canEdit = !guest || guest.role === "Editor";
+  const host = useRef<HTMLElement>(null);
+  const rightGivesWay = useNarrowHeader(host) || compact;
   return (
-    <header className="sys-app-header-host" aria-busy={loading || undefined}>
+    <header
+      ref={host}
+      className="sys-app-header-host"
+      aria-busy={loading || undefined}
+    >
       <h1 className="sr-only">{title}</h1>
       <div className="sys-app-header">
         <div className="sys-header-left">
@@ -302,35 +326,39 @@ export function AppHeader({
           </div>
         ) : null}
         <div className="sys-header-right">
-          {peopleSlot ? (
-            <div className="sys-header-people-slot">{peopleSlot}</div>
-          ) : shown.length > 0 ? (
-            <ul className="sys-header-people" aria-label="People here">
-              {shown.map((person) => (
-                <li key={person.name}>
-                  <Avatar
-                    name={person.name}
-                    colorIndex={person.colorIndex}
-                    size="sm"
-                  />
-                </li>
-              ))}
-              {extra > 0 ? (
-                <li className="sys-header-more">
-                  <span aria-hidden="true">+{extra}</span>
-                  <span className="sr-only">{extra} more</span>
-                </li>
+          {rightGivesWay ? null : (
+            <>
+              {peopleSlot ? (
+                <div className="sys-header-people-slot">{peopleSlot}</div>
+              ) : shown.length > 0 ? (
+                <ul className="sys-header-people" aria-label="People here">
+                  {shown.map((person) => (
+                    <li key={person.name}>
+                      <Avatar
+                        name={person.name}
+                        colorIndex={person.colorIndex}
+                        size="sm"
+                      />
+                    </li>
+                  ))}
+                  {extra > 0 ? (
+                    <li className="sys-header-more">
+                      <span aria-hidden="true">+{extra}</span>
+                      <span className="sr-only">{extra} more</span>
+                    </li>
+                  ) : null}
+                  {people.length > 1 ? (
+                    <li className="sys-header-phone-count">
+                      <span aria-hidden="true">+{people.length - 1}</span>
+                      <span className="sr-only">{people.length - 1} more</span>
+                    </li>
+                  ) : null}
+                </ul>
               ) : null}
-              {people.length > 1 ? (
-                <li className="sys-header-phone-count">
-                  <span aria-hidden="true">+{people.length - 1}</span>
-                  <span className="sr-only">{people.length - 1} more</span>
-                </li>
-              ) : null}
-            </ul>
-          ) : null}
-          {canEdit ? <VerbButton verb="invite" onClick={onInvite} /> : null}
-          <VerbButton verb="palette" onClick={onPalette} />
+              {canEdit ? <VerbButton verb="invite" onClick={onInvite} /> : null}
+              <VerbButton verb="palette" onClick={onPalette} />
+            </>
+          )}
         </div>
       </div>
     </header>

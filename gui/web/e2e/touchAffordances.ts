@@ -23,6 +23,10 @@ export type TouchSheetViewport = {
 
 type ShellChromeGeometry = {
   shell: string | null;
+  /** The frame is folded (R-short-9): the tab bar is the header's Stage menu. */
+  folded: boolean;
+  headerBox: Awaited<ReturnType<Locator["boundingBox"]>>;
+  stageMenuBox: Awaited<ReturnType<Locator["boundingBox"]>>;
   tabBarBox: Awaited<ReturnType<Locator["boundingBox"]>>;
   playerBox: Awaited<ReturnType<Locator["boundingBox"]>>;
 };
@@ -118,6 +122,13 @@ export async function exerciseTouchSheetAffordances(
   const geometry = async (): Promise<SheetGeometry> => {
     const shellChrome: ShellChromeGeometry = {
       shell: await page.locator("html").getAttribute("data-shell"),
+      folded: await page
+        .locator("html")
+        .evaluate((root) => "frameShort" in root.dataset),
+      headerBox: await optionalBoundingBox(page.locator(".stage-frame-header")),
+      stageMenuBox: await optionalBoundingBox(
+        page.locator(".sys-header-stage-button"),
+      ),
       tabBarBox: await optionalBoundingBox(page.locator(".stage-frame-tabs")),
       playerBox: await optionalBoundingBox(page.locator(".stage-frame-player")),
     };
@@ -372,7 +383,11 @@ async function optionalBoundingBox(locator: Locator) {
 }
 
 function expectExpectedShellChrome(chrome: ShellChromeGeometry): void {
-  if (chrome.shell === "phone") expect(chrome.tabBarBox).not.toBeNull();
+  if (chrome.shell === "phone") {
+    // A folded frame moves the tab bar into the header's Stage menu (R-short-9).
+    if (chrome.folded) expect(chrome.stageMenuBox).not.toBeNull();
+    else expect(chrome.tabBarBox).not.toBeNull();
+  }
   if (chrome.shell !== null) expect(chrome.playerBox).not.toBeNull();
 }
 
@@ -384,6 +399,12 @@ function expectSheetClearsShellChrome(
     if (chromeBox !== null) {
       expect(sheetBox.y + sheetBox.height).toBeLessThanOrEqual(chromeBox.y + 1);
     }
+  }
+  // A phone sheet sits between the header and the Player (R-short-8, R-short-10).
+  if (chrome.shell === "phone" && chrome.headerBox !== null) {
+    expect(sheetBox.y).toBeGreaterThanOrEqual(
+      chrome.headerBox.y + chrome.headerBox.height - 1,
+    );
   }
 }
 
