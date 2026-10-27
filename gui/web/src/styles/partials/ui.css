@@ -361,9 +361,9 @@ button.pill.pill--action:focus-visible {
   }
 
   /* Press physics: sink in fast, release on the toggle timing. Menu rows
-     (in a panel or not), segments and phone nav tabs stay put: a row that
-     wide, or controls sharing an edge, would move their hit edge, so a press
-     near it would release outside and lose the click. */
+     (in a panel or not) and segments stay put: a row that wide, or controls
+     sharing an edge, would move their hit edge, so a press near it would
+     release outside and lose the click. The Stage tabs are not .ui-control. */
   .ui-control:active:not(:disabled, [aria-disabled="true"]):where(
     :not(.ui-menu-panel *, [role^="menuitem"], .ui-segmented > *)
   ) {
