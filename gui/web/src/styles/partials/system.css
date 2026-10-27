@@ -3259,6 +3259,8 @@
 
   .sys-adv-switch::before {
     box-sizing: border-box;
-    border: 0.375rem solid var(--color-text-secondary);
+    border-width: 0.375rem;
+    border-style: solid;
+    border-color: var(--color-text-secondary);
   }
 }
