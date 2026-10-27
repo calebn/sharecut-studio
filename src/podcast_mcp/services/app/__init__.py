@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.app.review_gate import ReviewGateService
     from podcast_mcp.services.app.studio_host import (
         DIRECT_ENV_VAR,
+        DIRECT_RUN_REFUSAL_CODES,
         HANDOFF_PROTOCOL,
         HANDOFF_TOKEN_HEADER,
         HandoffLost,
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DIRECT_ENV_VAR",
+    "DIRECT_RUN_REFUSAL_CODES",
     "HANDOFF_PROTOCOL",
     "HANDOFF_TOKEN_HEADER",
     "MERGED_HISTORY_LABEL",
@@ -82,6 +84,7 @@ _MODULE_BY_NAME = {
     "viewer_url": "gui_launch",
     "ReviewGateService": "review_gate",
     "DIRECT_ENV_VAR": "studio_host",
+    "DIRECT_RUN_REFUSAL_CODES": "studio_host",
     "HANDOFF_PROTOCOL": "studio_host",
     "HANDOFF_TOKEN_HEADER": "studio_host",
     "HandoffLost": "studio_host",

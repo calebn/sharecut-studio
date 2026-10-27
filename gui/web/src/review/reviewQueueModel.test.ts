@@ -9,7 +9,7 @@ import {
   progressLine,
   type ReviewItem,
   resultText,
-} from "./reviewQueue";
+} from "./reviewQueueModel";
 
 const item = (over: Partial<ReviewItem>): ReviewItem => ({
   id: "x",

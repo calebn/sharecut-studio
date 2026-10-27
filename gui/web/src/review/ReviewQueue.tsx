@@ -20,7 +20,7 @@ import {
   type ReviewGroup,
   type ReviewItem,
   resultText,
-} from "./reviewQueue";
+} from "./reviewQueueModel";
 
 export type ReviewContent = {
   row: Pick<

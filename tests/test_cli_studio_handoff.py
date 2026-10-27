@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -164,6 +165,82 @@ def comment_add(
 
 def comment_bodies(project: Path) -> list[str]:
     return [c.body for c in load_project(project).comments]
+
+
+@contextlib.contextmanager
+def _accepted_command_with_lost_reply(
+    project: Path, marker: str, *, reply_code: str | None
+) -> Iterator[tuple[int, list[int], list[int]]]:
+    authority_exits: list[int] = []
+    authority_marker_counts: list[int] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            assert self.headers.get(HANDOFF_TOKEN_HEADER) == "tok"
+            body = json.dumps({"instance": "reply-lost", "protocol": 1, "serves": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self) -> None:
+            assert self.path == "/api/handoff/run"
+            assert self.headers.get(HANDOFF_TOKEN_HEADER) == "tok"
+            payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            assert payload["project"] == str(project)
+            authority_exits.append(
+                comment_add(project, marker, env={"PODCAST_NO_STUDIO_HANDOFF": "1"}).returncode
+            )
+            authority_marker_counts.append(comment_bodies(project).count(marker))
+            if reply_code is None:
+                self.connection.shutdown(socket.SHUT_RDWR)
+                self.connection.close()
+                return
+            body = json.dumps({"code": reply_code, "detail": "synthetic reply loss"}).encode()
+            self.send_response(503)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args: object) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_port, authority_exits, authority_marker_counts
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(10)
+
+
+@pytest.mark.parametrize(
+    "reply_code",
+    [None, "unreachable", "protocol"],
+    ids=["closed-before-headers", "synthetic-unreachable", "synthetic-protocol"],
+)
+def test_an_accepted_command_with_a_lost_reply_is_not_replayed_locally(
+    minimal_project: Path, reply_code: str | None
+) -> None:
+    marker = "accepted-before-reply-loss"
+    with _accepted_command_with_lost_reply(minimal_project, marker, reply_code=reply_code) as (
+        port,
+        authority_exits,
+        authority_marker_counts,
+    ):
+        announce_studio_host(
+            minimal_project,
+            StudioHost("reply-lost", os.getpid(), "127.0.0.1", port, "tok", "0"),
+        )
+        result = comment_add(minimal_project, marker)
+
+    assert authority_exits == [0]
+    assert authority_marker_counts == [1]
+    assert comment_bodies(minimal_project) == [marker]
+    assert result.returncode == 1
+    assert "may have changed the project" in result.stderr
 
 
 def test_studio_announces_itself_privately_and_withdraws_on_exit(

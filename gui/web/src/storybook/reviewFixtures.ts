@@ -1,4 +1,4 @@
-import type { ReviewItem } from "../review/reviewQueue";
+import type { ReviewItem } from "../review/reviewQueueModel";
 import type { SuggestionSegment } from "../system/Suggestion";
 
 /** 120 peaks across a 12 s window, quiet inside each `[from, to]` gap in seconds. */

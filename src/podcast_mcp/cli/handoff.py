@@ -31,6 +31,7 @@ from podcast_mcp import settings
 from podcast_mcp.cli.cancel import bind_handoff_cancel
 from podcast_mcp.services.app import (
     DIRECT_ENV_VAR,
+    DIRECT_RUN_REFUSAL_CODES,
     HandoffLost,
     HandoffRefused,
     StudioHost,
@@ -255,7 +256,7 @@ def try_hand_off(root: Command, ctx: Any) -> int | None:
             err=sys.stderr,
         )
     except HandoffRefused as refusal:
-        if refusal.code in _RUN_DIRECT_CODES:
+        if refusal.code in DIRECT_RUN_REFUSAL_CODES:
             if refusal.code in _SAY_DIRECT_CODES:
                 typer.echo(f"Note: {refusal.detail} Writing directly instead.", err=True)
             return None
@@ -266,11 +267,6 @@ def try_hand_off(root: Command, ctx: Any) -> int | None:
         return 1
 
 
-#: Studio is not the writer for this command (stale announcement, another project, an older
-#: or newer build): nothing is lost by writing directly.
-_RUN_DIRECT_CODES = frozenset(
-    {"unreachable", "not_served", "not_eligible", "protocol", "env_differs"}
-)
 _SAY_DIRECT_CODES = frozenset({"protocol", "env_differs"})
 
 

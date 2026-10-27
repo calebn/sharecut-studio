@@ -5,7 +5,7 @@ import {
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
-} from "./reviewQueue";
+} from "./reviewQueueModel";
 
 type Direction = "forward" | "backward";
 
