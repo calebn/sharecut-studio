@@ -66,7 +66,7 @@ flowchart TB
   SEL[Selection] --> BS[Bottom sheet: inspector + related commands]
 ```
 
-The Deliver stage shows Readiness, the episode file, Chapters and Clips from the open project. Adding, retitling, retiming or removing a chapter, and trimming or removing a social clip, are written to the project as they happen, and a failed save shows a banner above the stage. Approving or retitling a clip, and the format, loudness and range choices, stay on the page until the document has commands for them. Export opens the Export dialog; Bounce… and Share a listen link sit under the stage and open their dialogs.
+The Deliver stage shows Readiness, the episode file, Chapters and Clips from the open project. Adding, retitling, retiming or removing a chapter, and trimming or removing a social clip, are written to the project as they happen, and a failed save shows a banner above the stage. When Undo, Redo or another editor changes the chapters or clips, the stage shows the new ones once any save in flight has finished. Approving or retitling a clip, and the format, loudness and range choices, stay on the page until the document has commands for them. Export opens the Export dialog; Bounce… and Share a listen link sit under the stage and open their dialogs.
 
 On a phone the Stage bar is the bottom tab bar, Edit shows one of Timeline or Script at a time, and the people slot shows one avatar plus a count. A Commenter share link is Review alone, with no Stage bar.
 
