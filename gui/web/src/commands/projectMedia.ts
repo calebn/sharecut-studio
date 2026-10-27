@@ -11,7 +11,7 @@ import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { redisplayDrafts } from "../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
-import { askConfirm, askText } from "../feedback/ask";
+import { askConfirm } from "../feedback/ask";
 import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
@@ -193,14 +193,11 @@ export function registerProjectMediaCommands(): void {
             return;
           }
           if ("unavailable" in picked && picked.unavailable) {
-            path = await askText({
-              title: "Open project",
-              label: "Path to episode.project.json",
-              hint: picked.detail,
-              submitLabel: "Open project",
-              requiredMessage:
-                "Enter the path to an episode.project.json file.",
-            });
+            // No OS folder picker here: Home's Open other asks for the folder in a path field.
+            window.location.assign(
+              homeUrl(window.location.href, { openOther: true }),
+            );
+            return;
           } else if ("project_path" in picked) {
             path = picked.project_path;
           }
