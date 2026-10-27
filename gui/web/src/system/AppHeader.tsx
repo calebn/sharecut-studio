@@ -7,7 +7,6 @@ import {
   Menu,
   MenuItem,
   MenuSection,
-  Pill,
   SegmentedControl,
   ToggleButton,
   useResizeObserver,

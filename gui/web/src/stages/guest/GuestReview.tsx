@@ -8,7 +8,7 @@ import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
 import { Skeleton } from "../../system/Skeleton";
 import { StageBar } from "../../system/StageBar";
 import type { ScriptTurn } from "../../system/scriptPieces";
-import type { StageId } from "../../system/verbs";
+import type { StageId } from "../../types/stage";
 import { clamp, lastIndexAtOrBefore } from "../../utils/math";
 import { formatTimeShort } from "../../utils/time";
 import { type GuestRole, guestStages, ROLE_HINT } from "./guestLogic";
