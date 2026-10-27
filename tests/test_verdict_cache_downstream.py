@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import itertools
 import wave
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -61,8 +61,6 @@ def _project(root: Path, mutate: Callable[[list[Clip]], None]) -> EpisodeProject
             media=MediaAsset(path="raw/host.wav", duration_sec=DUR, sample_rate=SR, channels=1),
         )
     ]
-    edges = [0.0, 29.88, 51.49, 91.11, 120.0]
-    fades = [(1000, 10), (10, 50), (50, 0), (0, 0)]
     project.clips = [
         Clip(
             id=f"h{i}",
@@ -70,11 +68,16 @@ def _project(root: Path, mutate: Callable[[list[Clip]], None]) -> EpisodeProject
             source_start=a,
             source_end=b,
             timeline_start=a,
-            fade_in_ms=fade_in,
-            fade_out_ms=fade_out,
+            fade_in_ms=fi,
+            fade_out_ms=fo,
         )
-        for i, ((a, b), (fade_in, fade_out)) in enumerate(
-            zip(itertools.pairwise(edges), fades, strict=True)
+        for i, (a, b, fi, fo) in enumerate(
+            [
+                (0, 29.88, 1000, 10),
+                (29.88, 51.49, 10, 50),
+                (51.49, 91.11, 50, 0),
+                (91.11, 120, 0, 0),
+            ]
         )
     ]
     mutate(project.clips)
@@ -101,28 +104,39 @@ def _outcome(project: EpisodeProject) -> tuple[int, list[str]]:
     return applied, [h.reason for h in held]
 
 
-def _fade_out(ms: int) -> Callable[[list[Clip]], None]:
-    return lambda clips: setattr(clips[2], "fade_out_ms", ms)
+def _set(index: int, field: str, ms: int) -> Callable[[list[Clip]], None]:
+    return lambda clips: setattr(clips[index], field, ms)
 
 
-def _fade_in(ms: int) -> Callable[[list[Clip]], None]:
-    return lambda clips: setattr(clips[3], "fade_in_ms", ms)
-
-
-CHANGES = [
-    pytest.param(_fade_out(1000), id="fade_out_1000"),
-    pytest.param(_fade_in(1000), id="fade_in_1000"),
-]
-
-
-@pytest.mark.parametrize("change", CHANGES)
-def test_a_cached_verdict_equals_a_cold_check_when_a_far_clip_ramp_changes(
+# Clips 2 and 3 lie past the window; clip 1 straddles both of its edges.
+@pytest.mark.parametrize(
+    "change",
+    [
+        pytest.param(_set(2, "fade_out_ms", 1000), id="far_fade_out"),
+        pytest.param(_set(3, "fade_in_ms", 1000), id="far_fade_in"),
+        pytest.param(_set(1, "fade_out_ms", 900), id="straddler_fade_out"),
+        pytest.param(_set(1, "fade_in_ms", 900), id="straddler_fade_in"),
+    ],
+)
+def test_a_cached_verdict_equals_a_cold_check_when_a_clip_ramp_outside_the_window_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: Callable[[list[Clip]], None]
 ) -> None:
+    hits: list[bool] = []
+    lookup = verdict_cache.lookup
+
+    def spy(key: str | None) -> Any:
+        found = lookup(key)
+        hits.extend([True] if found else [])
+        return found
+
+    monkeypatch.setattr(verdict_cache, "lookup", spy)
     monkeypatch.delenv(verdict_cache.VERIFY_ENV, raising=False)
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
     cold = _outcome(_project(tmp_path, change))
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
     verdict_cache._STORE.clear()
     _outcome(_project(tmp_path, lambda clips: None))
+    assert not hits
+    _outcome(_project(tmp_path, lambda clips: None))
+    assert hits, "the unchanged project must hit the cache"
     assert _outcome(_project(tmp_path, change)) == cold
