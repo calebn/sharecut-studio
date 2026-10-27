@@ -616,8 +616,11 @@ test.describe("record lobby", () => {
         await phone.showTimeline(host);
         for (const width of [390, 320]) {
           await host.setViewportSize({ width, height: 844 });
+          // On a phone the header's Stage bar gives way to the tab bar and the
+          // Player bar hides its skip buttons, so neither has a box here; the
+          // tab bar's own tabs are checked instead.
           const controls = host.locator(
-            ".stage-frame-header button, .stage-frame-player button",
+            ".stage-frame-header button:not([role='tab']), .stage-frame-player button:not(.sys-player-skip), .stage-frame-tabs button",
           );
           for (const control of await controls.all()) {
             const bounds = await control.boundingBox();
