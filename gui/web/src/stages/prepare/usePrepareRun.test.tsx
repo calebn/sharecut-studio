@@ -23,6 +23,7 @@ import {
   registryRows,
 } from "../../test/renderWithModels";
 import { ApiError } from "../../utils/apiError";
+import { takeOpenStage, writeOpenIntent } from "../../utils/openIntent";
 import { runOptions, usePrepareRun } from "./usePrepareRun";
 
 vi.mock("../../api", async (original) => ({
@@ -99,6 +100,7 @@ function setup(models = modelsFor("missing")) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   useDawStore.setState({
     projectPath: "/tmp/p/episode.project.json",
     pipelineJob: null,
@@ -191,6 +193,40 @@ describe("usePrepareRun auto-run", () => {
     });
     await act(async () => undefined);
     expect(start).not.toHaveBeenCalled();
+  });
+
+  it("starts once when Home imported the audio and left the intent", async () => {
+    writeOpenIntent("/tmp/p/episode.project.json", {
+      stage: "prepare",
+      autoRun: true,
+    });
+    const { rerender } = setup();
+    rerender({ ingestBusy: false, mediaKey: "" });
+    expect(start).not.toHaveBeenCalled();
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav|b:/b.wav" });
+    await act(async () => undefined);
+    expect(start).toHaveBeenCalledOnce();
+    expect(takeOpenStage("/tmp/p/episode.project.json")).toBe("prepare");
+  });
+
+  it("keeps Home's auto-run as a waiting run when the slot is busy, then starts it", async () => {
+    writeOpenIntent("/tmp/p/episode.project.json", {
+      stage: "prepare",
+      autoRun: true,
+    });
+    useDawStore.setState({
+      pipelineJob: pipelineJobSnapshot({ status: "running" }),
+    });
+    const { result, rerender } = setup();
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(result.current.waiting).toBe(true));
+    expect(start).not.toHaveBeenCalled();
+    act(() => {
+      useDawStore.setState({ pipelineJob: null });
+    });
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
   });
 
   it("waits out a busy pipeline slot, shows it, and runs when the slot frees", async () => {
