@@ -616,6 +616,20 @@ test.describe("record lobby", () => {
         await phone.showTimeline(host);
         for (const width of [390, 320]) {
           await host.setViewportSize({ width, height: 844 });
+          // The header folds Invite and Palette into More once it measures the
+          // narrower width; collect the controls only after that has settled.
+          const header = host.locator(".stage-frame-header");
+          if (width === 320) {
+            await expect(
+              header.getByRole("button", { name: "More", exact: true }),
+            ).toBeVisible();
+            await expect(
+              header.getByRole("button", { name: "Invite", exact: true }),
+            ).toHaveCount(0);
+            await expect(
+              header.getByRole("button", { name: "Palette", exact: true }),
+            ).toHaveCount(0);
+          }
           // On a phone the header's Stage bar gives way to the tab bar and the
           // Player bar hides its skip buttons, so neither has a box here; the
           // tab bar's own tabs are checked instead.
