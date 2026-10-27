@@ -305,7 +305,7 @@ def _cli_create_record_share(
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(room, indent=2))
     if room.get("warning"):
-        typer.echo(f"\nWarning: {room['warning']}", err=True)
+        typer.echo(f"\nWarning: {room['warning']} Add --land-first to save first.", err=True)
     guest_url = room["guest"]["url"]
     producer_url = room["producer"]["url"]
     typer.echo(f"\nGuest URL: {guest_url}", err=True)

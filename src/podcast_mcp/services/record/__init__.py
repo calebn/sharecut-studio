@@ -17,10 +17,12 @@ if TYPE_CHECKING:
         remove_session_land_lock_file,
     )
     from podcast_mcp.services.record.preflight import (
-        describe_unlanded_takes,
-        unlanded_take_fields,
-        unlanded_takes,
-        with_unlanded_takes,
+        Unsaved,
+        describe_unsaved_takes,
+        refuse_land_first,
+        unsaved_fields,
+        unsaved_takes,
+        with_unsaved_takes,
     )
     from podcast_mcp.services.record.reducer import (
         RecordStateError,
@@ -74,21 +76,23 @@ __all__ = [
     "RecordUploadError",
     "RecordUploadService",
     "RoomFullError",
+    "Unsaved",
     "assert_no_open_take",
     "begin_record_session",
-    "describe_unlanded_takes",
+    "describe_unsaved_takes",
     "filter_record_event_for_guest",
     "invalidate_record_session_cache",
     "parse_participant_id",
     "parse_upload_kind",
     "purge_session_land_rollbacks",
     "record_hub_key",
+    "refuse_land_first",
     "release_session_land_lock",
     "remove_session_land_lock_file",
     "route_record_ws_message",
-    "unlanded_take_fields",
-    "unlanded_takes",
-    "with_unlanded_takes",
+    "unsaved_fields",
+    "unsaved_takes",
+    "with_unsaved_takes",
 ]
 
 _MODULE_BY_NAME = {
@@ -114,7 +118,7 @@ _MODULE_BY_NAME = {
     "UPLOAD_KIND_ROOM_TONE": "upload",
     "assert_no_open_take": "service",
     "begin_record_session": "service",
-    "describe_unlanded_takes": "preflight",
+    "describe_unsaved_takes": "preflight",
     "filter_record_event_for_guest": "service",
     "invalidate_record_session_cache": "service",
     "parse_participant_id": "upload",
@@ -124,9 +128,11 @@ _MODULE_BY_NAME = {
     "release_session_land_lock": "landing",
     "remove_session_land_lock_file": "landing",
     "route_record_ws_message": "service",
-    "unlanded_take_fields": "preflight",
-    "unlanded_takes": "preflight",
-    "with_unlanded_takes": "preflight",
+    "unsaved_fields": "preflight",
+    "unsaved_takes": "preflight",
+    "Unsaved": "preflight",
+    "refuse_land_first": "preflight",
+    "with_unsaved_takes": "preflight",
 }
 
 

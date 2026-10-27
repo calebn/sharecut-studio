@@ -128,7 +128,7 @@ def create_host_record_room(
     except RecordStateError as exc:
         raise coded_exception_error(409, exc, code="record_room_unavailable") from exc
     except RecordLandingError as exc:
-        raise coded_exception_error(400, exc, code="record_landing_refused") from exc
+        raise coded_exception_error(400, exc, code="record_land_refused") from exc
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="record_room_request_invalid") from exc
     return {"room": room}
