@@ -894,8 +894,8 @@ def apply_transcript_cleanup_tool(
     )
 
 
-def low_confidence_words_tool(project_path: str, threshold: float = 0.7) -> str:
-    """List words below a confidence threshold for human review."""
+def low_confidence_words_tool(project_path: str, threshold: float | None = None) -> str:
+    """List words below a confidence threshold for human review (default: the unsure-word line, 0.7)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(TranscriptService(ws).low_confidence_words(threshold))
 

@@ -599,6 +599,7 @@ def test_one_unsure_line_for_list_brief_and_status(minimal_project):
                 TranscriptWord(text="b", start=0.1, end=0.2, confidence=0.69),
                 TranscriptWord(text="c", start=0.2, end=0.3, confidence=0.7),
                 TranscriptWord(text="d", start=0.3, end=0.4),
+                TranscriptWord(text="e", start=0.4, end=0.5, confidence=0.1, suppressed=True),
             ],
         )
     ]

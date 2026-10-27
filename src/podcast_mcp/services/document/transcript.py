@@ -382,8 +382,11 @@ class TranscriptService(WorkspaceService):
             source_id,
         )
 
-    def low_confidence_words(self, threshold: float = UNSURE_WORD_CONFIDENCE) -> list[dict]:
-        return list_low_confidence(self.ws.project, threshold)
+    def low_confidence_words(self, threshold: float | None = None) -> list[dict]:
+        """Unsure words; ``None`` uses ``UNSURE_WORD_CONFIDENCE``."""
+        return list_low_confidence(
+            self.ws.project, UNSURE_WORD_CONFIDENCE if threshold is None else threshold
+        )
 
     def verify_transcript(
         self,

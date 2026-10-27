@@ -10,9 +10,6 @@ import type {
 
 export type { ClipMuteRegion, RoomToneFill } from "./project.generated";
 
-/** Where the transcript check stands: open (`pending`), `done` or `waived`. */
-export type TranscriptCheckState = TranscriptRefineStatusView["status"];
-
 /** The transcript check the host reads; the server always sends every field. */
 export type TranscriptCheckStatus = Required<TranscriptRefineStatusView>;
 

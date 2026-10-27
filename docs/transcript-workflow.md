@@ -542,7 +542,7 @@ After `precorrect_transcript`, the pipeline step **`require_transcript_refine`**
 
 The host GUI reaches the same gate over HTTP: `POST /api/transcript/refine/done` records refine-done for the human (source `user`) through `TranscriptRefineService.mark_checked`, and `GET /api/transcript/refine/status` reads it back (see [gui-integration.md](gui-integration.md#transcript-check-routes)). A repeat of `done` while the record is still `done` and current changes nothing; a `done` after a waiver replaces it, because checking is the stronger record. "Cut anyway" in Review stays a waiver (`refine/waive`, reason "Approved after listening in Review") and reads back as `waived`, never `done`.
 
-**One unsure-word line.** `UNSURE_WORD_CONFIDENCE` (0.7, `edits/transcript_correct.py`) is the one confidence below which a word is unsure. `low_confidence_words_tool` / `podcast transcript low-confidence`, the refine brief's `low_confidence_open_words` and the status route's `low_confidence_words` all read it, so their counts agree.
+**One unsure-word line.** `UNSURE_WORD_CONFIDENCE` (0.7, `edits/transcript_correct.py`) is the one confidence below which a word is unsure. `low_confidence_words_tool` / `podcast transcript review --threshold` (both default to it; the tool passes none and the service applies it), the refine brief's `low_confidence_open_words` and the status route's `low_confidence_words` all use it, and all skip suppressed words, so the counts agree.
 
 Mode (`analysis.transcript_refine.mode` in pipeline.yaml):
 
