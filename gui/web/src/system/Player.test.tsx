@@ -93,4 +93,46 @@ describe("Player", () => {
     render(<Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />);
     expect(screen.getByText("Following Rosa")).toBeInTheDocument();
   });
+
+  it.each([
+    ["bar", true],
+    ["bar", false],
+    ["expanded", true],
+    ["expanded", false],
+  ] as const)(
+    "the %s form has a Comment button only with a handler: %s",
+    async (form, withHandler) => {
+      const user = userEvent.setup();
+      const onComment = vi.fn();
+      render(
+        <Player
+          {...base}
+          form={form}
+          onComment={withHandler ? onComment : undefined}
+        />,
+      );
+      const button = screen.queryByRole("button", { name: "Comment" });
+      expect(!!button).toBe(withHandler);
+      if (button) {
+        await user.click(button);
+        expect(onComment).toHaveBeenCalledOnce();
+      }
+    },
+  );
+
+  it.each([
+    ["with a handler", true],
+    ["without one", false],
+  ])("Collapse player is shown %s", (_name, withHandler) => {
+    render(
+      <Player
+        {...base}
+        form="expanded"
+        onCollapse={withHandler ? () => undefined : undefined}
+      />,
+    );
+    expect(!!screen.queryByRole("button", { name: "Collapse player" })).toBe(
+      withHandler,
+    );
+  });
 });
