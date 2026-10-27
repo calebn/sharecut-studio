@@ -71,21 +71,21 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | After exitCommentMode; also clears track targeting |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
 | `ArrowLeft` | Trim clip edge (`edit.trimClipEdge`) | focusedTrimHandle | Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels. |
-| `Mod+C` | Copy (`edit.copy`) | Project loaded | Mod+C |
-| `Mod+X` | Cut (`edit.cut`) | Host or shared edit mode | Mod+X |
-| `Mod+V` | Paste (`edit.paste`) | Host or shared edit mode | Mod+V: same-track at playhead |
-| `Backspace` | Remove track (`track.remove`) | trackInspectorSelected | Before edit.delete: inspector track selection only |
-| `ArrowUp` | Move track up (`track.moveUp`) | canMoveSelectedTrackUp | Inspector track selected |
-| `ArrowDown` | Move track down (`track.moveDown`) | canMoveSelectedTrackDown | Inspector track selected |
+| `Mod+C` | Copy (`edit.copy`) | editStage | Mod+C |
+| `Mod+X` | Cut (`edit.cut`) | editStagePass12 | Mod+X |
+| `Mod+V` | Paste (`edit.paste`) | editStagePass12 | Mod+V: same-track at playhead |
+| `Backspace` | Remove track (`track.remove`) | editStageTrackInspector | Before edit.delete: inspector track selection only |
+| `ArrowUp` | Move track up (`track.moveUp`) | editStageMoveSelectedTrackUp | Inspector track selected |
+| `ArrowDown` | Move track down (`track.moveDown`) | editStageMoveSelectedTrackDown | Inspector track selected |
 | `Shift+F10` | Create here (`create.menu`) | Timeline focused | Shift+F10: create menu at the focused target or the playhead; the Menu key too |
-| `Backspace` | Delete clip (`edit.delete`) | Structural edits allowed |  |
-| `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | Structural edits allowed | Mod+Backspace |
-| `Mod+K` | Blade cut (`edit.bladeCut`) | Structural edits allowed | Mod+K: cut at playhead — Mod+K cuts; K alone stops playback |
+| `Backspace` | Delete clip (`edit.delete`) | editStageStructural |  |
+| `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | editStageStructural | Mod+Backspace |
+| `Mod+K` | Blade cut (`edit.bladeCut`) | editStageStructural | Mod+K: cut at playhead — Mod+K cuts; K alone stops playback |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
 | `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A: Logic-style; empty targeting |
 | `M` | Toggle track mute (`track.muteToggle`) | Project loaded | M mutes the targeted track; while the record panel is open, M drops a marker instead |
 | `S` | Toggle track solo (`track.soloToggle`) | Project loaded |  |
-| `Mod+Shift+T` | New track (`track.add`) | Media ingest allowed | Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T) |
+| `Mod+Shift+T` | New track (`track.add`) | editStageIngest | Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T) |
 | `Mod+I` | Import audio… (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
 
 ## view
@@ -157,8 +157,8 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Manage models… | `models.open` | Host project management | Host-only dialog listing every model with its state, size and a download |
 | Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; paste path fallback |
-| Split speakers… | `track.splitSpeakers` | canSplitSpeakers | Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
-| Reorder track | `track.reorder` | Media ingest allowed | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
+| Split speakers… | `track.splitSpeakers` | editStageSplitSpeakers | Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
+| Reorder track | `track.reorder` | editStageIngest | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |
 | Adjust word timing | `transcript.adjustTiming` | Loaded host project | Source-clock boundaries for the selected transcript word |
 | Find and replace transcript | `transcript.findReplace` | Loaded host project |  |
