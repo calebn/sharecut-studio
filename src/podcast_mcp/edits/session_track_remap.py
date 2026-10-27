@@ -15,11 +15,13 @@ def remap_staged_participant(
     bed_path: str,
     track_id: str,
     track_label: str,
+    old_track_id: str | None = None,
 ) -> int:
     """Point the takes with ``source_ids`` and the bed at ``bed_path`` at ``track_id``.
 
     Sources and files stay as they are; only the track each staged piece will land on (and the
-    speaker name of its source) changes. Returns how many staged pieces moved.
+    speaker name of its source) changes. A replace's ``track_ids`` follow the person from ``old_track_id``. Returns how many staged
+    pieces moved.
     """
     suggestion = find_session_suggestion(project, suggestion_id)
     moved = 0
@@ -34,6 +36,10 @@ def remap_staged_participant(
         if source is not None:
             source.speaker = track_label
     suggestion.takes.sort(key=staged_take_key)
+    if old_track_id is not None and old_track_id in suggestion.track_ids:
+        # A replace names the tracks it covers; follow the person so Accept still finds them.
+        swapped = [track_id if t == old_track_id else t for t in suggestion.track_ids]
+        suggestion.track_ids = list(dict.fromkeys(swapped))
     for bed in suggestion.room_tone:
         if bed.path == bed_path and bed.track_id != track_id:
             bed.track_id, bed.track_label = track_id, track_label
