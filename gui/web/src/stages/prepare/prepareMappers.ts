@@ -535,7 +535,12 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   ) {
     return { phase: "needs-model" };
   }
-  if (input.rows.length > 0 && input.rows.every((r) => r.state === "done")) {
+  // A row that waits on the person (word timing to download, hand fixes to
+  // keep) is not work in progress: nothing runs, so the hand-off is not held.
+  if (
+    input.rows.length > 0 &&
+    input.rows.every((r) => r.state === "done" || r.state === "needs-you")
+  ) {
     return { phase: "done" };
   }
   return { phase: "transcribing" };
