@@ -371,6 +371,7 @@ def assert_no_open_take(project: EpisodeProject) -> None:
 class RecordSessionService:
     def __init__(self, project: EpisodeProject, *, session_id: str) -> None:
         self.project = project
+        self._saved_project_store = ProjectStore(project.workspace_path())
         self.session_id = session_id
         self._store = _store_for(project)
         self._participants = _participants_for(project)
@@ -398,7 +399,7 @@ class RecordSessionService:
     def _saved_project(self) -> EpisodeProject:
         """The project as saved now, so edits made after this service was built are seen."""
         try:
-            return ProjectStore(self.project.workspace_path()).load()
+            return self._saved_project_store.load()
         except FileNotFoundError:
             return self.project
 
@@ -661,9 +662,9 @@ class RecordSessionService:
             raise RecordStateError("participant removed")
         wall = time.time_ns() // 1_000_000 if now_wall_ms is None else now_wall_ms
         if cmd.type == "SetTarget" and not self._model().takes:
-            check_target_for_project(
-                parse_session_target(cmd.payload.get("target")), self._saved_project()
-            )
+            target = parse_session_target(cmd.payload.get("target"))
+            if target.kind == "replace":
+                check_target_for_project(target, self._saved_project())
         if cmd.type == "Comment":
             self._rewrite_comment(cmd, now_wall_ms=wall)
         stored_payload = dict(cmd.payload)

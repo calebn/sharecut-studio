@@ -1676,7 +1676,10 @@ def test_nonreplace_target_persists_when_saved_project_is_unreadable(
         RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"]
         == target
     )
-    with pytest.raises(ValueError):
+    loader_error = (
+        "project file is damaged" if damaged_file == "project" else "corrupt JSON sidecar"
+    )
+    with pytest.raises(ValueError, match=loader_error):
         svc.submit(
             _cmd(
                 "SetTarget",
