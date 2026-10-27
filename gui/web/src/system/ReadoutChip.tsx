@@ -1,11 +1,10 @@
 import type { CSSProperties } from "react";
 
-export type ReadoutChipProps = {
+type ReadoutChipProps = {
   /** The change since the drag began, already formatted: "−120 ms". */
   delta?: string;
   /** The resulting value, already formatted: "12:04.340". */
   value: string;
-  /** The drag has reached the end of what it may do. */
   atLimit?: boolean;
   /** The pointer, in px from the top left of the positioned parent. Without it the chip sits in the flow. */
   at?: { readonly x: number; readonly y: number };
