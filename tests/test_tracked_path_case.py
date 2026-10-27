@@ -173,7 +173,7 @@ _VOCAB = [
     "a/Foo.ts", "a/foo.tsx", "a/foo.ts", "a/Foo.tsx", "b/Foo.tsx", "A/x.md", "a/x.md",
     "docs", "Docs/a/b/c.md", "a/foo.css", "a/Foo.TXT", "a/foo.txt", "README.md",
     "readme.txt", "a/foo.d.ts", "a/Foo.d.ts", "a/Foo.TSX", "a/Foo.D.ts", "a/bd.ts",
-    "a/BD.tsx", "a/foo.d.js", "a/Foo.js", "a/b/Foo.js", "a/b/foo.jsx",
+    "a/foo.md", "a/foo.json", "a/foo.py", "a/BD.tsx", "a/foo.d.js", "a/Foo.js", "a/b/Foo.js", "a/b/foo.jsx",
 ]  # fmt: skip
 
 
@@ -183,3 +183,38 @@ def test_guard_flags_same_files_as_naive_oracle() -> None:
             expected = {p for p, q in itertools.permutations(files, 2) if _oracle_collide(p, q)}
             flagged = {p for group in _collisions_among(list(files)) for p in group}
             assert flagged == expected, files
+
+
+_PLAIN_EXTS = [
+    "md",
+    "json",
+    "py",
+    "html",
+    "htm",
+    "mdx",
+    "jsonc",
+    "yaml",
+    "yml",
+    "toml",
+    "svg",
+    "png",
+    "vue",
+    "svelte",
+    "map",
+    "wasm",
+    "node",
+    "d",
+    "sh",
+    "css",
+    "txt",
+    "lock",
+    "cfg",
+]
+
+
+@pytest.mark.parametrize("ext", _PLAIN_EXTS)
+def test_non_importable_extensions_never_form_module_collisions(ext: str) -> None:
+    other = _PLAIN_EXTS[(_PLAIN_EXTS.index(ext) + 1) % len(_PLAIN_EXTS)]
+    assert _collisions_among(["a/Foo.ts", f"a/foo.{ext}"]) == []
+    assert _collisions_among([f"a/Foo.{ext}", "a/foo.tsx"]) == []
+    assert _collisions_among([f"a/Foo.{ext}", f"a/foo.{other}"]) == []
