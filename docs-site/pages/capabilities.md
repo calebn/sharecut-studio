@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**123** capabilities · **107** ShareCut Studio commands · **58** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
+**124** capabilities · **108** ShareCut Studio commands · **58** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -77,6 +77,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Go to Edit | view | `stage.edit` | `Mod+3` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Review | view | `stage.review` | `Mod+4` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Deliver | view | `stage.deliver` | `Mod+5` | — | `stageBar` | — | — | — | — | none · look |
+| Open history | view | `edit.history` | — (Reached from the palette and by right-click or long-press on Undo or Redo) | — | `historyPanel` | — | — | — | — | none · none |
 | Show or hide Script | view | `view.toggleScript` | `T` | — | `editCorner` | — | — | — | — | none · none |
 | Script focus | view | `view.scriptFocus` | `Shift+T` | — | — | — | — | — | — | none · none |
 | Waveform amplitude zoom in | view | `view.waveformZoomIn` | `ArrowUp` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |

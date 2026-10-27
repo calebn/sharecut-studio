@@ -1,4 +1,4 @@
-import { isShareProjectKey } from "../shareMode";
+import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import { type ReviewSection, STAGE_IDS, type StageSheet } from "../types/stage";
@@ -58,6 +58,18 @@ export function registerViewCommands(): void {
       return { status: "ok" };
     });
   }
+
+  registerCommand("edit.history", () => {
+    const s = useDawStore.getState();
+    if (!s.project) {
+      return { status: "disabled", reason: "No project" };
+    }
+    if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
+      return { status: "disabled", reason: "This link cannot edit" };
+    }
+    s.openStage("edit", { sheet: "history" });
+    return { status: "ok" };
+  });
 
   registerCommand("view.toggleScript", () => {
     const s = useDawStore.getState();

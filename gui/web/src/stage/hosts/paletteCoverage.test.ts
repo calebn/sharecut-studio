@@ -171,8 +171,9 @@ const REMOVED_SURFACES: Entry[] = [
   component("More hub", "Pipeline", [
     { file: "stage/hosts/PrepareStage.tsx", needle: "PipelinePanel" },
   ]),
-  component("More hub", "History", [
+  entry("More hub", "History", "edit.history", [
     { file: "stage/frame/SheetHost.tsx", needle: "HistoryPanel" },
+    { file: "commands/view.ts", needle: '"edit.history"' },
   ]),
   entry("More hub", "Import audio", "media.import"),
   entry("More hub", "New track", "track.add"),

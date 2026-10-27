@@ -1180,6 +1180,30 @@
       }
     },
     {
+      "id": "daw.edit.history",
+      "label": "Open history",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "edit.history",
+        "gui": [
+          "historyPanel"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Reached from the palette and by right-click or long-press on Undo or Redo"
+      },
+      "tooltip": "Open history",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.view.toggleScript",
       "label": "Show or hide Script",
       "effect": "view",

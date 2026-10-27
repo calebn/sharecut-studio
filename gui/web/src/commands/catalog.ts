@@ -158,6 +158,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hasProject",
     notes: "Shift+T: collapses the timeline to its strip so Script fills Edit",
   },
+  "edit.history": {
+    id: "edit.history",
+    category: "history",
+    label: "Open history",
+    keywords: ["undo", "redo", "steps", "restore", "past"],
+    when: "hasProject",
+    notes:
+      "Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor.",
+  },
   "project.home": {
     id: "project.home",
     category: "ui",
