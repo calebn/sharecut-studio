@@ -630,7 +630,11 @@ an approval starts, and an approval reuses the check of every cut whose neighbou
 track plays within 6 s of the cut plus the longest fade (cut crossfade, pad fade or clip fade;
 a project with any clip fade over 1 s is never cached), and for a pause at least 13 s out and out
 to the words its check observes (not clip ids or ends outside that window), the words there,
-the recordings' file revisions, the policy tables and the speaker-profile files. The cheap,
+the recordings' file revisions, the policy tables and the speaker-profile files. Every clip past
+the window that ramps (a fade or a non-fade join) is hashed too, by its source span, fades, join
+and the words within each fade edge plus the fade and 1 s, because the check assesses every fade
+ramp on the timeline; it is read on the source clock, so a ripple from a cut elsewhere leaves it
+alone (#2365). The cheap,
 timeline-dependent part always runs again: the placement, the written cut, and the room-tone
 pads, which must equal what the entry recorded or the full check runs. A check that read an
 unreadable file is never stored. A batch applied from the end backward builds its timeline loudness
@@ -638,7 +642,8 @@ once and carries it while each next cut lies beyond that same reach of every app
 (`CarriedTimelineRms`). `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
 hit and fails if it differs; the approve and cut tests pass in that mode except nine that count
 checks (named in `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
-which set the flags themselves.
+`tests/test_verdict_cache_downstream.py` and `tests/test_verdict_cache_fuzz.py` (a fixed-seed
+cached-versus-cold comparison over random timelines), which set the flags themselves.
 
 ### Which fingerprint answers which question
 

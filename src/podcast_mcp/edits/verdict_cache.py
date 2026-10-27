@@ -32,6 +32,7 @@ from podcast_mcp.edits.cut_placement import (
 )
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
+from podcast_mcp.models import ClipJoinMode
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
 
@@ -229,10 +230,14 @@ def _payload(
     s_lo, s_hi = edit.start - reach, edit.end + reach
     heard = []
     elsewhere = []
+    downstream = []
     for c in project.clips:
         if c.timeline_start < hi and c.timeline_end > lo:
             heard.append(_heard(c, lo, hi))
-        elif (
+            continue
+        if c.timeline_end >= lo and _ramps(c):
+            downstream.append(_downstream(project, c))
+        if (
             c.source_end > s_lo
             and c.source_start < s_hi
             and (c.track_id == edit.track_id or (edit.source_id and c.source_id == edit.source_id))
@@ -242,6 +247,7 @@ def _payload(
             )
     heard.sort(key=repr)
     elsewhere.sort(key=repr)
+    downstream.sort(key=repr)
     track_ids = [t.id for t in project.tracks]
     pairs: set[tuple[str, str | None]] = {(str(h[0]), h[1]) for h in heard}
     pairs |= {(str(e[0]), cast("str | None", e[1])) for e in elsewhere}
@@ -283,6 +289,7 @@ def _payload(
         "span": [float(span[0]), float(span[1])],
         "heard": heard,
         "elsewhere": elsewhere,
+        "downstream": downstream,
         "tracks": [t.model_dump(mode="json") for t in project.tracks],
         "sources": [s.model_dump(mode="json") for s in project.sources],
         "chains": [c.model_dump(mode="json") for c in project.processing_chains],
@@ -326,6 +333,42 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
         [r.model_dump(mode="json") for r in clip.mute_regions],
         [r.model_dump(mode="json") for r in clip.off_speaker_mute_regions],
         clip.bleed_restore.model_dump(mode="json") if clip.bleed_restore else None,
+    ]
+
+
+def _ramps(clip: Any) -> bool:
+    return bool(clip.fade_in_ms or clip.fade_out_ms or clip.join_in_mode != ClipJoinMode.FADE)
+
+
+def _downstream(project: EpisodeProject, clip: Any) -> list[Any]:
+    """A ramping clip past the window: its source span, its fades and the words they cover.
+
+    The check assesses every fade ramp on the timeline, so one outside the window still moves
+    the verdict. It is read on the source clock, so a ripple from a cut elsewhere leaves it alone.
+    """
+    transcript = project.transcript_for_source(clip.track_id, clip.source_id)
+    edges = (
+        (clip.source_start, clip.fade_in_ms / 1000.0 + 1.0),
+        (clip.source_end, clip.fade_out_ms / 1000.0 + 1.0),
+    )
+    return [
+        clip.track_id,
+        clip.source_id,
+        clip.source_start,
+        clip.source_end,
+        clip.fade_in_ms,
+        clip.fade_out_ms,
+        clip.join_in_mode.value,
+        [
+            [
+                w.model_dump(mode="json")
+                for w in transcript.words
+                if w.end >= at - r and w.start <= at + r
+            ]
+            if transcript is not None
+            else []
+            for at, r in edges
+        ],
     ]
 
 
