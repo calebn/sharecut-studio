@@ -114,4 +114,28 @@ describe("QueueRow", () => {
     expect(screen.getByRole("img", { name: "Unread" })).toBeInTheDocument();
     expect(screen.getByText("Waiting to send")).toBeInTheDocument();
   });
+
+  it("reads a session-level note with no time chip", () => {
+    render(
+      <QueueRow kind="comment" author={{ name: "Rosa" }} snippet="Open cold" />,
+    );
+    expect(screen.getByText("session note")).toBeInTheDocument();
+    expect(screen.queryByText(/\d:\d\d/)).toBeNull();
+  });
+
+  it("draws the lock and names host-only rows", () => {
+    const { container } = render(
+      <QueueRow
+        kind="comment"
+        author={{ name: "Rosa" }}
+        snippet="Lift Jon"
+        time="12:06"
+        restricted
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /Lift Jon.*Host and producers only/ }),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".sys-queue-restricted")).not.toBeNull();
+  });
 });

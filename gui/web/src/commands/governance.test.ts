@@ -98,6 +98,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/ScriptPane.tsx",
   // The seam's button hands its keys and a roving tab index to the host that moves focus among marks; the script pane does so for its cut pills, which join the pane's one tab stop.
   "system/Seam.tsx",
+  // The notes composer is one field: Enter sends and Shift+Enter adds a line, and an IME's own Enter (isComposing or keyCode 229) never sends.
+  "system/NotesRail.tsx",
   "commands/governance.test.ts",
 ]);
 
