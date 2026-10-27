@@ -87,6 +87,8 @@ class _PlayCache:
                     or index >= _PLAY_CACHE_MAX_FILES
                 ):
                     path.unlink(missing_ok=True)
+                    if path.name.startswith("session_"):
+                        path.with_suffix(".json").unlink(missing_ok=True)
                 unprotected_index += 1
         return out_dir
 

@@ -238,3 +238,121 @@ def pending_preview_audio(
         raise coded_exception_error(404, exc, code="pending_edit_not_found") from exc
     except ValueError as exc:
         raise bad_request_error(exc) from exc
+
+
+def _session_heard(
+    request: Request, path: str, token: str | None, x_podcast_token: str | None
+) -> tuple[Any, Any]:
+    from podcast_mcp.gui.routes.deps import require_host
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    return ws, SessionSuggestionService(ws)
+
+
+@router.post("/api/session-suggestion/warm")
+def session_suggestion_warm(
+    request: Request,
+    path: str = Query(...),
+    suggestion_id: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    """Render a pending session's Current and Suggested windows ahead of the first Play."""
+    from podcast_mcp.util.process import low_priority
+    from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
+
+    _ws, service = _session_heard(request, path, token, x_podcast_token)
+    try:
+        with low_priority():
+            return service.warm(suggestion_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC)
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="session_suggestion_not_found") from exc
+    except TranscriptRefineRequiredError as exc:
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
+    except ValueError as exc:
+        raise bad_request_error(exc) from exc
+
+
+@router.get("/api/session-suggestion/hear")
+def session_suggestion_hear(
+    request: Request,
+    path: str = Query(...),
+    suggestion_id: str = Query(...),
+    mode: Literal["current", "suggested", "ab"] = Query("ab"),
+    take_index: int | None = Query(None),
+    pad_sec: float = Query(1.5, ge=0, le=10),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    """What a pending session sounds like before and after Accept: windows, lengths and speech.
+
+    The WAVs are served by ``/api/session-suggestion/hear-wav`` with the same query.
+    """
+    ws, service = _session_heard(request, path, token, x_podcast_token)
+    try:
+        heard = _hear_session(ws, service, suggestion_id, mode, take_index, pad_sec)
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="session_suggestion_not_found") from exc
+    except TranscriptRefineRequiredError as exc:
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
+    except ValueError as exc:
+        raise bad_request_error(exc) from exc
+    # The page asks for audio by route, not by a path on the host's disk.
+    heard.pop("wav", None)
+    heard.pop("player", None)
+    for side in ("current", "suggested"):
+        if heard[side] is not None:
+            heard[side].pop("wav", None)
+    return heard
+
+
+@router.get("/api/session-suggestion/hear-wav")
+def session_suggestion_hear_wav(
+    request: Request,
+    path: str = Query(...),
+    suggestion_id: str = Query(...),
+    mode: Literal["current", "suggested", "ab"] = Query("suggested"),
+    take_index: int | None = Query(None),
+    pad_sec: float = Query(1.5, ge=0, le=10),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    from pathlib import Path
+
+    from podcast_mcp.gui.audio import pinned_audio_response
+
+    ws, service = _session_heard(request, path, token, x_podcast_token)
+    try:
+        heard = _hear_session(ws, service, suggestion_id, mode, take_index, pad_sec)
+        audio = Path(heard["wav"])
+        return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="session_suggestion_not_found") from exc
+    except TranscriptRefineRequiredError as exc:
+        raise coded_http_error(409, str(exc), code=exc.code) from exc
+    except ValueError as exc:
+        raise bad_request_error(exc) from exc
+
+
+def _hear_session(
+    ws: Any,
+    service: Any,
+    suggestion_id: str,
+    mode: str,
+    take_index: int | None,
+    pad_sec: float,
+) -> dict[str, Any]:
+    from podcast_mcp.util.project_state import render_lock
+
+    # A window already rendered (by the warm) is a file read: it waits for no render,
+    # approve or other holder of the lock.
+    heard = service.cached_preview(suggestion_id, mode=mode, take_index=take_index, pad_sec=pad_sec)
+    if heard is None:
+        with render_lock(ws.project), ws.transaction():
+            heard = service.preview(
+                suggestion_id, mode=mode, take_index=take_index, pad_sec=pad_sec, dry_run=True
+            )
+    return heard
