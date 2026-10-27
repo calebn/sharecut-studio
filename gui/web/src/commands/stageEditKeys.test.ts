@@ -54,7 +54,7 @@ describe("edit keys follow the stage", () => {
     }
   });
 
-  it.each(["review", "deliver", "prepare"] as StageId[])(
+  it.each(["prepare", "review", "deliver", "record"] as StageId[])(
     "does nothing on %s with a clip still selected, and works again back on Edit",
     (stage) => {
       const selection = useDawStore.getState().selection;
