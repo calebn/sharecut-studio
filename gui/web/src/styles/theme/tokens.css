@@ -141,16 +141,21 @@
      floor, and the Script pane gives way first, down to its own floor. */
   --stage-lane-min: 22rem;
   --stage-script-floor: 12rem;
-  /* What the Edit stage keeps above an open inspector sheet so a pin or a clip
-     stays in reach of the next tap: the app header, the surface and tool rows
-     (a control and its padding each), the ruler, the marker lane, one lane
-     with its bleed band row, and the keep-clear gap. */
-  --sheet-lane-clearance: calc(
+  /* What the Edit stage keeps above an open inspector sheet so the page still
+     reads as the page: the app header, the row the surface switch and the
+     tools share (a control and its padding), the ruler and the marker lane. */
+  --sheet-chrome-clearance: calc(
     var(--app-header-height) +
+    var(--control-height) +
     2 *
-    (var(--control-height) + 2 * var(--space-1)) +
+    var(--space-1) +
     var(--ruler-height) +
-    var(--marker-lane-height) +
+    var(--marker-lane-height)
+  );
+  /* The same plus one lane with its bleed band row and the keep-clear gap, so a
+     pin or a clip stays in reach of the next tap. */
+  --sheet-lane-clearance: calc(
+    var(--sheet-chrome-clearance) +
     var(--lane-height) +
     var(--control-height) +
     var(--space-3)
