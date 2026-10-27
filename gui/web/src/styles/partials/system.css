@@ -868,6 +868,11 @@ html[data-frame-short] .sys-header-right {
   display: none;
 }
 
+html[data-frame-short] .sys-header-left > .sys-header-menu,
+html[data-frame-short] .sys-header-left > .sys-header-guest {
+  flex: 1 1 0;
+}
+
 html[data-frame-short] .sys-header-project .sys-header-title {
   position: absolute;
   inline-size: 1px;
