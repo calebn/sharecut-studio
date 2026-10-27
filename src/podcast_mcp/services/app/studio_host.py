@@ -495,13 +495,17 @@ def _cancel(host: StudioHost, run_id: str | None) -> None:
     if run_id is None:
         return
     try:
-        conn = _connection(host, PING_TIMEOUT_SEC)
+        conn = _PingConnection(host.host, host.port, deadline=time.monotonic() + PING_TIMEOUT_SEC)
+        response: http.client.HTTPResponse | None = None
         try:
             conn.request(
                 "POST", f"{HANDOFF_CANCEL_PATH}?run={quote(run_id)}", headers=_headers(host)
             )
-            conn.getresponse().read()
+            response = conn.getresponse()
+            response.read()
         finally:
+            if response is not None:
+                response.close()
             conn.close()
     except (OSError, http.client.HTTPException):
         log.debug("cancel request to Studio failed", exc_info=True)
