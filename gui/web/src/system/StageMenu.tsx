@@ -1,8 +1,20 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Menu, MenuItem } from "../ui";
 import { Badge, type StageBarProps } from "./StageBar";
 import { SystemIcon } from "./SystemIcon";
 import { STAGES } from "./verbs";
+
+type StageMenuProps = Partial<
+  Pick<StageBarProps, "active" | "onSelect" | "stages" | "badges" | "live">
+> & {
+  /**
+   * Rows after the stages: what the header's right side holds (Follow, search,
+   * Invite), for a header too narrow or too short to show it. Without stages
+   * (a Viewer or Commenter link, or a window whose Stage bar stays in the
+   * header) the menu is these rows alone, behind a More button.
+   */
+  extras?: ReactNode;
+};
 
 /**
  * The tab bar's stages as a menu, for the compact header of a window too short
@@ -15,32 +27,45 @@ export function StageMenu({
   stages,
   badges,
   live,
-}: Pick<StageBarProps, "active" | "onSelect" | "stages" | "badges" | "live">) {
+  extras,
+}: StageMenuProps) {
   const [open, setOpen] = useState(false);
-  const shown = STAGES.filter((stage) =>
-    stages ? stages.includes(stage.id) : true,
-  );
+  const shown = onSelect
+    ? STAGES.filter((stage) => (stages ? stages.includes(stage.id) : true))
+    : [];
   const current = shown.find((stage) => stage.id === active) ?? shown[0];
-  if (!current) return null;
+  if (!current && !extras) return null;
   return (
     <Menu
       open={open}
       onOpenChange={setOpen}
-      label="Stages"
+      label={current ? "Stages" : "More"}
       className="ui-menu-root sys-menu sys-header-stage-menu"
-      trigger={(props) => (
-        <button
-          type="button"
-          className="sys-icon-btn sys-header-stage-button"
-          aria-label={`Stage menu, ${current.label}`}
-          title="Stages"
-          {...props}
-        >
-          <SystemIcon name={current.icon} size={16} />
-          <span className="sys-header-stage-label">{current.label}</span>
-          <SystemIcon name="chevron-down" size={16} />
-        </button>
-      )}
+      trigger={(props) =>
+        current ? (
+          <button
+            type="button"
+            className="sys-icon-btn sys-header-stage-button"
+            aria-label={`Stage menu, ${current.label}`}
+            title="Stages"
+            {...props}
+          >
+            <SystemIcon name={current.icon} size={16} />
+            <span className="sys-header-stage-label">{current.label}</span>
+            <SystemIcon name="chevron-down" size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="sys-icon-btn sys-header-more-button"
+            aria-label="More"
+            title="More"
+            {...props}
+          >
+            <SystemIcon name="ellipsis" size={16} />
+          </button>
+        )
+      }
     >
       {shown.map((stage) => {
         const badge =
@@ -52,7 +77,7 @@ export function StageMenu({
             key={stage.id}
             onSelect={() => {
               setOpen(false);
-              onSelect(stage.id);
+              onSelect?.(stage.id);
             }}
           >
             <SystemIcon name={stage.icon} size={16} />
@@ -65,6 +90,7 @@ export function StageMenu({
           </MenuItem>
         );
       })}
+      {extras}
     </Menu>
   );
 }

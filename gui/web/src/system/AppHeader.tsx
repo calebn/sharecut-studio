@@ -37,6 +37,12 @@ export type AppHeaderProps = {
   toolsSlot?: ReactNode;
   /** The window is short: the Stage menu and the Tools slot show, because the tab bar and the Edit rows are folded in. */
   compact?: boolean;
+  /**
+   * The Stage bar is not in the header while it is compact (the phone: the tab
+   * bar is folded in), so the Stage menu lists the stages. Off the phone the bar
+   * stays, and the menu holds only what the right side held. Default true.
+   */
+  stagesInMenu?: boolean;
   /** A guest: the title gets a second line with the version and a Role chip. */
   guest?: { version: string; role: "Editor" | "Commenter" | "Viewer" };
   recent?: readonly string[];
@@ -233,6 +239,7 @@ export function AppHeader({
   menuPeople,
   toolsSlot,
   compact = false,
+  stagesInMenu = true,
   guest,
   recent,
   appearance,
@@ -251,8 +258,27 @@ export function AppHeader({
   const shown = people.slice(0, MAX_AVATARS);
   const extra = people.length - shown.length;
   const canEdit = !guest || guest.role === "Editor";
+  // Inviting is the host's: a link of any role cannot share the project.
+  const canInvite = !guest;
   const host = useRef<HTMLElement>(null);
   const rightGivesWay = useNarrowHeader(host) || compact;
+  // What the right side holds moves into the Stage menu while it gives way, so
+  // a link with no Project menu (a Viewer or Commenter) keeps Follow and search.
+  const extras = rightGivesWay ? (
+    <>
+      {menuPeople}
+      {onPalette ? (
+        <MenuItem onSelect={() => onPalette()}>
+          <Row icon="search">Search commands and people</Row>
+        </MenuItem>
+      ) : null}
+      {canInvite && onInvite ? (
+        <MenuItem onSelect={() => onInvite()}>
+          <Row icon="user-plus">Invite</Row>
+        </MenuItem>
+      ) : null}
+    </>
+  ) : undefined;
   return (
     <header
       ref={host}
@@ -279,7 +305,7 @@ export function AppHeader({
               appearance={appearance}
               onCommand={onMenuCommand}
               onRename={onRename}
-              onInvite={canEdit ? onInvite : undefined}
+              onInvite={canInvite ? onInvite : undefined}
               onPalette={onPalette}
               people={menuPeople}
             />
@@ -313,9 +339,12 @@ export function AppHeader({
               </span>
             </>
           ) : null}
-          {compact && (stages || toolsSlot) ? (
+          {rightGivesWay ? (
             <div className="sys-header-short">
-              {stages ? <StageMenu {...stages} /> : null}
+              <StageMenu
+                {...(compact && stagesInMenu ? stages : undefined)}
+                extras={extras}
+              />
               {toolsSlot}
             </div>
           ) : null}
@@ -355,7 +384,9 @@ export function AppHeader({
                   ) : null}
                 </ul>
               ) : null}
-              {canEdit ? <VerbButton verb="invite" onClick={onInvite} /> : null}
+              {canInvite ? (
+                <VerbButton verb="invite" onClick={onInvite} />
+              ) : null}
               <VerbButton verb="palette" onClick={onPalette} />
             </>
           )}

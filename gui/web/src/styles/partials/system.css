@@ -874,6 +874,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 }
 
 .sys-header-stage-button,
+.sys-header-more-button,
 .header-tools-button {
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);

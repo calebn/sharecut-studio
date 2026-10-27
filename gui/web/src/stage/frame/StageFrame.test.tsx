@@ -128,6 +128,19 @@ describe("StageFrame roles", () => {
     ).toEqual(["Edit", "Review"]);
   });
 
+  it("gives an Editor link no Invite: only the host shares", () => {
+    useDawStore.setState({ guestMode: "edit" });
+    mount();
+    expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+  });
+
+  it("gives a Commenter link no Invite", () => {
+    useDawStore.setState({ guestMode: "comment", stage: "review" });
+    mount();
+    expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
+  });
+
   it("gives a Viewer link no Stage bar at all", () => {
     useDawStore.setState({ guestMode: "view", stage: "review" });
     mount();
