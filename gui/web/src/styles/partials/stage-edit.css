@@ -117,16 +117,12 @@
   }
 }
 
-/* A frame too narrow for the lanes, the Script's floor and the Inspector column
-   (22 + 12 + 17.5 rem, as at large text on a desktop window) lets the Script
-   give way while the column is open, so the column stays inside the stage. */
-@container app (max-width: 52rem) {
-  .edit-workspace--side.edit-workspace--inspector:not(
-      .edit-workspace--script-focus
-    )
-    :is(.edit-divider-slot, .edit-script) {
-    display: none;
-  }
+/* EditWorkspace measures the side layout against the track headers, the lane
+   floor, the Script's floor, the divider and the Inspector column; the pane it
+   names gives way and its toggle keeps offering it. */
+.edit-workspace--yield-script :is(.edit-divider-slot, .edit-script),
+.edit-workspace--yield-inspector .edit-inspector {
+  display: none;
 }
 
 /* The tool strip fills the corner box above the track headers. */

@@ -141,6 +141,11 @@ export async function openProject(
  */
 export async function reloadProject(page: Page): Promise<void> {
   await page.reload();
+  await waitForLanding(page);
+}
+
+/** Wait for the frame to be up and the landing stage to have been picked. */
+export async function waitForLanding(page: Page): Promise<void> {
   await waitForFrame(page);
   await expect(saveStatus(page)).toBeVisible();
 }

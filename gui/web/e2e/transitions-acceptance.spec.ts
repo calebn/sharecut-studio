@@ -10,7 +10,7 @@ import {
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import { openProject } from "./stageNav";
+import { openProject, waitForLanding } from "./stageNav";
 
 let projectPath: string;
 let workspaceDir: string;
@@ -159,6 +159,7 @@ test("pending suggestions preserve drafts and save the displayed full range once
     // The phone timeline's drawer opens at full height, with the inspector.
     await rememberInspectorDetent(phone, "full");
     await phone.goto(page.url());
+    await waitForLanding(phone);
     await openPhoneTimeline(phone);
     await phone
       .locator(`.pending-overlay[data-pending-id="${editId}"] .pending-hit`)
@@ -391,11 +392,6 @@ test("touch seam, fade corners, and trim strips retain distinct hit areas", asyn
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "24px";
     });
-    // At 24px text the Script and the Inspector leave the lanes 13rem; the
-    // seam is wider than the first clip. Read the lanes with Script hidden.
-    const scriptToggle = page.locator(".edit-corner-script");
-    await scriptToggle.click();
-    await expect(scriptToggle).toHaveAttribute("aria-pressed", "false");
     await lane.locator(".clip-block").nth(1).locator(".clip-hit").tap();
     const seam = lane.locator("button.join-seam");
     const s = (await seam.boundingBox())!;
