@@ -6,6 +6,8 @@ import subprocess
 from collections import defaultdict
 from pathlib import Path, PurePosixPath
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 _IMPORTABLE = {"ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"}
 
@@ -51,3 +53,55 @@ def test_tracked_paths_do_not_collide_on_case_insensitive_filesystems() -> None:
         "These tracked paths differ only in case and collide on case-insensitive "
         "checkouts; rename one of each group (git mv)."
     )
+
+
+def _index_repo(root: Path, paths: list[str]) -> None:
+    """Make a repo whose index holds `paths` (no working-tree files, so any filesystem works)."""
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    blob = (
+        subprocess.run(
+            ["git", "-C", str(root), "hash-object", "-w", "--stdin"],
+            input=b"x",
+            check=True,
+            capture_output=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    for path in paths:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"100644,{blob},{path}",
+            ],
+            check=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        ([], []),
+        (["a/b.ts", "c.py"], []),
+        (
+            ["src/ReviewQueue.tsx", "src/reviewQueue.ts"],
+            [["src/ReviewQueue.tsx", "src/reviewQueue.ts"]],
+        ),
+        (["foo.ts", "foo.tsx"], []),
+        (["README.md", "readme.txt"], []),
+        (["Foo.TXT", "foo.txt"], [["Foo.TXT", "foo.txt"]]),
+        (["docs/a.md", "Docs/b.md"], [["Docs/b.md", "docs/a.md"]]),
+        (["docs", "Docs/x.md"], [["Docs/x.md", "docs"]]),
+        (["foo.d.ts", "Foo.ts"], [["Foo.ts", "foo.d.ts"]]),
+    ],
+)
+def test_case_collisions_scenarios(
+    tmp_path: Path, files: list[str], expected: list[list[str]]
+) -> None:
+    _index_repo(tmp_path, files)
+    assert _case_collisions(tmp_path) == expected
