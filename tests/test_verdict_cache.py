@@ -183,23 +183,27 @@ def test_every_input_of_the_check_changes_the_key(
     assert key() != base  # the same recording plays again somewhere else
 
 
-def test_a_long_clip_fade_still_caches_and_widens_the_window(tmp_path: Path) -> None:
+def test_a_fade_inside_a_second_widens_the_window_and_a_longer_one_is_not_cached(
+    tmp_path: Path,
+) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
     kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     project.clips = [
-        Clip(id="a", track_id="host", source_start=0, source_end=12.5, timeline_start=0),
-        Clip(id="b", track_id="host", source_start=12.5, source_end=SECONDS, timeline_start=12.5),
+        Clip(id="a", track_id="host", source_start=0, source_end=12.0, timeline_start=0),
+        Clip(id="b", track_id="host", source_start=12.0, source_end=SECONDS, timeline_start=12.0),
     ]
     assert base is not None
     assert verdict_cache.verdict_key(project, edit, **kwargs) == base
-    project.clips[1].fade_in_ms = 3000
-    long_fade = verdict_cache.verdict_key(project, edit, **kwargs)
-    assert long_fade is not None and long_fade != base
-    project.clips[1].fade_in_ms = 3100
-    assert verdict_cache.verdict_key(project, edit, **kwargs) != long_fade
-    assert verdict_cache.key_parts(project, edit, **kwargs) is not None
+    project.clips[1].fade_in_ms = 800
+    widened = verdict_cache.verdict_key(project, edit, **kwargs)
+    assert widened is not None and widened != base
+    project.clips[1].fade_in_ms = 1000
+    assert verdict_cache.verdict_key(project, edit, **kwargs) not in (None, widened)
+    project.clips[1].fade_in_ms = 1001
+    assert verdict_cache.verdict_key(project, edit, **kwargs) is None
+    assert verdict_cache.key_parts(project, edit, **kwargs) is None
 
 
 def test_a_cut_far_from_the_window_does_not_change_the_key(tmp_path: Path, cache_on: None) -> None:

@@ -45,6 +45,7 @@ ENABLE_ENV = "PODCAST_VERDICT_CACHE"
 VERIFY_ENV = "PODCAST_VERDICT_VERIFY"
 READ_SEC = 6.0
 PAUSE_REACH_FLOOR_SEC = 13.0
+LONG_FADE_NO_CACHE_SEC = 1.0
 _ENTRIES = 512
 
 
@@ -168,10 +169,18 @@ def verdict_key(
     span: tuple[float, float],
 ) -> str | None:
     """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable."""
+    if _has_long_fade(project):
+        return None
     try:
         return _key(project, edit, defaults, manual, batch, span)
     except (OSError, ValueError, KeyError):
         return None
+
+
+def _has_long_fade(project: EpisodeProject) -> bool:
+    return any(
+        max(c.fade_in_ms, c.fade_out_ms) > LONG_FADE_NO_CACHE_SEC * 1000 for c in project.clips
+    )
 
 
 def key_parts(
@@ -184,6 +193,8 @@ def key_parts(
     span: tuple[float, float],
 ) -> dict[str, str] | None:
     """A digest per input of the key, to see which input made a check miss (lab); ``None`` as ``verdict_key``."""
+    if _has_long_fade(project):
+        return None
     try:
         payload = _payload(project, edit, defaults, manual, batch, span)
     except (OSError, ValueError, KeyError):

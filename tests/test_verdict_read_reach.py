@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import session_air, verdict_cache
+from podcast_mcp.edits import breath_detect, session_air, verdict_cache
 from podcast_mcp.edits.audio_cache import BandLevels
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.engines import align
@@ -22,6 +22,7 @@ from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.models import (
     Clip,
     CutIntent,
+    EditDecision,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -193,32 +194,39 @@ def test_a_pause_in_a_long_silence_widens_the_window_to_the_words_it_observes(
     assert verdict_cache.check_reach_sec(project, edit, CUT, defaults) > 13.0
 
 
+def _key_with_host_joins(
+    project: EpisodeProject, edit: EditDecision, *host_edges: float
+) -> str | None:
+    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": CUT}
+    guest = Clip(id="guest", track_id="guest", source_start=0, source_end=SECONDS, timeline_start=0)
+    edges = [0.0, *host_edges, float(SECONDS)]
+    project.clips = [
+        Clip(id=f"h{i}", track_id="host", source_start=a, source_end=b, timeline_start=a)
+        for i, (a, b) in enumerate(itertools.pairwise(edges))
+    ] + [guest]
+    return verdict_cache.verdict_key(project, edit, **kwargs)
+
+
 def test_a_clip_boundary_inside_the_observed_words_of_a_pause_changes_its_key(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path, "pause:long", LONG_SILENCE)
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": CUT}
-    guest = Clip(id="guest", track_id="guest", source_start=0, source_end=SECONDS, timeline_start=0)
-
-    def key(*host_edges: float) -> str | None:
-        edges = [0.0, *host_edges, float(SECONDS)]
-        project.clips = [
-            Clip(id=f"h{i}", track_id="host", source_start=a, source_end=b, timeline_start=a)
-            for i, (a, b) in enumerate(itertools.pairwise(edges))
-        ] + [guest]
-        return verdict_cache.verdict_key(project, edit, **kwargs)
-
-    base = key()
+    base = _key_with_host_joins(project, edit)
     assert base is not None
-    assert key(47.0) != base
-    assert key(55.0) == base
+    assert _key_with_host_joins(project, edit, 47.0) != base
+    assert _key_with_host_joins(project, edit, 55.0) == base
 
 
-def test_a_pause_is_never_keyed_narrower_than_the_floor(tmp_path: Path) -> None:
+def test_the_pause_floor_is_thirteen_seconds_of_key_window(tmp_path: Path) -> None:
     project = _project(tmp_path, "pause:near", [38.0, 39.0, 41.0, 42.0])
-    defaults = load_defaults()
-    assert (
-        verdict_cache.check_reach_sec(project, project.edit_decisions[0], CUT, defaults)
-        == verdict_cache.PAUSE_REACH_FLOOR_SEC
-    )
+    edit = project.edit_decisions[0]
+    assert verdict_cache.PAUSE_REACH_FLOOR_SEC == 13.0
+    base = _key_with_host_joins(project, edit)
+    assert base is not None
+    assert _key_with_host_joins(project, edit, 52.9) != base
+    assert _key_with_host_joins(project, edit, 53.9) == base
+
+
+def test_the_read_distance_covers_the_breath_context_and_the_voiced_run_reach() -> None:
+    assert verdict_cache.READ_SEC >= breath_detect._LEVEL_CONTEXT_SEC + 0.5
