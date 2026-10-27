@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 
 from podcast_mcp.edits.cut_policy import (
     CutJoin,
@@ -46,6 +46,25 @@ from podcast_mcp.engines.timeline_render import placed_track_audio
 from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.tracks import recording_audio_path
+
+_SourceEffect: TypeAlias = tuple[float, float, CutJoin, bool, GainRamp | MuteSampleEnvelope | None]
+
+
+def _prior_covers_effect(previous: _SourceEffect, current: _SourceEffect) -> bool:
+    prior_start, prior_end, prior_join, prior_retained, prior_envelope = previous
+    start, end, join, retained, envelope = current
+    if (join, retained) != (prior_join, prior_retained):
+        return False
+    if isinstance(prior_envelope, GainRamp) and isinstance(envelope, GainRamp):
+        return (
+            prior_envelope.rising == envelope.rising
+            and prior_envelope.curve == envelope.curve
+            and abs(prior_envelope.start - envelope.start) <= SOURCE_GEOMETRY_TOLERANCE_SEC
+            and abs(prior_envelope.end - envelope.end) <= SOURCE_GEOMETRY_TOLERANCE_SEC
+            and max(0.0, prior_start - start) <= SOURCE_GEOMETRY_TOLERANCE_SEC
+            and max(0.0, end - prior_end) <= SOURCE_GEOMETRY_TOLERANCE_SEC
+        )
+    return prior_start <= start and end <= prior_end and envelope == prior_envelope
 
 
 def _probe_on_miss(path: Path) -> ffmpeg.AudioProbe:
@@ -148,11 +167,9 @@ def completed_audio_effects(
 
         def envelopes(
             leaf: PlacedSource,
-        ) -> list[tuple[float, float, CutJoin, bool, GainRamp | MuteSampleEnvelope | None]]:
+        ) -> list[_SourceEffect]:
             source = leaf.source
-            result: list[
-                tuple[float, float, CutJoin, bool, GainRamp | MuteSampleEnvelope | None]
-            ] = [
+            result: list[_SourceEffect] = [
                 (source.src_start, source.src_start, CutJoin.SPLICE, False, None),
                 (source.src_end, source.src_end, CutJoin.SPLICE, False, None),
             ]
@@ -200,10 +217,8 @@ def completed_audio_effects(
             previous = envelopes(old[binding]) if binding is not None else []
             for start, end, join, retained, envelope in envelopes(leaf):
                 if not any(
-                    prior_start <= start
-                    and end <= prior_end
-                    and (join, retained, envelope) == (prior_join, prior_retained, prior_envelope)
-                    for prior_start, prior_end, prior_join, prior_retained, prior_envelope in previous
+                    _prior_covers_effect(prior, (start, end, join, retained, envelope))
+                    for prior in previous
                 ):
                     append(
                         leaf,

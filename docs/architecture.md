@@ -190,6 +190,14 @@ alone, from its file, so a retained recording's sound is never taken for removed
 removed one is never hidden behind it.
 Raw transcript spans remain the separate authority for room calibration and voice anchors.
 
+Completed cut effects compare envelopes within their bound BEFORE playback occurrence.
+Gain ramps keep exact direction, curve, join kind, and retained status. Their source
+endpoints and outward interval excess may differ by at most
+`SOURCE_GEOMETRY_TOLERANCE_SEC` of one microsecond, with no relative allowance.
+This suppresses reconstruction drift after a ripple, but also suppresses genuine
+ramp changes within that bound. Emitted coordinates stay unchanged. Native mute
+sample counts and gain, other envelopes, and their interval containment stay exact.
+
 Pause effects change only their owned edge. A left effect changes the outgoing
 fade and preserves the clip's earlier incoming join. A right effect selects the
 new incoming fade. The render cache revision includes these semantics.
