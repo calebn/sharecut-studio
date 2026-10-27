@@ -15,7 +15,7 @@ from __future__ import annotations
 import unicodedata
 from typing import Any
 
-from podcast_mcp.edits.cut_policy import sound_kind
+from podcast_mcp.edits.cut_policy import review_kind, sound_kind
 from podcast_mcp.edits.tighten_reasons import (
     PAUSE_REASON_PREFIX,
     RESTART_PARTIAL_REASON_PREFIX,
@@ -24,13 +24,10 @@ from podcast_mcp.edits.tighten_reasons import (
 )
 from podcast_mcp.models import EditDecision
 
-TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
-
 
 def is_tighten_reason(reason: str | None) -> bool:
     """True for pending tighten proposals."""
-    text = reason or ""
-    return text.startswith(TIGHTEN_REASON_PREFIXES)
+    return review_kind(reason) != "other"
 
 
 def join_risk_from_decision(decision: EditDecision) -> dict[str, Any] | None:
