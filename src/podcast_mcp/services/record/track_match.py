@@ -17,7 +17,8 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import partial
 from typing import Literal
 
 from podcast_mcp.edits.session_suggestions import list_session_suggestions
@@ -131,46 +132,79 @@ def resolve_session_tracks(
     by_name: dict[str, list[str]] = {}
     for track_id, label in pool.items():
         by_name.setdefault(normalize_name(label), []).append(track_id)
+    # Only people who are still here, or whose takes are already in, can make a name ambiguous.
     people_by_name: dict[str, int] = {}
     for p in recorded:
-        key = normalize_name(p.display_name)
-        people_by_name[key] = people_by_name.get(key, 0) + 1
+        if not p.removed or p.participant_id in held:
+            key = normalize_name(p.display_name)
+            people_by_name[key] = people_by_name.get(key, 0) + 1
 
+    def build(
+        p: ParticipantState,
+        status: MatchStatus,
+        track_id: str,
+        reason: str,
+        message: str,
+        candidates: tuple[tuple[str, str], ...] = (),
+    ) -> TrackMatch:
+        label = labels.get(track_id) or p.display_name or p.participant_id
+        return TrackMatch(
+            p.participant_id, p.display_name, p.role, status, track_id, label, reason, message,
+            candidates,
+        )  # fmt: skip
+
+    def settled(p: ParticipantState, track_id: str, reason: str, how: str) -> TrackMatch:
+        who = p.display_name or "This person"
+        if track_id in pool:
+            return build(
+                p,
+                "matched",
+                track_id,
+                reason,
+                f'{who} {how} the existing track "{pool[track_id]}".',
+            )
+        if reason == "own_track":
+            return build(p, "new", track_id, reason, f"{who} keeps their own track.")
+        return build(p, "new", track_id, reason, f"{who} {how} a new track.")
+
+    # Strongest claim first (held, host choice, own track); a track goes to one person only.
     out: dict[str, TrackMatch] = {}
+    claimed: set[str] = set()
+    gone: set[str] = set()
+
+    def claim(p: ParticipantState, track_id: str, reason: str, how: str) -> None:
+        if track_id not in claimed:
+            claimed.add(track_id)
+            out[p.participant_id] = settled(p, track_id, reason, how)
+
     for p in recorded:
-        pid = p.participant_id
-        fresh = slug_track_id(pid)
-
-        def build(
-            status: MatchStatus,
-            track_id: str,
-            reason: str,
-            message: str,
-            candidates: tuple[tuple[str, str], ...] = (),
-            *,
-            p: ParticipantState = p,
-        ) -> TrackMatch:
-            label = labels.get(track_id) or p.display_name or p.participant_id
-            return TrackMatch(
-                p.participant_id, p.display_name, p.role, status, track_id, label, reason, message,
-                candidates,
-            )  # fmt: skip
-
-        def settled(track_id: str, reason: str, how: str, *, p: ParticipantState = p) -> TrackMatch:
-            if track_id in pool:
-                where = f'on the existing track "{pool[track_id]}"'
-                return build("matched", track_id, reason, f"{p.display_name} {how} {where}.")
-            return build("new", track_id, reason, f"{p.display_name} {how} on a new track.")
-
-        if pid in held:
-            out[pid] = settled(held[pid], "held", "is already recorded in this session")
-        elif pid in choices:
-            out[pid] = settled(choices[pid], "host_choice", "was put by you")
-        elif project.track_by_id(fresh) is not None:
-            out[pid] = settled(fresh, "own_track", "stays")
+        if p.participant_id in held:
+            claim(p, held[p.participant_id], "held", "is already recorded in this session on")
+    for p in recorded:
+        chosen = choices.get(p.participant_id)
+        if chosen is None or p.participant_id in out:
+            continue
+        if chosen == slug_track_id(p.participant_id) or chosen in labels:
+            claim(p, chosen, "host_choice", "was moved there by the host, onto")
         else:
-            out[pid] = _by_name(p.display_name, fresh, pool, by_name, people_by_name, build)
-    return out
+            gone.add(p.participant_id)
+    for p in recorded:
+        own = slug_track_id(p.participant_id)
+        if p.participant_id not in out and project.track_by_id(own) is not None:
+            claim(p, own, "own_track", "stays on")
+    for p in recorded:
+        if p.participant_id in out:
+            continue
+        match = _by_name(
+            p.display_name, slug_track_id(p.participant_id), pool, by_name, people_by_name,
+            claimed, partial(build, p),
+        )  # fmt: skip
+        if p.participant_id in gone:
+            note = " The track the host chose for them is gone, so this was worked out again."
+            match = replace(match, message=match.message + note)
+        out[p.participant_id] = match
+        claimed.add(match.track_id)
+    return {p.participant_id: out[p.participant_id] for p in recorded}
 
 
 def _by_name(
@@ -179,14 +213,14 @@ def _by_name(
     pool: Mapping[str, str],
     by_name: Mapping[str, list[str]],
     people_by_name: Mapping[str, int],
+    claimed: set[str],
     build: Callable[..., TrackMatch],
 ) -> TrackMatch:
     key = normalize_name(name)
     same = by_name.get(key, []) if key else []
-    if not same:
-        return build("new", fresh, "new", f"{name} is new here, so they get a new track.")
     found = tuple((tid, pool[tid]) for tid in same)
-    if people_by_name.get(key, 0) > 1:
+    who = name or "This person"
+    if key and people_by_name.get(key, 0) > 1:
         return build(
             "ambiguous",
             fresh,
@@ -195,6 +229,8 @@ def _by_name(
             "to an existing track and each gets a new one. Put each on the right track by hand.",
             found,
         )
+    if not same:
+        return build("new", fresh, "new", f"{who} is new here, so they get a new track.")
     if len(same) > 1:
         return build(
             "ambiguous",
@@ -202,6 +238,15 @@ def _by_name(
             "several_tracks",
             f"{len(same)} existing tracks are called {name}, so {name} was not matched and gets a "
             "new track. Put them on the right one by hand.",
+            found,
+        )
+    if same[0] in claimed:
+        return build(
+            "ambiguous",
+            fresh,
+            "track_in_use",
+            f'The track "{pool[same[0]]}" is already used by someone else in this session, so '
+            f"{name} was not matched to it and gets a new track. Put them on the right one by hand.",
             found,
         )
     return build(
