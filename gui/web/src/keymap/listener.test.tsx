@@ -345,7 +345,6 @@ it("lets through only the shortcuts the open modal hands on: M drops a marker in
 
 const GATED_DIALOGS = [
   { title: "Commands and shortcuts", flag: "commandPaletteOpen" },
-  { title: "Bounce", flag: "bounceDialogOpen" },
   { title: "Share", flag: "shareDialogOpen" },
 ] as const;
 
@@ -391,7 +390,6 @@ it("ignores the dialog open flags in the store: only a mounted overlay holds the
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
   setChrome({
     commandPaletteOpen: true,
-    bounceDialogOpen: true,
     shareDialogOpen: true,
   });
   render(<KeymapHost />);
@@ -399,7 +397,6 @@ it("ignores the dialog open flags in the store: only a mounted overlay holds the
   await waitFor(() => expect(vi.mocked(execute)).toHaveBeenCalled());
   setChrome({
     commandPaletteOpen: false,
-    bounceDialogOpen: false,
     shareDialogOpen: false,
   });
 });

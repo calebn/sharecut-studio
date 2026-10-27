@@ -96,13 +96,16 @@ Menu panels (the Project menu, the hear menu) open below their trigger, flip abo
 ├─ ▶  12:34 / 58:39      Hear original   mix ring ───────────────┤
 ```
 
-Storybook `Templates/BounceDialog` previews the production `BounceDialogView`
-behind Deliver and `Mod+Shift+B`; the live `BounceDialog` keeps the job
-start/follow and DAW selection.
-Source choices and export checkboxes share aligned control/text columns and
-44 px minimum label targets. Source, the two export options, and the action
-footer use separate spacing groups; wrapped labels keep the control beside
-their first line. Errors appear above the right-aligned Bounce action.
+Bounce is the Bounce section of the Deliver stage, reached from Deliver,
+`Mod+Shift+B` and Range actions > Bounce. Storybook `Stages/Deliver/Bounce`
+previews it; the host (`stage/hosts/DeliverStage.tsx`) keeps the selection and
+solo counts, and `stage/hosts/bounceFlow.tsx` runs the job above the stages, so
+leaving Deliver keeps it going on the Activity chip. Source is a segmented
+choice (Entire mix, Selected tracks, Soloed tracks); Limit to session region and
+Also write MP3 are toggles. A range chosen in Edit fixes the source until
+"Bounce the whole mix instead". A source without tracks, or a bounce already
+running, disables Bounce with its reason beside it. Progress, Cancel, the
+files written, and Try again after a failure or cancel appear in the section.
 
 ---
 

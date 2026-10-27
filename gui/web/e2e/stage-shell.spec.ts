@@ -152,7 +152,7 @@ test.describe("Stage shell on desktop", () => {
     await expect.poll(waiting).toBeGreaterThan(0);
   });
 
-  test("opens Bounce and the Record room from where they live, and Export is on Deliver", async ({
+  test("opens the Record room from where it lives, and Export and Bounce are on Deliver", async ({
     page,
   }) => {
     await openProject(page);
@@ -160,9 +160,9 @@ test.describe("Stage shell on desktop", () => {
     await expect(
       deliverPage(page).getByRole("button", { name: "Export", exact: true }),
     ).toBeVisible();
-    await openProjectDialog(page, "bounce");
-    await expect(page.getByRole("dialog", { name: /Bounce/ })).toBeVisible();
-    await page.keyboard.press("Escape");
+    await expect(
+      deliverPage(page).getByRole("button", { name: "Bounce", exact: true }),
+    ).toBeVisible();
     await openProjectDialog(page, "record");
     await expect(
       page.getByRole("dialog", { name: "Record room" }),

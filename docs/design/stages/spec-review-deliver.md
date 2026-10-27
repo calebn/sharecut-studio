@@ -516,6 +516,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Spec:** with a range selected anywhere, the action bar's Export icon renders that range of the full mix as WAV immediately (Job row in a toast with Reveal / Download when done). A small chevron next to the icon opens a popover with: source segmented (Full mix / Selected tracks / Soloed) and "Also MP3". In Deliver, Episode file has "Whole episode / Part…" where Part shows In and Out scrub fields.
 - **Shared elements used:** Object selection model (Export verb), Job row, popover.
 - **Story to build:** `Stages/Edit/ExportRange` stories `Default`, `Options`, `Done` (coordinate with Edit worker); `Stages/Deliver/EpisodeFile` `PartOfEpisode`.
+- **Shipped (#2449):** the dialog is gone and Bounce is the Bounce section of Deliver, under Episode file: Source (Entire mix, Selected tracks, Soloed tracks) as a segmented choice, Limit to session region and Also write MP3 as toggles, and a range chosen in Edit fixed until "Bounce the whole mix instead". The job runs above the stages (`stage/hosts/bounceFlow.tsx`), so leaving Deliver keeps it going on the Activity chip; the section shows progress, Cancel, the files written, Try again after a failure or cancel, and the model prompt. The Export-on-a-selection verb above is still to build.
 
 ### DLG-SHARE · Share (incl. created state and record-link section)
 

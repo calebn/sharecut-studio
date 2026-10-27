@@ -595,7 +595,7 @@ An agent region stays a labelled preview until explicitly adopted with lanes.
 
 Host Play renders selected lanes; guest **Play full mix** uses a fresh published
 premix and asks for host Refresh when it is stale. Disjoint islands preserve
-timeline distance as silence. Bounce opens the format dialog with a
+timeline distance as silence. Bounce goes to the Bounce section of Deliver with a
 fixed target. Comment carries exact islands and lanes into its draft.
 Host and Editor Cut/Mute apply; Commenters create one pending action
 (Suggest cut / Suggest mute). Offline guest range edits replay as proposals. A

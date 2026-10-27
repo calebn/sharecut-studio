@@ -28,7 +28,7 @@ The domain composition inventory covered 42 story families. This is a snapshot f
 
 | Area | Story families |
 | --- | --- |
-| Layout (16) | AvatarStack, BottomTabsSplitter, BounceDialog, CommandPalette, EditingToolRail, FollowBanner, GuestAttentionBanner, HostMcpDialog, ListenHero, OverlayLegend, PipelineStatusChip, ShareDialog, StatusBar, ToolModeToggle, TransportFrame, TransportPlayControls |
+| Layout (15) | AvatarStack, BottomTabsSplitter, CommandPalette, EditingToolRail, FollowBanner, GuestAttentionBanner, HostMcpDialog, ListenHero, OverlayLegend, PipelineStatusChip, ShareDialog, StatusBar, ToolModeToggle, TransportFrame, TransportPlayControls |
 | Timeline (12) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EditMarkerLayer, EnvelopeOverlay, JoinPopover, MarkerLane, PendingEditOverlay, PresenceOverlay, StaleInvalidationOverlay, TimeRuler, TimelineRange |
 | Transcript (3) | EditBoundaryMark, GhostWordChips, TranscriptTurn |
 | Comments (2) | CommentCard, CommentCompose |
@@ -66,7 +66,7 @@ the warning is a performance lead, not proof of a visible defect.
 
 | Priority | Follow-up | Verification needed |
 | --- | --- | --- |
-| P2 | Share retains margin-based composition while Bounce uses explicit section/option/footer gaps (`styles/partials/command-palette.css`). Adopt the documented recipe when simplifying Share's creation/list sections. | Long review/record lists, error/status insertion, narrow/short viewports, and lower-action reachability. |
+| P2 | Share retains margin-based composition while Split speakers uses explicit section/option/footer gaps (`styles/partials/command-palette.css`). Adopt the documented recipe when simplifying Share's creation/list sections. | Long review/record lists, error/status insertion, narrow/short viewports, and lower-action reachability. |
 | Resolved | Existing Field hint callers now use explicit description IDs. | Bootstrap and transcript-refinement waiver regressions check the association. |
 | P2 | Check compact SegmentedControl and generic native inputs in any new phone context. Their dense editor baseline is intentional. | Per-context touch dimensions and keyboard behavior; do not enlarge all DAW chrome globally. |
 | P3 | Consider transform-based pipeline fill animation instead of transitioning width. | Measure layout cost during progress updates before changing the implementation; preserve reduced-motion behavior. |

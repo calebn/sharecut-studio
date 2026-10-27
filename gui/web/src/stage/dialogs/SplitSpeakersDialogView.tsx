@@ -129,11 +129,11 @@ export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
         stage.kind === "needsModel" &&
         stage.gate.prompt?.phase === "downloading"
       }
-      panelClassName="bounce-dialog-panel split-speakers-panel"
+      panelClassName="split-speakers-panel"
       initialFocusRef={stage.kind === "configure" ? countRef : undefined}
       footer={<SplitSpeakersFooter {...props} downloadRef={downloadRef} />}
     >
-      <div className="bounce-dialog-body">
+      <div className="split-speakers-body">
         {stage.kind === "configure" ? (
           <SplitSpeakersForm {...props} countRef={countRef} />
         ) : null}
@@ -501,9 +501,9 @@ function SplitSpeakersFooter({
         : null;
   const footerNote = useDisabledReasonNote(footerReason);
   return (
-    <div className="bounce-dialog-footer">
+    <div className="split-speakers-footer">
       {footerNote.note}
-      <div className="bounce-dialog-actions split-speakers-actions">
+      <div className="split-speakers-actions">
         {stage.kind === "configure" ? (
           <Button
             variant="primary"

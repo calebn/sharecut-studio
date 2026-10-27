@@ -181,9 +181,9 @@ view the live `ShareDialog` adapter renders. Stories use fictional
 `hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
 clipboard and the record-panel handoff, and the view owns the in-place Stop
 sharing and End room confirmations.
-`Templates/BounceDialog` renders `BounceDialogView`, the same view the live
-`BounceDialog` adapter renders; the adapter keeps the bounce job start/follow
-and DAW selection state.
+`Stages/Deliver/Bounce` renders the props-only `BounceSection`; the Deliver host
+keeps the DAW selection state and `stage/hosts/bounceFlow.tsx` keeps the bounce
+job start/follow above the stages.
 
 `Organisms/LoadingScreen` and `Organisms/ErrorScreen` show the shared cover
 screens, and `Atoms/CloseButton` shows the one close affordance `Dialog` and
@@ -519,7 +519,7 @@ Hot fields (`playheadSec`, `scrollLeft`, `sessionClients`, `pointerTrackId`, `bl
 
 The DAW state is one Zustand store (`state/dawStore.ts`) composed from project, transport, presence, and UI slice creators. Cross-slice actions such as `hydrate()` and `applyAgentSession()` use one store update so subscribers see a consistent snapshot. Mounted timeline and lane elements and the fixed-playhead lead pad live in `state/timelineViewportRegistry.ts`, outside reactive state; timeline mount/unmount code registers and clears them. Keep new DOM refs out of store slices, and keep `timelineViewportWidth` as the reactive measured/estimated value. Create no other Zustand store; `state/readmeRuleGovernance.test.ts` allows `state/dawStore.ts` plus the two stores that exist today (`feedback/ask.ts`, `record/hostStore.ts`). Only `document/` and `state/projectSlice.ts` call `setProject(`; `state/setProjectGovernance.test.ts` allowlists the two calls in two other files (`inspector/useNudgeRun.ts`, `timeline/precision/precisionDrivers.ts`). Queued envelope, track metadata, track reorder and clip move edits show through the pending drafts instead: the queue begins the draft before its first await, and the writer calls `redisplayDrafts()` (`document/applyDocumentUpdate.ts`). Layer order and back edges are pinned by `test/importDirection.test.ts`. The editor reaches `record/` only through `record/index.ts` (store, wire, transport chip, helpers); `record/boundary.test.ts` fails any other import from outside `record/` (tests, stories, `test/` support and the `api/sharesRecord.ts` leaf types are exempt).
 
-Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate. A file that declares its own `[error, setError] = useState` and also calls the API fails `state/readmeRuleGovernance.test.ts` unless it is one of the 13 allowlisted files.
+Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate. A file that declares its own `[error, setError] = useState` and also calls the API fails `state/readmeRuleGovernance.test.ts` unless it is one of the 10 allowlisted files.
 
 Double-submit guards: use `hooks/useSingleFlight()` (`busy` / `run`) instead of a hand-written ref + state pair; it drops a second `run` before `busy` re-renders (used by keeper recovery actions and Pipeline **Re-time words**).
 

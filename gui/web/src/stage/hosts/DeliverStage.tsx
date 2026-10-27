@@ -22,12 +22,15 @@ import {
   exportRequest,
 } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
+import { selectedTrackIdsOf } from "../../state/selection";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
 import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
+import { useBounceFlow } from "./bounceFlowContext";
 import { DeliverStageView } from "./DeliverStageView";
+import { bounceOptionsOf } from "./deliverBounce";
 import { exportOptionsOf, exportStateOf } from "./deliverExport";
 import {
   type ChapterOp,
@@ -67,6 +70,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     shareCapabilities,
     exportRequested,
     setExportRequested,
+    bounceRequested,
+    setBounceRequested,
+    selection,
+    soloTracks,
+    sessionRegion,
+    bounceRangeTarget,
+    setBounceRangeTarget,
   } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -75,16 +85,25 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       shareCapabilities: s.shareCapabilities,
       exportRequested: s.chrome.exportRequested,
       setExportRequested: s.setExportRequested,
+      bounceRequested: s.chrome.bounceRequested,
+      setBounceRequested: s.setBounceRequested,
+      selection: s.selection,
+      soloTracks: s.soloTracks,
+      sessionRegion: s.sessionRegion,
+      bounceRangeTarget: s.bounceRangeTarget,
+      setBounceRangeTarget: s.setBounceRangeTarget,
     })),
   );
   const exportFlow = useExportFlow();
   const { reload: reloadExportSettings } = exportFlow;
-  const nowSec = useNowSec(exportFlow.run.kind === "running");
+  const bounceFlow = useBounceFlow();
+  const nowSec = useNowSec(
+    exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
+  );
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body");
   const breakdown = useStaleRenderBreakdown(project);
   const exportCmd = useCommand("export.deliverables");
-  const bounceCmd = useCommand("export.bounce");
   const shareCmd = useCommand("share.manage");
   const mayRefreshMix = canRefreshMix(
     projectPath,
@@ -238,7 +257,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         rows={rows}
         onFix={onFix}
         exportAction={action("Export", exportCmd, "export.deliverables")}
-        bounce={action("Bounce…", bounceCmd, "export.bounce")}
         share={action("Share a listen link", shareCmd, "share.manage")}
         shareSlot={(content) => (
           <Slot id={FEATURE_SHARE_UI_MENU}>{content}</Slot>
@@ -294,6 +312,15 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         saveTo=""
         exportState={exportStateOf(exportFlow, nowSec)}
         exportOptions={exportOptionsOf(exportFlow)}
+        bounce={bounceOptionsOf(bounceFlow, nowSec, {
+          selectedCount: selectedTrackIdsOf(selection).length,
+          soloCount: Object.values(soloTracks).filter(Boolean).length,
+          hasRegion: sessionRegion !== null,
+          range: bounceRangeTarget,
+          clearRange: () => setBounceRangeTarget(null),
+          focusRequested: bounceRequested,
+          onFocused: () => setBounceRequested(false),
+        })}
         env="none"
         clock={{ time: "", total: "" }}
         playhead={() => useDawStore.getState().playheadSec}
@@ -330,12 +357,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         }}
       />
       <div className="stage-host-actions">
-        <Button
-          disabledReason={bounceCmd.whenReason}
-          onClick={() => runPointerCommand("export.bounce")}
-        >
-          Bounce…
-        </Button>
         <Slot id={FEATURE_SHARE_UI_MENU}>
           <Button
             disabledReason={shareCmd.whenReason}
@@ -351,7 +372,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
- * and clip edits written back to the document, and the export run by the
- * flow in `DawApp`. Bounce and Share still open their dialogs. Host only.
+ * and clip edits written back to the document, and the export and bounce run
+ * by the flows in `DawApp`. Share still opens its dialog. Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);

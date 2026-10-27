@@ -1046,7 +1046,7 @@ size; nothing is added.
   `gui/web/README.md`. Files outside `api/` import the `api.ts` facade, not
   an `api/*` adapter (26 allowlisted file and adapter pairs in 24 files).
   A file that keeps its own `[error, setError] = useState` beside an API call
-  should use `useProjectMutation` instead (13 allowlisted files). `state/dawStore.ts`
+  should use `useProjectMutation` instead (10 allowlisted files). `state/dawStore.ts`
   is the only DAW store (two other `create` sites allowlisted).
 - `state/storeGovernance.test.ts` keeps its selector and hot-field checks.
 

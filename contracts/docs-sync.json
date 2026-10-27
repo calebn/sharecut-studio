@@ -406,7 +406,8 @@
           "src/podcast_mcp/services/media/bounce.py",
           "src/podcast_mcp/gui/routes/export_routes.py",
           "src/podcast_mcp/export/names.py",
-          "gui/web/src/stage/dialogs/BounceDialog*",
+          "gui/web/src/stage/hosts/bounceFlow*",
+          "gui/web/src/stages/deliver/BounceSection*",
           "gui/web/src/api/exportJobs.ts"
         ]
       }

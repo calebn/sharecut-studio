@@ -121,7 +121,7 @@ describe("hydrate resets", () => {
 
   it("resets the three project-bound chrome flags only on a project switch", () => {
     const flags = {
-      bounceDialogOpen: true,
+      bounceRequested: true,
       exportRequested: true,
       transcriptFindReplaceOpen: true,
     };
@@ -133,7 +133,7 @@ describe("hydrate resets", () => {
     expect(useDawStore.getState().chrome).toMatchObject({ ...flags, ...other });
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     expect(useDawStore.getState().chrome).toMatchObject({
-      bounceDialogOpen: false,
+      bounceRequested: false,
       exportRequested: false,
       transcriptFindReplaceOpen: false,
       ...other,

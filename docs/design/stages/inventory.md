@@ -169,16 +169,15 @@ Dialogs launched from Home are listed in section 7: DLG-MCP, DLG-MODELS, DLG-HEL
 
 ## 7. Dialogs, sheets and popovers
 
-All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Export deliverables is not a dialog any more: it is the Episode file section of the Deliver stage (`stages/deliver/EpisodeFile.tsx`, host `stage/hosts/DeliverStage.tsx`, run by `stage/hosts/exportFlow.tsx`). Stories for dialogs open the dialog by launcher (`test/storyDialog.ts`).
+All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Export deliverables and Bounce are not dialogs any more: they are the Episode file and Bounce sections of the Deliver stage (`stages/deliver/EpisodeFile.tsx`, `stages/deliver/BounceSection.tsx`, host `stage/hosts/DeliverStage.tsx`, run by `stage/hosts/exportFlow.tsx` and `stage/hosts/bounceFlow.tsx`). Stories for dialogs open the dialog by launcher (`test/storyDialog.ts`).
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
-| DLG-BOUNCE | "Bounce…": render a selected range or region to a file | Menu > Project > Bounce…, ⌘⇧B, Range actions > Bounce | `layout/BounceDialog.tsx`, `layout/BounceDialogView.tsx` | `layout/BounceDialogView.stories.tsx` (Ready, NoRegion, Bouncing, NothingSelected, Phone) | View | Quick render of a region |
 | DLG-SHARE | "Share": review links (role, create, copy, Stop sharing confirm), record rooms (guest/producer links, End room confirm), online sharing/tunnel status, MCP URL | Menu > Project > Share… | `layout/ShareDialog.tsx`, `layout/ShareDialogView.tsx`, `layout/TunnelStatusLine.tsx`, `layout/shareCopyKey.ts` | `layout/ShareDialogView.stories.tsx` (Empty, LiveLinks, RecordRoom, MissingProducer, Busy, JustCreated, ClipboardError, OnlineSharingOn, OnlineSharingReconnecting, OnlineSharingNotReachable, OnlineSharingOff, Phone) | View | Invite reviewers and recorders |
 | DLG-MCP | "Connect agent": MCP URL and Cursor snippet, copy buttons, no-episode warning | Home > Connect agent…; Menu > Project > Connect agent… | `layout/HostMcpDialog.tsx`, `layout/hostMcp.ts` | `layout/HostMcpDialog.stories.tsx` (Ready, NoEpisode, Phone) | Props | Wire an AI agent to the project |
 | DLG-HELP | "Help": create diagnostics bundle, description, consent checkbox, Submit report, publication status, Open support | Home > Help; Menu > Help > Export diagnostics… | `home/HelpDialog.tsx` | NONE | Hook (api) | Report a problem with a sanitized bundle |
 | DLG-MODELS | "Models": every model with Download, Update, Retry, Cancel; tool status | Home > Models; command palette "Manage models…" | `models/ModelsDialog.tsx`, `models/ModelRow.tsx`, `models/VariantPicker.tsx` | Row only (`models/ModelRow.stories.tsx`) | Hook (useModels) | Manage local models |
-| DLG-MODEL-GATE | "Download model?" prompt shown before a feature that needs a model (Primary: Download / Downloading… / Retry / Continue; Cancel download) | Run Export, Bounce, Split, Tighten, Pipeline, or a stale job's model chip without the model | `models/gate/ModelGate.tsx`, `models/gate/useModelGate.ts`, `models/gate/JobModelDownload.tsx` | partial: `stages/deliver/EpisodeFile.stories.tsx` ModelGatePrompt (gate embedded); `layout/SplitSpeakersDialogView.stories.tsx` NeedsModel | Props (`ModelGate` object) | Just-in-time model download |
+| DLG-MODEL-GATE | "Download model?" prompt shown before a feature that needs a model (Primary: Download / Downloading… / Retry / Continue; Cancel download) | Run Export, Bounce, Split, Tighten, Pipeline, or a stale job's model chip without the model | `models/gate/ModelGate.tsx`, `models/gate/useModelGate.ts`, `models/gate/JobModelDownload.tsx` | partial: `stages/deliver/EpisodeFile.stories.tsx` and `stages/deliver/BounceSection.stories.tsx` ModelGatePrompt (gate embedded); `layout/SplitSpeakersDialogView.stories.tsx` NeedsModel | Props (`ModelGate` object) | Just-in-time model download |
 | DLG-WHISPER | "Download Whisper model?" | Pipeline panel: pick a Whisper model not yet installed | `panels/WhisperModelPicker.tsx` | NONE | Hook | Confirm a large download |
 | DLG-SPLIT | "Split speakers": speaker model, Number of speakers, progress, per-speaker review, result, Cancel split | Track inspector > Split speakers…; command `track.splitSpeakers` | `layout/SplitSpeakersDialog.tsx`, `layout/SplitSpeakersDialogView.tsx`, `utils/speakerSplit.ts` | `layout/SplitSpeakersDialogView.stories.tsx` (Settings, CountOutOfRange, Splitting, Split, SplitNoLongerLatest, NeedsModel, Failed, Cancelled, Phone) | View | Turn one recording into per-speaker tracks |
 | DLG-PALETTE | "Commands and shortcuts": search, category groups, shortcuts, remaps, Gestures handoff | `?` key, Menu > Help > Commands and shortcuts, phone More > search row | `layout/CommandPalette.tsx`, `layout/CommandPaletteView.tsx`, `layout/commandPaletteRows.ts`, `layout/paletteSearch.ts` | `layout/CommandPaletteView.stories.tsx` (Browse, Search, NoMatch, ShowRemaps, GesturesHandoff, Phone) | View | Discover and run commands |
@@ -377,7 +376,6 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | PNL-HISTORY, PNL-IMPACT, PNL-TIGHTEN, PNL-PIPELINE | Tab by name. Pipeline needs `/api/pipeline/config`; Tighten needs hits (see `e2e/gui-surfaces.spec.ts`, `e2e/pipeline-*.spec.ts`). |
 | DLG-STEP-PARAMS | Phone: More > Pipeline > tap a step. |
 | INS-* | Click the object: clip (`.clip-block`), pending region, track header, chapter marker, comment pin, word, envelope point. Tablet: `.bottom-sheet[role=dialog]`; phone: compact inspector at the remembered detent. |
-| DLG-BOUNCE | Menu > `Bounce…`; dialog "Bounce…". Needs a selected range for the Ready state. |
 | DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-dialog.spec.ts`). |
 | DLG-MCP | Home or Menu > `Connect agent…`; dialog "Connect agent". |
 | DLG-HELP | Home > `Help`, or Menu > Help > `Export diagnostics…`; dialog "Help"; button `Create diagnostics bundle`. |
@@ -430,7 +428,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | INS-ENVELOPE, INS-BLEED | yes | |
 | INS-EMPTY, INS-PENDING, INS-APPLIED, INS-TRACK, INS-CHAPTER, INS-SOCIAL, INS-COMMENT, INS-WORD, INS-RANGE, INS-PEEK | no | |
 | SHEET-INSPECTOR, CMP-SEEK-FOOTER | yes | |
-| DLG-BOUNCE, DLG-SHARE, DLG-MCP, DLG-SPLIT, DLG-PALETTE, DLG-GESTURES, DLG-ASK-CONFIRM, DLG-ASK-TEXT | yes | |
+| DLG-SHARE, DLG-MCP, DLG-SPLIT, DLG-PALETTE, DLG-GESTURES, DLG-ASK-CONFIRM, DLG-ASK-TEXT | yes | |
 | DLG-HELP, DLG-MODELS, DLG-WHISPER, DLG-RECORD | no | |
 | DLG-MODEL-GATE | partial | Embedded in Deliver/Split stories only |
 | SCR-PHONE-LISTEN | partial | Hero yes; body no |
@@ -480,7 +478,7 @@ Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 
 
 ## Doc drift (prose vs code)
 
-- `ux/pages/screen-inventory.md` lists Share, Connect agent and Help as the host dialogs; code also has Models, Model gate, Whisper picker, Split speakers, Export, Bounce, Precision boundary, Record room, Gestures, Commands and shortcuts, Step parameters, and Ask (confirm and text).
+- `ux/pages/screen-inventory.md` lists Share, Connect agent and Help as the host dialogs; code also has Models, Model gate, Whisper picker, Split speakers, Precision boundary, Record room, Gestures, Commands and shortcuts, Step parameters, and Ask (confirm and text).
 - `docs/design-system.md` says the live `TransportBar`, full Listen and More bodies, connected panels and full DAW page remain outside Storybook. This inventory confirms it: every full panel (Transcript, Comments, History, Impact, Tighten, Pipeline) has no story, and 11 of the 14 inspector rows have none.
 - "Manage models…" has no menu item; it exists as a command (palette) and as a Home button.
 - Quirk: the `?` shortcut and Menu > Help > "Commands and shortcuts" both open DLG-PALETTE; the phone More hub exposes it as the search row.

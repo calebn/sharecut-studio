@@ -20,7 +20,6 @@ import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { RecordPanel } from "./record/RecordPanel";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { isShareProjectKey } from "./shareMode";
-import { BounceDialog } from "./stage/dialogs/BounceDialog";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { ShareDialog } from "./stage/dialogs/ShareDialog";
@@ -28,6 +27,7 @@ import { SplitSpeakersDialog } from "./stage/dialogs/SplitSpeakersDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
+import { BounceFlowProvider } from "./stage/hosts/bounceFlow";
 import { ExportFlowProvider } from "./stage/hosts/exportFlow";
 import { StageHost } from "./stage/hosts/StageHost";
 import { useDawStore } from "./state/dawStore";
@@ -191,58 +191,59 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
 
   return (
     <ExportFlowProvider>
-      {engines}
-      <div data-daw-app-chrome>
-        <StageFrame
-          guestShare={guestShare}
-          loadFailure={loadFailure}
-          attentionHost={feedbackHost}
-          sheets={EDIT_SHEETS}
-        >
-          <StageHost
+      <BounceFlowProvider>
+        {engines}
+        <div data-daw-app-chrome>
+          <StageFrame
             guestShare={guestShare}
             loadFailure={loadFailure}
-            feedbackHostRef={setFeedbackHost}
-          />
-        </StageFrame>
-      </div>
-      <CheatsheetDialogs />
-      <BounceDialog />
-      <SplitSpeakersDialog />
-      <ShareDialog />
-      <RecordPanel
-        recordingLocally={hostKeeper.recordingLocally}
-        keeperFinalizing={hostKeeper.finalizing}
-        keeperError={hostKeeper.error}
-        onRetryKeeper={hostKeeper.retry}
-        micError={hostKeeper.micError}
-        micPending={hostKeeper.micPending}
-        micStatus={hostKeeper.micStatus}
-        hearing={hostMonitor.hearing}
-        monitorError={hostMonitor.error}
-        stream={hostKeeper.stream}
-        micLost={hostKeeper.micLost}
-        onRetryMic={hostKeeper.retryMic}
-        onCheckMic={hostKeeper.checkMic}
-        micCheckFailed={hostKeeper.micCheckFailed}
-      />
-      <HostMcpDialog
-        open={hostMcpDialogOpen}
-        onClose={() => setHostMcpDialogOpen(false)}
-        hasProject={hasProject}
-      />
-      <HelpDialog
-        open={helpDialogOpen}
-        onClose={() => setHelpDialogOpen(false)}
-      />
-      {syncEnabled ? (
-        <ModelsDialog
-          open={modelsDialogOpen}
-          onClose={() => setModelsDialogOpen(false)}
+            attentionHost={feedbackHost}
+            sheets={EDIT_SHEETS}
+          >
+            <StageHost
+              guestShare={guestShare}
+              loadFailure={loadFailure}
+              feedbackHostRef={setFeedbackHost}
+            />
+          </StageFrame>
+        </div>
+        <CheatsheetDialogs />
+        <SplitSpeakersDialog />
+        <ShareDialog />
+        <RecordPanel
+          recordingLocally={hostKeeper.recordingLocally}
+          keeperFinalizing={hostKeeper.finalizing}
+          keeperError={hostKeeper.error}
+          onRetryKeeper={hostKeeper.retry}
+          micError={hostKeeper.micError}
+          micPending={hostKeeper.micPending}
+          micStatus={hostKeeper.micStatus}
+          hearing={hostMonitor.hearing}
+          monitorError={hostMonitor.error}
+          stream={hostKeeper.stream}
+          micLost={hostKeeper.micLost}
+          onRetryMic={hostKeeper.retryMic}
+          onCheckMic={hostKeeper.checkMic}
+          micCheckFailed={hostKeeper.micCheckFailed}
         />
-      ) : null}
-      <AskDialog />
-      <FeedbackToast host={feedbackHost} />
+        <HostMcpDialog
+          open={hostMcpDialogOpen}
+          onClose={() => setHostMcpDialogOpen(false)}
+          hasProject={hasProject}
+        />
+        <HelpDialog
+          open={helpDialogOpen}
+          onClose={() => setHelpDialogOpen(false)}
+        />
+        {syncEnabled ? (
+          <ModelsDialog
+            open={modelsDialogOpen}
+            onClose={() => setModelsDialogOpen(false)}
+          />
+        ) : null}
+        <AskDialog />
+        <FeedbackToast host={feedbackHost} />
+      </BounceFlowProvider>
     </ExportFlowProvider>
   );
 }

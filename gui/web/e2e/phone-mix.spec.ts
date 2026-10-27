@@ -8,7 +8,7 @@ import {
 } from "./phoneMix";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
-import { openProject, openProjectDialog } from "./stageNav";
+import { deliverPage, openProject, openProjectDialog } from "./stageNav";
 import { withAppearance } from "./theme";
 
 for (const { cell: viewport, theme } of withAppearance([
@@ -143,7 +143,7 @@ test("editor Mix commits saved volume through guest capabilities", async ({
   });
 });
 
-test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcut", async ({
+test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcut, which goes to Deliver", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
@@ -168,16 +168,9 @@ test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcu
     ).toBeFocused();
     await openPhoneMix(page);
     await page.keyboard.press("Control+Shift+B");
-    const bounce = page.getByRole("dialog", { name: "Bounce…", exact: true });
-    await expect(bounce).toBeVisible();
-    await expect(page.getByRole("dialog")).toHaveCount(1);
-    await expect(
-      bounce.getByRole("button", { name: "Close", exact: true }),
-    ).toBeFocused();
-    await bounce.getByRole("button", { name: "Close", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Mix", exact: true }),
-    ).toBeVisible();
+      deliverPage(page).getByRole("button", { name: "Bounce", exact: true }),
+    ).toBeFocused();
   });
 });

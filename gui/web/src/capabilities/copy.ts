@@ -586,7 +586,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.wordbar": "daw.transcript.adjustTiming",
   GesturesSheet: "daw.ui.toggleCommandPalette",
   ShareDialog: "daw.share.manage",
-  BounceDialog: "daw.export.bounce",
+  deliverBounce: "daw.export.bounce",
   RecordPanel: "daw.record.panel",
   "transport.recChip": "daw.record.panel",
   editPlusMenu: "daw.edit.addChapter",

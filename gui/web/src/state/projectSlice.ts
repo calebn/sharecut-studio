@@ -261,7 +261,7 @@ export const createProjectSlice: StateCreator<
     shareAuthor = null,
   ) => {
     const samePath = get().projectPath === projectPath;
-    const { bounceDialogOpen, exportRequested, transcriptFindReplaceOpen } =
+    const { bounceRequested, exportRequested, transcriptFindReplaceOpen } =
       chromeInitial();
     if (!samePath) {
       timelineViewportRegistry.setVisualPan(null);
@@ -290,7 +290,7 @@ export const createProjectSlice: StateCreator<
             ...NO_SELECTION,
             chrome: {
               ...get().chrome,
-              bounceDialogOpen,
+              bounceRequested,
               exportRequested,
               transcriptFindReplaceOpen,
             },

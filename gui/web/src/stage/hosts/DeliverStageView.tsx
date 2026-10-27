@@ -22,7 +22,6 @@ export type DeliverStageViewProps = {
   onFix: (row: ReadinessRow) => void;
   /** The one filled button on the page. */
   exportAction: DeliverAction;
-  bounce: DeliverAction;
   /** Absent when the link feature is not on offer. */
   share?: DeliverAction;
   /** Rendered inside the share feature's slot. */
@@ -39,7 +38,6 @@ export function DeliverStageView({
   rows,
   onFix,
   exportAction,
-  bounce,
   share,
   shareSlot = (content) => content,
   scrollRef,
@@ -91,12 +89,6 @@ export function DeliverStageView({
               onClick={exportAction.onClick}
             >
               {exportAction.label}
-            </Button>
-            <Button
-              disabledReason={bounce.disabledReason}
-              onClick={bounce.onClick}
-            >
-              {bounce.label}
             </Button>
           </div>
         </section>

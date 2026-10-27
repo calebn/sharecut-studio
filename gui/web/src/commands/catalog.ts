@@ -501,7 +501,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Bounce…",
     keywords: ["render", "mixdown", "stems"],
     when: "hostProjectLoaded",
-    notes: "Open bounce dialog → export/bounces/. Mod+Shift+B",
+    notes: "Go to Deliver and focus Bounce → export/bounces/. Mod+Shift+B",
   },
   "share.manage": {
     id: "share.manage",

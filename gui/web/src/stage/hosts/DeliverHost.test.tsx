@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   deleteSocialClip: vi.fn(async () => {}),
   loadPipelineConfig: vi.fn(),
   startExportJob: vi.fn(),
+  startBounceJob: vi.fn(),
   followJobToOk: vi.fn(),
   cancelPipelineRun: vi.fn(),
 }));
@@ -29,6 +30,7 @@ import type {
   PipelineJobSnapshot,
 } from "../../types/pipeline";
 import type { HistoryEntryId } from "../../types/project";
+import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 
@@ -68,7 +70,9 @@ function projectAt(
 function mount() {
   return render(
     <ExportFlowProvider>
-      <DeliverStage />
+      <BounceFlowProvider>
+        <DeliverStage />
+      </BounceFlowProvider>
     </ExportFlowProvider>,
   );
 }
@@ -103,6 +107,7 @@ beforeEach(() => {
   api.followJobToOk.mockReset();
   api.loadPipelineConfig.mockResolvedValue(CONFIG);
   api.startExportJob.mockResolvedValue(JOB);
+  api.startBounceJob.mockResolvedValue({ ...JOB, id: "b1", kind: "bounce" });
   stubViewportShell("desktop");
   clearRegisteredCommands();
   registerDawCommands();
@@ -364,7 +369,11 @@ describe("Deliver host export", () => {
   it("keeps the export going when the stage is left, and shows it again on return", async () => {
     const settle = heldFollow();
     const flowed = (show: boolean) => (
-      <ExportFlowProvider>{show ? <DeliverStage /> : null}</ExportFlowProvider>
+      <ExportFlowProvider>
+        <BounceFlowProvider>
+          {show ? <DeliverStage /> : null}
+        </BounceFlowProvider>
+      </ExportFlowProvider>
     );
     const view = render(flowed(true));
     await screen.findByRole("button", { name: /^MP3/ });
@@ -446,5 +455,190 @@ describe("Deliver host export", () => {
       expect(useDawStore.getState().chrome.exportRequested).toBe(false),
     );
     expect(api.startExportJob).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Deliver host bounce", () => {
+  const BOUNCED: PipelineJobSnapshot = {
+    ...JOB,
+    id: "b1",
+    kind: "bounce",
+    status: "ok",
+    result: { paths: ["/tmp/ep/export/bounces/mix.wav"] },
+  };
+
+  function heldFollow() {
+    let settle!: {
+      ok: (job: PipelineJobSnapshot) => void;
+      fail: (e: Error) => void;
+    };
+    api.followJobToOk.mockImplementation(
+      (_id: string, _label: string, opts?: { signal?: AbortSignal }) =>
+        new Promise((resolve, reject) => {
+          settle = { ok: resolve, fail: reject };
+          opts?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+    return () => settle;
+  }
+
+  const bounceButton = () => screen.getByRole("button", { name: "Bounce" });
+
+  beforeEach(() => {
+    useDawStore.setState({
+      selection: null,
+      soloTracks: {},
+      sessionRegion: null,
+      bounceRangeTarget: null,
+      pendingJobResults: {},
+    });
+  });
+
+  it("sits in the Bounce section with the project's counts, and no longer in the host row", () => {
+    useDawStore.setState({
+      selection: { kind: "track", trackId: "t1", trackIds: ["t1"] },
+      soloTracks: { t1: true, t2: true },
+    });
+    mount();
+    expect(screen.getByRole("heading", { name: "Bounce" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Selected tracks (1)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Soloed tracks (2)" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Bounce…" })).toBeNull();
+  });
+
+  it("bounces the entire mix, follows the job, then lists what it wrote", async () => {
+    const settle = heldFollow();
+    mount();
+    await userEvent.click(bounceButton());
+    expect(api.startBounceJob).toHaveBeenCalledWith(PATH, {
+      track_ids: null,
+      start_s: null,
+      end_s: null,
+      formats: ["wav"],
+    });
+    expect(await screen.findByText("Bouncing")).toBeInTheDocument();
+    expect(bounceButton()).toBeDisabled();
+
+    await act(async () => settle().ok(BOUNCED));
+    expect(
+      await screen.findByText("Bounced 1 file(s) to export/bounces/"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("mix.wav")).toBeInTheDocument();
+    expect(useDawStore.getState().pendingJobResults).toEqual({
+      b1: "Bounced 1 file(s) to export/bounces/",
+    });
+  });
+
+  it("keeps the bounce going when the stage is left, and shows it again on return", async () => {
+    const settle = heldFollow();
+    const flowed = (show: boolean) => (
+      <ExportFlowProvider>
+        <BounceFlowProvider>
+          {show ? <DeliverStage /> : null}
+        </BounceFlowProvider>
+      </ExportFlowProvider>
+    );
+    const view = render(flowed(true));
+    await userEvent.click(bounceButton());
+    await screen.findByText("Bouncing");
+
+    view.rerender(flowed(false));
+    view.rerender(flowed(true));
+    expect(await screen.findByText("Bouncing")).toBeInTheDocument();
+    expect(api.startBounceJob).toHaveBeenCalledOnce();
+
+    await act(async () => settle().ok(BOUNCED));
+    expect(
+      await screen.findByText("Bounced 1 file(s) to export/bounces/"),
+    ).toBeInTheDocument();
+  });
+
+  it("cancels the running job and says nothing was written", async () => {
+    const settle = heldFollow();
+    api.cancelPipelineRun.mockResolvedValue(JOB);
+    mount();
+    await userEvent.click(bounceButton());
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    await waitFor(() => expect(cancel).toBeEnabled());
+    await userEvent.click(cancel);
+    expect(api.cancelPipelineRun).toHaveBeenCalledWith("b1");
+
+    await act(async () =>
+      settle().fail(
+        new JobCancelledError(
+          { ...JOB, status: "cancelled" },
+          "Bounce cancelled",
+        ),
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "Bounce cancelled. Files from an earlier bounce are unchanged.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Bounce again" }));
+    expect(screen.queryByText("Bounce cancelled")).toBeNull();
+  });
+
+  it("names a failure and offers Try again", async () => {
+    api.followJobToOk.mockRejectedValue(new Error("ffmpeg exited 1"));
+    mount();
+    await userEvent.click(bounceButton());
+    expect(await screen.findByText("ffmpeg exited 1")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(screen.queryByText("ffmpeg exited 1")).toBeNull();
+  });
+
+  it("explains why Bounce waits for tracks, and sends the soloed ones", async () => {
+    heldFollow();
+    mount();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Soloed tracks (0)" }),
+    );
+    expect(bounceButton()).toBeDisabled();
+    expect(
+      screen.getByText("Solo one or more tracks first."),
+    ).toBeInTheDocument();
+    act(() => useDawStore.setState({ soloTracks: { t1: true } }));
+    await userEvent.click(bounceButton());
+    expect(api.startBounceJob).toHaveBeenCalledWith(
+      PATH,
+      expect.objectContaining({ track_ids: ["t1"] }),
+    );
+  });
+
+  it("fixes the bounce to a range from Edit, and lets it go", async () => {
+    useDawStore.setState({
+      bounceRangeTarget: {
+        kind: "exact_range",
+        intervals: [{ start: 1, end: 2.5 }],
+        track_ids: ["t1"],
+        clips: [],
+      } as never,
+    });
+    mount();
+    expect(
+      screen.getByText(
+        "Selected range · 1.00–2.50 s on t1. This selection is fixed for this bounce.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Bounce the whole mix instead" }),
+    );
+    expect(useDawStore.getState().bounceRangeTarget).toBeNull();
+    expect(screen.getByRole("group", { name: "Source" })).toBeInTheDocument();
+  });
+
+  it("moves focus to Bounce for a command, then clears the request", async () => {
+    useDawStore.getState().setBounceRequested(true);
+    mount();
+    await waitFor(() => expect(bounceButton()).toHaveFocus());
+    expect(useDawStore.getState().chrome.bounceRequested).toBe(false);
   });
 });

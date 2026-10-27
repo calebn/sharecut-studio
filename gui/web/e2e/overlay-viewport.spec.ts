@@ -1,5 +1,4 @@
 import { expect, type Locator, test } from "@playwright/test";
-import { expectPageAxeClean } from "./axe";
 import {
   expectDialogLowerTargetReachable,
   expectMenuLastItemReachable,
@@ -81,11 +80,6 @@ interface DialogCase {
 
 const DIALOG_CASES: DialogCase[] = [
   {
-    name: "Bounce…",
-    menuItem: "Bounce…",
-    targetName: "Bounce",
-  },
-  {
     name: "Help",
     menuItem: "Export diagnostics…",
     targetName: "Create diagnostics bundle",
@@ -120,25 +114,6 @@ test.describe("dialog consumers reachability", () => {
                   name: dialogCase.targetName,
                   exact: true,
                 });
-        if (dialogCase.name === "Bounce…") {
-          const dialog = page.getByRole("dialog", { name: "Bounce…" });
-          const labels = await dialog.locator("label").evaluateAll((rows) =>
-            rows.map((row) => ({
-              height: row.getBoundingClientRect().height,
-              layoutHeight: row instanceof HTMLElement ? row.offsetHeight : 0,
-              controlLeft: row.querySelector("input")?.getBoundingClientRect()
-                .left,
-              textLeft: row.querySelector("span")?.getBoundingClientRect().left,
-            })),
-          );
-          expect(labels).toHaveLength(5);
-          for (const row of labels) {
-            expectTouchHeight(row.height, row.layoutHeight);
-            expect(row.controlLeft).toBe(labels[0].controlLeft);
-            expect(row.textLeft).toBe(labels[0].textLeft);
-          }
-          await expectPageAxeClean(page, ".ui-dialog-root");
-        }
         await expectDialogLowerTargetReachable(
           page,
           dialogCase.name,

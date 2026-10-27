@@ -118,7 +118,7 @@ hear menu and expanded form.
 | `openProject(page, { stage? })` | Opens a project, waits for the save indicator (when the landing stage is picked), then goes to `edit` unless told otherwise |
 | `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `impact`, `tighten`, `comments` (Review sections) or `pipeline` (Prepare) |
 | `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
-| `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Export, Bounce, Record, palette, gestures), through the menu, header or palette as each lives |
+| `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Record, palette, gestures), through the menu, header or palette as each lives; `startExport` and `startBounce` go to Deliver and press that section's button |
 | `openViewSheet`, `setLayer`, `stepTrackHeight` | The Edit corner's eye sheet (layers, track height) |
 | `selectTool`, `armRange`, `armCommentMode`, `addTrack` | The Edit tool strip and the "+" menu |
 | `setAudition(page, mode)` | The Player hear menu: Full mix, Without mix processing, Original |

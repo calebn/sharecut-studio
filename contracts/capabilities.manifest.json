@@ -1491,7 +1491,7 @@
       "surfaces": {
         "command": "export.bounce",
         "gui": [
-          "BounceDialog"
+          "deliverBounce"
         ],
         "keyboard": "Mod+Shift+B",
         "mcp": [

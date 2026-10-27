@@ -629,11 +629,11 @@ hydrates; "transcribe" is the browser rendering only, because live ASR is
 server-side (`make e2e-slow`). The Tighten panel opens on its empty state. A
 transcript word is corrected and undone with Mod+Z. A viewer review share
 plays the per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on
-Play). A host Bounce dialog passes full-page axe on WebKit (`expectPageAxeClean`) and
+Play). The host Bounce section of Deliver passes full-page axe on WebKit (`expectPageAxeClean`) and
 writes one non-silent WAV under `export/bounces/` — its own result copy goes
 through `runAnnouncedJob` (`expectJobResult` → `announceJobResult`), and
 `useJobStatusAnnouncement` speaks it in place of the generic Activity "ok"
-headline instead of racing it (a real bug, not WebKit-only; `BounceDialog.tsx`
+headline instead of racing it (a real bug, not WebKit-only; `bounceFlow.tsx`
 and `export.deliverables` in `commands/host.ts` share the fix, and it covers
 the phone shell too). The stages run serially in one test
 because export bounces the landed track, so a stage that fails on both attempts

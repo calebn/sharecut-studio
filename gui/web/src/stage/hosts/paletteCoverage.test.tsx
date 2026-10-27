@@ -32,6 +32,7 @@ import { PlusMenu } from "../edit/PlusMenu";
 import { ViewSheet } from "../edit/ViewSheet";
 import { PlayerBar } from "../frame/PlayerBar";
 import { StageFrame } from "../frame/StageFrame";
+import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 
@@ -154,7 +155,9 @@ function mountStage(stage: "prepare" | "review" | "deliver" | "record") {
       }}
     >
       <ExportFlowProvider>
-        <StageHost />
+        <BounceFlowProvider>
+          <StageHost />
+        </BounceFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>,
   );
@@ -288,7 +291,9 @@ const refreshMixRow: Probe = async (user) => {
   useDawStore.getState().setProject(staleProject());
   render(
     <ExportFlowProvider>
-      <StageHost />
+      <BounceFlowProvider>
+        <StageHost />
+      </BounceFlowProvider>
     </ExportFlowProvider>,
   );
   await runs("render.refreshMix", () =>
@@ -385,9 +390,7 @@ const REMOVED_SURFACES: Entry[] = [
   entry("transport Menu", "Cut at playhead", "edit.bladeCut"),
   entry("transport Menu", "New project", "project.new"),
   entry("transport Menu", "Open project", "project.open"),
-  entry("transport Menu", "Bounce", "export.bounce", [
-    deliverButton("Bounce…", "export.bounce"),
-  ]),
+  entry("transport Menu", "Bounce", "export.bounce"),
   entry("transport Menu", "Export deliverables", "export.deliverables", [
     deliverButton("Export", "export.deliverables"),
   ]),

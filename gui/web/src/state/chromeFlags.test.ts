@@ -6,7 +6,7 @@ import { useDawStore } from "./dawStore";
 const FLAGS = [
   "commandPaletteOpen",
   "gesturesSheetOpen",
-  "bounceDialogOpen",
+  "bounceRequested",
   "exportRequested",
   "shareDialogOpen",
   "recordPanelOpen",
@@ -20,7 +20,7 @@ type Flag = (typeof FLAGS)[number];
 const SETTERS: Record<Flag, string> = {
   commandPaletteOpen: "setCommandPaletteOpen",
   gesturesSheetOpen: "setGesturesSheetOpen",
-  bounceDialogOpen: "setBounceDialogOpen",
+  bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
   shareDialogOpen: "setShareDialogOpen",
   recordPanelOpen: "setRecordPanelOpen",
@@ -55,7 +55,6 @@ function setFlag(flag: Flag, open: boolean) {
 describe("dawStore chrome flags", () => {
   beforeEach(() => {
     for (const f of FLAGS) setFlag(f, false);
-    useDawStore.setState({ bounceRangeTarget: null });
   });
   afterEach(() => {
     for (const f of FLAGS) setFlag(f, false);
@@ -113,16 +112,6 @@ describe("dawStore chrome flags", () => {
     expect(read("gesturesSheetOpen")).toBe(true);
   });
 
-  it("closing the bounce dialog clears its range target; opening keeps it", () => {
-    const s = () => useDawStore.getState();
-    const target = { startSec: 1, endSec: 2 } as never;
-    s().setBounceRangeTarget(target);
-    s().setBounceDialogOpen(true);
-    expect(s().bounceRangeTarget).toBe(target);
-    s().setBounceDialogOpen(false);
-    expect(s().bounceRangeTarget).toBeNull();
-  });
-
   it("allows the share dialog and record panel open together", () => {
     const s = () => useDawStore.getState();
     s().setShareDialogOpen(true);
@@ -150,7 +139,7 @@ describe("dawStore chrome flags", () => {
       openEverything();
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       expect(read("transcriptFindReplaceOpen")).toBe(true);
-      expect(read("bounceDialogOpen")).toBe(true);
+      expect(read("bounceRequested")).toBe(true);
       expect(read("exportRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
@@ -163,11 +152,11 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes the bounce and export dialogs when the project switches", () => {
+    it("forgets a bounce and an export asked for when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
-      expect(read("bounceDialogOpen")).toBe(false);
+      expect(read("bounceRequested")).toBe(false);
       expect(read("exportRequested")).toBe(false);
     });
   });
