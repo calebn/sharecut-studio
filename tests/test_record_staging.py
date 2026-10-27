@@ -1659,7 +1659,9 @@ def test_a_replace_target_past_the_timeline_end_is_refused_by_field(
     assert message.startswith("to_sec:") and "10.000s" in message
 
 
-@pytest.mark.parametrize("target", [{"kind": "end"}, {"kind": "insert", "at_sec": 2}])
+@pytest.mark.parametrize(
+    "target", [{"kind": "end"}, {"kind": "start"}, {"kind": "insert", "at_sec": 2}]
+)
 @pytest.mark.parametrize("damaged_file", ["project", "history"])
 def test_nonreplace_target_persists_when_saved_project_is_unreadable(
     minimal_project, sample_wav, tmp_workspace, target, damaged_file
