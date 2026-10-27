@@ -1,0 +1,100 @@
+.sys-role {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--status-chip-height);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-sunken);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: 4rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.sys-link-main,
+.sys-link-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.sys-link-main {
+  flex: 1 1 12rem;
+}
+
+.sys-link-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-link-text[data-selected] {
+  background: var(--color-selection-subtle);
+  user-select: all;
+}
+
+.sys-link-note {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-link-opened {
+  display: inline-flex;
+}
+
+.sys-time {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--control-height);
+}
+
+.sys-time-grip {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.sys-time-input {
+  inline-size: 5rem;
+  min-block-size: var(--control-height);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-field);
+  text-align: end;
+}
+
+@media (pointer: coarse) {
+  .sys-time-input,
+  .sys-time {
+    min-block-size: var(--touch-min);
+  }
+}
+
+/* After an export the link row is outlined, never filled: Export stays the one filled button. */
+.sys-link[data-highlight="true"] {
+  border-color: var(--color-accent);
+}
