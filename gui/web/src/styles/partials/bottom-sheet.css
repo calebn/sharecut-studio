@@ -390,6 +390,15 @@ html[data-shell="phone"] .bottom-sheet-root {
   padding-block: var(--space-1);
 }
 
+/* A slot this short (a small phone, or one the keyboard shrank) pads every
+   sheet's header as the strip does, so the form under it keeps its rows
+   (R-short-11). */
+@container sheet-slot (max-height: 28rem) {
+  .bottom-sheet-header {
+    padding-block: var(--space-1);
+  }
+}
+
 /* A phone held sideways (636x390) at large text leaves the strip a slot under
    20rem tall, with no room for a title line of its own beside its header actions;
    let the title shrink so they share a row (#1762). This holds at the strip,
