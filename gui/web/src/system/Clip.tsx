@@ -261,6 +261,16 @@ export const Clip = memo(function Clip({
     [abort, endNudge],
   );
 
+  useEffect(() => {
+    const grip = grab.current?.grip;
+    if (!grip) return;
+    const mounted =
+      grip === "move"
+        ? !ghost
+        : editable && (!narrow || grip.startsWith("trim"));
+    if (!mounted) abort();
+  }, [abort, editable, ghost, narrow]);
+
   const down = (grip: ClipGrip) => (event: PointerEvent<HTMLElement>) => {
     if (!editable) return;
     const finger = event.pointerType === "touch" || event.pointerType === "pen";
