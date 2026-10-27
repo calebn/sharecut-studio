@@ -484,6 +484,112 @@ def test_a_trickling_ping_expires_both_attempts_without_bypassing_studio(
             assert not worker.is_alive(), "Studio discovery did not stop after the peer closed"
 
 
+def test_localhost_uses_numeric_loopbacks_and_closes_failed_candidate(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL, "serves": True}).encode()
+    attempted: list[studio_host_module._DeadlineSocket] = []
+
+    class CandidateSocket(studio_host_module._DeadlineSocket):
+        def __init__(self, family: socket.AddressFamily, *, deadline: float) -> None:
+            super().__init__(socket.AF_INET, deadline=deadline)
+            self.requested_family = family
+
+        def connect(self, address: object) -> None:
+            attempted.append(self)
+            if self.requested_family == socket.AF_INET6:
+                raise OSError("IPv6 unavailable")
+            super().connect(address)
+
+    monkeypatch.setattr(studio_host_module, "_DeadlineSocket", CandidateSocket)
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: pytest.fail("DNS used"))
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(host="localhost", port=port))
+        assert locate_studio(project) is not None
+    assert len(attempted) == 2
+    assert all(sock.fileno() == -1 for sock in attempted)
+
+
+def test_ping_closes_returned_close_delimited_response_after_timeout(
+    project: Path, quick_ping: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    responses: list[http.client.HTTPResponse] = []
+    original_getresponse = studio_host_module._PingConnection.getresponse
+
+    def getresponse(conn: studio_host_module._PingConnection) -> http.client.HTTPResponse:
+        response = original_getresponse(conn)
+        responses.append(response)
+        return response
+
+    monkeypatch.setattr(studio_host_module._PingConnection, "getresponse", getresponse)
+    with _trickling_ping("close-delimited") as (port, _requests, _stop):
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioUnresponsive):
+            locate_studio(project)
+    assert len(responses) == 2
+    assert all(response.isclosed() for response in responses)
+
+
+def test_ping_classifies_transport_error_after_deadline_as_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 0.0}
+
+    class Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            clock["now"] = 1.0
+            raise OSError("late reset")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_PingConnection", Connection)
+    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
+    monkeypatch.setattr(studio_host_module.time, "monotonic", lambda: clock["now"])
+    with pytest.raises(TimeoutError):
+        studio_host_module._ping(_host(), "/project")
+
+
+def test_ping_rejects_success_after_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = {"now": 0.0}
+
+    class Response:
+        status = 200
+        closed = False
+
+        def read(self, _size: int) -> bytes:
+            clock["now"] = 1.0
+            return b"{}"
+
+        def close(self) -> None:
+            self.closed = True
+
+    response = Response()
+
+    class Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> Response:
+            return response
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_PingConnection", Connection)
+    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
+    monkeypatch.setattr(studio_host_module.time, "monotonic", lambda: clock["now"])
+    with pytest.raises(TimeoutError):
+        studio_host_module._ping(_host(), "/project")
+    assert response.closed
+
+
 @pytest.mark.parametrize("body", [b"", b"[]", b"not json", b"null"])
 def test_a_ping_answered_200_with_a_body_that_is_not_a_studio_reply_is_never_bypassed(
     project: Path, body: bytes
