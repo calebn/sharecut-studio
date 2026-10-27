@@ -108,7 +108,6 @@ const COVERED: Record<string, string[]> = {
     "System/ScrubField",
   ],
   "CMP-SEEK-FOOTER": ["Templates/InspectorSeekFooter"],
-  "DLG-EXPORT": ["Templates/ExportDialog"],
   "DLG-BOUNCE": ["Templates/BounceDialog"],
   "DLG-SHARE": ["Templates/ShareDialog"],
   "DLG-MCP": ["Templates/HostMcpDialog"],
@@ -262,7 +261,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(139);
+    expect(INVENTORY_IDS).toHaveLength(138);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });

@@ -9,6 +9,7 @@ import {
 import { episode } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
+import { ExportFlowProvider } from "./exportFlow";
 import { StageHost, type StageHostProps } from "./StageHost";
 
 const meta: Meta<StageHostProps> = {
@@ -23,9 +24,11 @@ const meta: Meta<StageHostProps> = {
   decorators: [
     withEpisode,
     (Story) => (
-      <div data-daw-app-chrome>
-        <Story />
-      </div>
+      <ExportFlowProvider>
+        <div data-daw-app-chrome>
+          <Story />
+        </div>
+      </ExportFlowProvider>
     ),
   ],
   parameters: {
@@ -36,7 +39,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Deliver stage host: Readiness (what is still open, each with the fix), the episode file, Chapters and Clips, then the Bounce and Listen link entry points. Removing or retiming a chapter, and trimming or removing a clip, are saved to the project; approving or retitling a clip stays on the page for now. Export opens the Export dialog. The dialogs stay mounted in the app, so closing one returns here. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
+          "The Deliver stage host: Readiness (what is still open, each with the fix), the episode file, Chapters and Clips, then the Bounce and Listen link entry points. Removing or retiming a chapter, and trimming or removing a clip, are saved to the project; approving or retitling a clip stays on the page for now. Export runs here: the project's formats, progress with Cancel, then the written files; it keeps going if you leave Deliver. Bounce and Share open their dialogs, which stay mounted in the app, so closing one returns here. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
       },
     },
   },

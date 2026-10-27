@@ -22,13 +22,13 @@ import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { isShareProjectKey } from "./shareMode";
 import { BounceDialog } from "./stage/dialogs/BounceDialog";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
-import { ExportDialog } from "./stage/dialogs/ExportDialog";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { ShareDialog } from "./stage/dialogs/ShareDialog";
 import { SplitSpeakersDialog } from "./stage/dialogs/SplitSpeakersDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
+import { ExportFlowProvider } from "./stage/hosts/exportFlow";
 import { StageHost } from "./stage/hosts/StageHost";
 import { useDawStore } from "./state/dawStore";
 import { selectPublishKey } from "./state/publishKey";
@@ -190,7 +190,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   );
 
   return (
-    <>
+    <ExportFlowProvider>
       {engines}
       <div data-daw-app-chrome>
         <StageFrame
@@ -208,7 +208,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       </div>
       <CheatsheetDialogs />
       <BounceDialog />
-      <ExportDialog />
       <SplitSpeakersDialog />
       <ShareDialog />
       <RecordPanel
@@ -244,6 +243,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       ) : null}
       <AskDialog />
       <FeedbackToast host={feedbackHost} />
-    </>
+    </ExportFlowProvider>
   );
 }

@@ -5,7 +5,6 @@ import { SRC_ROOT } from "../../test/sourceFiles";
 import {
   exportResultCopy,
   exportSettingsFromConfig,
-  exportStartBlocker,
   isLossless,
   masterMeasured,
   masterMeasuredCopy,
@@ -126,13 +125,6 @@ describe("export choices", () => {
       { ext: "mp3", bitrate_kbps: 128 },
       { ext: "flac", codec: "flac" },
     ]);
-  });
-  it("blocks an export that would write nothing", () => {
-    expect(exportStartBlocker(settings, [])).toBe(
-      "Choose at least one format.",
-    );
-    expect(exportStartBlocker(settings, ["mp3"])).toBeNull();
-    expect(exportStartBlocker(null, [])).toBeNull();
   });
 });
 

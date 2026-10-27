@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import type { ModelGate } from "../../models";
 import type { ExportRequest } from "../../stages/deliver/deliverLogic";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
-import type { ExportSettings } from "../dialogs/exportSettings";
+import type { ExportSettings } from "./exportSettings";
 
 /** The export's own progress; the live job snapshot comes from the store. */
 export type ExportRun =

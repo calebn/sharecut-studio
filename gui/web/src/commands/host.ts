@@ -339,7 +339,9 @@ export function registerHostCommands(): void {
     if (blocked) {
       return blocked;
     }
-    useDawStore.getState().setExportDialogOpen(true);
+    const s = useDawStore.getState();
+    s.openStage("deliver");
+    s.setExportRequested(true);
     return { status: "ok" };
   });
 }

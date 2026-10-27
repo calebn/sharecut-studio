@@ -1,9 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 import { AUTO_MIX_PREF_KEY } from "../src/hooks/autoMixPref";
-import { expectFitsViewport, openDialogFromMenu } from "./overlayReachability";
+import { expectFitsViewport } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
-import { openProject, selectTool } from "./stageNav";
+import { deliverPage, openProject, selectTool, startExport } from "./stageNav";
 
 const PHONE_VIEWPORTS = [
   { width: 390, height: 844 },
@@ -106,20 +106,13 @@ for (const viewport of PHONE_VIEWPORTS) {
 
       await page.setViewportSize(viewport);
       try {
-        await openDialogFromMenu(page, "Export deliverables…");
-        const dialog = page.getByRole("dialog", {
-          name: "Export deliverables",
-        });
-        await dialog
-          .getByRole("button", { name: "Export", exact: true })
-          .click();
+        await startExport(page);
+        const deliver = deliverPage(page);
 
-        await expect(
-          dialog.getByRole("status").filter({ hasText: "Starting export…" }),
-        ).toBeVisible();
-        const cancel = dialog.getByRole("button", { name: "Cancel export" });
+        await expect(deliver.getByText(/Starting export…/)).toBeVisible();
+        const cancel = deliver.getByRole("button", { name: "Cancel" });
         await expect(cancel).toBeDisabled();
-        const reason = dialog.getByText(CANCEL_REASON);
+        const reason = deliver.getByText(CANCEL_REASON);
         await expect(reason).toBeVisible();
         await expect(cancel).toHaveAttribute(
           "aria-describedby",
@@ -127,25 +120,13 @@ for (const viewport of PHONE_VIEWPORTS) {
         );
         await expectFitsViewport(page, cancel);
         await expectFitsViewport(page, reason);
-        const panel = dialog.locator(".command-palette-panel");
-        await expectFitsViewport(page, panel);
-        await expect
-          .poll(async () => {
-            const box = await panel.boundingBox();
-            return (
-              box !== null &&
-              box.x >= -2 &&
-              box.x + box.width <= viewport.width + 2
-            );
-          })
-          .toBe(true);
       } finally {
         releaseExport();
       }
 
-      const dialog = page.getByRole("dialog", { name: "Export deliverables" });
-      await expect(dialog.getByRole("status")).toContainText(/exported/i);
-      await expect(dialog).not.toContainText(/Export failed|pipeline-slot/);
+      const deliver = deliverPage(page);
+      await expect(deliver).toContainText(/Exported \d+ files? to export\//);
+      await expect(deliver).not.toContainText(/Export failed|pipeline-slot/);
       expect(exportStatuses).toEqual([200]);
     });
   });

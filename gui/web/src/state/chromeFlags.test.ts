@@ -7,7 +7,7 @@ const FLAGS = [
   "commandPaletteOpen",
   "gesturesSheetOpen",
   "bounceDialogOpen",
-  "exportDialogOpen",
+  "exportRequested",
   "shareDialogOpen",
   "recordPanelOpen",
   "hostMcpDialogOpen",
@@ -21,7 +21,7 @@ const SETTERS: Record<Flag, string> = {
   commandPaletteOpen: "setCommandPaletteOpen",
   gesturesSheetOpen: "setGesturesSheetOpen",
   bounceDialogOpen: "setBounceDialogOpen",
-  exportDialogOpen: "setExportDialogOpen",
+  exportRequested: "setExportRequested",
   shareDialogOpen: "setShareDialogOpen",
   recordPanelOpen: "setRecordPanelOpen",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
@@ -151,7 +151,7 @@ describe("dawStore chrome flags", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       expect(read("transcriptFindReplaceOpen")).toBe(true);
       expect(read("bounceDialogOpen")).toBe(true);
-      expect(read("exportDialogOpen")).toBe(true);
+      expect(read("exportRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
@@ -168,7 +168,7 @@ describe("dawStore chrome flags", () => {
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
       expect(read("bounceDialogOpen")).toBe(false);
-      expect(read("exportDialogOpen")).toBe(false);
+      expect(read("exportRequested")).toBe(false);
     });
   });
 });

@@ -24,6 +24,7 @@ import {
   notDownloadedLine,
 } from "../../utils/apiError";
 import { jobResultPaths } from "../../utils/pipeline";
+import { type ExportFlow, type ExportRun, Flow } from "./exportFlowContext";
 import {
   type ExportSettings,
   exportResultCopy,
@@ -31,8 +32,7 @@ import {
   masterMeasured,
   masterMeasuredCopy,
   selectedFormats,
-} from "../dialogs/exportSettings";
-import { type ExportFlow, type ExportRun, Flow } from "./exportFlowContext";
+} from "./exportSettings";
 
 function sameSettings(a: ExportSettings | null, b: ExportSettings): boolean {
   return a !== null && JSON.stringify(a) === JSON.stringify(b);

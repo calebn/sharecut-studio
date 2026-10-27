@@ -25,7 +25,7 @@ describe("CommandPalette", () => {
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
-    setChrome({ exportDialogOpen: false });
+    setChrome({ exportRequested: false });
     useDawStore.setState({ statusAnnouncement: "" });
   });
 
@@ -74,7 +74,7 @@ describe("CommandPalette", () => {
     );
   });
 
-  it("opens Export deliverables in place of the palette, never stacked", async () => {
+  it("closes the palette and goes to Deliver to export, never stacked", async () => {
     const user = userEvent.setup();
     renderPalette();
     await waitForDialogFocus();
@@ -84,8 +84,9 @@ describe("CommandPalette", () => {
     );
     expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
     await waitFor(() =>
-      expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true),
+      expect(useDawStore.getState().chrome.exportRequested).toBe(true),
     );
+    expect(useDawStore.getState().stage).toBe("deliver");
   });
 
   it("stores a remap on blur and clears it when emptied", async () => {

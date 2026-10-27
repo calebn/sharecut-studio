@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { AUTO_MIX_PREF_KEY } from "../src/hooks/autoMixPref";
-import { openDialogFromMenu } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
+import { deliverPage, startExport } from "./stageNav";
 
 test("Export started right after Undo waits for the mix rebuild and finishes", async ({
   page,
@@ -52,12 +52,11 @@ test("Export started right after Undo waits for the mix rebuild and finishes", a
     await page.locator("body").click({ position: { x: 1, y: 1 } });
     await page.keyboard.press("ControlOrMeta+z");
     await expect.poll(fadeIn).toBe(0);
-    await openDialogFromMenu(page, "Export deliverables…");
-    const dialog = page.getByRole("dialog", { name: "Export deliverables" });
-    await dialog.getByRole("button", { name: "Export", exact: true }).click();
+    await startExport(page);
+    const deliver = deliverPage(page);
 
-    await expect(dialog.getByRole("status")).toContainText(/exported/i);
-    await expect(dialog).not.toContainText(/Export failed|pipeline-slot/);
+    await expect(deliver).toContainText(/Exported \d+ files? to export\//);
+    await expect(deliver).not.toContainText(/Export failed|pipeline-slot/);
     expect(exportStatuses).toEqual([200]);
   });
 });

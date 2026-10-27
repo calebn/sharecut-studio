@@ -11,14 +11,15 @@ import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { Slot } from "../../extensions/Slot";
+import { useNowSec } from "../../hooks/useNowSec";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { canRefreshMix } from "../../shareMode";
 import { DeliverStage as DeliverStageBody } from "../../stages/deliver/DeliverStage";
-import type {
-  Chapter,
-  Clip,
-  ExportState,
+import {
+  type Chapter,
+  type Clip,
+  exportRequest,
 } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
@@ -27,6 +28,7 @@ import { useCommand } from "../../ui/useCommand";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 import { DeliverStageView } from "./DeliverStageView";
+import { exportOptionsOf, exportStateOf } from "./deliverExport";
 import {
   type ChapterOp,
   type ClipOp,
@@ -39,13 +41,12 @@ import {
   sameChapters,
   sameClipBounds,
 } from "./deliverModel";
+import { useExportFlow } from "./exportFlowContext";
 import { deliverReadiness, hostStateOf, type ReadinessRow } from "./hostModels";
 
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
 };
-
-const NEVER: ExportState = { phase: "never" };
 
 async function saveChapterOp(path: string, op: ChapterOp) {
   if (op.kind === "add") await addChapter(path, op.at, op.title);
@@ -59,14 +60,26 @@ async function saveClipOp(path: string, op: ClipOp) {
 }
 
 function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
-  const { project, projectPath, guestMode, shareCapabilities } = useDawStore(
+  const {
+    project,
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    exportRequested,
+    setExportRequested,
+  } = useDawStore(
     useShallow((s) => ({
       project: s.project,
       projectPath: s.projectPath,
       guestMode: s.guestMode,
       shareCapabilities: s.shareCapabilities,
+      exportRequested: s.chrome.exportRequested,
+      setExportRequested: s.setExportRequested,
     })),
   );
+  const exportFlow = useExportFlow();
+  const { reload: reloadExportSettings } = exportFlow;
+  const nowSec = useNowSec(exportFlow.run.kind === "running");
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body");
   const breakdown = useStaleRenderBreakdown(project);
@@ -133,6 +146,36 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     }
     // biome-ignore lint/correctness/useExhaustiveDependencies: runs per revision and when saves settle
   }, [revision, pending, state]);
+  // The Pipeline tab may have changed the formats since Deliver was last open.
+  useEffect(() => {
+    reloadExportSettings();
+  }, [reloadExportSettings]);
+  // A command asked for an export: start it once the stage and the formats are ready.
+  const startRequested = exportFlow.start;
+  const chosenFormats = exportFlow.selected;
+  useEffect(() => {
+    if (!exportRequested || state !== "ready" || exportFlow.loading) return;
+    setExportRequested(false);
+    startRequested(
+      chosenFormats,
+      exportRequest(
+        {
+          formats: chosenFormats,
+          loudness: "podcast",
+          part: { mode: "whole" },
+        },
+        saved.current?.clips ?? [],
+        saved.current?.chapters ?? [],
+      ),
+    );
+  }, [
+    exportRequested,
+    state,
+    exportFlow.loading,
+    setExportRequested,
+    startRequested,
+    chosenFormats,
+  ]);
   const onChapters = (next: readonly Chapter[]) => {
     const base = saved.current?.chapters ?? [];
     const ops = chapterOps(base, next);
@@ -218,6 +261,14 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     chapterCount: seed.chapters.length,
     removedSeconds: project.edit_impact.total_removed_sec,
   });
+  const { run } = exportFlow;
+  const measured =
+    run.kind === "done"
+      ? {
+          measuredLufs: run.lufs ?? undefined,
+          truePeak: run.truePeak ?? undefined,
+        }
+      : {};
   const playFrom = (sec: number) => {
     void seekTransport(sec);
   };
@@ -230,18 +281,20 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       ) : null}
       <DeliverStageBody
         key={`${projectPath ?? "none"}:${epoch}`}
-        facts={facts}
+        facts={{ ...facts, ...measured }}
         total={project.timeline_duration_sec}
         initialSettings={{
-          formats: ["mp3"],
+          formats: exportFlow.selected,
           loudness: "podcast",
           part: { mode: "whole" },
         }}
+        onSettings={(next) => exportFlow.setSelected(next.formats)}
         initialChapters={seed.chapters}
         initialClips={seed.clips}
         saveTo=""
-        exportState={NEVER}
-        env="app"
+        exportState={exportStateOf(exportFlow, nowSec)}
+        exportOptions={exportOptionsOf(exportFlow)}
+        env="none"
         clock={{ time: "", total: "" }}
         playhead={() => useDawStore.getState().playheadSec}
         link={{ url: null }}
@@ -261,10 +314,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             );
         }}
         onExport={() => runPointerCommand("export.deliverables")}
-        onCancel={() => {}}
-        onReveal={() => runPointerCommand("export.deliverables")}
-        onDownload={() => runPointerCommand("export.deliverables")}
-        onChangeFolder={() => runPointerCommand("export.deliverables")}
+        onCancel={exportFlow.cancel}
         onCopyLink={() => runPointerCommand("share.manage")}
         onRefreshMix={() => runPointerCommand("render.refreshMix")}
         onPlayFrom={playFrom}
@@ -301,7 +351,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
- * and clip edits written back to the document. Export, Bounce and Share still
- * open their dialogs, which stay mounted in `DawApp`. Host only.
+ * and clip edits written back to the document, and the export run by the
+ * flow in `DawApp`. Bounce and Share still open their dialogs. Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);

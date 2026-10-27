@@ -36,8 +36,8 @@ export interface ChromeFlags {
   gesturesSheetOpen: boolean;
   /** Bounce dialog open (host export/bounces). */
   bounceDialogOpen: boolean;
-  /** Host Export deliverables dialog (configure, progress, outcome). */
-  exportDialogOpen: boolean;
+  /** An export asked for by a command; the Deliver stage starts it and clears this. */
+  exportRequested: boolean;
   /** Host share management dialog. */
   shareDialogOpen: boolean;
   /** Host record-room control panel. */
@@ -576,7 +576,7 @@ export interface DawState {
   toggleCommandPalette: () => void;
   setBounceDialogOpen: (on: boolean) => void;
   setTranscriptFindReplaceOpen: (on: boolean) => void;
-  setExportDialogOpen: (on: boolean) => void;
+  setExportRequested: (on: boolean) => void;
   setSplitSpeakersTrackId: (trackId: string | null) => void;
   setShareDialogOpen: (on: boolean) => void;
   setRecordPanelOpen: (on: boolean) => void;

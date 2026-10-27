@@ -1,0 +1,148 @@
+import type {
+  ExportFile,
+  ExportOptions,
+  ExportState,
+  FormatOption,
+} from "../../stages/deliver/deliverLogic";
+import { lateCancelCopy } from "../../utils/pipeline";
+import {
+  pipelineProgressPercent,
+  pipelineUnitsLabel,
+  staleUpdateLabel,
+} from "../../utils/pipelineProgress";
+import { formatTimeShort } from "../../utils/time";
+import type { ExportFlow } from "./exportFlowContext";
+import {
+  type ExportSettings,
+  exportFileName,
+  exportResultCopy,
+  isLossless,
+  loudnessTargetCopy,
+} from "./exportSettings";
+
+const LOSSLESS_BYTES_PER_SECOND = 97_000;
+const DEFAULT_BYTES_PER_SECOND = 16_000;
+
+/** Size estimates per second: a bitrate says it, a lossless format is about FLAC. */
+export function exportFormatOptions(settings: ExportSettings): FormatOption[] {
+  return settings.choices.map(({ key, label, spec }) => ({
+    id: key,
+    label,
+    bytesPerSecond:
+      typeof spec.bitrate_kbps === "number"
+        ? spec.bitrate_kbps * 125
+        : isLossless(spec.ext)
+          ? LOSSLESS_BYTES_PER_SECOND
+          : DEFAULT_BYTES_PER_SECOND,
+  }));
+}
+
+/** What the Deliver stage shows around the export, from the Pipeline config and the run. */
+export function exportOptionsOf(flow: ExportFlow): ExportOptions {
+  const { settings, run } = flow;
+  return {
+    formats: settings ? exportFormatOptions(settings) : [],
+    wavAlwaysWritten: settings?.wav ?? false,
+    selected: flow.selected,
+    loading: flow.loading,
+    settingsError: flow.settingsError ?? undefined,
+    loudnessNote:
+      (settings && loudnessTargetCopy(settings.target)) ?? undefined,
+    loudness: false,
+    range: false,
+    folder: false,
+    gate: flow.gate,
+    onExportAgain:
+      run.kind === "failed" || run.kind === "cancelled"
+        ? flow.again
+        : undefined,
+  };
+}
+
+function filesOf(paths: readonly string[]): ExportFile[] {
+  return paths.map((path) => ({
+    name: exportFileName(path),
+    format: path.split(".").pop()?.toLowerCase() ?? "",
+  }));
+}
+
+/** "at 3:04 PM", in the viewer's time zone unless one is given. */
+export function exportWhen(finishedAt: number, timeZone?: string): string {
+  const time = new Date(finishedAt).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  });
+  return `at ${time}`;
+}
+
+export const STARTING_REASON =
+  "The export is still starting. Cancel once it has started.";
+export const CANCELLING_REASON = "Already cancelling the export.";
+export const CANCELLING_DETAIL =
+  "Cancelling… If the master is still being prepared, the export stops once it is ready.";
+export const CANCELLED_NOTHING =
+  "Export cancelled. Files from an earlier export are unchanged.";
+
+/** The stage's export state for the flow, with `nowSec` for the stall notice. */
+export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
+  const { run, job, gate } = flow;
+  if (gate.prompt) {
+    return {
+      phase: "needs-model",
+      model: gate.prompt.label,
+      size: gate.prompt.size,
+    };
+  }
+  switch (run.kind) {
+    case "idle":
+      return { phase: "never" };
+    case "running": {
+      const units = pipelineUnitsLabel(job);
+      const stale = staleUpdateLabel(job?.last_progress_at, nowSec);
+      const detail = [
+        run.cancelling
+          ? CANCELLING_DETAIL
+          : (job?.message ?? "Starting export…"),
+        units,
+        `Elapsed ${formatTimeShort(job?.elapsed_sec ?? 0)}`,
+        stale,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const percent = pipelineProgressPercent(job);
+      return {
+        phase: "running",
+        progress: percent === null ? null : percent / 100,
+        detail,
+        cancelReason: run.cancelling
+          ? CANCELLING_REASON
+          : run.jobId === null
+            ? STARTING_REASON
+            : undefined,
+        cancelError: run.cancelError ?? undefined,
+      };
+    }
+    case "done":
+      return flow.request
+        ? {
+            phase: "done",
+            files: filesOf(run.paths),
+            when: exportWhen(run.finishedAt),
+            exported: flow.request,
+            summary: exportResultCopy(run.paths),
+            measured: run.measured ?? undefined,
+          }
+        : { phase: "never" };
+    case "failed":
+      return { phase: "failed", cause: run.reason };
+    case "cancelled":
+      return {
+        phase: "cancelled",
+        files: filesOf(run.paths),
+        detail: run.paths.length
+          ? lateCancelCopy(exportResultCopy(run.paths))
+          : CANCELLED_NOTHING,
+      };
+  }
+}

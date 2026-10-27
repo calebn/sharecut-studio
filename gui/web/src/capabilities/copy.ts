@@ -596,7 +596,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   HelpDialog: "daw.help.diagnosticsBundle",
   "home.models": "daw.models.open",
   ModelsDialog: "daw.models.open",
-  ExportDialog: "daw.export.deliverables",
+  deliverStage: "daw.export.deliverables",
   projectMenu: "daw.project.home",
   trackLane: "daw.track.add",
   drop: "daw.media.import",

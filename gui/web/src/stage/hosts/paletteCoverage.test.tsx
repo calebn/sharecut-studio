@@ -32,6 +32,7 @@ import { PlusMenu } from "../edit/PlusMenu";
 import { ViewSheet } from "../edit/ViewSheet";
 import { PlayerBar } from "../frame/PlayerBar";
 import { StageFrame } from "../frame/StageFrame";
+import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 
 /**
@@ -43,6 +44,12 @@ import { StageHost } from "./StageHost";
  * unmounted slot or a dropped prop fails here.
  */
 
+vi.mock("../../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api")>()),
+  loadPipelineConfig: vi.fn(async () => ({
+    config: { export: { wav: true, formats: [{ ext: "mp3" }] } },
+  })),
+}));
 vi.mock("../../panels/PipelinePanel", () => ({
   PipelinePanel: () => <div>pipeline panel</div>,
 }));
@@ -146,7 +153,9 @@ function mountStage(stage: "prepare" | "review" | "deliver" | "record") {
         manifest: { api_version: 1, features: [FEATURE_SHARE_UI_MENU] },
       }}
     >
-      <StageHost />
+      <ExportFlowProvider>
+        <StageHost />
+      </ExportFlowProvider>
     </FeaturesContext.Provider>,
   );
 }
@@ -277,7 +286,11 @@ const deliverButton =
 const refreshMixRow: Probe = async (user) => {
   asHost("deliver");
   useDawStore.getState().setProject(staleProject());
-  render(<StageHost />);
+  render(
+    <ExportFlowProvider>
+      <StageHost />
+    </ExportFlowProvider>,
+  );
   await runs("render.refreshMix", () =>
     user.click(screen.getByRole("button", { name: "Refresh mix" })),
   );
