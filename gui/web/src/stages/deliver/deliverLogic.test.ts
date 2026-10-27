@@ -759,3 +759,41 @@ describe("parseClock integer parts and formatClock rounding", () => {
     expect(formatClock(seconds)).toBe(shown);
   });
 });
+
+describe("restoreChapter with repeated titles", () => {
+  const same = [
+    { id: "a", at: 10, title: "Intro" },
+    { id: "b", at: 20, title: "Intro" },
+    { id: "c", at: 30, title: "Chapter 3" },
+    { id: "d", at: 40, title: "Chapter 3" },
+  ];
+  it.each(same.map((c) => c.id))("puts %s back with its id and place", (id) => {
+    const gone = same.find((c) => c.id === id) as (typeof same)[number];
+    const rest = removeChapter(same, id);
+    expect(rest).toHaveLength(3);
+    expect(restoreChapter(rest, gone)).toEqual(same);
+    expect(restoreChapter(restoreChapter(rest, gone), gone)).toEqual(same);
+  });
+});
+
+describe("parseClock rejects other separators and notations", () => {
+  it.each([
+    "83,5",
+    "1:23,4",
+    "1;23",
+    "1 23",
+    "1:23:45",
+    "1e3",
+    "0x10",
+    "+5",
+    "Infinity",
+    "NaN",
+    " ",
+    "1:23.5.1",
+    "１２３",
+    "1:23 5",
+    "٣",
+  ])("rejects %j", (text) => {
+    expect(parseClock(text)).toBeNull();
+  });
+});

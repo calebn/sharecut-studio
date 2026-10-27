@@ -4462,3 +4462,204 @@ describe("round seven of the audit", () => {
       ).toBeInTheDocument();
   });
 });
+
+describe("round eight of the audit", () => {
+  const long = (seed: string) =>
+    seed.repeat(Math.ceil(100 / seed.length)).slice(0, 100);
+  const inputs = {
+    chapter: () =>
+      screen.getByRole("textbox", { name: "Title of The old mill" }),
+    clip: () =>
+      screen.getByRole("textbox", { name: "Title of Nobody asked the river" }),
+  };
+
+  it.each(["chapter", "clip"] as const)(
+    "keeps a 100-character %s title whole",
+    async (which) => {
+      setup();
+      const input = inputs[which]();
+      const text = long(
+        "Quick brown fox, jumps over the lazy dog 0123456789. ",
+      );
+      expect(text).toHaveLength(100);
+      await userEvent.clear(input);
+      await userEvent.type(input, text);
+      expect(input).toHaveValue(text);
+    },
+  );
+
+  it.each(["chapter", "clip"] as const)(
+    "keeps digits, punctuation and unicode in a %s title",
+    async (which) => {
+      for (const text of [
+        "Episode 2",
+        "Top 5",
+        "Q&A: 10/10",
+        "Café 日本",
+        "100% – “quoted” (maybe)?",
+        "2024",
+        "😀 ok",
+      ]) {
+        const { unmount } = setup();
+        const input = inputs[which]();
+        await userEvent.clear(input);
+        await userEvent.type(input, text);
+        expect(input).toHaveValue(text);
+        unmount();
+      }
+    },
+  );
+
+  it.each(["chapter", "clip"] as const)(
+    "keeps leading, trailing and doubled spaces in a %s title as typed",
+    async (which) => {
+      for (const text of [
+        "  lead",
+        "trail  ",
+        "dou  ble",
+        " ",
+        "a b  c   d ",
+      ]) {
+        const { unmount } = setup();
+        const input = inputs[which]();
+        await userEvent.clear(input);
+        await userEvent.type(input, text);
+        expect(input).toHaveValue(text);
+        unmount();
+      }
+    },
+  );
+
+  const keys = (init: KeyboardEventInit) => ({ key: "ArrowUp", ...init });
+  const nudges = [
+    ["plain", {}, 1],
+    ["Shift", { shiftKey: true }, 10],
+    ["Alt", { altKey: true }, 0.1],
+  ] as const;
+
+  it.each(nudges)(
+    "%s+ArrowUp moves a chapter time by %f steps of 0.1 s",
+    (_n, init, steps) => {
+      const { stage, all } = setup();
+      const time = screen.getByRole("textbox", {
+        name: "Time of The old mill",
+      });
+      time.focus();
+      fireEvent.keyDown(time, keys(init));
+      modE(stage());
+      const at = vi
+        .mocked(all.onExport)
+        .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
+      expect(at).toBeCloseTo(312.4 + steps * 0.1, 6);
+    },
+  );
+
+  it.each(nudges)(
+    "%s+ArrowUp moves Part In and Out by %f steps of 0.1 s",
+    async (_n, init, steps) => {
+      for (const which of ["In", "Out"] as const) {
+        const { stage, all, unmount } = setup();
+        await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+        const field = screen.getByRole("textbox", { name: which });
+        field.focus();
+        fireEvent.keyDown(field, keys(init));
+        modE(stage());
+        const range = vi.mocked(all.onExport).mock.calls[0]?.[0].range;
+        const base = which === "In" ? 0 : 60;
+        expect(range?.[which === "In" ? "start" : "end"]).toBeCloseTo(
+          base + steps * 0.1,
+          6,
+        );
+        unmount();
+      }
+    },
+  );
+
+  it.each(nudges)(
+    "%s+ArrowUp moves a clip's In and Out by %f steps of 0.1 s",
+    async (_n, init, steps) => {
+      for (const which of ["In", "Out"] as const) {
+        const { stage, all, unmount } = setup();
+        await userEvent.click(
+          screen.getByRole("button", {
+            name: "Approve Nobody asked the river",
+          }),
+        );
+        await userEvent.click(
+          screen.getByRole("button", {
+            name: "More for Nobody asked the river",
+          }),
+        );
+        await userEvent.click(
+          await screen.findByRole("menuitem", { name: "Trim" }),
+        );
+        const field = screen.getByRole("textbox", {
+          name: `${which} of Nobody asked the river`,
+        });
+        field.focus();
+        fireEvent.keyDown(field, keys(init));
+        modE(stage());
+        const clip = vi
+          .mocked(all.onExport)
+          .mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
+        const base = which === "In" ? 612 : 653;
+        expect(clip?.[which === "In" ? "start" : "end"]).toBeCloseTo(
+          base + steps * 0.1,
+          6,
+        );
+        unmount();
+      }
+    },
+  );
+
+  it("brings back both of two chapters with the same title, in order, after Undo", async () => {
+    const { stage, all } = setup({
+      initialChapters: [
+        { id: "a", at: 10, title: "Intro" },
+        { id: "b", at: 20, title: "Intro" },
+        { id: "c", at: 30, title: "Chapter 3" },
+        { id: "d", at: 40, title: "Chapter 3" },
+      ],
+    });
+    for (const name of ["Intro 2", "Chapter 3 4"]) {
+      await userEvent.click(
+        screen.getByRole("button", { name: `Remove ${name}` }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    }
+    expect(
+      screen
+        .getAllByRole("textbox", { name: /^Title of / })
+        .filter((el) => el.classList.contains("dv-chapter-title")),
+    ).toHaveLength(4);
+    modE(stage());
+    expect(
+      vi.mocked(all.onExport).mock.calls[0]?.[0].chapters.map((c) => c.id),
+    ).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it.each([
+    "83,5",
+    "1:23,4",
+    "1;23",
+    "1e3",
+    "0x10",
+    "+5",
+    "Infinity",
+    "NaN",
+    "1:23:45",
+  ])("keeps the old chapter time when %j is committed", async (typed) => {
+    const { stage, all } = setup();
+    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
+    await userEvent.clear(time);
+    await userEvent.type(time, `${typed}{Enter}`);
+    expect(
+      screen.getByRole("textbox", { name: "Time of The old mill" }),
+    ).toHaveValue("5:12.4");
+    modE(stage());
+    const at = vi
+      .mocked(all.onExport)
+      .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
+    expect(at).toBe(312.4);
+  });
+});
