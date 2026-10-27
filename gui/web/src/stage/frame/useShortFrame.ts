@@ -1,30 +1,92 @@
 import { type RefObject, useEffect, useState } from "react";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 
+/** The natural (unfolded) sizes the frame must fit, in px. */
+export interface FrameFitSizes {
+  frameHeight: number;
+  headerHeight: number;
+  playerHeight: number;
+  tabsHeight: number;
+  /** The lanes' own floor (`--stage-stacked-lanes-min`). */
+  lanesMin: number;
+}
+
 /**
- * Writes `data-frame-short` on the root while the tab bar is folded into the
- * header (`@container app (max-height: 16rem) or (max-width: 20rem)` in system.css
- * hides it). Sheets
- * live outside the frame and read the attribute for their bottom offset
- * (stage-frame.css). The tab bar's own size change is the signal, so the
- * threshold stays in the one query. Returns whether the frame is short, for the
- * header controls that exist only then.
+ * Whether the frame folds: it cannot hold its full header, the full Player,
+ * the tab bar and the lanes' floor together. A size that did not measure
+ * (NaN, or a frame not laid out yet) never folds.
+ */
+export function frameFolds(sizes: FrameFitSizes): boolean {
+  const { frameHeight, headerHeight, playerHeight, tabsHeight, lanesMin } =
+    sizes;
+  const need = headerHeight + playerHeight + tabsHeight + lanesMin;
+  if (!(frameHeight > 0) || Number.isNaN(need)) {
+    return false;
+  }
+  return frameHeight < need;
+}
+
+const FOLD_ATTRIBUTE = "frameShort";
+
+/** A token's resolved block size in px: a `calc()` of tokens included. */
+function tokenHeightPx(host: HTMLElement, token: string): number {
+  const probe = document.createElement("div");
+  probe.style.cssText = `position:absolute;visibility:hidden;inline-size:0;block-size:var(${token})`;
+  host.appendChild(probe);
+  const px = probe.getBoundingClientRect().height;
+  probe.remove();
+  return px;
+}
+
+/**
+ * Measures the frame with the fold lifted, so the header, the Player and the
+ * tab bar report their natural size whichever way the frame sits now. All
+ * reads and the restore happen in one task, before any paint.
+ */
+function measureFit(frame: HTMLElement): FrameFitSizes {
+  const root = document.documentElement;
+  const folded = FOLD_ATTRIBUTE in root.dataset;
+  if (folded) delete root.dataset[FOLD_ATTRIBUTE];
+  const height = (selector: string) =>
+    frame.querySelector(selector)?.getBoundingClientRect().height ?? 0;
+  const sizes = {
+    frameHeight: frame.getBoundingClientRect().height,
+    headerHeight: height(".stage-frame-header"),
+    playerHeight: height(".stage-frame-player"),
+    tabsHeight: height(".stage-frame-tabs"),
+    lanesMin: tokenHeightPx(frame, "--stage-stacked-lanes-min"),
+  };
+  if (folded) root.dataset[FOLD_ATTRIBUTE] = "";
+  return sizes;
+}
+
+/**
+ * Writes `data-frame-short` on the root while the frame is folded: the tab bar
+ * moves into the header's Stage menu, the Edit rows and corner into its Tools
+ * button, and the Player becomes one touch-height row (system.css and
+ * stage-frame.css key on the attribute). The fold is a measured fit
+ * (`frameFolds`), so it tracks text size, header wrapping and the safe area
+ * with no fixed threshold. Sheets live outside the frame and read the
+ * attribute for their bottom offset. Returns whether the frame is folded, for
+ * the header controls that exist only then.
  */
 export function useShortFrame(frame: RefObject<HTMLElement | null>): boolean {
   const [short, setShort] = useState(false);
-  const tabs = () => frame.current?.querySelector(".stage-frame-tabs");
+  const header = () => frame.current?.querySelector(".stage-frame-header");
+  const player = () => frame.current?.querySelector(".stage-frame-player");
   const update = () => {
-    const bar = tabs();
-    const folded = bar && getComputedStyle(bar).display === "none";
+    const el = frame.current;
+    if (!el) return;
+    const folds = frameFolds(measureFit(el));
     const root = document.documentElement;
-    setShort(Boolean(folded));
-    if (folded) root.dataset.frameShort = "";
-    else delete root.dataset.frameShort;
+    setShort(folds);
+    if (folds) root.dataset[FOLD_ATTRIBUTE] = "";
+    else delete root.dataset[FOLD_ATTRIBUTE];
   };
-  useResizeObserver([frame, tabs], update);
+  useResizeObserver([frame, header, player], update);
   useEffect(
     () => () => {
-      delete document.documentElement.dataset.frameShort;
+      delete document.documentElement.dataset[FOLD_ATTRIBUTE];
     },
     [],
   );

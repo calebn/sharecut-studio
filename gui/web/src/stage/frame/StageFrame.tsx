@@ -98,11 +98,7 @@ function StageFrameAdapter({
           peopleSlot={<AvatarStack variant="header" />}
           menuPeople={<AvatarStack variant="menu" />}
           compact={shortFrame}
-          toolsSlot={
-            shortFrame && stage === "edit" && shell === "phone" ? (
-              <ToolsButton />
-            ) : null
-          }
+          toolsSlot={shortFrame && stage === "edit" ? <ToolsButton /> : null}
         />
       }
       banners={

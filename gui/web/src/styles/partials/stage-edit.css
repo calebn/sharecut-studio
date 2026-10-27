@@ -45,12 +45,18 @@
   flex: 1 1 50%;
 }
 
+/* The lanes' floor never outgrows the workspace: a frame too short for it
+   (folded, and still not tall enough) keeps the lanes inside the body, not
+   clipped under the Player. */
 .edit-workspace--stacked .edit-timeline-col {
-  min-block-size: max(
-    var(--stage-stacked-lanes-min),
-    min(
-      var(--stage-stacked-lanes-want),
-      calc(100% - var(--stage-stacked-script-floor))
+  min-block-size: min(
+    100%,
+    max(
+      var(--stage-stacked-lanes-min),
+      min(
+        var(--stage-stacked-lanes-want),
+        calc(100% - var(--stage-stacked-script-floor))
+      )
     )
   );
 }
@@ -213,6 +219,13 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-raised);
+}
+
+/* In the Tools sheet the corner is an ordinary row, not a float over the lanes. */
+.tools-sheet .edit-corner {
+  position: static;
+  justify-content: flex-start;
+  max-inline-size: none;
 }
 
 /* An open join's length rail sits at the foot of the timeline; it stays above the

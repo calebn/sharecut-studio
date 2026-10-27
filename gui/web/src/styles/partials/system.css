@@ -811,44 +811,44 @@
   }
 }
 
-/* A frame this short (a phone held sideways at large text), or this narrow (a
-   small phone at 200% text), keeps the Player as
-   one touch-height row: Play, the clock and the hear menu. The skip buttons, the
-   cuts, the A and B toggles, Comment and the status chips give way. */
-@container app (max-height: 16rem) or (max-width: 20rem) {
-  .sys-player {
-    min-block-size: var(--touch-min);
-  }
+/* A folded frame (useShortFrame: it cannot hold the full header, the Player,
+   the tab bar and the lanes' floor, so a phone held sideways at large text, or a
+   small phone at 200% text) keeps the Player as one touch-height row: Play, the
+   clock and the hear menu. The skip buttons, the cuts, the A and B toggles,
+   Comment and the status chips give way. */
+html[data-frame-short] .sys-player {
+  min-block-size: var(--touch-min);
+}
 
-  .sys-player-skip,
-  .sys-player-ab,
-  .sys-player-left > :not(.sys-player-time),
-  .sys-player-right > :not(.sys-player-hear) {
-    display: none;
-  }
+html[data-frame-short] .sys-player-skip,
+html[data-frame-short] .sys-player-ab,
+html[data-frame-short] .sys-player-left > :not(.sys-player-time),
+html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
+  display: none;
+}
 
-  /* The tab bar folds into the header's stage menu, and the Edit rows into
-     its Tools button, so the stage keeps the height. The project title gives
-     way to the stage name; the Project menu keeps it in its name. */
-  .stage-frame-tabs,
-  .phone-edit-bar,
-  .phone-edit .edit-tool-strip {
-    display: none;
-  }
+/* The tab bar folds into the header's stage menu, and the Edit rows and the
+   corner into its Tools button, so the stage keeps the height. The project
+   title gives way to the stage name; the Project menu keeps it in its name. */
+html[data-frame-short] .stage-frame-tabs,
+html[data-frame-short] .phone-edit-bar,
+html[data-frame-short] .phone-edit .edit-tool-strip,
+html[data-frame-short] .edit-workspace .edit-corner {
+  display: none;
+}
 
-  .sys-header-right {
-    display: none;
-  }
+html[data-frame-short] .sys-header-right {
+  display: none;
+}
 
-  .sys-header-project .sys-header-title {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+html[data-frame-short] .sys-header-project .sys-header-title {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .sys-header-short {

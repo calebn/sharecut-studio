@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
@@ -9,7 +9,14 @@ import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { ToolsButton } from "./ToolsButton";
 import { ToolsSheet } from "./ToolsSheet";
 
+const viewport = vi.hoisted(() => ({ shell: "phone" as string }));
+vi.mock("../../hooks/useViewportClass", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../hooks/useViewportClass")>()),
+  useViewportClass: () => viewport.shell,
+}));
+
 beforeEach(() => {
+  viewport.shell = "phone";
   clearRegisteredCommands();
   registerDawCommands();
   useDawStore
@@ -62,5 +69,26 @@ describe("ToolsSheet", () => {
     expect(screen.queryByRole("group", { name: "Editing tools" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Mix" }));
     expect(useDawStore.getState().openSheet).toBe("mix");
+  });
+
+  it("holds the corner a short frame takes off the lanes", async () => {
+    const user = userEvent.setup();
+    render(<ToolsSheet />);
+    const corner = screen.getByRole("group", { name: "Timeline view" });
+    expect(corner).toBeInTheDocument();
+    // The phone has no side-by-side Script pane, so no Script toggle.
+    expect(screen.queryByRole("button", { name: /Script pane/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    expect(useDawStore.getState().openSheet).toBe("view");
+  });
+
+  it("on a tablet holds the corner with the Script toggle and no tool rows", () => {
+    viewport.shell = "tablet";
+    render(<ToolsSheet />);
+    expect(
+      screen.getByRole("group", { name: "Timeline view" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Edit surface" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Editing tools" })).toBeNull();
   });
 });
