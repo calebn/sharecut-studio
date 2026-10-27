@@ -297,6 +297,28 @@ describe("CommentsPanel", () => {
     expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue("Try");
   });
 
+  it("text typed while the post is in flight survives the post's clear", async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    let release: (c: unknown) => void = () => undefined;
+    createComment.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    renderPanel({ guestShare: true });
+    const field = () => screen.getByRole("textbox", { name: "Comment" });
+    await user.type(field(), "One");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    await user.click(screen.getByRole("button", { name: "Post as Guest" }));
+    await user.type(field(), " more");
+    await act(async () => {
+      release(sampleComment({ id: "c9" }));
+    });
+    await screen.findByRole("button", { name: "Post comment" });
+    expect(field()).toHaveValue("One more");
+  });
+
   it("Change then a new name saves it and is used on the next post", async () => {
     const user = userEvent.setup();
     renderPanel();
