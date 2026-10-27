@@ -13,7 +13,7 @@ import {
   roomTileLabel,
   roomTileStatus,
   savingFraction,
-} from "./roomTile";
+} from "./roomTileModel";
 import { SystemIcon } from "./SystemIcon";
 
 const SIGNAL: Record<RoomConnection, { icon: SystemIconName; title: string }> =
