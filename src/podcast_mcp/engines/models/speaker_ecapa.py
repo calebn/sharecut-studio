@@ -79,6 +79,11 @@ def speaker_ecapa_problem(*, memoize: bool = False) -> str | None:
     """
     path = speaker_ecapa_path()
     if not path.is_file():
+        if speaker_ecapa_override() is not None:
+            return (
+                f"file set in {SPEAKER_ECAPA_ENV} is missing; point it at a working ONNX file "
+                "or unset it before downloading the pinned model"
+            )
         return f"not downloaded; run {SPEAKER_ECAPA_BOOTSTRAP}"
     if speaker_ecapa_override() is not None:
         return None
