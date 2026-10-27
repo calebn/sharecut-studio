@@ -36,7 +36,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Deliver stage host: Readiness (what is still open, each with the fix), then Export, Bounce and Listen link entry points. The dialogs stay mounted in the app, so closing one returns here. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
+          "The Deliver stage host: Readiness (what is still open, each with the fix), the episode file, Chapters and Clips, then the Bounce and Listen link entry points. Removing or retiming a chapter, and trimming or removing a clip, are saved to the project; approving or retitling a clip stays on the page for now. Export opens the Export dialog. The dialogs stay mounted in the app, so closing one returns here. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
       },
     },
   },
@@ -82,7 +82,7 @@ export const ItemsOpen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      await canvas.findByRole("button", { name: "Decide" }),
+      await canvas.findByRole("button", { name: "Review" }),
     );
     await waitFor(() => expect(useDawStore.getState().stage).toBe("review"));
   },
