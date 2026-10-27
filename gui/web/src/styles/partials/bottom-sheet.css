@@ -161,7 +161,13 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
   background: var(--color-border-strong);
 }
 
-/* The detent control is a visually hidden range; its focus rings the pill. */
+/* The detent control is a visually hidden range; its focus rings the pill.
+   It is never a touch target: the header drags, and the range is the keyboard
+   and assistive-technology equivalent. */
+.bottom-sheet-detent {
+  pointer-events: none;
+}
+
 .bottom-sheet-grabber:has(.bottom-sheet-detent:focus-visible) {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
