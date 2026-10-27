@@ -31,6 +31,13 @@ describe("Seam as a diamond", () => {
     expect(onKeyDown.mock.calls[0][0].key).toBe("ArrowRight");
   });
 
+  it("takes the tab index its host gives it, and is a tab stop of its own without one", () => {
+    const { rerender } = render(<Seam {...cut} onSelect={vi.fn()} />);
+    expect(screen.getByRole("button").tabIndex).toBe(0);
+    rerender(<Seam {...cut} onSelect={vi.fn()} tabIndex={-1} />);
+    expect(screen.getByRole("button").tabIndex).toBe(-1);
+  });
+
   it("tells a cut from a split and a selected seam from the rest", () => {
     const { container, rerender } = render(<Seam {...cut} />);
     const seam = () => container.querySelector(".sys-seam");

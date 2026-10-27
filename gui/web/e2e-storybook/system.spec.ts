@@ -292,3 +292,54 @@ test("System/ScriptPane header buttons and the Back to playhead pill reach 44 px
   expect(reach.map((r) => r.width >= 44)).toEqual([true, true, true, true]);
   expect(reach.map((r) => r.corners)).toEqual([true, true, true, true]);
 });
+
+test("System/ScriptPane a word, a suggested run and a cut pill reach 44 px under a coarse pointer", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: "http://127.0.0.1:6010",
+  });
+  const page = await context.newPage();
+  await page.goto(
+    storyUrl("stages-edit-scriptpane--cuts-and-suggestions", {
+      theme: "light",
+    }),
+  );
+  const targets = {
+    pill: page.getByRole("button", { name: "Cut, 1.1 s removed" }),
+    word: page.getByRole("button", { name: "Welcome", exact: true }),
+    run: page.getByRole("button", { name: /^Suggested cut: / }),
+  };
+  const reach: Record<string, { width: number; height: number; own: boolean }> =
+    {};
+  for (const [kind, target] of Object.entries(targets)) {
+    await expect(target).toBeVisible();
+    reach[kind] = await target.evaluate((el) => {
+      const region = getComputedStyle(el, "::after");
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      return {
+        width: Math.round(Number.parseFloat(region.width)),
+        height: Math.round(Number.parseFloat(region.height)),
+        own: hit?.closest("button") === el,
+      };
+    });
+  }
+  await context.close();
+  expect(
+    Object.fromEntries(
+      Object.entries(reach).map(([kind, r]) => [
+        kind,
+        [r.width >= 44, r.height >= 44, r.own],
+      ]),
+    ),
+  ).toEqual({
+    pill: [true, true, true],
+    word: [true, true, true],
+    run: [true, true, true],
+  });
+});

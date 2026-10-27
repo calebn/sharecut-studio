@@ -1,11 +1,18 @@
 import {
   type CSSProperties,
-  type FocusEvent,
   Fragment,
+  forwardRef,
   type KeyboardEvent,
+  memo,
   type ReactNode,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
+import { useUserScrollIntent } from "../hooks/useUserScrollIntent";
 import { presenceColorVar } from "../presence/colors";
 import { Cover } from "./Cover";
 import { PersonAvatar } from "./Person";
@@ -22,439 +29,979 @@ import {
   piecesOf,
   type ScriptCaret,
   type ScriptPiece,
+  type ScriptSelection,
   type ScriptSpan,
   type ScriptStatus,
+  type ScriptStop,
   type ScriptTurn,
   type ScriptWord,
+  stopContaining,
+  stopsOf,
+  type WordFound,
+  type WordsSelection,
+  withEditing,
+  wordLabel,
 } from "./scriptPieces";
+import {
+  extendTo,
+  isNavKey,
+  navigate,
+  selectionSummary,
+  spanOf,
+} from "./scriptSelection";
 
+export type ScriptPaneHandle = {
+  /** Scroll the word into view. False when the pane does not show it, so the host should widen its window of turns. */
+  scrollToWord: (index: number, block?: ScrollLogicalPosition) => boolean;
+};
+
+/**
+ * Every callback is optional. A pane without them reads, and a header control
+ * whose callback is missing is not drawn, which is how a guest's pane is made.
+ *
+ * The pane draws the turns it is given and keeps nothing about the rest of the
+ * episode, so a host that virtualizes passes a window of turns whose word
+ * indices are the episode's. Keyboard moves stop at the window's edge; the
+ * host widens the window and uses `scrollToWord` to land on a word.
+ */
 export type ScriptPaneProps = {
   turns: readonly ScriptTurn[];
   status?: ScriptStatus;
   /** `phone` reads at 17/28 instead of 16/26. */
   layout?: "desktop" | "phone";
-  /** The word under the playhead. */
-  playing?: number;
-  selection?: ScriptSpan | null;
-  /** The first word of the cut whose pill is selected. */
-  selectedCut?: number;
+  /** The words under the playhead. Two tracks can speak at once. */
+  playing?: number | readonly number[];
+  selection?: ScriptSelection | null;
   carets?: readonly ScriptCaret[];
+  /** Find hits, by word span, and which one is current. */
+  matches?: readonly ScriptSpan[];
+  currentMatch?: number;
+  /** Fix text: the words in this span give way to `renderEditor`'s field. */
+  editing?: ScriptSpan | null;
+  renderEditor?: (span: ScriptSpan) => ReactNode;
   /** Cut words show struck instead of collapsing into a pill. */
   showCutText?: boolean;
   /** The pane scrolls with the playhead. Off, "Back to playhead" shows. */
   following?: boolean;
   /** A guest reads, selects and comments. Fixing and cutting are not offered. */
   guest?: "viewer" | "commenter";
-  /** A word was pressed. `extend` is true for Shift, which grows the selection. */
-  onWord: (index: number, extend: boolean) => void;
-  onSeamSelect: (span: ScriptSpan) => void;
-  onSuggestionSelect: (span: ScriptSpan) => void;
-  onFind: () => void;
+  /** The chip's count when `turns` is only a window of the transcript. */
+  unsureCount?: number;
+  /** The caret moved: a click, or a plain arrow, Home or End. It sits before word `before`. */
+  onCaret?: (before: number) => void;
+  /** The selection changed by Shift with a key or a click. */
+  onSelect?: (selection: WordsSelection) => void;
+  /** The playhead should go to this word. */
+  onSeek?: (index: number) => void;
+  /** Enter on a word inside the selection: the selection's main verb. */
+  onPrimary?: () => void;
+  onSeamSelect?: (id: string) => void;
+  onSuggestionSelect?: (id: string) => void;
+  /** The turn's time was pressed. */
+  onSeekTurn?: (turnId: string) => void;
+  /** The speaker's name was pressed. The popover anchors to `anchor`. */
+  onSpeaker?: (turnId: string, anchor: HTMLElement) => void;
+  onFind?: () => void;
   /** Jump to the next word the transcript is unsure of. */
-  onNextUnsure: () => void;
-  onShowCutTextChange: (show: boolean) => void;
-  onFollowChange: (follow: boolean) => void;
-  onBackToPlayhead: () => void;
+  onNextUnsure?: () => void;
+  onShowCutTextChange?: (show: boolean) => void;
+  onFollowChange?: (follow: boolean) => void;
+  onBackToPlayhead?: () => void;
+  /** The reader scrolled by hand: wheel, touch, scrollbar or paging key. The host turns follow off. */
+  onUserScroll?: () => void;
+};
+
+type FoundSpan = ScriptSpan & { current: boolean };
+
+type Live = {
+  stops: readonly ScriptStop[];
+  stopPos: ReadonlyMap<number, number>;
+  selection: ScriptSelection | null;
+  ownCaret: number | undefined;
+  props: Pick<
+    ScriptPaneProps,
+    | "onCaret"
+    | "onSelect"
+    | "onSeek"
+    | "onPrimary"
+    | "onSeamSelect"
+    | "onSuggestionSelect"
+    | "onSeekTurn"
+    | "onSpeaker"
+  >;
+};
+
+/** Handlers with one identity for the pane's life, so a playhead tick leaves every memoized piece alone. */
+type Actions = {
+  register: (start: number, el: HTMLElement | null) => void;
+  click: (index: number, shift: boolean) => void;
+  key: (event: KeyboardEvent<HTMLElement>, start: number) => void;
+  seam: (id: string) => void;
+  suggestion: (id: string) => void;
+  seekTurn: (turnId: string) => void;
+  speaker: (turnId: string, anchor: HTMLElement) => void;
 };
 
 const NO_CARETS: readonly ScriptCaret[] = [];
+const NO_NUMBERS: readonly number[] = [];
+const NO_FOUND: readonly FoundSpan[] = [];
+const NO_MATCHES: readonly ScriptSpan[] = [];
+const READY: ScriptStatus = { kind: "ready" };
 
 const firstName = (name: string) => name.split(/\s+/)[0] ?? name;
 
-const within = (span: ScriptSpan | null | undefined, index: number) =>
-  span !== null &&
-  span !== undefined &&
-  index >= span.start &&
-  index <= span.end;
+const within = (span: ScriptSpan | null, index: number) =>
+  span !== null && index >= span.start && index <= span.end;
 
-const overlaps = (
-  span: ScriptSpan | null | undefined,
-  from: number,
-  to: number,
-) =>
-  span !== null && span !== undefined && span.start <= to && span.end >= from;
+const overlaps = (span: ScriptSpan | null, from: number, to: number) =>
+  span !== null && span.start <= to && span.end >= from;
 
-function stopFor(key: string, at: number, count: number): number | null {
-  switch (key) {
-    case "ArrowRight":
-      return Math.min(count - 1, at + 1);
-    case "ArrowLeft":
-      return Math.max(0, at - 1);
-    case "Home":
-      return 0;
-    case "End":
-      return count - 1;
-    default:
-      return null;
-  }
+const focusable = (el: HTMLElement | undefined) =>
+  el?.matches("button") ? el : el?.querySelector<HTMLElement>("button");
+
+/** For each range, the items that touch it. One shared empty list when none do, so untouched turns keep their props. */
+function slicePerRange<T>(
+  items: readonly T[],
+  ranges: readonly { lo: number; hi: number }[],
+  touches: (item: T, lo: number, hi: number) => boolean,
+  none: readonly T[],
+): (readonly T[])[] {
+  return ranges.map(({ lo, hi }) => {
+    const hit = items.filter((item) => touches(item, lo, hi));
+    return hit.length > 0 ? hit : none;
+  });
 }
 
-function stopsOf(piece: ScriptPiece): number[] {
-  return piece.kind === "muted"
-    ? piece.words.map((word) => word.index)
-    : [pieceStart(piece)];
-}
+export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
+  function ScriptPane(
+    {
+      turns,
+      status = READY,
+      layout = "desktop",
+      playing,
+      selection: selectionProp = null,
+      carets = NO_CARETS,
+      matches = NO_MATCHES,
+      currentMatch,
+      editing,
+      renderEditor,
+      showCutText = false,
+      following = true,
+      guest,
+      unsureCount,
+      onCaret,
+      onSelect,
+      onSeek,
+      onPrimary,
+      onSeamSelect,
+      onSuggestionSelect,
+      onSeekTurn,
+      onSpeaker,
+      onFind,
+      onNextUnsure,
+      onShowCutTextChange,
+      onFollowChange,
+      onBackToPlayhead,
+      onUserScroll,
+    },
+    ref,
+  ) {
+    const [focused, setFocused] = useState<number | null>(null);
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const registry = useRef(new Map<number, HTMLElement>());
+    const caretRef = useRef<number | null>(null);
+    const inside = useRef(false);
+    const scrollIntent = useUserScrollIntent();
 
-export function ScriptPane({
-  turns,
-  status = { kind: "ready" },
-  layout = "desktop",
-  playing,
-  selection = null,
-  selectedCut,
-  carets = NO_CARETS,
-  showCutText = false,
-  following = true,
-  guest,
-  onWord,
-  onSeamSelect,
-  onSuggestionSelect,
-  onFind,
-  onNextUnsure,
-  onShowCutTextChange,
-  onFollowChange,
-  onBackToPlayhead,
-}: ScriptPaneProps) {
-  const [focused, setFocused] = useState<number | null>(null);
-  const piecesByTurn = turns.map((turn) => piecesOf(turn.words, showCutText));
-  const stops = piecesByTurn.flatMap((pieces) => pieces.flatMap(stopsOf));
-  const unsure = turns.reduce(
-    (sum, turn) => sum + turn.words.filter((w) => w.lowConfidence).length,
-    0,
-  );
+    const selKind = selectionProp?.kind;
+    const selAnchor =
+      selectionProp?.kind === "words" ? selectionProp.anchor : -1;
+    const selHead = selectionProp?.kind === "words" ? selectionProp.head : -1;
+    const selId =
+      selectionProp && selectionProp.kind !== "words" ? selectionProp.id : "";
+    const selection = useMemo<ScriptSelection | null>(() => {
+      if (selKind === "words") {
+        return { kind: "words", anchor: selAnchor, head: selHead };
+      }
+      return selKind ? { kind: selKind, id: selId } : null;
+    }, [selKind, selAnchor, selHead, selId]);
+    const span = useMemo(() => spanOf(selection), [selection]);
 
-  const ownCaret = carets.find((caret) => caret.person === undefined)?.before;
-  const anchor = ownCaret ?? playing;
-  const holder = piecesByTurn
-    .flat()
-    .find(
-      (piece) =>
-        anchor !== undefined &&
-        pieceStart(piece) <= anchor &&
-        anchor <= pieceEnd(piece),
+    const editStart = editing?.start;
+    const editEnd = editing?.end;
+    const basePieces = useMemo(
+      () => turns.map((turn) => piecesOf(turn.words, showCutText)),
+      [turns, showCutText],
     );
-  const holderStops = holder === undefined ? [] : stopsOf(holder);
-  const tabStop =
-    focused !== null && stops.includes(focused)
-      ? focused
-      : (holderStops.find((stop) => stop === anchor) ??
-        holderStops[0] ??
-        stops[0]);
+    const piecesByTurn = useMemo(
+      () =>
+        basePieces.map((pieces) =>
+          withEditing(
+            pieces,
+            editStart === undefined || editEnd === undefined
+              ? null
+              : { start: editStart, end: editEnd },
+          ),
+        ),
+      [basePieces, editStart, editEnd],
+    );
+    const { stops, stopPos, ranges, markTurn } = useMemo(() => {
+      const all = piecesByTurn.flatMap(stopsOf);
+      const marks = new Map<string, number>();
+      piecesByTurn.forEach((pieces, turnIndex) => {
+        for (const piece of pieces) {
+          if (piece.kind === "cut" || piece.kind === "suggestion") {
+            marks.set(piece.id, turnIndex);
+          }
+        }
+      });
+      return {
+        stops: all,
+        stopPos: new Map(all.map((stop, at) => [stop.start, at])),
+        ranges: piecesByTurn.map((pieces) => ({
+          lo: pieces.length > 0 ? pieceStart(pieces[0]) : -1,
+          hi: pieces.length > 0 ? pieceEnd(pieces[pieces.length - 1]) : -1,
+        })),
+        markTurn: marks,
+      };
+    }, [piecesByTurn]);
+    const unsure = useMemo(
+      () =>
+        turns.reduce(
+          (sum, turn) => sum + turn.words.filter((w) => w.lowConfidence).length,
+          0,
+        ),
+      [turns],
+    );
 
-  const showHeader =
-    status.kind === "ready" ||
-    status.kind === "transcribing" ||
-    status.kind === "outOfDate";
+    const playingList = useMemo(
+      () =>
+        playing === undefined
+          ? NO_NUMBERS
+          : typeof playing === "number"
+            ? [playing]
+            : playing,
+      [playing],
+    );
+    const playingByTurn = useMemo(
+      () =>
+        slicePerRange(
+          playingList,
+          ranges,
+          (index, lo, hi) => index >= lo && index <= hi,
+          NO_NUMBERS,
+        ),
+      [playingList, ranges],
+    );
+    const selectionByTurn = useMemo(
+      () => ranges.map(({ lo, hi }) => (overlaps(span, lo, hi) ? span : null)),
+      [span, ranges],
+    );
+    const ownCaret = useMemo(
+      () => carets.find((caret) => caret.person === undefined)?.before,
+      [carets],
+    );
+    const caretsByTurn = useMemo(
+      () =>
+        slicePerRange(
+          carets,
+          ranges,
+          (caret, lo, hi) => caret.before >= lo && caret.before <= hi,
+          NO_CARETS,
+        ),
+      [carets, ranges],
+    );
+    const foundByTurn = useMemo(
+      () =>
+        slicePerRange(
+          matches.map((match, at) => ({
+            ...match,
+            current: at === currentMatch,
+          })),
+          ranges,
+          (match, lo, hi) => match.start <= hi && match.end >= lo,
+          NO_FOUND,
+        ),
+      [matches, currentMatch, ranges],
+    );
+    const summary = useMemo(
+      () => selectionSummary(piecesByTurn.flat(), selection),
+      [piecesByTurn, selection],
+    );
 
-  if (status.kind === "empty") {
+    const tabStop = useMemo(() => {
+      if (focused !== null && stopPos.has(focused)) return focused;
+      return (
+        stopContaining(stops, ownCaret)?.start ??
+        stopContaining(stops, playingList[0])?.start ??
+        stops[0]?.start ??
+        -1
+      );
+    }, [focused, stopPos, stops, ownCaret, playingList]);
+
+    const live = useRef<Live>({
+      stops,
+      stopPos,
+      selection,
+      ownCaret,
+      props: {},
+    });
+    useLayoutEffect(() => {
+      live.current = {
+        stops,
+        stopPos,
+        selection,
+        ownCaret,
+        props: {
+          onCaret,
+          onSelect,
+          onSeek,
+          onPrimary,
+          onSeamSelect,
+          onSuggestionSelect,
+          onSeekTurn,
+          onSpeaker,
+        },
+      };
+    });
+
+    const actions = useMemo<Actions>(() => {
+      const focusStop = (start: number) => {
+        setFocused(start);
+        focusable(registry.current.get(start))?.focus({ preventScroll: false });
+      };
+      return {
+        register: (start, el) => {
+          if (el) registry.current.set(start, el);
+          else registry.current.delete(start);
+        },
+        click: (index, shift) => {
+          const now = live.current;
+          setFocused(index);
+          focusable(registry.current.get(index))?.focus({
+            preventScroll: true,
+          });
+          if (shift) {
+            const anchor =
+              now.selection?.kind === "words"
+                ? now.selection.anchor
+                : (now.ownCaret ?? caretRef.current ?? index);
+            now.props.onSelect?.(
+              extendTo(
+                anchor,
+                stopContaining(now.stops, index) ?? {
+                  start: index,
+                  end: index,
+                },
+              ),
+            );
+            return;
+          }
+          caretRef.current = index;
+          now.props.onCaret?.(index);
+          now.props.onSeek?.(index);
+        },
+        key: (event, start) => {
+          if (event.altKey || event.ctrlKey || event.metaKey) return;
+          const now = live.current;
+          if (event.key === "Enter" && !event.shiftKey) {
+            if (stopContaining(now.stops, start)?.kind !== "word") return;
+            event.preventDefault();
+            const selected = spanOf(now.selection);
+            if (within(selected, start)) {
+              now.props.onPrimary?.();
+              return;
+            }
+            caretRef.current = start;
+            now.props.onSelect?.({ kind: "words", anchor: start, head: start });
+            now.props.onSeek?.(start);
+            return;
+          }
+          if (!isNavKey(event.key)) return;
+          event.preventDefault();
+          const at = now.stopPos.get(start);
+          if (at === undefined) return;
+          const moved = navigate(
+            now.stops,
+            at,
+            event.key,
+            event.shiftKey,
+            now.selection,
+          );
+          if (!moved) return;
+          focusStop(now.stops[moved.to].start);
+          if (moved.selection) {
+            now.props.onSelect?.(moved.selection);
+          } else if (moved.caret !== undefined) {
+            caretRef.current = moved.caret;
+            now.props.onCaret?.(moved.caret);
+          }
+        },
+        seam: (id) => live.current.props.onSeamSelect?.(id),
+        suggestion: (id) => live.current.props.onSuggestionSelect?.(id),
+        seekTurn: (turnId) => live.current.props.onSeekTurn?.(turnId),
+        speaker: (turnId, anchor) =>
+          live.current.props.onSpeaker?.(turnId, anchor),
+      };
+    }, []);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        scrollToWord: (index, block = "nearest") => {
+          const stop = stopContaining(live.current.stops, index);
+          const el = stop ? registry.current.get(stop.start) : undefined;
+          el?.scrollIntoView?.({ block });
+          return el !== undefined;
+        },
+      }),
+      [],
+    );
+
+    const bodyShown = status.kind !== "empty" && status.kind !== "loading";
+    useEffect(() => {
+      const body = bodyRef.current;
+      if (!body) return;
+      const onKeyUp = (event: globalThis.KeyboardEvent) => {
+        // Space is Play/Pause everywhere; a button must not also click on it.
+        if (
+          event.key === " " &&
+          event.target instanceof HTMLElement &&
+          event.target.closest("[data-stop]")
+        ) {
+          event.preventDefault();
+        }
+      };
+      const onFocusIn = (event: FocusEvent) => {
+        inside.current = true;
+        if (!(event.target instanceof HTMLElement)) return;
+        const stop = event.target.closest<HTMLElement>("[data-stop]");
+        if (stop) setFocused(Number(stop.dataset.stop));
+      };
+      const onFocusOut = (event: FocusEvent) => {
+        const el = event.target;
+        if (!(el instanceof HTMLElement)) return;
+        // Removing the focused element can fire this too; only a live element means focus left.
+        queueMicrotask(() => {
+          if (el.isConnected) inside.current = false;
+        });
+      };
+      body.addEventListener("keyup", onKeyUp);
+      body.addEventListener("focusin", onFocusIn);
+      body.addEventListener("focusout", onFocusOut);
+      return () => {
+        body.removeEventListener("keyup", onKeyUp);
+        body.removeEventListener("focusin", onFocusIn);
+        body.removeEventListener("focusout", onFocusOut);
+      };
+    }, [bodyShown]);
+
+    // A focused stop that went away (a word cut into a pill, a field closed)
+    // hands focus to the stop that now holds its place.
+    useLayoutEffect(() => {
+      if (!inside.current || focused === null) return;
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      const heir =
+        stopContaining(stops, focused) ??
+        stops.find((stop) => stop.start >= focused) ??
+        stops[stops.length - 1];
+      if (!heir) return;
+      focusable(registry.current.get(heir.start))?.focus();
+    });
+
+    const showHeader =
+      status.kind === "ready" ||
+      status.kind === "transcribing" ||
+      status.kind === "outOfDate";
+
+    if (status.kind === "empty") {
+      return (
+        <section
+          className="sys-script"
+          aria-label="Script"
+          data-layout={layout}
+        >
+          <Cover
+            size="region"
+            glyph="file-plus"
+            title="No transcript yet"
+            primary={{
+              label: "Transcribe this episode",
+              onClick: status.onTranscribe,
+            }}
+          >
+            Transcribe this episode to edit it by reading.
+          </Cover>
+        </section>
+      );
+    }
+
+    const unsureShown = unsureCount ?? unsure;
+
     return (
       <section className="sys-script" aria-label="Script" data-layout={layout}>
-        <Cover
-          size="region"
-          glyph="file-plus"
-          title="No transcript yet"
-          primary={{
-            label: "Transcribe this episode",
-            onClick: status.onTranscribe,
-          }}
-        >
-          Transcribe this episode to edit it by reading.
-        </Cover>
+        {showHeader ? (
+          <div className="sys-script-header">
+            <div className="sys-script-tools">
+              {onFind ? (
+                <button
+                  type="button"
+                  className="sys-script-tool"
+                  aria-label="Find in transcript"
+                  onClick={onFind}
+                >
+                  <SystemIcon name="text-search" size={16} />
+                </button>
+              ) : null}
+              {unsureShown > 0 && onNextUnsure ? (
+                <button
+                  type="button"
+                  className="sys-script-tool sys-script-unsure"
+                  aria-label={`${unsureShown} unsure ${unsureShown === 1 ? "word" : "words"}, go to the next`}
+                  onClick={onNextUnsure}
+                >
+                  <span aria-hidden="true">? {unsureShown}</span>
+                </button>
+              ) : null}
+              {onShowCutTextChange ? (
+                <button
+                  type="button"
+                  className="sys-script-tool"
+                  aria-label="Show cut text"
+                  aria-pressed={showCutText}
+                  onClick={() => onShowCutTextChange(!showCutText)}
+                >
+                  <SystemIcon
+                    name={showCutText ? "eye" : "eye-off"}
+                    size={16}
+                  />
+                </button>
+              ) : null}
+              {onFollowChange ? (
+                <button
+                  type="button"
+                  className="sys-script-tool"
+                  aria-label="Follow the playhead"
+                  aria-pressed={following}
+                  onClick={() => onFollowChange(!following)}
+                >
+                  <SystemIcon name="pin" size={16} />
+                </button>
+              ) : null}
+            </div>
+            {guest ? (
+              <span className="sys-script-guest">
+                {guest === "commenter"
+                  ? "Read only · you can comment"
+                  : "Read only"}
+              </span>
+            ) : null}
+            <div className="sys-script-notice">
+              {status.kind === "transcribing" ? (
+                <StatusRow
+                  density="inline"
+                  state="running"
+                  title="Transcribing"
+                  detail={`${percentOf(status.progress)}%`}
+                  valueText={`${percentOf(status.progress)} percent`}
+                  progress={status.progress}
+                />
+              ) : null}
+              {status.kind === "outOfDate" ? (
+                <StatusRow
+                  density="inline"
+                  state="needs-you"
+                  title="Transcript out of date"
+                  action={{ label: "Update", onAction: status.onUpdate }}
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {status.kind === "loading" ? (
+          <Skeleton
+            rows={6}
+            elapsedMs={status.elapsedMs}
+            onRetry={status.onRetry}
+          />
+        ) : (
+          <div
+            className="sys-script-body"
+            ref={bodyRef}
+            {...scrollIntent.handlers}
+            onScroll={() => {
+              if (scrollIntent.isUserScroll()) onUserScroll?.();
+            }}
+          >
+            {turns.map((turn, turnIndex) => {
+              const { lo, hi } = ranges[turnIndex];
+              return (
+                <TurnView
+                  key={turn.id}
+                  turn={turn}
+                  pieces={piecesByTurn[turnIndex]}
+                  continued={continuesSpeaker(turn, turns[turnIndex - 1])}
+                  playing={playingByTurn[turnIndex]}
+                  selection={selectionByTurn[turnIndex]}
+                  selectedCut={
+                    selection?.kind === "cut" &&
+                    markTurn.get(selection.id) === turnIndex
+                      ? selection.id
+                      : undefined
+                  }
+                  selectedSuggestion={
+                    selection?.kind === "suggestion" &&
+                    markTurn.get(selection.id) === turnIndex
+                      ? selection.id
+                      : undefined
+                  }
+                  carets={caretsByTurn[turnIndex]}
+                  found={foundByTurn[turnIndex]}
+                  tabStop={tabStop >= lo && tabStop <= hi ? tabStop : -1}
+                  renderEditor={
+                    editing && overlaps(editing, lo, hi)
+                      ? renderEditor
+                      : undefined
+                  }
+                  canSeekTurn={onSeekTurn !== undefined}
+                  canSpeaker={onSpeaker !== undefined}
+                  actions={actions}
+                />
+              );
+            })}
+            {status.kind === "transcribing" && status.notYet ? (
+              <p className="sys-script-notyet">
+                Not transcribed yet · {status.notYet}
+              </p>
+            ) : null}
+          </div>
+        )}
+        <div className="sr-only" role="status" aria-live="polite">
+          {summary}
+        </div>
+        {!following && playingList.length > 0 && onBackToPlayhead ? (
+          <button
+            type="button"
+            className="sys-script-back"
+            onClick={onBackToPlayhead}
+          >
+            <SystemIcon name="locate-fixed" size={14} />
+            Back to playhead
+          </button>
+        ) : null}
       </section>
     );
-  }
+  },
+);
 
-  function onFocus(event: FocusEvent<HTMLElement>) {
-    const stop = event.currentTarget.closest<HTMLElement>("[data-stop]");
-    if (stop) setFocused(Number(stop.dataset.stop));
-  }
+type TurnProps = {
+  turn: ScriptTurn;
+  pieces: ScriptPiece[];
+  continued: boolean;
+  playing: readonly number[];
+  selection: ScriptSpan | null;
+  selectedCut: string | undefined;
+  selectedSuggestion: string | undefined;
+  carets: readonly ScriptCaret[];
+  found: readonly FoundSpan[];
+  tabStop: number;
+  renderEditor: ((span: ScriptSpan) => ReactNode) | undefined;
+  canSeekTurn: boolean;
+  canSpeaker: boolean;
+  actions: Actions;
+};
 
-  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
-    const current = event.currentTarget.closest<HTMLElement>("[data-stop]");
-    const body = event.currentTarget.closest(".sys-script-body");
-    if (!current || !body || event.altKey || event.ctrlKey || event.metaKey) {
-      return;
-    }
-    const all = [...body.querySelectorAll<HTMLElement>("[data-stop]")];
-    const target = stopFor(event.key, all.indexOf(current), all.length);
-    if (target === null) return;
-    event.preventDefault();
-    const next = all[target];
-    const control = next.matches("button")
-      ? next
-      : next.querySelector<HTMLElement>("button");
-    control?.focus();
-    if (event.shiftKey && event.key.startsWith("Arrow")) {
-      onWord(Number(next.dataset.stop), true);
-    }
-  }
-
-  return (
-    <section className="sys-script" aria-label="Script" data-layout={layout}>
-      {showHeader ? (
-        <div className="sys-script-header">
-          <div className="sys-script-tools">
-            <button
-              type="button"
-              className="sys-script-tool"
-              aria-label="Find in transcript"
-              onClick={onFind}
-            >
-              <SystemIcon name="text-search" size={16} />
-            </button>
-            {unsure > 0 ? (
-              <button
-                type="button"
-                className="sys-script-tool sys-script-unsure"
-                aria-label={`? ${unsure} unsure ${unsure === 1 ? "word" : "words"}, go to the next`}
-                onClick={onNextUnsure}
-              >
-                <span aria-hidden="true">? {unsure}</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="sys-script-tool"
-              aria-label="Show cut text"
-              aria-pressed={showCutText}
-              onClick={() => onShowCutTextChange(!showCutText)}
-            >
-              <SystemIcon name={showCutText ? "eye" : "eye-off"} size={16} />
-            </button>
-            <button
-              type="button"
-              className="sys-script-tool"
-              aria-label="Follow the playhead"
-              aria-pressed={following}
-              onClick={() => onFollowChange(!following)}
-            >
-              <SystemIcon name="pin" size={16} />
-            </button>
-          </div>
-          {guest ? (
-            <span className="sys-script-guest">
-              {guest === "commenter"
-                ? "Read only · you can comment"
-                : "Read only"}
-            </span>
-          ) : null}
-          <div className="sys-script-notice">
-            {status.kind === "transcribing" ? (
-              <StatusRow
-                density="inline"
-                state="running"
-                title="Transcribing"
-                detail={`${percentOf(status.progress)}%`}
-                valueText={`${percentOf(status.progress)} percent`}
-                progress={status.progress}
-              />
-            ) : null}
-            {status.kind === "outOfDate" ? (
-              <StatusRow
-                density="inline"
-                state="needs-you"
-                title="Transcript out of date"
-                action={{ label: "Update", onAction: status.onUpdate }}
-              />
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-      {status.kind === "loading" ? (
-        <Skeleton
-          rows={6}
-          elapsedMs={status.elapsedMs}
-          onRetry={status.onRetry}
-        />
-      ) : (
-        <div className="sys-script-body">
-          {turns.map((turn, turnIndex) => {
-            const continued = continuesSpeaker(turn, turns[turnIndex - 1]);
-            const pieces = piecesByTurn[turnIndex];
-            return (
-              <div
-                key={turn.id}
-                role="group"
-                className="sys-script-turn"
-                aria-label={`${firstName(turn.speaker.name)}, ${turn.time}`}
-              >
-                <div
-                  className="sys-script-margin"
-                  style={
-                    {
-                      "--sys-person-color": presenceColorVar(
-                        turn.speaker.colorIndex,
-                      ),
-                    } as CSSProperties
-                  }
-                >
-                  {continued ? null : (
-                    <>
-                      <span className="sys-script-speaker">
-                        <PersonAvatar person={turn.speaker} size={20} />
-                        <span className="sys-script-name">
-                          {firstName(turn.speaker.name)}
-                        </span>
-                      </span>
-                      <span className="sys-script-time">{turn.time}</span>
-                    </>
-                  )}
-                </div>
-                <p className="sys-script-text">
-                  {pieces.map((piece, pieceIndex) => {
-                    const start = pieceStart(piece);
-                    const previous = pieces[pieceIndex - 1];
-                    return (
-                      <Fragment key={start}>
-                        {previous ? (
-                          <Gap
-                            selected={
-                              selection !== null &&
-                              pieceEnd(previous) >= selection.start &&
-                              start <= selection.end
-                            }
-                          />
-                        ) : null}
-                        <Carets
-                          carets={carets}
-                          from={start}
-                          to={pieceEnd(piece)}
-                        />
-                        {renderPiece(piece)}
-                      </Fragment>
-                    );
-                  })}
-                </p>
-              </div>
-            );
-          })}
-          {status.kind === "transcribing" && status.notYet ? (
-            <p className="sys-script-notyet">
-              Not transcribed yet · {status.notYet}
-            </p>
-          ) : null}
-        </div>
-      )}
-      {!following && playing !== undefined ? (
-        <button
-          type="button"
-          className="sys-script-back"
-          onClick={onBackToPlayhead}
-        >
-          <SystemIcon name="locate-fixed" size={14} />
-          Back to playhead
-        </button>
-      ) : null}
-    </section>
+const TurnView = memo(function TurnView({
+  turn,
+  pieces,
+  continued,
+  playing,
+  selection,
+  selectedCut,
+  selectedSuggestion,
+  carets,
+  found,
+  tabStop,
+  renderEditor,
+  canSeekTurn,
+  canSpeaker,
+  actions,
+}: TurnProps) {
+  const foundAt = (index: number): WordFound | undefined => {
+    const hit = found.find((f) => f.start <= index && index <= f.end);
+    return hit ? (hit.current ? "current" : "match") : undefined;
+  };
+  const word = (w: ScriptWord) => (
+    <WordView
+      word={w}
+      selected={within(selection, w.index)}
+      playing={playing.includes(w.index)}
+      tabbable={w.index === tabStop}
+      found={foundAt(w.index)}
+      actions={actions}
+    />
   );
-
-  function renderWord(word: ScriptWord): ReactNode {
-    const selected = within(selection, word.index);
-    return (
-      <button
-        type="button"
-        className="sys-script-word"
-        data-stop={word.index}
-        data-state={word.state}
-        data-playing={word.index === playing ? "" : undefined}
-        data-selected={selected ? "" : undefined}
-        data-unsure={word.lowConfidence ? "" : undefined}
-        data-restored={word.restored ? "" : undefined}
-        tabIndex={word.index === tabStop ? 0 : -1}
-        aria-label={nameOf(word)}
-        aria-pressed={selected}
-        aria-current={word.index === playing ? "true" : undefined}
-        onClick={(event) => onWord(word.index, event.shiftKey)}
-        onFocus={onFocus}
-        onKeyDown={onKeyDown}
-      >
-        {word.text}
-      </button>
-    );
-  }
+  const gapSelected = (from: number, to: number) =>
+    selection !== null && from >= selection.start && to <= selection.end;
 
   function renderPiece(piece: ScriptPiece): ReactNode {
     switch (piece.kind) {
       case "word":
-        return renderWord(piece.word);
+        return word(piece.word);
       case "cut":
         return (
-          <span className="sys-script-pill" data-stop={piece.start}>
-            <Seam
-              form="pill"
-              removed={piece.removed}
-              words={piece.words}
-              selected={selectedCut === piece.start}
-              onKeyDown={onKeyDown}
-              onSelect={() =>
-                onSeamSelect({ start: piece.start, end: piece.end })
-              }
-            />
-          </span>
+          <SeamView
+            piece={piece}
+            selected={selectedCut === piece.id}
+            tabbable={piece.start === tabStop}
+            actions={actions}
+          />
         );
-      case "suggestion": {
-        const selected = overlaps(selection, piece.start, piece.end);
+      case "suggestion":
         return (
-          <button
-            type="button"
-            className="sys-script-run"
-            data-stop={piece.start}
-            data-selected={selected ? "" : undefined}
-            tabIndex={piece.start === tabStop ? 0 : -1}
-            aria-label={`Suggested cut: ${piece.text}`}
-            onFocus={onFocus}
-            onKeyDown={onKeyDown}
-            onClick={() =>
-              onSuggestionSelect({ start: piece.start, end: piece.end })
+          <RunView
+            piece={piece}
+            selected={
+              selectedSuggestion === piece.id ||
+              overlaps(selection, piece.start, piece.end)
             }
-          >
-            <Suggestion segments={[{ text: piece.text, struck: true }]} />
-          </button>
+            playing={playing.some((i) => i >= piece.start && i <= piece.end)}
+            tabbable={piece.start === tabStop}
+            actions={actions}
+          />
         );
-      }
       case "muted":
         return (
           <span className="sys-script-muted">
-            <span className="sr-only">Muted: </span>
             <SystemIcon name="volume-x" size={14} />
-            {piece.words.map((word, wordIndex) => (
-              <Fragment key={word.index}>
-                {wordIndex > 0 ? (
+            {piece.words.map((w, at) => (
+              <Fragment key={w.index}>
+                {at > 0 ? (
                   <Gap
-                    selected={
-                      selection !== null &&
-                      piece.words[wordIndex - 1].index >= selection.start &&
-                      word.index <= selection.end
-                    }
+                    selected={gapSelected(piece.words[at - 1].index, w.index)}
                   />
                 ) : null}
-                <Carets carets={carets} from={word.index} to={word.index} />
-                {renderWord(word)}
+                {carets.length > 0 ? (
+                  <Carets carets={carets} from={w.index} to={w.index} />
+                ) : null}
+                {word(w)}
               </Fragment>
             ))}
           </span>
         );
+      case "editing":
+        return (
+          <span className="sys-script-editor">
+            {renderEditor?.({ start: piece.start, end: piece.end })}
+          </span>
+        );
     }
   }
+
+  return (
+    <div
+      role="group"
+      className="sys-script-turn"
+      aria-label={`${firstName(turn.speaker.name)}, ${turn.time}`}
+    >
+      <div
+        className="sys-script-margin"
+        style={
+          {
+            "--sys-person-color": presenceColorVar(turn.speaker.colorIndex),
+          } as CSSProperties
+        }
+      >
+        {continued ? null : (
+          <>
+            <SpeakerLabel
+              turn={turn}
+              interactive={canSpeaker}
+              actions={actions}
+            />
+            {canSeekTurn ? (
+              <button
+                type="button"
+                className="sys-script-time"
+                tabIndex={-1}
+                aria-label={`Play from ${turn.time}`}
+                onClick={() => actions.seekTurn(turn.id)}
+              >
+                {turn.time}
+              </button>
+            ) : (
+              <span className="sys-script-time">{turn.time}</span>
+            )}
+          </>
+        )}
+      </div>
+      <p className="sys-script-text">
+        {pieces.map((piece, at) => {
+          const start = pieceStart(piece);
+          const previous = pieces[at - 1];
+          return (
+            <Fragment key={start}>
+              {previous ? (
+                <Gap selected={gapSelected(pieceEnd(previous), start)} />
+              ) : null}
+              {piece.kind === "muted" || carets.length === 0 ? null : (
+                <Carets carets={carets} from={start} to={pieceEnd(piece)} />
+              )}
+              {renderPiece(piece)}
+            </Fragment>
+          );
+        })}
+      </p>
+    </div>
+  );
+});
+
+function SpeakerLabel({
+  turn,
+  interactive,
+  actions,
+}: {
+  turn: ScriptTurn;
+  interactive: boolean;
+  actions: Actions;
+}) {
+  const content = (
+    <>
+      <PersonAvatar person={turn.speaker} size={20} />
+      <span className="sys-script-name">{firstName(turn.speaker.name)}</span>
+    </>
+  );
+  return interactive ? (
+    <button
+      type="button"
+      className="sys-script-speaker"
+      tabIndex={-1}
+      aria-label={`${turn.speaker.name}, change speaker`}
+      onClick={(event) => actions.speaker(turn.id, event.currentTarget)}
+    >
+      {content}
+    </button>
+  ) : (
+    <span className="sys-script-speaker">{content}</span>
+  );
 }
 
-function nameOf(word: ScriptWord): string | undefined {
-  const notes = [
-    word.lowConfidence ? "unsure" : null,
-    word.restored ? "restored" : null,
-  ].filter((note) => note !== null);
-  return notes.length > 0 ? `${word.text} (${notes.join(", ")})` : undefined;
-}
+type WordProps = {
+  word: ScriptWord;
+  selected: boolean;
+  playing: boolean;
+  tabbable: boolean;
+  found: WordFound | undefined;
+  actions: Actions;
+};
 
-function Gap({ selected }: { selected: boolean }) {
+const WordView = memo(function WordView({
+  word,
+  selected,
+  playing,
+  tabbable,
+  found,
+  actions,
+}: WordProps) {
+  const index = word.index;
+  return (
+    <button
+      type="button"
+      ref={(el) => actions.register(index, el)}
+      className="sys-script-word"
+      data-stop={index}
+      data-state={word.mark?.kind === "suggested" ? undefined : word.mark?.kind}
+      data-playing={playing ? "" : undefined}
+      data-selected={selected ? "" : undefined}
+      data-unsure={word.lowConfidence ? "" : undefined}
+      data-restored={word.restored ? "" : undefined}
+      data-found={found}
+      tabIndex={tabbable ? 0 : -1}
+      aria-label={wordLabel(word, { selected, found })}
+      aria-current={playing ? "true" : undefined}
+      onClick={(event) => actions.click(index, event.shiftKey)}
+      onKeyDown={(event) => actions.key(event, index)}
+    >
+      {word.text}
+    </button>
+  );
+});
+
+const SeamView = memo(function SeamView({
+  piece,
+  selected,
+  tabbable,
+  actions,
+}: {
+  piece: Extract<ScriptPiece, { kind: "cut" }>;
+  selected: boolean;
+  tabbable: boolean;
+  actions: Actions;
+}) {
+  const { start, id } = piece;
+  return (
+    <span
+      className="sys-script-pill"
+      data-stop={start}
+      ref={(el) => actions.register(start, el)}
+    >
+      <Seam
+        form="pill"
+        removed={piece.removed}
+        words={piece.words}
+        selected={selected}
+        tabIndex={tabbable ? 0 : -1}
+        onKeyDown={(event) => actions.key(event, start)}
+        onSelect={() => actions.seam(id)}
+      />
+    </span>
+  );
+});
+
+const RunView = memo(function RunView({
+  piece,
+  selected,
+  playing,
+  tabbable,
+  actions,
+}: {
+  piece: Extract<ScriptPiece, { kind: "suggestion" }>;
+  selected: boolean;
+  playing: boolean;
+  tabbable: boolean;
+  actions: Actions;
+}) {
+  const { start, id } = piece;
+  return (
+    <button
+      type="button"
+      ref={(el) => actions.register(start, el)}
+      className="sys-script-run"
+      data-stop={start}
+      data-selected={selected ? "" : undefined}
+      data-playing={playing ? "" : undefined}
+      tabIndex={tabbable ? 0 : -1}
+      aria-label={`Suggested cut: ${piece.text}`}
+      aria-pressed={selected}
+      aria-current={playing ? "true" : undefined}
+      onKeyDown={(event) => actions.key(event, start)}
+      onClick={() => actions.suggestion(id)}
+    >
+      <Suggestion segments={[{ text: piece.text, struck: true }]} />
+    </button>
+  );
+});
+
+const Gap = memo(function Gap({ selected }: { selected: boolean }) {
   return (
     <span className="sys-script-gap" data-selected={selected ? "" : undefined}>
       {" "}
     </span>
   );
-}
+});
 
-function Carets({
+const Carets = memo(function Carets({
   carets,
   from,
   to,
@@ -465,9 +1012,9 @@ function Carets({
 }) {
   return carets
     .filter((caret) => caret.before >= from && caret.before <= to)
-    .map((caret) => (
+    .map((caret, at) => (
       <span
-        key={caret.person?.name ?? "own"}
+        key={`${caret.person?.name ?? "own"}-${at}`}
         className="sys-script-caret"
         data-own={caret.person ? undefined : ""}
         style={
@@ -484,4 +1031,4 @@ function Carets({
         ) : null}
       </span>
     ));
-}
+});

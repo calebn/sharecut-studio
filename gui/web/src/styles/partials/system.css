@@ -4108,6 +4108,7 @@ button.sys-scope:hover {
 .sys-script-body {
   flex: 1;
   min-block-size: 0;
+  isolation: isolate;
   padding: var(--space-5) var(--space-6);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -4154,6 +4155,21 @@ button.sys-scope:hover {
   white-space: nowrap;
 }
 
+button.sys-script-speaker,
+button.sys-script-time {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+button.sys-script-speaker {
+  color: inherit;
+}
+
 .sys-script-time {
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
@@ -4174,6 +4190,7 @@ button.sys-scope:hover {
 
 .sys-script-word,
 .sys-script-run {
+  position: relative;
   display: inline;
   padding: 0;
   border: 0;
@@ -4195,8 +4212,22 @@ button.sys-scope:hover {
   background: var(--color-selection-subtle);
 }
 
-.sys-script-word[data-playing] {
+.sys-script-word[data-playing],
+.sys-script-run[data-playing] {
   box-shadow: inset 0 -0.125rem 0 var(--color-accent);
+}
+
+.sys-script-word[data-found] {
+  background: var(--color-warning-subtle);
+}
+
+.sys-script-word[data-found="current"] {
+  outline: var(--selection-outline-width) solid var(--color-warning-underline);
+  outline-offset: calc(var(--space-0) * -0.5);
+}
+
+.sys-script-word[data-selected][data-found] {
+  background: var(--color-selection-subtle);
 }
 
 .sys-script-word[data-unsure] {
@@ -4230,6 +4261,11 @@ button.sys-scope:hover {
 
 .sys-script-pill {
   display: inline;
+}
+
+.sys-script-editor {
+  display: inline-block;
+  max-inline-size: 100%;
 }
 
 .sys-script-caret {
@@ -4295,6 +4331,24 @@ button.sys-scope:hover {
 
   .sys-script-time {
     opacity: 1;
+  }
+
+  /*
+   * A word is a line tall, so a 44 px region reaches into the lines around
+   * it. It sits behind the text (the body isolates its stacking), so a word
+   * on the next line still takes its own press and the region only claims
+   * the empty space around it.
+   */
+  .sys-script-word::after,
+  .sys-script-run::after,
+  .sys-script .sys-seam[data-form="pill"] .sys-seam-hit::after,
+  button.sys-script-speaker::after,
+  button.sys-script-time::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset-block: calc((100% - var(--touch-min)) / 2);
+    inset-inline: min(0rem, calc((100% - var(--touch-min)) / 2));
   }
 }
 
