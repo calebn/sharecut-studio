@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.comments import comments_for_view
+from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpan
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
@@ -1319,17 +1320,19 @@ def _normalize_pending_preview_mode(mode: str | None) -> str:
     return kind
 
 
-def _pending_preview_audio_url(token: str, edit_id: str, mode: str) -> str:
+def _pending_preview_audio_url(token: str, edit_id: str, mode: str, pad_sec: float) -> str:
     from urllib.parse import urlencode
 
-    qs = urlencode({"edit_id": edit_id, "mode": mode})
+    qs = urlencode({"edit_id": edit_id, "mode": mode, "pad_sec": f"{pad_sec:g}"})
     return f"/api/review/{token}/daw/pending-preview?{qs}"
 
 
-def _pending_preview_image_url(token: str, edit_id: str, mode: str, kind: str) -> str:
+def _pending_preview_image_url(
+    token: str, edit_id: str, mode: str, kind: str, pad_sec: float
+) -> str:
     from urllib.parse import urlencode
 
-    qs = urlencode({"edit_id": edit_id, "mode": mode, "kind": kind})
+    qs = urlencode({"edit_id": edit_id, "mode": mode, "kind": kind, "pad_sec": f"{pad_sec:g}"})
     return f"/api/review/{token}/daw/pending-preview-image?{qs}"
 
 
@@ -1354,13 +1357,14 @@ def share_pending_preview_wav_cached(
     *,
     edit_id: str,
     mode: str = "suggested",
+    pad_sec: float = DEFAULT_PAD_SEC,
 ) -> Path | None:
     """Return cached listen-first WAV if present. Requires ``play`` + ``view``."""
     from podcast_mcp.services.document import PlayService
 
     kind = _normalize_pending_preview_mode(mode)
     _, ws = _require_pending_preview_caps(token)
-    return PlayService(ws).pending_preview_cached_wav(edit_id, mode=kind)
+    return PlayService(ws).pending_preview_cached_wav(edit_id, mode=kind, pad_sec=pad_sec)
 
 
 def share_pending_preview_wav(
@@ -1368,6 +1372,7 @@ def share_pending_preview_wav(
     *,
     edit_id: str,
     mode: str = "suggested",
+    pad_sec: float = DEFAULT_PAD_SEC,
 ) -> Path:
     """Current / Suggested / A/B WAV for a pending edit (Suggested is the approved result).
 
@@ -1384,10 +1389,27 @@ def share_pending_preview_wav(
     result = PlayService(ws).play_pending_preview(
         edit_id,
         mode=kind,
+        pad_sec=pad_sec,
         dry_run=True,
         rerender=False,
     )
     return result.wav_path
+
+
+def share_pending_preview_span(
+    token: str,
+    *,
+    edit_id: str,
+    wav: Path,
+    mode: str = "suggested",
+    pad_sec: float = DEFAULT_PAD_SEC,
+) -> PendingPreviewSpan:
+    """Where the rendered ``wav`` sits on its timeline. Requires ``play`` + ``view``."""
+    from podcast_mcp.services.document import PlayService
+
+    kind = _normalize_pending_preview_mode(mode)
+    _, ws = _require_pending_preview_caps(token)
+    return PlayService(ws).pending_preview_span(edit_id, wav, mode=kind, pad_sec=pad_sec)
 
 
 def share_pending_preview_image_cached(
@@ -1395,12 +1417,13 @@ def share_pending_preview_image_cached(
     *,
     edit_id: str,
     mode: str = "suggested",
+    pad_sec: float = DEFAULT_PAD_SEC,
     kind: str = "wave",
 ) -> Path | None:
     image_kind = (kind or "wave").strip().lower()
     if image_kind not in _PENDING_PREVIEW_IMAGE_KINDS:
         raise CodedValueError("kind must be wave or spec", code="invalid_image_kind")
-    wav = share_pending_preview_wav_cached(token, edit_id=edit_id, mode=mode)
+    wav = share_pending_preview_wav_cached(token, edit_id=edit_id, mode=mode, pad_sec=pad_sec)
     if wav is None:
         return None
     png = _pending_preview_png_path(wav, image_kind)
@@ -1412,13 +1435,14 @@ def share_pending_preview_image(
     *,
     edit_id: str,
     mode: str = "suggested",
+    pad_sec: float = DEFAULT_PAD_SEC,
     kind: str = "wave",
 ) -> Path:
     """Waveform or spectrogram PNG of the listen-first extract. Requires ``play`` + ``view``."""
     image_kind = (kind or "wave").strip().lower()
     if image_kind not in _PENDING_PREVIEW_IMAGE_KINDS:
         raise CodedValueError("kind must be wave or spec", code="invalid_image_kind")
-    wav = share_pending_preview_wav(token, edit_id=edit_id, mode=mode)
+    wav = share_pending_preview_wav(token, edit_id=edit_id, mode=mode, pad_sec=pad_sec)
     return _render_pending_preview_png(wav, image_kind)
 
 
@@ -1427,6 +1451,7 @@ def share_pending_preview_info(
     *,
     edit_id: str,
     mode: str = "suggested",
+    pad_sec: float = DEFAULT_PAD_SEC,
     visual: bool = False,
 ) -> dict[str, Any]:
     """Guest-safe JSON for MCP: relative share URLs only (no host paths)."""
@@ -1434,14 +1459,18 @@ def share_pending_preview_info(
 
     kind = _normalize_pending_preview_mode(mode)
     _, ws = _require_pending_preview_caps(token)
-    window = resolve_pending_preview(ws.project, edit_id)
-    share_pending_preview_wav(token, edit_id=edit_id, mode=kind)
+    window = resolve_pending_preview(ws.project, edit_id, pad_sec=pad_sec)
+    wav = share_pending_preview_wav(token, edit_id=edit_id, mode=kind, pad_sec=pad_sec)
+    span = share_pending_preview_span(token, edit_id=edit_id, mode=kind, pad_sec=pad_sec, wav=wav)
     out: dict[str, Any] = {
-        "audio_path": _pending_preview_audio_url(token, edit_id, kind),
+        "audio_path": _pending_preview_audio_url(token, edit_id, kind, pad_sec),
         "edit_id": edit_id,
         "mode": kind,
+        "pad_sec": pad_sec,
         "play_start": window.play_start,
         "play_end": window.play_end,
+        "start_sec": span.start_sec,
+        "end_sec": span.end_sec,
         "timeline_start": window.timeline_start,
         "timeline_end": window.timeline_end,
         "suggest_reason": window.suggest_reason,
@@ -1451,10 +1480,10 @@ def share_pending_preview_info(
         ),
     }
     if visual:
-        share_pending_preview_image(token, edit_id=edit_id, mode=kind, kind="wave")
-        share_pending_preview_image(token, edit_id=edit_id, mode=kind, kind="spec")
-        out["wave_path"] = _pending_preview_image_url(token, edit_id, kind, "wave")
-        out["spec_path"] = _pending_preview_image_url(token, edit_id, kind, "spec")
+        share_pending_preview_image(token, edit_id=edit_id, mode=kind, kind="wave", pad_sec=pad_sec)
+        share_pending_preview_image(token, edit_id=edit_id, mode=kind, kind="spec", pad_sec=pad_sec)
+        out["wave_path"] = _pending_preview_image_url(token, edit_id, kind, "wave", pad_sec)
+        out["spec_path"] = _pending_preview_image_url(token, edit_id, kind, "spec", pad_sec)
     return out
 
 

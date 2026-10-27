@@ -459,9 +459,11 @@ def test_warms_do_not_hold_the_render_lock_and_run_at_low_priority(minimal_proje
 
     seed(minimal_project)
     seen: list[tuple[int, bool, float | None]] = []
+    pads: list[float | None] = []
 
-    def warm(self, edit_id=None, *, lock_timeout=None):
+    def warm(self, edit_id=None, *, pad_sec=None, lock_timeout=None):
         seen.append((current_niceness(), render_lock_held(self.project), lock_timeout))
+        pads.append(pad_sec)
         return {}
 
     monkeypatch.setattr(PlayService, "warm_pending_preview", warm)
@@ -470,6 +472,10 @@ def test_warms_do_not_hold_the_render_lock_and_run_at_low_priority(minimal_proje
     assert client.post("/api/pending-preview/warm", params=params).status_code == 200
     background = {**params, "background": "true"}
     assert client.post("/api/pending-preview/warm", params=background).status_code == 200
+    # The warm renders the pad the Play will ask for: windows are cached per pad.
+    assert client.post("/api/pending-preview/warm", params={**params, "pad_sec": "3"}).is_success
+    assert pads == [0.5, None, 3.0]
+    seen.pop()
     assert seen == [
         (10, False, REQUEST_RENDER_LOCK_TIMEOUT_SEC),
         (10, False, BACKGROUND_RENDER_LOCK_TIMEOUT_SEC),

@@ -7,6 +7,7 @@ import json
 import logging
 import tempfile
 import threading
+import wave
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -14,6 +15,10 @@ from typing import Any
 
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
+    DEFAULT_PAD_SEC,
+    MAX_PAD_SEC,
+    MIN_PAD_SEC,
+    PendingPreviewSpan,
     PendingPreviewWindow,
     apply_for_suggested,
     resolve_pending_preview,
@@ -41,6 +46,11 @@ from .play_headroom import _PlayHeadroom
 from .play_support import PlayResult
 
 log = logging.getLogger(__name__)
+
+# The pad range the GUI routes validate against, from the one place the service validates it.
+PENDING_PREVIEW_PAD_DEFAULT_SEC = DEFAULT_PAD_SEC
+PENDING_PREVIEW_PAD_MIN_SEC = MIN_PAD_SEC
+PENDING_PREVIEW_PAD_MAX_SEC = MAX_PAD_SEC
 
 
 # Pending-preview sides each mode renders.
@@ -74,8 +84,8 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         edit_id: str,
         *,
         mode: str = "suggested",
-        pad_sec: float = 0.5,
-        gap_sec: float = 0.4,
+        pad_sec: float = DEFAULT_PAD_SEC,
+        gap_sec: float = DEFAULT_AB_GAP_SEC,
         dry_run: bool = False,
         player: str | None = None,
         rerender: bool = False,
@@ -87,6 +97,11 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         premix gets for the current mix (``mix_trim_db``): Current from the project as it
         is, Suggested after approving the edit on a snapshot, so it is what approving ships.
         Neither reads ``premix.wav``.
+
+        The window is the edit plus ``pad_sec`` on each side (0 to 10 s, clamped to the
+        timeline's ends). The result's ``start_sec`` / ``end_sec`` are where the played
+        file sits on its own timeline (the Suggested file ends where the edited timeline
+        does); ``pending_preview_span`` says the same for a file already rendered.
         """
         kind = (mode or "suggested").strip().lower()
         if kind not in _PENDING_SIDES:
@@ -117,12 +132,13 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         cmd = None if dry_run else self._player_command(player, wavs[0])
         if cmd:
             run(cmd, check=True)
+        span = self._span(window, kind, wavs[0])
         return PlayResult(
             wav_path=wavs[0],
             player_cmd=cmd,
             source_label=f"pending:{kind}",
-            start_sec=window.play_start,
-            end_sec=window.play_end,
+            start_sec=span.start_sec,
+            end_sec=span.end_sec,
             tier=f"pending_{kind}",
         )
 
@@ -131,8 +147,8 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         edit_id: str,
         *,
         mode: str = "suggested",
-        pad_sec: float = 0.5,
-        gap_sec: float = 0.4,
+        pad_sec: float = DEFAULT_PAD_SEC,
+        gap_sec: float = DEFAULT_AB_GAP_SEC,
     ) -> Path | None:
         """Return the pending-preview WAV if it already exists (no FFmpeg)."""
         kind = (mode or "suggested").strip().lower()
@@ -154,14 +170,49 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         self._mark_play_cache_used(out)
         return out if out.is_file() else None
 
+    def pending_preview_span(
+        self, edit_id: str, wav: Path, *, mode: str, pad_sec: float = DEFAULT_PAD_SEC
+    ) -> PendingPreviewSpan:
+        """Where the rendered ``wav`` of ``mode`` sits, so a player can place its playheads."""
+        kind = (mode or "suggested").strip().lower()
+        if kind not in _PENDING_SIDES:
+            raise CodedValueError(
+                "mode must be current, suggested, or ab", code="compare_mode_invalid"
+            )
+        window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
+        return self._span(window, kind, wav)
+
+    @staticmethod
+    def _span(window: PendingPreviewWindow, kind: str, wav: Path) -> PendingPreviewSpan:
+        end = window.play_end
+        if kind == "suggested":
+            # The edited timeline is shorter or longer than the current one by what the edit
+            # took out or paced in, so the file's own length says where it ends.
+            with wave.open(str(wav), "rb") as audio:
+                end = window.play_start + audio.getnframes() / audio.getframerate()
+        return PendingPreviewSpan(
+            edit_id=window.edit_id,
+            mode=kind,
+            pad_sec=window.pad_sec,
+            start_sec=round(window.play_start, 3),
+            end_sec=round(end, 3),
+            edit_start_sec=round(window.timeline_start, 3),
+            edit_end_sec=round(window.timeline_end, 3),
+        )
+
     def warm_pending_preview(
-        self, edit_id: str | None = None, *, lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC
+        self,
+        edit_id: str | None = None,
+        *,
+        pad_sec: float = DEFAULT_PAD_SEC,
+        lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
     ) -> dict[str, Any]:
         """Do a pending preview's slow work now, so the first Play around is a cached file.
 
         That is the mix trim and each track's whole-track level profile (which approving
         the edit on a snapshot reads for the Suggested side), then, for ``edit_id``, the
-        Current / Suggested / A/B renders themselves.
+        Current / Suggested / A/B renders themselves at ``pad_sec`` (a window is cached per
+        pad, so warm the pad the Play will ask for).
 
         Returns the trim and each pre-rendered side's status (``ready``, ``unavailable`` for an
         edit that cannot be previewed that way, ``failed`` for a render that errored), so the
@@ -192,7 +243,11 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
             for mode in _PENDING_SIDES:
                 try:
                     self.play_pending_preview(
-                        edit_id, mode=mode, dry_run=True, lock_timeout=lock_timeout
+                        edit_id,
+                        mode=mode,
+                        pad_sec=pad_sec,
+                        dry_run=True,
+                        lock_timeout=lock_timeout,
                     )
                     sides[mode] = "ready"
                 except (CodedValueError, KeyError, ValueError):
@@ -208,6 +263,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         key = json.dumps(
             {
                 "window": [window.play_start, window.play_end],
+                "pad_sec": window.pad_sec,
                 "edit": edit.model_dump(mode="json"),
                 "mix": self._mix_key(),
                 # The Suggested side re-optimizes the cut against every track's words.

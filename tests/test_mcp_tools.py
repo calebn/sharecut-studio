@@ -542,12 +542,14 @@ def test_play_pending_preview_mcp(tmp_path):
         svc.return_value.play_pending_preview.return_value = fake
         out = json.loads(
             mcp_server.play_pending_preview_tool(
-                path, edit_id="cut1", mode="suggested", dry_run=True
+                path, edit_id="cut1", mode="suggested", pad_sec=3.0, dry_run=True
             )
         )
     assert out["tier"] == "pending_suggested"
     assert out["edit_id"] == "cut1"
     svc.return_value.play_pending_preview.assert_called_once()
+    # The pad goes to the one service that validates and windows it.
+    assert svc.return_value.play_pending_preview.call_args.kwargs["pad_sec"] == 3.0
 
 
 def test_play_transcript_query_errors_mcp(tmp_path):

@@ -21,6 +21,11 @@ from podcast_mcp.gui.routes.deps import (
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.services.document import (
+    PENDING_PREVIEW_PAD_DEFAULT_SEC,
+    PENDING_PREVIEW_PAD_MAX_SEC,
+    PENDING_PREVIEW_PAD_MIN_SEC,
+)
 from podcast_mcp.services.document_sync import (
     DocumentConflictError,
     DocumentSyncService,
@@ -162,6 +167,11 @@ def pending_preview_warm(
     request: Request,
     path: str = Query(...),
     edit_id: str | None = Query(None),
+    pad_sec: float = Query(
+        PENDING_PREVIEW_PAD_DEFAULT_SEC,
+        ge=PENDING_PREVIEW_PAD_MIN_SEC,
+        le=PENDING_PREVIEW_PAD_MAX_SEC,
+    ),
     background: bool = Query(False),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
@@ -199,7 +209,7 @@ def pending_preview_warm(
         # on the same edit shares its render rather than racing it.
         with low_priority():
             return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
-                edit_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+                edit_id, pad_sec=pad_sec, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
             )
     except ValueError as exc:
         raise bad_request_error(exc) from exc
@@ -211,10 +221,20 @@ def pending_preview_audio(
     path: str = Query(...),
     edit_id: str = Query(...),
     mode: Literal["current", "suggested", "ab"] = Query("suggested"),
+    pad_sec: float = Query(
+        PENDING_PREVIEW_PAD_DEFAULT_SEC,
+        ge=PENDING_PREVIEW_PAD_MIN_SEC,
+        le=PENDING_PREVIEW_PAD_MAX_SEC,
+    ),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    from podcast_mcp.gui.audio import pinned_audio_response
+    """The Current / Suggested / A/B WAV around a pending edit, ``pad_sec`` either side.
+
+    The ``X-Preview-*`` headers say where the file sits (see ``pending_preview_headers``).
+    Ask ``mode=current`` and ``mode=suggested`` for the A and B files of an audition.
+    """
+    from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService
@@ -223,15 +243,22 @@ def pending_preview_audio(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
+        play = PlayService(ws)
         # A preview already rendered (by the warm) is a file read: it waits for no render,
         # approve or other holder of the lock.
-        audio = PlayService(ws).pending_preview_cached_wav(edit_id, mode=mode)
+        audio = play.pending_preview_cached_wav(edit_id, mode=mode, pad_sec=pad_sec)
         if audio is None:
             with render_lock(ws.project), ws.transaction():
-                audio = (
-                    PlayService(ws).play_pending_preview(edit_id, mode=mode, dry_run=True).wav_path
-                )
-        return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
+                audio = play.play_pending_preview(
+                    edit_id, mode=mode, pad_sec=pad_sec, dry_run=True
+                ).wav_path
+        span = play.pending_preview_span(edit_id, audio, mode=mode, pad_sec=pad_sec)
+        return pinned_audio_response(
+            audio,
+            media_type="audio/wav",
+            filename=audio.name,
+            headers=pending_preview_headers(span),
+        )
     except RangeChangedError as exc:
         raise coded_exception_error(409, exc, code="range_changed") from exc
     except KeyError as exc:

@@ -17,7 +17,7 @@ from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import PlayService, TransportPath
+from podcast_mcp.services.document import PendingPreviewSpan, PlayService, TransportPath
 
 
 def resolve_viewer_audio(
@@ -57,6 +57,25 @@ def resolve_viewer_transport(
         rerender=rerender,
         build_stem=build_stem,
     )
+
+
+def pending_preview_headers(span: PendingPreviewSpan) -> dict[str, str]:
+    """Where a pending-preview file sits (seconds), so the page can place A / B playheads.
+
+    ``Start`` / ``End`` bound the file on its own timeline; ``Edit-Start`` / ``Edit-End``
+    are the edit on the current timeline.
+    """
+    headers = {
+        "X-Preview-Edit-Id": span.edit_id,
+        "X-Preview-Mode": span.mode,
+        "X-Preview-Pad-Sec": f"{span.pad_sec:g}",
+        "X-Preview-Start-Sec": f"{span.start_sec:g}",
+        "X-Preview-End-Sec": f"{span.end_sec:g}",
+        "X-Preview-Edit-Start-Sec": f"{span.edit_start_sec:g}",
+        "X-Preview-Edit-End-Sec": f"{span.edit_end_sec:g}",
+    }
+    headers["Access-Control-Expose-Headers"] = ", ".join(headers)
+    return headers
 
 
 def audio_cache_headers(st: stat_result) -> dict[str, str]:

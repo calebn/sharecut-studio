@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
+from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC
 from podcast_mcp.services.collaboration import (
     CAP_PLAY,
     CAP_VIEW,
@@ -171,8 +172,9 @@ def guest_pending_preview(
     edit_id: str,
     mode: str = "suggested",
     visual: bool = False,
+    pad_sec: float = DEFAULT_PAD_SEC,
 ) -> dict[str, Any]:
-    """Listen-first Current / Suggested / A/B URLs (requires ``play`` + ``view``)."""
+    """Listen-first Current / Suggested / A/B URLs, ``pad_sec`` either side (``play`` + ``view``)."""
     _require_tool("guest_pending_preview")
     ctx = get_remote_mcp_context()
     if not has_capability(ctx.capabilities, CAP_PLAY) or not has_capability(
@@ -186,6 +188,7 @@ def guest_pending_preview(
         edit_id=edit_id,
         mode=mode,
         visual=visual,
+        pad_sec=pad_sec,
     )
 
 

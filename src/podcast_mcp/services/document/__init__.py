@@ -38,6 +38,12 @@ if TYPE_CHECKING:
         PopulatedHistoryDiffResult,
     )
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
+    from podcast_mcp.services.document.play_pending import (
+        PENDING_PREVIEW_PAD_DEFAULT_SEC,
+        PENDING_PREVIEW_PAD_MAX_SEC,
+        PENDING_PREVIEW_PAD_MIN_SEC,
+        PendingPreviewSpan,
+    )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.transcript import TranscriptService
@@ -46,6 +52,9 @@ __all__ = [
     "DEFAULT_LIMIT",
     "HISTORY_RERENDER_ERRORS",
     "LISTEN_DIRNAME",
+    "PENDING_PREVIEW_PAD_DEFAULT_SEC",
+    "PENDING_PREVIEW_PAD_MAX_SEC",
+    "PENDING_PREVIEW_PAD_MIN_SEC",
     "AlignAcceptService",
     "AnalysisService",
     "BoundaryEdit",
@@ -59,6 +68,7 @@ __all__ = [
     "HistoryDiffResult",
     "HistoryListResult",
     "HistoryService",
+    "PendingPreviewSpan",
     "PlayRequest",
     "PlayService",
     "PopulatedHistoryDiffResult",
@@ -102,6 +112,10 @@ _MODULE_BY_NAME = {
     "HistoryDiffResult": "history_results",
     "HistoryListResult": "history_results",
     "PopulatedHistoryDiffResult": "history_results",
+    "PENDING_PREVIEW_PAD_DEFAULT_SEC": "play_pending",
+    "PENDING_PREVIEW_PAD_MAX_SEC": "play_pending",
+    "PENDING_PREVIEW_PAD_MIN_SEC": "play_pending",
+    "PendingPreviewSpan": "play_pending",
     "PlayRequest": "play",
     "PlayService": "play",
     "TransportPath": "play",

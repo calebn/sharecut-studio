@@ -9,6 +9,7 @@ import wave
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.pending_preview import (
     SUGGEST_REASON_SPLIT,
     SUGGEST_REASON_UNMAPPED,
@@ -192,6 +193,21 @@ def _rendered_project(minimal_project, edit: EditDecision):
     return ws
 
 
+def _session_cut(edit_id: str, start: float, end: float, *, gap: float = 0.9) -> EditDecision:
+    return EditDecision(
+        id=edit_id,
+        track_id="host",
+        type=EditDecisionType.REMOVE,
+        start=start,
+        end=end,
+        scope="session",
+        replace_gap_sec=gap,
+        crossfade_ms=10,
+        review_required=True,
+        applied=False,
+    )
+
+
 def _pcm(path) -> tuple[list[int], int]:
     with wave.open(str(path), "rb") as audio:
         frames = audio.getnframes()
@@ -237,32 +253,33 @@ def _assert_same_audio(preview, approved) -> None:
     assert max(abs(a - b) for a, b in zip(got, want, strict=True)) <= 1
 
 
-def test_suggested_remove_preview_matches_the_approved_mix(minimal_project) -> None:
+@pytest.mark.parametrize(
+    ("pad", "approved_window"),
+    [
+        # 0.5 s before + 0.9 s paced pad + 0.5 s after; a butt splice would be 1.0 s.
+        (0.5, (1.5, 3.4)),
+        # The Review card's 3 s either side: the start clamps at 0, the end at 2.6 + 3 s.
+        (3.0, (0.0, 5.9)),
+    ],
+)
+def test_suggested_remove_preview_matches_the_approved_mix(
+    minimal_project, pad: float, approved_window: tuple[float, float]
+) -> None:
     from podcast_mcp.services.document import PlayService
 
-    ws = _rendered_project(
-        minimal_project,
-        EditDecision(
-            id="cut",
-            track_id="host",
-            type=EditDecisionType.REMOVE,
-            start=2.0,
-            end=2.6,
-            scope="session",
-            replace_gap_sec=0.9,
-            crossfade_ms=10,
-            review_required=True,
-            applied=False,
-        ),
-    )
-    preview = PlayService(ws).play_pending_preview("cut", pad_sec=0.5, dry_run=True).wav_path
+    ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.6))
+    play = PlayService(ws)
+    preview = play.play_pending_preview("cut", pad_sec=pad, dry_run=True).wav_path
 
     with wave.open(str(preview), "rb") as audio:
-        # 0.5 s before + 0.9 s paced pad + 0.5 s after; a butt splice would be 1.0 s.
-        assert audio.getnframes() == round(1.9 * 48000)
-    approved, trim = _premix_window(ws, 1.5, 3.4, approve="cut")
+        assert audio.getnframes() == round((approved_window[1] - approved_window[0]) * 48000)
+    approved, trim = _premix_window(ws, *approved_window, approve="cut")
     assert trim is not None and trim < -1.0
     _assert_same_audio(preview, approved)
+    # B starts where A does and ends where the edited timeline's window ends.
+    span = play.pending_preview_span("cut", preview, mode="suggested", pad_sec=pad)
+    assert (span.start_sec, span.end_sec) == approved_window
+    assert (span.edit_start_sec, span.edit_end_sec) == (2.0, 2.6)
 
 
 def test_suggested_mute_preview_matches_the_approved_mix(minimal_project) -> None:
@@ -690,3 +707,181 @@ def test_level_profile_records_keep_only_the_newest(tmp_path, monkeypatch) -> No
             records / f"{index}.json", level_profile.LevelProfile(-60.0, -30.0, -12.0)
         )
     assert len(list(records.glob("*.json"))) == 3
+
+
+# --- the audition window: pad_sec, edges, cache key, adjacent edits ---------------------
+
+
+@pytest.mark.parametrize("pad", [-0.1, 10.5, float("nan"), float("inf"), "3", True])
+def test_pad_sec_outside_zero_to_ten_seconds_is_refused(pad) -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    with pytest.raises(CodedValueError) as refused:
+        resolve_pending_preview(_project(), "missing", pad_sec=pad)
+    assert refused.value.code == "pending_preview_pad_out_of_range"
+
+
+def test_the_window_is_the_edit_plus_the_pad_either_side_clamped_to_the_timeline() -> None:
+    proj = _project()
+    proj.edit_decisions = [
+        _session_cut("mid", 4.0, 4.5),
+        _session_cut("early", 0.4, 0.6),
+        _session_cut("late", 9.5, 9.8),
+        _session_cut("tiny", 5.0, 5.01),
+    ]
+    mid = resolve_pending_preview(proj, "mid", pad_sec=3.0)
+    assert (mid.play_start, mid.play_end, mid.pad_sec) == (1.0, 7.5, 3.0)
+    early = resolve_pending_preview(proj, "early", pad_sec=3.0)
+    assert (early.play_start, early.play_end) == (0.0, 3.6)
+    late = resolve_pending_preview(proj, "late", pad_sec=3.0)
+    assert (late.play_start, late.play_end) == (6.5, 10.0)
+    tiny = resolve_pending_preview(proj, "tiny", pad_sec=3.0)
+    assert (tiny.play_start, tiny.play_end) == (2.0, 8.01)
+    assert resolve_pending_preview(proj, "mid", pad_sec=0.0).play_end == 4.5
+    assert resolve_pending_preview(proj, "mid", pad_sec=10.0).play_end == 10.0
+
+
+def test_each_pad_caches_its_own_files(minimal_project) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.6))
+    play = PlayService(ws)
+    wide = {
+        mode: play.play_pending_preview("cut", mode=mode, pad_sec=1.0, dry_run=True).wav_path
+        for mode in ("current", "suggested")
+    }
+    narrow = {
+        mode: play.play_pending_preview("cut", mode=mode, pad_sec=0.5, dry_run=True).wav_path
+        for mode in ("current", "suggested")
+    }
+    for mode in wide:
+        assert wide[mode] != narrow[mode]
+        assert wide[mode].is_file() and narrow[mode].is_file()
+        assert _pcm(wide[mode])[0] != _pcm(narrow[mode])[0]
+    # The same pad reads its file back instead of rendering again.
+    for mode in wide:
+        assert play.pending_preview_cached_wav("cut", mode=mode, pad_sec=1.0) == wide[mode]
+        assert play.pending_preview_cached_wav("cut", mode=mode, pad_sec=0.5) == narrow[mode]
+    assert play.pending_preview_cached_wav("cut", mode="current", pad_sec=2.0) is None
+
+
+def test_a_pad_wider_than_the_timeline_edge_clamps_and_still_matches_the_approved_mix(
+    minimal_project,
+) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    # The tone is quiet 0.16 s around each edge, so these cuts splice off the voiced audio, and
+    # neither takes the loud burst at 5 s with it (that would change the premix trim).
+    for edit_id, start, end in (("first", 1.2, 1.6), ("last", 5.6, 5.9)):
+        ws = _rendered_project(minimal_project, _session_cut(edit_id, start, end))
+        play = PlayService(ws)
+        current = play.play_pending_preview(edit_id, mode="current", pad_sec=3.0, dry_run=True)
+        suggested = play.play_pending_preview(edit_id, mode="suggested", pad_sec=3.0, dry_run=True)
+        # A never reaches past the 6 s timeline or before 0; B ends where the edited one does.
+        assert current.start_sec == suggested.start_sec == pytest.approx(max(0.0, start - 3.0))
+        assert current.end_sec == pytest.approx(min(6.0, end + 3.0))
+        assert suggested.end_sec == pytest.approx(current.end_sec + 0.9 - (end - start), abs=1e-3)
+        with wave.open(str(current.wav_path), "rb") as audio:
+            assert audio.getnframes() == round((current.end_sec - current.start_sec) * 48000)
+        # The guest speaks at the end, so approving anyway is the audio-check override the
+        # Suggested side plays under.
+        with audio_check_override("preview", "preview"):
+            approved, _trim = _premix_window(
+                ws, suggested.start_sec, suggested.end_sec, approve=edit_id
+            )
+        _assert_same_audio(suggested.wav_path, approved)
+
+
+def test_an_edit_shorter_than_the_pad_keeps_both_sides_playable(minimal_project) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(minimal_project, _session_cut("blip", 3.0, 3.04, gap=0.0))
+    play = PlayService(ws)
+    for mode in ("current", "suggested"):
+        result = play.play_pending_preview("blip", mode=mode, pad_sec=3.0, dry_run=True)
+        assert result.start_sec == 0.0
+        assert result.end_sec == pytest.approx(6.0 if mode == "current" else 5.96, abs=1e-3)
+
+
+def test_a_cut_that_leaves_nothing_to_play_has_no_suggested_side(minimal_project) -> None:
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws = _rendered_project(minimal_project, _session_cut("all", 0.0, 6.0, gap=0.0))
+    play = PlayService(ws)
+    assert play.play_pending_preview("all", mode="current", pad_sec=3.0, dry_run=True)
+    with pytest.raises(CodedValueError) as refused:
+        play.play_pending_preview("all", mode="suggested", pad_sec=3.0, dry_run=True)
+    assert refused.value.code == "pending_preview_unavailable"
+
+
+def test_the_suggested_side_applies_only_its_own_edit_beside_an_adjacent_pending_one(
+    minimal_project,
+) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(minimal_project, _session_cut("one", 2.0, 2.6))
+    ws.project.edit_decisions.append(_session_cut("two", 2.6, 3.2))
+    ws.save()
+    play = PlayService(ws)
+    one = play.play_pending_preview("one", mode="suggested", pad_sec=3.0, dry_run=True)
+    two = play.play_pending_preview("two", mode="suggested", pad_sec=3.0, dry_run=True)
+    assert one.wav_path != two.wav_path
+    approved, _trim = _premix_window(ws, one.start_sec, one.end_sec, approve="one")
+    _assert_same_audio(one.wav_path, approved)
+    # The project is untouched: both edits are still pending after the previews.
+    assert [(e.id, e.applied) for e in ws.project.edit_decisions] == [
+        ("one", False),
+        ("two", False),
+    ]
+
+
+def test_the_host_route_pads_and_says_where_each_file_sits(minimal_project) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.6))
+    client = TestClient(create_app())
+    base = {"path": str(minimal_project), "edit_id": "cut", "pad_sec": "3"}
+
+    a = client.get("/api/pending-preview", params={**base, "mode": "current"})
+    b = client.get("/api/pending-preview", params={**base, "mode": "suggested"})
+    assert a.status_code == b.status_code == 200
+    assert a.headers["x-preview-edit-id"] == b.headers["x-preview-edit-id"] == "cut"
+    assert a.headers["x-preview-pad-sec"] == "3"
+    # A and B are two separately addressable files over one start.
+    assert (a.headers["x-preview-start-sec"], a.headers["x-preview-end-sec"]) == ("0", "5.6")
+    assert (b.headers["x-preview-start-sec"], b.headers["x-preview-end-sec"]) == ("0", "5.9")
+    assert (a.headers["x-preview-edit-start-sec"], a.headers["x-preview-edit-end-sec"]) == (
+        "2",
+        "2.6",
+    )
+    assert a.content != b.content
+    assert "X-Preview-End-Sec" in a.headers["access-control-expose-headers"]
+    # Without a pad the window stays the 0.5 s of today.
+    default = client.get(
+        "/api/pending-preview", params={**base, "mode": "current"} | {"pad_sec": "0.5"}
+    )
+    assert default.headers["x-preview-start-sec"] == "1.5"
+    omitted = {k: v for k, v in base.items() if k != "pad_sec"}
+    assert (
+        client.get("/api/pending-preview", params={**omitted, "mode": "current"}).headers[
+            "x-preview-pad-sec"
+        ]
+        == "0.5"
+    )
+    # The warm ahead of the click renders that pad, so the click is a file read.
+    assert client.post("/api/pending-preview/warm", params=base).status_code == 200
+
+
+@pytest.mark.parametrize("pad", ["-1", "10.5", "nan", "wide"])
+def test_the_host_route_refuses_a_pad_outside_the_range(minimal_project, pad) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    params = {"path": str(minimal_project), "edit_id": "cut", "pad_sec": pad}
+    assert client.get("/api/pending-preview", params=params).status_code == 422
+    assert client.post("/api/pending-preview/warm", params=params).status_code == 422

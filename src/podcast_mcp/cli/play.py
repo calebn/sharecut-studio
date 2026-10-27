@@ -198,7 +198,9 @@ def play_pending_preview_cmd(
         "--mode",
         help="current | suggested | ab",
     ),
-    padding: float = typer.Option(0.5, "--padding", help="Seconds around the cut"),
+    padding: float = typer.Option(
+        0.5, "--padding", help="Seconds before and after the edit (0 to 10)"
+    ),
     gap: float = typer.Option(0.4, "--gap", help="Silence between A and B"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     player: str | None = typer.Option(None, "--player"),
