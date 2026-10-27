@@ -9,6 +9,7 @@ results, so a parser that ignores the audio altogether cannot pass.
 from __future__ import annotations
 
 import subprocess
+import wave
 from pathlib import Path
 
 import pytest
@@ -153,6 +154,19 @@ def test_zero_frame_file_with_forged_key_measures_nothing(tmp_path: Path) -> Non
         "-frames:a", "0", "-metadata", f"{key}=v",
     )  # fmt: skip
     assert all(value is None for value in FFmpegEngine.astats(empty).values())
+
+
+def test_zero_frame_wav_has_no_loudness_measurement(tmp_path: Path) -> None:
+    empty = tmp_path / "empty.wav"
+    with wave.open(str(empty), "wb") as wav:
+        wav.setparams((1, 2, 48000, 0, "NONE", "not compressed"))
+    engine = FFmpegEngine()
+    measurements = {
+        "basic": engine.measure_loudness(empty),
+        "full": engine.measure_loudness_full(empty),
+        "progress": engine.measure_loudness_full(empty, on_progress=lambda *_: None, total_sec=0.0),
+    }
+    assert measurements == {"basic": None, "full": None, "progress": None}
 
 
 def test_coloured_stderr_is_read_like_plain(clean: Path, monkeypatch: pytest.MonkeyPatch) -> None:
