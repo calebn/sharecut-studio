@@ -11,6 +11,8 @@ import type { ScriptTurn } from "../../system/scriptPieces";
 import type { StageId } from "../../types/stage";
 import { clamp, lastIndexAtOrBefore } from "../../utils/math";
 import { formatTimeShort } from "../../utils/time";
+import { type GuestComment, GuestComments } from "./GuestComments";
+import { GuestCompose, type GuestPost } from "./GuestCompose";
 import { type GuestRole, guestStages, ROLE_HINT } from "./guestLogic";
 
 export type GuestReviewProps = {
@@ -35,8 +37,17 @@ export type GuestReviewProps = {
   /** First visit on this link: the Role chip explains itself once. The app stores that it was seen. */
   firstVisit?: boolean;
   onRoleHintSeen?: () => void;
-  /** The Review lane's Composer drops in here; a viewer never gets it. */
-  composer?: ReactNode;
+  comments?: readonly GuestComment[];
+  /** A comment is on its way to the server. */
+  posting?: boolean;
+  /** Offline: comments queue and the Composer says so. */
+  online?: boolean;
+  /** The first guest comment shows a name field. */
+  firstPost?: boolean;
+  /** A viewer's link has no Composer, so this is never called there. */
+  onPost: (post: GuestPost) => void;
+  onRetryComment?: (id: string) => void;
+  onRemoveComment?: (id: string) => void;
   onComment?: () => void;
   onRetry?: () => void;
 };
@@ -59,7 +70,13 @@ export function GuestReview({
   edit,
   firstVisit = false,
   onRoleHintSeen,
-  composer,
+  comments = [],
+  posting = false,
+  online = true,
+  firstPost = false,
+  onPost,
+  onRetryComment,
+  onRemoveComment,
   onComment,
   onRetry,
 }: GuestReviewProps) {
@@ -155,7 +172,25 @@ export function GuestReview({
         onCollapse={phone ? () => setCollapsed(true) : undefined}
       />
     );
-    const composerPart = access !== "viewer" ? composer : null;
+    const composerPart =
+      access === "viewer" ? null : (
+        <GuestCompose
+          playhead={playhead}
+          firstPost={firstPost}
+          online={online}
+          posting={posting}
+          compact={phone}
+          onPost={onPost}
+        />
+      );
+    const commentsPart = (
+      <GuestComments
+        comments={comments}
+        onSeek={seek}
+        onRetry={onRetryComment}
+        onRemove={onRemoveComment}
+      />
+    );
     const word = lastIndexAtOrBefore(wordStarts, playhead);
     const script =
       turns.length === 0 ? (
@@ -186,7 +221,9 @@ export function GuestReview({
       <div className="gr-column">
         <div className="gr-player">{player}</div>
         {phone ? null : composerPart}
+        {phone ? null : commentsPart}
         <div className="gr-script">{script}</div>
+        {phone ? commentsPart : null}
         {phone ? composerPart : null}
       </div>
     );

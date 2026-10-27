@@ -47,3 +47,11 @@
   flex: 1;
   min-inline-size: 0;
 }
+
+.gr-comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-block-size: 40%;
+  overflow-y: auto;
+}
