@@ -46,7 +46,6 @@ export function TrackInspector({
   const {
     projectPath,
     project,
-    splitSpeakersReview,
     setSelection,
     setLayerVisible,
     layers,
@@ -57,7 +56,6 @@ export function TrackInspector({
   } = useDaw((s) => ({
     projectPath: s.projectPath,
     project: s.project,
-    splitSpeakersReview: s.splitSpeakersReview,
     setSelection: s.setSelection,
     setLayerVisible: s.setLayerVisible,
     layers: s.layers,
@@ -74,10 +72,6 @@ export function TrackInspector({
   const mixOnly = guestHearsMixOnly(guestMode);
   const hostCanSplit = canManageProjects(projectPath);
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
-  const canReviewSplit =
-    splitSpeakersReview?.trackId === track.id &&
-    splitSpeakersReview.splitId === track.speaker_split_id &&
-    splitSpeakersReview.historyHeadId === project?.history?.head_id;
   const [label, setLabel] = useState(track.label);
   const [speaker, setSpeaker] = useState(track.speaker ?? "");
   const [role, setRole] = useState(track.role);
@@ -252,14 +246,10 @@ export function TrackInspector({
                 args={{ trackId: track.id }}
                 className="split-speakers-entry"
                 disabledReason={
-                  busy
-                    ? BUSY_REASON
-                    : canReviewSplit
-                      ? undefined
-                      : (splitBlocker ?? undefined)
+                  busy ? BUSY_REASON : (splitBlocker ?? undefined)
                 }
               >
-                {canReviewSplit ? "Review split…" : "Split speakers…"}
+                Split speakers…
               </CommandButton>
             ) : null}
             <CommandButton
@@ -269,7 +259,7 @@ export function TrackInspector({
               disabledReason={busy ? BUSY_REASON : undefined}
             />
           </div>
-          {hostCanSplit && splitBlocker && !canReviewSplit ? (
+          {hostCanSplit && splitBlocker ? (
             <p className="modifier-note">{splitBlocker}</p>
           ) : null}
         </>
