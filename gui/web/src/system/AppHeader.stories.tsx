@@ -182,7 +182,8 @@ export const GuestEditor: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Invite" })).toBeVisible();
+    // Only the host shares the project, whatever the link's role.
+    await expect(canvas.queryByRole("button", { name: "Invite" })).toBeNull();
     await expect(canvas.getByRole("button", { name: "Undo" })).toBeVisible();
   },
 };

@@ -134,9 +134,10 @@ export const Loading: Story = {
     await expect(
       await within(canvasElement).findByRole("main", { name: "Edit" }),
     ).toBeVisible();
+    // The Player waits too: Play says why it cannot start yet.
     await expect(
-      within(canvasElement).queryByRole("group", { name: "Player" }),
-    ).toBeNull();
+      within(canvasElement).getByRole("button", { name: "Play" }),
+    ).toHaveAccessibleDescription("Loading project…");
     await expect(
       canvasElement.querySelector("[aria-busy='true']"),
     ).not.toBeNull();

@@ -1,10 +1,4 @@
-import {
-  type RefObject,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useState,
-} from "react";
+import { type RefObject, useEffect, useLayoutEffect, useState } from "react";
 import { useDawStore } from "../../state/dawStore";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 
@@ -112,7 +106,7 @@ export function useShortFrame(frame: RefObject<HTMLElement | null>): boolean {
   // What a stage shows changes the fit (the Edit rows exist only on Edit) with
   // no resize of the frame, the header or the Player to report it.
   const shown = useDawStore((s) => `${s.stage}:${s.editSurface}`);
-  const update = useEffectEvent(() => {
+  const update = () => {
     const el = frame.current;
     if (!el) return;
     const folds = frameFolds(measureFit(el));
@@ -120,10 +114,10 @@ export function useShortFrame(frame: RefObject<HTMLElement | null>): boolean {
     setShort(folds);
     if (folds) root.dataset[FOLD_ATTRIBUTE] = "";
     else delete root.dataset[FOLD_ATTRIBUTE];
-  });
+  };
   useResizeObserver([frame, header, player], update);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is the trigger.
-  useLayoutEffect(() => update(), [shown]);
+  useLayoutEffect(update, [frame, shown]);
   useEffect(
     () => () => {
       delete document.documentElement.dataset[FOLD_ATTRIBUTE];
