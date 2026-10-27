@@ -1,19 +1,11 @@
 import { memo, useCallback } from "react";
-import { useShallow } from "zustand/react/shallow";
-import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { displayShortcutFor } from "../../keymap/registry";
-import { PipelinePanel } from "../../panels/PipelinePanel";
-import { canIngestMedia } from "../../shareMode";
+import { usePrepareModel } from "../../stages/prepare/usePrepareModel";
 import { useDawStore } from "../../state/dawStore";
-import { isPipelineSlotBusy } from "../../utils/pipeline";
-import { EmptySession } from "../edit/EmptySession";
-import { useAudioDrop } from "../edit/useAudioDrop";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useKeepFocusInView } from "../useKeepFocusInView";
 import { useStageScroll } from "../useStageScroll";
-
-import { hostStateOf, prepareHandoff } from "./hostModels";
+import { hostStateOf } from "./hostModels";
 import { PrepareStageView } from "./PrepareStageView";
 
 export type PrepareStageProps = {
@@ -21,23 +13,7 @@ export type PrepareStageProps = {
 };
 
 function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
-  const {
-    project,
-    projectPath,
-    guestMode,
-    shareCapabilities,
-    pipelineJob,
-    activityJob,
-  } = useDawStore(
-    useShallow((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      pipelineJob: s.pipelineJob,
-      activityJob: s.activityJob,
-    })),
-  );
+  const loaded = useDawStore((s) => s.project != null);
   const shell = useViewportClass();
   const saveScroll = useStageScroll("prepare", "body");
   const keepFocusInView = useKeepFocusInView();
@@ -52,33 +28,21 @@ function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
     },
     [saveScroll, keepFocusInView],
   );
-  const drop = useAudioDrop();
-
-  const handoff = prepareHandoff({
-    busy: isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob),
-    pendingReviewCount: project?.edit_impact.pending_review_count ?? 0,
-  });
+  const model = usePrepareModel();
   return (
     <PrepareStageView
       shell={shell}
-      state={hostStateOf(project, loadFailure)}
+      state={hostStateOf(loaded ? true : null, loadFailure)}
       failure={loadFailure}
-      empty={project != null && project.tracks.length === 0}
-      canIngest={canIngestMedia(projectPath, guestMode, shareCapabilities)}
-      importShortcut={displayShortcutFor("media.import") ?? null}
-      handoff={handoff}
-      dropTarget={<EmptySession drop={drop} />}
-      pipeline={<PipelinePanel />}
       scrollRef={scrollRef}
-      onImport={() => runPointerCommand("media.import", {})}
-      onRecord={() => runPointerCommand("stage.record")}
-      onHandoff={() => runPointerCommand(`stage.${handoff.target}`)}
+      view={model.view}
+      advanced={model.advanced}
     />
   );
 }
 
 /**
- * The Prepare stage host: import entry points, the pipeline panel and the
- * hand-off to Review or Edit. Host only; the frame never offers it to a guest.
+ * The Prepare stage host: the stage view, bound to the project and the
+ * pipeline job. Host only; the frame never offers it to a guest.
  */
 export const PrepareStage = memo(PrepareStageAdapter);

@@ -37,7 +37,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Prepare stage host: Sources (Add audio, Record another session), Getting ready (the pipeline panel) and the hand-off to Review or Edit. Host only.\n\n**Motion.** None of its own. Processing progress comes from the pipeline panel and the Stage bar badge; the hand-off button changes label and weight in one frame.",
+          "The Prepare stage host: the Prepare view bound to the project and the pipeline job. Sources (Import audio, Record, the voices), Getting ready (the five rows, with Advanced steps in a sheet), Help the transcriber (names and terms, Cleanup) and the hand-off to Review or Edit. Import starts the work by itself; a missing model shows a Get row and the work goes on after it downloads. Host only.\n\n**Motion.** None of its own. Processing progress comes from the pipeline job and the Stage bar badge; the hand-off button changes label and weight in one frame.",
       },
     },
   },
@@ -64,14 +64,12 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      await canvas.findByRole("heading", { name: "Getting ready" }),
+      await canvas.findByRole("heading", { name: /Getting ready/ }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: /Add audio/ }),
+      canvas.getByRole("button", { name: /Import audio/ }),
     ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Record another session" }),
-    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: /^Record/ })).toBeVisible();
   },
 };
 
@@ -85,9 +83,10 @@ export const Running: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("button", { name: /Review|Edit/ }),
-    ).toBeVisible();
+    const handoff = await within(canvasElement).findByRole("button", {
+      name: /Review|Edit/,
+    });
+    await expect(handoff).toHaveAttribute("aria-disabled", "true");
   },
 };
 
@@ -96,10 +95,10 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      await canvas.findByRole("button", { name: /Drop audio files here/ }),
+      await canvas.findByRole("button", { name: /Import audio/ }),
     ).toBeVisible();
     await expect(
-      canvas.queryByRole("heading", { name: "Getting ready" }),
+      canvas.queryByRole("heading", { name: /Getting ready/ }),
     ).toBeNull();
   },
 };
@@ -135,7 +134,7 @@ export const Phone: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement).findByRole("heading", {
-        name: "Getting ready",
+        name: /Getting ready/,
       }),
     ).toBeVisible();
   },
@@ -147,7 +146,7 @@ export const PhoneEmpty: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement).findByRole("button", {
-        name: /Drop audio files here/,
+        name: /Import audio/,
       }),
     ).toBeVisible();
   },
@@ -162,7 +161,7 @@ export const GuestEditor: Story = {
       await canvas.findByText("This link can't open that"),
     ).toBeVisible();
     await expect(
-      canvas.queryByRole("button", { name: /Add audio/ }),
+      canvas.queryByRole("button", { name: /Import audio/ }),
     ).toBeNull();
     await userEvent.click(canvas.getByRole("button", { name: /Go to/ }));
     await waitFor(() => expect(useDawStore.getState().stage).toBe("edit"));

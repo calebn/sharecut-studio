@@ -26,29 +26,6 @@ export function effectiveSection(
   return sections.includes(section) ? section : sections[0];
 }
 
-export type PrepareHandoff = {
-  label: string;
-  target: "review" | "edit";
-  /** Processing is still going: the button is offered, not the next step. */
-  primary: boolean;
-};
-
-/** Where Prepare sends the host next: decisions first, then the Edit. */
-export function prepareHandoff(input: {
-  busy: boolean;
-  pendingReviewCount: number;
-}): PrepareHandoff {
-  const { busy, pendingReviewCount } = input;
-  if (pendingReviewCount > 0) {
-    return {
-      label: `Review ${pendingReviewCount} ${pendingReviewCount === 1 ? "suggestion" : "suggestions"}`,
-      target: "review",
-      primary: !busy,
-    };
-  }
-  return { label: "Edit", target: "edit", primary: !busy };
-}
-
 type RecordStatusKind = "idle" | "live" | "paused" | "saving";
 
 export type RecordStatus = {
