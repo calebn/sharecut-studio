@@ -23,7 +23,6 @@ export type LinkRowProps = {
   /** One short note, such as "Pinned to Rough cut". */
   note?: ReactNode;
   compact?: boolean;
-  /** Who can open the link. `network`: only people on this network; the row says so in one sentence. */
   reach?: "anywhere" | "network";
   onCopy: () => void;
 };

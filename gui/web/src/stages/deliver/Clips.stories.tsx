@@ -50,7 +50,7 @@ const meta: Meta<typeof ClipsRow> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Clip ideas as cards: play, a title edited in place, the length, one to three strength bars and Approve. Approved clips export with the episode and show up as files next to it. Trim opens a waveform strip with In and Out handles, and the In and Out fields. Handles snap to word starts and ends when the host passes words; hold Alt to move freely. Left and Right move one word, Shift ten words, Alt 10 ms. Without words the handles move freely.\n\n**Motion.** Animations come later: approving fills the card border with `--motion-hover`.",
+          "Clip ideas as cards: play, a title edited in place, the length, one to three strength bars and Approve. Approved clips export with the episode and show up as files next to it. Trim opens a waveform strip with In and Out handles, and the In and Out fields. Dragging a handle snaps to word starts and ends when the host passes words; hold Alt to move freely. Left and Right move a focused handle 10 ms, Shift 100 ms.\n\n**Motion.** Animations come later: approving fills the card border with `--motion-hover`.",
       },
     },
   },
@@ -99,13 +99,12 @@ export const TrimmingWithWords: Story = {
     const handle = view.getByRole("slider", {
       name: "In handle of Nobody asked the river",
     });
-    const before = handle.getAttribute("aria-valuenow");
     handle.focus();
-    await userEvent.keyboard("{ArrowRight}");
-    await expect(handle.getAttribute("aria-valuenow")).not.toBe(before);
+    await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    await expect(handle).toHaveAttribute("aria-valuenow", "612.1");
     await expect(
       view.getByRole("textbox", { name: "In of Nobody asked the river" }),
-    ).not.toHaveValue("10:12.0");
+    ).toHaveValue("10:12.1");
   },
 };
 

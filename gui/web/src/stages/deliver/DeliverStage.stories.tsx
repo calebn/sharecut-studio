@@ -22,12 +22,10 @@ import {
   NEVER,
   OPEN_FACTS,
   OPENED_BY,
-  PEAKS,
   RUNNING,
   SETTINGS,
   STALE,
   TOTAL,
-  WORDS,
 } from "./deliverFixture";
 
 const MOD_E = isApplePlatform() ? "{Meta>}e{/Meta}" : "{Control>}e{/Control}";
@@ -270,41 +268,4 @@ export const PhoneExported: Story = {
     link: { url: LINK, openedBy: OPENED_BY },
   },
   parameters: isolatedStoryParameters,
-};
-
-export const TrimWithWords: Story = {
-  args: { words: WORDS, peaks: PEAKS },
-  play: playInCanvas(async ({ canvasElement }) => {
-    const view = within(canvasElement);
-    await userEvent.click(
-      view.getByRole("button", { name: "More for Nobody asked the river" }),
-    );
-    await userEvent.click(
-      await within(document.body).findByRole("menuitem", { name: "Trim" }),
-    );
-    const handle = view.getByRole("slider", {
-      name: "In handle of Nobody asked the river",
-    });
-    handle.focus();
-    await userEvent.keyboard("{ArrowRight}");
-    await expect(
-      view.getByRole("textbox", { name: "In of Nobody asked the river" }),
-    ).not.toHaveValue("10:12.0");
-  }),
-};
-
-export const NetworkOnlyLink: Story = {
-  args: { link: { url: LINK, reach: "network" } },
-  play: playInCanvas(async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText(
-        "Only people on this network can listen. Turn on online sharing to reach anyone.",
-      ),
-    ).toBeInTheDocument();
-  }),
-};
-
-export const PhoneNetworkOnlyLink: Story = {
-  ...Phone,
-  args: { ...Phone.args, link: { url: LINK, reach: "network" } },
 };

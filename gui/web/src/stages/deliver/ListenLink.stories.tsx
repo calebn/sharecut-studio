@@ -55,7 +55,7 @@ export const Pinned: Story = {
 
 export const AfterExport: Story = { args: { link: null, highlight: true } };
 
-export const OfflineOnly: Story = {
+export const NetworkOnly: Story = {
   args: { link: LINK, reach: "network" },
   play: async ({ canvasElement }) => {
     await expect(
@@ -66,7 +66,7 @@ export const OfflineOnly: Story = {
   },
 };
 
-export const OfflineOnlyPhone: Story = {
+export const NetworkOnlyPhone: Story = {
   args: { link: LINK, reach: "network", share: true, compact: true },
   decorators: [
     (Story) => (
@@ -77,7 +77,7 @@ export const OfflineOnlyPhone: Story = {
   ],
 };
 
-export const OfflineOnlyDark: Story = {
+export const NetworkOnlyDark: Story = {
   args: { link: LINK, reach: "network" },
   globals: { theme: "dark" },
 };

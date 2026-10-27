@@ -67,7 +67,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "stages/home/OpenOther.tsx",
   // The time field: arrows step, Enter commits and Escape reverts, like a spin box.
   "system/TimeField.tsx",
-  // A focused clip trim handle moves by one word with the arrow keys, ten with Shift, 10 ms with Alt.
+  // A focused clip trim handle moves with the arrow keys, 10 ms, 100 ms with Shift.
   "stages/deliver/ClipTrimWave.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",
