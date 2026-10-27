@@ -323,6 +323,20 @@ def test_a_changed_word_near_the_cut_changes_the_key(tmp_path: Path) -> None:
     assert verdict_cache.verdict_key(project, edit, **kwargs) != base
 
 
+def test_a_transcript_with_no_words_still_gets_a_verdict_key(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    project.transcripts = [Transcript(track_id="host", words=[])]
+    key = verdict_cache.verdict_key(
+        project,
+        project.edit_decisions[0],
+        defaults=load_defaults(),
+        manual=False,
+        batch=(),
+        span=(5.0, 5.4),
+    )
+    assert key is not None
+
+
 def test_key_parts_name_the_input_that_moved_the_key(tmp_path: Path) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]

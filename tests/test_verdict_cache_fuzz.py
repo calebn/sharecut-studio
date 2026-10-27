@@ -17,6 +17,7 @@ from podcast_mcp.edits import verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
 from podcast_mcp.models import (
     Clip,
+    ClipJoinMode,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -113,6 +114,8 @@ def _perturbed(project: EpisodeProject, rng: random.Random, kind: str) -> Episod
     if kind == "straddler":  # the clip around the cut, so a ramp at its far end moves
         clip = next(c for c in clips if c.source_start <= edit.start < c.source_end)
         clip.fade_in_ms, clip.fade_out_ms = rng.choice(FADES[3:]), rng.choice(FADES[3:])
+    elif kind == "join":  # only a join mode moves: a cut drops the fade, a crossfade blends it
+        rng.choice(clips[1:]).join_in_mode = rng.choice([ClipJoinMode.CUT, ClipJoinMode.CROSSFADE])
     elif kind == "split":  # a cut applied far away writes a fade pair
         clip = next(c for c in clips if c.source_start < at < c.source_end)
         fade = rng.choice(FADES)
@@ -149,7 +152,7 @@ def test_a_cached_verdict_equals_a_cold_check_across_random_timelines(
     monkeypatch.delenv(verdict_cache.VERIFY_ENV, raising=False)
     project = _build(seed, tmp_path)
     variants = {"base": project}
-    for kind in ("straddler", "split", "word"):
+    for kind in ("straddler", "join", "split", "word"):
         variants[kind] = _perturbed(project, random.Random(seed * 100 + ord(kind[0])), kind)
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
     cold = {name: _outcome(p) for name, p in variants.items()}
