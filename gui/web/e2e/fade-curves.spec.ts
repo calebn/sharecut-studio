@@ -229,6 +229,9 @@ test.describe("Timeline fade curves", () => {
     await page.keyboard.press("Shift+ArrowRight");
     await page.keyboard.press("ControlOrMeta+K");
     await expect(clips).toHaveCount(2);
+    const scriptToggle = page.getByRole("button", {
+      name: "Show or hide Script",
+    });
     try {
       const badge = lane.locator(".edit-mark");
       await expect(badge).toHaveCount(1);
@@ -279,6 +282,10 @@ test.describe("Timeline fade curves", () => {
       };
 
       await expectBadgeClear();
+      // The Script pane sits beside the timeline and its rem column grows with the text size;
+      // hide it so the lane keeps room to hold the clips this test clicks.
+      await scriptToggle.click();
+      await expect(scriptToggle).toHaveAttribute("aria-pressed", "false");
       // A larger browser text size grows rem chrome but not the px clip gutter the glyph fills.
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "24px";
