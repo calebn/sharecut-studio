@@ -536,3 +536,9 @@
     padding-inline: var(--space-4);
   }
 }
+
+/* A host-only note's lock, after its snippet in the Notes rail. */
+.sys-queue-restricted {
+  flex: none;
+  color: var(--color-text-secondary);
+}

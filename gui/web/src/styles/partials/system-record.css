@@ -465,3 +465,142 @@
   min-block-size: var(--touch-min);
   min-inline-size: var(--touch-min);
 }
+
+/* Notes rail: a 320 px column of comment rows over one composer. On the phone
+   the Sheet supplies the width, and the list caps its height so the composer
+   stays in the peek strip. */
+.sys-notes {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  inline-size: 20rem;
+  block-size: 100%;
+  min-block-size: 0;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.sys-notes-history {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-block-size: 0;
+}
+
+.sys-notes-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  min-block-size: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.sys-notes-list > li {
+  margin: 0;
+  padding: 0;
+}
+
+.sys-notes-pin {
+  vertical-align: -0.125em;
+  margin-inline-end: var(--space-1);
+}
+
+.sys-notes-quiet {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-notes-composer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.sys-notes-field {
+  display: flex;
+  box-sizing: border-box;
+  inline-size: 100%;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-3) var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+/* The textarea keeps the base accent outline (focus-ring-width); the field
+   border follows focus too so the whole composer reads as the focused control. */
+.sys-notes-field:focus-within {
+  border-color: var(--color-accent);
+}
+
+.sys-notes-input {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  padding-block: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-field);
+  resize: none;
+}
+
+.sys-notes-time {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-subtle);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.sys-notes-send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* The disabled send keeps its focus and its reason; it only looks quiet. */
+.sys-notes-send[aria-disabled="true"] {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+.sys-notes-everyone {
+  min-block-size: var(--touch-min);
+}
+
+/* On the phone the Sheet owns the width and caps the list at the peek. */
+.sys-sheet-bottom .sys-notes {
+  inline-size: 100%;
+  block-size: auto;
+}
+
+.sys-sheet-bottom .sys-notes-list {
+  max-block-size: 16rem;
+}

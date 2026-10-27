@@ -15,14 +15,16 @@ export type QueueRowProps = {
   kind: DecisionKind;
   /** The Suggestion drawing for a proposal, or the quoted comment. */
   snippet: ReactNode;
-  /** "18:36" */
-  time: string;
+  /** "18:36". A session-level note has none: no time chip, read as "session note". */
+  time?: string;
   /** Saved seconds ("0.8 s") or a reply count ("2 replies"). */
   value?: string;
   selected?: boolean;
   /** A comment row shows who wrote it instead of the kind glyph. */
   author?: { name: string; colorIndex?: number };
   unread?: boolean;
+  /** Host and producers only: a lock after the snippet, named in the row. */
+  restricted?: boolean;
   /** Waiting to send: the guest is offline. */
   offline?: boolean;
   decided?: QueueRowResult;
@@ -46,6 +48,7 @@ export function QueueRow({
   selected = false,
   author,
   unread = false,
+  restricted = false,
   offline = false,
   decided,
   onSelect,
@@ -65,7 +68,9 @@ export function QueueRow({
       <div className="sys-queue-row sys-queue-row--decided" data-kind={kind}>
         <SystemIcon name={RESULT_ICON[decided.result]} size={16} />
         <span className="sys-queue-decided-text">{decided.text}</span>
-        <span className="sys-mono sys-queue-time">{time}</span>
+        {time !== undefined ? (
+          <span className="sys-mono sys-queue-time">{time}</span>
+        ) : null}
       </div>
     );
   }
@@ -101,8 +106,22 @@ export function QueueRow({
           )}
         </span>
         <span className="sys-queue-snippet">{snippet}</span>
+        {restricted ? (
+          <>
+            <SystemIcon
+              name="lock"
+              size={14}
+              className="sys-queue-restricted"
+            />
+            <span className="sr-only">Host and producers only</span>
+          </>
+        ) : null}
         <span className="sys-queue-meta">
-          <span className="sys-mono sys-queue-time">{time}</span>
+          {time !== undefined ? (
+            <span className="sys-mono sys-queue-time">{time}</span>
+          ) : (
+            <span className="sr-only">session note</span>
+          )}
           {value ? (
             <span className="sys-mono sys-queue-value">{value}</span>
           ) : null}
