@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import random
 import subprocess
 from collections import defaultdict
 from pathlib import Path, PurePosixPath
@@ -209,10 +210,14 @@ _VOCAB = [
 ]  # fmt: skip
 
 
+def _git_impossible(files: tuple[str, ...] | list[str]) -> bool:
+    return any(p in _dirs(q) for p, q in itertools.permutations(files, 2))
+
+
 def _assert_matches_oracle(vocab: list[str], max_size: int) -> None:
     for size in range(1, max_size + 1):
         for files in itertools.combinations(vocab, size):
-            if any(p in _dirs(q) for p, q in itertools.permutations(files, 2)):
+            if _git_impossible(files):
                 continue
             expected = {p for p, q in itertools.permutations(files, 2) if _oracle_collide(p, q)}
             flagged = {p for group in _collisions_among(list(files)) for p in group}
@@ -292,3 +297,99 @@ _LONG_VOCAB = [
 
 def test_guard_matches_oracle_on_long_names_and_deep_directories() -> None:
     _assert_matches_oracle(_LONG_VOCAB, 4)
+
+
+_RANDOM_EXTS = [
+    "ts",
+    "tsx",
+    "mts",
+    "cts",
+    "js",
+    "jsx",
+    "mjs",
+    "cjs",
+    "d.ts",
+    "md",
+    "txt",
+    "json",
+    "css",
+]
+
+
+def _rand_word(rng: random.Random, low: int, high: int) -> str:
+    return "".join(rng.choice("abcdefgh") for _ in range(rng.randint(low, high)))
+
+
+def _rand_flip(rng: random.Random, text: str) -> str:
+    letters = [i for i, c in enumerate(text) if c.isalpha()]
+    if not letters:
+        return text
+    anchors = [letters[0], letters[-1], letters[len(letters) // 2]]
+    picks = {rng.choice([*anchors, rng.choice(letters)]) for _ in range(rng.choice([1, 1, 2, 3]))}
+    return "".join(c.swapcase() if i in picks else c for i, c in enumerate(text))
+
+
+def _rand_related(rng: random.Random, text: str) -> str:
+    keep = rng.randint(max(1, len(text) // 2), len(text))
+    if rng.random() < 0.5:
+        return text[:keep] + _rand_word(rng, 1, 12)
+    return _rand_word(rng, 1, 12) + text[len(text) - keep :]
+
+
+def _rand_mutate(rng: random.Random, text: str) -> str:
+    return rng.choice(
+        [
+            text,
+            _rand_flip(rng, text),
+            _rand_flip(rng, text),
+            _rand_related(rng, text),
+            _rand_word(rng, 1, 60),
+        ]
+    )
+
+
+def _rand_parts(rng: random.Random) -> tuple[list[str], str, str]:
+    depth = rng.choice([0, 0, 1, 2, 3, rng.randint(0, 14)])
+    dirs = [_rand_word(rng, 1, 30) for _ in range(depth)]
+    return dirs, _rand_word(rng, *rng.choice([(1, 60), (40, 60)])), rng.choice(_RANDOM_EXTS)
+
+
+def _rand_derive(
+    rng: random.Random, parts: tuple[list[str], str, str]
+) -> tuple[list[str], str, str]:
+    dirs, base, ext = list(parts[0]), parts[1], parts[2]
+    if dirs and rng.random() < 0.6:
+        i = rng.randrange(len(dirs))
+        dirs[i] = rng.choice([_rand_flip(rng, dirs[i]), _rand_related(rng, dirs[i])])
+    if rng.random() < 0.15:
+        dirs = [d.swapcase() for d in dirs]
+        base = base.swapcase()
+    base = _rand_mutate(rng, base)
+    if rng.random() < 0.5:
+        ext = rng.choice(_RANDOM_EXTS[:8] if rng.random() < 0.7 else _RANDOM_EXTS)
+    return dirs, base, ext
+
+
+def _rand_tree(rng: random.Random) -> list[str]:
+    parts = [_rand_parts(rng)]
+    for _ in range(rng.randint(1, 5)):
+        source = rng.choice(parts) if rng.random() < 0.7 else _rand_parts(rng)
+        parts.append(_rand_derive(rng, source))
+    rendered = ["/".join([*d, f"{b}.{e}"]) for d, b, e in parts]
+    return list(dict.fromkeys(rendered))
+
+
+def test_guard_matches_oracle_on_random_trees() -> None:
+    rng = random.Random(2380)
+    checked = positives = 0
+    while checked < 1000:
+        files = _rand_tree(rng)
+        if len(files) < 2 or _git_impossible(files):
+            continue
+        expected = {p for p, q in itertools.permutations(files, 2) if _oracle_collide(p, q)}
+        flagged = {p for group in _collisions_among(files) for p in group}
+        assert flagged == expected, files
+        checked += 1
+        positives += bool(expected)
+    assert positives >= checked * 0.25
+    assert checked - positives >= checked * 0.25
