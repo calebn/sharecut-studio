@@ -142,7 +142,7 @@ See [testing.md § Lab tape: alignment testing grounds](test-results.md#lab-tape
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
 | `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + `transcript_fingerprint` of the reviewed word text. The same `edits/review_gate.ReviewGate` as `align_accept_status.json`; `REFINE_GATE` in `edits/transcript_refine_status.py` supplies only the fingerprint and brief |
 
-The Studio Pipeline tab edits per-project **Terms** and **Guest names** in
+The Studio Prepare stage edits per-project **Terms** and **Guest names** in
 `transcript_context.yaml`. These values join the show title in Whisper's
 initial prompt (`TranscriptContext.initial_prompt_text()`, read by the
 faster-whisper engine that `transcribe_tracks` actually calls; the
@@ -290,8 +290,8 @@ in `limits` for such windows so an agent double-checks cut points. In Studio, a 
 explicit `true` stays checked and can be switched off; the unset missing-model default stays
 unchecked, unavailable, and locked until the model is downloaded.
 
-The run-only `retime_words` flag (Studio **Re-time words** next to the Pipeline tab's
-Precise word boundaries field, CLI `pipeline run --retime-words`, MCP
+The run-only `retime_words` flag (Studio **Re-time words** in the Prepare stage
+Ready column, CLI `pipeline run --retime-words`, MCP
 `pipeline_run(retime_words=true)`) re-times stored transcripts without re-running Whisper:
 it reads Whisper's cached words for the track's current model, language, vocabulary prompt
 and decode options (`TranscriptionEngine.read_asr_cache`, the same lookup `transcribe_job`

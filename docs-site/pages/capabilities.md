@@ -55,7 +55,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Blade cut | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `timeline`, `timeline.createMenu`, `editToolStrip` | `split_clip_tool` | — | — | — | time · none |
 | Delete clip | project | `edit.delete` | `Backspace` | — | `clipInspector` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
 | Remove track | project | `track.remove` | `Backspace` | — | `trackInspector` | `track_remove_tool` | — | — | — | none · none |
-| Split speakers… | project | `track.splitSpeakers` | — (opens a dialog that asks for the speaker count; reached from the track inspector and the command palette) | — | `SplitSpeakersDialog`, `trackInspector` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
+| Split speakers… | project | `track.splitSpeakers` | — (opens Prepare at the track's split prompt, which asks for the speaker count; reached from the track inspector and the command palette) | — | `SourceCard`, `trackInspector` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
 | Move track up | project | `track.moveUp` | `ArrowUp` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Move track down | project | `track.moveDown` | `ArrowDown` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
