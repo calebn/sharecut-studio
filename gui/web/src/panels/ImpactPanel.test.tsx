@@ -70,6 +70,7 @@ function project() {
         boundary_mode: null,
         cut_confidence: null,
         review_required: true,
+        kind: "filler",
         harsh: true,
         applied: false,
         suggest_reason: null,
@@ -171,6 +172,7 @@ describe("ImpactPanel transcript refine recovery", () => {
       timeline_end: 0.2,
       timeline_spans: [{ start: 0.1, end: 0.2 }],
       reason: "manual:short",
+      kind: "other",
       review_required: false,
     });
     render(

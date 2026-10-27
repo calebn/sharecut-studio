@@ -120,6 +120,24 @@ def test_studio_view_carries_the_same_harsh_and_listen_one_by_one_flags(
     }
 
 
+def test_studio_view_sends_the_review_kind_and_raw_sound_kind(tmp_path, sample_wav) -> None:
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed(path, sample_wav)
+    proj = load_project(Path(path))
+    proj.edit_decisions.append(
+        _decision("laugh", "filler:acoustic:likely_laugh", start=6.0),
+    )
+    rows = map_pending_edits_to_timeline(proj, proj.edit_decisions)
+    assert {r["id"]: (r["kind"], r["sound_kind"]) for r in rows} == {
+        "safe": ("filler", "filler"),
+        "risky": ("filler", "filler"),
+        "join": ("pause", "pause"),
+        "review": ("repeat", "repetition"),
+        "nl": ("other", None),
+        "laugh": ("sound", "laugh"),
+    }
+
+
 def test_apply_suggested_actions_tool_applies_every_listed_sound(tmp_path, sample_wav) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed(path, sample_wav)

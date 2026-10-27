@@ -54,8 +54,9 @@ const CLASS_FILTERS: { id: "all" | TightenClass; label: string }[] = [
   { id: "all", label: "All" },
   { id: "filler", label: "Filler" },
   { id: "pause", label: "Pause" },
-  { id: "repetition", label: "Repetition" },
-  { id: "restart", label: "Restart" },
+  { id: "repeat", label: "Repetition" },
+  { id: "false-start", label: "Restart" },
+  { id: "sound", label: "Sound" },
 ];
 
 const BADGE_LABEL: Record<string, string> = {

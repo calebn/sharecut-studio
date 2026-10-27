@@ -180,6 +180,8 @@ export function pendingEditView(
     track_ids: ["mira-voice"],
     type: "remove",
     reason: "guest:suggest",
+    kind: "other",
+    sound_kind: null,
     source_start: 2,
     source_end: 3,
     source_start_timeline: 2,

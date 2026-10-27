@@ -504,7 +504,9 @@ def propose_edits(
 
     Returns a JSON object ``{operation, edits, skip_counts, summary}`` (not a
     bare array — breaking vs older list-of-decisions clients). ``operation`` is
-    ``propose_edits``. Each edit also carries ``label`` (plain words, e.g. "Laugh")
+    ``propose_edits``. Each edit also carries ``label`` (plain words, e.g. "Laugh"),
+    ``kind`` (``filler`` / ``pause`` / ``repeat`` / ``false-start`` / ``sound`` / ``other``),
+    ``sound_kind`` (the raw kind, e.g. ``laugh``; null for ``other``)
     and ``suggested_action`` (``cut`` / ``shorten`` / ``lower`` / ``leave``) from
     one table (``edits/cut_safety.py``) and ``audio_check`` (``clean``, or ``held`` with the reason
     Approve all would give, found on a scratch copy; absent when the audio could not be read).

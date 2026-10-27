@@ -2,13 +2,13 @@ import type { ConfirmQuestion } from "../feedback/ask";
 import type {
   CombinedUtterance,
   PendingEditView,
+  PendingKind,
   ProjectView,
   TranscriptWordView,
 } from "../types/project";
 
-const TIGHTEN_CLASSES = ["filler", "pause", "repetition", "restart"] as const;
-
-export type TightenClass = (typeof TIGHTEN_CLASSES)[number];
+/** The server kinds that make a pending edit a tighten hit: everything but `other`. */
+export type TightenClass = Exclude<PendingKind, "other">;
 
 export type TightenFilters = {
   classFilter: "all" | TightenClass;
@@ -31,16 +31,9 @@ export function isTightenPending(edit: PendingEditView): boolean {
   return tightenClassOf(edit) !== null;
 }
 
-/** The tighten class a reason code starts with (`filler:um` → `filler`), or null. */
-export function tightenClassOfReason(
-  reason: string | null | undefined,
-): TightenClass | null {
-  const code = reason ?? "";
-  return TIGHTEN_CLASSES.find((name) => code.startsWith(`${name}:`)) ?? null;
-}
-
+/** The tighten class the server grouped the edit into (`kind`), or null for `other`. */
 export function tightenClassOf(edit: PendingEditView): TightenClass | null {
-  return tightenClassOfReason(edit.reason);
+  return edit.kind === "other" ? null : edit.kind;
 }
 
 /**

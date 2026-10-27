@@ -16,7 +16,7 @@ from podcast_mcp.edits.acoustic_word import (
 )
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.cut_application import apply_auto_edits
-from podcast_mcp.edits.cut_policy import decision_policy
+from podcast_mcp.edits.cut_policy import decision_policy, review_kind, sound_kind
 from podcast_mcp.edits.pause_floor import peer_speech_indexes
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten.acoustic_scan import _add_acoustic_candidates
@@ -112,10 +112,11 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
 def _edit_payload(
     decision: EditDecision, audio_check: dict[str, str] | None = None
 ) -> dict[str, Any]:
-    """One proposal row: the decision, its plain-words label and suggested action, its audio check."""
+    """One proposal row: the decision, its plain-words label, suggested action and review kind, its audio check."""
     row = decision.model_dump()
     info = decision_policy(decision)
     row["label"], row["suggested_action"] = (info.label, info.action) if info else (None, None)
+    row["kind"], row["sound_kind"] = review_kind(decision.reason), sound_kind(decision.reason)
     if audio_check is not None:
         row["audio_check"] = audio_check
     return row

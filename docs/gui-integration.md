@@ -78,6 +78,21 @@ Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_deci
 
 Mutation tools return **JSON** with `operation`, echoed input params, and summary fields (`clip_count`, `affected_tracks`, …).
 
+### Pending edit `kind`
+
+Every `pending_edits[]` row in the ProjectView carries `kind`, the Review queue group, and `sound_kind`, the raw detector kind behind it. Both come from one table in `edits/cut_policy.py` (`review_kind(reason)`, `sound_kind(reason)`, the same table that gives `label` and `suggested_action`), so the web groups on the field and never parses `reason`. `propose_edits` rows carry the same two fields.
+
+| `kind` | `sound_kind` values |
+|--------|---------------------|
+| `filler` | `filler` |
+| `pause` | `pause` |
+| `repeat` | `repetition` |
+| `false-start` | `restart` |
+| `sound` | `acoustic`, `laugh`, `possible_word`, `backchannel`, `breath`, `mouth_click` |
+| `other` | `null` (guest suggestions, agent and manual edits) |
+
+`types/project.ts` types the union as `PendingKind` and the full queue vocabulary as `ReviewItemKind` (`PendingKind` plus the client-only `comment` and `check`). Unsure words are not a kind; a later slice sends them as a separate per-edit list.
+
 ## Generated TypeScript types
 
 `gui/web/src/types/project.generated.ts` is emitted from the Pydantic models in `gui/schemas.py`, and `types/documentCommands.generated.ts` from the document-command schema (`DocumentCommandType`, plus the `DocumentCommand` name table that call sites use instead of string literals). `scripts/export_project_types.py` writes both, Biome-formatted, from `make schema-export`; `--check` (run by `make generated-check` and the `frontend` CI job) fails on drift. `types/project.ts` re-exports the generated shapes and narrows the loose `dict[str, Any]` view fields. The generated types are optional for fields with a Pydantic default, so the server's always-sent fields are re-required in `project.ts`.

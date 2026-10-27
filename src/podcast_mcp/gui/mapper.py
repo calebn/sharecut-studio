@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.edits.cut_policy import decision_policy
+from podcast_mcp.edits.cut_policy import decision_policy, review_kind, sound_kind
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.tighten_hits import (
     is_harsh_tighten_hit,
@@ -138,6 +138,8 @@ def map_pending_edits_to_timeline(
                 "join_risk": join_risk_from_decision(decision),
                 "harsh": is_harsh_tighten_hit(decision),
                 "listen_one_by_one": is_listen_one_by_one_hit(decision),
+                "kind": review_kind(decision.reason),
+                "sound_kind": sound_kind(decision.reason),
                 "label": sound_info.label if sound_info else None,
                 "suggested_action": sound_info.action if sound_info else None,
             }

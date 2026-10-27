@@ -1147,7 +1147,7 @@ function PendingEditRegion({
         style={regionStyle}
         data-coarse-handles={coarseHandles ? "ready" : undefined}
         data-coarse-pointer={coarsePointer ? "true" : undefined}
-        title={`${pendingReasonLabel(edit.reason)}`}
+        title={`${pendingReasonLabel(edit.reason, edit.kind)}`}
         onPointerEnter={() => setLabelActive(true)}
         onPointerLeave={() =>
           setLabelActive(

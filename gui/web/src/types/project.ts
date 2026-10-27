@@ -117,6 +117,41 @@ export interface PendingJoinRisk {
   risk?: number | null;
 }
 
+/**
+ * What a pending edit is, as the server groups it (`edits/cut_policy.py::review_kind`).
+ * Queue group vocabulary for the Review stage; the client never parses `reason` for this.
+ * `other` covers guest suggestions and agent or manual edits.
+ * Unsure words are NOT a kind: they are a separate per-edit list added by a later slice.
+ */
+export type PendingKind =
+  | "filler"
+  | "pause"
+  | "repeat"
+  | "false-start"
+  | "sound"
+  | "other";
+
+/** The raw sound the detector heard (`edits/cut_policy.py::sound_kind`); drives the Sound card variant. */
+export type PendingSoundKind =
+  | "filler"
+  | "pause"
+  | "repetition"
+  | "restart"
+  | "acoustic"
+  | "laugh"
+  | "possible_word"
+  | "backchannel"
+  | "breath"
+  | "mouth_click"
+  | "playful_phrase";
+
+/**
+ * Every kind a Review queue row can have: the server's `PendingKind` plus the two row types that
+ * are not pending edits and stay client constants (comments come from `api/comments.ts`, checks
+ * from the refine gate). `unsure-word` joins this union when the server sends it.
+ */
+export type ReviewItemKind = PendingKind | "comment" | "check";
+
 export interface PendingEditView {
   exact_range?: ExactRangeTarget | null;
   id: string;
@@ -150,6 +185,10 @@ export interface PendingEditView {
   harsh: boolean;
   /** Server-computed (`edits/tighten_hits.is_listen_one_by_one_hit`): Apply suggested actions leaves it pending and names it. */
   listen_one_by_one?: boolean;
+  /** Server-computed queue group (`edits/cut_policy.py::review_kind`); the client groups on this, never on `reason`. */
+  kind: PendingKind;
+  /** Raw detector kind behind `kind` (laugh vs unclear vs possible word); null for `other`. */
+  sound_kind?: PendingSoundKind | null;
   /** Plain-words sound kind (`edits/sound_actions.py`); null for non-tighten edits. */
   label?: string | null;
   /** Table default for this kind: cut, shorten, lower or leave. */
