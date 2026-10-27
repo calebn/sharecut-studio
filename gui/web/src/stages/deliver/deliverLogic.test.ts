@@ -499,6 +499,7 @@ describe("readiness rows say what they mean", () => {
     const stale = row("mix", { ...CLEAR_FACTS, mixUpToDate: false });
     expect(stale?.state).toBe("needs-you");
     expect(stale?.detail).toBe("Edited since the last mix");
+    expect(row("peaks")?.title).toBe("Peaks under −1.5 dBTP");
     expect(row("peaks")?.detail).toBe("Checked on export");
     expect(row("peaks", { ...CLEAR_FACTS, truePeak: -2.1 })?.detail).toBe(
       "−2.1 dBTP",
