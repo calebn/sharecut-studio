@@ -6,6 +6,7 @@ import {
 } from "react";
 import { presenceColorVar } from "../presence/colors";
 import type { MuteState } from "../utils/audio";
+import { clamp } from "../utils/math";
 import { PersonAvatar } from "./Person";
 import { ScrubField } from "./ScrubField";
 import { SystemIcon } from "./SystemIcon";
@@ -15,8 +16,8 @@ export type TrackHeaderForm = "default" | "wide" | "phone";
 /** Where a header being dragged stands in the column: the one lifted, or the line a drop would land on. */
 export type TrackReorder = "lifted" | "before" | "after";
 
-export const TRACK_LEVEL_MIN_DB = -60;
-export const TRACK_LEVEL_MAX_DB = 12;
+const TRACK_LEVEL_MIN_DB = -60;
+const TRACK_LEVEL_MAX_DB = 12;
 const LEVEL_STEP_DB = 0.5;
 
 export type TrackHeaderProps = {
@@ -114,7 +115,7 @@ export function TrackHeader({
       style={
         {
           "--sys-track-color": presenceColorVar(colorIndex),
-          "--sys-track-level": Math.min(1, Math.max(0, playing)),
+          "--sys-track-level": clamp(playing, 0, 1),
         } as CSSProperties
       }
     >

@@ -23,7 +23,7 @@ export const CLIP_NARROW_WIDTH = 48;
 const NUDGE_MS = 10;
 const NUDGE_BIG_MS = 100;
 
-export type ClipDrag = {
+type ClipDrag = {
   /** The pointer's client x. */
   x: number;
   /** Pixels from where the press began. */
