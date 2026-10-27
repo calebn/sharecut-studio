@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { StartTile } from "../../system/StartTile";
@@ -143,6 +143,38 @@ describe("HomeView empty, loading and drop", () => {
   it("words the drop without a count", () => {
     setup({ dropActive: true });
     expect(screen.getByText("Drop to add files")).toBeInTheDocument();
+  });
+});
+
+describe("HomeView start tiles", () => {
+  it("shows no shortcut hints, since Home binds no keys for them", () => {
+    for (const props of [{}, { phase: "empty" as const, projects: [] }]) {
+      setup(props);
+      for (const name of [/^Import audio/, /^Record/]) {
+        expect(
+          screen.getByRole("button", { name }).querySelector(".sys-keys"),
+        ).toBeNull();
+      }
+      cleanup();
+    }
+  });
+});
+
+describe("StartTile keys", () => {
+  it("keeps the key caps by default and hides them with showKeys off", () => {
+    const { rerender } = render(
+      <StartTile kind="import" size={240} onActivate={vi.fn()} />,
+    );
+    expect(document.querySelector(".sys-keys")).not.toBeNull();
+    rerender(
+      <StartTile
+        kind="import"
+        size={240}
+        showKeys={false}
+        onActivate={vi.fn()}
+      />,
+    );
+    expect(document.querySelector(".sys-keys")).toBeNull();
   });
 });
 
