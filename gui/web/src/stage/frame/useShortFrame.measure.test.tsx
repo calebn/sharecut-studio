@@ -39,7 +39,22 @@ function EditFrame() {
   );
 }
 
+/** Record: no Player element, and a tab bar that stretches unless it is measured at its natural height. */
+function RecordFrame() {
+  const ref = useRef<HTMLDivElement>(null);
+  const folded = useShortFrame(ref);
+  return (
+    <div ref={ref} data-folded={folded ? "yes" : "no"}>
+      <div className="stage-frame-header" />
+      <div className="stage-frame-tabs" />
+    </div>
+  );
+}
+
 function sizeOf(el: Element): number {
+  if (el.classList.contains("stage-frame-tabs")) {
+    return (el as HTMLElement).style.alignSelf === "start" ? 56 : 682;
+  }
   if (el.classList.contains("stage-frame-header")) return 60;
   if (el.classList.contains("stage-frame-player")) return 80;
   if (el.classList.contains("phone-edit-bar")) return 60;
@@ -65,6 +80,17 @@ afterEach(() => {
 });
 
 describe("useShortFrame", () => {
+  it("measures the tab bar at its natural height on a frame with no Player", () => {
+    useDawStore.setState({ stage: "record" });
+    const { container } = render(<RecordFrame />);
+    // 60 + 0 + 56 + 200 fits 380; the stretched 682 would not.
+    expect((container.firstElementChild as HTMLElement).dataset.folded).toBe(
+      "no",
+    );
+    const tabs = container.querySelector<HTMLElement>(".stage-frame-tabs");
+    expect(tabs?.style.alignSelf).toBe("");
+  });
+
   it("re-measures the fold on a stage switch, with no resize to report it", () => {
     const { container } = render(<Frame />);
     const frame = () => container.firstElementChild as HTMLElement;
