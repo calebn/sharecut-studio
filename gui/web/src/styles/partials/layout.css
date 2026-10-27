@@ -46,6 +46,12 @@ html[data-shell] body {
   background: var(--color-warning-attention);
 }
 
+/* An open inspector sheet takes the banner into its own flow, so the empty slot
+   gives its row back to the ruler and lanes above the sheet. */
+.guest-attention-slot:empty {
+  display: none;
+}
+
 .guest-attention {
   --attention-panel-top: calc(var(--touch-min) + env(safe-area-inset-top));
 
