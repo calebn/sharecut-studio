@@ -105,8 +105,8 @@ async function undoStaysReachable(
       feedback = {
         geometry,
         visible: feedbackVisible,
-        // A card taller than the sheet body (R-short-8: the sheet starts under
-        // the header) scrolls, so part of it showing is the most it can do.
+        // A card taller than the sheet body (the sheet starts under the
+        // header) scrolls, so part of it showing is the most it can do.
         inView:
           geometry.fullyVisible ||
           (feedbackVisible.state === "positive" &&
@@ -190,7 +190,7 @@ async function undoStaysReachable(
         step.startsWith("feedback-") ||
         step === "level-saved")
     ) {
-      // The sheet starts under the header (R-short-8), so at large text held
+      // The sheet starts under the header, so at large text held
       // sideways its body is shorter than the card: the card scrolls, and its
       // Undo and Dismiss are each exposed below.
       const card = page.locator(".ui-toast-region--app .ui-toast");
@@ -477,9 +477,8 @@ async function undoStaysReachable(
         0,
       );
     }
-    // The old shell's pixel budget for the lanes above the strip (547 portrait,
-    // 116 landscape) has no successor: the frame's header, tool row, Player and
-    // tab bar take their own share. The height stays in the receipts.
+    // No pixel budget for the lanes above the strip: the frame's header, tool
+    // row, Player and tab bar take their own share. The height stays in the receipts.
   }
 
   await expect(page.locator(".bottom-sheet--peek")).toBeVisible();

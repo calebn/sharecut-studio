@@ -27,8 +27,6 @@ export type StageFrameProps = {
   guestShare?: boolean;
   attentionHost?: HTMLElement | null;
   loadFailure?: LoadFailure | null;
-  /** Alerts that stay above the stage body. */
-  alerts?: ReactNode;
   /** Content for the View and Mix sheets; History is hosted by the frame. */
   sheets?: Partial<Record<StageSheet, ReactNode>>;
   /** The stage host for the open stage. */
@@ -39,7 +37,6 @@ function StageFrameAdapter({
   guestShare = false,
   attentionHost,
   loadFailure,
-  alerts,
   sheets,
   children,
 }: StageFrameProps) {
@@ -109,7 +106,6 @@ function StageFrameAdapter({
           loadFailure={loadFailure}
         />
       }
-      alerts={alerts}
       player={stage === "record" ? null : <PlayerBar />}
       tabs={
         shell === "phone" && stageBar ? (

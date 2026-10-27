@@ -120,7 +120,7 @@ test("a phone in portrait keeps Undo and Redo in the header, the tools on one ro
     }
 
     // The frame's header, tool strip, Player and tab bar leave room for four 104 px
-    // lanes on this phone (the old shell left five).
+    // lanes on this phone.
     expect((await visibleLanes(page))!.full).toBeGreaterThanOrEqual(4);
   });
 });
