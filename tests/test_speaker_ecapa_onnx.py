@@ -61,10 +61,25 @@ def _pin_to(monkeypatch: pytest.MonkeyPatch, payload: bytes) -> str:
     return sha
 
 
-def test_missing_model_reports_the_bootstrap_command(model_dir: Path) -> None:
+def test_missing_default_model_reports_the_bootstrap_command(model_dir: Path) -> None:
     problem = speaker_ecapa.speaker_ecapa_problem()
     assert problem is not None
     assert "podcast bootstrap --component speaker-ecapa" in problem
+
+
+def test_missing_override_reports_repair_instead_of_bootstrap(
+    model_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(tmp_path / "missing.onnx"))
+
+    problem = speaker_ecapa.speaker_ecapa_problem()
+
+    assert problem is not None
+    assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in problem
+    assert "missing" in problem
+    assert "working ONNX file" in problem
+    assert "unset" in problem
+    assert "podcast bootstrap" not in problem
 
 
 def test_pinned_bytes_are_ready_and_other_bytes_are_not(

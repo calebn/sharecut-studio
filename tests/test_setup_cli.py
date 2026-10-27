@@ -43,6 +43,20 @@ def test_setup_prints_each_models_readiness_and_fix(tmp_path, monkeypatch):
     ) in result.stdout
 
 
+def test_setup_shows_missing_override_hint_and_keeps_bootstrap_command(tmp_path, monkeypatch):
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("PODCAST_MCP_SPEAKER_ECAPA_MODEL", str(tmp_path / "missing.onnx"))
+
+    result = runner.invoke(setup_app, ["setup"])
+
+    assert result.exit_code == 0
+    assert "PODCAST_MCP_SPEAKER_ECAPA_MODEL" in result.stdout
+    assert "missing" in result.stdout
+    assert "working ONNX file" in result.stdout
+    assert "unset" in result.stdout
+    assert "Fix: podcast bootstrap --component speaker-ecapa" in result.stdout
+
+
 def test_setup_says_update_needed_for_a_pin_mismatch(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     monkeypatch.setattr(
