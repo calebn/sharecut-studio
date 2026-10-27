@@ -41,8 +41,6 @@ import { StageHost } from "./StageHost";
  * mounts the real component, finds the control by its role and name, and
  * where the home runs a command, presses it and sees that command run. So an
  * unmounted slot or a dropped prop fails here.
- *
- * The old sources are deleted, so the table stands alone.
  */
 
 vi.mock("../../panels/PipelinePanel", () => ({

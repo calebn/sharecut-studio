@@ -122,8 +122,7 @@
 }
 
 /* --- Timecode: tabular readout (large current time, muted total). Neutral
-   inks here; the transport strip and Listen card restate them in
-   transport.css. --- */
+   inks here; the Listen card restates them. --- */
 
 .timecode {
   display: inline-flex;
@@ -396,8 +395,8 @@ button.pill.pill--action:focus-visible {
 
 @media (hover: hover) and (pointer: fine) {
   /* Generic hover wash. The exclusions sit in :where() so this rule stays at
-     (0,2,0): any component that paints its own control (transport, Listen
-     hero, variants, pills, domain pressed) wins instead of turning grey. */
+     (0,2,0): any component that paints its own control (Listen hero,
+     variants, pills, domain pressed) wins instead of turning grey. */
   .ui-control:hover:not(
     :where(
       :disabled,
@@ -853,7 +852,7 @@ html[data-shell="phone"] .ui-menu-shortcut {
 }
 
 /* The app-wide toast (feedback/FeedbackToast): one at a time, centred at the
-   bottom where Undo is in reach, above the status bar or the phone mode nav.
+   bottom where Undo is in reach, above the Player bar on a phone.
    The region lets clicks through; only the card takes them. */
 .ui-toast-region--app {
   position: fixed;
@@ -887,7 +886,7 @@ html[data-shell="phone"] .ui-menu-shortcut {
    (an open sheet, the Player, the tab bar) and below the header, so it covers
    no controls or sheet fields while it waits.
    feedback/toastDock.ts measures that into --toast-dock-bottom; until it has,
-   the toast sits above the mode nav. */
+   the toast sits above the Player bar. */
 html[data-shell="phone"] .ui-toast-region--app {
   inset-block-end: var(
     --toast-dock-bottom,

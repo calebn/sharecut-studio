@@ -278,7 +278,7 @@ export type FollowUiCaps = {
   role?: StageRole;
 };
 
-export const HOST_ONLY_TABS: readonly PresenceTab[] = [
+const HOST_ONLY_TABS: readonly PresenceTab[] = [
   "history",
   "impact",
   "tighten",
@@ -293,14 +293,6 @@ export const KNOWN_TABS: ReadonlySet<string> = new Set([
   ...GUEST_TABS,
   ...HOST_ONLY_TABS,
 ]);
-
-export function studioTabIds(guestShare: boolean): PresenceTab[] {
-  return guestShare ? [...GUEST_TABS] : [...GUEST_TABS, ...HOST_ONLY_TABS];
-}
-
-export function isHostOnlyTab(tab: string): boolean {
-  return HOST_ONLY_TAB_SET.has(tab as PresenceTab);
-}
 
 export function tabAvailable(tab: PresenceTab, caps: FollowUiCaps): boolean {
   return !(caps.guestShare && HOST_ONLY_TAB_SET.has(tab));

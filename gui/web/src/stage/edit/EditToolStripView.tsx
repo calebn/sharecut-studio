@@ -18,8 +18,6 @@ export interface EditToolStripViewProps {
 
 /**
  * Select / Blade, Comment mode and Range arm in the timeline corner.
- * #2294 removes this strip with Blade and the modes (Alt-click split, C for
- * Comment, the Action bar).
  */
 export function EditToolStripView({
   toolToggle,
