@@ -1876,6 +1876,58 @@
       }
     },
     {
+      "id": "daw.review.listSessionTakes",
+      "label": "List staged session takes",
+      "effect": "project",
+      "service": "SessionSuggestionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast review session-takes",
+        "mcp": [
+          "list_session_takes_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "List the takes of a staged recorded session",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.review.selectSessionTake",
+      "label": "Choose staged session take",
+      "effect": "project",
+      "service": "SessionSuggestionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast review select-session-take",
+        "mcp": [
+          "select_session_take_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "Choose which take of a staged recorded session is placed",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.review.skipSessionSuggestion",
       "label": "Skip staged session",
       "effect": "project",
