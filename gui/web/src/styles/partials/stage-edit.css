@@ -192,9 +192,13 @@
 @media (pointer: coarse) {
   .edit-corner-btn,
   .edit-tool-strip-range,
-  .edit-tool-strip-cut {
+  .edit-tool-strip-cut,
+  .track-headers-chrome > .edit-tool-strip .tool-mode-toggle > .ui-control,
+  .track-headers-chrome > .edit-tool-strip .edit-tool-strip-range,
+  .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
+    block-size: auto;
   }
 }
 

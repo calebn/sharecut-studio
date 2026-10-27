@@ -640,13 +640,6 @@
     inset: calc((100% - var(--touch-min)) / 2);
   }
 
-  .sys-play .sys-play-btn {
-    inline-size: var(--touch-min);
-    block-size: var(--touch-min);
-    min-inline-size: var(--touch-min);
-    min-block-size: var(--touch-min);
-  }
-
   .sys-header-project {
     min-block-size: var(--touch-min);
   }
@@ -678,6 +671,20 @@
 .sys-play .sys-play-btn:hover:not(:disabled) {
   background: var(--color-text-primary);
   color: var(--color-bg-canvas);
+}
+
+/* After the sizes above, so the touch target wins at equal specificity. */
+@media (pointer: coarse) {
+  .sys-play .sys-play-btn {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-player-time {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .sys-play[data-following] .sys-play-btn {
@@ -818,6 +825,12 @@
 
 .sys-player-hear-more {
   min-inline-size: var(--control-height);
+}
+
+@media (pointer: coarse) {
+  .sys-player-hear-more {
+    min-inline-size: var(--touch-min);
+  }
 }
 
 .sys-player-actions {
