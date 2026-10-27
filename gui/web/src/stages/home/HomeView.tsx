@@ -16,7 +16,13 @@ import {
 import { Skeleton } from "../../system/Skeleton";
 import { StartTile } from "../../system/StartTile";
 import { SystemIcon } from "../../system/SystemIcon";
-import { BrandLockup, Menu, MenuItem, useResizeObserver } from "../../ui";
+import {
+  BrandLockup,
+  InlineError,
+  Menu,
+  MenuItem,
+  useResizeObserver,
+} from "../../ui";
 import { OpenOther, type OpenOtherProps } from "./OpenOther";
 import { SetupCard, type SetupCardProps } from "./SetupCard";
 
@@ -56,7 +62,14 @@ export type HomeViewProps = {
   onHelp: () => void;
   onModels: () => void;
   onConnectAgent: () => void;
-  onSettings: () => void;
+  /** Left out while there is no settings surface: the menu then has no Settings row. */
+  onSettings?: () => void;
+  /** The path form of Open other, for a browser with no OS folder picker. Default: the picker. */
+  openOther?: Omit<OpenOtherProps, "onChooseFolder">;
+  /** A refusal in plain words with its fix, under the Recent heading. */
+  notice?: string;
+  /** A quiet progress line while Home works ("Importing 2 files…"). */
+  working?: string;
 };
 
 /** The picker form: the path fallback needs wiring, so Home shows the picker. */
@@ -161,10 +174,12 @@ function HomeHeader({
             <SystemIcon name="plug" size={16} />
             Connect agent
           </MenuItem>
-          <MenuItem onSelect={pick(onSettings)}>
-            <SystemIcon name="settings" size={16} />
-            Settings
-          </MenuItem>
+          {onSettings ? (
+            <MenuItem onSelect={pick(onSettings)}>
+              <SystemIcon name="settings" size={16} />
+              Settings
+            </MenuItem>
+          ) : null}
         </Menu>
       </div>
     </header>
@@ -201,6 +216,9 @@ export function HomeView({
   onModels,
   onConnectAgent,
   onSettings,
+  openOther = NO_OPEN_OTHER,
+  notice,
+  working,
 }: HomeViewProps) {
   const host = useRef<HTMLDivElement>(null);
   const narrow = useNarrow(host);
@@ -254,6 +272,7 @@ export function HomeView({
     <div
       ref={host}
       className="sys-home"
+      data-daw-app-chrome
       data-narrow={narrow || undefined}
       data-phase={phase}
     >
@@ -281,8 +300,18 @@ export function HomeView({
               <h2 id="home-recent" className="sys-home-recent-title">
                 Recent
               </h2>
-              <OpenOther {...NO_OPEN_OTHER} onChooseFolder={onOpenOther} />
+              <OpenOther
+                key={openOther.mode}
+                {...openOther}
+                onChooseFolder={onOpenOther}
+              />
             </div>
+            <InlineError message={notice} />
+            {working ? (
+              <p className="sys-home-empty" role="status">
+                {working}
+              </p>
+            ) : null}
             {showInstallHint ? (
               <Card
                 tone="hint"

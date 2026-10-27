@@ -124,11 +124,14 @@ export {
 export type {
   MediaUploadResult,
   PickEpisodeProjectResult,
+  RecentProject,
   ReviewVersionStatus,
 } from "./api/project";
 export {
   closeEpisodeProject,
   createEpisodeProject,
+  forgetRecentProject,
+  listRecentProjects,
   loadDocumentState,
   loadHistoryDiff,
   loadProjectMeta,
