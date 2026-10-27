@@ -136,17 +136,24 @@ stopped, not-yet-landed take in the old room is orphaned once a new room is
 minted and its guests lose upload resume on the old link. The mint guard blocks
 only `recording` / `paused`; an unsaved stopped take warns instead, and the mint
 stays allowed ("start anyway"). The host snapshot (`podcast record state`,
-`record_state_tool`, `GET /api/record/state`) carries `unlanded_take` and
-`unlanded_takes`: the number of stopped, not-discarded takes of the current room
-with full-quality recordings still to land (0 for a staged session already
-accepted or skipped). Every mint (`podcast review share --kind record`,
-`create_record_room_tool`, `POST /api/shares/record`) returns the same two fields
-for the room it replaced, and a plain `warning` ("1 stopped take is not saved to
-the episode yet, and a new room leaves it behind...") when takes were left
-behind. `--land-first` (CLI), `land_first` (MCP tool and route body) lands the
-current room first, then mints; the result adds `landed_first` (the land result)
-and reports 0 left. A land refusal stops the mint and leaves the old links alive
-(route: 400 `record_land_refused`). `land_first` with nothing to save just mints.
+`record_state_tool`, `GET /api/record/state`) carries `unlanded_take`,
+`unlanded_takes` and `unlanded_saving`: the number of stopped, not-discarded takes
+of the current room with a recording not yet on the episode, and how many of those
+still have an upload in flight. A take recorded after the room's staged session was
+accepted or skipped counts too (landing refuses it, so it cannot be saved into that
+room); 0 means everything recorded was already landed or turned into the decided
+suggestion. Every mint (`podcast review share --kind record`,
+`create_record_room_tool`, `POST /api/shares/record`) returns the same fields
+for the room it replaced, and a plain `warning` ("1 stopped take in this room is not
+saved to the episode yet, and a new room leaves it behind...", plus "still saving" or
+"already accepted or skipped" when that applies; the CLI adds a `--land-first` hint).
+`--land-first` (CLI), `land_first` (MCP tool and route body) lands the
+current room first, then mints; the result adds `landed_first` (the land result).
+It refuses, mints nothing and keeps the old links (400 `record_land_refused` on the
+route) when uploads are still saving ("try again in a moment"), when the room's
+session was already decided, or when the land still leaves a take unsaved (a skipped
+keeper). A land that ran stays saved; retrying is safe. `land_first` with nothing to
+save just mints.
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 (live notes — **same create path as review comments**, kind-scoped ACL: guests

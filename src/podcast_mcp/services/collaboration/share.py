@@ -474,26 +474,35 @@ class ShareService:
         mint states it, so a remint never inherits the previous room's choice by accident.
 
         A stopped take of the current room that is not saved yet is reported on the result
-        (``unlanded_take``, ``unlanded_takes``, ``warning``); the mint still goes ahead.
-        ``land_first`` lands it before minting; a land refusal stops the mint.
+        (``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``warning``); the mint still
+        goes ahead. ``land_first`` lands it before minting; it refuses (nothing minted, old links
+        kept) while uploads are still saving, when the room's session was already decided, or when
+        the land leaves takes unsaved. A land that already ran stays saved.
         """
         from podcast_mcp.services.record import (
+            RecordLandingError,
             RecordLandingService,
             assert_no_open_take,
             begin_record_session,
-            describe_unlanded_takes,
+            describe_unsaved_takes,
             invalidate_record_session_cache,
-            unlanded_take_fields,
-            unlanded_takes,
+            refuse_land_first,
+            unsaved_fields,
+            unsaved_takes,
         )
 
         with _record_room_lock:
             assert_no_open_take(self.ws.project)
-            left = unlanded_takes(self.ws.project)
+            left = unsaved_takes(self.ws.project)
             landed: dict[str, Any] | None = None
-            if land_first and left:
+            if land_first and left.takes:
+                # Land reloads the workspace; callers hand in a fresh request-scoped one.
+                if why := refuse_land_first(left, after_land=False):
+                    raise RecordLandingError(why)
                 landed = RecordLandingService(self.ws).land()
-                left = unlanded_takes(self.ws.project)
+                left = unsaved_takes(self.ws.project)
+                if why := refuse_land_first(left, after_land=True):
+                    raise RecordLandingError(why)
             session_id = uuid.uuid4().hex[:12]
             try:
                 guest = self.create_record_token(
@@ -517,12 +526,12 @@ class ShareService:
                 "session_id": session_id,
                 "guest": guest,
                 "producer": producer,
-                **unlanded_take_fields(left),
+                **unsaved_fields(left),
             }
             if landed is not None:
                 room["landed_first"] = landed
-            if left:
-                room["warning"] = describe_unlanded_takes(left)
+            if left.takes:
+                room["warning"] = describe_unsaved_takes(left)
             attempted: Sequence[str] = []
             try:
                 attempted = self._live_other_record_rooms(session_id)

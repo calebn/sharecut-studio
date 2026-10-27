@@ -11,17 +11,18 @@ from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.mcp.tools.record import record_state_tool
 from podcast_mcp.mcp.tools.review import create_record_room_tool
 from podcast_mcp.services.collaboration.share import ShareService, lookup_share
-from podcast_mcp.services.document import HistoryService
+from podcast_mcp.services.document import HistoryService, SessionSuggestionService
 from podcast_mcp.services.record import (
     RecordControlService,
     RecordLandingError,
     RecordSessionService,
     RecordStateError,
-    unlanded_takes,
+    unsaved_takes,
 )
 from podcast_mcp.services.record.landing import RecordLandingService
+from podcast_mcp.services.record.upload import RecordUploadService, sha256_hex
 from test_record_returning_people import _ack, _clips_by_track, _join_guest, _room, _tracks
-from test_record_staging import _cmd, _seed
+from test_record_staging import _cmd, _seed, _suggestion
 from test_record_start_target import (
     START,
     _clips,
@@ -61,13 +62,13 @@ def test_a_stopped_unlanded_take_is_reported_and_the_mint_still_happens(
     ws = _seed(minimal_project, sample_wav)
     old, _pids = _room(ws, ["Ava"])
     assert _flags(ws) == (True, 1)
-    assert unlanded_takes(ws.project) == 1
+    assert unsaved_takes(ws.project).takes == 1
     state = json.loads(record_state_tool(str(minimal_project)))
     assert (state["unlanded_take"], state["unlanded_takes"]) == (True, 1)
 
     new = ShareService(ws).create_record_room()
     assert (new["unlanded_take"], new["unlanded_takes"]) == (True, 1)
-    assert "1 stopped take is not saved" in new["warning"]
+    assert "1 stopped take in this room is not saved" in new["warning"]
     assert "landed_first" not in new
     assert _revoked(old["guest"]["token"])
     assert RecordSessionService.active_session_id(ws.project) == new["session_id"]
@@ -193,17 +194,77 @@ def test_land_first_in_a_start_room_shifts_the_earlier_session(
     assert HistoryService(ws).list_entries().groups[-1].title == "Added Session 2 at the start"
 
 
-def test_a_staged_session_already_decided_has_nothing_left_to_save(
-    minimal_project, sample_wav, tmp_workspace
-):
-    ws = _seed(minimal_project, sample_wav)
+def _decided_room(ws, how: str):
+    """An insert room whose first take became a suggestion that was then accepted or skipped."""
     _episode(ws)
     room = ShareService(ws).create_record_room(target=INSERT)
     svc, guest = _join_as(ws, room, "Sam")
     _take(ws, room, svc, guest, 0, 1.0, 880.0)
     assert _flags(ws) == (True, 1)
     RecordLandingService(ws).land()
-    assert _flags(ws) == (False, 0)  # landed as a pending suggestion
+    assert _flags(ws) == (False, 0)  # turned into a pending suggestion
+    sid = _suggestion(ws, room["session_id"]).id
+    getattr(SessionSuggestionService(ws), how)(sid)
+    assert _flags(ws) == (False, 0)  # still nothing left to save
+    return room, svc, guest
+
+
+@pytest.mark.parametrize("how", ["accept", "skip"])
+def test_a_take_recorded_after_the_decision_is_unsaved_and_land_first_refuses(
+    minimal_project, sample_wav, tmp_workspace, how
+):
+    ws = _seed(minimal_project, sample_wav)
+    room, svc, guest = _decided_room(ws, how)
+    _take(ws, room, svc, guest, 1, 1.0, 660.0)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_take"], snap["unlanded_takes"]) == (True, 1)
+    with pytest.raises(RecordLandingError, match="accepted or skipped"):
+        ShareService(ws).create_record_room(land_first=True)
+    assert lookup_share(room["guest"]["token"], kind="record")
+    new = ShareService(ws).create_record_room()
+    assert "cannot be saved" in new["warning"]
+    assert _revoked(room["guest"]["token"])
+
+
+def test_a_take_still_uploading_is_counted_and_land_first_asks_to_wait(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [pid] = _room(ws, ["Ava"], land=True)
+    svc = RecordSessionService(ws.project, session_id=old["session_id"])
+    svc.submit(_cmd("Start"), now_wall_ms=20_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=23_000)
+    pcm = bytes(48_000)
+    RecordUploadService(ws.project).ingest_part(
+        session_id=old["session_id"],
+        take_index=1,
+        participant_id=pid,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=sha256_hex(pcm),
+        final=False,
+    )
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_takes"], snap["unlanded_saving"]) == (1, 1)
+    with pytest.raises(RecordLandingError, match=r"still saving\. Try again in a moment"):
+        ShareService(ws).create_record_room(land_first=True)
+    assert lookup_share(old["guest"]["token"], kind="record")
+    new = ShareService(ws).create_record_room()
+    assert "still saving" in new["warning"]
+
+
+def test_land_first_refuses_when_the_land_leaves_a_take_unsaved(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [pid] = _room(ws, ["Ava"])
+    RecordUploadService(ws.project).acked_wav(old["session_id"], 0, pid, 0).unlink()
+    with pytest.raises(RecordLandingError, match="could not be saved"):
+        ShareService(ws).create_record_room(land_first=True)
+    assert lookup_share(old["guest"]["token"], kind="record")
+    assert RecordSessionService.active_session_id(ws.project) == old["session_id"]
+    assert ShareService(ws).create_record_room()["unlanded_take"] is True  # start anyway
 
 
 def test_cli_and_mcp_carry_the_warning_and_land_first(minimal_project, sample_wav, tmp_workspace):
@@ -213,7 +274,8 @@ def test_cli_and_mcp_carry_the_warning_and_land_first(minimal_project, sample_wa
     base = ["review", "share", "--kind", "record", "--project", str(minimal_project)]
     res = runner.invoke(cli_app, base)
     assert res.exit_code == 0, res.output
-    assert "Warning: 1 stopped take is not saved" in res.output
+    assert "Warning: 1 stopped take in this room is not saved" in res.output
+    assert "Add --land-first" in res.output
 
     _room(ws, ["Bea"])
     out = json.loads(create_record_room_tool(str(minimal_project)))
@@ -257,3 +319,23 @@ def test_host_routes_report_and_land_first(minimal_project, sample_wav, tmp_work
     assert _revoked(old["guest"]["token"])
     state = client.get("/api/record/state", params={"path": path}).json()
     assert state["unlanded_take"] is False
+
+
+def test_route_land_first_refusal_is_a_coded_400(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    ws = _seed(minimal_project, sample_wav)
+    old, [pid] = _room(ws, ["Ava"])
+    RecordUploadService(ws.project).acked_wav(old["session_id"], 0, pid, 0).unlink()
+    res = TestClient(create_app()).post(
+        "/api/shares/record", json={"path": str(ws.path), "land_first": True}
+    )
+    assert res.status_code == 400, res.text
+    assert res.headers["X-Sharecut-Error-Code"] == "record_land_refused"
+    assert "could not be saved" in res.text
+    assert lookup_share(old["guest"]["token"], kind="record")
