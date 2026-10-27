@@ -100,8 +100,7 @@ const REMOVED_SURFACES: Entry[] = [
     { file: "system/Player.tsx", needle: "hearMenu" },
   ]),
   component("transport Menu", "People and Follow", [
-    { file: "stage/frame/HeaderPeople.tsx", needle: "AvatarStack" },
-    { file: "stage/frame/StageFrame.tsx", needle: "HeaderPeople" },
+    { file: "stage/frame/StageFrame.tsx", needle: "AvatarStack" },
   ]),
   component("transport Menu", "Theme", [
     { file: "system/AppHeader.tsx", needle: "appearance" },
@@ -187,7 +186,7 @@ const REMOVED_SURFACES: Entry[] = [
     { file: "stage/frame/BannerStack.tsx", needle: "HomeScreenHint" },
   ]),
   component("More hub", "People", [
-    { file: "stage/frame/HeaderPeople.tsx", needle: "AvatarStack" },
+    { file: "stage/frame/StageFrame.tsx", needle: "AvatarStack" },
   ]),
 
   // Tool rail and the transport bar's own tool buttons.

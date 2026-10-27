@@ -79,13 +79,13 @@ describe("StageFrame stage switching", () => {
     expect(screen.getByRole("main", { name: "Review" })).toBeInTheDocument();
   });
 
-  it("calls setStage with the chosen stage", async () => {
+  it("calls openStage with the chosen stage", async () => {
     const user = userEvent.setup();
-    const setStage = vi.fn(useDawStore.getState().setStage);
-    useDawStore.setState({ setStage, openStage: setStage });
+    const openStage = vi.fn(useDawStore.getState().openStage);
+    useDawStore.setState({ openStage });
     mount();
     await user.click(within(bar()).getByRole("tab", { name: /Prepare/ }));
-    expect(setStage).toHaveBeenCalledWith("prepare");
+    expect(openStage).toHaveBeenCalledWith("prepare", {});
   });
 
   it("hides the Player on Record and shows it elsewhere", async () => {

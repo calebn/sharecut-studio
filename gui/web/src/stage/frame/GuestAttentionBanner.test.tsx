@@ -289,7 +289,7 @@ describe("GuestAttentionBanner", () => {
         }),
       ]);
       useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-      useDawStore.getState().setStage(from);
+      useDawStore.getState().openStage(from);
       render(<GuestAttentionBanner />);
       await act(() => vi.advanceTimersByTimeAsync(0));
       fireEvent.click(getActionButton("Inspect History"));

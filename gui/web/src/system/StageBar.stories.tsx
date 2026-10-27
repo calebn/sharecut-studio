@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
+import type { StageId } from "../types/stage";
 import { StageBar, type StageBarProps } from "./StageBar";
-import type { StageId } from "./verbs";
 
 const meta: Meta<typeof StageBar> = {
   title: "System/StageBar",

@@ -1,8 +1,9 @@
+import type { StageId } from "../types/stage";
 import { TabList } from "../ui/Tabs";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
 import { STATUS_TEXT, type StatusState } from "./statusText";
-import { STAGES, type StageId } from "./verbs";
+import { STAGES } from "./verbs";
 
 export type StageBadge = { kind: StatusState; count?: number };
 

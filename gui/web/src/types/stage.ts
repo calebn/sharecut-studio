@@ -29,4 +29,4 @@ export type StageView = {
   panelScroll: Record<string, number>;
 };
 
-export type StageRole = "host" | "Editor" | "Commenter" | "Viewer";
+export type StageRole = "host" | "editor" | "commenter" | "viewer";

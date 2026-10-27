@@ -336,7 +336,7 @@ describe("followSync", () => {
   it("degrades a stage the guest link cannot open", () => {
     const viewer = planFollowUi(
       { tab: "transcript" },
-      { guestShare: true, breakpoint: "desktop", role: "Viewer" },
+      { guestShare: true, breakpoint: "desktop", role: "viewer" },
     );
     expect(viewer.apply.stage).toBeUndefined();
     expect(viewer.degraded.tab).toBe("transcript");

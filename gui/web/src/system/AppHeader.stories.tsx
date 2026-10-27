@@ -5,9 +5,9 @@ import {
   portaledOverlayParameters,
   viewportStoryParameters,
 } from "../storybook/storyLayout";
+import type { StageId } from "../types/stage";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { StageBar } from "./StageBar";
-import type { StageId } from "./verbs";
 
 const meta: Meta<typeof AppHeader> = {
   title: "System/AppHeader",

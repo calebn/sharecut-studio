@@ -11,6 +11,8 @@ import {
 import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
 
+const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
+
 const isReviewSection = (v: unknown): v is ReviewSection =>
   (REVIEW_SECTIONS as readonly unknown[]).includes(v);
 const isStageSheet = (v: unknown): v is StageSheet =>
@@ -19,27 +21,21 @@ const isStageSheet = (v: unknown): v is StageSheet =>
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("in"));
     return { status: "ok" };
   });
 
   registerCommand("view.zoomOut", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("out"));
     return { status: "ok" };
   });
 
   registerCommand("view.fit", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.fitToWindow(s.measureTimelineViewport());
     return { status: "ok" };
   });
@@ -47,9 +43,7 @@ export function registerViewCommands(): void {
   for (const stage of STAGE_IDS) {
     registerCommand(`stage.${stage}`, (args) => {
       const s = useDawStore.getState();
-      if (!s.project) {
-        return { status: "disabled", reason: "No project" };
-      }
+      if (!s.project) return NO_PROJECT;
       if (!stagesForRole(stageRoleOf(s.guestMode)).includes(stage)) {
         return { status: "disabled", reason: "This link cannot open that" };
       }
@@ -59,17 +53,14 @@ export function registerViewCommands(): void {
         ...(isReviewSection(section) ? { section } : {}),
         ...(isStageSheet(sheet) ? { sheet } : {}),
       };
-      if (Object.keys(options).length > 0) s.openStage(stage, options);
-      else s.openStage(stage);
+      s.openStage(stage, options);
       return { status: "ok" };
     });
   }
 
   registerCommand("edit.history", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
       return { status: "disabled", reason: "This link cannot edit" };
     }
@@ -79,9 +70,7 @@ export function registerViewCommands(): void {
 
   registerCommand("view.toggleScript", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.setScriptCollapsed(!s.scriptCollapsed);
     s.announceStatus(s.scriptCollapsed ? "Script shown" : "Script hidden");
     return { status: "ok" };
@@ -89,9 +78,7 @@ export function registerViewCommands(): void {
 
   registerCommand("view.scriptFocus", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.setScriptFocus(!s.scriptFocus);
     s.announceStatus(s.scriptFocus ? "Script focus off" : "Script focus on");
     return { status: "ok" };
@@ -99,9 +86,7 @@ export function registerViewCommands(): void {
 
   registerCommand("view.waveformZoomIn", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.nudgeWaveformAmp("in");
     const amp = useDawStore.getState().waveformAmpZoom;
     s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);
@@ -110,9 +95,7 @@ export function registerViewCommands(): void {
 
   registerCommand("view.waveformZoomOut", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.nudgeWaveformAmp("out");
     const amp = useDawStore.getState().waveformAmpZoom;
     s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);

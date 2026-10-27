@@ -24,6 +24,6 @@ export function useLandingStage(): void {
       lastStage: readLastStage(s.projectPath),
     });
     if (next === s.stage) s.markLandingSettled();
-    else s.setStage(next);
+    else s.openStage(next);
   }, [waiting]);
 }

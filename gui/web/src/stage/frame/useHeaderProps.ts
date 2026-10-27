@@ -5,6 +5,7 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
+import type { StageRole } from "../../types/stage";
 import { useHistoryControls } from "./useHistoryControls";
 import { useSaveIndicator } from "./useSaveIndicator";
 import { useStageBarProps } from "./useStageBarProps";
@@ -17,13 +18,20 @@ const MENU_COMMANDS: Record<string, string> = {
   help: "help.diagnosticsBundle",
 };
 
+/** The Role chip's text for each guest role. */
+const GUEST_ROLE_LABEL = {
+  editor: "Editor",
+  commenter: "Commenter",
+  viewer: "Viewer",
+} as const satisfies Record<
+  Exclude<StageRole, "host">,
+  NonNullable<AppHeaderProps["guest"]>["role"]
+>;
+
 /**
  * Everything `AppHeader` needs from the app, except the people slot: title,
  * Save indicator, Undo and Redo, the Stage bar with its badges, Invite, search
  * and the Project menu. The Stage bar is left out for a link that has one stage.
- *
- * No recent projects and no rename: the app has neither a recents source nor a
- * rename command yet, so the header gets neither prop and the menu omits them.
  */
 export function useHeaderProps(): Omit<AppHeaderProps, "peopleSlot"> {
   const { title, guestMode } = useDaw((s) => ({
@@ -48,7 +56,10 @@ export function useHeaderProps(): Omit<AppHeaderProps, "peopleSlot"> {
     loading: title === null,
     save: save ?? undefined,
     stages,
-    guest: role === "host" ? undefined : { version: "Shared link", role },
+    guest:
+      role === "host"
+        ? undefined
+        : { version: "Shared link", role: GUEST_ROLE_LABEL[role] },
     canUndo: history.history?.canUndo ?? false,
     canRedo: history.history?.canRedo ?? false,
     onUndo: history.onUndo,

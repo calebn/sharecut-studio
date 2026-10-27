@@ -3,7 +3,7 @@ import { runPointerCommand } from "../../commands/pointer";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../../state/stageRoutes";
 import type { StageBarProps } from "../../system/StageBar";
-import type { StageId } from "../../system/verbs";
+import type { StageId } from "../../types/stage";
 import { useRecordLive, useStageBadges } from "./useStageBadges";
 
 /**

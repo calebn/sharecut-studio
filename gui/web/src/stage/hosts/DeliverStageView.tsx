@@ -1,9 +1,10 @@
 import type { ReactNode, Ref } from "react";
+import type { ShellBreakpoint } from "../../state/types";
 import { StatusRow } from "../../system/StatusRow";
 import { Button } from "../../ui";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
-import type { HostShell, HostState, ReadinessRow } from "./hostModels";
+import type { HostState, ReadinessRow } from "./hostModels";
 
 export type DeliverAction = {
   label: string;
@@ -13,7 +14,7 @@ export type DeliverAction = {
 };
 
 export type DeliverStageViewProps = {
-  shell: HostShell;
+  shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
   summary: string;

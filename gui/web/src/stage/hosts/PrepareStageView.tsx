@@ -1,11 +1,12 @@
 import type { ReactNode, Ref } from "react";
+import type { ShellBreakpoint } from "../../state/types";
 import { Button } from "../../ui";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
-import type { HostShell, HostState, PrepareHandoff } from "./hostModels";
+import type { HostState, PrepareHandoff } from "./hostModels";
 
 export type PrepareStageViewProps = {
-  shell: HostShell;
+  shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
   /** A new project: the two source tiles and nothing else. */

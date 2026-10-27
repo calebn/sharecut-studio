@@ -1,18 +1,19 @@
 import type { ReactNode, Ref } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
+import type { ShellBreakpoint } from "../../state/types";
 import type { ReviewSection } from "../../types/stage";
 import { Button } from "../../ui";
 import { Tab, TabList } from "../../ui/Tabs";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { TAB_LABELS } from "../frame/tabLabels";
 import { HostBody } from "./HostBody";
-import type { HostShell, HostState } from "./hostModels";
+import type { HostState } from "./hostModels";
 
 const TAB_ID = "review-section-tab";
 const PANEL_ID = "review-section-panel";
 
 export type ReviewStageViewProps = {
-  shell: HostShell;
+  shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
   sections: readonly ReviewSection[];

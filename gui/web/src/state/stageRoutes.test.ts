@@ -32,31 +32,31 @@ const host = (over: Partial<LandingInput> = {}): LandingInput => ({
 describe("stagesForRole", () => {
   it.each<[StageRole, StageId[]]>([
     ["host", [...STAGE_IDS]],
-    ["Editor", ["edit", "review"]],
-    ["Commenter", ["review"]],
-    ["Viewer", ["review"]],
+    ["editor", ["edit", "review"]],
+    ["commenter", ["review"]],
+    ["viewer", ["review"]],
   ])("%s may open %j", (role, stages) => {
     expect(stagesForRole(role)).toEqual(stages);
   });
 
   it("maps a share mode to a role", () => {
     expect(stageRoleOf(null)).toBe("host");
-    expect(stageRoleOf("edit")).toBe("Editor");
-    expect(stageRoleOf("comment")).toBe("Commenter");
-    expect(stageRoleOf("view")).toBe("Viewer");
-    expect(stageRoleOf("none")).toBe("Viewer");
+    expect(stageRoleOf("edit")).toBe("editor");
+    expect(stageRoleOf("comment")).toBe("commenter");
+    expect(stageRoleOf("view")).toBe("viewer");
+    expect(stageRoleOf("none")).toBe("viewer");
   });
 });
 
 describe("landingStage", () => {
   it("opens a guest on the stage their role allows", () => {
-    expect(landingStage(host({ role: "Viewer", lastStage: "edit" }))).toBe(
+    expect(landingStage(host({ role: "viewer", lastStage: "edit" }))).toBe(
       "review",
     );
-    expect(landingStage(host({ role: "Commenter", trackCount: 0 }))).toBe(
+    expect(landingStage(host({ role: "commenter", trackCount: 0 }))).toBe(
       "review",
     );
-    expect(landingStage(host({ role: "Editor", pendingReviewCount: 3 }))).toBe(
+    expect(landingStage(host({ role: "editor", pendingReviewCount: 3 }))).toBe(
       "edit",
     );
   });

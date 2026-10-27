@@ -7,7 +7,7 @@ const MAX_RESTORE_FRAMES = 12;
 /**
  * Keeps one scrolling pane's offset across a stage switch (the Script pane).
  * DOM only while the pane is up: the store hears the offset once, when the
- * pane unmounts, and `setStage` has already saved the stage's zoom by then.
+ * pane unmounts, and `openStage` has already saved the stage's zoom by then.
  *
  * Returns a callback ref for a wrapper; `selector` names the scroller inside
  * it (the wrapper itself when omitted), because the scroller may mount after

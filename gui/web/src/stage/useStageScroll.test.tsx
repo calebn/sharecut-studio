@@ -69,7 +69,7 @@ describe("useStageScroll", () => {
     }
   });
 
-  it("survives a stage switch: the unmount after setStage keeps the zoom snapshot", () => {
+  it("survives a stage switch: the unmount after openStage keeps the zoom snapshot", () => {
     useDawStore.setState({
       zoomPxPerSec: 180,
       scrollLeft: 90,
@@ -79,7 +79,7 @@ describe("useStageScroll", () => {
     const list = scroller(getByTestId("list"));
     list.scrollTop = 75;
     fireEvent.scroll(list);
-    act(() => useDawStore.getState().setStage("review"));
+    act(() => useDawStore.getState().openStage("review"));
     unmount();
     const view = useDawStore.getState().stageViews.edit;
     expect(view?.panelScroll.script).toBe(75);

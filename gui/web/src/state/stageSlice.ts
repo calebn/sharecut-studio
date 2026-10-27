@@ -35,11 +35,10 @@ export interface StageSliceState {
   /** The landing stage has been chosen for this project, by rule or by the person. */
   landingSettled: boolean;
   /**
-   * Switch stage. In one write it saves the leaving stage's view, restores the
-   * arriving one's, closes sheets and routes keys; never from an unmount effect.
+   * Switch stage, or deep-link into one with `options`. In one write it saves
+   * the leaving stage's view, restores the arriving one's, closes sheets and
+   * routes keys; never from an unmount effect.
    */
-  setStage: (next: StageId, options?: StageOpenOptions) => void;
-  /** Deep link: `setStage` under the name callers use. */
   openStage: (stage: StageId, options?: StageOpenOptions) => void;
   setReviewSection: (section: ReviewSection) => void;
   setEditSurface: (surface: EditSurface) => void;
@@ -66,7 +65,7 @@ export const createStageSlice: StateCreator<
   [],
   StageSliceState
 > = (set, get) => {
-  const setStage = (next: StageId, options: StageOpenOptions = {}) => {
+  const openStage = (next: StageId, options: StageOpenOptions = {}) => {
     const prev = get().stage;
     set((s) => {
       const sheet = options.sheet ?? (options.keepSheet ? s.openSheet : null);
@@ -109,8 +108,7 @@ export const createStageSlice: StateCreator<
     editSurface: "lanes",
     scriptCollapsed: readScriptCollapsed(),
     scriptFocus: readScriptFocus(),
-    setStage,
-    openStage: setStage,
+    openStage,
     setReviewSection: (reviewSection) => set({ reviewSection }),
     setEditSurface: (editSurface) => set({ editSurface }),
     setOpenSheet: (openSheet) => set({ openSheet }),

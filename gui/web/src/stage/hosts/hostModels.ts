@@ -180,8 +180,6 @@ export function deliverReadiness(input: {
 
 export type HostState = "loading" | "error" | "ready";
 
-export type HostShell = "phone" | "tablet" | "desktop";
-
 export function hostStateOf(
   project: unknown,
   loadFailure: LoadFailure | null | undefined,

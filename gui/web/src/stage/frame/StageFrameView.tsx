@@ -1,6 +1,6 @@
 import type { ReactNode, Ref } from "react";
 import type { ShellBreakpoint } from "../../state/types";
-import type { StageId } from "../../system/verbs";
+import type { StageId } from "../../types/stage";
 
 export const STAGE_BODY_ID = "stage-body";
 

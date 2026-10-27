@@ -678,8 +678,6 @@ export const STAGES = [
   key: KeySpec;
 }[];
 
-export type { StageId };
-
 export function stageLabel(id: StageId): string {
   return (STAGES.find((s) => s.id === id) as { label: string }).label;
 }

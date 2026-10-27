@@ -1,12 +1,14 @@
 import type { ReactNode, Ref } from "react";
+import type { ShellBreakpoint } from "../../state/types";
 import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
+import type { StageId } from "../../types/stage";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
-import type { HostShell, HostState } from "./hostModels";
+import type { HostState } from "./hostModels";
 
-type Props = {
-  stage: string;
-  shell: HostShell;
+type HostBodyProps = {
+  stage: StageId;
+  shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
   /** The pane that scrolls, for the saved offset. */
@@ -22,7 +24,7 @@ export function HostBody({
   failure,
   scrollRef,
   children,
-}: Props) {
+}: HostBodyProps) {
   return (
     <div
       ref={scrollRef}

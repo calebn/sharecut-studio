@@ -26,7 +26,7 @@ export function planFollowUi(
 ): { apply: FollowApply; degraded: FollowDegraded } {
   const apply: FollowApply = {};
   const degraded: FollowDegraded = {};
-  const role: StageRole = caps.role ?? (caps.guestShare ? "Editor" : "host");
+  const role: StageRole = caps.role ?? (caps.guestShare ? "editor" : "host");
   if (leader.tab && KNOWN_TABS.has(leader.tab)) {
     const target = STAGE_FOR_TAB[leader.tab];
     if (

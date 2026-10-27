@@ -1,8 +1,8 @@
 import { liveTakeOpen, useRecordHostStore } from "../../record";
 import { useDaw } from "../../state/useDaw";
 import type { StageBadge } from "../../system/StageBar";
-import type { StageId } from "../../system/verbs";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
+import type { StageId } from "../../types/stage";
 import { isPipelineKindJob, isPipelineSlotBusy } from "../../utils/pipeline";
 
 export type StageBadgeInput = {

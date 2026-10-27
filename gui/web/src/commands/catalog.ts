@@ -1,4 +1,50 @@
+import { STAGE_IDS, type StageId } from "../types/stage";
 import type { CommandDef } from "./types";
+
+/** What the palette searches for each stage, and the digit after Mod that opens it. */
+const STAGE_COMMAND_COPY: Record<
+  StageId,
+  { label: string; keywords: string[]; digit: string }
+> = {
+  record: { label: "Record", keywords: ["room", "take", "mic"], digit: "1" },
+  prepare: {
+    label: "Prepare",
+    keywords: ["import", "pipeline", "transcribe"],
+    digit: "2",
+  },
+  edit: {
+    label: "Edit",
+    keywords: ["timeline", "script", "transcript"],
+    digit: "3",
+  },
+  review: {
+    label: "Review",
+    keywords: ["comments", "suggestions", "impact", "tighten"],
+    digit: "4",
+  },
+  deliver: {
+    label: "Deliver",
+    keywords: ["export", "bounce", "share"],
+    digit: "5",
+  },
+};
+
+const STAGE_COMMANDS: Record<string, CommandDef> = Object.fromEntries(
+  STAGE_IDS.map((stage) => {
+    const id = `stage.${stage}`;
+    const { label, keywords, digit } = STAGE_COMMAND_COPY[stage];
+    const def: CommandDef = {
+      id,
+      category: "navigation",
+      label: `Go to ${label}`,
+      keywords,
+      when: "hasProject",
+      breaksFollow: true,
+      notes: `Mod+${digit}: the ${label} stage`,
+    };
+    return [id, def];
+  }),
+);
 
 /**
  * Full UX command catalog (with or without keybindings).
@@ -97,51 +143,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control",
   },
-  "stage.record": {
-    id: "stage.record",
-    category: "navigation",
-    label: "Go to Record",
-    keywords: ["room", "take", "mic"],
-    when: "hasProject",
-    breaksFollow: true,
-    notes: "Mod+1: the Record stage",
-  },
-  "stage.prepare": {
-    id: "stage.prepare",
-    category: "navigation",
-    label: "Go to Prepare",
-    keywords: ["import", "pipeline", "transcribe"],
-    when: "hasProject",
-    breaksFollow: true,
-    notes: "Mod+2: the Prepare stage",
-  },
-  "stage.edit": {
-    id: "stage.edit",
-    category: "navigation",
-    label: "Go to Edit",
-    keywords: ["timeline", "script", "transcript"],
-    when: "hasProject",
-    breaksFollow: true,
-    notes: "Mod+3: the Edit stage",
-  },
-  "stage.review": {
-    id: "stage.review",
-    category: "navigation",
-    label: "Go to Review",
-    keywords: ["comments", "suggestions", "impact", "tighten"],
-    when: "hasProject",
-    breaksFollow: true,
-    notes: "Mod+4: the Review stage",
-  },
-  "stage.deliver": {
-    id: "stage.deliver",
-    category: "navigation",
-    label: "Go to Deliver",
-    keywords: ["export", "bounce", "share"],
-    when: "hasProject",
-    breaksFollow: true,
-    notes: "Mod+5: the Deliver stage",
-  },
+  ...STAGE_COMMANDS,
   "view.toggleScript": {
     id: "view.toggleScript",
     category: "view",

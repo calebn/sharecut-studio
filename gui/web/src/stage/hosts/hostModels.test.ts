@@ -20,9 +20,9 @@ const snap = (state: RecordSnapshot["state"]): RecordSnapshot => ({
 describe("stageAvailable", () => {
   it.each([
     ["host", ["record", "prepare", "edit", "review", "deliver"]],
-    ["Editor", ["edit", "review"]],
-    ["Commenter", ["review"]],
-    ["Viewer", ["review"]],
+    ["editor", ["edit", "review"]],
+    ["commenter", ["review"]],
+    ["viewer", ["review"]],
   ] as const)("%s opens only its stages", (role, open) => {
     for (const stage of [
       "record",
@@ -43,8 +43,8 @@ describe("review sections", () => {
       "impact",
       "tighten",
     ]);
-    expect(reviewSectionsFor("Commenter")).toEqual(["comments"]);
-    expect(reviewSectionsFor("Editor")).toEqual(["comments"]);
+    expect(reviewSectionsFor("commenter")).toEqual(["comments"]);
+    expect(reviewSectionsFor("editor")).toEqual(["comments"]);
   });
 
   it("falls back to the first section the role has", () => {

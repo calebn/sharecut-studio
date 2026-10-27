@@ -13,10 +13,10 @@ export function stagesForRole(role: StageRole): readonly StageId[] {
   switch (role) {
     case "host":
       return STAGE_IDS;
-    case "Editor":
+    case "editor":
       return ["edit", "review"];
-    case "Commenter":
-    case "Viewer":
+    case "commenter":
+    case "viewer":
       return ["review"];
   }
 }
@@ -27,11 +27,11 @@ export function stageRoleOf(guestMode: string | null): StageRole {
     case null:
       return "host";
     case "edit":
-      return "Editor";
+      return "editor";
     case "comment":
-      return "Commenter";
+      return "commenter";
     default:
-      return "Viewer";
+      return "viewer";
   }
 }
 
@@ -51,7 +51,7 @@ export type LandingInput = {
  */
 export function landingStage(input: LandingInput): StageId {
   const allowed = stagesForRole(input.role);
-  if (input.role === "Editor") return "edit";
+  if (input.role === "editor") return "edit";
   if (allowed.length === 1) return allowed[0];
   if (input.trackCount === 0 || input.jobBusy) return "prepare";
   if (input.pendingReviewCount > 0) return "review";
@@ -67,7 +67,7 @@ export type StageTarget = {
   sheet?: StageSheet;
 };
 
-/** Where each legacy editor tab lives in the stage shell. */
+/** Wire `tab` values and where they land in the stage shell. */
 export const STAGE_FOR_TAB: Record<PresenceTab, StageTarget> = {
   transcript: { stage: "edit" },
   history: { stage: "edit", sheet: "history" },

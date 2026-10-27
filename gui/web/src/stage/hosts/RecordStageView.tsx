@@ -1,11 +1,12 @@
 import type { ReactNode, Ref } from "react";
+import type { ShellBreakpoint } from "../../state/types";
 import { Button } from "../../ui";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
-import type { HostShell, HostState, RecordStatus } from "./hostModels";
+import type { HostState, RecordStatus } from "./hostModels";
 
 export type RecordStageViewProps = {
-  shell: HostShell;
+  shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
   status: RecordStatus;

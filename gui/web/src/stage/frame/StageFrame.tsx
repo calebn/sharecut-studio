@@ -10,8 +10,8 @@ import { AppHeader } from "../../system/AppHeader";
 import { StageBar } from "../../system/StageBar";
 import { stageLabel } from "../../system/verbs";
 import type { StageSheet } from "../../types/stage";
+import { AvatarStack } from "./AvatarStack";
 import { BannerStack } from "./BannerStack";
-import { HeaderPeople } from "./HeaderPeople";
 import type { LoadFailure } from "./LoadFailureBanner";
 import { PlayerBar } from "./PlayerBar";
 import { SheetHost } from "./SheetHost";
@@ -92,7 +92,7 @@ function StageFrameAdapter({
               panelId: STAGE_BODY_ID,
             }
           }
-          peopleSlot={<HeaderPeople />}
+          peopleSlot={<AvatarStack variant="header" />}
         />
       }
       banners={

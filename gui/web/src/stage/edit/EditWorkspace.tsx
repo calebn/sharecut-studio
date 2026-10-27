@@ -259,6 +259,6 @@ function EditWorkspaceAdapter({
  * The Edit stage host: the timeline with its headers, the Script pane, the
  * Inspector and the sheets that hang off them. Mounted by the frame as the
  * stage body when Edit is up; unmounting it cannot lose the view, because
- * `setStage` snapshots zoom and scroll before the swap.
+ * `openStage` snapshots zoom and scroll before the swap.
  */
 export const EditWorkspace = memo(EditWorkspaceAdapter);

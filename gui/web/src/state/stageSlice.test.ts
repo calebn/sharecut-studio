@@ -32,7 +32,7 @@ describe("stageSlice", () => {
       scrollLeft: 300,
       userZoomed: true,
     });
-    st().setStage("review");
+    st().openStage("review");
     expect(st().stageViews.edit).toMatchObject({
       zoomPxPerSec: 80,
       scrollLeft: 300,
@@ -43,13 +43,13 @@ describe("stageSlice", () => {
     expect(st().userZoomed).toBe(false);
 
     useDawStore.setState({ zoomPxPerSec: 12, scrollLeft: 5, userZoomed: true });
-    st().setStage("edit");
+    st().openStage("edit");
     expect(st().zoomPxPerSec).toBe(80);
     expect(st().scrollLeft).toBe(300);
     expect(st().userZoomed).toBe(true);
     expect(st().stageViews.review).toMatchObject({ zoomPxPerSec: 12 });
 
-    st().setStage("review");
+    st().openStage("review");
     expect(st().zoomPxPerSec).toBe(12);
     expect(st().scrollLeft).toBe(5);
   });
@@ -61,7 +61,7 @@ describe("stageSlice", () => {
     });
     useDawStore.setState({ zoomPxPerSec: 64, userZoomed: true });
     writes = 0;
-    st().setStage("deliver");
+    st().openStage("deliver");
     off();
     expect(writes).toBe(1);
   });
@@ -72,14 +72,14 @@ describe("stageSlice", () => {
       scrollLeft: 40,
       userZoomed: true,
     });
-    st().setStage("review");
+    st().openStage("review");
     // An unmounting TimelineView resets the live values; the snapshot is already taken.
     useDawStore.setState({
       zoomPxPerSec: 10,
       scrollLeft: 0,
       userZoomed: false,
     });
-    st().setStage("edit");
+    st().openStage("edit");
     expect(st().zoomPxPerSec).toBe(90);
     expect(st().scrollLeft).toBe(40);
   });
@@ -87,7 +87,7 @@ describe("stageSlice", () => {
   it("keeps pane scroll offsets across a snapshot", () => {
     st().setPanelScroll("edit", "script", 120);
     useDawStore.setState({ zoomPxPerSec: 55 });
-    st().setStage("prepare");
+    st().openStage("prepare");
     expect(st().stageViews.edit?.panelScroll).toEqual({ script: 120 });
     expect(st().stageViews.edit?.zoomPxPerSec).toBe(55);
   });
@@ -105,9 +105,9 @@ describe("stageSlice", () => {
       selection: st().selection,
       lastAppliedRevision: st().lastAppliedRevision,
     };
-    st().setStage("review");
-    st().setStage("deliver");
-    st().setStage("edit");
+    st().openStage("review");
+    st().openStage("deliver");
+    st().openStage("edit");
     expect({
       playheadSec: st().playheadSec,
       isPlaying: st().isPlaying,
@@ -118,22 +118,22 @@ describe("stageSlice", () => {
 
   it("closes sheets on a switch unless asked to keep them", () => {
     useDawStore.setState({ openSheet: "view", sheetExpanded: true });
-    st().setStage("review");
+    st().openStage("review");
     expect(st().openSheet).toBeNull();
     expect(st().sheetExpanded).toBe(false);
 
     useDawStore.setState({ openSheet: "mix" });
-    st().setStage("edit", { keepSheet: true });
+    st().openStage("edit", { keepSheet: true });
     expect(st().openSheet).toBe("mix");
 
-    st().setStage("review", { sheet: "history" });
+    st().openStage("review", { sheet: "history" });
     expect(st().openSheet).toBe("history");
   });
 
   it("routes keys to the timeline only on Edit", () => {
-    st().setStage("review");
+    st().openStage("review");
     expect(st().timelineFocused).toBe(false);
-    st().setStage("edit");
+    st().openStage("edit");
     expect(st().timelineFocused).toBe(true);
   });
 
@@ -153,14 +153,14 @@ describe("stageSlice", () => {
 
   it("remembers the last stage per project, and a user switch settles landing", () => {
     expect(st().landingSettled).toBe(false);
-    st().setStage("deliver");
+    st().openStage("deliver");
     expect(readLastStage("/tmp/stage-a.json")).toBe("deliver");
     expect(readLastStage("/tmp/other.json")).toBeNull();
     expect(st().landingSettled).toBe(true);
   });
 
   it("clears stage state on a project switch but not on a refresh", () => {
-    st().setStage("review");
+    st().openStage("review");
     st().hydrate("/tmp/stage-a.json", minimalProject());
     expect(st().stage).toBe("review");
     expect(st().stageViews.edit).toBeDefined();
