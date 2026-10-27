@@ -218,6 +218,7 @@ def test_staging_an_insert_registers_sources_and_leaves_the_timeline_alone(
     _land_end_session(ws)
     before = _timeline(ws)
     sources_before = {s.id for s in ws.project.sources}
+    first_track = next(t.id for t in ws.project.tracks if t.label == "Ava")
 
     room, guest, _svc, landed = _stage(ws, INSERT, comment_in_take=0)
 
@@ -231,7 +232,7 @@ def test_staging_an_insert_registers_sources_and_leaves_the_timeline_alone(
     assert (row.kind, row.status, row.session_number, row.at_sec) == ("insert", "pending", 2, 1.0)
     [take] = row.takes
     assert take.source_id in new_sources
-    assert take.track_id == guest
+    assert take.track_id == first_track != guest  # Ava returns: matched to her Session 1 track
     assert take.offset_s == 0.0
     assert [(c.id, c.body, c.author) for c in take.comments] == [("live-note", "Fix this", guest)]
     assert ws.project.comments == []
@@ -1028,7 +1029,7 @@ def test_accept_refuses_a_replace_over_an_unrecorded_track_and_an_empty_session(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
-    _seed_replaceable(ws)
+    _seed_replaceable(ws, label="Someone else")
     _seed_timeline(ws)
     room, _guest, _svc, _landed = _stage(ws, REPLACE)
     before = _everything(ws)
@@ -1229,9 +1230,9 @@ def _seed_single_clip(ws, *, start: float = 0.0, end: float = 8.0, source_id: st
     ws.mutate("seed", "seeded", build)
 
 
-def _seed_replaceable(ws, track_id: str = "ava") -> None:
+def _seed_replaceable(ws, track_id: str = "ava", label: str = "Ava") -> None:
     def build(project: EpisodeProject) -> None:
-        project.tracks.append(Track(id=track_id, label="Ava", role=TrackRole.DIALOGUE))
+        project.tracks.append(Track(id=track_id, label=label, role=TrackRole.DIALOGUE))
         project.clips.append(
             Clip(
                 id="base",

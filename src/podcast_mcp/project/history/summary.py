@@ -51,6 +51,8 @@ def format_history_group_title(
         return f"Skipped Session {int(params['session_number'])}"
     if operation == "accept_session_suggestion" and params.get("session_number"):
         return f"Added Session {int(params['session_number'])}"
+    if operation == "remap_session_track" and params.get("title"):
+        return str(params["title"])
     op = _human_op(operation, label)
     bits: list[str] = [op]
 

@@ -92,6 +92,7 @@ from podcast_mcp.services.record.state import (
     TakeState,
     take_recording_duration_ms,
 )
+from podcast_mcp.services.record.track_match import TrackMatch, resolve_session_tracks
 from podcast_mcp.services.record.upload import (
     ROOM_TONE_MAX_PCM_BYTES,
     ROOM_TONE_TAKE_INDEX,
@@ -785,6 +786,7 @@ class RecordLandingService:
             staged_takes: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
             touched: set[str] = set()
+            matches = self._track_matches(project, snap)
             for item in copied:
                 if not self._copied_raw_matches(project, item):
                     self._mark_copied_failed(item)
@@ -792,7 +794,7 @@ class RecordLandingService:
                 if not self._ack_generation_current(item):
                     _log_superseded(self.session_id, item)
                     continue
-                track_id = slug_track_id(str(item["participant_id"]))
+                track_id, item["label"] = _track_for(matches, item)
                 source_id = str(item["source_id"])
                 rel = str(item["rel"])
                 prior = capture_prior(
@@ -885,8 +887,7 @@ class RecordLandingService:
                 if not self._ack_generation_current(item):
                     _log_superseded(self.session_id, item)
                     continue
-                pid = str(item["participant_id"])
-                track_id = slug_track_id(pid)
+                track_id, item["label"] = _track_for(matches, item)
                 rel = str(item["rel"])
                 prior = capture_prior(
                     project,
@@ -1179,19 +1180,31 @@ class RecordLandingService:
             if str(row["comment_id"]) in after
         ]
 
+    def _track_matches(
+        self, project: EpisodeProject, snap: RecordSnapshot | None = None
+    ) -> dict[str, TrackMatch]:
+        snap = snap or self._snapshot()
+        return resolve_session_tracks(
+            project, self.session_id, snap.participants, self._room.track_choices()
+        )
+
+    def _track_id_for(self, participant_id: str) -> str:
+        match = self._track_matches(self.workspace.project).get(participant_id)
+        return match.track_id if match is not None else slug_track_id(participant_id)
+
     def _room_tone_missing(self, participant_id: str, staged: bool = False) -> bool:
+        track_id = self._track_id_for(participant_id)
         if staged:
             suggestion = session_suggestion_for(self.workspace.project, self.session_id)
-            track_id = slug_track_id(participant_id)
             return suggestion is None or all(
                 bed.track_id != track_id for bed in suggestion.room_tone
             )
-        track = self.workspace.project.track_by_id(slug_track_id(participant_id))
+        track = self.workspace.project.track_by_id(track_id)
         return track is None or track.room_tone is None
 
     def _landed_source_id(self, participant_id: str, take_index: int, segment_index: int) -> str:
         if take_index == ROOM_TONE_TAKE_INDEX:
-            return room_tone_source_id(slug_track_id(participant_id))
+            return room_tone_source_id(self._track_id_for(participant_id))
         return record_source_id(self.session_id, take_index, participant_id, segment_index)
 
     def _mark_missing_acked(
@@ -1624,6 +1637,15 @@ def _item_from_deferred(row: dict[str, Any]) -> dict[str, Any]:
         "prior": prior_from_json(str(row["prior_json"])),
         "attempts": int(row.get("attempts") or 0),
     }
+
+
+def _track_for(matches: Mapping[str, TrackMatch], item: Mapping[str, Any]) -> tuple[str, str]:
+    """The track id and label a copied item lands on: matched by name, else a fresh track."""
+    pid = str(item["participant_id"])
+    match = matches.get(pid)
+    if match is None:
+        return slug_track_id(pid), str(item["label"])
+    return match.track_id, match.track_label
 
 
 def _log_superseded(session_id: str, item: dict[str, Any]) -> None:
