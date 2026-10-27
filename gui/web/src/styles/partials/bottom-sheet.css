@@ -21,6 +21,18 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
   bottom: var(--frame-bottom-chrome);
 }
 
+/* A phone's sheet never covers the header row, at any detent: its slot starts at
+   the header's bottom edge, so the Stage menu and Tools button stay reachable
+   while a selection is open (R-short-8). The clearance below then counts the
+   rows under the header only. */
+html[data-shell="phone"] {
+  --sheet-header-clearance: 0rem;
+}
+
+html[data-shell="phone"] .bottom-sheet-root {
+  top: calc(var(--app-header-height-phone) + env(safe-area-inset-top));
+}
+
 /* The compact strip stacks above the shell's rows, so the status or nav row
    beside it never draws over it, and its slot clips it, so its own slide
    (entering, stowing) never draws over them (#1051 round 4). */
@@ -110,7 +122,7 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
 @container sheet-slot (max-width: 22rem) {
   .bottom-sheet {
     --sheet-chrome-clearance: calc(
-      var(--app-header-height) +
+      var(--sheet-header-clearance) +
       2 *
       var(--sheet-edit-row) +
       var(--ruler-height) +

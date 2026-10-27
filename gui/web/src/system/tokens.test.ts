@@ -257,6 +257,7 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
 };
 
 const SHEET_CLEARANCE_TOKENS = [
+  "--sheet-header-clearance",
   "--sheet-edit-row",
   "--sheet-chrome-clearance",
   "--sheet-lane-extra",
@@ -340,6 +341,15 @@ describe("--sheet-lane-clearance", () => {
       px("--control-height") +
       px("--space-3");
     expect(clearance).toBe(18.5 * 16);
+  });
+
+  it("counts the app header unless a phone's sheet starts below it", () => {
+    expect(current.get("--sheet-header-clearance")?.[0]).toBe(
+      "var(--app-header-height)",
+    );
+    expect(current.get("--sheet-chrome-clearance")?.[0]).toMatch(
+      /^calc\(\s*var\(--sheet-header-clearance\)/,
+    );
   });
 
   it("builds the clearance from the chrome clearance plus one lane", () => {
