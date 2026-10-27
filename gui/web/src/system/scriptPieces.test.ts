@@ -10,6 +10,7 @@ import {
 } from "./scriptFixtures";
 import {
   continuesSpeaker,
+  linkCuts,
   pieceEnd,
   pieceStart,
   piecesOf,
@@ -125,6 +126,45 @@ describe("piecesOf", () => {
       "room",
       "can",
     ]);
+  });
+});
+
+describe("linkCuts", () => {
+  const byTurn = (marks: Parameters<typeof patchWords>[1]) => {
+    const turns = patchWords(SCRIPT_TURNS, marks);
+    return turns.map((turn) => piecesOf(turn.words, false));
+  };
+  const flags = (pieces: ReturnType<typeof piecesOf>[]) =>
+    pieces.flat().flatMap((piece) =>
+      piece.kind === "cut"
+        ? [
+            {
+              id: piece.id,
+              continued: piece.continued,
+              continues: piece.continues,
+            },
+          ]
+        : [],
+    );
+
+  it("marks a cut that crosses turns: the first continues, the rest are continued", () => {
+    const linked = linkCuts(
+      byTurn(spanPatch(18, 41, { mark: cutMark("x", 3) })),
+    );
+    expect(flags(linked)).toEqual([
+      { id: "x", continued: undefined, continues: true },
+      { id: "x", continued: true, continues: true },
+      { id: "x", continued: true, continues: undefined },
+    ]);
+  });
+
+  it("leaves a cut inside one turn, and the same pieces, alone", () => {
+    const plain = byTurn(spanPatch(2, 3, { mark: cutMark("a", 0.7) }));
+    const linked = linkCuts(plain);
+    expect(flags(linked)).toEqual([
+      { id: "a", continued: undefined, continues: undefined },
+    ]);
+    expect(linked[0]).toBe(plain[0]);
   });
 });
 

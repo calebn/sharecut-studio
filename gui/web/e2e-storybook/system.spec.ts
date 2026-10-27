@@ -412,16 +412,19 @@ test("System/ScriptPane the selection grips sit on the ends of the selected word
   await open(page, "stages-edit-scriptpane--selection-handles", 1280);
   const first = page.getByRole("button", { name: "small (selected)" });
   const last = page.getByRole("button", { name: "can (selected)" });
-  const start = page.getByRole("slider", { name: "Selection start" });
-  const end = page.getByRole("slider", { name: "Selection end" });
+  const start = page.locator(".sys-handle[data-edge=start]");
+  const end = page.locator(".sys-handle[data-edge=end]");
   await expect(start).toBeVisible();
-  const [a, b, startBox, endBox] = await Promise.all([
+  const [a, b, startBox, endBox, knob] = await Promise.all([
     first.boundingBox(),
     last.boundingBox(),
     start.boundingBox(),
     end.boundingBox(),
+    end.locator(".sys-handle-knob").boundingBox(),
   ]);
-  if (!a || !b || !startBox || !endBox) throw new Error("Nothing rendered");
+  if (!a || !b || !startBox || !endBox || !knob) {
+    throw new Error("Nothing rendered");
+  }
   expect(Math.abs(startBox.x + startBox.width / 2 - a.x)).toBeLessThanOrEqual(
     2,
   );
@@ -433,51 +436,128 @@ test("System/ScriptPane the selection grips sit on the ends of the selected word
     .getByRole("button", { name: "sound", exact: true })
     .boundingBox();
   if (!target) throw new Error("No word to drag to");
-  await page.mouse.move(
-    endBox.x + endBox.width / 2,
-    endBox.y + endBox.height / 2,
-  );
+  // The grip reports where its caret goes, not the finger, so aim the knob
+  // at the same offset below the caret that it was grabbed at.
+  const grabY = knob.y + knob.height / 2;
+  const caretY = endBox.y + endBox.height / 2;
+  await page.mouse.move(knob.x + knob.width / 2, grabY);
   await page.mouse.down();
   await page.mouse.move(
     target.x + target.width - 2,
-    target.y + target.height / 2,
-    {
-      steps: 6,
-    },
+    target.y + target.height / 2 + (grabY - caretY),
+    { steps: 6 },
   );
   await page.mouse.up();
-  await expect(page.getByRole("status").first()).toHaveText(
+  await expect(page.getByRole("status")).toHaveText(
     "4 words selected: small room can sound",
   );
 });
 
-test("System/ScriptPane the selection grips are 44 px wide and reach past their line under a coarse pointer", async ({
+test("System/ScriptPane a grip's region reaches only toward its knob, so the words beside it keep their taps, and a tap in the region lands on the word under it", async ({
   browser,
 }) => {
   const { context, page } = await coarsePage(
     browser,
     "stages-edit-scriptpane--phone-selection-handles",
   );
-  const end = page.getByRole("slider", { name: "Selection end" });
+  const end = page.locator(".sys-handle[data-edge=end]");
+  const start = page.locator(".sys-handle[data-edge=start]");
   await expect(end).toBeVisible();
-  const reach = await end.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    const x = r.left + r.width / 2;
-    const at = (px: number, py: number) =>
-      document.elementFromPoint(px, py)?.closest("[role=slider]") === el;
-    return {
-      width: Math.round(r.width),
-      hits: [
-        at(x - 20, r.top + r.height / 2),
-        at(x + 20, r.top + r.height / 2),
-        at(x, r.bottom + 12),
-        at(x, r.top - 12),
-      ],
-    };
-  });
+  const probe = (edge: "start" | "end") =>
+    page.evaluate((which) => {
+      const grip = document.querySelector<HTMLElement>(
+        `.sys-handle[data-edge=${which}]`,
+      );
+      if (!grip) throw new Error("No grip");
+      const r = grip.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const mid = r.top + r.height / 2;
+      const hit = (px: number, py: number) => {
+        const el = document.elementFromPoint(px, py);
+        return {
+          grip: el?.closest(".sys-handle") === grip,
+          word: el?.closest("button")?.textContent ?? null,
+        };
+      };
+      const toward = which === "end" ? 1 : -1;
+      const edge = which === "end" ? r.bottom : r.top;
+      return {
+        width: Math.round(r.width),
+        onLine: [hit(x - 20, mid), hit(x, mid), hit(x + 20, mid)].map(
+          (h) => h.grip,
+        ),
+        sideWord: hit(x + 20, mid).word,
+        region: [8, 22, 40].map((d) => hit(x, edge + toward * d).grip),
+        wide: [
+          hit(x - 20, edge + toward * 12).grip,
+          hit(x + 20, edge + toward * 12).grip,
+        ],
+        beyond: hit(x, edge + toward * 50).grip,
+        away: hit(x, edge - toward * 12).grip,
+      };
+    }, edge);
+  for (const edge of ["end", "start"] as const) {
+    const reach = await probe(edge);
+    expect(reach.width).toBe(44);
+    expect(reach.onLine).toEqual([false, false, false]);
+    expect(reach.sideWord).not.toBeNull();
+    expect(reach.region).toEqual([true, true, true]);
+    expect(reach.wide).toEqual([true, true]);
+    expect(reach.beyond).toBe(false);
+    expect(reach.away).toBe(false);
+  }
+  const box = await start.boundingBox();
+  if (!box) throw new Error("No start grip");
+  const y = box.y - 12;
+  const { x, under } = await page.evaluate(
+    ([cx, py]) => {
+      const wordAt = (px: number) =>
+        document
+          .elementsFromPoint(px, py)
+          .filter((el) => !el.closest(".sys-handle"))
+          .map((el) => el.closest("button"))
+          .find((el) => el !== null)?.textContent ?? null;
+      for (let dx = -20; dx <= 20; dx += 2) {
+        const found = wordAt(cx + dx);
+        if (found !== null) return { x: cx + dx, under: found };
+      }
+      return { x: cx, under: null };
+    },
+    [box.x + box.width / 2, y],
+  );
+  expect(under).not.toBeNull();
+  await page.touchscreen.tap(x, y);
+  await expect(page.locator(".sys-handle")).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.textContent))
+    .toBe(under);
+  await expect(start).toHaveCount(0);
   await context.close();
-  expect(reach.width).toBe(44);
-  expect(reach.hits).toEqual([true, true, true, true]);
+});
+
+test("System/ScriptPane a tap on the word beside a grip selects nothing the grip took", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "stages-edit-scriptpane--phone-selection-handles",
+  );
+  const end = page.locator(".sys-handle[data-edge=end]");
+  await expect(end).toBeVisible();
+  const box = await end.boundingBox();
+  if (!box) throw new Error("No end grip");
+  const x = box.x + box.width / 2 + 20;
+  const y = box.y + box.height / 2;
+  const word = await page.evaluate(
+    ([px, py]) => document.elementFromPoint(px, py)?.textContent ?? null,
+    [x, y],
+  );
+  expect(word).not.toBeNull();
+  await page.touchscreen.tap(x, y);
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.textContent))
+    .toBe(word);
+  await context.close();
 });
 
 test("System/ScriptPane Up and Down move the caret by line", async ({
@@ -497,7 +577,5 @@ test("System/ScriptPane Up and Down move the caret by line", async ({
   await page.keyboard.press("ArrowUp");
   expect(await tops()).toBe(first);
   await page.keyboard.press("Shift+ArrowDown");
-  await expect(page.getByRole("status").first()).toHaveText(
-    /^\d\d words selected: /,
-  );
+  await expect(page.getByRole("status")).toHaveText(/^\d\d words selected: /);
 });

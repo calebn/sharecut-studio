@@ -135,7 +135,7 @@ describe("ScriptPane words", () => {
     expect(live).toHaveAttribute("aria-live", "polite");
     expect(live).toHaveTextContent("3 words selected: small room can");
     rerender(<ScriptPane {...props({ selection: null })} />);
-    expect(live).toBeEmptyDOMElement();
+    expect(live).toHaveTextContent("Selection cleared");
   });
 
   it("names cut, muted, unsure, restored and found words and the playing run", () => {

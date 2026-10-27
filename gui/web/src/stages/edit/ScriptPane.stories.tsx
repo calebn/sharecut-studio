@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   portaledOverlayParameters,
@@ -68,9 +68,17 @@ type EditProps = {
   width: string;
   phone?: boolean;
   editing?: ScriptSpan;
+  /** A commit with this text is refused, as a stale correction would be. */
+  refuse?: string;
 };
 
-function Edit({ args, width, phone = false, editing: initial }: EditProps) {
+function Edit({
+  args,
+  width,
+  phone = false,
+  editing: initial,
+  refuse,
+}: EditProps) {
   const [turns, setTurns] = useState<readonly ScriptTurn[]>(args.turns);
   const [editing, setEditing] = useState<ScriptSpan | null>(initial ?? null);
   const { pane, selection, setSelection } = useLiveScript({ ...args, turns });
@@ -112,6 +120,9 @@ function Edit({ args, width, phone = false, editing: initial }: EditProps) {
                 : "Fix text"
             }
             onDone={(text) => {
+              if (text !== null && text === refuse) {
+                return "The transcript changed. Try again.";
+              }
               setEditing(null);
               if (text === null) return;
               setTurns(replaceSpan(turns, open, text));
@@ -221,31 +232,29 @@ export const SelectionHandles: Story = {
   render: edit("25rem"),
   args: { selection: { kind: "words", anchor: 12, head: 14 } },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      await canvas.findByRole("slider", { name: "Selection start" }),
-    ).toHaveAttribute("aria-valuetext", "before small");
-    await expect(
-      canvas.getByRole("slider", { name: "Selection end" }),
-    ).toHaveAttribute("aria-valuetext", "after can");
+    await waitFor(() =>
+      expect(canvasElement.querySelectorAll(".sys-handle")).toHaveLength(2),
+    );
+    for (const grip of canvasElement.querySelectorAll(".sys-handle")) {
+      await expect(grip).toBeVisible();
+      await expect(grip).toHaveAttribute("aria-hidden", "true");
+    }
+    await expect(within(canvasElement).queryByRole("slider")).toBeNull();
   },
 };
 
-export const SelectionHandlesByKeyboard: Story = {
+export const SelectionByKeyboard: Story = {
   render: edit("25rem"),
   args: { selection: { kind: "words", anchor: 12, head: 14 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const end = await canvas.findByRole("slider", { name: "Selection end" });
-    end.focus();
-    await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+    canvas.getByRole("button", { name: "can (selected)" }).focus();
+    await userEvent.keyboard("{Shift>}{ArrowRight}{ArrowRight}{/Shift}");
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "5 words selected: small room can sound like",
     );
-    await expect(end).toHaveAttribute("aria-valuetext", "after like");
-    const start = canvas.getByRole("slider", { name: "Selection start" });
-    start.focus();
-    await userEvent.keyboard("{ArrowRight}");
+    canvas.getByRole("button", { name: "small (selected)" }).focus();
+    await userEvent.keyboard("{Alt>}{Shift>}{ArrowRight}{/Shift}{/Alt}");
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "4 words selected: room can sound like",
     );
@@ -256,7 +265,10 @@ export const SelectionHandlesByKeyboard: Story = {
     );
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
-      expect(canvas.queryAllByRole("slider")).toHaveLength(0),
+      expect(canvasElement.querySelectorAll(".sys-handle")).toHaveLength(0),
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Selection cleared",
     );
   },
 };
@@ -265,13 +277,9 @@ export const PhoneSelectionHandles: Story = {
   render: edit("22.5rem", { phone: true }),
   args: { selection: { kind: "words", anchor: 12, head: 14 } },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      await canvas.findByRole("slider", { name: "Selection start" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("slider", { name: "Selection end" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(canvasElement.querySelectorAll(".sys-handle")).toHaveLength(2),
+    );
   },
 };
 
@@ -316,17 +324,65 @@ export const FixTextMultiWord: Story = {
   },
 };
 
+export const FixTextAcrossTurns: Story = {
+  render: edit("25rem", { editing: { start: 18, end: 22 } }),
+  args: { selection: { kind: "words", anchor: 18, head: 22 } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = canvas.getByRole("textbox", { name: "Fix text, 5 words" });
+    await expect(canvas.getAllByRole("textbox")).toHaveLength(1);
+    await expect(field).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await expect(canvas.queryByRole("textbox")).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: "large (selected)" }),
+    ).toHaveFocus();
+  },
+};
+
+export const FixTextRefused: Story = {
+  render: edit("25rem", { editing: { start: 12, end: 12 }, refuse: "stale" }),
+  args: { selection: { kind: "words", anchor: 12, head: 12 } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = canvas.getByRole("textbox", { name: "Fix text" });
+    await userEvent.keyboard("stale{Enter}");
+    await expect(await canvas.findByRole("alert")).toHaveTextContent(
+      "The transcript changed. Try again.",
+    );
+    await expect(field).toHaveValue("stale");
+    await expect(field).toHaveFocus();
+    await userEvent.keyboard(
+      "{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}fresh{Enter}",
+    );
+    await expect(canvas.queryByRole("textbox")).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: "fresh (selected)" }),
+    ).toHaveFocus();
+  },
+};
+
 function SpeakerChange({ args }: { args: ScriptPaneProps }) {
   const [turns, setTurns] = useState<readonly ScriptTurn[]>(args.turns);
   const [open, setOpen] = useState<string | null>(null);
+  const anchor = useRef<HTMLElement | null>(null);
   const turn = turns.find((t) => t.id === open);
   const { pane } = useLiveScript({ ...args, turns });
+  const move = (id: string, person: (typeof PEOPLE)[number]) =>
+    setTurns(
+      turns.map((t) =>
+        t.id === open ? { ...t, speakerId: id, speaker: person } : t,
+      ),
+    );
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-5)" }}>
       <div style={scriptFrame("25rem")}>
         <ScriptPane
           {...pane}
-          onSpeaker={(turnId) => setOpen(turnId)}
+          onSpeaker={(turnId, button) => {
+            anchor.current = button;
+            setOpen(turnId);
+          }}
           onSeekTurn={fn()}
         />
       </div>
@@ -334,18 +390,16 @@ function SpeakerChange({ args }: { args: ScriptPaneProps }) {
         <SpeakerPopover
           people={PEOPLE}
           currentId={turn.speakerId}
+          anchorRef={anchor}
           onClose={() => setOpen(null)}
           onPick={(id) => {
             const person = PEOPLE.find((p) => p.id === id);
-            if (!person) return;
-            setTurns(
-              turns.map((t) =>
-                t.id === turn.id ? { ...t, speakerId: id, speaker: person } : t,
-              ),
-            );
-            setOpen(null);
+            if (person) move(id, person);
           }}
           onRename={fn()}
+          onAddSpeaker={(name) =>
+            move(`new-${name}`, { id: `new-${name}`, name, colorIndex: 5 })
+          }
         />
       ) : null}
     </div>
@@ -362,9 +416,23 @@ export const SpeakerChangeByKeyboard: Story = {
       canvas.getByRole("button", { name: "Anneke de Vries, change speaker" }),
     ).toHaveFocus();
     await userEvent.keyboard("{Enter}");
-    await userEvent.click(await canvas.findByRole("radio", { name: /^Maya/ }));
+    const picker = within(document.body);
+    await waitFor(async () =>
+      expect(
+        await picker.findByRole("radio", { name: /^Anneke/ }),
+      ).toHaveFocus(),
+    );
+    await userEvent.keyboard("{ArrowDown}");
     await expect(
-      canvas.getByRole("group", { name: "Maya, 12:19" }),
+      canvas.getByRole("group", { name: "Anneke, 12:19" }),
     ).toBeVisible();
+    await userEvent.keyboard("{Enter}");
+    await expect(
+      canvas.getByRole("group", { name: "Joss, 12:19" }),
+    ).toBeVisible();
+    await waitFor(() => expect(picker.queryByRole("dialog")).toBeNull());
+    await expect(
+      canvas.getByRole("button", { name: "Joss, change speaker" }),
+    ).toHaveFocus();
   },
 };

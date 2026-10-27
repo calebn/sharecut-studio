@@ -42,33 +42,20 @@ export type StopRect = {
   right: number;
 };
 
+/**
+ * Where one place sits: a rect for each line it occupies, in reading order.
+ * A suggested run that wraps has several.
+ */
+export type StopRects = readonly StopRect[];
+
 /** The screen position of every stop (null when it is not drawn) and the column a vertical run of moves keeps. */
 export type Vertical = {
-  rects: readonly (StopRect | null)[];
+  rects: readonly (StopRects | null)[];
   goalX: number;
 };
 
-/** An edge of a words selection, and how a key or a drag moves it. */
+/** An edge of a words selection. */
 export type HandleEdge = "start" | "end";
-export type HandleStep = -1 | 1 | "first" | "last";
-
-/** The step a key makes on a selection handle, read as a slider: forward and up are one place on. */
-export function handleStep(key: string): HandleStep | null {
-  switch (key) {
-    case "ArrowRight":
-    case "ArrowUp":
-      return 1;
-    case "ArrowLeft":
-    case "ArrowDown":
-      return -1;
-    case "Home":
-      return "first";
-    case "End":
-      return "last";
-    default:
-      return null;
-  }
-}
 
 export type Navigation = {
   /** The place that takes focus, as a position in `stops`. */
@@ -112,31 +99,38 @@ export function extendTo(
 const centreY = (r: StopRect) => (r.top + r.bottom) / 2;
 
 /**
- * The place one line up or down that sits nearest the column `goalX`. Places
- * whose centres lie within half a place's height of each other share a line.
- * Null when there is no line in that direction.
+ * The place one line up or down that sits nearest the column `goalX`, leaving
+ * from the first line of a wrapped place going up and its last going down.
+ * Places whose centres lie within half a place's height of each other share a
+ * line, and a wrapped place can be reached on any of its lines. Null when
+ * there is no line in that direction.
  */
 export function verticalStop(
-  rects: readonly (StopRect | null)[],
+  rects: readonly (StopRects | null)[],
   at: number,
   direction: -1 | 1,
   goalX: number,
 ): number | null {
-  const here = rects[at];
+  const lines = rects[at];
+  const here = lines && (direction > 0 ? lines[lines.length - 1] : lines[0]);
   if (!here) return null;
   const tolerance = (here.bottom - here.top) / 2;
-  const lines = rects.flatMap((rect, index) =>
-    rect && direction * (centreY(rect) - centreY(here)) > tolerance
-      ? [{ rect, index }]
-      : [],
+  const reachable = rects.flatMap((fragments, index) =>
+    index === at || !fragments
+      ? []
+      : fragments
+          .filter(
+            (rect) => direction * (centreY(rect) - centreY(here)) > tolerance,
+          )
+          .map((rect) => ({ rect, index })),
   );
-  if (lines.length === 0) return null;
-  const nearest = lines.reduce((best, line) =>
+  if (reachable.length === 0) return null;
+  const nearest = reachable.reduce((best, line) =>
     direction * centreY(line.rect) < direction * centreY(best.rect)
       ? line
       : best,
   );
-  const sameLine = lines.filter(
+  const sameLine = reachable.filter(
     ({ rect }) => Math.abs(centreY(rect) - centreY(nearest.rect)) <= tolerance,
   );
   const gap = ({ rect }: (typeof sameLine)[number]) =>
@@ -149,24 +143,23 @@ export function verticalStop(
     .index;
 }
 
-/** The place nearest a point: first by distance from its line, then along the line. Null when nothing is drawn. */
+/**
+ * The place nearest a point: first by distance from its line, then along the
+ * line, over every line a wrapped place occupies. Null when nothing is drawn.
+ */
 export function nearestStop(
-  rects: readonly (StopRect | null)[],
+  rects: readonly (StopRects | null)[],
   x: number,
   y: number,
 ): number | null {
   const outside = (low: number, high: number, at: number) =>
     at < low ? low - at : at > high ? at - high : 0;
-  const scored = rects.flatMap((rect, index) =>
-    rect
-      ? [
-          {
-            index,
-            dy: outside(rect.top, rect.bottom, y),
-            dx: outside(rect.left, rect.right, x),
-          },
-        ]
-      : [],
+  const scored = rects.flatMap((fragments, index) =>
+    (fragments ?? []).map((rect) => ({
+      index,
+      dy: outside(rect.top, rect.bottom, y),
+      dx: outside(rect.left, rect.right, x),
+    })),
   );
   if (scored.length === 0) return null;
   return scored.reduce((best, item) =>
@@ -266,36 +259,19 @@ export function dragEdge(
     : { kind: "words", anchor: end, head: start };
 }
 
-/** `dragEdge` onto the place a step away from the edge's own place, or the first or last place. */
+/** `dragEdge` onto the place a step away from the edge's own place. */
 export function stepEdge(
   stops: readonly ScriptStop[],
   selection: ScriptSelection | null | undefined,
   edge: HandleEdge,
-  step: HandleStep,
+  step: -1 | 1,
 ): WordsSelection | null {
   const span = spanOf(selection);
   if (!span || stops.length === 0) return null;
   const at = positionOf(stops, edge === "start" ? span.start : span.end);
   if (at < 0) return null;
-  const to =
-    step === "first"
-      ? 0
-      : step === "last"
-        ? stops.length - 1
-        : Math.min(stops.length - 1, Math.max(0, at + step));
+  const to = Math.min(stops.length - 1, Math.max(0, at + step));
   return dragEdge(stops, selection, edge, stops[to]);
-}
-
-/** Where an edge sits among the stops, counted from 1; 0 when the selection is not a run of drawn words. */
-export function edgePosition(
-  stops: readonly ScriptStop[],
-  selection: ScriptSelection | null | undefined,
-  edge: HandleEdge,
-): number {
-  const span = spanOf(selection);
-  return span
-    ? positionOf(stops, edge === "start" ? span.start : span.end) + 1
-    : 0;
 }
 
 export type MarginControl = "speaker" | "time";

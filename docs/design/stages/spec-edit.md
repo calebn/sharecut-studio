@@ -520,7 +520,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - Body: turns (CMP-TURN). Text IBM Plex Sans 16/26, words as plain text runs with normal word spacing, max 68 characters measure, 24 px side padding.
   - No modes. One grammar:
     - Click a word: places the caret before it and seeks the playhead there.
-    - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection.
+    - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection. Built so far: Shift-click, Shift with the arrows and the two handles. Mouse drag, double-click, triple-click and long-press are deferred.
     - Typing with a selection or pressing F2: Fix text on that selection.
     - Backspace with a selection: Cut. Backspace with only a caret: nothing (protects against accidental cuts).
   - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline.
@@ -551,7 +551,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** POP-SPEAKER--desktop-light.png. Hierarchy: a dropdown, "All turns on reference.", Save speaker and Cancel push the turn text sideways. Language: "Save speaker".
 - **Fate:** replace with a speaker popover anchored to the margin name.
-- **Spec:** 260 px popover: list of speakers (avatar + name, 44 px rows) with a check on the current one; choosing another moves this turn to that speaker's lane (Move to speaker); a pencil on each row renames the speaker everywhere (applies on Enter; Esc cancels). No Save button. Undo covers both.
+- **Spec:** 260 px popover: list of speakers (avatar + name, 44 px rows) with a check on the current one; choosing another moves this turn to that speaker's lane (Move to speaker); a pencil on each row renames the speaker everywhere (applies on Enter; Esc cancels; leaving the field changes nothing; an empty or duplicate name stays in the field with the reason); an "Add speaker" row takes a new name the same way. The arrows move the focus ring and picking is click, Space or Enter. No Save button. Undo covers both.
 - **Shared elements used:** Person tile avatar, Action bar verb Move to speaker.
 - **Story to build:** `Edit/SpeakerPopover` stories `Open`, `Renaming`, `Phone`.
 
@@ -567,7 +567,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** CMP-FINDREPLACE--desktop-light.png. Hierarchy: Find and Replace fields render clipped inside the three-line dock. Interaction cost: Preview replacements then Replace all.
 - **Fate:** restyle.
-- **Spec:** opening search (Mod+F or magnifier) inserts a 44 px bar under the Script header: Find field (with "3 of 12" count and ↑/↓), a toggle to show Replace (second field + "Replace" and "All" icon buttons), match-case toggle (Aa). Matches highlight in the text and as ticks on the overview strip. Two more verbs here anticipate the common case: "Cut all 12" (scissors) which creates 12 cuts as one undo step, and "Select all 12". Esc closes.
+- **Spec:** opening search (Mod+F or magnifier) inserts a 44 px bar under the Script header: Find field (with "3 of 12" count and ↑/↓), a toggle to show Replace (second field + "Replace" and "All" icon buttons), match-case toggle (Aa). Enter steps to the next hit, Shift+Enter to the previous one, Mod+Shift+Enter cuts all. Matches follow the backend: whole words, edge punctuation ignored, case folded, muted and already-cut words skipped. Matches highlight in the text and as ticks on the overview strip. Two more verbs here anticipate the common case: "Cut all 12" (scissors) which creates 12 cuts as one undo step, and "Select all 12". Esc closes.
 - **Shared elements used:** NEW: Overview strip ticks, Action bar verbs.
 - **Story to build:** `Edit/FindBar` stories `Find`, `FindReplace`, `NoMatches`, `CutAll`, `Phone`.
 
@@ -583,7 +583,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** INS-WORD--desktop-light.png. Interaction cost: five large buttons (Add word before/after, Drop first/last, Ignore).
 - **Fate:** replace with NEW: Selection handles.
-- **Spec:** text selection shows 2 px accent caret handles at both ends with 12 px knobs (44 px touch hit). Drag to extend or shrink by word. Keyboard: Shift+←/→ extends by word; Alt+Shift+←/→ shrinks from the start. Ignore becomes Mute (More).
+- **Spec:** text selection shows 2 px accent caret handles at both ends with 12 px knobs (44 px touch hit). Drag to extend or shrink by word. Keyboard: Shift+←/→ extends by word; Alt+Shift+→ shrinks from the start and Alt+Shift+← grows it at the start (design-system 13). The handles are pointer-only and not tab stops. Ignore becomes Mute (More).
 - **Story to build:** `Edit/ScriptPane` story `SelectionHandles`.
 
 ### CMP-EDITBOUNDARY · Edit boundary mark

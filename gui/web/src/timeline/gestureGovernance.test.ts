@@ -253,7 +253,7 @@ const SURFACE_GESTURES: Record<string, string> = {
   "system/wavePointer.ts":
     "the pointer helpers shared by the suggestion and clip trim handles: a pointer position as a ratio of a strip, and a safe pointer capture; no gesture of its own",
   "system/SelectionHandles.tsx":
-    "the script text's selection grips: a drag on either end moves an edge of the selected words by word with pointer capture, and the same grips move by key as sliders; it is a text selection, not a timeline target",
+    "the script text's selection grips: a drag on either end moves an edge of the selected words by word with pointer capture, and a tap that never moves passes through to the word under it; the grips have no keys, because Shift and Alt+Shift with the arrows do the same from the words; it is a text selection, not a timeline target",
   "system/SuggestionWaveform.tsx":
     "a suggestion's edge handles move a control inside one Decision card, not a timeline target; they preview the range and the card saves on decision",
   "stages/deliver/ClipTrimWave.tsx":

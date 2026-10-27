@@ -2,13 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { ScriptPiece, ScriptStop } from "./scriptPieces";
 import {
   dragEdge,
-  edgePosition,
   extendTo,
-  handleStep,
   marginStep,
   navigate,
   nearestStop,
   type StopRect,
+  type StopRects,
   selectionSummary,
   spanOf,
   stepEdge,
@@ -196,15 +195,18 @@ describe("selectionSummary", () => {
   });
 });
 
-const box = (left: number, right: number, top: number): StopRect => ({
+const rect = (left: number, right: number, top: number): StopRect => ({
   left,
   right,
   top,
   bottom: top + 20,
 });
+const box = (left: number, right: number, top: number): StopRects => [
+  rect(left, right, top),
+];
 
 // Line 0 holds stops 0 to 2, line 1 stops 3 and 4, line 2 stop 5.
-const rects: (StopRect | null)[] = [
+const rects: (StopRects | null)[] = [
   box(0, 40, 0),
   box(50, 90, 0),
   box(100, 200, 0),
@@ -244,6 +246,30 @@ describe("verticalStop", () => {
     expect(verticalStop(drift, 0, 1, 100)).toBe(4);
     expect(verticalStop(drift, 4, 1, 0)).toBeNull();
     expect(verticalStop([null], 0, 1, 0)).toBeNull();
+  });
+});
+
+describe("wrapped places", () => {
+  // Stop 1 wraps: its first line ends line 0 and its second begins line 1.
+  const wrapped: (StopRects | null)[] = [
+    box(0, 40, 0),
+    [rect(50, 200, 0), rect(0, 80, 26)],
+    box(100, 160, 26),
+    box(0, 60, 52),
+  ];
+
+  it("goes down from the last line of a wrapped place and up from its first", () => {
+    expect(verticalStop(wrapped, 1, 1, 10)).toBe(3);
+    expect(verticalStop(wrapped, 1, -1, 10)).toBeNull();
+    expect(verticalStop(wrapped, 3, -1, 20)).toBe(1);
+    expect(verticalStop(wrapped, 3, -1, 130)).toBe(2);
+  });
+
+  it("reaches a wrapped place on any of its lines", () => {
+    expect(verticalStop(wrapped, 0, 1, 20)).toBe(1);
+    expect(nearestStop(wrapped, 40, 30)).toBe(1);
+    expect(nearestStop(wrapped, 190, 5)).toBe(1);
+    expect(nearestStop(wrapped, 130, 30)).toBe(2);
   });
 });
 
@@ -340,13 +366,6 @@ describe("stepEdge", () => {
     expect(stepEdge(stops, words(1, 5), "end", -1)).toEqual(words(1, 4));
   });
 
-  it("goes to the first or last place", () => {
-    expect(stepEdge(stops, words(1, 5), "end", "first")).toEqual(words(1, 1));
-    expect(stepEdge(stops, words(1, 5), "start", "last")).toEqual(words(5, 5));
-    expect(stepEdge(stops, words(1, 5), "start", "first")).toEqual(words(0, 5));
-    expect(stepEdge(stops, words(1, 5), "end", "last")).toEqual(words(1, 8));
-  });
-
   it("does not shrink below one place or grow past the ends", () => {
     expect(stepEdge(stops, words(1, 1), "start", 1)).toBeNull();
     expect(stepEdge(stops, words(1, 1), "end", -1)).toBeNull();
@@ -358,29 +377,6 @@ describe("stepEdge", () => {
     expect(stepEdge(stops, null, "end", 1)).toBeNull();
     expect(stepEdge([], words(1, 5), "end", 1)).toBeNull();
     expect(stepEdge(stops, words(40, 41), "end", 1)).toBeNull();
-  });
-});
-
-describe("edgePosition and handleStep", () => {
-  it("counts an edge's place from one", () => {
-    expect(edgePosition(stops, words(1, 5), "start")).toBe(2);
-    expect(edgePosition(stops, words(1, 5), "end")).toBe(4);
-    expect(edgePosition(stops, words(3, 3), "start")).toBe(3);
-    expect(edgePosition(stops, null, "end")).toBe(0);
-  });
-
-  it("reads keys as a slider does", () => {
-    expect(
-      [
-        "ArrowRight",
-        "ArrowUp",
-        "ArrowLeft",
-        "ArrowDown",
-        "Home",
-        "End",
-        "a",
-      ].map(handleStep),
-    ).toEqual([1, 1, -1, -1, "first", "last", null]);
   });
 });
 

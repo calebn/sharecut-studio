@@ -1,7 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ScriptPane, type ScriptPaneProps } from "./ScriptPane";
+import {
+  ScriptPane,
+  type ScriptPaneHandle,
+  type ScriptPaneProps,
+} from "./ScriptPane";
 import {
   cutMark,
   patchWords,
@@ -267,10 +271,31 @@ describe("ScriptPane marks across turns", () => {
       <ScriptPane {...props({ turns, selection: { kind: "cut", id: "x" } })} />,
     );
     expect(
-      screen
-        .getAllByRole("button", { name: "Cut, 1.5 s removed" })
-        .map((b) => b.getAttribute("aria-pressed")),
+      [
+        "Cut, 1.5 s removed, continues in the next turn",
+        "Cut, continued from the previous turn",
+      ].map((name) => word(name).getAttribute("aria-pressed")),
     ).toEqual(["true", "true"]);
+  });
+
+  it("shows the measured length once when a cut crosses a turn boundary", () => {
+    const turns = patchWords(SCRIPT_TURNS, {
+      ...spanPatch(18, 21, { mark: cutMark("x", 1.5) }),
+    });
+    const { container } = render(<ScriptPane {...props({ turns })} />);
+    const pills = [...container.querySelectorAll(".sys-seam-hit")].map(
+      (el) => el.textContent,
+    );
+    expect(pills).toEqual(["1.5 s", "continued"]);
+    expect(screen.queryAllByText("1.5 s")).toHaveLength(1);
+  });
+
+  it("names a cut inside one turn plainly", () => {
+    const turns = patchWords(SCRIPT_TURNS, {
+      ...spanPatch(2, 3, { mark: cutMark("a", 0.7) }),
+    });
+    render(<ScriptPane {...props({ turns })} />);
+    expect(word("Cut, 0.7 s removed")).toBeVisible();
   });
 
   it("keeps a cut and a suggestion with the same id apart", () => {
@@ -321,73 +346,57 @@ describe("ScriptPane marks across turns", () => {
 });
 
 describe("ScriptPane selection handles", () => {
-  const handles = () => ({
-    start: screen.getByRole("slider", { name: "Selection start" }),
-    end: screen.getByRole("slider", { name: "Selection end" }),
+  const grips = (container: HTMLElement) => ({
+    start: container.querySelector<HTMLElement>(".sys-handle[data-edge=start]"),
+    end: container.querySelector<HTMLElement>(".sys-handle[data-edge=end]"),
   });
 
-  it("draws a grip at each end of a run of words, named for the word it sits on", () => {
+  it("draws a pointer-only grip at each end of a run of words", () => {
     layoutInGrid();
-    render(<ScriptPane {...props({ selection: words(12, 14) })} />);
-    const { start, end } = handles();
-    expect(
-      [start, end].map((h) => [
-        h.getAttribute("aria-valuenow"),
-        h.getAttribute("aria-valuemax"),
-        h.getAttribute("aria-valuetext"),
-        h.getAttribute("tabindex"),
-      ]),
-    ).toEqual([
-      ["13", "54", "before small", "-1"],
-      ["15", "54", "after can", "-1"],
-    ]);
+    const { container } = render(
+      <ScriptPane {...props({ selection: words(12, 14) })} />,
+    );
+    const { start, end } = grips(container);
+    for (const grip of [start, end]) {
+      expect(grip).toHaveAttribute("aria-hidden", "true");
+      expect(grip).not.toHaveAttribute("tabindex");
+    }
+    expect(screen.queryAllByRole("slider")).toEqual([]);
+    const tabbable = [
+      ...container.querySelectorAll<HTMLElement>(".sys-script-body *"),
+    ].filter((el) => el.tabIndex >= 0);
+    expect(tabbable.map((el) => el.textContent)).toEqual(["Welcome"]);
   });
 
   it("draws none for a cut, a guest without select, a read-only pane or when off", () => {
     layoutInGrid();
-    const { rerender } = render(
+    const { container, rerender } = render(
       <ScriptPane {...props({ selection: { kind: "cut", id: "x" } })} />,
     );
-    expect(screen.queryAllByRole("slider")).toEqual([]);
+    const count = () => container.querySelectorAll(".sys-handle").length;
+    expect(count()).toBe(0);
     rerender(
       <ScriptPane
         {...props({ onSelect: undefined, selection: words(12, 14) })}
       />,
     );
-    expect(screen.queryAllByRole("slider")).toEqual([]);
+    expect(count()).toBe(0);
     rerender(
       <ScriptPane {...props({ handles: false, selection: words(12, 14) })} />,
     );
-    expect(screen.queryAllByRole("slider")).toEqual([]);
+    expect(count()).toBe(0);
     rerender(<ScriptPane {...props({ selection: words(12, 14) })} />);
-    expect(screen.getAllByRole("slider")).toHaveLength(2);
-  });
-
-  it("moves an edge a word at a time with the arrows, and to the ends with Home and End", async () => {
-    layoutInGrid();
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    render(<ScriptPane {...props({ onSelect, selection: words(12, 14) })} />);
-    const { start, end } = handles();
-    start.focus();
-    await user.keyboard("{ArrowLeft}{ArrowRight}{Home}");
-    end.focus();
-    await user.keyboard("{ArrowRight}{ArrowLeft}{End}");
-    expect(onSelect.mock.calls).toEqual([
-      [words(11, 14)],
-      [words(13, 14)],
-      [words(0, 14)],
-      [words(12, 15)],
-      [words(12, 13)],
-      [words(12, 53)],
-    ]);
+    expect(count()).toBe(2);
   });
 
   it("reports the word under the caret while an edge is dragged", () => {
     layoutInGrid();
     const onSelect = vi.fn();
-    render(<ScriptPane {...props({ onSelect, selection: words(12, 14) })} />);
-    const { start, end } = handles();
+    const { container } = render(
+      <ScriptPane {...props({ onSelect, selection: words(12, 14) })} />,
+    );
+    const { start, end } = grips(container);
+    if (!start || !end) throw new Error("No grips");
     fireEvent.pointerDown(end, { pointerId: 1, clientX: 0, clientY: 0 });
     fireEvent.pointerMove(end, { pointerId: 1, clientX: 130, clientY: 112 });
     fireEvent.pointerMove(end, { pointerId: 2, clientX: 0, clientY: 0 });
@@ -396,6 +405,162 @@ describe("ScriptPane selection handles", () => {
     fireEvent.pointerDown(start, { pointerId: 3, clientX: 0, clientY: 0 });
     fireEvent.pointerMove(start, { pointerId: 3, clientX: 70, clientY: 30 });
     expect(onSelect.mock.calls).toEqual([[words(12, 22)], [words(6, 14)]]);
+  });
+
+  it("measures the places once while a grip is dragged, not once per move", () => {
+    layoutInGrid();
+    const { container } = render(
+      <ScriptPane {...props({ selection: words(12, 14) })} />,
+    );
+    const end = grips(container).end;
+    if (!end) throw new Error("No grip");
+    const reads = () =>
+      vi.mocked(HTMLElement.prototype.getClientRects).mock.calls.length;
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 100, clientY: 10 });
+    const first = reads();
+    for (const x of [110, 120, 130, 140, 150]) {
+      fireEvent.pointerMove(end, { pointerId: 1, clientX: x, clientY: 10 });
+    }
+    expect(reads()).toBe(first);
+  });
+
+  it("holds the announcement until a grip is let go, then says the selection once", () => {
+    layoutInGrid();
+    const { container, rerender } = render(
+      <ScriptPane {...props({ selection: words(12, 14) })} />,
+    );
+    const status = () => screen.getByRole("status");
+    expect(status()).toHaveTextContent("3 words selected: small room can");
+    const end = grips(container).end;
+    if (!end) throw new Error("No grip");
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 130, clientY: 112 });
+    rerender(<ScriptPane {...props({ selection: words(12, 16) })} />);
+    rerender(<ScriptPane {...props({ selection: words(12, 22) })} />);
+    expect(status()).toHaveTextContent("3 words selected: small room can");
+    fireEvent.pointerUp(end, { pointerId: 1 });
+    expect(status()).toHaveTextContent(/^11 words selected: /);
+  });
+});
+
+describe("ScriptPane live region", () => {
+  it("says the selection was cleared, and only after there was one", () => {
+    const { rerender } = render(<ScriptPane {...props()} />);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    rerender(<ScriptPane {...props({ selection: words(12, 14) })} />);
+    expect(screen.getByRole("status")).toHaveTextContent("3 words selected");
+    rerender(<ScriptPane {...props({ selection: null })} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Selection cleared");
+  });
+
+  it("speaks the Find bar's status in the same region and has no other", () => {
+    const { rerender, container } = render(
+      <ScriptPane {...props({ findStatus: "3 of 12" })} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("3 of 12");
+    rerender(<ScriptPane {...props({ findStatus: "No matches" })} />);
+    expect(screen.getByRole("status")).toHaveTextContent("No matches");
+    expect(
+      container.querySelectorAll("[role=status], [aria-live]"),
+    ).toHaveLength(1);
+  });
+});
+
+describe("ScriptPane keys the window keymap must not see", () => {
+  const reached = () => {
+    const seen = vi.fn();
+    window.addEventListener("keydown", seen);
+    return { seen, stop: () => window.removeEventListener("keydown", seen) };
+  };
+
+  it("stops the arrows, Home, End, Enter, Alt+Shift and Esc it handles", () => {
+    layoutInGrid();
+    const { seen, stop } = reached();
+    render(<ScriptPane {...props({ selection: words(12, 14) })} />);
+    const small = word("small (selected)");
+    for (const init of [
+      { key: "ArrowRight" },
+      { key: "ArrowLeft", shiftKey: true },
+      { key: "Home" },
+      { key: "End" },
+      { key: "Enter" },
+      { key: "ArrowRight", altKey: true, shiftKey: true },
+      { key: "Escape" },
+    ]) {
+      fireEvent.keyDown(small, init);
+    }
+    stop();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("stops the margin controls' keys too", () => {
+    const { seen, stop } = reached();
+    render(
+      <ScriptPane {...props({ onSpeaker: vi.fn(), onSeekTurn: vi.fn() })} />,
+    );
+    fireEvent.keyDown(
+      screen.getAllByRole("button", { name: "Maya Okafor, change speaker" })[0],
+      {
+        key: "ArrowDown",
+      },
+    );
+    stop();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("lets every other key and every Ctrl or Cmd chord through", () => {
+    const { seen, stop } = reached();
+    render(<ScriptPane {...props()} />);
+    const welcome = word("Welcome");
+    fireEvent.keyDown(welcome, { key: "m" });
+    fireEvent.keyDown(welcome, { key: "ArrowRight", ctrlKey: true });
+    fireEvent.keyDown(welcome, { key: "ArrowRight", metaKey: true });
+    fireEvent.keyDown(welcome, { key: "Escape" });
+    stop();
+    expect(seen).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("ScriptPane places are measured once per layout", () => {
+  it("does not measure every word again on each arrow press, only after the layout changes", async () => {
+    layoutInGrid();
+    const user = userEvent.setup();
+    const { rerender } = render(<ScriptPane {...props()} />);
+    const reads = () =>
+      vi.mocked(HTMLElement.prototype.getClientRects).mock.calls.length;
+    word("sound").focus();
+    await user.keyboard("{ArrowDown}");
+    const afterFirst = reads();
+    expect(afterFirst).toBeGreaterThanOrEqual(54);
+    await user.keyboard("{ArrowUp}{ArrowDown}{ArrowUp}");
+    expect(reads()).toBe(afterFirst);
+    const wider = patchWords(SCRIPT_TURNS, {
+      ...spanPatch(2, 3, { mark: cutMark("c1", 0.7) }),
+    });
+    rerender(<ScriptPane {...props({ turns: wider })} />);
+    word("sound").focus();
+    await user.keyboard("{ArrowDown}");
+    expect(reads()).toBeGreaterThan(afterFirst);
+  });
+});
+
+describe("ScriptPane handle", () => {
+  it("puts focus on the header's Find button for the Find bar to return to", () => {
+    const handle = { current: null as ScriptPaneHandle | null };
+    const { rerender } = render(
+      <ScriptPane {...props({ onFind: vi.fn() })} ref={handle} />,
+    );
+    let ok = false;
+    act(() => {
+      ok = handle.current?.focusFind() ?? false;
+    });
+    expect(ok).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Find in transcript" }),
+    ).toHaveFocus();
+    rerender(<ScriptPane {...props()} ref={handle} />);
+    expect(handle.current?.focusFind()).toBe(false);
   });
 });
 
@@ -446,5 +611,29 @@ describe("ScriptPane Fix text focus", () => {
     word("Elsewhere").focus();
     rerender(tree(false));
     expect(word("Elsewhere")).toHaveFocus();
+  });
+});
+
+describe("ScriptPane Fix text across turns", () => {
+  it("draws one field, in the first turn, for the whole span", () => {
+    const renderEditor = vi.fn((span: { start: number; end: number }) => (
+      <input
+        aria-label={`Fix text ${span.start}-${span.end}`}
+        defaultValue="x"
+      />
+    ));
+    render(
+      <ScriptPane
+        {...props({ editing: { start: 18, end: 22 }, renderEditor })}
+      />,
+    );
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByRole("textbox")).toHaveAccessibleName("Fix text 18-22");
+    expect(renderEditor).toHaveBeenCalledWith({ start: 18, end: 22 });
+    for (const covered of [18, 19, 20, 21, 22]) {
+      expect(document.querySelector(`[data-stop="${covered}"]`)).toBeNull();
+    }
+    expect(document.querySelector('[data-stop="17"]')).not.toBeNull();
+    expect(document.querySelector('[data-stop="23"]')).not.toBeNull();
   });
 });

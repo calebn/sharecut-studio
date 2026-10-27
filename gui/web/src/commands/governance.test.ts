@@ -50,6 +50,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "review/ReviewStage.tsx",
   // Mod+E exports from anywhere on the Deliver page, including a focused chip or field.
   "stages/deliver/DeliverStage.tsx",
+  // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.
+  "system/ScriptPane.select.test.tsx",
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
@@ -109,8 +111,11 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // A selection grip is a slider: arrows, Home and End move its edge one place on or back, or to the first or last place.
   "system/SelectionHandles.tsx",
   // The inline Fix text field commits on Enter and Tab and puts the words back on Escape.
+  // With apply on activate the person picker is a radiogroup of radio buttons: arrows, Home and End move the focus ring and pick nobody; click, Space and Enter pick.
+  "system/PersonPicker.tsx",
+  // The inline Fix text field commits on Enter and Tab and puts the words back on Escape; a rename inside the speaker popover is the same field with leaving turned to cancel.
   "stages/edit/FixTextField.tsx",
-  // The Find bar: Enter and the arrows step through hits, Shift+Enter cuts them all, and Escape closes the bar from any control in it.
+  // The Find bar: Enter and Down step to the next hit, Shift+Enter and Up to the previous one, Mod+Shift+Enter cuts them all, and Escape closes the bar from any control in it.
   "stages/edit/FindBar.tsx",
   "commands/governance.test.ts",
 ]);

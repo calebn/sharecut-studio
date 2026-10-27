@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   isolatedStoryParameters,
@@ -20,6 +20,7 @@ const meta: Meta<typeof SpeakerPopover> = {
     currentId: "anneke",
     onPick: fn(),
     onRename: fn(),
+    onAddSpeaker: fn(),
     onClose: fn(),
   },
   decorators: [
@@ -36,7 +37,7 @@ const meta: Meta<typeof SpeakerPopover> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The speaker popover (spec POP-SPEAKER), opened from a turn's name in the Script margin: the people of the episode in a Sheet, a check on the turn's speaker, rows 44 px tall. Picking another person moves the turn to that person's lane at once. Fix text on a row turns the name into an inline field: Enter renames the person everywhere, Esc puts the name back, and focus returns to that row's Fix text button. There is no Save button, and one undo step covers either change. On a phone the same list is the bottom sheet.\n\nThe host anchors the card to the margin name that the pane's `onSpeaker` reports and closes it after a pick; Esc and an outside press close it through the anchored-panel hook.\n\n**Motion.** None on the desktop card; the phone sheet slides with `--motion-panel`.",
+          "The speaker popover (spec POP-SPEAKER), opened from a turn's name in the Script margin: the people of the episode with a check on the turn's speaker, rows 44 px tall. Click, Space or Enter on a person moves the turn to that person's lane at once and closes the popover; the arrows only move the focus ring, so a keyboard user can reach every row. Fix text on a row turns the name into an inline field: Enter renames the person everywhere, Esc puts the name back, and leaving the field changes nothing. An empty name, or one another speaker has, stays in the field with the reason. Add speaker takes a new name the same way. There is no Save button, and one undo step covers each change. On a phone the same list is the bottom sheet.\n\nOn desktop it is an anchored Dialog beside the margin name that the pane's `onSpeaker` reports: focus goes to the current speaker on open, Esc and a press outside close it, it joins the overlay stack so the app keymap holds its keys, and focus returns to the margin name.\n\n**Motion.** None on the desktop card; the phone sheet slides with `--motion-panel`.",
       },
     },
   },
@@ -45,52 +46,139 @@ const meta: Meta<typeof SpeakerPopover> = {
 export default meta;
 type Story = StoryObj<typeof SpeakerPopover>;
 
-function Picking(args: React.ComponentProps<typeof SpeakerPopover>) {
+function Anchored(
+  args: Omit<React.ComponentProps<typeof SpeakerPopover>, "anchorRef" | "form">,
+) {
+  const anchor = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(true);
   const [currentId, setCurrentId] = useState(args.currentId);
   return (
-    <SpeakerPopover
-      {...args}
-      currentId={currentId}
-      onPick={(id) => {
-        setCurrentId(id);
-        args.onPick(id);
-      }}
-    />
+    <>
+      <button
+        ref={anchor}
+        type="button"
+        className="sys-script-speaker"
+        onClick={() => setOpen(true)}
+      >
+        Anneke de Vries
+      </button>
+      <SpeakerPopover
+        {...args}
+        form="anchored"
+        anchorRef={anchor}
+        open={open}
+        currentId={currentId}
+        onClose={() => {
+          args.onClose();
+          setOpen(false);
+        }}
+        onPick={(id) => {
+          setCurrentId(id);
+          return args.onPick(id);
+        }}
+      />
+    </>
   );
 }
 
+const settled = () => new Promise<void>((done) => setTimeout(done, 80));
+
 export const Open: Story = {
-  render: (args) => <Picking {...args} />,
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole("radio", { name: /^Anneke/ })).toBeChecked();
-    await userEvent.click(canvas.getByRole("radio", { name: /^Maya/ }));
+  render: (args) => <Anchored {...args} />,
+  play: async ({ args }) => {
+    const popover = within(document.body);
+    await waitFor(() =>
+      expect(popover.getByRole("radio", { name: /^Anneke/ })).toHaveFocus(),
+    );
+    await expect(popover.getByRole("radio", { name: /^Anneke/ })).toBeChecked();
+    await expect(popover.queryByRole("button", { name: /save/i })).toBeNull();
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    await expect(popover.getByRole("radio", { name: /^Maya/ })).toHaveFocus();
+    await expect(args.onPick).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Enter}");
     await expect(args.onPick).toHaveBeenCalledWith("maya");
-    await expect(canvas.getByRole("radio", { name: /^Maya/ })).toBeChecked();
-    await expect(canvas.queryByRole("button", { name: /save/i })).toBeNull();
+    await waitFor(() => expect(popover.queryByRole("dialog")).toBeNull());
+    await expect(
+      popover.getByRole("button", { name: "Anneke de Vries" }),
+    ).toHaveFocus();
+  },
+};
+
+export const EscCloses: Story = {
+  render: (args) => <Anchored {...args} />,
+  play: async ({ args }) => {
+    const popover = within(document.body);
+    await waitFor(() =>
+      expect(popover.getByRole("radio", { name: /^Anneke/ })).toHaveFocus(),
+    );
+    await userEvent.keyboard("{Escape}");
+    await expect(args.onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(popover.queryByRole("dialog")).toBeNull());
+    await expect(
+      popover.getByRole("button", { name: "Anneke de Vries" }),
+    ).toHaveFocus();
   },
 };
 
 export const Renaming: Story = {
-  args: { initialRenamingId: "joss" },
-  render: (args) => <Picking {...args} />,
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    const field = canvas.getByRole("textbox", { name: "Name for Joss" });
-    await expect(field).toHaveFocus();
+  render: (args) => <Anchored {...args} initialRenamingId="joss" />,
+  play: async ({ args }) => {
+    const popover = within(document.body);
+    const field = await popover.findByRole("textbox", {
+      name: "Name for Joss",
+    });
+    await waitFor(() => expect(field).toHaveFocus());
+    await settled();
     await userEvent.keyboard("Joss Hart{Escape}");
     await expect(args.onRename).not.toHaveBeenCalled();
+    await expect(args.onClose).not.toHaveBeenCalled();
     await expect(
-      canvas.getByRole("button", { name: "Fix text for Joss" }),
+      popover.getByRole("button", {
+        name: "Fix text, rename Joss everywhere",
+      }),
     ).toHaveFocus();
     await userEvent.keyboard("{Enter}");
-    await userEvent.keyboard("Joss Hart{Enter}");
+    await userEvent.keyboard("{Backspace}{Enter}");
+    await expect(await popover.findByRole("alert")).toHaveTextContent(
+      "Enter a speaker name.",
+    );
+    await userEvent.keyboard("Maya Okafor{Enter}");
+    await expect(popover.getByRole("alert")).toHaveTextContent(
+      "Another speaker already has that name.",
+    );
+    await userEvent.keyboard("{Control>}a{/Control}Joss Hart{Enter}");
     await expect(args.onRename).toHaveBeenCalledWith("joss", "Joss Hart");
-    await expect(canvas.queryByRole("textbox")).toBeNull();
+    await expect(popover.queryByRole("textbox")).toBeNull();
   },
 };
 
-function PhoneSheet(args: React.ComponentProps<typeof SpeakerPopover>) {
+export const AddSpeaker: Story = {
+  render: (args) => <Anchored {...args} />,
+  play: async ({ args }) => {
+    const popover = within(document.body);
+    await waitFor(() =>
+      expect(popover.getByRole("radio", { name: /^Anneke/ })).toHaveFocus(),
+    );
+    await settled();
+    await userEvent.click(popover.getByRole("button", { name: "Add speaker" }));
+    await expect(
+      popover.getByRole("textbox", { name: "Name of the new speaker" }),
+    ).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await expect(await popover.findByRole("alert")).toHaveTextContent(
+      "Enter a speaker name.",
+    );
+    await userEvent.keyboard("Priya Shah{Enter}");
+    await expect(args.onAddSpeaker).toHaveBeenCalledWith("Priya Shah");
+  },
+};
+
+function PhoneSheet(
+  args: Omit<
+    React.ComponentProps<typeof SpeakerPopover>,
+    "anchorRef" | "form" | "open"
+  >,
+) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -117,7 +205,9 @@ export const Phone: Story = {
     const inside = within(dialog);
     await expect(inside.getByRole("radio", { name: /^Anneke/ })).toBeChecked();
     await userEvent.click(
-      inside.getByRole("button", { name: "Fix text for Maya Okafor" }),
+      inside.getByRole("button", {
+        name: "Fix text, rename Maya Okafor everywhere",
+      }),
     );
     await waitFor(() =>
       expect(
