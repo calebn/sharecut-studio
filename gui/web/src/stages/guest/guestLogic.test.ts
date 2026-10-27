@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canComment, guestStages, wordAtSeconds } from "./guestLogic";
+import { canComment, guestStages, roleHint, wordAtSeconds } from "./guestLogic";
 
 describe("guestStages and canComment", () => {
   it.each([
@@ -27,5 +27,16 @@ describe("wordAtSeconds", () => {
   });
   it("finds nothing in no words", () => {
     expect(wordAtSeconds([], 5)).toBeUndefined();
+  });
+});
+
+describe("roleHint", () => {
+  it.each([
+    ["viewer", "listen"],
+    ["commenter", "comment and suggest cuts"],
+    ["editor", "edit"],
+  ] as const)("%s", (role, phrase) => {
+    expect(roleHint(role)).toContain(phrase);
+    expect(roleHint(role)).toContain("The host decides");
   });
 });

@@ -28,3 +28,11 @@ export function wordAtSeconds(
   }
   return found;
 }
+
+const ROLE_HINT: Record<GuestRole, string> = {
+  viewer: "You can listen along. The host decides.",
+  commenter: "You can comment and suggest cuts. The host decides.",
+  editor: "You can edit and comment. The host decides what ships.",
+};
+
+export const roleHint = (role: GuestRole) => ROLE_HINT[role];

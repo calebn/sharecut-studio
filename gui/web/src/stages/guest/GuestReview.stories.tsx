@@ -5,6 +5,7 @@ import {
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
 import { playInCanvas } from "../../storybook/storyPlay";
+import { type QueuedComment, saveOf } from "./commentQueue";
 import { GuestReview } from "./GuestReview";
 import {
   DURATION,
@@ -162,4 +163,49 @@ export const BadLinkPhone: Story = {
   args: { state: "bad-link", layout: "phone" },
   parameters: isolatedStoryParameters,
   globals: phone,
+};
+
+const waiting = (status: QueuedComment["status"], count: number) =>
+  Array.from({ length: count }, (_, i) => ({
+    id: String(i),
+    body: "Cut this",
+    at: 735,
+    name: "Guest",
+    status,
+  }));
+
+export const FirstVisitRoleHint: Story = {
+  args: { firstVisit: true, onRoleHintSeen: fn() },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await expect(view.getByRole("note")).toHaveTextContent(
+      "You can comment and suggest cuts. The host decides.",
+    );
+    await userEvent.click(view.getByRole("button", { name: "Dismiss hint" }));
+    await expect(view.queryByRole("note")).toBeNull();
+    await expect(args.onRoleHintSeen).toHaveBeenCalledOnce();
+  }),
+};
+
+export const FirstVisitRoleHintPhone: Story = {
+  args: { firstVisit: true, layout: "phone" },
+  parameters: isolatedStoryParameters,
+  globals: phone,
+};
+
+export const Offline: Story = {
+  args: { save: saveOf([], false) },
+};
+
+export const OfflineQueued: Story = {
+  args: { save: saveOf(waiting("queued", 2), false) },
+  play: playInCanvas(async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(/2 waiting/),
+    ).toBeInTheDocument();
+  }),
+};
+
+export const Reconnected: Story = {
+  args: { save: { ...saveOf(waiting("sent", 2), true), justSaved: true } },
 };

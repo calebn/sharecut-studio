@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { GuestReview, type GuestReviewProps } from "./GuestReview";
 import { DURATION, PEAKS, SCRIPT_TURNS, WORD_STARTS } from "./guestFixture";
 
@@ -52,5 +52,21 @@ describe("GuestReview", () => {
       screen.getByRole("heading", { name: "This link doesn't open anything" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("Role hint", () => {
+  it("shows once on a first visit and tells the app when dismissed", async () => {
+    const seen = vi.fn();
+    setup({ firstVisit: true, onRoleHintSeen: seen });
+    expect(screen.getByRole("note")).toHaveTextContent("The host decides");
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(seen).toHaveBeenCalledOnce();
+  });
+
+  it("stays quiet on a later visit", () => {
+    setup();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 });

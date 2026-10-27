@@ -15,6 +15,7 @@ import {
   canComment,
   type GuestRole,
   guestStages,
+  roleHint,
   wordAtSeconds,
 } from "./guestLogic";
 
@@ -46,6 +47,9 @@ export type GuestReviewProps = {
   state?: "ready" | "loading" | "error" | "bad-link";
   /** What an Editor's Edit tab shows until the Edit stage is wired. */
   edit?: ReactNode;
+  /** First visit on this link: the Role chip explains itself once. The app stores that it was seen. */
+  firstVisit?: boolean;
+  onRoleHintSeen?: () => void;
   /** The Review lane's Composer drops in here; a viewer never gets it. */
   composer?: ReactNode;
   onComment?: () => void;
@@ -68,6 +72,8 @@ export function GuestReview({
   layout = "desktop",
   state = "ready",
   edit,
+  firstVisit = false,
+  onRoleHintSeen,
   composer,
   onComment,
   onRetry,
@@ -76,6 +82,7 @@ export function GuestReview({
   const [playing, setPlaying] = useState(initialPlaying);
   const [following, setFollowing] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [hintShown, setHintShown] = useState(firstVisit);
   const [tab, setTab] = useState<StageId>("review");
   const phone = layout === "phone";
   const stages = guestStages(role);
@@ -105,7 +112,19 @@ export function GuestReview({
       title={title}
       save={save}
       people={people}
-      guest={{ version, role: ROLE_LABEL[role] }}
+      guest={{
+        version,
+        role: ROLE_LABEL[role],
+        compact: phone,
+        hint: {
+          text: roleHint(role),
+          shown: hintShown,
+          onDismiss: () => {
+            setHintShown(false);
+            onRoleHintSeen?.();
+          },
+        },
+      }}
       stages={phone ? undefined : tabs}
       loading={state === "loading"}
     />
