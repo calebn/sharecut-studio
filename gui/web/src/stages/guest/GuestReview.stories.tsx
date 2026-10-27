@@ -89,6 +89,11 @@ export const Viewer: Story = {
 };
 
 export const Editor: Story = {
+  tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason:
+      "The Edit and Review tabs sit in the desktop header; the phone form puts them in the tab bar (EditorPhone).",
+  },
   args: { access: "editor" },
   play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
@@ -146,18 +151,6 @@ function phoneStory(role: "viewer" | "commenter" | "editor"): Story {
 export const ViewerPhone: Story = phoneStory("viewer");
 export const CommenterPhone: Story = phoneStory("commenter");
 export const EditorPhone: Story = phoneStory("editor");
-
-export const CommenterPhone390: Story = {
-  args: { layout: "phone" },
-  parameters: isolatedStoryParameters,
-  decorators: [
-    (Story) => (
-      <div style={{ inlineSize: "390px", blockSize: "100dvh" }}>
-        <Story />
-      </div>
-    ),
-  ],
-};
 
 export const BadLinkPhone: Story = {
   args: { state: "bad-link", layout: "phone" },

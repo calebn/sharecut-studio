@@ -52,3 +52,17 @@
   padding-block-end: env(safe-area-inset-bottom);
   background: var(--color-bg-canvas);
 }
+
+/* The Role chip sits mid-header, so its hint anchors to the header's edge instead of the chip's. */
+.gr-stage .sys-app-header-host {
+  position: relative;
+}
+
+.gr-stage .sys-header-sub .sys-coach {
+  position: static;
+}
+
+.gr-stage .sys-header-sub .sys-coach-tip {
+  inset-inline-start: var(--space-3);
+  max-inline-size: calc(100% - var(--space-5));
+}
