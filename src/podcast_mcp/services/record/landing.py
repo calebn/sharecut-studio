@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 import wave
@@ -238,6 +239,12 @@ class TakeAlreadyPlacedError(RecordLandingError):
     """Discard of a take an accepted session already placed (``code`` ``take_already_placed``)."""
 
     code = "take_already_placed"
+
+
+class TakeNotLastError(RecordLandingError):
+    """Discard of a take that is not the last of a session that starts the episode."""
+
+    code = "take_not_last"
 
 
 class RecordTakeOpenError(RecordLandingError):
@@ -1106,6 +1113,7 @@ class RecordLandingService:
                     f"Take {take} is already on the timeline as part of Session "
                     f"{placed.session_number}. Undo the accept to discard it."
                 )
+            self._require_last_take(project, take)
             extent_before = own_extent_s(project.clips, self.session_id)
             drop_ids = {src.id for src in project.sources if src.id.startswith(prefix)}
             drop_tracks = {clip.track_id for clip in project.clips if clip.source_id in drop_ids}
@@ -1120,8 +1128,7 @@ class RecordLandingService:
                 if str(comment_id).startswith(LIVE_COMMENT_ID_PREFIX):
                     delete_comment(project, comment_id)
             refresh_timeline_duration(project)
-            if self._close_start_tail(project, extent_before):
-                rebuild_combined(project, defaults=self.workspace.effective_config())
+            self._close_start_tail(project, extent_before)
 
         self.workspace.mutate(
             f"before discard take {take}",
@@ -1156,13 +1163,36 @@ class RecordLandingService:
         """After dropping clips of a session that starts the episode, take back the time they filled."""
         if not is_start_session(project, self.session_id):
             return False
-        return close_start_tail(
+        defaults = self.workspace.effective_config()
+        closed = close_start_tail(
             project,
             self.session_id,
             extent_before,
-            defaults=self.workspace.effective_config(),
+            defaults=defaults,
             keep_comment_ids=self._own_comment_ids(self._snapshot()),
         )
+        if closed:
+            rebuild_combined(project, defaults=defaults)
+        return closed
+
+    def _require_last_take(self, project: EpisodeProject, take: int) -> None:
+        """A session that starts the episode gives time back only from its end, so only its last take can go."""
+        if not is_start_session(project, self.session_id):
+            return
+        prefix = record_source_prefix(self.session_id)
+        later = {
+            int(found.group(1))
+            for clip in project.clips
+            if (clip.source_id or "").startswith(prefix)
+            and (found := re.match(r"(\d+)-", (clip.source_id or "")[len(prefix) :]))
+            and int(found.group(1)) > take
+        }
+        if later:
+            raise TakeNotLastError(
+                f"Take {take} is not the last take of this session, which starts the episode, so "
+                f"discarding it would leave a hole before take {min(later)}. Discard the later "
+                "takes first, or undo back to before them."
+            )
 
     def _usable_copy(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
         """Whether a copied keeper may be registered now; a copy that cannot is marked failed or logged."""

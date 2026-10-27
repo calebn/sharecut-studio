@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import math
 import wave
@@ -35,6 +36,7 @@ from podcast_mcp.services.document import HistoryService, SessionSuggestionServi
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.services.record.landing_start import own_extent_s
 from podcast_mcp.services.record.upload import RecordUploadService, sha256_hex
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.wav import pcm_wav_header
 from test_record_replace_accept import _stage_replace
 from test_record_staging import _cmd, _join, _room_tone_bed, _seed, _suggestion
@@ -540,3 +542,117 @@ def test_a_comment_at_the_end_of_the_session_stays_with_its_take(
     assert {c.id: c.timeline_start for c in ws.project.comments}["early"] == pytest.approx(
         1.0 + 5.0 + 1.5
     )
+
+
+def test_only_the_last_take_of_a_start_session_can_be_discarded(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.record.landing import TakeNotLastError
+
+    ws = _seed(minimal_project, sample_wav)
+    _episode(ws)
+    room, svc, guest2 = _start_room(ws)
+    _take(ws, room, svc, guest2, 0, 2.5, 880.0)
+    _land(ws)
+    _take(ws, room, svc, guest2, 1, 1.5, 660.0)
+    _land(ws)
+    before = _dump(ws)
+    with pytest.raises(TakeNotLastError, match="not the last take") as refused:
+        RecordLandingService(ws).delete_take(0)
+    assert refused.value.code == "take_not_last"
+    assert _dump(ws) == before
+
+    RecordLandingService(ws).delete_take(1)
+    _take(ws, room, svc, guest2, 2, 1.0, 330.0)
+    _land(ws)
+    own = sorted(
+        (c.timeline_start, c.timeline_end)
+        for c in ws.project.clips
+        if (c.source_id or "").startswith(f"rec-{room['session_id']}-")
+    )
+    assert own[0][0] == 0.0
+    assert all(a[1] <= b[0] + 1e-6 for a, b in itertools.pairwise(own))
+
+
+def test_a_start_session_moves_review_state_in_a_project_without_clips(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+
+    def decorate(project) -> None:
+        add_comment(project, body="c", author="rev", timeline_start=1.0, comment_id="c")
+        project.editorial.chapters = [ChapterMarker(time=2.0, title="two")]
+        project.automation_envelopes.append(
+            AutomationEnvelope(track_id="x", points=[AutomationPoint(id="a", time=1.0, value=1.0)])
+        )
+
+    ws.mutate("decorate", "decorated", decorate)
+    room, svc, guest = _start_room(ws)
+    _take(ws, room, svc, guest, 0, 2.5, 880.0)
+    _land(ws)
+    state = _review_state(ws)
+    assert state["comments"]["c"] == (3.5, None)
+    assert state["chapters"] == [4.5]
+
+
+def test_the_stale_rollback_rebuilds_the_combined_transcript(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _episode(ws)
+    room, svc, guest2 = _start_room(ws)
+    _take(ws, room, svc, guest2, 0, 2.5, 880.0)
+    calls = {"n": 0}
+
+    def generation_current(_self, _item) -> bool:
+        calls["n"] += 1
+        return calls["n"] <= 2
+
+    with (
+        patch.object(RecordLandingService, "_ack_generation_current", generation_current),
+        patch.object(RecordLandingService, "_mark_registered_landing", lambda *_a, **_k: False),
+        patch("podcast_mcp.services.record.landing.rebuild_combined") as rebuilt,
+    ):
+        _land(ws)
+    assert rebuilt.call_count >= 2
+
+
+def test_opening_time_inside_a_pending_replace_range_is_refused(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _, guest1 = _episode(ws)
+    _stage_replace(
+        ws, 2.5, 3.5, {0: [(guest1, 0.0, 1.0)]}, track_ids=[guest1], session_id="b" * 12, number=3
+    )
+    before = _dump(ws)
+
+    def open_inside(project) -> None:
+        open_session_gap(
+            project, 3.0, 1.0, [t.id for t in project.tracks], defaults=load_defaults()
+        )
+
+    with pytest.raises(CodedValueError, match="waiting to replace") as refused:
+        ws.mutate("open", "opened", open_inside)
+    assert refused.value.code == "pending_replace_in_the_way"
+    assert _dump(ws) == before
+
+
+def test_accepting_a_pending_insert_after_a_start_lands_is_one_step(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _episode(ws)
+    insert_room = ShareService(ws).create_record_room(target={"kind": "insert", "at_sec": 1.0})
+    isvc, iguest = _join(ws, insert_room)
+    _take(ws, insert_room, isvc, iguest, 0, 1.0, 550.0)
+    _land(ws)
+    insert_id = _suggestion(ws, insert_room["session_id"]).id
+    room, svc, guest2 = _start_room(ws)
+    _take(ws, room, svc, guest2, 0, 2.5, 880.0)
+    _land(ws)
+    result = SessionSuggestionService(ws).accept(insert_id)
+    assert result["at_sec"] == pytest.approx(3.5)
+    [placed] = [c for c in ws.project.clips if c.track_id == iguest]
+    assert placed.timeline_start == pytest.approx(3.5)
+    assert HistoryService(ws).list_entries().groups[-1].title.startswith("Added Session")
