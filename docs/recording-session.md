@@ -139,7 +139,7 @@ stays allowed ("start anyway"). The host snapshot (`podcast record state`,
 `record_state_tool`, `GET /api/record/state`) carries `unlanded_take`,
 `unlanded_takes`, `unlanded_saving`, `unlanded_stalled` and `land_first_possible`:
 the number of stopped, not-discarded takes of the current room with a recording not
-yet on the episode; how many of those have a guest upload still saving; how many guest
+yet on the episode; how many of those have an upload still saving; how many
 recordings never finished uploading (stalled); and whether a land could save
 something now. A take recorded after the room's staged session was accepted or skipped
 counts too (landing refuses it, so it cannot be saved into that room); 0 means
@@ -156,20 +156,29 @@ finished recordings first, then mints; the result adds `landed_first` (the land 
 A bad `target` or `expires_at` is refused before anything lands (a `replace` target is
 checked against the episode after the land, which can change its length).
 
-"Saving" is bounded. A guest who consented to the take but has uploaded nothing counts as
-saving for `UPLOAD_GRACE_MS` (10 minutes) after Stop, and a partial upload counts while its
-last chunk is newer than that. After that, or at once for a guest the host removed, it is
-stalled: reported ("N guest recordings never finished uploading and cannot be saved") but
-it no longer blocks. Land-first then lands what finished (host and finished guests), mints,
-and reports the stalled part as `left_behind` and `left_behind_message`; it is never silent.
-A guest who consented and never recorded (left, lost the mic) reads as stalled the same
-way. The host's own recording is not expected, because a host whose mic was denied never
-uploads. `land_first_possible` is true only when a land can save a finished recording
-and nothing is still saving; it is false when there is nothing to save (the mint just
-goes ahead) and when only stalled audio is left.
+"Saving" is bounded. A guest who consented to the take owes one upload per recorded
+segment: one, plus one per Resume (the Resume that a Stop-while-paused writes records
+nothing and is not counted). A segment with no upload yet counts as saving for
+`UPLOAD_GRACE_MS` (10 minutes) after Stop; an upload that has started but not finished
+counts while its newest chunk is newer than that, and this partial-upload rule applies to
+the host's recording too. After the window it is stalled: reported ("N recordings never
+finished uploading and cannot be saved") but it no longer blocks. A partial upload of a
+guest the host removed is stalled at once; a removed guest with no upload row at all is not
+known and is not reported. A guest who consented and never recorded (left, lost the mic)
+reads as saving for the window and as stalled after it. Timestamps more than a minute in
+the future are not trusted (that upload falls back to the Stop time, or reads as stalled),
+so a skewed clock cannot keep a take "saving". The host is never expected to upload when
+nothing has started, because a host whose mic was denied never uploads.
+
+Land-first lands what finished (host and finished guests) and mints. Every mint that leaves
+stalled audio behind, with or without land-first, sets `left_behind` (a count of recordings)
+and `left_behind_message`; it is never silent. `land_first_possible` is a prediction: true
+when a land can save a finished recording and nothing is still saving, so it is also true
+for a skipped keeper whose land then refuses ("could not be saved"). It is false when there
+is nothing to save (the mint just goes ahead) and when only stalled audio is left.
 
 Land-first refuses, mints nothing and keeps the old links when uploads are still saving
-("try again in a moment, or start anyway"), when the room's session was already decided,
+(uploads can take up to 10 minutes after Stop: wait for them to finish, or start anyway), when the room's session was already decided,
 or when the land still leaves a finished recording unsaved (a skipped keeper). On the
 route that is a 400 carrying the land's own code (`record_land_refused`, or e.g.
 `session_suggestion_closed`, `insert_anchor_taken`). A land that ran stays saved;

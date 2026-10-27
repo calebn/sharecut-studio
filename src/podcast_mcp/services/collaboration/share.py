@@ -478,8 +478,9 @@ class ShareService:
         (``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``unlanded_stalled``,
         ``land_first_possible``, ``warning``); the mint still goes ahead. These describe what the
         mint left behind (recomputed after a land-first). ``land_first`` lands the finished
-        recordings first and adds ``landed_first``; guest audio that never finished uploading
-        cannot be landed and is reported as ``left_behind`` / ``left_behind_message``. It refuses
+        recordings first and adds ``landed_first``. Every mint that leaves audio that never finished
+        uploading behind (it cannot be landed) sets ``left_behind`` (a count) and
+        ``left_behind_message``. It refuses
         (nothing minted, old links kept) while uploads are still saving, when the room's session was
         already decided, or when the land leaves a finished recording unsaved. A land that already
         ran stays saved.
