@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from podcast_mcp.edits.audio_check_override import audio_check_override
@@ -31,8 +32,19 @@ REPLACE_REFINE_HINT = (
     "The transcript clean-up needs to finish first, so the words this replace removes are "
     "the right ones. Finish it with `podcast transcript refine-done` / "
     "`transcript_refine_done_tool`, or skip it with `podcast transcript refine-waive "
-    "--reason ...` / `transcript_refine_waive_tool`, then accept again."
+    "--reason ...` / `transcript_refine_waive_tool`, then try again."
 )
+
+
+MAX_PREVIEW_PAD_SEC = 10.0
+MAX_PREVIEW_GAP_SEC = 5.0
+
+
+def _require_seconds(name: str, code: str, value: float, ceiling: float) -> None:
+    if not (math.isfinite(value) and 0.0 <= value <= ceiling):
+        raise CodedValueError(
+            f"{name} must be a number of seconds from 0 to {ceiling:g} (got {value}).", code=code
+        )
 
 
 class SessionSuggestionService:
@@ -176,9 +188,11 @@ class SessionSuggestionService:
     ) -> dict[str, Any] | None:
         from podcast_mcp.services.document.play import PlayService
 
+        _require_seconds("pad_sec", "pad_sec_invalid", pad_sec, MAX_PREVIEW_PAD_SEC)
+        _require_seconds("gap_sec", "gap_sec_invalid", gap_sec, MAX_PREVIEW_GAP_SEC)
         row = find_session_suggestion(self.ws.project, suggestion_id)
         self._require_refine_clear(row)
-        chosen = chosen_take_for_preview(row, take_index)
+        chosen = chosen_take_for_preview(self.ws.project, row, take_index)
         return PlayService(self.ws).hear_session_suggestion(
             row,
             chosen,
@@ -204,6 +218,7 @@ class SessionSuggestionService:
         """
         from podcast_mcp.services.document.play import PlayService
 
+        find_session_suggestion(self.ws.project, suggestion_id)
         warmed = PlayService(self.ws).warm_pending_preview(None, lock_timeout=lock_timeout)
         sides: dict[str, str] = {}
         for mode in ("current", "suggested"):

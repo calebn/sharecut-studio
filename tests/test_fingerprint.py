@@ -29,6 +29,7 @@ STAMPED = {
     "podcast_mcp/services/document/boundary.py",
     "podcast_mcp/services/document/golden_ear.py",
     "podcast_mcp/services/document/play_cache.py",
+    "podcast_mcp/services/document/play_session.py",
     "podcast_mcp/services/document/play_support.py",
     "podcast_mcp/services/document_sync/service.py",
     "podcast_mcp/services/document_sync/snapshot_cache.py",

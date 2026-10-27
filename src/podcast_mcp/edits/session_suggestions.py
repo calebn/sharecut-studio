@@ -225,7 +225,7 @@ def _require_dialogue_tracks(
         if track is not None and track.role != TrackRole.DIALOGUE:
             raise CodedValueError(
                 f"track {track_id} is a {track.role.value} track, so Session {row.session_number} "
-                "cannot be placed on it. Rename or remove that track, then accept again.",
+                "cannot be placed on it. Rename or remove that track, then try again.",
                 code="track_not_dialogue",
             )
 
@@ -418,28 +418,10 @@ def _chosen_take(row: SessionSuggestion, take_index: int | None) -> int:
     return available[-1]
 
 
-@dataclass(frozen=True)
-class _ReplacePlan:
-    """What accepting a replace would do, before anything changes."""
-
-    take_index: int
-    takes: list[StagedTake]
-    length: float
-    from_sec: float
-    to_sec: float
-    ripple_ids: list[str]
-    removal: RippleRemoval
-    speech: CutSpeech | None
-
-
-def _replace_plan(
-    project: EpisodeProject,
-    row: SessionSuggestion,
-    take_index: int | None,
-    *,
-    defaults: EffectiveConfig,
-) -> _ReplacePlan:
-    """Choose the take, find the range and plan the removal, or give Accept's refusal."""
+def _check_take(
+    project: EpisodeProject, row: SessionSuggestion, take_index: int | None
+) -> tuple[int, list[StagedTake], float, list[str]]:
+    """The chosen take, its segments, its length and the tracks it recorded, or Accept's refusal."""
     chosen = _chosen_take(row, take_index)
     takes = [take for take in row.takes if take.take_index == chosen]
     length = staged_span_s((take.offset_s, take.duration_s) for take in takes)
@@ -466,13 +448,39 @@ def _replace_plan(
                 "Record the session again.",
                 code="staged_source_missing",
             )
+    return chosen, takes, length, recorded
+
+
+@dataclass(frozen=True)
+class _ReplacePlan:
+    """What accepting a replace would do, before anything changes."""
+
+    take_index: int
+    takes: list[StagedTake]
+    length: float
+    from_sec: float
+    to_sec: float
+    ripple_ids: list[str]
+    removal: RippleRemoval
+    speech: CutSpeech | None
+
+
+def _replace_plan(
+    project: EpisodeProject,
+    row: SessionSuggestion,
+    take_index: int | None,
+    *,
+    defaults: EffectiveConfig,
+) -> _ReplacePlan:
+    """Choose the take, find the range and plan the removal, or give Accept's refusal."""
+    chosen, takes, length, recorded = _check_take(project, row, take_index)
     from_sec, to_sec = resolve_range(project, row)
     ripple_ids = ripple_track_ids(project)
     held = pending_decisions_in_range(project, from_sec, to_sec, set(ripple_ids))
     if held:
         raise CodedValueError(
             f"{len(held)} pending edit{'s sit' if len(held) != 1 else ' sits'} inside the range "
-            "this session replaces. Approve or reject them first, then accept again.",
+            "this session replaces. Approve or reject them first, then try again.",
             code="pending_edits_in_range",
         )
     removal = plan_ripple_delete(
@@ -625,10 +633,16 @@ def apply_session_suggestion_for_preview(
     )
 
 
-def chosen_take_for_preview(row: SessionSuggestion, take_index: int | None) -> int | None:
-    """The take a preview of ``row`` plays (None for an insert), or Accept's refusal."""
+def chosen_take_for_preview(
+    project: EpisodeProject, row: SessionSuggestion, take_index: int | None
+) -> int | None:
+    """The take a preview of ``row`` plays (None for an insert), or Accept's refusal.
+
+    Every refusal that depends on the take is given here, ahead of any cache lookup, so a
+    take Accept would refuse is refused whether or not its window was rendered before.
+    """
     _require_pending(row)
     if row.kind == "replace":
-        return _chosen_take(row, take_index)
+        return _check_take(project, row, take_index)[0]
     _require_no_take(row, take_index)
     return None
