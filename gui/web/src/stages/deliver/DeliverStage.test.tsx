@@ -1847,3 +1847,156 @@ describe("loading skeletons and the toast dock", () => {
     );
   });
 });
+
+describe("what the last audit found unguarded", () => {
+  it("keeps a space typed in a chapter title, even a trailing one", async () => {
+    setup();
+    const input = screen.getByRole("textbox", {
+      name: "Title of The old mill",
+    });
+    await userEvent.clear(input);
+    await userEvent.type(input, "Down by the mill ");
+    expect(input).toHaveValue("Down by the mill ");
+  });
+
+  describe("Readiness fixes with a suggestion row first", () => {
+    const open = {
+      ...CLEAR_FACTS,
+      suggestions: { decided: 10, total: 14 },
+      mixUpToDate: false,
+      truePeak: -0.5,
+    };
+
+    it("opens the stage each row names", async () => {
+      const { all } = setup({ facts: open });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Refresh mix" }),
+      );
+      expect(all.onFix).toHaveBeenLastCalledWith("edit", "mix");
+      await userEvent.click(screen.getByRole("button", { name: "Fix" }));
+      expect(all.onFix).toHaveBeenLastCalledWith("edit", "peaks");
+      await userEvent.click(screen.getByRole("button", { name: "Review" }));
+      expect(all.onFix).toHaveBeenLastCalledWith("review", "suggestions");
+    });
+
+    it("counts the open suggestion in the summary", () => {
+      setup({ facts: open });
+      expect(
+        screen.getByText("3 things left. You can still export."),
+      ).toBeInTheDocument();
+    });
+
+    it("says one thing left when only a suggestion is open", () => {
+      setup({
+        facts: { ...CLEAR_FACTS, suggestions: { decided: 13, total: 14 } },
+      });
+      expect(
+        screen.getByText("1 thing left. You can still export."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not call one unsure word done, and still offers Check", async () => {
+    const { all } = setup({ facts: { ...CLEAR_FACTS, unsureWordsLeft: 1 } });
+    expect(
+      screen.getByText("1 thing left. You can still export."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(all.onFix).toHaveBeenCalledWith("review", "unsure-words");
+  });
+
+  it("shows which formats are on, WAV and FLAC included", async () => {
+    setup();
+    const on = (name: RegExp) =>
+      screen.getByRole("button", { name }).getAttribute("aria-pressed");
+    expect([on(/^MP3/), on(/^WAV/), on(/^FLAC/)]).toEqual([
+      "true",
+      "true",
+      "false",
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^MP3/ }));
+    expect([on(/^MP3/), on(/^WAV/), on(/^FLAC/)]).toEqual([
+      "false",
+      "true",
+      "true",
+    ]);
+  });
+
+  it("keeps Out above In when Out is typed below it", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    const start = screen.getByRole("textbox", { name: "In" });
+    await userEvent.clear(start);
+    await userEvent.type(start, "10:00{Enter}");
+    const out = screen.getByRole("textbox", { name: "Out" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "5:00{Enter}");
+    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("10:00.0");
+    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("10:01.0");
+  });
+
+  it("holds a clip's Out at the episode end even when its In sits at the end", async () => {
+    setup({
+      initialClips: [
+        {
+          id: "z",
+          title: "Last gasp",
+          start: TOTAL - 0.2,
+          end: TOTAL,
+          score: 0.5,
+          approved: false,
+        },
+      ],
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Last gasp" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    const out = screen.getByRole("textbox", { name: "Out of Last gasp" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "0:10{Enter}");
+    expect(out).toHaveValue("52:00.0");
+  });
+
+  it("fires Refresh mix, not Try again, when both handlers exist", async () => {
+    const onRetry = vi.fn();
+    const { all } = setup({ link: { url: null, noMix: true }, onRetry });
+    await userEvent.click(screen.getByRole("button", { name: "Refresh mix" }));
+    expect(all.onRefreshMix).toHaveBeenCalledOnce();
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it.each(["desktop", "phone"] as const)(
+    "exports the Deliver In and Out, not the Edit selection, from the %s button",
+    async (layout) => {
+      const { all } = setup({ layout, selection: { start: 40, end: 90 } });
+      await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+      await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
+      expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toEqual({
+        start: 0,
+        end: 60,
+      });
+    },
+  );
+
+  it("leaves focus where the user moved it when the remembered control goes away", () => {
+    const { container } = setup();
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    try {
+      const remove = screen.getByRole("button", {
+        name: "Remove The old mill",
+      });
+      remove.focus();
+      outside.focus();
+      fireEvent.click(remove);
+      expect(container.contains(remove)).toBe(false);
+      expect(document.activeElement).toBe(outside);
+    } finally {
+      outside.remove();
+    }
+  });
+});
