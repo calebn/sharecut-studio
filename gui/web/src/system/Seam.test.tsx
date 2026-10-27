@@ -21,6 +21,16 @@ describe("Seam as a diamond", () => {
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
+  it("hands a key press on its button to the host", async () => {
+    const user = userEvent.setup();
+    const onKeyDown = vi.fn();
+    render(<Seam {...cut} onKeyDown={onKeyDown} />);
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+    expect(onKeyDown).toHaveBeenCalledOnce();
+    expect(onKeyDown.mock.calls[0][0].key).toBe("ArrowRight");
+  });
+
   it("tells a cut from a split and a selected seam from the rest", () => {
     const { container, rerender } = render(<Seam {...cut} />);
     const seam = () => container.querySelector(".sys-seam");

@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { type KeyboardEvent, useId } from "react";
 import { HoverTip } from "./HoverTip";
 import { SystemIcon } from "./SystemIcon";
 import { useHoverTip } from "./useHoverTip";
@@ -25,10 +25,12 @@ type SeamFormProps =
 export type SeamProps = SeamFormProps & {
   selected?: boolean;
   onSelect: () => void;
+  /** For a host that moves focus among its marks, as the Script pane does among its words. */
+  onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
 };
 
 export function Seam(props: SeamProps) {
-  const { selected = false, onSelect } = props;
+  const { selected = false, onSelect, onKeyDown } = props;
   const { open, id, anchor, setAnchor, handlers } =
     useHoverTip<HTMLButtonElement>();
   const wordsId = useId();
@@ -55,6 +57,7 @@ export function Seam(props: SeamProps) {
         aria-pressed={selected}
         aria-describedby={words ? wordsId : undefined}
         onClick={onSelect}
+        onKeyDown={onKeyDown}
       >
         {diamond ? (
           <span className="sys-seam-diamond" aria-hidden="true" />

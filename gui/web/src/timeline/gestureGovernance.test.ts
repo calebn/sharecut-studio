@@ -277,6 +277,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "a focused suggestion handle moves its edge with the arrows, 0.05 s and 0.5 s with Shift, like a slider",
   "system/ScrubField.tsx":
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
+  "system/ScriptPane.tsx":
+    "a focused script word moves the one tab stop to the previous or next word with the arrows, and Shift with an arrow extends the word selection; the host decides what a selection does",
   "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",
   "ui/useMenuKeyboard.ts": "arrows step through the items of an open menu",
 };
