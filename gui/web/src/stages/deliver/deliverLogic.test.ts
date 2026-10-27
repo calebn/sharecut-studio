@@ -730,3 +730,32 @@ describe("parseClock fractions", () => {
     },
   );
 });
+
+describe("parseClock integer parts and formatClock rounding", () => {
+  it.each([
+    ["125", 125],
+    ["125.5", 125.5],
+    ["3600", 3600],
+    ["100", 100],
+    ["999.9", 999.9],
+    ["10:05", 605],
+    ["125:00", 7500],
+    ["1:125", 185],
+    ["0:07", 7],
+    ["007", 7],
+  ])("reads %j as %f", (text, seconds) => {
+    expect(parseClock(text)).toBeCloseTo(seconds, 9);
+  });
+
+  it.each([
+    [12.31, "0:12.3"],
+    [12.36, "0:12.4"],
+    [59.96, "1:00.0"],
+    [59.94, "0:59.9"],
+    [0, "0:00.0"],
+    [-3, "0:00.0"],
+    [3119.99, "52:00.0"],
+  ])("shows %f s as %s", (seconds, shown) => {
+    expect(formatClock(seconds)).toBe(shown);
+  });
+});
