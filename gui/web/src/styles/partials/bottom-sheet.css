@@ -398,6 +398,26 @@ html[data-shell="phone"] .bottom-sheet-root {
   }
 }
 
+/* A slot under 8rem tall (a phone held sideways at 200% text: the header and the
+   mini Player take the rest of the frame) cannot spare the grabber row and the
+   header's padding as well as a touch row of body. The chrome shrinks to the one
+   touch-height header row: the grabber pill overlays its top edge (the whole
+   chrome still drags) and the header drops its padding, so the form keeps a full
+   touch row to scroll a field into (R-short-10, R-short-11). */
+@container sheet-slot (max-height: 8rem) {
+  .bottom-sheet-chrome--drawer .bottom-sheet-grabber {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    margin: 0 auto;
+    pointer-events: none;
+  }
+
+  .bottom-sheet .bottom-sheet-header {
+    padding-block: 0;
+  }
+}
+
 /* A phone held sideways (636x390) at large text leaves the strip a slot under
    20rem tall, with no room for a title line of its own beside its header actions;
    let the title shrink so they share a row (#1762). This holds at the strip,
