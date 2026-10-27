@@ -162,6 +162,35 @@
   block-size: var(--control-height-compact);
 }
 
+/* On a touch screen the four tools each take the 44 px floor, which is wider
+   than the tablet and compact-lane header columns. The column grows to hold
+   them (the strip has no second row), and the lanes keep the rest. */
+.edit-timeline-col {
+  --edit-header-touch: 12.5rem;
+}
+
+@media (pointer: coarse) {
+  html[data-shell]
+    .timeline-area
+    .timeline-scroll:has(.track-headers-chrome > .edit-tool-strip),
+  html[data-shell]
+    .timeline-area
+    .timeline-lock-inner:has(.track-headers-chrome > .edit-tool-strip) {
+    --header-width: var(--edit-header-touch);
+  }
+
+  /* The corner wraps inside the lanes, never over the header column. */
+  .edit-timeline-col:has(.track-headers-chrome > .edit-tool-strip)
+    .edit-corner {
+    max-inline-size: calc(
+      100% -
+      var(--edit-header-touch) -
+      var(--space-4) -
+      var(--space-3)
+    );
+  }
+}
+
 /* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */
 .edit-corner {
   position: absolute;
@@ -170,6 +199,9 @@
   z-index: var(--z-timeline-chrome);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-inline-size: calc(100% - var(--space-4) * 2);
   gap: var(--space-1);
   padding: var(--space-1);
   border: 1px solid var(--color-border);
@@ -181,6 +213,15 @@
    floating corner so its grip is never covered. */
 .stage-frame .join-edit-rail {
   z-index: calc(var(--z-timeline-chrome) + 1);
+}
+
+/* A frame under 20 rem (a small phone at 200% text) has a 4 rem header column
+   (layout.css, timeline under 30 rem); the corner wraps in the lanes beside it. */
+@container app (max-width: 20rem) {
+  .edit-workspace .edit-corner {
+    inset-inline-end: var(--space-1);
+    max-inline-size: calc(100% - 4rem - var(--space-1) * 2);
+  }
 }
 
 .edit-corner-btn {
