@@ -141,6 +141,15 @@
      floor, and the Script pane gives way first, down to its own floor. */
   --stage-lane-min: 22rem;
   --stage-script-floor: 12rem;
+  /* Edit stacked over the Script: the timeline keeps the ruler, one marker row
+     (the same height as the ruler) and two lanes, so a pin, a clip and its band
+     stay clear of the corner controls over the lanes' foot. */
+  --stage-stacked-lanes-min: calc(
+    2 *
+    var(--ruler-height) +
+    2 *
+    var(--lane-height)
+  );
   /* What the Edit stage keeps above an open inspector sheet so the page still
      reads as the page: the app header, the row the surface switch and the
      tools share (a control and its padding), the ruler and the marker lane.

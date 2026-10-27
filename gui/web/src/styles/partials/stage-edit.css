@@ -45,6 +45,10 @@
   flex: 1 1 50%;
 }
 
+.edit-workspace--stacked .edit-timeline-col {
+  min-block-size: var(--stage-stacked-lanes-min);
+}
+
 .edit-script {
   display: flex;
   flex: 0 1 var(--script-width);
