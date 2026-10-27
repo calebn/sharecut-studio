@@ -23,7 +23,20 @@ function silentWav(): Buffer {
   return Buffer.concat([header, Buffer.alloc(data)]);
 }
 
-test("Prepare: importing audio starts the run by itself and hands off to the next stage", async ({
+// Runs before the import test: that one adds a take the project never transcribes.
+test("Prepare: the hand-off opens the next stage once the sources are ready", async ({
+  page,
+}) => {
+  await openProject(page, e2eProjectPath, { stage: "prepare" });
+  const handoff = page.getByRole("button", { name: /^(Edit|Review)/ });
+  await expect(handoff).toBeEnabled();
+  await handoff.click();
+  await expect(
+    page.getByRole("tab", { name: /^(Edit|Review)\b/, selected: true }),
+  ).toBeVisible();
+});
+
+test("Prepare: importing audio starts the run by itself and holds the hand-off while it runs", async ({
   page,
 }) => {
   let posts = 0;
@@ -63,12 +76,9 @@ test("Prepare: importing audio starts the run by itself and hands off to the nex
   expect(body).toMatchObject({ use_working_set: true });
   expect(body).not.toHaveProperty("force_transcribe", true);
 
-  const handoff = page.getByRole("button", { name: /^(Edit|Review)/ }).last();
-  await expect(handoff).toBeVisible();
-  await handoff.click();
-  await expect(
-    page.getByRole("tab", { name: /^(Edit|Review)\b/, selected: true }),
-  ).toBeVisible();
+  // The run is still going (the mock leaves the slot busy), so the hand-off is quiet and says why.
+  await expect(page.getByRole("button", { name: /^(Edit|Review)/ })).toBeDisabled();
+  await expect(page.getByText("Still getting ready")).toBeVisible();
 });
 
 test("Prepare: Advanced opens the step sheet and Escape returns to the stage", async ({
@@ -77,12 +87,10 @@ test("Prepare: Advanced opens the step sheet and Escape returns to the stage", a
   await openProject(page, e2eProjectPath, { stage: "prepare" });
   const advanced = page.getByRole("button", { name: /^Advanced/ });
   await advanced.click();
-  await expect(
-    page.getByRole("heading", { name: "Advanced steps" }),
-  ).toBeVisible();
+  // The sheet's title and the step list's own heading share the name.
+  const sheet = page.getByRole("dialog", { name: "Advanced steps" });
+  await expect(sheet).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("heading", { name: "Advanced steps" }),
-  ).toHaveCount(0);
+  await expect(sheet).toHaveCount(0);
   await expect(advanced).toBeFocused();
 });
