@@ -127,3 +127,22 @@ export function fixRoute(stage: StageId, target?: string): FixRoute {
   }
   return { kind: "stage", stage };
 }
+
+/** Whether two chapter lists hold the same times and titles in the same order. */
+export function sameChapters(a: readonly Chapter[], b: readonly Chapter[]) {
+  return (
+    a.length === b.length &&
+    a.every((c, i) => c.at === b[i]?.at && c.title === b[i]?.title)
+  );
+}
+
+/** Whether two clip lists hold the same clips with the same bounds. Titles and approvals live on the page only. */
+export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
+  return (
+    a.length === b.length &&
+    a.every(
+      (c, i) =>
+        c.id === b[i]?.id && c.start === b[i]?.start && c.end === b[i]?.end,
+    )
+  );
+}
