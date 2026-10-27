@@ -7,9 +7,9 @@ import {
 } from "react";
 
 /** How the field closed: Enter, Tab (the host steps on to the next unsure word), a click or focus moving away, or Esc. */
-export type FixTextVia = "enter" | "tab" | "blur" | "escape";
+type FixTextVia = "enter" | "tab" | "blur" | "escape";
 
-export type FixTextFieldProps = {
+type FixTextFieldProps = {
   /** The words as they are now, joined with spaces. */
   value: string;
   /** What a screen reader calls the field: "Fix text", "Fix text, 3 words". */

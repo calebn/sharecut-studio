@@ -300,7 +300,7 @@ export function edgePosition(
 
 export type MarginControl = "speaker" | "time";
 
-export type MarginMove =
+type MarginMove =
   | { kind: "control"; at: number }
   | { kind: "text" }
   | { kind: "before" };

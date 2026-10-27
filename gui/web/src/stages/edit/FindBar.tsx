@@ -14,7 +14,7 @@ export type FindBarHandle = {
   focus: () => void;
 };
 
-export type FindReplaceProps = {
+type FindReplaceProps = {
   /** The Replace row is showing. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
