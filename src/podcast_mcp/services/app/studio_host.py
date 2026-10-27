@@ -60,6 +60,10 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 #: Environment variables that never decide whether a command may run in Studio.
 _ENV_PREFIX = "PODCAST_"
 _ENV_SKIPPED_FRAGMENTS = ("TOKEN", "SECRET", "KEY", "PASSWORD", "SIDECAR")
+DIRECT_RUN_REFUSAL_CODES = frozenset({"not_served", "not_eligible", "protocol", "env_differs"})
+_TERMINAL_RUN_REFUSALS = frozenset(
+    {(401, "bad_token"), (403, "relayed"), (403, "not_local"), (429, "too_many")}
+)
 
 
 @dataclass(frozen=True)
@@ -77,7 +81,10 @@ class StudioHost:
 
 
 class HandoffRefused(Exception):
-    """Studio answered but will not run this command; the caller writes directly instead."""
+    """Studio explicitly rejected the command before execution.
+
+    Only defined 409 refusal codes permit the caller to write directly.
+    """
 
     def __init__(self, code: str, detail: str) -> None:
         super().__init__(detail)
@@ -119,7 +126,7 @@ class StudioBadReply(StudioUnresponsive):
 
 
 class HandoffLost(Exception):
-    """Studio accepted the command, then stopped answering before it finished.
+    """A command attempt has no confirmed outcome, or its stream ended before completion.
 
     The command may have changed the project, so the caller must not run it again on its own.
     """
@@ -300,10 +307,10 @@ def hand_off(
 ) -> int:
     """Run ``argv`` in the Studio and relay its output; returns the command's exit code.
 
-    Raises ``HandoffRefused`` when Studio declines before running anything, and
-    ``HandoffLost`` when it stops answering after it started. Ctrl+C asks Studio to cancel
-    the command (the way ``podcast`` cancels its own long commands) and keeps relaying until
-    it ends; a second Ctrl+C stops waiting.
+    Raises ``HandoffRefused`` for a defined pre-execution rejection, and
+    ``HandoffLost`` when the outcome may be uncertain, even before a start event.
+    Ctrl+C asks Studio to cancel the command (the way ``podcast`` cancels its own long
+    commands) and keeps relaying until it ends; a second Ctrl+C stops waiting.
     """
     from podcast_mcp import __version__
 
@@ -332,9 +339,9 @@ def hand_off(
         except TimeoutError as exc:
             raise HandoffLost(_lost_message(host, None, "it did not answer in time")) from exc
         except (OSError, http.client.HTTPException) as exc:
-            raise HandoffRefused("unreachable", f"Studio did not answer ({exc})") from exc
+            raise HandoffLost(_lost_message(host, None, "it stopped answering")) from exc
         if response.status != 200:
-            raise _refusal(response)
+            raise _refusal(host, response)
         while True:
             try:
                 line = response.readline()
@@ -352,9 +359,7 @@ def hand_off(
             except (OSError, http.client.HTTPException) as exc:
                 if interrupted:
                     return _CANCELLED_EXIT_CODE
-                raise HandoffLost(
-                    _lost_message(host, run_id, f"it stopped answering ({exc})")
-                ) from exc
+                raise HandoffLost(_lost_message(host, run_id, "it stopped answering")) from exc
             if not line:
                 if interrupted:
                     # An interrupted read can end the stream; Studio is stopping the command.
@@ -386,12 +391,12 @@ def hand_off(
 
 def _lost_message(host: StudioHost, run_id: str | None, why: str) -> str:
     started = (
-        ""
+        " The command may have run and may have changed the project."
         if run_id is None
         else " The command had already started and may have changed the project."
     )
     return (
-        f"Studio (pid {host.pid}) was running this command for the project, but {why}."
+        f"Studio (pid {host.pid}) was asked to run this command, but {why}."
         f"{started} Check the project in Studio (or run `podcast history-status --project <project>`) "
         "before you run it again."
     )
@@ -413,13 +418,17 @@ def _cancel(host: StudioHost, run_id: str | None) -> None:
         log.debug("cancel request to Studio failed", exc_info=True)
 
 
-def _refusal(response: http.client.HTTPResponse) -> HandoffRefused:
-    detail = ""
-    code = f"http_{response.status}"
+def _refusal(host: StudioHost, response: http.client.HTTPResponse) -> HandoffRefused | HandoffLost:
     try:
         body: Any = json.loads(response.read().decode("utf-8"))
-        detail = str(body.get("detail", ""))
-        code = str(body.get("code", code))
-    except (ValueError, AttributeError):
-        pass
-    return HandoffRefused(code, detail or f"Studio answered HTTP {response.status}")
+    except (OSError, http.client.HTTPException, ValueError):
+        body = None
+    if isinstance(body, dict):
+        code = body.get("code")
+        detail = body.get("detail")
+        if isinstance(code, str) and isinstance(detail, str):
+            if response.status == 409 and code in DIRECT_RUN_REFUSAL_CODES:
+                return HandoffRefused(code, detail or "Studio declined this command.")
+            if (response.status, code) in _TERMINAL_RUN_REFUSALS:
+                return HandoffRefused(code, detail or "Studio declined this command.")
+    return HandoffLost(_lost_message(host, None, "it answered with an unexpected response"))
