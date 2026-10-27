@@ -125,3 +125,22 @@
 .stage-host-panel {
   overflow-y: auto;
 }
+
+.stage-host-deliver {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.stage-host-deliver > .dv-stage {
+  flex: 1 1 0;
+  block-size: auto;
+  min-block-size: 0;
+}
+
+.stage-host-deliver > .stage-host-actions {
+  padding: var(--space-2) var(--space-4);
+  border-block-start: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-canvas);
+}
