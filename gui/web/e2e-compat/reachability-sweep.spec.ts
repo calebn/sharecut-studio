@@ -7,7 +7,7 @@ import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { describeReach, type Reach, reachFailures } from "../e2e/reachability";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
-import { openPanel, phone as stagePhone } from "../e2e/stageNav";
+import { armRange, openPanel, phone as stagePhone } from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
@@ -234,7 +234,11 @@ async function sweepCell(
     sizeExempt: SIZE_EXEMPT,
   });
   const rows = sheet ? await railRows(page) : 1;
-  if (rows !== 1) {
+  // A narrow or short window folds the strip behind the header's Tools button.
+  const folded = await page
+    .getByRole("button", { name: "Tools", exact: true })
+    .isVisible();
+  if (rows !== (folded ? 0 : 1)) {
     found["tool strip"] = [
       {
         failure: "overflows-container",
@@ -267,11 +271,7 @@ async function sweepCell(
   found["clip surface"] = await clipSurface(page, sheet);
 
   if (sheet) {
-    await page
-      .getByRole("button", { name: "Select range", exact: true })
-      .first()
-      .click();
-    await expect(page.locator(".range-actions")).toBeVisible();
+    await armRange(page);
     await settle(page);
     found["armed range"] = await reachFailures(page, {
       scope: ".range-actions",
@@ -495,19 +495,36 @@ test("pending-edit and transcript-word sheet bodies keep every control reachable
       label: string,
       selectionScreen: "impact" | "text",
     ) => {
+      // The surface switch folds into the Tools sheet in the narrow cells,
+      // and the selection sheet covers the header there, so the surface is set
+      // once, while the switch is still on the screen.
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "";
+      });
+      if (selectionScreen === "impact") {
+        await stagePhone.showTimeline(page);
+      } else {
+        await stagePhone.showText(page);
+      }
       for (const cell of PHONES) {
         await page.setViewportSize({ width: cell.width, height: cell.height });
         await page.evaluate((px) => {
           document.documentElement.style.fontSize = `${px}px`;
         }, cell.rootPx);
-        if (selectionScreen === "impact") {
-          await stagePhone.showTimeline(page);
-        } else {
-          await stagePhone.showText(page);
-        }
         const surface = ".bottom-sheet-body";
         const body = page.locator(surface);
         await expect(body).toBeVisible();
+        // A phone selection opens the drawer at its strip; the body shows from
+        // half height, and the rest of it from full height.
+        const expand = page.getByRole("button", { name: /^Expand to/ });
+        while (
+          !((await body.textContent()) ?? "").includes(label) &&
+          (await expand.isVisible())
+        ) {
+          await expand.click();
+          await settle(page);
+        }
         await expect(body, `${cell.name} ${label} body`).toContainText(label);
         await settle(page);
         const failures = await reachFailures(page, {

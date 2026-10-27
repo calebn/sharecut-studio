@@ -83,9 +83,11 @@ export async function waitForFrame(page: Page): Promise<void> {
 
 /** Go to `stage` by its Stage bar tab and wait for it to be the open one. */
 export async function goToStage(page: Page, stage: Stage): Promise<void> {
-  // A window too short for the tab bar folds it into the header's Stage menu.
+  // A window too short or too narrow for the tab bar folds it into the
+  // header's Stage menu. Right after a resize it is one or the other.
   const menu = page.getByRole("button", { name: /^Stage menu, / });
-  if (await menu.count()) {
+  await expect(menu.or(stageTab(page, stage))).toBeVisible();
+  if (await menu.isVisible()) {
     if (
       !(await menu.getAttribute("aria-label"))?.endsWith(STAGE_LABEL[stage])
     ) {
@@ -150,6 +152,31 @@ export async function waitForLanding(page: Page): Promise<void> {
   await expect(saveStatus(page)).toBeVisible();
 }
 
+/**
+ * A window too short or too narrow for the Edit rows folds the surface switch
+ * and the tool strip behind the header's Tools button. Open its sheet when it
+ * is there; the controls it holds are then visible. Returns whether it opened.
+ */
+async function openToolsIfFolded(page: Page): Promise<boolean> {
+  const button = page.getByRole("button", { name: "Tools", exact: true });
+  if (!(await button.isVisible())) return false;
+  const sheet = page.getByRole("dialog", { name: "Tools" });
+  if (!(await sheet.isVisible())) {
+    await button.click();
+    await expect(sheet).toBeVisible();
+  }
+  return true;
+}
+
+/** Close the Tools sheet after a control inside it was used, if it is open. */
+async function closeTools(page: Page): Promise<void> {
+  const sheet = page.getByRole("dialog", { name: "Tools" });
+  if (await sheet.isVisible()) {
+    await sheet.getByRole("button", { name: "Close" }).click();
+    await expect(sheet).toBeHidden();
+  }
+}
+
 export const phone = {
   /**
    * The phone shows one Edit surface at a time. `listen` has no surface of its
@@ -163,6 +190,7 @@ export const phone = {
     await goToStage(page, "edit");
     // Only the phone has one Edit surface at a time; wider shells show both.
     if (!(await isPhoneShell(page))) return;
+    const folded = await openToolsIfFolded(page);
     const name = mode === "text" ? "Script" : "Timeline";
     const toggle = page
       .getByRole("group", { name: "Edit surface" })
@@ -171,6 +199,7 @@ export const phone = {
       await toggle.click();
     }
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    if (folded) await closeTools(page);
   },
   showTimeline: (page: Page) => phone.show(page, "timeline"),
   showText: (page: Page) => phone.show(page, "text"),
@@ -378,6 +407,7 @@ export async function selectTool(
   tool: "select" | "blade",
 ): Promise<void> {
   await goToStage(page, "edit");
+  const folded = await openToolsIfFolded(page);
   const strip = page.getByRole("group", { name: "Editing tools" });
   const button = strip.getByRole("button", {
     name: tool === "select" ? "Select tool" : "Blade tool",
@@ -385,6 +415,7 @@ export async function selectTool(
   });
   await button.click();
   await expect(button).toHaveAttribute("aria-pressed", "true");
+  if (folded) await closeTools(page);
 }
 
 /** Add a track from the Edit stage's + menu. */
@@ -397,6 +428,8 @@ export async function addTrack(page: Page): Promise<void> {
 /** Arm range selection from the Edit tool strip; the Range actions form opens. */
 export async function armRange(page: Page): Promise<void> {
   await goToStage(page, "edit");
+  // Folded, the Range actions open over the Tools sheet and leave it be.
+  await openToolsIfFolded(page);
   const button = page
     .getByRole("group", { name: "Editing tools" })
     .getByRole("button", { name: "Select range", exact: true });
@@ -425,12 +458,14 @@ export async function setAudition(page: Page, mode: Audition): Promise<void> {
  */
 export async function armCommentMode(page: Page): Promise<void> {
   await goToStage(page, "edit");
+  const folded = await openToolsIfFolded(page);
   const toggle = page
     .getByRole("group", { name: "Editing tools" })
     .getByRole("button", { name: "Toggle comment mode", exact: true });
   if ((await toggle.getAttribute("aria-pressed")) !== "true") {
     await toggle.click();
   }
+  if (folded) await closeTools(page);
   await expect(
     page.getByRole("slider", { name: "Comment time" }),
   ).toBeVisible();
