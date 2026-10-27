@@ -11,11 +11,14 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
+import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
 
 export type CommandContext = {
+  /** The open stage: timeline-changing commands run only on Edit. */
+  stage: StageId;
   focusedFadeHandle: boolean;
   focusedTrimHandle: boolean;
   timelineFocused: boolean;
@@ -75,6 +78,7 @@ export function buildCommandContext(): CommandContext {
         ) ?? -1)
       : -1;
   return {
+    stage: s.stage,
     focusedFadeHandle: focusedClipHandleKind() === "fade",
     focusedTrimHandle: focusedClipHandleKind() === "trim",
     timelineFocused: s.timelineFocused,
@@ -186,7 +190,27 @@ export function evaluateWhen(
       return ctx.canSuggestStructural
         ? { ok: true }
         : { ok: false, reason: "Structural edits not allowed" };
+    case "editStage":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.stage === "edit"
+        ? { ok: true }
+        : { ok: false, reason: "Open Edit to change the timeline" };
+    case "editStageStructural":
+      if (ctx.stage !== "edit") {
+        return { ok: false, reason: "Open Edit to change the timeline" };
+      }
+      return evaluateWhen("canSuggestStructural", ctx);
+    case "editStagePass12":
+      if (ctx.stage !== "edit") {
+        return { ok: false, reason: "Open Edit to change the timeline" };
+      }
+      return evaluateWhen("canApplyPass12", ctx);
     case "timelineAndStructural":
+      if (ctx.stage !== "edit") {
+        return { ok: false, reason: "Open Edit to use the timeline" };
+      }
       if (!ctx.timelineFocused) {
         return { ok: false, reason: "Timeline not focused" };
       }

@@ -213,7 +213,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Blade cut",
     keywords: ["razor", "split", "slice"],
-    when: "canSuggestStructural",
+    when: "editStageStructural",
     notes:
       "Args: { atTime?: number } → SplitAtTime at the clicked time, else the playhead (Mod+K)",
   },
@@ -234,7 +234,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Delete clip",
     shortLabel: "Delete",
     keywords: ["remove"],
-    when: "canSuggestStructural",
+    when: "editStageStructural",
     notes: "Backspace/Delete: selected clip (gap left)",
   },
   "edit.clearSelection": {
@@ -251,14 +251,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Ripple delete clip",
     shortLabel: "Ripple delete",
     keywords: ["remove", "close gap"],
-    when: "canSuggestStructural",
+    when: "editStageStructural",
     notes: "Mod+Backspace: selected clip (close gap)",
   },
   "edit.copy": {
     id: "edit.copy",
     category: "edit",
     label: "Copy",
-    when: "hasProject",
+    when: "editStage",
     notes: "Mod+C: clip or transcript range → session clipboard",
   },
   "range.play": {
@@ -333,7 +333,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     mutates: true,
     category: "edit",
     label: "Cut",
-    when: "canApplyPass12",
+    when: "editStagePass12",
     notes: "Mod+X: copy then ripple-delete range (host/edit)",
   },
   "edit.paste": {
@@ -341,7 +341,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     mutates: true,
     category: "edit",
     label: "Paste",
-    when: "canApplyPass12",
+    when: "editStagePass12",
     notes: "Mod+V: duplicate clipboard at playhead (same-track)",
   },
   "track.selectAll": {
