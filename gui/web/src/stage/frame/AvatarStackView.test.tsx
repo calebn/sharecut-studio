@@ -179,11 +179,38 @@ describe("AvatarStackView", () => {
       />,
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "People here, 4. Follow someone" }),
+      screen.getByRole("button", {
+        name: "People here, 4. Follow someone",
+      }),
     );
     await userEvent.click(screen.getByRole("menuitem", { name: /Ada/ }));
     expect(onFollow).toHaveBeenCalledWith("a");
   });
+
+  it.each([2, 5])(
+    "header trigger name holds the text drawn on it with %i others",
+    async (count) => {
+      const others = ["a", "b", "c", "d", "e"]
+        .slice(0, count)
+        .map((client_id) => sessionClient({ client_id }));
+      const { container } = render(
+        <AvatarStackView
+          variant="header"
+          others={others}
+          names={NAMES}
+          followingClientId={null}
+          onFollow={vi.fn()}
+        />,
+      );
+      // Drawn by CSS, so the accessible name is the only text and cannot disagree with it.
+      expect(
+        screen.getByRole("button", { name: /^People here/ }).textContent,
+      ).toBe("");
+      await expectNoA11yViolations(container, [
+        { id: "label-content-name-mismatch", enabled: true },
+      ]);
+    },
+  );
 
   it("header variant renders nothing when alone", () => {
     const { container } = render(

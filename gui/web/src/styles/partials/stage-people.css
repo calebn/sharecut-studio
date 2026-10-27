@@ -42,6 +42,12 @@
   display: none;
 }
 
+/* The counts and initials are drawn, not written, so the trigger's name is its only text. */
+.avatar-header-extra::before,
+.avatar-header-phone-count::before {
+  content: "+" attr(data-count);
+}
+
 @container sys-app-header (max-width: 40rem) {
   .avatar-header-faces > :nth-child(n + 2),
   .avatar-header-extra {
