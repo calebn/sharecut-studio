@@ -4,7 +4,6 @@ from typing import Any
 
 from mcp.server import MCPServer
 
-from podcast_mcp.edits.cut_policy import review_fields
 from podcast_mcp.edits.cut_speech import APPLY_ANYWAY
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.args import JsonObjectList
@@ -346,12 +345,12 @@ def list_edit_decisions_tool(
 ) -> str:
     """List pending decisions with Review fields; archived edits are in list_applied_edits_tool."""
     ws = ProjectWorkspace.open(project_path)
-    edits = EditService(ws).list_decisions(
+    rows = EditService(ws).list_decision_rows(
         applied=applied,
         review_required=review_required,
         reason_prefix=reason_prefix,
     )
-    return to_json([e.model_dump() | review_fields(e.reason) for e in edits])
+    return to_json(rows)
 
 
 def approve_edits_tool(
