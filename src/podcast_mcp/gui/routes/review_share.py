@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
 
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
-from podcast_mcp.gui.audio import pinned_audio_response
+from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
 from podcast_mcp.gui.routes.deps import NO_STORE, coded_http_error
 from podcast_mcp.gui.routes.document import RangeAudioInput
@@ -79,6 +79,7 @@ from podcast_mcp.services.collaboration import (
     share_pending_cut_suggestion,
     share_pending_preview_image,
     share_pending_preview_image_cached,
+    share_pending_preview_span,
     share_pending_preview_wav,
     share_pending_preview_wav_cached,
     share_project_view,
@@ -87,7 +88,13 @@ from podcast_mcp.services.collaboration import (
     share_set_action_done,
     share_upload_media,
 )
-from podcast_mcp.services.document import EditService, cross_process_lease
+from podcast_mcp.services.document import (
+    PENDING_PREVIEW_PAD_DEFAULT_SEC,
+    PENDING_PREVIEW_PAD_MAX_SEC,
+    PENDING_PREVIEW_PAD_MIN_SEC,
+    EditService,
+    cross_process_lease,
+)
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
     DocumentSyncService,
@@ -351,22 +358,39 @@ def get_daw_pending_preview(
     token: str,
     edit_id: str = Query(...),
     mode: str = Query("suggested"),
+    pad_sec: float = Query(
+        PENDING_PREVIEW_PAD_DEFAULT_SEC,
+        ge=PENDING_PREVIEW_PAD_MIN_SEC,
+        le=PENDING_PREVIEW_PAD_MAX_SEC,
+    ),
 ):
-    """Listen-first Current / Suggested / A/B WAV (``play`` + ``view``)."""
+    """Listen-first Current / Suggested / A/B WAV, ``pad_sec`` either side (``play`` + ``view``).
+
+    The ``X-Preview-*`` headers say where the file sits, as on the host route.
+    """
     _check_token(token)
     with guest_boundary(log, "review preview cache"):
-        cached = share_pending_preview_wav_cached(token, edit_id=edit_id, mode=mode)
+        cached = share_pending_preview_wav_cached(
+            token, edit_id=edit_id, mode=mode, pad_sec=pad_sec
+        )
     if cached is None:
         _rate_limit(token, "mutate")
     with guest_boundary(log, "review request"):
-        path = share_pending_preview_wav(token, edit_id=edit_id, mode=mode)
+        path = share_pending_preview_wav(token, edit_id=edit_id, mode=mode, pad_sec=pad_sec)
+        span = share_pending_preview_span(
+            token, edit_id=edit_id, mode=mode, pad_sec=pad_sec, wav=path
+        )
     return _audio_file_response(
         token,
         path,
         media_type="audio/wav",
         filename=path.name,
         content_disposition_type="inline",
-        headers={"Accept-Ranges": "bytes", "Cache-Control": "no-cache"},
+        headers={
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache",
+            **pending_preview_headers(span),
+        },
     )
 
 
@@ -376,15 +400,24 @@ def get_daw_pending_preview_image(
     edit_id: str = Query(...),
     mode: str = Query("suggested"),
     kind: str = Query("wave"),
+    pad_sec: float = Query(
+        PENDING_PREVIEW_PAD_DEFAULT_SEC,
+        ge=PENDING_PREVIEW_PAD_MIN_SEC,
+        le=PENDING_PREVIEW_PAD_MAX_SEC,
+    ),
 ):
     """Waveform or spectrogram of a listen-first extract (``play`` + ``view``)."""
     _check_token(token)
     with guest_boundary(log, "review preview cache"):
-        cached = share_pending_preview_image_cached(token, edit_id=edit_id, mode=mode, kind=kind)
+        cached = share_pending_preview_image_cached(
+            token, edit_id=edit_id, mode=mode, kind=kind, pad_sec=pad_sec
+        )
     if cached is None:
         _rate_limit(token, "mutate")
     with guest_boundary(log, "review request"):
-        path = share_pending_preview_image(token, edit_id=edit_id, mode=mode, kind=kind)
+        path = share_pending_preview_image(
+            token, edit_id=edit_id, mode=mode, kind=kind, pad_sec=pad_sec
+        )
     return _audio_file_response(
         token,
         path,

@@ -339,3 +339,45 @@ def test_share_pending_preview_errors_and_cache(
     premix.unlink()
     with pytest.raises(FileNotFoundError, match="premix"):
         share_pending_preview_wav(token, edit_id="cut1")
+
+
+def test_share_pending_preview_pads_and_reports_each_side(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_pending_cut(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+    token = share["token"]
+    client = TestClient(create_app())
+    url = f"/api/review/{token}/daw/pending-preview"
+
+    wide = {"edit_id": "cut1", "mode": "current", "pad_sec": "1"}
+    narrow = client.get(url, params={"edit_id": "cut1", "mode": "current"})
+    padded = client.get(url, params=wide)
+    assert narrow.status_code == padded.status_code == 200
+    # The 2 s clip clamps at both ends: 0.8-1.2 with 1 s either side is 0 to 2.
+    assert (padded.headers["x-preview-start-sec"], padded.headers["x-preview-end-sec"]) == (
+        "0",
+        "2",
+    )
+    assert (narrow.headers["x-preview-start-sec"], narrow.headers["x-preview-end-sec"]) == (
+        "0.3",
+        "1.7",
+    )
+    assert narrow.headers["x-preview-pad-sec"] == "0.5"
+    assert padded.content != narrow.content
+    b = client.get(url, params={**wide, "mode": "suggested"})
+    assert b.headers["x-preview-edit-id"] == "cut1"
+    assert float(b.headers["x-preview-end-sec"]) < 2.0
+    assert client.get(url, params={**wide, "pad_sec": "11"}).status_code == 422
+
+    called = _mcp_call(
+        token, "guest_pending_preview", {"edit_id": "cut1", "mode": "suggested", "pad_sec": 1}
+    )
+    assert "error" not in called, called
+    payload = json.loads(called["result"]["content"][0]["text"])
+    assert "pad_sec=1" in payload["audio_path"]
+    assert payload["pad_sec"] == 1.0
+    assert payload["start_sec"] == 0.0 and payload["end_sec"] == float(
+        b.headers["x-preview-end-sec"]
+    )
+    assert payload["timeline_start"] == 0.8 and payload["timeline_end"] == 1.2

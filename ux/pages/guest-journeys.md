@@ -164,7 +164,7 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 | See timeline / transcript | Viewer | ShareCut Studio guest |
 | Comment, propose cuts (transcript Select or timeline range) | Commenter (default) | ShareCut Studio guest |
 | Apply cuts directly, approve cuts | Editor | ShareCut Studio guest (transcript Select, Timeline, inspector) |
-| Hear Suggested (agent) | `play` + `view` + `mcp` | `guest_pending_preview` → share HTTP WAV/PNG |
+| Hear Suggested (agent) | `play` + `view` + `mcp` | `guest_pending_preview` (optional `pad_sec`, 0 to 10 s of audio either side of the edit) → share HTTP WAV/PNG |
 | Hear a span (agent) | `play` + `view` + `mcp` | `guest_audition_context` → captions + windowed hum/clip warnings; optional wave/spec |
 | Join a record session | record `join` + `monitor` + `comment` | Record lobby / room (`/rec/{token}`) |
 | Produce a record session | record `monitor` + `comment` | Record lobby / room (not recorded) |

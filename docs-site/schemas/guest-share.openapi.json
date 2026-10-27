@@ -11317,7 +11317,7 @@
     },
     "/api/review/{token}/daw/pending-preview": {
       "get": {
-        "description": "Listen-first Current / Suggested / A/B WAV (``play`` + ``view``).",
+        "description": "Listen-first Current / Suggested / A/B WAV, ``pad_sec`` either side (``play`` + ``view``).\n\nThe ``X-Preview-*`` headers say where the file sits, as on the host route.",
         "parameters": [
           {
             "in": "path",
@@ -11345,6 +11345,18 @@
               "default": "suggested",
               "title": "Mode",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pad_sec",
+            "required": false,
+            "schema": {
+              "default": 0.5,
+              "maximum": 10.0,
+              "minimum": 0.0,
+              "title": "Pad Sec",
+              "type": "number"
             }
           }
         ],
@@ -11410,6 +11422,18 @@
               "default": "wave",
               "title": "Kind",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pad_sec",
+            "required": false,
+            "schema": {
+              "default": 0.5,
+              "maximum": 10.0,
+              "minimum": 0.0,
+              "title": "Pad Sec",
+              "type": "number"
             }
           }
         ],
