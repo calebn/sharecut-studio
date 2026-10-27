@@ -756,9 +756,9 @@ async def test_guest_reporter_heartbeat_mixin_emits():
     q = hub.subscribe("tok", loop)
     reporter = GuestWsProgressReporter(hub, "tok", heartbeat_sec=0.15)
     try:
-        reporter.update("t", 1, message="go")
-        time.sleep(1.3)
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(q, {"kind": "heartbeat", "task_id": "t"}) as accepted:
+            reporter.update("t", 1, message="go")
+            await asyncio.wait_for(accepted, timeout=5.0)
         kinds = [item["kind"] for item in drain(q)]
         assert "heartbeat" in kinds
     finally:
