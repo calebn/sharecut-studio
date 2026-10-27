@@ -1323,7 +1323,7 @@ def _normalize_pending_preview_mode(mode: str | None) -> str:
 def _pending_preview_audio_url(token: str, edit_id: str, mode: str, pad_sec: float) -> str:
     from urllib.parse import urlencode
 
-    qs = urlencode({"edit_id": edit_id, "mode": mode, "pad_sec": f"{pad_sec:g}"})
+    qs = urlencode({"edit_id": edit_id, "mode": mode, "pad_sec": str(pad_sec)})
     return f"/api/review/{token}/daw/pending-preview?{qs}"
 
 
@@ -1332,7 +1332,7 @@ def _pending_preview_image_url(
 ) -> str:
     from urllib.parse import urlencode
 
-    qs = urlencode({"edit_id": edit_id, "mode": mode, "kind": kind, "pad_sec": f"{pad_sec:g}"})
+    qs = urlencode({"edit_id": edit_id, "mode": mode, "kind": kind, "pad_sec": str(pad_sec)})
     return f"/api/review/{token}/daw/pending-preview-image?{qs}"
 
 

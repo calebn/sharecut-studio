@@ -849,27 +849,26 @@ def test_the_host_route_pads_and_says_where_each_file_sits(minimal_project) -> N
     b = client.get("/api/pending-preview", params={**base, "mode": "suggested"})
     assert a.status_code == b.status_code == 200
     assert a.headers["x-preview-edit-id"] == b.headers["x-preview-edit-id"] == "cut"
-    assert a.headers["x-preview-pad-sec"] == "3"
+    assert a.headers["x-preview-pad-sec"] == "3.000"
     # A and B are two separately addressable files over one start.
-    assert (a.headers["x-preview-start-sec"], a.headers["x-preview-end-sec"]) == ("0", "5.6")
-    assert (b.headers["x-preview-start-sec"], b.headers["x-preview-end-sec"]) == ("0", "5.9")
+    assert (a.headers["x-preview-start-sec"], a.headers["x-preview-end-sec"]) == ("0.000", "5.600")
+    assert (b.headers["x-preview-start-sec"], b.headers["x-preview-end-sec"]) == ("0.000", "5.900")
     assert (a.headers["x-preview-edit-start-sec"], a.headers["x-preview-edit-end-sec"]) == (
-        "2",
-        "2.6",
+        "2.000",
+        "2.600",
     )
     assert a.content != b.content
-    assert "X-Preview-End-Sec" in a.headers["access-control-expose-headers"]
     # Without a pad the window stays the 0.5 s of today.
     default = client.get(
         "/api/pending-preview", params={**base, "mode": "current"} | {"pad_sec": "0.5"}
     )
-    assert default.headers["x-preview-start-sec"] == "1.5"
+    assert default.headers["x-preview-start-sec"] == "1.500"
     omitted = {k: v for k, v in base.items() if k != "pad_sec"}
     assert (
         client.get("/api/pending-preview", params={**omitted, "mode": "current"}).headers[
             "x-preview-pad-sec"
         ]
-        == "0.5"
+        == "0.500"
     )
     # The warm ahead of the click renders that pad, so the click is a file read.
     assert client.post("/api/pending-preview/warm", params=base).status_code == 200
@@ -885,3 +884,34 @@ def test_the_host_route_refuses_a_pad_outside_the_range(minimal_project, pad) ->
     params = {"path": str(minimal_project), "edit_id": "cut", "pad_sec": pad}
     assert client.get("/api/pending-preview", params=params).status_code == 422
     assert client.post("/api/pending-preview/warm", params=params).status_code == 422
+
+
+def test_a_cross_origin_page_may_read_the_placement_headers(minimal_project, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.audio import PENDING_PREVIEW_HEADER_NAMES
+    from podcast_mcp.gui.server import create_app
+
+    _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.6))
+    monkeypatch.setenv("PODCAST_REVIEW_CORS_ORIGINS", "https://guest.example")
+    response = TestClient(create_app()).get(
+        "/api/pending-preview",
+        params={"path": str(minimal_project), "edit_id": "cut", "mode": "current", "pad_sec": "3"},
+        headers={"Origin": "https://guest.example"},
+    )
+    assert response.status_code == 200, response.text
+    exposed = {
+        n.strip().lower() for n in response.headers["access-control-expose-headers"].split(",")
+    }
+    assert {n.lower() for n in PENDING_PREVIEW_HEADER_NAMES} <= exposed
+    assert len(PENDING_PREVIEW_HEADER_NAMES) == 7
+    assert all(name in response.headers for name in PENDING_PREVIEW_HEADER_NAMES)
+
+
+def test_golden_ear_refuses_a_pad_the_audition_would_refuse() -> None:
+    from podcast_mcp.edits.pending_preview import validate_pad_sec
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    for bad in (float("nan"), float("-inf"), 11.0):
+        with pytest.raises(CodedValueError):
+            validate_pad_sec(bad)

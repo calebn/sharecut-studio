@@ -356,14 +356,14 @@ def test_share_pending_preview_pads_and_reports_each_side(
     assert narrow.status_code == padded.status_code == 200
     # The 2 s clip clamps at both ends: 0.8-1.2 with 1 s either side is 0 to 2.
     assert (padded.headers["x-preview-start-sec"], padded.headers["x-preview-end-sec"]) == (
-        "0",
-        "2",
+        "0.000",
+        "2.000",
     )
     assert (narrow.headers["x-preview-start-sec"], narrow.headers["x-preview-end-sec"]) == (
-        "0.3",
-        "1.7",
+        "0.300",
+        "1.700",
     )
-    assert narrow.headers["x-preview-pad-sec"] == "0.5"
+    assert narrow.headers["x-preview-pad-sec"] == "0.500"
     assert padded.content != narrow.content
     b = client.get(url, params={**wide, "mode": "suggested"})
     assert b.headers["x-preview-edit-id"] == "cut1"
