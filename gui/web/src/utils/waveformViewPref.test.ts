@@ -144,3 +144,19 @@ describe("writeWaveformViewPref", () => {
     );
   });
 });
+
+describe("share keys", () => {
+  it("never writes or reads a view for a share key", () => {
+    const key = "share:SECRETTOKEN123456";
+    writeWaveformViewPref(key, {
+      ...DEFAULT_WAVEFORM_VIEW_PREF,
+      scale: "log",
+    });
+    expect(localStorage.length).toBe(0);
+    localStorage.setItem(
+      WAVEFORM_VIEW_STORAGE_KEY,
+      JSON.stringify({ [key]: { scale: "log", amp: 1, postFader: true } }),
+    );
+    expect(readWaveformViewPref(key)).toEqual(DEFAULT_WAVEFORM_VIEW_PREF);
+  });
+});
