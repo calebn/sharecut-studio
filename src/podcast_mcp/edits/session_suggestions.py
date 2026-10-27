@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
@@ -23,12 +24,13 @@ from podcast_mcp.edits.cut_speech import (
 from podcast_mcp.edits.decisions import unplayed_pending_ids
 from podcast_mcp.edits.insert_anchor import resolve_insert_anchor, resolve_range
 from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip
-from podcast_mcp.edits.ripple import ripple_insert_clips, ripple_track_ids
+from podcast_mcp.edits.ripple import RippleRemoval, ripple_insert_clips, ripple_track_ids
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete, ripple_delete_range
 from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.track_media import refresh_timeline_duration
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
+    CutSpeech,
     EpisodeProject,
     SessionSuggestion,
     StagedComment,
@@ -318,18 +320,21 @@ def accept_session_suggestion(
             override_audio_checks=override_audio_checks,
             defaults=defaults,
         )
+    _require_no_take(row, take_index)
+    return _accept_insert(project, row, defaults=defaults)
+
+
+def _require_no_take(row: SessionSuggestion, take_index: int | None) -> None:
     if take_index is not None:
         raise CodedValueError(
             f"Session {row.session_number} is an insert, whose takes play one after another, so "
             "a take cannot be chosen. Accept it without a take.",
             code="take_not_applicable",
         )
-    return _accept_insert(project, row, defaults=defaults)
 
 
-def _accept_insert(
-    project: EpisodeProject, row: SessionSuggestion, *, defaults: EffectiveConfig
-) -> dict[str, Any]:
+def _insert_plan(project: EpisodeProject, row: SessionSuggestion) -> tuple[float, float]:
+    """Where an insert opens and how long it is, or the refusal Accept gives."""
     span = staged_span_s((take.offset_s, take.duration_s) for take in row.takes)
     if span <= 0:
         raise CodedValueError(
@@ -349,7 +354,13 @@ def _accept_insert(
             "Record the session again at the new spot.",
             code="stale_anchor",
         )
-    at_sec = max(at_sec, 0.0)
+    return max(at_sec, 0.0), span
+
+
+def _accept_insert(
+    project: EpisodeProject, row: SessionSuggestion, *, defaults: EffectiveConfig
+) -> dict[str, Any]:
+    at_sec, span = _insert_plan(project, row)
     ripple_ids = ripple_track_ids(project)
     ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
     shift_review_anchors_for_insert(project, at_sec, span)
@@ -407,14 +418,28 @@ def _chosen_take(row: SessionSuggestion, take_index: int | None) -> int:
     return available[-1]
 
 
-def _accept_replace(
+@dataclass(frozen=True)
+class _ReplacePlan:
+    """What accepting a replace would do, before anything changes."""
+
+    take_index: int
+    takes: list[StagedTake]
+    length: float
+    from_sec: float
+    to_sec: float
+    ripple_ids: list[str]
+    removal: RippleRemoval
+    speech: CutSpeech | None
+
+
+def _replace_plan(
     project: EpisodeProject,
     row: SessionSuggestion,
-    *,
     take_index: int | None,
-    override_audio_checks: bool,
+    *,
     defaults: EffectiveConfig,
-) -> dict[str, Any]:
+) -> _ReplacePlan:
+    """Choose the take, find the range and plan the removal, or give Accept's refusal."""
     chosen = _chosen_take(row, take_index)
     takes = [take for take in row.takes if take.take_index == chosen]
     length = staged_span_s((take.offset_s, take.duration_s) for take in takes)
@@ -459,8 +484,33 @@ def _accept_replace(
         defaults=defaults,
     )
     speech = assess_cut_speech(project, removal, defaults=defaults)
-    if speech is not None and not (override_audio_checks or active_override() is not None):
-        raise UnconfirmedCutSpeech(replace_confirmation_for(speech))
+    return _ReplacePlan(chosen, takes, length, from_sec, to_sec, ripple_ids, removal, speech)
+
+
+def _accept_replace(
+    project: EpisodeProject,
+    row: SessionSuggestion,
+    *,
+    take_index: int | None,
+    override_audio_checks: bool,
+    defaults: EffectiveConfig,
+) -> dict[str, Any]:
+    plan = _replace_plan(project, row, take_index, defaults=defaults)
+    if plan.speech is not None and not (override_audio_checks or active_override() is not None):
+        raise UnconfirmedCutSpeech(replace_confirmation_for(plan.speech))
+    return _apply_replace(project, row, plan, defaults=defaults)
+
+
+def _apply_replace(
+    project: EpisodeProject,
+    row: SessionSuggestion,
+    plan: _ReplacePlan,
+    *,
+    defaults: EffectiveConfig,
+) -> dict[str, Any]:
+    chosen, takes, length = plan.take_index, plan.takes, plan.length
+    from_sec, to_sec, ripple_ids = plan.from_sec, plan.to_sec, plan.ripple_ids
+    removal, speech = plan.removal, plan.speech
     removed = to_sec - from_sec
     delta = length - removed
     unplayed_before = set(unplayed_pending_ids(project))
@@ -520,3 +570,65 @@ def _accept_replace(
         "retired_decision_ids": sorted(set(unplayed_pending_ids(project)) - unplayed_before),
         "unmoved_track_ids": unmoved,
     }
+
+
+@dataclass(frozen=True)
+class SessionPreview:
+    """Where a staged session lands and what it takes out, from accepting it on a copy."""
+
+    kind: str
+    take_index: int | None
+    start_s: float
+    removed_s: float
+    span_s: float
+    speech: CutSpeech | None
+    speech_message: str | None
+
+
+def apply_session_suggestion_for_preview(
+    snapshot: EpisodeProject,
+    suggestion_id: str,
+    *,
+    take_index: int | None = None,
+    defaults: EffectiveConfig,
+) -> SessionPreview:
+    """Accept a pending suggestion on ``snapshot`` (a copy) as Accept would, speech hold overridden.
+
+    Gives Accept's own refusals. The caller discards the copy; this only previews.
+    """
+    row = find_session_suggestion(snapshot, suggestion_id)
+    _require_pending(row)
+    if row.kind == "replace":
+        plan = _replace_plan(snapshot, row, take_index, defaults=defaults)
+        _apply_replace(snapshot, row, plan, defaults=defaults)
+        confirmation = replace_confirmation_for(plan.speech) if plan.speech else None
+        return SessionPreview(
+            kind="replace",
+            take_index=plan.take_index,
+            start_s=plan.from_sec,
+            removed_s=plan.to_sec - plan.from_sec,
+            span_s=plan.length,
+            speech=plan.speech,
+            speech_message=confirmation.message if confirmation else None,
+        )
+    result = accept_session_suggestion(
+        snapshot, suggestion_id, take_index=take_index, defaults=defaults
+    )
+    return SessionPreview(
+        kind="insert",
+        take_index=None,
+        start_s=result["at_sec"],
+        removed_s=0.0,
+        span_s=result["span_s"],
+        speech=None,
+        speech_message=None,
+    )
+
+
+def chosen_take_for_preview(row: SessionSuggestion, take_index: int | None) -> int | None:
+    """The take a preview of ``row`` plays (None for an insert), or Accept's refusal."""
+    _require_pending(row)
+    if row.kind == "replace":
+        return _chosen_take(row, take_index)
+    _require_no_take(row, take_index)
+    return None

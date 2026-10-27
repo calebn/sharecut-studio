@@ -12,6 +12,8 @@ from podcast_mcp.models import AppliedEditRecord, EditDecision, EditDecisionType
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 
 DEFAULT_PAD_SEC = 0.5
+# A staged session's preview plays more around the change: the Review window is 3 s in all.
+DEFAULT_SESSION_PAD_SEC = 1.5
 DEFAULT_AB_GAP_SEC = 0.4
 
 # Holds from the cut-position and join checks: approving anyway is a person's call, so the

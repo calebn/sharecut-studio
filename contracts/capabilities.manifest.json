@@ -1850,6 +1850,32 @@
       }
     },
     {
+      "id": "daw.review.hearSessionSuggestion",
+      "label": "Hear staged session",
+      "effect": "session",
+      "service": "SessionSuggestionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast review preview-session-suggestion",
+        "mcp": [
+          "hear_session_suggestion_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "Hear a staged recorded session before and after it is placed",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.review.skipSessionSuggestion",
       "label": "Skip staged session",
       "effect": "project",
