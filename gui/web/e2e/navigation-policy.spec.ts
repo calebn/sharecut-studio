@@ -3,7 +3,11 @@ import { expect, type Page, test } from "@playwright/test";
 import { layer } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { withShareableProject } from "./shareableProject";
-import { openHostShare } from "./shareNavigation";
+import {
+  createReviewShare,
+  openGuestShare,
+  openHostShare,
+} from "./shareNavigation";
 import { setTheme } from "./theme";
 import { openTranscriptPanel } from "./transcriptEdit";
 
@@ -221,6 +225,40 @@ test("F09 host numeric inspector opens an envelope point's time and level", asyn
       await expect(
         page.getByRole("button", { name: "Save point", exact: true }),
       ).toBeEnabled();
+    },
+    undefined,
+    seed,
+  );
+});
+
+test("F09 a viewer link shows no envelope points and posts no document command", async ({
+  page,
+  browser,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      const token = await createReviewShare(page, projectPath, "viewer");
+      const context = await browser.newContext({
+        baseURL: new URL(page.url()).origin,
+        viewport: { width: 1440, height: 900 },
+      });
+      try {
+        const guest = await context.newPage();
+        const commands: string[] = [];
+        guest.on("request", (r) => {
+          if (r.method() === "POST" && r.url().includes("/document/command"))
+            commands.push(r.postData() ?? "");
+        });
+        await openGuestShare(guest, token);
+        await expect(guest.getByRole("main", { name: "Review" })).toBeVisible();
+        await expect(
+          guest.locator('circle[aria-label^="Envelope point"]'),
+        ).toHaveCount(0);
+        expect(commands).toEqual([]);
+      } finally {
+        await context.close();
+      }
     },
     undefined,
     seed,
