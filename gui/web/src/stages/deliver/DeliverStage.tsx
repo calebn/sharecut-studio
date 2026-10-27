@@ -55,8 +55,8 @@ export type DeliverStageProps = {
   exportState: ExportState;
   env?: DeliverEnv;
   clock: { time: string; total: string };
-  /** Playhead in seconds, where Add at playhead puts a chapter. */
-  playhead: number;
+  /** Playhead in seconds, where Add at playhead puts a chapter. A function is read on click, so a host need not re-render every frame. */
+  playhead: number | (() => number);
   /** A range selected in Edit; Mod+E exports it instead of the Deliver In and Out. */
   selection?: TimeSpan | null;
   /** Episode words in seconds, sorted by start; clip trim handles snap to them. Without them the handles move freely. */
@@ -274,7 +274,14 @@ export function DeliverStage({
       onRemove={removeChapterWithUndo}
       onAdd={() =>
         setChapters((now) =>
-          addChapterAt(now, Math.min(playhead, total), `new-${nextChapter++}`),
+          addChapterAt(
+            now,
+            Math.min(
+              typeof playhead === "function" ? playhead() : playhead,
+              total,
+            ),
+            `new-${nextChapter++}`,
+          ),
         )
       }
     />
