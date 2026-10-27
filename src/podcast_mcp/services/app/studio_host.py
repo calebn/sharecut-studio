@@ -421,7 +421,7 @@ def _cancel(host: StudioHost, run_id: str | None) -> None:
 def _refusal(host: StudioHost, response: http.client.HTTPResponse) -> HandoffRefused | HandoffLost:
     try:
         body: Any = json.loads(response.read().decode("utf-8"))
-    except (OSError, http.client.HTTPException, ValueError):
+    except (OSError, http.client.HTTPException, ValueError, RecursionError):
         body = None
     if isinstance(body, dict):
         code = body.get("code")
