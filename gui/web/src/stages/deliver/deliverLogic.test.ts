@@ -797,3 +797,41 @@ describe("parseClock rejects other separators and notations", () => {
     expect(parseClock(text)).toBeNull();
   });
 });
+
+describe("trimClip on clips shorter than a second", () => {
+  const short = [
+    { id: "s", title: "t", start: 5, end: 5.4, score: 1, approved: true },
+  ];
+  it.each([
+    ["end", 5.2, { start: 5, end: 5.4 }],
+    ["end", 5.9, { start: 5, end: 5.9 }],
+    ["start", 5.1, { start: 5, end: 5.4 }],
+    ["start", 4.2, { start: 4.2, end: 5.4 }],
+    ["end", 5.4, { start: 5, end: 5.4 }],
+  ] as const)(
+    "%s to %f gives %j and never jumps away from the pointer",
+    (edge, at, expected) => {
+      const [clip] = trimClip(short, "s", edge, at, 3000);
+      expect(clip?.start).toBeCloseTo(expected.start, 9);
+      expect(clip?.end).toBeCloseTo(expected.end, 9);
+    },
+  );
+
+  it("still keeps a second between the edges of a longer clip", () => {
+    const long = [{ ...short[0], start: 5, end: 9 } as (typeof short)[number]];
+    expect(trimClip(long, "s", "end", 5.2, 3000)[0]?.end).toBe(6);
+    expect(trimClip(long, "s", "start", 8.9, 3000)[0]?.start).toBe(8);
+  });
+
+  it("holds a zero-length clip where it is", () => {
+    const zero = [{ ...short[0], start: 7, end: 7 } as (typeof short)[number]];
+    expect(trimClip(zero, "s", "end", 9, 3000)[0]).toMatchObject({
+      start: 7,
+      end: 9,
+    });
+    expect(trimClip(zero, "s", "start", 6, 3000)[0]).toMatchObject({
+      start: 6,
+      end: 7,
+    });
+  });
+});

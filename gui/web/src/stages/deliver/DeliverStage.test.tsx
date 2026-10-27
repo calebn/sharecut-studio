@@ -4682,6 +4682,8 @@ describe("clip trim handles in the stage", () => {
     });
   const input = (edge: "In" | "Out") =>
     screen.getByRole("textbox", { name: `${edge} of Nobody asked the river` });
+  const exportedClip = (all: DeliverStageProps) =>
+    vi.mocked(all.onExport).mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
 
   it("shows the strip only for the clip being trimmed", async () => {
     setup({ words: WORDS, peaks: PEAKS });
@@ -4690,9 +4692,6 @@ describe("clip trim handles in the stage", () => {
     expect(screen.getAllByRole("group", { name: /^Waveform of/ })).toHaveLength(
       1,
     );
-    expect(
-      screen.getByRole("group", { name: "Waveform of Nobody asked the river" }),
-    ).toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", { name: "More for Nobody asked the river" }),
     );
@@ -4703,62 +4702,83 @@ describe("clip trim handles in the stage", () => {
   });
 
   it.each([
-    ["In", "ArrowRight", {}, "start", 612.85],
-    ["In", "ArrowLeft", {}, "start", 611.56],
-    ["Out", "ArrowLeft", {}, "end", 652.18],
-    [
-      "Out",
-      "ArrowRight",
-      {},
-      "end",
-      WORDS[WORDS.findIndex((w) => w.end === 652.66) + 1]?.end ?? 0,
-    ],
+    ["In", "ArrowRight", {}, "start", 612.01],
+    ["In", "ArrowLeft", { shiftKey: true }, "start", 611.9],
+    ["Out", "ArrowLeft", {}, "end", 652.99],
+    ["Out", "ArrowRight", { shiftKey: true }, "end", 653.1],
   ] as const)(
-    "%s %s moves one word and the field follows",
-    async (edge, key, init, _kind, expected) => {
-      setup({ words: WORDS, peaks: PEAKS });
-      await openTrim();
-      fireEvent.keyDown(handle(edge), { key, ...init });
-      expect(input(edge)).toHaveValue(formatClock(expected));
+    "%s %s %j moves 10 ms or 100 ms, with and without words",
+    async (edge, key, init, kind, expected) => {
+      for (const extra of [{ words: WORDS, peaks: PEAKS }, {}]) {
+        const { stage, all, unmount } = setup(extra);
+        await userEvent.click(
+          screen.getByRole("button", {
+            name: "Approve Nobody asked the river",
+          }),
+        );
+        await openTrim();
+        fireEvent.keyDown(handle(edge), { key, ...init });
+        modE(stage());
+        expect(exportedClip(all)?.[kind]).toBeCloseTo(expected, 6);
+        unmount();
+      }
     },
   );
 
-  it("moves ten words with Shift, and the fields and handles agree", async () => {
+  it("shows the moved value in the field and on the handle", async () => {
     setup({ words: WORDS, peaks: PEAKS });
     await openTrim();
     fireEvent.keyDown(handle("In"), { key: "ArrowRight", shiftKey: true });
-    expect(input("In")).toHaveValue(formatClock(618.7));
-    expect(handle("In")).toHaveAttribute("aria-valuenow", "618.7");
+    expect(input("In")).toHaveValue(formatClock(612.1));
+    expect(handle("In")).toHaveAttribute("aria-valuenow", "612.1");
   });
 
-  it("moves 10 ms with Alt and the field shows the tenth", async () => {
-    const { stage, all } = setup({ words: WORDS, peaks: PEAKS });
-    await userEvent.click(
-      screen.getByRole("button", { name: "Approve Nobody asked the river" }),
-    );
-    await openTrim();
-    fireEvent.keyDown(handle("In"), { key: "ArrowRight", altKey: true });
-    modE(stage());
-    const clip = vi
-      .mocked(all.onExport)
-      .mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
-    expect(clip?.start).toBeCloseTo(612.01, 6);
-  });
-
-  it("moves freely by 10 ms without words", async () => {
-    const { stage, all } = setup();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Approve Nobody asked the river" }),
-    );
-    await openTrim();
-    fireEvent.keyDown(handle("Out"), { key: "ArrowLeft" });
-    fireEvent.keyDown(handle("Out"), { key: "ArrowLeft", shiftKey: true });
-    modE(stage());
-    const clip = vi
-      .mocked(all.onExport)
-      .mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
-    expect(clip?.end).toBeCloseTo(653 - 0.01 - 0.1, 6);
-  });
+  it.each([
+    ["start", 10.5, 612.35],
+    ["end", 652.5, 652.66],
+  ] as const)(
+    "a drag of %s snaps to a word edge",
+    async (kind, atSeconds, expected) => {
+      const { stage, all } = setup({ words: WORDS, peaks: PEAKS });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Approve Nobody asked the river" }),
+      );
+      await openTrim();
+      const edge = kind === "start" ? "In" : "Out";
+      const track = screen.getByRole("group", {
+        name: "Waveform of Nobody asked the river",
+      });
+      vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
+        left: 0,
+        width: 1000,
+        right: 1000,
+        top: 0,
+        bottom: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      });
+      const win = { start: 609, end: 656 };
+      const x =
+        (((kind === "start" ? 612.4 : atSeconds) - win.start) /
+          (win.end - win.start)) *
+        1000;
+      fireEvent.pointerDown(handle(edge), {
+        pointerId: 1,
+        clientX: 500,
+        buttons: 1,
+      });
+      fireEvent.pointerMove(handle(edge), {
+        pointerId: 1,
+        clientX: x,
+        buttons: 1,
+      });
+      fireEvent.pointerUp(handle(edge), { pointerId: 1 });
+      modE(stage());
+      expect(exportedClip(all)?.[kind]).toBeCloseTo(expected, 6);
+    },
+  );
 
   it("keeps a typed In in step with the handle", async () => {
     setup({ words: WORDS, peaks: PEAKS });
@@ -4770,13 +4790,55 @@ describe("clip trim handles in the stage", () => {
   });
 
   it("never lets the handles cross", async () => {
-    setup({ words: WORDS, peaks: PEAKS });
+    setup({
+      words: WORDS,
+      peaks: PEAKS,
+      initialClips: [
+        {
+          ...CLIPS[0],
+          id: "k1",
+          start: 612,
+          end: 613.5,
+        } as (typeof CLIPS)[number],
+      ],
+    });
     await openTrim();
-    for (let i = 0; i < 6; i += 1)
+    for (let i = 0; i < 20; i += 1)
       fireEvent.keyDown(handle("In"), { key: "ArrowRight", shiftKey: true });
     const start = Number(handle("In").getAttribute("aria-valuenow"));
     const end = Number(handle("Out").getAttribute("aria-valuenow"));
-    expect(end - start).toBeGreaterThanOrEqual(1);
+    expect(end - start).toBeGreaterThanOrEqual(1 - 1e-9);
+  });
+
+  it.each(["Out", "In"] as const)(
+    "keeps the handles on the strip when a far %s is typed into the field",
+    async (edge) => {
+      setup({ words: WORDS, peaks: PEAKS });
+      await openTrim();
+      const field = input(edge);
+      await userEvent.clear(field);
+      await userEvent.type(
+        field,
+        edge === "Out" ? "50:00{Enter}" : "0:05{Enter}",
+      );
+      for (const which of ["In", "Out"] as const) {
+        const at = Number.parseFloat(handle(which).style.insetInlineStart);
+        expect(at).toBeGreaterThanOrEqual(0);
+        expect(at).toBeLessThanOrEqual(100);
+      }
+      const region = document.querySelector(".dv-trim-region") as HTMLElement;
+      expect(
+        Number.parseFloat(region.style.insetInlineStart) +
+          Number.parseFloat(region.style.inlineSize),
+      ).toBeLessThanOrEqual(100.001);
+    },
+  );
+
+  it("trims through the handles without offering Undo, like the fields", async () => {
+    setup({ words: WORDS, peaks: PEAKS });
+    await openTrim();
+    fireEvent.keyDown(handle("In"), { key: "ArrowRight", shiftKey: true });
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 });
 

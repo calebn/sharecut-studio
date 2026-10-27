@@ -286,23 +286,9 @@
   overflow-y: hidden;
 }
 
-.dv-trim-wave {
-  position: relative;
+.sys-wave.dv-trim-wave {
   block-size: 4rem;
   margin-inline: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-sunken);
-  touch-action: pan-y;
-}
-
-.dv-trim-wave svg {
-  display: block;
-  inline-size: 100%;
-  block-size: 100%;
-}
-
-.dv-trim-peak {
-  fill: var(--color-waveform-peak);
 }
 
 .dv-trim-region {
@@ -314,27 +300,8 @@
   pointer-events: none;
 }
 
-.dv-trim-handle {
-  position: absolute;
-  inset-block: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--touch-min);
-  margin-inline-start: calc(var(--touch-min) / -2);
-  cursor: ew-resize;
-  touch-action: none;
-}
-
-.dv-trim-knob {
+.sys-wave-knob.dv-trim-knob {
   inline-size: 0.5rem;
   block-size: 2.5rem;
-  border: 1px solid var(--color-bg-raised);
-  border-radius: var(--radius-lg);
   background: var(--color-accent);
-}
-
-.dv-trim-handle:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: var(--focus-ring-offset);
 }

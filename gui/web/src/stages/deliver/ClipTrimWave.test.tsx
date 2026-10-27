@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ClipTrimWave } from "./ClipTrimWave";
 
@@ -43,42 +43,39 @@ function setup(extra: Partial<React.ComponentProps<typeof ClipTrimWave>> = {}) {
 
 describe("ClipTrimWave keys", () => {
   it.each([
-    ["In", "ArrowRight", {}, 11.3],
-    ["In", "ArrowLeft", {}, 10],
-    ["In", "ArrowRight", { shiftKey: true }, 12.3],
-    ["In", "ArrowLeft", { shiftKey: true }, 10],
-    ["In", "ArrowRight", { altKey: true }, 10.61],
-    ["In", "ArrowLeft", { altKey: true }, 10.59],
-    ["In", "ArrowRight", { altKey: true, shiftKey: true }, 10.7],
-    ["Out", "ArrowRight", {}, 12.2],
-    ["Out", "ArrowLeft", {}, 11.2],
-    ["Out", "ArrowRight", { shiftKey: true }, 13],
-    ["Out", "ArrowLeft", { altKey: true }, 11.79],
-  ] as const)("%s %s %j lands on %f", (edge, key, init, expected) => {
-    const { onTrim, handle } = setup();
-    fireEvent.keyDown(handle(edge), { key, ...init });
-    expect(onTrim).toHaveBeenCalledOnce();
-    expect(onTrim.mock.calls[0]?.[0]).toBe(edge === "In" ? "start" : "end");
-    expect(onTrim.mock.calls[0]?.[1]).toBeCloseTo(expected, 6);
-  });
+    ["In", "ArrowRight", {}, 10.61],
+    ["In", "ArrowLeft", {}, 10.59],
+    ["In", "ArrowRight", { shiftKey: true }, 10.7],
+    ["In", "ArrowLeft", { shiftKey: true }, 10.5],
+    ["Out", "ArrowRight", {}, 11.81],
+    ["Out", "ArrowLeft", {}, 11.79],
+    ["Out", "ArrowRight", { shiftKey: true }, 11.9],
+    ["Out", "ArrowLeft", { shiftKey: true }, 11.7],
+  ] as const)(
+    "%s %s %j moves to %f, with words or without",
+    (edge, key, init, expected) => {
+      for (const words of [WORDS, []]) {
+        const { onTrim, handle } = setup({ words });
+        fireEvent.keyDown(handle(edge), { key, ...init });
+        expect(onTrim).toHaveBeenCalledOnce();
+        expect(onTrim.mock.calls[0]?.[0]).toBe(edge === "In" ? "start" : "end");
+        expect(onTrim.mock.calls[0]?.[1]).toBeCloseTo(expected, 6);
+        cleanup();
+      }
+    },
+  );
 
-  it("ignores other keys", () => {
-    const { onTrim, handle } = setup();
-    fireEvent.keyDown(handle("In"), { key: "a" });
-    fireEvent.keyDown(handle("In"), { key: "ArrowUp" });
-    expect(onTrim).not.toHaveBeenCalled();
-  });
-
-  it("moves 10 ms, Shift 100 ms, when there are no words", () => {
-    const { onTrim, handle } = setup({ words: [] });
-    fireEvent.keyDown(handle("In"), { key: "ArrowRight" });
-    fireEvent.keyDown(handle("In"), { key: "ArrowRight", shiftKey: true });
-    expect(onTrim.mock.calls[0]?.[1]).toBeCloseTo(10.61, 6);
-    expect(onTrim.mock.calls[1]?.[1]).toBeCloseTo(10.7, 6);
-  });
+  it.each(["a", "ArrowUp", "ArrowDown", "Home", "End", "PageUp"])(
+    "ignores %s",
+    (key) => {
+      const { onTrim, handle } = setup();
+      fireEvent.keyDown(handle("In"), { key });
+      expect(onTrim).not.toHaveBeenCalled();
+    },
+  );
 
   it("stops at the edges of the strip", () => {
-    const { onTrim, handle } = setup({ start: 9, end: 14, words: [] });
+    const { onTrim, handle } = setup({ start: 9, end: 14 });
     fireEvent.keyDown(handle("In"), { key: "ArrowLeft" });
     fireEvent.keyDown(handle("Out"), { key: "ArrowRight" });
     expect(onTrim.mock.calls[0]?.[1]).toBe(9);
@@ -88,8 +85,13 @@ describe("ClipTrimWave keys", () => {
 
 describe("ClipTrimWave drag", () => {
   const drag = (el: HTMLElement, x: number, init: PointerEventInit = {}) => {
-    fireEvent.pointerDown(el, { pointerId: 1, clientX: 300 });
-    fireEvent.pointerMove(el, { pointerId: 1, clientX: x, ...init });
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 300, buttons: 1 });
+    fireEvent.pointerMove(el, {
+      pointerId: 1,
+      clientX: x,
+      buttons: 1,
+      ...init,
+    });
     fireEvent.pointerUp(el, { pointerId: 1 });
   };
 
@@ -129,17 +131,69 @@ describe("ClipTrimWave drag", () => {
 
   it("does nothing on a move without a press", () => {
     const { onTrim, handle } = setup();
-    fireEvent.pointerMove(handle("In"), { pointerId: 1, clientX: 200 });
+    fireEvent.pointerMove(handle("In"), {
+      pointerId: 1,
+      clientX: 200,
+      buttons: 1,
+    });
     expect(onTrim).not.toHaveBeenCalled();
   });
 
   it("stops after release or cancel", () => {
     const { onTrim, handle } = setup();
-    fireEvent.pointerDown(handle("In"), { pointerId: 1, clientX: 300 });
+    fireEvent.pointerDown(handle("In"), {
+      pointerId: 1,
+      clientX: 300,
+      buttons: 1,
+    });
     fireEvent.pointerCancel(handle("In"), { pointerId: 1 });
-    fireEvent.pointerMove(handle("In"), { pointerId: 1, clientX: 200 });
+    fireEvent.pointerMove(handle("In"), {
+      pointerId: 1,
+      clientX: 200,
+      buttons: 1,
+    });
     expect(onTrim).not.toHaveBeenCalled();
   });
+
+  it("stops when the pointer capture is lost", () => {
+    const { onTrim, handle } = setup();
+    fireEvent.pointerDown(handle("Out"), {
+      pointerId: 1,
+      clientX: 300,
+      buttons: 1,
+    });
+    fireEvent.lostPointerCapture(handle("Out"), { pointerId: 1 });
+    fireEvent.pointerMove(handle("Out"), {
+      pointerId: 1,
+      clientX: 200,
+      buttons: 1,
+    });
+    expect(onTrim).not.toHaveBeenCalled();
+  });
+
+  it.each(["In", "Out"] as const)(
+    "ignores a %s move with no button held, even after a press",
+    (edge) => {
+      const { onTrim, handle } = setup();
+      fireEvent.pointerDown(handle(edge), {
+        pointerId: 1,
+        clientX: 300,
+        buttons: 1,
+      });
+      fireEvent.pointerMove(handle(edge), {
+        pointerId: 1,
+        clientX: 200,
+        buttons: 0,
+      });
+      expect(onTrim).not.toHaveBeenCalled();
+      fireEvent.pointerMove(handle(edge), {
+        pointerId: 1,
+        clientX: 200,
+        buttons: 1,
+      });
+      expect(onTrim).toHaveBeenCalledOnce();
+    },
+  );
 });
 
 describe("ClipTrimWave anatomy", () => {
@@ -162,13 +216,31 @@ describe("ClipTrimWave anatomy", () => {
     expect(Number.parseFloat(region.style.inlineSize)).toBeCloseTo(24, 6);
   });
 
-  it("draws a peak per bucket, or one flat line with none", () => {
+  it("draws a peak per bucket", () => {
     setup();
-    expect(document.querySelectorAll(".dv-trim-peak")).toHaveLength(4);
+    expect(document.querySelectorAll(".sys-wave-peak")).toHaveLength(4);
   });
 
   it("draws a flat line without peaks", () => {
     setup({ peaks: [] });
-    expect(document.querySelectorAll(".dv-trim-peak")).toHaveLength(1);
+    expect(document.querySelectorAll(".sys-wave-peak")).toHaveLength(1);
+    cleanup();
+    setup({ peaks: undefined });
+    expect(document.querySelectorAll(".sys-wave-peak")).toHaveLength(1);
   });
+
+  it.each([
+    [3000, 3010, "100%", "100%", "0%"],
+    [-50, -40, "0%", "0%", "0%"],
+    [5, 20, "0%", "100%", "100%"],
+  ])(
+    "keeps a clip %f to %f s inside the strip when drawn",
+    (from, to, startAt, endAt, width) => {
+      const { handle } = setup({ start: from, end: to });
+      expect(handle("In").style.insetInlineStart).toBe(startAt);
+      expect(handle("Out").style.insetInlineStart).toBe(endAt);
+      const region = document.querySelector(".dv-trim-region") as HTMLElement;
+      expect(region.style.inlineSize).toBe(width);
+    },
+  );
 });

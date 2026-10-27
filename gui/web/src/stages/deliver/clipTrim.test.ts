@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  fineStep,
+  type ClipWord,
+  normaliseWords,
   peaksForWindow,
   snapToWord,
-  stepWords,
   trimWindow,
 } from "./clipTrim";
 
-const WORDS = [
+const WORDS: ClipWord[] = [
   { text: "So", start: 10, end: 10.4 },
   { text: "nobody", start: 10.6, end: 11.2 },
   { text: "asked", start: 11.3, end: 11.8 },
@@ -41,31 +41,51 @@ describe("snapToWord", () => {
   );
 });
 
-describe("stepWords", () => {
+describe("normaliseWords", () => {
+  it("sorts by start then end and drops words without numeric times", () => {
+    const words = [
+      { text: "c", start: 12, end: 12.5 },
+      { text: "a", start: 10, end: 10.5 },
+      { text: "b2", start: 11, end: 11.5 },
+      { text: "b1", start: 11, end: 11.2 },
+      { text: "bad", start: Number.NaN, end: 1 },
+      { text: "worse", start: 1, end: Number.POSITIVE_INFINITY },
+    ];
+    expect(normaliseWords(words).map((w) => w.text)).toEqual([
+      "a",
+      "b1",
+      "b2",
+      "c",
+    ]);
+    expect(words).toHaveLength(6);
+  });
+});
+
+describe("snapToWord with awkward words", () => {
   it.each([
-    ["start", 10.6, 1, 11.3],
-    ["start", 10.6, -1, 10],
-    ["start", 10.6, 2, 12],
-    ["start", 10.6, 10, 12.3],
-    ["start", 10.6, -10, 10],
-    ["start", 10.0, -1, 10],
-    ["start", 12.3, 1, 12.3],
-    ["start", 10.55, 1, 11.3],
-    ["end", 11.2, 1, 11.8],
-    ["end", 11.2, -1, 10.4],
-    ["end", 11.2, 10, 13],
-    ["end", 13, 1, 13],
-    ["end", 10.4, -10, 10.4],
-    ["start", 10.6, 0, 10.6],
-  ] as const)(
-    "%s at %f by %i words lands on %f",
-    (edge, from, count, expected) => {
-      expect(stepWords(WORDS, edge, from, count)).toBe(expected);
+    ["unsorted", [WORDS[3], WORDS[0], WORDS[4], WORDS[1], WORDS[2]]],
+    ["sorted", WORDS],
+    [
+      "normalised",
+      normaliseWords([WORDS[3], WORDS[0], WORDS[4], WORDS[1], WORDS[2]]),
+    ],
+  ] as [string, ClipWord[]][])(
+    "snaps the same from %s words",
+    (_name, words) => {
+      expect(snapToWord(words, "start", 10.5)).toBe(10.6);
+      expect(snapToWord(words, "end", 11.5)).toBe(11.2);
     },
   );
 
-  it("stays put with no words", () => {
-    expect(stepWords([], "start", 5, 3)).toBe(5);
+  it.each([
+    ["start", 10, 10],
+    ["end", 10, 10],
+  ] as const)("lands on a zero-length word's %s", (edge, time, expected) => {
+    const words = [
+      { text: "x", start: 10, end: 10 },
+      { text: "y", start: 10, end: 10.5 },
+    ];
+    expect(snapToWord(words, edge, time)).toBe(expected);
   });
 });
 
@@ -100,12 +120,5 @@ describe("peaksForWindow", () => {
   it("is empty without peaks or a length", () => {
     expect(peaksForWindow([], 100, { start: 0, end: 10 })).toEqual([]);
     expect(peaksForWindow(peaks, 0, { start: 0, end: 10 })).toEqual([]);
-  });
-});
-
-describe("fineStep", () => {
-  it("is 10 ms, or 100 ms with Shift", () => {
-    expect(fineStep(false)).toBe(0.01);
-    expect(fineStep(true)).toBe(0.1);
   });
 });

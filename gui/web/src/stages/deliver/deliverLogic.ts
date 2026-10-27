@@ -432,9 +432,10 @@ export function trimClip(
 ): Clip[] {
   return clips.map((c) => {
     if (c.id !== id) return c;
+    const gap = Math.min(1, c.end - c.start);
     return edge === "start"
-      ? { ...c, start: Math.max(0, Math.min(at, c.end - 1)) }
-      : { ...c, end: Math.min(total, Math.max(at, c.start + 1)) };
+      ? { ...c, start: Math.max(0, Math.min(at, c.end - gap)) }
+      : { ...c, end: Math.min(total, Math.max(at, c.start + gap)) };
   });
 }
 
