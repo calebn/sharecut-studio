@@ -1,5 +1,4 @@
 import type { StageId } from "../../system/verbs";
-import { capCommentName, GUEST_SESSION_LABEL } from "../../utils/commentAuthor";
 
 export type GuestRole = "viewer" | "commenter" | "editor";
 
@@ -29,40 +28,3 @@ export function wordAtSeconds(
   }
   return found;
 }
-
-/** `pinnedAt` null: the chip follows the playhead. A number: the comment stays at that time. */
-export type ComposerAnchor = { pinnedAt: number | null };
-
-/** The first keystroke pins the time the guest started typing at; clearing the field lets it follow again. */
-export function anchorAfterTyping(
-  anchor: ComposerAnchor,
-  body: string,
-  playhead: number,
-): ComposerAnchor {
-  if (body.trim() === "") return { pinnedAt: null };
-  return anchor.pinnedAt === null ? { pinnedAt: playhead } : anchor;
-}
-
-/** Pressing the chip moves a pinned comment to where the playhead is now. */
-export function reanchor(
-  anchor: ComposerAnchor,
-  playhead: number,
-): ComposerAnchor {
-  return anchor.pinnedAt === null ? anchor : { pinnedAt: playhead };
-}
-
-export const anchorSeconds = (anchor: ComposerAnchor, playhead: number) =>
-  anchor.pinnedAt ?? playhead;
-
-/** Enter posts; Shift+Enter is a newline, and Enter while composing text is the input method's. */
-export function isPostKey(event: {
-  key: string;
-  shiftKey: boolean;
-  isComposing: boolean;
-}): boolean {
-  return event.key === "Enter" && !event.shiftKey && !event.isComposing;
-}
-
-/** A blank name posts as Guest. */
-export const postedName = (name: string) =>
-  capCommentName(name) || GUEST_SESSION_LABEL;
