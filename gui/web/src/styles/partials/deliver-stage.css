@@ -310,7 +310,7 @@
   inset-block: 0;
   box-sizing: border-box;
   border-block: var(--focus-ring-width) solid var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  background: var(--color-accent-subtle);
   pointer-events: none;
 }
 
