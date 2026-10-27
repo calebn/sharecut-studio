@@ -137,6 +137,10 @@
   --join-hit-min: calc(2 * var(--clip-inset-top));
   --header-width: 11.25rem;
   --inspector-width: 17.5rem;
+  /* Edit stage, side by side: the timeline never gets narrower than the lane
+     floor, and the Script pane gives way first, down to its own floor. */
+  --stage-lane-min: 22rem;
+  --stage-script-floor: 12rem;
   --transport-height: 3.5rem;
   /* Control heights: one per role so rows line up. */
   --control-height: 2rem;

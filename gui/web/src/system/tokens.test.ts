@@ -133,6 +133,8 @@ const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--join-hit-min", ["calc(2 * var(--clip-inset-top))"]],
   ["--header-width", ["11.25rem"]],
   ["--inspector-width", ["17.5rem"]],
+  ["--stage-lane-min", ["22rem"]],
+  ["--stage-script-floor", ["12rem"]],
   ["--transport-height", ["3.5rem"]],
   ["--control-height", ["2rem"]],
   ["--control-height-compact", ["1.75rem"]],

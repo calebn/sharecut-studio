@@ -229,9 +229,6 @@ test.describe("Timeline fade curves", () => {
     await page.keyboard.press("Shift+ArrowRight");
     await page.keyboard.press("ControlOrMeta+K");
     await expect(clips).toHaveCount(2);
-    const scriptToggle = page.getByRole("button", {
-      name: "Show or hide Script",
-    });
     try {
       const badge = lane.locator(".edit-mark");
       await expect(badge).toHaveCount(1);
@@ -282,14 +279,24 @@ test.describe("Timeline fade curves", () => {
       };
 
       await expectBadgeClear();
-      // The Script pane sits beside the timeline and its rem column grows with the text size;
-      // hide it so the lane keeps room to hold the clips this test clicks.
-      await scriptToggle.click();
-      await expect(scriptToggle).toHaveAttribute("aria-pressed", "false");
       // A larger browser text size grows rem chrome but not the px clip gutter the glyph fills.
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "24px";
       });
+      // The side columns give way before the timeline drops under its floor.
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const probe = document.createElement("div");
+            probe.style.inlineSize = "var(--stage-lane-min)";
+            document.body.append(probe);
+            const floor = probe.getBoundingClientRect().width;
+            probe.remove();
+            const col = document.querySelector(".edit-timeline-col");
+            return (col?.getBoundingClientRect().width ?? 0) >= floor - 1;
+          }),
+        )
+        .toBe(true);
       await expectBadgeClear();
 
       // Two clips with a drawn join glyph and the seam clip's revealed zero fade corners.
