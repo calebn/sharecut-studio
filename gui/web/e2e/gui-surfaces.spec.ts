@@ -1,7 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import type { PipelineConfigResponse } from "../src/types/pipeline";
-import { setByPath } from "../src/utils/configPath";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
@@ -107,7 +105,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         ["History", ".history-panel"],
         ["Impact", ".impact-panel"],
         ["Tighten", ".tighten-panel"],
-        ["Pipeline", ".pipeline-panel"],
+        ["Pipeline", ".sys-prepare"],
       ] as const) {
         await openPanel(page, name);
         await expect(page.locator(selector)).toBeVisible();
@@ -121,7 +119,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         }
       }
       await expect(
-        page.getByRole("button", { name: "Run pipeline", exact: true }),
+        page.getByRole("heading", { name: "Sources", exact: true }),
       ).toBeVisible();
     });
 
@@ -161,20 +159,17 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
       await expectEditorAxeClean(page, ".comments-panel");
     });
 
-    test("keeps a maximum-length vocabulary entry and Remove action within the panel", async ({
+    test("keeps a maximum-length vocabulary entry and Remove action within the stage", async ({
       page,
     }) => {
       await openProject(page, e2eProjectPath);
       await openPanel(page, "Pipeline");
-      const vocabulary = page.getByRole("region", {
-        name: "Transcription vocabulary",
-      });
+      const vocabulary = page.locator(".sys-vocab, .sys-chipinput").first();
       const term = `${viewport.name}-`.padEnd(100, "W");
-      await vocabulary.getByLabel("Terms", { exact: true }).fill(term);
-      await vocabulary
-        .getByRole("button", { name: "Add term", exact: true })
-        .click();
-      const remove = vocabulary.getByRole("button", {
+      const input = page.getByLabel("Names and terms", { exact: true });
+      await input.fill(term);
+      await input.press("Enter");
+      const remove = page.getByRole("button", {
         name: `Remove ${term}`,
         exact: true,
       });
@@ -333,131 +328,6 @@ for (const state of ["saved", "failed"] as const) {
     expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
   });
 }
-
-test("phone pipeline step parameters trap focus, close on Escape, and restore the trigger", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 360, height: 800 });
-  await openProject(page, e2eProjectPath);
-  await openPanel(page, "Pipeline");
-  const step = page.locator(".pipeline-step-select").first();
-  await expect(step).toBeVisible();
-  await step.focus();
-  await page.keyboard.press("Enter");
-  const dialog = page.getByRole("dialog", {
-    name: "Step parameters",
-    exact: true,
-  });
-  await expect(dialog).toBeVisible();
-  await expect(step).toHaveAttribute("aria-expanded", "true");
-  expect(
-    await dialog.evaluate((element) => element.closest("[inert]")),
-  ).toBeNull();
-  await expect(
-    dialog.getByRole("button", { name: "Close", exact: true }),
-  ).toBeFocused();
-  for (let index = 0; index < 12; index += 1) {
-    await page.keyboard.press("Tab");
-    expect(
-      await dialog.evaluate((element) =>
-        element.contains(document.activeElement),
-      ),
-    ).toBe(true);
-  }
-  await expectEditorAxeClean(page, '[role="dialog"]');
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await expect(step).toBeFocused();
-  await expect(step).toHaveAttribute("aria-expanded", "false");
-});
-
-test("phone pipeline hands focus to a missing Whisper model dialog and back", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 360, height: 800 });
-  const response = await page.request.get(
-    `/api/pipeline/config?path=${encodeURIComponent(e2eProjectPath)}`,
-  );
-  expect(response.ok()).toBe(true);
-  const config = (await response.json()) as PipelineConfigResponse;
-  const currentModel = config.whisper_models?.[0];
-  if (!currentModel) throw new Error("The Whisper catalog must contain models");
-  const models = (config.whisper_models ?? []).map((model) => ({
-    ...model,
-    cached: model.id === currentModel.id,
-  }));
-  expect(models.length).toBeGreaterThan(1);
-  const pickerConfig: PipelineConfigResponse = {
-    ...config,
-    config: setByPath(config.config, "transcribe.model", currentModel.id),
-    components: {
-      ...config.components,
-      whisper: {
-        ...config.components.whisper,
-        state: "installed",
-        model: currentModel.id,
-      },
-    },
-    whisper_models: models,
-  };
-  await page.route("**/api/pipeline/config**", async (route) => {
-    await route.fulfill({
-      response,
-      json: pickerConfig,
-    });
-  });
-  await openProject(page, e2eProjectPath);
-  await openPanel(page, "Pipeline");
-  await page
-    .getByRole("button", { name: "Transcribe tracks", exact: true })
-    .click();
-  const parameters = page.getByRole("dialog", {
-    name: "Step parameters",
-    exact: true,
-  });
-  const picker = parameters.getByRole("combobox");
-  const originalModel = await picker.inputValue();
-  expect(originalModel).toBe(currentModel.id);
-  const missingModel = models.find((model) => model.id !== originalModel);
-  expect(missingModel).toBeDefined();
-  expect(missingModel?.cached).toBe(false);
-  await picker.selectOption(missingModel!.id);
-  const download = page.getByRole("dialog", {
-    name: "Download Whisper model?",
-    exact: true,
-  });
-  await expect(download).toBeVisible();
-  await expect(parameters).toHaveCount(0);
-  await expect(
-    download.getByRole("button", { name: "Download", exact: true }),
-  ).toBeFocused();
-  expect(
-    await download.evaluate((element) => element.closest("[inert]")),
-  ).toBeNull();
-  for (let index = 0; index < 8; index += 1) {
-    await page.keyboard.press("Tab");
-    expect(
-      await download.evaluate((element) =>
-        element.contains(document.activeElement),
-      ),
-    ).toBe(true);
-  }
-  await expectEditorAxeClean(page, '[role="dialog"]');
-  await page.keyboard.press("Escape");
-  await expect(download).toHaveCount(0);
-  await expect(parameters).toBeVisible();
-  await expect(parameters.getByRole("combobox")).toHaveValue(originalModel);
-  expect(
-    await parameters.evaluate((element) =>
-      element.contains(document.activeElement),
-    ),
-  ).toBe(true);
-  await page.keyboard.press("Escape");
-  await expect(parameters).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Transcribe tracks", exact: true }),
-  ).toBeFocused();
-});
 
 test("Project menu trigger closes on a second pointer click", async ({
   page,
