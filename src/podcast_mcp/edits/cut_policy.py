@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Literal
+from typing import Literal, TypedDict
 
 from podcast_mcp.edits.tighten_reasons import (
     ACOUSTIC_FILLER_REASON,
@@ -118,6 +118,9 @@ _SOUND_ACTIONS: tuple[tuple[str, str, SuggestedAction, bool, bool, ReviewKind], 
 )
 
 _REVIEW_KIND_BY_SOUND: dict[str, ReviewKind] = {row[0]: row[5] for row in _SOUND_ACTIONS}
+_LABEL_ACTION_BY_SOUND: dict[str, tuple[str, SuggestedAction]] = {
+    row[0]: (row[1], row[2]) for row in _SOUND_ACTIONS
+}
 
 
 _SAFETY_ACTIONS = (
@@ -215,6 +218,25 @@ def review_kind(reason: str | None) -> ReviewKind:
     """The Review queue group for a reason code; ``other`` for guest, agent and manual edits."""
     kind = sound_kind(reason)
     return _REVIEW_KIND_BY_SOUND[kind] if kind is not None else "other"
+
+
+class ReviewFields(TypedDict):
+    kind: ReviewKind
+    sound_kind: str | None
+    label: str | None
+    suggested_action: SuggestedAction | None
+
+
+def review_fields(reason: str | None) -> ReviewFields:
+    """The four Review fields for a reason code. ``label`` and ``suggested_action`` are None exactly when ``sound_kind`` is."""
+    kind = sound_kind(reason)
+    label, action = _LABEL_ACTION_BY_SOUND[kind] if kind is not None else (None, None)
+    return {
+        "kind": review_kind(reason),
+        "sound_kind": kind,
+        "label": label,
+        "suggested_action": action,
+    }
 
 
 def sound_policy(reason: str | None, mode: CutMode = "ripple") -> CutActionPolicy | None:

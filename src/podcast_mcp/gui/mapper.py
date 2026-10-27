@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.edits.cut_policy import decision_policy, review_kind, sound_kind
+from podcast_mcp.edits.cut_policy import review_fields
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.tighten_hits import (
     is_harsh_tighten_hit,
@@ -109,7 +109,6 @@ def map_pending_edits_to_timeline(
                 source_start_timeline = float(start_point) if start_point is not None else None
                 source_end_timeline = float(end_point) if end_point is not None else None
         preview = preview_window_for_edit(project, decision)
-        sound_info = decision_policy(decision)
         rows.append(
             {
                 "exact_range": decision.exact_range.model_dump(mode="json")
@@ -140,10 +139,7 @@ def map_pending_edits_to_timeline(
                 "join_risk": join_risk_from_decision(decision),
                 "harsh": is_harsh_tighten_hit(decision),
                 "listen_one_by_one": is_listen_one_by_one_hit(decision),
-                "kind": review_kind(decision.reason),
-                "sound_kind": sound_kind(decision.reason),
-                "label": sound_info.label if sound_info else None,
-                "suggested_action": sound_info.action if sound_info else None,
+                **review_fields(decision.reason),
                 "why": why_line(decision, speaker_name=speaker_names.get(decision.track_id)),
             }
         )
