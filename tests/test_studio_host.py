@@ -533,6 +533,32 @@ def test_a_trickling_ping_expires_both_attempts_without_bypassing_studio(
             assert not worker.is_alive(), "Studio discovery did not stop after the peer closed"
 
 
+def test_cancel_posts_the_run_and_token_to_studio() -> None:
+    requests: list[tuple[str, str | None]] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            requests.append((self.path, self.headers.get("X-Sharecut-Handoff-Token")))
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *_args: object) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    try:
+        studio_host_module._cancel(_host(port=server.server_port), "run with & spaces")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(3)
+    assert requests == [("/api/handoff/cancel?run=run%20with%20%26%20spaces", "tok")]
+
+
 @pytest.mark.timeout(8)
 @pytest.mark.parametrize("framing", ["headers", "content-length", "chunked", "close-delimited"])
 def test_cancel_acknowledgment_has_one_deadline_and_closes_response(
