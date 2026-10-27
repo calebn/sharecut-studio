@@ -278,6 +278,24 @@ def test_a_listener_answering_the_ping_with_an_empty_list_stops_the_call(
     assert server.calls == []
 
 
+@pytest.mark.parametrize("status", [404, 503])
+def test_a_live_studio_http_error_stops_the_call_without_running_it_here(
+    minimal_project: Path, status: int
+) -> None:
+    with ping_answering(status, b"service unavailable") as port:
+        announce_studio_host(
+            minimal_project, StudioHost("x", os.getpid(), "127.0.0.1", port, "tok", "0")
+        )
+        server = _wrapped()
+        result = asyncio.run(
+            server.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+        )
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    assert "not a Studio reply" in _text(result)
+    assert server.calls == []
+
+
 def test_relative_file_arguments_are_made_absolute_before_the_send(
     studio: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
