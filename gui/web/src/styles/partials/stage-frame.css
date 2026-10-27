@@ -69,8 +69,7 @@ html[data-frame-short][data-shell="phone"] {
 }
 
 .stage-frame-header,
-.stage-frame-banners,
-.stage-frame-alerts {
+.stage-frame-banners {
   min-inline-size: 0;
 }
 
@@ -107,7 +106,6 @@ html[data-frame-short][data-shell="phone"] {
   grid-template-areas:
     "header header"
     "banners banners"
-    "alerts alerts"
     "body inspector"
     "player player"
     "tabs tabs";
@@ -119,10 +117,6 @@ html[data-frame-short][data-shell="phone"] {
 
 .stage-frame:has(.bottom-sheet--column) > .stage-frame-banners {
   grid-area: banners;
-}
-
-.stage-frame:has(.bottom-sheet--column) > .stage-frame-alerts {
-  grid-area: alerts;
 }
 
 .stage-frame:has(.bottom-sheet--column) > .stage-frame-body {

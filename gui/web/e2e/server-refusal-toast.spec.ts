@@ -20,7 +20,7 @@ test("a server refusal reaches the toast as the host message with a next step", 
     );
     await openProject(page, projectPath);
     await expect(page.locator(".lane-row").first()).toBeVisible();
-    // Refresh mix is a command now (the old pill is gone): its shortcut.
+    // Refresh mix has no button: its shortcut.
     await page.locator("body").click({ position: { x: 1, y: 1 } });
     await page.keyboard.press("ControlOrMeta+b");
     const toast = page.locator(".ui-toast-region--app");
