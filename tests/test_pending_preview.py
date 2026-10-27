@@ -278,8 +278,8 @@ def test_suggested_remove_preview_matches_the_approved_mix(
     _assert_same_audio(preview, approved)
     # B starts where A does and ends where the edited timeline's window ends.
     span = play.pending_preview_span("cut", preview, mode="suggested", pad_sec=pad)
-    assert (span.start_sec, span.end_sec) == approved_window
-    assert (span.edit_start_sec, span.edit_end_sec) == (2.0, 2.6)
+    assert (span.start_sec, span.end_sec) == pytest.approx(approved_window, abs=1e-6)
+    assert (span.edit_start_sec, span.edit_end_sec) == pytest.approx((2.0, 2.6))
 
 
 def test_suggested_mute_preview_matches_the_approved_mix(minimal_project) -> None:
@@ -915,3 +915,32 @@ def test_golden_ear_refuses_a_pad_the_audition_would_refuse() -> None:
     for bad in (float("nan"), float("-inf"), 11.0):
         with pytest.raises(CodedValueError):
             validate_pad_sec(bad)
+
+
+def test_a_window_on_a_track_with_an_adaptive_effect_renders_a_lead_in(
+    minimal_project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """loudnorm depends on the audio before it: a cold window differs from the same window in the stem
+    (about -16 dB residual against -50 dB with a 12 s lead-in, measured on a 4 min loudnorm track)."""
+    from podcast_mcp.models.episode import ProcessingChain, ProcessingEffect
+    from podcast_mcp.services.document import PlayService, play_pending
+
+    ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.4))
+    ws.project.processing_chains = [
+        ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="loudnorm")])
+    ]
+    starts: dict[str, float] = {}
+    real = play_pending.render_track_segment
+
+    def spy(project, track_id, start, end, out, defaults, **kw):
+        starts[track_id] = start
+        return real(project, track_id, start, end, out, defaults, **kw)
+
+    monkeypatch.setattr(play_pending, "render_track_segment", spy)
+    wav = PlayService(ws).play_pending_preview("cut", pad_sec=1.0, dry_run=True).wav_path
+    # The host renders from the start of the timeline (the lead-in cannot go before 0); the guest has no
+    # adaptive effect and renders exactly the window.
+    assert starts == {"host": 0.0, "guest": 1.0}
+    assert wav.is_file()
+    assert play_pending._warmup_sec(ws.project, "guest") == 0.0
+    assert play_pending._warmup_sec(ws.project, "host") == play_pending.PENDING_WARMUP_SEC
