@@ -20,6 +20,8 @@ const MAX_VOICES = 8;
 const MAX_NAME = 80;
 
 export type SourceCardProps = {
+  /** The track behind the card; lets the stage scroll to it. */
+  sourceId?: string;
   state: SourceCardState;
   /** 1-based position, so an unnamed voice reads "Hear voice 2". */
   index: number;
@@ -83,6 +85,7 @@ function Named({ label, who }: { label: string; who: string }) {
  * its own tab stop, in reading order.
  */
 export function SourceCard({
+  sourceId,
   state,
   index,
   name,
@@ -132,6 +135,7 @@ export function SourceCard({
     <section
       ref={card}
       tabIndex={-1}
+      data-source-id={sourceId}
       className="sys-source"
       aria-label={named ? `Voice ${index}, ${named}` : `Voice ${index}`}
       data-state={state}
