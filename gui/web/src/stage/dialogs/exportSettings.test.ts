@@ -6,6 +6,8 @@ import {
   exportResultCopy,
   exportSettingsFromConfig,
   exportStartBlocker,
+  isLossless,
+  masterMeasured,
   masterMeasuredCopy,
   selectedFormats,
 } from "./exportSettings";
@@ -125,7 +127,6 @@ describe("export choices", () => {
       { ext: "flac", codec: "flac" },
     ]);
   });
-
   it("blocks an export that would write nothing", () => {
     expect(exportStartBlocker(settings, [])).toBe(
       "Choose at least one format.",
@@ -151,5 +152,22 @@ describe("export outcome copy", () => {
     ).toBe("Measured −16.0 LUFS, true peak −1.5 dBTP.");
     expect(masterMeasuredCopy({ measured: {} })).toBeNull();
     expect(masterMeasuredCopy(null)).toBeNull();
+  });
+
+  it("hands the measured numbers over, true peak only when reported", () => {
+    expect(
+      masterMeasured({
+        measured: { integrated_lufs: -16.04, true_peak_db: -1.52 },
+      }),
+    ).toEqual({ lufs: -16.04, truePeak: -1.52 });
+    expect(masterMeasured({ measured: { integrated_lufs: -16 } })).toEqual({
+      lufs: -16,
+    });
+    expect(masterMeasured({ measured: { true_peak_db: -1 } })).toBeNull();
+  });
+
+  it("knows which formats are lossless", () => {
+    expect(["flac", "wav", "alac"].map(isLossless)).toEqual([true, true, true]);
+    expect(["mp3", "m4a"].map(isLossless)).toEqual([false, false]);
   });
 });

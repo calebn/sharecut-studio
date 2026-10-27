@@ -45,6 +45,10 @@ const OFFERED: readonly ExportFormatSpec[] = [M4A, FLAC];
 
 const LOSSLESS = new Set(["flac", "wav", "alac"]);
 
+export function isLossless(ext: string): boolean {
+  return LOSSLESS.has(ext);
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -158,15 +162,26 @@ export function loudnessTargetCopy(
   return `Mastered to ${db(target.lufs)} LUFS, peaks under ${db(target.truePeakDb)} dBTP.`;
 }
 
-/** What the master measured, from the job's `result.master` (`master_qc.json`). */
-export function masterMeasuredCopy(master: unknown): string | null {
+/** The numbers the master measured, from the job's `result.master` (`master_qc.json`). */
+export function masterMeasured(
+  master: unknown,
+): { lufs: number; truePeak?: number } | null {
   const measured = asRecord(asRecord(master).measured);
   const lufs = measured.integrated_lufs;
   const peak = measured.true_peak_db;
   if (typeof lufs !== "number") {
     return null;
   }
-  return typeof peak === "number"
-    ? `Measured ${db(lufs)} LUFS, true peak ${db(peak)} dBTP.`
-    : `Measured ${db(lufs)} LUFS.`;
+  return typeof peak === "number" ? { lufs, truePeak: peak } : { lufs };
+}
+
+/** What the master measured, as a sentence. */
+export function masterMeasuredCopy(master: unknown): string | null {
+  const measured = masterMeasured(master);
+  if (!measured) {
+    return null;
+  }
+  return measured.truePeak !== undefined
+    ? `Measured ${db(measured.lufs)} LUFS, true peak ${db(measured.truePeak)} dBTP.`
+    : `Measured ${db(measured.lufs)} LUFS.`;
 }
