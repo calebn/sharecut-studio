@@ -810,6 +810,30 @@ Nothing else changes: no clips, no tracks (so no empty lanes), no `track.media`,
 | Guests | The guest project view never carries `session_suggestions` (`sanitize_guest_project_view` strips it), so staged source ids and paths stay with the host. |
 | Older builds | A build from before this field loads the project but drops `session_suggestions` on its next save, which orphans the staged sources, and it refuses an insert or replace land. Record into insert or replace targets only with a current build. |
 
+### Returning people (which track a person lands on)
+
+A person's recordings land on a dialogue track. The participant id is minted fresh per room (`p_<hex>`), so the track is no longer the id slug alone: `services/record/track_match.py` decides it for every recorded participant (host and guests), first hit wins:
+
+| Step | Rule |
+|------|------|
+| Held | Their takes of this session are already staged or on the timeline: they stay on that track. |
+| Host choice | The host moved them (below). Kept per session in `sync.db` (`record_track_choices`), host only. |
+| Own track | A track with their participant-id slug already exists (the host keeps `p_host`). |
+| Name | Exactly one existing dialogue track (or a track another pending session will create) has their display name, compared without case, accents or extra spaces, and nobody else in the room has that name: they are matched ("returns") and their sources are labelled with that track's label. |
+| New | No track has the name, or the name is blank: a new track named after them. |
+| Ambiguous | Two people in the room share a name (`duplicate_name`), or two existing tracks share it (`several_tracks`). Nothing is merged: each person gets a new track until the host picks. |
+
+A track this session created itself is never a match target, so a person is not matched to their own new track. Matching never moves clips already placed; it only picks the track for recordings that have not landed.
+
+Host correction, until the session is accepted (host only; guests and share surfaces never see or change it, and the room snapshot carries nothing about it):
+
+| Surface | Use |
+|---------|-----|
+| `podcast record tracks`, `record_tracks_tool`, `GET /api/record/tracks` | Per person: `status` `matched`, `new` or `ambiguous`, `track_id`, `track_label`, `reason`, a plain-words `message` and the `candidates` for an ambiguous name. |
+| `podcast record assign-track --participant ID --track TRACK\|new`, `record_assign_track_tool`, `POST /api/record/assign-track` | Put a person on an existing track id, or `new`. Before landing it only stores the choice (no history step). When the person's takes are staged in a pending suggestion it re-points the staged takes, the room-tone bed and the source speaker names in one undo step titled "Moved <name> to <track>" (`remap_session_track`); the same choice again changes nothing. |
+
+Refusals (plain words, with codes): `unknown_participant`, `unknown_track` (the message lists the tracks that can be chosen), `track_taken` (another person in the room is on it: move them first), `session_already_accepted` (the suggestion was accepted, or the recordings are already on the timeline), `session_skipped`. The GUI route answers 404 for the unknown ones and 409 for the rest. Nothing persisted in the project changed shape; the one addition is the `record_track_choices` table beside the participants in `sync.db`, created on first open (backward compatibility is not required before the first beta).
+
 The session number is landing order, not timeline order. Sessions landed before numbering existed are numbered by their clips' `rec-<session_id>-` prefix and can read differently once staged sessions hold stored numbers.
 
 ## Live comments
