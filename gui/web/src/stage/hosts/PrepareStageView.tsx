@@ -1,61 +1,40 @@
-import type { ReactNode, Ref } from "react";
+import type { Ref } from "react";
+import {
+  AdvancedSteps,
+  type AdvancedStepsProps,
+} from "../../stages/prepare/AdvancedSteps";
+import {
+  PrepareView,
+  type PrepareViewProps,
+} from "../../stages/prepare/PrepareView";
 import type { ShellBreakpoint } from "../../state/types";
-import { Button } from "../../ui";
+import { Sheet } from "../../system/Sheet";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
-import type { HostState, PrepareHandoff } from "./hostModels";
+import type { HostState } from "./hostModels";
 
 export type PrepareStageViewProps = {
   shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
-  /** A new project: the two source tiles and nothing else. */
-  empty: boolean;
-  /** The caller may add audio to this project. */
-  canIngest: boolean;
-  importShortcut: string | null;
-  handoff: PrepareHandoff;
-  /** The drop target for an empty project. */
-  dropTarget: ReactNode;
-  /** Pipeline status and its controls. */
-  pipeline: ReactNode;
   scrollRef?: Ref<HTMLDivElement>;
-  onImport: () => void;
-  onRecord: () => void;
-  onHandoff: () => void;
+  view: PrepareViewProps;
+  advanced: {
+    open: boolean;
+    onClose: () => void;
+    props: AdvancedStepsProps;
+  };
 };
 
-/** Prepare: bring audio in, get it transcribed, hand off to Review or Edit. */
+/** Prepare: the stage view inside the host's scroller, with the Advanced steps sheet. */
 export function PrepareStageView({
   shell,
   state,
   failure,
-  empty,
-  canIngest,
-  importShortcut,
-  handoff,
-  dropTarget,
-  pipeline,
   scrollRef,
-  onImport,
-  onRecord,
-  onHandoff,
+  view,
+  advanced,
 }: PrepareStageViewProps) {
-  const sources = (
-    <section className="stage-host-section" aria-labelledby="prepare-sources">
-      <h2 id="prepare-sources" className="stage-host-title">
-        Sources
-      </h2>
-      <div className="stage-host-actions">
-        {canIngest ? (
-          <Button onClick={onImport}>
-            Add audio{importShortcut ? ` (${importShortcut})` : ""}
-          </Button>
-        ) : null}
-        <Button onClick={onRecord}>Record another session</Button>
-      </div>
-    </section>
-  );
   return (
     <HostBody
       stage="prepare"
@@ -64,33 +43,15 @@ export function PrepareStageView({
       failure={failure}
       scrollRef={scrollRef}
     >
-      {empty ? (
-        <div className="stage-host-empty">
-          {canIngest ? dropTarget : null}
-          {sources}
-        </div>
-      ) : (
-        <div className="stage-host-columns">
-          {sources}
-          <section
-            className="stage-host-section stage-host-section--wide"
-            aria-labelledby="prepare-ready"
-          >
-            <h2 id="prepare-ready" className="stage-host-title">
-              Getting ready
-            </h2>
-            {pipeline}
-            <div className="stage-host-handoff">
-              <Button
-                variant={handoff.primary ? "primary" : "default"}
-                onClick={onHandoff}
-              >
-                {handoff.label}
-              </Button>
-            </div>
-          </section>
-        </div>
-      )}
+      <PrepareView {...view} />
+      <Sheet
+        form={shell === "phone" ? "bottom" : "centered"}
+        title="Advanced steps"
+        open={advanced.open}
+        onClose={advanced.onClose}
+      >
+        <AdvancedSteps {...advanced.props} />
+      </Sheet>
     </HostBody>
   );
 }
