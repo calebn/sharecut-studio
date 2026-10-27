@@ -12,13 +12,18 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.edits.cut_policy import decision_policy, review_kind, sound_kind
-from podcast_mcp.edits.tighten.propose import _keep_on_reproposal, format_tighten_propose_summary
+from podcast_mcp.edits.tighten.propose import (
+    _edit_payload,
+    _keep_on_reproposal,
+    format_tighten_propose_summary,
+)
 from podcast_mcp.edits.tighten_hits import (
     TIGHTEN_REASON_PREFIXES,
     is_harsh_tighten_hit,
     is_listen_one_by_one_hit,
     is_tighten_reason,
 )
+from podcast_mcp.gui.mapper import map_pending_edits_to_timeline
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import EditDecision, EditDecisionType, load_project, save_project
 
@@ -214,6 +219,7 @@ def test_policy_less_reasons_have_no_label_or_action() -> None:
 
 
 EDIT_DECISION_KEYS = sorted(_decision("filler:um").model_dump())
+REVIEW_FIELD_KEYS = ["kind", "label", "sound_kind", "suggested_action"]
 
 
 def _seeded_project(tmp_path: Path) -> str:
@@ -230,13 +236,13 @@ def _seeded_project(tmp_path: Path) -> str:
     return path
 
 
-def test_list_edit_decisions_tool_rows_are_raw_edit_decision_dumps(tmp_path: Path) -> None:
+def test_list_edit_decisions_tool_rows_carry_review_fields(tmp_path: Path) -> None:
     path = _seeded_project(tmp_path)
     rows = json.loads(mcp_server.list_edit_decisions_tool(path))
     assert [r["id"] for r in rows] == ["filler", "laugh", "pause", "nl", "bare"]
     for row in rows:
-        assert sorted(row) == EDIT_DECISION_KEYS
-    assert {"kind", "sound_kind", "label", "suggested_action"}.isdisjoint(EDIT_DECISION_KEYS)
+        assert sorted(row) == sorted([*EDIT_DECISION_KEYS, *REVIEW_FIELD_KEYS])
+    assert set(REVIEW_FIELD_KEYS).isdisjoint(EDIT_DECISION_KEYS)
     assert rows[1]["reason"] == "filler:acoustic:likely_laugh"
 
 
@@ -262,3 +268,37 @@ def test_list_edit_decisions_tool_filters(
     path = _seeded_project(tmp_path)
     rows = json.loads(mcp_server.list_edit_decisions_tool(path, **kwargs))
     assert [r["id"] for r in rows] == ids
+
+
+def test_list_edit_decisions_tool_review_fields_match_the_other_surfaces(tmp_path: Path) -> None:
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    project = load_project(Path(path))
+    muted = _decision("pause:0.8s", did="muted")
+    muted.type = EditDecisionType.MUTE
+    project.edit_decisions = [
+        muted,
+        _decision("filler:um", did="filler"),
+        _decision("nl:x", did="nl"),
+    ]
+    save_project(project, Path(path))
+
+    rows = {r["id"]: r for r in json.loads(mcp_server.list_edit_decisions_tool(path))}
+    assert {k: rows["muted"][k] for k in REVIEW_FIELD_KEYS} == {
+        "kind": "pause",
+        "sound_kind": "pause",
+        "label": "Long pause",
+        "suggested_action": "shorten",
+    }
+    assert {k: rows["nl"][k] for k in REVIEW_FIELD_KEYS} == {
+        "kind": "other",
+        "sound_kind": None,
+        "label": None,
+        "suggested_action": None,
+    }
+    for decision in load_project(Path(path)).edit_decisions:
+        fields = {k: rows[decision.id][k] for k in REVIEW_FIELD_KEYS}
+        assert rows[decision.id] == decision.model_dump() | fields
+        payload = _edit_payload(decision)
+        assert {k: payload[k] for k in REVIEW_FIELD_KEYS} == fields
+        mapped = map_pending_edits_to_timeline(project, [decision])[0]
+        assert {k: mapped[k] for k in REVIEW_FIELD_KEYS} == fields
