@@ -119,6 +119,8 @@ export type SessionsInput = {
   /** Plain cause of a split that failed, by track id. */
   splitFailed: Readonly<Record<string, string>>;
   job: PipelineJobSnapshot | null;
+  /** A track the person asked to split ("Split speakers…"); its prompt shows. */
+  focusTrackId?: string | null;
 };
 
 const MIN_VOICES = 2;
@@ -126,11 +128,14 @@ const MIN_VOICES = 2;
 /** Whether a track offers the split prompt: one file that holds several voices, or the only file. */
 export function offersSplit(
   track: TrackView,
-  input: Pick<SessionsInput, "mayManage" | "voicesIn"> & { sources: number },
+  input: Pick<SessionsInput, "mayManage" | "voicesIn" | "focusTrackId"> & {
+    sources: number;
+  },
 ): boolean {
   if (!input.mayManage || track.speaker_split_id || !hasMedia(track)) {
     return false;
   }
+  if (input.focusTrackId === track.id) return true;
   return input.sources === 1 || (input.voicesIn.get(track.id) ?? 0) > 1;
 }
 
