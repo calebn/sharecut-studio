@@ -133,7 +133,7 @@ def record_discard_take(
 
 @record_app.command("tracks")
 def record_tracks(project: Path = typer.Option(..., "--project")) -> None:
-    """Show which track each person lands on: matched by name to an existing track, new, or ambiguous."""
+    """Show which track each person lands on: matched by name to an existing track, new, or ambiguous (two people or tracks share a name, or the track is already used by someone else)."""
     _invoke(project, lambda ctrl: ctrl.tracks())
 
 

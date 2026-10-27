@@ -792,7 +792,7 @@ class RecordLandingService:
         # project lock. It can be newer than the copy planned from above when a
         # non-land writer (edit, share, comment) committed meanwhile. Land and
         # discard are serialized by the session land lock, other writers are not.
-        # Everything written here is re-derived from ``project``:
+        # Everything written here is re-derived from ``project`` (track ids included, below):
         # ``_copied_raw_matches``, the source/clip/track upserts, and
         # ``_land_live_comments``, which upserts by id. The earlier inputs come from
         # the record session store (``snap`` offsets, ``fallback``) or only widen what
@@ -805,7 +805,10 @@ class RecordLandingService:
             staged_takes: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
             touched: set[str] = set()
-            matches = self._plan if self._plan is not None else self._track_matches(project, snap)
+            # Tracks are decided again on the project read under the lock (and the host's choices
+            # as they are now), so an assign made while the files were copying is honoured and a
+            # person's later takes follow the ones already staged. The checks after this use it too.
+            matches = self._plan = self._track_matches(project, snap)
             for item in copied:
                 if not self._copied_raw_matches(project, item):
                     self._mark_copied_failed(item)

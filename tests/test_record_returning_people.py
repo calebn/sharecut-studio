@@ -429,7 +429,7 @@ def test_surfaces_are_host_only_and_guests_never_see_it(
     bad = cli.invoke(
         cli_app, ["record", "assign-track", "--project", path, "--participant", pid, "--track", "x"]
     )
-    assert bad.exit_code == 1 and "unknown track" in bad.output + (bad.stderr or "")
+    assert bad.exit_code == 1 and "nknown track" in bad.output + (bad.stderr or "")
     ok = cli.invoke(
         cli_app,
         ["record", "assign-track", "--project", path, "--participant", pid, "--track", "new"],
@@ -719,3 +719,158 @@ def test_a_skipped_session_answers_409_over_the_route(
         json={"path": str(minimal_project), "participant_id": pid, "track": "new"},
     )
     assert res.status_code == 409 and res.headers["X-Sharecut-Error-Code"] == "session_skipped"
+
+
+def test_a_removed_person_with_no_takes_does_not_block_a_live_same_named_person() -> None:
+    from podcast_mcp.models import EpisodeProject
+    from podcast_mcp.services.record.track_match import resolve_session_tracks
+
+    project = EpisodeProject.create("t", "/tmp/never-written")
+    project.tracks.append(Track(id="ava_t", label="Ava", role=TrackRole.DIALOGUE))
+    gone = _person("p_a", "Ava", removed=True)
+    live = _person("p_b", "ava")
+    for people in ([gone, live], [live, gone]):
+        out = resolve_session_tracks(project, "s" * 12, people, {})
+        assert (out["p_b"].status, out["p_b"].track_id) == ("matched", "ava_t")
+        assert out["p_a"].track_id != "ava_t"
+    # A stale host choice on the removed person does not outrank the live one either.
+    out = resolve_session_tracks(project, "s" * 12, [gone, live], {"p_a": "ava_t"})
+    assert out["p_b"].track_id == "ava_t" and out["p_a"].track_id != "ava_t"
+
+
+def _hook_mid_land(monkeypatch, action) -> None:
+    """Run ``action`` once, while the first recording is being copied (before the project lock)."""
+    from podcast_mcp.services.record import landing
+
+    real = landing._copy_into_raw
+    done: list[bool] = []
+
+    def hooked(*args, **kwargs):
+        if not done:
+            done.append(True)
+            action()
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(landing, "_copy_into_raw", hooked)
+
+
+def test_an_assign_made_while_a_land_is_copying_is_honoured(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    _, [pid] = _room(ws, ["Sam"])
+    other = ProjectWorkspace.open(minimal_project)
+    _hook_mid_land(monkeypatch, lambda: RecordControlService(other).assign_track(pid, "new"))
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    mine = {c.track_id for c in ws.project.clips if (c.source_id or "").startswith("rec-")}
+    assert mine == {pid}
+    assert sam in _tracks(ws) and sam not in mine
+
+
+def test_a_staged_persons_later_take_follows_a_move_made_mid_land(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room, [pid] = _room(ws, ["Sam"], target=INSERT, land=True)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.submit(_cmd("Start"), now_wall_ms=10_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=13_000)
+    _ack(ws, room, pid, 1)
+    other = ProjectWorkspace.open(minimal_project)
+    _hook_mid_land(monkeypatch, lambda: RecordControlService(other).assign_track(pid, "new"))
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    row = next(
+        s for s in ws.project.editorial.session_suggestions if s.session_id == room["session_id"]
+    )
+    assert sorted((t.take_index, t.track_id) for t in row.takes) == [(0, pid), (1, pid)]
+    assert sam not in {t.track_id for t in row.takes}
+
+
+def test_moving_a_person_who_has_only_a_staged_bed_does_not_stage_it_twice(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.record.landing import room_tone_raw_rel
+
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room, [pid] = _room(ws, ["Sam"], target=INSERT)
+    sid = room["session_id"]
+    rel = room_tone_raw_rel(sid, pid)
+    bed = Path(ws.project.workspace_dir) / rel
+    bed.parent.mkdir(parents=True, exist_ok=True)
+    bed.write_bytes(Path(sample_wav).read_bytes())
+
+    def stage_bed(p) -> None:
+        from podcast_mcp.models import SessionSuggestion, StagedRoomTone
+
+        p.editorial.session_suggestions.append(
+            SessionSuggestion(
+                id=f"ss-{sid}",
+                kind="insert",
+                session_id=sid,
+                session_number=2,
+                at_sec=1.0,
+                room_tone=[
+                    StagedRoomTone(
+                        track_id=sam,
+                        track_label="Sam",
+                        source_id=f"room-tone-{sam}",
+                        path=rel,
+                        duration_s=2.0,
+                        sample_rate=48000,
+                        channels=1,
+                    )
+                ],
+            )
+        )
+
+    ws.mutate("bed", "bed", stage_bed)
+    assert _by_pid(ws)[pid]["reason"] == "held"  # the bed alone holds them on sam
+    RecordControlService(ws).assign_track(pid, "new")
+    ws.reload()
+    row = next(s for s in ws.project.editorial.session_suggestions if s.id == f"ss-{sid}")
+    assert [b.track_id for b in row.room_tone] == [pid]
+    assert _by_pid(ws)[pid]["track_id"] == pid
+
+
+def test_moving_a_replaced_person_says_the_replace_follows_them(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _track_a, track_b, target = _replace_setup(ws)
+    _, [pid] = _room(ws, ["Ava"], target=target, land=True)
+    out = RecordControlService(ws).assign_track(pid, track_b)
+    assert 'now covers "Ben" instead of "Ava"' in out["note"]
+
+
+def test_host_choice_wording_says_moved_or_kept(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    _, [pid] = _room(ws, ["Sam"])
+    ctrl = RecordControlService(ws)
+    assert ctrl.assign_track(pid, sam)["message"].startswith("You kept Sam on")
+    assert ctrl.assign_track(pid, "new")["message"].startswith("You moved Sam to")
+
+
+def test_replace_target_track_is_a_409_over_the_route(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    _a, _b, target = _replace_setup(ws)
+    _room(ws, ["Ava"], target=target)
+    [row] = _rows(ws)
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    res = TestClient(create_app()).post(
+        "/api/record/assign-track",
+        json={
+            "path": str(minimal_project),
+            "participant_id": row["participant_id"],
+            "track": "new",
+        },
+    )
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "replace_target_track"

@@ -289,7 +289,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.record.listTracks": {
     label: "Show who lands on which track",
     tooltip:
-      "Show which track each person is matched to: existing, new or ambiguous",
+      "Show which track each person is matched to: matched, new or ambiguous",
   },
   "daw.record.assignTrack": {
     label: "Move a person to a track",
