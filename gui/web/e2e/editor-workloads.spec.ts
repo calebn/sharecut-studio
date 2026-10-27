@@ -29,7 +29,7 @@ import {
   armNativeProgress,
   retainNativeProgress,
 } from "./nativeProgressObserver";
-import { openPanel, openProject } from "./stageNav";
+import { openPanel, openProject, setAudition } from "./stageNav";
 import { parseTimecodeSec } from "./timecode";
 import { zoomTimelineIn } from "./timelineZoom";
 import { expectPaintedWaveformTile } from "./waveformHook";
@@ -375,7 +375,7 @@ async function playback(page: Page, recorder: Recorder) {
       mediaResponses++;
   });
   const clock = page.locator(".stage-frame-player .sys-player-now");
-  await page.getByRole("button", { name: "Original", exact: true }).click();
+  await setAudition(page, "raw");
   await page.getByRole("slider", { name: "Timeline position" }).press("Home");
   await recorder.memory("before-playback");
   await recorder.measure(
