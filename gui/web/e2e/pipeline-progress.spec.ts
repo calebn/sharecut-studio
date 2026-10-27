@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createEditorProfiler } from "./editorProfile";
 import { replayPipelineProgress } from "./editorProgress";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 import { withAppearance } from "./theme";
 
 for (const { cell: layout, reducedMotion: reduce } of withAppearance([
@@ -36,7 +37,7 @@ for (const { cell: layout, reducedMotion: reduce } of withAppearance([
     );
     let failure: unknown;
     try {
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await openProject(page, e2eProjectPath);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await replayPipelineProgress(page, recorder, e2eProjectPath);
       const cancel = page.getByRole("button", {

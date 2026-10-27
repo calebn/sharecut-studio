@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { openProject } from "./stageNav";
 
 export const PROXY_MANIFEST_TIMEOUT_MS = 15_000;
 
@@ -45,7 +46,7 @@ export async function openHostShare(
   page: Page,
   projectPath: string,
 ): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await expect(page.locator(".stage-frame")).toBeVisible({
     timeout: PROXY_MANIFEST_TIMEOUT_MS,
   });

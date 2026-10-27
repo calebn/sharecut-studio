@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { COMFORT_BAND } from "../src/panels/transcriptFollow";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 type Word = Record<string, unknown>;
 
@@ -70,14 +71,9 @@ async function openFollowedTranscript(page: Page): Promise<Locator> {
       await route.fulfill({ response, json: body });
     },
   );
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  const compact = (page.viewportSize()?.width ?? 0) < 720;
-  await page
-    .getByRole(compact ? "button" : "tab", {
-      name: compact ? "Text" : "Transcript",
-      exact: true,
-    })
-    .click();
+  await openProject(page, e2eProjectPath);
+
+  await openPanel(page, "transcript");
   const list = page.locator(".transcript-list");
   await expect(list.locator("[data-transcript-word]")).toHaveCount(
     LANES.length * UTTERANCES_PER_LANE * WORDS_PER_UTTERANCE,

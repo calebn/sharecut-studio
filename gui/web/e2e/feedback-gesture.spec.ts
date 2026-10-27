@@ -7,6 +7,7 @@ import {
 } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { openProject, phone } from "./stageNav";
 import { setTheme } from "./theme";
 import { newTouchPage, TRACK, touch, VIEWPORTS } from "./touchTimeline";
 
@@ -35,7 +36,7 @@ for (const theme of ["light", "dark"] as const) {
     context,
   }, info) => {
     const { page, cdp } = await newTouchPage(context);
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     for (const at_time of [10, 40, 50]) {
       await postDocumentCommand(
         page,
@@ -46,8 +47,8 @@ for (const theme of ["light", "dark"] as const) {
       );
     }
     await page.setViewportSize(VIEWPORTS.phone);
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame")).toBeVisible();
     await openPhoneTimeline(page);
     await setTheme(page, theme);
     const card = page.locator(".ui-toast-region--app .ui-toast-message", {
@@ -76,10 +77,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(card).toHaveCount(0, { timeout: GONE_MS });
 
     await arm();
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "Text" })
-      .click();
+    await phone.showText(page);
     await expect(card).toHaveCount(0, { timeout: GONE_MS });
     await touch(cdp, "touchEnd");
     await expect(page.locator(".ui-toast-region--app .ui-toast")).toHaveCount(

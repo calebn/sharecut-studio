@@ -3,6 +3,7 @@ import { AUTO_MIX_PREF_KEY } from "../src/hooks/autoMixPref";
 import { expectFitsViewport, openDialogFromMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
+import { openProject, selectTool } from "./stageNav";
 
 const PHONE_VIEWPORTS = [
   { width: 390, height: 844 },
@@ -39,7 +40,7 @@ async function cutThroughRailThenUndo(
     .getByRole("dialog", { name: "reference clip" })
     .getByRole("button", { name: "Close" })
     .click();
-  await rail.getByRole("button", { name: "Blade tool" }).click();
+  await selectTool(page, "blade");
   await rail.getByRole("button", { name: "Blade cut", exact: true }).click();
   await page
     .getByRole("dialog", { name: /^Cut at/ })
@@ -47,7 +48,10 @@ async function cutThroughRailThenUndo(
     .click();
   await expect.poll(clipCount).toBeGreaterThan(before);
   await beforeUndo();
-  await rail.getByRole("button", { name: "Undo" }).click();
+  await page
+    .locator(".sys-header-history")
+    .getByRole("button", { name: /^Undo/ })
+    .click();
   await expect.poll(clipCount).toBe(before);
 }
 
@@ -60,8 +64,8 @@ for (const viewport of PHONE_VIEWPORTS) {
       window.localStorage.setItem(key, "on");
     }, AUTO_MIX_PREF_KEY);
     await withShareableProject(async (projectPath) => {
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(".daw-shell--phone")).toBeVisible();
+      await openProject(page, projectPath);
+      await expect(page.locator(".stage-frame--phone")).toBeVisible();
       await openPhoneTimeline(page);
       let rebuildStarted!: () => void;
       const rebuildLive = new Promise<void>((resolve) => {

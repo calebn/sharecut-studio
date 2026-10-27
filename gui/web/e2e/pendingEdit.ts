@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openPanel } from "./stageNav";
+import { goToStage, openPanel, openProject } from "./stageNav";
 
 /**
  * Suggest a 0–2 s cut on the first dialogue track through the document plane
@@ -15,7 +15,7 @@ export async function openSuggestedPendingEdit(
   page: Page,
   projectPath: string,
 ): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );
@@ -51,6 +51,8 @@ export async function openSuggestedPendingEdit(
   const panels = page.getByRole("main", { name: "Review" });
   await openPanel(page, "impact");
   await panels.locator(`[data-pending-id="${editId}"]`).click();
+  // The selection carries to the Edit stage, where its Inspector is.
+  await goToStage(page, "edit");
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();

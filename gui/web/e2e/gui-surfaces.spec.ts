@@ -4,8 +4,15 @@ import type { PipelineConfigResponse } from "../src/types/pipeline";
 import { setByPath } from "../src/utils/configPath";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
-import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
+import {
+  openProject,
+  openProjectMenu,
+  type Panel,
+  projectMenuButton,
+  saveStatus,
+  openPanel as stageOpenPanel,
+} from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
 const VIEWPORTS = [
@@ -30,23 +37,7 @@ async function expectEditorAxeClean(
 }
 
 async function openPanel(page: Page, name: PanelName): Promise<void> {
-  if ((page.viewportSize()?.width ?? 0) < 720) {
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More", exact: true })
-      .click();
-    const back = page.getByRole("button", { name: "← More", exact: true });
-    if (await back.isVisible()) await back.click();
-    await page
-      .locator(".mobile-more-list")
-      .getByRole("button", { name, exact: true })
-      .click();
-  } else {
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name, exact: true })
-      .click();
-  }
+  await stageOpenPanel(page, name.toLowerCase() as Panel);
 }
 
 async function expectTextFits(locator: Locator): Promise<void> {
@@ -86,9 +77,11 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
     test(`keeps all editor panels reachable and named in ${panelTheme}`, async ({
       page,
     }) => {
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await openProject(page, e2eProjectPath);
       await setTheme(page, panelTheme);
-      await expect(page.locator(`.daw-shell--${viewport.name}`)).toBeVisible();
+      await expect(
+        page.locator(`.stage-frame--${viewport.name}`),
+      ).toBeVisible();
       for (const [name, selector] of [
         ["Comments", ".comments-panel"],
         ["History", ".history-panel"],
@@ -122,7 +115,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
           action_texts: [],
         },
       );
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await openProject(page, e2eProjectPath);
       await openPanel(page, "Comments");
       const card = page.locator(".comment-card").filter({ hasText: body });
       await expect(card).toBeVisible();
@@ -144,7 +137,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
     test("keeps a maximum-length vocabulary entry and Remove action within the panel", async ({
       page,
     }) => {
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await openProject(page, e2eProjectPath);
       await openPanel(page, "Pipeline");
       const vocabulary = page.getByRole("region", {
         name: "Transcription vocabulary",
@@ -183,7 +176,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         if (viewport.name !== "desktop") {
           await rememberInspectorDetent(page, "half");
         }
-        await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+        await openProject(page, e2eProjectPath);
         await setTheme(page, chapterTheme);
         if (viewport.name === "phone") await openPhoneTimeline(page);
         await page
@@ -214,34 +207,6 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
   });
 }
 
-test("phone save light outside Listen takes no tap meant for the control under it", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  const dot = page.locator("[data-save-state]");
-  await expect(dot).toHaveAttribute("data-save-state", "saved");
-  const nav = page.getByRole("navigation", { name: "Primary" });
-  for (const mode of ["Timeline", "Text", "More"]) {
-    await nav.getByRole("button", { name: mode, exact: true }).click();
-    const box = await dot.boundingBox();
-    expect(box).not.toBeNull();
-    const hitsDot = await page.evaluate(
-      ({ x, y }) =>
-        document.elementFromPoint(x, y)?.closest("[data-save-state]") !== null,
-      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 },
-    );
-    expect(hitsDot, `${mode} save light is tap-through`).toBe(false);
-  }
-  await nav.getByRole("button", { name: "More", exact: true }).click();
-  await page
-    .locator(".mobile-more-list")
-    .getByRole("button", { name: "Comments", exact: true })
-    .click();
-  await page.getByRole("button", { name: "← More", exact: true }).click();
-  await expect(page.locator(".mobile-more-list")).toBeVisible();
-});
-
 const failedSaveInit = () => {
   // An unreadable offline queue is the Failed save state.
   indexedDB.open = () => {
@@ -249,15 +214,14 @@ const failedSaveInit = () => {
   };
 };
 
-async function statusBarScroll(bar: Locator) {
-  return bar.evaluate((el) => ({
+async function headerScroll(header: Locator) {
+  return header.evaluate((el) => ({
     scrollHeight: el.scrollHeight,
     clientHeight: el.clientHeight,
-    height: el.getBoundingClientRect().height,
   }));
 }
 
-test("tablet unreadable save light stays passive and its Retry has a full touch target", async ({
+test("tablet unreadable save indicator names the failure and the banner Retry has a full touch target", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -268,20 +232,16 @@ test("tablet unreadable save light stays passive and its Retry has a full touch 
   try {
     const page = await context.newPage();
     await page.addInitScript(failedSaveInit);
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    const bar = page.locator("footer.status-bar");
-    const dot = bar.locator('[data-save-state="failed"]');
-    await expect(dot).toBeVisible();
-    await expect(dot).toHaveRole("img");
-    await expect(dot).toHaveAccessibleName(
-      "Saved edits could not be read · Retry to read them",
+    await openProject(page, e2eProjectPath);
+    const status = page.getByRole("group", { name: "Save status" });
+    await expect(status).toBeVisible();
+    await expect(status.getByRole("alert")).toContainText("Save failed");
+    const { scrollHeight, clientHeight } = await headerScroll(
+      page.locator(".stage-frame-header"),
     );
-    expect(await dot.evaluate((element) => element.tagName)).toBe("SPAN");
-    const { scrollHeight, clientHeight } = await statusBarScroll(bar);
-    expect(
-      scrollHeight,
-      "passive failed bar does not scroll",
-    ).toBeLessThanOrEqual(clientHeight);
+    expect(scrollHeight, "failed header does not scroll").toBeLessThanOrEqual(
+      clientHeight,
+    );
     const attention = page.getByRole("region", {
       name: /Saved edits could not be read/,
     });
@@ -326,50 +286,23 @@ test("tablet unreadable save light stays passive and its Retry has a full touch 
   }
 });
 
-test("tablet status bar on a touch pointer stays the normal height while the save light is read-only", async ({
-  browser,
-}) => {
-  const context = await browser.newContext({
-    viewport: { width: 834, height: 1194 },
-    isMobile: true,
-    hasTouch: true,
-  });
-  try {
-    const page = await context.newPage();
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    const bar = page.locator("footer.status-bar");
-    await expect(bar.locator('[data-save-state="saved"]')).toBeVisible();
-    const normal = await page.evaluate(() => {
-      const probe = document.createElement("div");
-      probe.style.blockSize = "var(--status-height)";
-      document.body.append(probe);
-      const height = probe.getBoundingClientRect().height;
-      probe.remove();
-      return height;
-    });
-    const { scrollHeight, clientHeight, height } = await statusBarScroll(bar);
-    expect(height).toBeCloseTo(normal, 0);
-    expect(height).toBeLessThan(44);
-    expect(scrollHeight, "saved bar does not scroll").toBeLessThanOrEqual(
-      clientHeight,
-    );
-  } finally {
-    await context.close();
-  }
-});
-
 for (const state of ["saved", "failed"] as const) {
-  test(`desktop status bar does not scroll while the save light is ${state}`, async ({
+  test(`desktop header does not scroll while the save indicator is ${state}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     if (state === "failed") {
       await page.addInitScript(failedSaveInit);
     }
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    const bar = page.locator("footer.status-bar");
-    await expect(bar.locator(`[data-save-state="${state}"]`)).toBeVisible();
-    const { scrollHeight, clientHeight } = await statusBarScroll(bar);
+    await openProject(page, e2eProjectPath);
+    await expect(
+      state === "failed"
+        ? page.getByRole("group", { name: "Save status" })
+        : saveStatus(page),
+    ).toBeVisible();
+    const { scrollHeight, clientHeight } = await headerScroll(
+      page.locator(".stage-frame-header"),
+    );
     expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
   });
 }
@@ -378,7 +311,7 @@ test("phone pipeline step parameters trap focus, close on Escape, and restore th
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await openPanel(page, "Pipeline");
   const step = page.locator(".pipeline-step-select").first();
   await expect(step).toBeVisible();
@@ -446,7 +379,7 @@ test("phone pipeline hands focus to a missing Whisper model dialog and back", as
       json: pickerConfig,
     });
   });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await openPanel(page, "Pipeline");
   await page
     .getByRole("button", { name: "Transcribe tracks", exact: true })
@@ -499,16 +432,16 @@ test("phone pipeline hands focus to a missing Whisper model dialog and back", as
   ).toBeFocused();
 });
 
-test("transport menu trigger closes on a second pointer click", async ({
+test("Project menu trigger closes on a second pointer click", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );
-  const menu = await openTransportMenu(page);
+  const menu = await openProjectMenu(page);
   await expect(menu).toBeVisible();
-  const trigger = page.getByRole("button", { name: "Menu", exact: true });
+  const trigger = projectMenuButton(page);
   await trigger.click();
   await expect(menu).toHaveCount(0);
   await expect(trigger).toBeFocused();

@@ -29,6 +29,7 @@ import {
   armNativeProgress,
   retainNativeProgress,
 } from "./nativeProgressObserver";
+import { openPanel, openProject } from "./stageNav";
 import { parseTimecodeSec } from "./timecode";
 import { zoomTimelineIn } from "./timelineZoom";
 import { expectPaintedWaveformTile } from "./waveformHook";
@@ -62,7 +63,7 @@ async function fullProject(page: Page): Promise<ProjectView> {
   return response.json();
 }
 async function open(page: Page) {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /large-project benchmark/i,
     { timeout: 300000 },
@@ -249,9 +250,8 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
       (entry) => entry.cutaway_word_ids.length > 0,
     ) ?? before.edit_boundaries?.[0];
   expect(boundary, "actual cut produced a boundary").toBeTruthy();
-  const panels = page.getByLabel("Editor panels");
-  await panels.getByRole("tab", { name: "Transcript", exact: true }).click();
-  const annotate = panels.locator(".transcript-annotate-btn");
+  await openPanel(page, "transcript");
+  const annotate = page.locator(".transcript-annotate-btn");
   if ((await annotate.getAttribute("aria-pressed")) !== "true")
     await annotate.click();
   const mark = page.locator(
@@ -374,7 +374,7 @@ async function playback(page: Page, recorder: Recorder) {
     if (response.ok() && /\/api\/(audio|media)/.test(response.url()))
       mediaResponses++;
   });
-  const clock = page.locator("header.transport .timecode-current");
+  const clock = page.locator(".stage-frame-player .sys-player-now");
   await page.getByRole("button", { name: "Original", exact: true }).click();
   await page.getByRole("slider", { name: "Timeline position" }).press("Home");
   await recorder.memory("before-playback");
@@ -429,7 +429,7 @@ async function seek(page: Page, recorder: Recorder) {
   const widthPx = (await slider.boundingBox())!.width;
   const tolerancePx = 1;
   const toleranceSec = (tolerancePx * durationSec) / widthPx;
-  const clock = page.locator("header.transport .timecode-current");
+  const clock = page.locator(".stage-frame-player .sys-player-now");
   await recorder.memory("before-seek");
   await recorder.measure(
     {
@@ -579,10 +579,7 @@ async function trim(page: Page, recorder: Recorder) {
 }
 
 async function prepareRealProgress(page: Page) {
-  await page.getByRole("tab", { name: "Pipeline", exact: true }).click();
-  await page
-    .getByRole("separator", { name: "Resize editor panels" })
-    .press("Home");
+  await openPanel(page, "pipeline");
   await page.getByText("From / Only shortcuts", { exact: true }).click();
   await page.getByRole("combobox", { name: /^Only step/ }).selectOption("");
   await page

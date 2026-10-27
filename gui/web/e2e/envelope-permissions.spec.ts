@@ -89,13 +89,16 @@ async function withGuestEnvelope(
           receipts,
         );
         try {
-          await openEnvelopeTrackDetails(guest, track.label, receipts);
-          await guest
-            .getByRole("button", {
-              name: "Show volume envelope",
-              exact: true,
-            })
-            .click();
+          // A Viewer share has no Edit stage, so there is no envelope GUI to open.
+          if (role !== "viewer") {
+            await openEnvelopeTrackDetails(guest, track.label, receipts);
+            await guest
+              .getByRole("button", {
+                name: "Show volume envelope",
+                exact: true,
+              })
+              .click();
+          }
           await body({
             guest,
             token,
@@ -147,45 +150,12 @@ test("viewer share keeps envelope GUI read-only", async ({
       requests,
       projectPath,
     }) => {
-      await guest
-        .getByRole("button", { name: "View volume envelope", exact: true })
-        .click();
       await expect(
-        guest.getByText(
-          "This link can view, but not edit, the volume envelope.",
-          { exact: true },
-        ),
+        guest.getByRole("main", { name: "Review", exact: true }),
       ).toBeVisible();
-      await expect(
-        guest.getByRole("button", {
-          name: /^(Add point|Edit point|Save point|Delete point|Remove volume envelope)$/,
-        }),
-      ).toHaveCount(0);
-      await guest
-        .getByRole("combobox", { name: "Envelope point", exact: true })
-        .selectOption(accepted.command.payload.points![0]!.id);
-      const owner = guest
-        .locator(".lane-row")
-        .first()
-        .locator('circle[aria-label^="Envelope point 1 at"]');
-      const before = await owner.evaluate((element) => ({
-        x: element.getAttribute("cx"),
-        y: element.getAttribute("cy"),
-      }));
-      const box = await owner.boundingBox();
-      expect(box).not.toBeNull();
-      await guest.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-      await guest.mouse.down();
-      await guest.mouse.move(box!.x + 40, box!.y + 20);
-      await guest.mouse.up();
-      await owner.focus();
-      await guest.keyboard.press("Enter");
-      expect(
-        await owner.evaluate((element) => ({
-          x: element.getAttribute("cx"),
-          y: element.getAttribute("cy"),
-        })),
-      ).toEqual(before);
+      await expect(guest.getByRole("tab", { name: "Edit" })).toHaveCount(0);
+      await expect(guest.locator(".lane-row")).toHaveCount(0);
+      const before = null;
       expect(requests).toEqual([]);
       expect(envelopeSnapshot(projectPath, track.id)).toEqual(baseline);
       receipts.push({

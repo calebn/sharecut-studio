@@ -2,14 +2,11 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { isApplePlatform } from "../src/utils/platform";
 import { expectPageAxeClean } from "./axe";
+import { phone } from "./stageNav";
 import { ownsStudioAxe, type StudioAxeOwnership } from "./studioAxeOwnership";
 
 export async function openPhoneMix(page: Page) {
-  const nav = page.getByRole("navigation", { name: "Primary" });
-  await nav.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Mix", exact: true }).click();
-  const mix = page.getByRole("dialog", { name: "Mix", exact: true });
-  await expect(mix).toBeVisible();
+  const mix = await phone.openMix(page);
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(mix.getByRole("button", { name: "Close" })).toBeFocused();
   await mix.evaluate(async (el) => {
@@ -42,7 +39,9 @@ export async function checkMixGeometry(
   const mix = page.getByRole("dialog", { name: "Mix", exact: true });
   const geometry = await mix.evaluate((el) => {
     const rect = el.getBoundingClientRect();
-    const nav = document.querySelector(".mobile-nav")?.getBoundingClientRect();
+    const nav = document
+      .querySelector(".stage-frame-tabs")
+      ?.getBoundingClientRect();
     const rows = [...el.querySelectorAll(".track-mix-row")].map(
       (row) => row.getBoundingClientRect().height,
     );

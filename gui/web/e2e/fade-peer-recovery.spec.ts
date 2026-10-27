@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { postHistoryMove } from "./documentCommand";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import { projectJson } from "./touchTimeline";
 
 test("refreshes a refused fade before retry while peer projections stay delayed", async ({
@@ -16,7 +17,7 @@ test("refreshes a refused fade before retry while peer projections stay delayed"
         else socket.send(message);
       });
     });
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const block = page.locator(".lane-row").first().locator(".clip-block");
     await expect(block).toHaveCount(1);
     const id = await block.getAttribute("data-clip-id");

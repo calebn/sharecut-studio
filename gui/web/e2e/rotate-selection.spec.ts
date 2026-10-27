@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "./overlayReachability";
+import { phone } from "./stageNav";
 import { openTranscriptPanel } from "./transcriptEdit";
 
 /*
@@ -17,25 +18,29 @@ test("a selected clip stays on the Timeline screen when a tablet is rotated to p
   await expect(page.locator(".clip-block.selected").first()).toBeVisible();
 
   await page.setViewportSize({ width: 834, height: 1194 });
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
 
   await expect(
-    page.getByRole("navigation", { name: "Primary" }).getByRole("button", {
-      name: "Timeline",
-    }),
+    page
+      .getByRole("group", { name: "Edit surface" })
+      .getByRole("button", { name: "Timeline", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".clip-block.selected").first()).toBeVisible();
 });
 
-test("a phone with nothing selected still opens on Listen", async ({
+test("a phone with nothing selected opens on Edit with the Timeline", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openHostProject(page);
-  await expect(page.locator(".daw-shell--phone")).toHaveClass(
-    /daw-shell--listen/,
-  );
+  await expect(page.locator(".stage-frame--phone")).toBeVisible();
+  await expect(page.getByRole("main", { name: "Edit" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("group", { name: "Edit surface" })
+      .getByRole("button", { name: "Timeline", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 });
 
 async function doubleTapFirstWord(page: Page) {
@@ -86,7 +91,7 @@ test.describe("rotating with the word editor open (#1870)", () => {
       await page.setViewportSize({ width: from[0], height: from[1] });
       await openHostProject(page);
       if (from[0] < 768) {
-        await page.getByRole("button", { name: "Text", exact: true }).click();
+        await phone.showText(page);
       } else {
         await openTranscriptPanel(page);
       }
@@ -95,6 +100,8 @@ test.describe("rotating with the word editor open (#1870)", () => {
       await expect(page.getByLabel("Corrected text")).toBeVisible();
 
       await page.setViewportSize({ width: to[0], height: to[1] });
+      // The phone shows one Edit surface at a time and opens on the Timeline.
+      if (from[0] >= 768 && to[0] < 768) await phone.showText(page);
 
       await expect(
         page.locator('[data-transcript-word][data-word-index="0"]').first(),

@@ -1,4 +1,9 @@
-import { type Browser, expect, type Page } from "@playwright/test";
+import {
+  type Browser,
+  expect,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { clickHTMLElement } from "./domClick";
 import { e2eProjectPath } from "./env";
 import { openHostShare } from "./shareNavigation";
@@ -40,41 +45,36 @@ export async function withTwoHostPages<T>(
   );
 }
 
-export async function followUntilBannerVisible(
-  follower: Page,
-  openMenu: () => Promise<void>,
-): Promise<void> {
-  await openMenu();
-  const menuItems = follower.getByRole("menuitem", { name: /Follow/ });
-  // Tablet and phone shells collapse the transport: peers are in the menu's
-  // People section. Only the desktop shell shows the avatar stack.
-  const shell = follower.locator(".stage-frame");
-  await expect(shell).toHaveClass(/\bstage-frame--(desktop|tablet|phone)\b/);
-  const isCompactShell = !/\bstage-frame--desktop\b/.test(
-    (await shell.getAttribute("class")) ?? "",
-  );
-  if (isCompactShell) {
-    // Collapsed shells (tablet/phone menu) list peers in the People section.
-    await expect(menuItems.first()).toBeVisible({ timeout: 15_000 });
-    const n = await menuItems.count();
-    for (let i = 0; i < n; i++) {
-      if (i > 0) {
-        await openMenu();
-      }
-      await clickHTMLElement(menuItems.nth(i));
-      if (await waitForFollowBanner(follower)) {
-        return;
-      }
-    }
-    throw new Error("no Follow peer showed a banner");
-  }
-  // Desktop transport isn't collapsed: peers are avatar-stack buttons.
-  await follower.keyboard.press("Escape");
-  const buttons = follower.getByRole("button", { name: /^Follow / });
-  await expect(buttons.first()).toBeVisible({ timeout: 15_000 });
-  const n = await buttons.count();
+/** The header's People button; peers show once their presence arrives. */
+export function peopleButton(page: Page) {
+  return page.getByRole("button", { name: /^People here/ });
+}
+
+/** Open the header's People menu (Follow and Go to) and return it. */
+export async function openPeopleMenu(page: Page): Promise<Locator> {
+  const menu = page.getByRole("menu", { name: "People" });
+  if (await menu.isVisible()) return menu;
+  const trigger = peopleButton(page);
+  await expect(trigger).toBeVisible({ timeout: 15_000 });
+  await trigger.click();
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+/** Follow each peer in turn until one shows the Following banner. */
+export async function followUntilBannerVisible(follower: Page): Promise<void> {
+  const rows = () =>
+    follower
+      .getByRole("menu", { name: "People" })
+      .getByRole("menuitem", { name: /· Follow$/ });
+  await openPeopleMenu(follower);
+  await expect(rows().first()).toBeVisible({ timeout: 15_000 });
+  const n = await rows().count();
   for (let i = 0; i < n; i++) {
-    await buttons.nth(i).click();
+    if (i > 0) {
+      await openPeopleMenu(follower);
+    }
+    await clickHTMLElement(rows().nth(i));
     if (await waitForFollowBanner(follower)) {
       return;
     }

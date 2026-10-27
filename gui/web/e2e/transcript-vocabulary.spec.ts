@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 async function saveVocabulary(page: Page, save: Locator): Promise<void> {
   const response = page.waitForResponse(
@@ -15,11 +16,8 @@ async function saveVocabulary(page: Page, save: Locator): Promise<void> {
 test("shows the real prompt budget before saving and persists a fitting draft", async ({
   page,
 }, testInfo) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await page
-    .getByLabel("Editor panels")
-    .getByRole("tab", { name: "Pipeline", exact: true })
-    .click();
+  await openProject(page, e2eProjectPath);
+  await openPanel(page, "pipeline");
   const editor = page.getByRole("region", { name: "Transcription vocabulary" });
   const input = editor.getByLabel("Terms", { exact: true });
   await expect(input).toBeEnabled();
@@ -52,10 +50,7 @@ test("shows the real prompt budget before saving and persists a fitting draft", 
     editor.getByText("Vocabulary saved.", { exact: true }),
   ).toBeVisible();
   await page.reload();
-  await page
-    .getByLabel("Editor panels")
-    .getByRole("tab", { name: "Pipeline", exact: true })
-    .click();
+  await openPanel(page, "pipeline");
   for (const name of names.slice(0, 3)) {
     await expect(
       editor.getByRole("button", { name: `Remove ${name}` }),

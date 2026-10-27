@@ -13,6 +13,7 @@ import {
 } from "../e2e/pendingActionbar";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import { save } from "../e2e/touchTimeline";
 
@@ -88,11 +89,11 @@ async function expectCardOutcome(
   test.setTimeout(40_000);
   const { outcome, ...size } = VIEWPORTS[name];
   await page.setViewportSize(size);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await seedMarkersAndSuggestion(page);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (name === "phone") await openPhoneTimeline(page);
   await setTheme(page, theme);
   await page

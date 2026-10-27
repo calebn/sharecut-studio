@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { expect, type Page } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -20,7 +21,7 @@ function transcripts(): unknown {
 }
 
 export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
   await page.getByRole("button", { name: /^Correct:/ }).click();
   await list.locator("button[data-transcript-word]").first().click();

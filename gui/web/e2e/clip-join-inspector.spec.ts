@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 
 test.describe("Clip inspector join control", () => {
   test("is axe-clean with a left neighbour and keeps focus order", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -44,7 +45,7 @@ test.describe("Clip inspector fade controls", () => {
   test("commits one keyboard fade step and one Undo restores the saved pair", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     const snapshotResponse = await page.request.get(
       `/api/project?path=${encodeURIComponent(e2eProjectPath)}&phase=full`,
     );

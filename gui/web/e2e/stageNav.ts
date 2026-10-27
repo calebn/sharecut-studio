@@ -26,7 +26,8 @@ export type ProjectDialog =
   | "export"
   | "bounce"
   | "record"
-  | "palette";
+  | "palette"
+  | "gestures";
 
 export type Audition = "mix" | "fx" | "raw";
 
@@ -67,10 +68,11 @@ export async function isPhoneShell(page: Page): Promise<boolean> {
 }
 
 /** The Stage bar tab for `stage`: in the header, or the tab bar on a phone. */
-function stageTab(page: Page, stage: Stage): Locator {
+export function stageTab(page: Page, stage: Stage): Locator {
   return page
     .getByRole("tablist", { name: "Stages" })
-    .getByRole("tab", { name: new RegExp(`^${STAGE_LABEL[stage]}\\b`) });
+    .getByRole("tab", { name: new RegExp(`^${STAGE_LABEL[stage]}\\b`) })
+    .first();
 }
 
 /** Wait for the frame to be up and the first stage to be showing. */
@@ -91,6 +93,26 @@ export async function goToStage(page: Page, stage: Stage): Promise<void> {
   ).toBeVisible();
 }
 
+/**
+ * Open a project as its host and land on `stage` (Edit by default). A project
+ * opens on the stage it needs next (Review while edits wait for a decision), so
+ * a spec that drives the timeline says where it wants to be.
+ */
+export async function openProject(
+  page: Page,
+  projectPath: string,
+  options: { stage?: Stage; query?: string } = {},
+): Promise<void> {
+  await page.goto(
+    `/?project=${encodeURIComponent(projectPath)}${options.query ?? ""}`,
+  );
+  await waitForFrame(page);
+  // The Save indicator shows once the project has loaded, which is also when
+  // the landing stage is picked; a stage chosen before that gets overruled.
+  await expect(saveStatus(page)).toBeVisible();
+  await goToStage(page, options.stage ?? "edit");
+}
+
 export const phone = {
   /**
    * The phone shows one Edit surface at a time. `listen` has no surface of its
@@ -102,6 +124,8 @@ export const phone = {
       return;
     }
     await goToStage(page, "edit");
+    // Only the phone has one Edit surface at a time; wider shells show both.
+    if (!(await isPhoneShell(page))) return;
     const name = mode === "text" ? "Script" : "Timeline";
     const toggle = page
       .getByRole("group", { name: "Edit surface" })
@@ -114,6 +138,14 @@ export const phone = {
   showTimeline: (page: Page) => phone.show(page, "timeline"),
   showText: (page: Page) => phone.show(page, "text"),
   showListen: (page: Page) => phone.show(page, "listen"),
+  /** The phone's Mix button on the Edit stage; returns the Mix sheet. */
+  async openMix(page: Page): Promise<Locator> {
+    await goToStage(page, "edit");
+    await page.getByRole("button", { name: "Mix", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Mix", exact: true });
+    await expect(sheet).toBeVisible();
+    return sheet;
+  },
   /** The More hub is gone; the project menu is the nearest thing to it. */
   async openMore(page: Page): Promise<void> {
     await openProjectMenu(page);
@@ -154,6 +186,11 @@ export async function openHistorySheet(page: Page): Promise<Locator> {
   return sheet;
 }
 
+/** The Save indicator in the App header. */
+export function saveStatus(page: Page): Locator {
+  return page.locator(".sys-app-header-host .sys-save").first();
+}
+
 /** The Project menu button in the App header. */
 export function projectMenuButton(page: Page): Locator {
   return page.locator(".sys-header-project");
@@ -179,6 +216,9 @@ const MOVED_MENU_ITEMS: Record<string, ProjectDialog> = {
   "Commands and shortcuts": "palette",
 };
 
+/** Rows the old transport Menu carried that now live only in the palette. */
+const PALETTE_ONLY_ITEMS = new Set(["Export diagnostics…"]);
+
 /**
  * Open the Project menu and choose the entry named `item`. A name the old
  * transport Menu carried (Share…, Export deliverables…) goes to where it
@@ -194,8 +234,17 @@ export async function openProjectMenuItem(
     await openProjectDialog(page, moved);
     return;
   }
+  if (PALETTE_ONLY_ITEMS.has(item)) {
+    await openProjectDialog(page, "palette");
+    const search = page.getByRole("combobox", { name: "Search commands" });
+    await search.fill(item);
+    await search.press("Enter");
+    return;
+  }
   const menu = await openProjectMenu(page);
-  await menu.getByRole("menuitem", { name: item }).click();
+  // The Project menu names its rows without the old trailing ellipsis.
+  const name = item.replace(/…$/, "");
+  await menu.getByRole("menuitem", { name, exact: true }).click();
 }
 
 /**
@@ -228,6 +277,13 @@ export async function openProjectDialog(
     case "palette":
       await page.getByRole("button", { name: /^Palette\b/ }).click();
       return;
+    case "gestures":
+      await openProjectDialog(page, "palette");
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Gestures", exact: true })
+        .click();
+      return;
   }
 }
 
@@ -249,6 +305,35 @@ export async function openViewSheet(page: Page): Promise<Locator> {
   return sheet;
 }
 
+/** Press the eye sheet's "Track height +" or "Track height −" once, then close it. */
+export async function stepTrackHeight(
+  page: Page,
+  direction: "increase" | "decrease",
+): Promise<void> {
+  const sheet = await openViewSheet(page);
+  await sheet
+    .getByRole("button", {
+      name: direction === "increase" ? "Track height +" : "Track height −",
+    })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+}
+
+/** Show or hide a timeline layer ("Volume envelope", "Markers"…) in the eye sheet. */
+export async function setLayer(
+  page: Page,
+  label: string,
+  checked: boolean,
+): Promise<void> {
+  const sheet = await openViewSheet(page);
+  const toggle = sheet.getByRole("checkbox", { name: label, exact: true });
+  if (checked) await toggle.check();
+  else await toggle.uncheck();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+}
+
 /** The Edit tool strip's Select and Blade toggle. */
 export async function selectTool(
   page: Page,
@@ -264,6 +349,25 @@ export async function selectTool(
   await expect(button).toHaveAttribute("aria-pressed", "true");
 }
 
+/** Add a track from the Edit stage's + menu. */
+export async function addTrack(page: Page): Promise<void> {
+  await goToStage(page, "edit");
+  await page.getByRole("button", { name: "+", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^New track/ }).click();
+}
+
+/** Arm range selection from the Edit tool strip; the Range actions form opens. */
+export async function armRange(page: Page): Promise<void> {
+  await goToStage(page, "edit");
+  const button = page
+    .getByRole("group", { name: "Editing tools" })
+    .getByRole("button", { name: "Select range", exact: true });
+  await button.click();
+  await expect(
+    page.getByRole("region", { name: "Range actions" }),
+  ).toBeVisible();
+}
+
 /** Pick how the Player plays: the hear menu next to A/B. It closes on a pick. */
 export async function setAudition(page: Page, mode: Audition): Promise<void> {
   const menuButton = page.getByRole("button", { name: "Hear options" });
@@ -275,4 +379,43 @@ export async function setAudition(page: Page, mode: Audition): Promise<void> {
   await expect(row).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await expect(row).toBeHidden();
+}
+
+/**
+ * Turn comment mode on from the Edit stage's tool strip, which brings up the
+ * "Comment time" ruler.
+ */
+export async function armCommentMode(page: Page): Promise<void> {
+  await goToStage(page, "edit");
+  const toggle = page
+    .getByRole("group", { name: "Editing tools" })
+    .getByRole("button", { name: "Toggle comment mode", exact: true });
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") {
+    await toggle.click();
+  }
+  await expect(
+    page.getByRole("slider", { name: "Comment time" }),
+  ).toBeVisible();
+}
+
+/**
+ * On the phone the Player bar hides the skip buttons; the expanded form has
+ * them. Open it (a no-op when it is open) and return it.
+ */
+export async function expandPlayer(page: Page): Promise<Locator> {
+  const expanded = page.locator(".sys-player--expanded");
+  if (!(await expanded.isVisible())) {
+    await page.getByRole("button", { name: /Expand player/ }).click();
+  }
+  await expect(expanded).toBeVisible();
+  return expanded;
+}
+
+/** Close the expanded Player back to its bar. */
+export async function collapsePlayer(page: Page): Promise<void> {
+  const expanded = page.locator(".sys-player--expanded");
+  if (await expanded.isVisible()) {
+    await expanded.getByRole("button", { name: "Collapse player" }).click();
+  }
+  await expect(expanded).toBeHidden();
 }

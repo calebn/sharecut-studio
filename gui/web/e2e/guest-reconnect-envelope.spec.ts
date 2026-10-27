@@ -6,6 +6,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { phone } from "./stageNav";
 
 /**
  * #1346: a phone guest's review socket drops and reconnects (the relay path
@@ -119,9 +120,7 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
       if (await inspector.isVisible()) {
         await inspector.getByRole("button", { name: "Close" }).click();
       }
-      await guest
-        .getByRole("button", { name: "Timeline", exact: true })
-        .click();
+      await phone.showTimeline(guest);
       await guest
         .getByRole("button", { name: "Open track details, guest", exact: true })
         .click();
@@ -160,7 +159,7 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
       });
 
       await guest.getByRole("button", { name: "Done", exact: true }).click();
-      await guest.getByRole("button", { name: "Listen", exact: true }).click();
+      await phone.showListen(guest);
       await expect(
         guest.getByRole("button", { name: "Play", exact: true }).first(),
       ).toBeEnabled();

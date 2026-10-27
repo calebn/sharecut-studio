@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectFeedback } from "./feedback";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 
 const TOAST_MS = 8000;
 const CLIPPED_MAX_MS = 8000;
@@ -46,7 +47,7 @@ for (const ratio of [0.5, 0.97]) {
         }),
       );
       await page.clock.install();
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       const play = page.getByRole("button", { name: "Play", exact: true });
       await expect(play).toBeVisible();
       await expectFeedback(page, /^Refresh failed/);

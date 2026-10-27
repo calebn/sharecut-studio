@@ -371,7 +371,7 @@ for (const core of [
             expectEnvelopeMutation(two, edited, track.id);
             observer.stage("reopen-and-delete");
             await page.reload();
-            await expect(page.locator(".daw-shell")).toBeVisible();
+            await expect(page.locator(".stage-frame")).toBeVisible();
             if (core.phone) await openPhoneTimeline(page);
             await setTheme(page, core.theme);
             await openEnvelopeTrackDetails(page, track.label, receipts);

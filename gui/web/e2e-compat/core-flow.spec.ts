@@ -24,6 +24,7 @@ import {
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
 import { createReviewShare, openGuestShare } from "../e2e/shareNavigation";
+import { openPanel } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import {
   openTranscriptPanel,
@@ -153,10 +154,7 @@ test.describe("core flow", () => {
           });
 
           await test.step("tighten: the panel opens on its empty state", async () => {
-            await host
-              .getByLabel("Editor panels")
-              .getByRole("tab", { name: "Tighten", exact: true })
-              .click();
+            await openPanel(host, "tighten");
             await expect(
               host.getByRole("group", { name: "Class" }),
             ).toBeVisible();

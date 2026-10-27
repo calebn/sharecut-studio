@@ -8,6 +8,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import {
   buildFixture,
   type CaseFixtures,
@@ -58,16 +59,16 @@ test.afterEach(async () => {
 /** What is drawn at the middle of the shell row under the strip, and on it. */
 async function stacking(page: Page) {
   return page.evaluate(() => {
-    const row = document.querySelector(".mobile-nav, .daw-shell > .status-bar");
+    const row = document.querySelector(".stage-frame-player");
     const strip = document.querySelector(".bottom-sheet");
-    if (!row || !strip) throw new Error("no shell row or strip");
+    if (!row || !strip) throw new Error("no Player or strip");
     const r = row.getBoundingClientRect();
     const s = strip.getBoundingClientRect();
     const owner = (x: number, y: number) => {
       const el = document.elementFromPoint(x, y);
       return el?.closest(".bottom-sheet")
         ? "strip"
-        : el?.closest(".mobile-nav, .status-bar")
+        : el?.closest(".stage-frame-player")
           ? "row"
           : (el?.className ?? null);
     };
@@ -97,10 +98,10 @@ async function noRowOverStrip(
       await page.screenshot(),
     );
   await page.setViewportSize(viewport);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport.width < 768) await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
   await setZoom(page, 3);
@@ -121,14 +122,14 @@ async function noRowOverStrip(
   // An iOS rubber-band: in-flow rows move, the fixed strip does not.
   // Relative offset, not a transform, so no new stacking context forms.
   await page.evaluate((px) => {
-    const shell = document.querySelector<HTMLElement>(".daw-shell");
+    const shell = document.querySelector<HTMLElement>(".stage-frame");
     shell?.style.setProperty("position", "relative");
     shell?.style.setProperty("top", `-${px}px`);
   }, BOUNCE_PX);
   await shot("2-page-bounce");
   const bounce = await stacking(page);
   await page.evaluate(() => {
-    const shell = document.querySelector<HTMLElement>(".daw-shell");
+    const shell = document.querySelector<HTMLElement>(".stage-frame");
     shell?.style.removeProperty("position");
     shell?.style.removeProperty("top");
   });

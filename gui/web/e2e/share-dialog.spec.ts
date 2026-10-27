@@ -4,10 +4,11 @@ import { openDialogFromMenu } from "./overlayReachability";
 import { createRecordRoom } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
+import { openProject } from "./stageNav";
 
 async function openShare(page: Page, projectPath: string) {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await openDialogFromMenu(page, "Share…");
   const dialog = page.getByRole("dialog", { name: "Share", exact: true });
   await expect(dialog).toBeVisible();
@@ -62,7 +63,7 @@ test.describe("Share dialog", () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await withShareableProject(async (projectPath) => {
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       await createReviewShare(page, projectPath, "viewer");
       const room = await createRecordRoom(page, projectPath);
       const nativeDialogs: string[] = [];

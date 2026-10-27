@@ -178,10 +178,6 @@ export async function replayPipelineProgress(
       .poll(() => page.evaluate(() => window.__editorProgressReplay!.connected))
       .toBe(true);
     const bar = page.locator('.pipeline-bar[role="progressbar"]');
-    const separator = page.getByRole("separator", {
-      name: "Resize editor panels",
-    });
-    if (await separator.isVisible()) await separator.press("Home");
     await bar.scrollIntoViewIfNeeded();
     await expect(bar).toBeAttached();
     const geometry = await bar.evaluate((element) => ({

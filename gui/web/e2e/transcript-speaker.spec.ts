@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { expectFeedback } from "./feedback";
+import { openProject } from "./stageNav";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -10,7 +11,7 @@ import {
 test("rename and reassign a transcript speaker updates all track turns and Undo restores them", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
   const original = list
     .getByRole("button", { name: /^Change speaker/ })
@@ -87,7 +88,7 @@ test("rename and reassign a transcript speaker updates all track turns and Undo 
 test("queued speaker save stays visible and reports pending delivery", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
   await page.route("**/api/document/command?**", async (route) => {
     if (route.request().postDataJSON()?.type === "SetTrackMeta")

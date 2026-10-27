@@ -5,6 +5,7 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import {
   buildFixture,
   centerOf,
@@ -99,7 +100,7 @@ test("dragging to scroll scrolls and activates nothing", async ({
   page,
   context,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
@@ -156,7 +157,7 @@ test("a tap still selects or opens what it lands on", async ({
   page,
   context,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
@@ -209,7 +210,7 @@ test("a held, sliding finger starts no text selection or callout", async ({
   page,
   context,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {

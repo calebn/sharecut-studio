@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { withShareableProject } from "../e2e/shareableProject";
+import { openProject, phone } from "../e2e/stageNav";
 
 /*
  * #1029: Select mode works by touch on Chromium and WebKit. A long press on a
@@ -45,11 +46,8 @@ test("a long press then a drag selects a word range, and the sheet clears it", a
 }) => {
   await page.setViewportSize({ width: 393, height: 852 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "Text" })
-      .click();
+    await openProject(page, projectPath);
+    await phone.showText(page);
     await page.getByRole("button", { name: /^Select/ }).click();
     await expect(page.locator(WORDS).nth(3)).toBeVisible();
 
@@ -91,11 +89,8 @@ test("a finger that moves before the hold scrolls and selects nothing", async ({
 }) => {
   await page.setViewportSize({ width: 393, height: 852 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "Text" })
-      .click();
+    await openProject(page, projectPath);
+    await phone.showText(page);
     await page.getByRole("button", { name: /^Select/ }).click();
     await expect(page.locator(WORDS).nth(3)).toBeVisible();
 
