@@ -10,7 +10,6 @@ import {
   mockModelFailingJob,
   prepare,
   ROWS,
-  row,
   shot,
   THEMES,
   VIEWPORTS,
@@ -166,16 +165,19 @@ function progressFrames(id: string, onDone: () => void) {
   };
 }
 
-async function openPipeline(page: Page): Promise<void> {
+/** Runs the pipeline from the transcribe step, through the Advanced sheet in Prepare. */
+async function pressRun(page: Page): Promise<void> {
   await openPanel(page, "pipeline");
+  await page.getByRole("button", { name: /^Advanced/ }).click();
+  await page
+    .getByRole("button", { name: "More for Transcribe each track" })
+    .click();
+  await page.getByRole("menuitem", { name: "Run again from here" }).click();
 }
 
-async function pressRun(page: Page) {
-  await openPipeline(page);
-  const run = page.getByRole("button", { name: "Run pipeline", exact: true });
-  await expect(run).toBeEnabled();
-  await run.click();
-  return run;
+/** The model row's Get action in the Getting ready list. */
+function getAction(page: Page) {
+  return page.getByRole("button", { name: /^Get \(.*\), Transcribe$/ });
 }
 
 async function mockSpeakerDoctor(page: Page): Promise<void> {
@@ -189,6 +191,7 @@ async function mockSpeakerDoctor(page: Page): Promise<void> {
   );
 }
 
+/** Track inspector > Split speakers… opens Prepare at that source's split prompt. */
 async function openSplitSpeakers(page: Page): Promise<void> {
   if ((page.viewportSize()?.width ?? 0) < 720) {
     await phone.showTimeline(page);
@@ -201,7 +204,7 @@ async function openSplitSpeakers(page: Page): Promise<void> {
     .getByRole("button", { name: "Split speakers…", exact: true })
     .click();
   await expect(
-    page.getByRole("dialog", { name: "Split speakers", exact: true }),
+    page.getByRole("group", { name: "Number of voices" }),
   ).toBeVisible();
 }
 
@@ -212,7 +215,7 @@ for (const viewport of VIEWPORTS) {
         viewport: { width: viewport.width, height: viewport.height },
       });
 
-      test("Run asks, shows the live bar, then resends the run", async ({
+      test("Run asks on its row, shows the live bar, then resends the run", async ({
         page,
       }) => {
         await prepare(page, theme, true);
@@ -231,38 +234,32 @@ for (const viewport of VIEWPORTS) {
         await openHostProject(page);
         await pressRun(page);
 
-        const gate = page.getByRole("dialog", { name: "Download Whisper?" });
-        await expect(gate).toBeVisible();
-        const download = gate.getByRole("button", {
-          name: "Download",
-          exact: true,
-        });
-        await expect(download).toBeInViewport();
-        await expect(download).toBeFocused();
+        const get = getAction(page);
+        await expect(get).toBeVisible();
+        await expect(get).toBeInViewport();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
         expect(mock.runs).toEqual([]);
         expect(run.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
-        await expectTouchTargets(gate);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectTouchTargets(get);
+        await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "gate-idle");
 
-        await download.click();
+        await get.click();
         await expect.poll(() => mock.runs.length).toBe(1);
         expect(mock.runs[0]).toMatchObject({ components: ["whisper"] });
-        const bar = gate.getByRole("progressbar");
-        await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        const bar = page.getByRole("progressbar").first();
+        await expect(bar).toHaveAttribute("aria-valuenow", /^\d+$/);
+        await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "gate-downloading");
         progress.advance();
-        await expect(bar).toHaveAttribute("aria-valuetext", "1.2 GB of 1.6 GB");
 
         progress.finish();
 
-        await expect(gate).toBeHidden();
         await expect.poll(run.posts).toBe(2);
       });
 
-      test("a failed download keeps the prompt with Retry", async ({
+      test("a failed download keeps the row with Try again", async ({
         page,
       }) => {
         await prepare(page, theme, true);
@@ -298,24 +295,19 @@ for (const viewport of VIEWPORTS) {
         );
         await openHostProject(page);
         await pressRun(page);
-        const gate = page.getByRole("dialog", { name: "Download Whisper?" });
-        await gate
-          .getByRole("button", { name: "Download", exact: true })
-          .click();
+        await getAction(page).click();
 
-        await expect(gate.getByRole("alert")).toHaveText(failure.plain);
-        const retry = gate.getByRole("button", { name: "Retry", exact: true });
-        await expect(retry).toBeInViewport();
         await expect(
-          gate.getByRole("button", { name: "Not now", exact: true }),
+          page.getByText(`${failure.plain} Try again.`),
         ).toBeVisible();
+        await expect(getAction(page)).toBeInViewport();
         expect(run.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "gate-failed");
       });
 
-      test("Not now leaves Run enabled with a hint and a way to Models", async ({
+      test("a missing model never downloads until the person taps Get", async ({
         page,
       }) => {
         await prepare(page, theme, true);
@@ -328,33 +320,16 @@ for (const viewport of VIEWPORTS) {
           () => false,
         );
         await openHostProject(page);
-        const button = await pressRun(page);
-        const gate = page.getByRole("dialog", { name: "Download Whisper?" });
-        await gate
-          .getByRole("button", { name: "Not now", exact: true })
-          .click();
+        await pressRun(page);
 
-        await expect(gate).toBeHidden();
-        await expect(button).toBeEnabled();
-        const hint = page.getByText(
-          "Whisper is not downloaded. Run will ask again.",
-        );
-        await expect(hint).toBeVisible();
+        await expect(getAction(page)).toBeVisible();
+        await expect(
+          page.getByText(/Waiting for the transcription model/),
+        ).toBeVisible();
         expect(mock.runs).toEqual([]);
-        await expectSurfaceAxeClean(page, ".pipeline-panel");
+        expect(run.posts()).toBe(1);
+        await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "gate-declined");
-
-        await button.click();
-        await expect(gate).toBeVisible();
-        expect(run.posts()).toBe(2);
-
-        await gate
-          .getByRole("button", { name: "Manage models", exact: true })
-          .click();
-        const models = page.getByRole("dialog", { name: "Models" });
-        await expect(models).toBeVisible();
-        await expect(row(models, "Whisper")).toBeVisible();
-        expect(mock.runs).toEqual([]);
       });
 
       test("a busy download slot shows the running job and no second start", async ({
@@ -395,24 +370,19 @@ for (const viewport of VIEWPORTS) {
         );
         await openHostProject(page);
         await pressRun(page);
-        const gate = page.getByRole("dialog", { name: "Download Whisper?" });
-        await gate
-          .getByRole("button", { name: "Download", exact: true })
-          .click();
+        await getAction(page).click();
 
-        await expect(gate.getByRole("progressbar")).toHaveAttribute(
-          "aria-valuetext",
-          "420 MB of 1.6 GB",
+        await expect(page.getByRole("progressbar").first()).toHaveAttribute(
+          "aria-valuenow",
+          "26",
         );
-        await expect(
-          gate.getByRole("button", { name: "Cancel download", exact: true }),
-        ).toBeInViewport();
         expect(mock.runs).toHaveLength(1);
         await expectNoHorizontalScroll(page);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "gate-busy");
       });
-      test("Split speakers answers a stale 409 inside its own dialog", async ({
+
+      test("Split speakers asks on its card, downloads the model, then splits once more", async ({
         page,
       }) => {
         await prepare(page, theme, true);
@@ -437,73 +407,28 @@ for (const viewport of VIEWPORTS) {
         );
         await openHostProject(page);
         await openSplitSpeakers(page);
-        const dialog = page.getByRole("dialog", { name: "Split speakers" });
-        await dialog
-          .getByRole("button", { name: "Split speakers", exact: true })
+        await page
+          .getByRole("button", { name: /^Split /, exact: false })
+          .first()
           .click();
 
-        const download = dialog.getByRole("button", {
-          name: "Download",
-          exact: true,
-        });
-        await expect(download).toBeInViewport();
         await expect(
-          page.getByRole("dialog", { name: /^Download / }),
-        ).toHaveCount(0);
+          page.getByText(
+            /Speaker model is not downloaded\. Try again to download it\./,
+          ),
+        ).toBeVisible();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
         expect(split.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "split-idle");
 
-        await download.click();
-        const bar = dialog.getByRole("progressbar");
-        await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await page.getByRole("button", { name: /^Try again/ }).click();
+        await expect.poll(() => mock.runs.length).toBe(1);
         await shot(page, viewport.name, theme, "split-downloading");
         progress.finish();
         await expect.poll(split.posts).toBe(2);
         expect(mock.runs).toHaveLength(1);
-      });
-
-      test("Split speakers checks first and Not now returns to the settings", async ({
-        page,
-      }) => {
-        await prepare(page, theme, true);
-        const mock = await mockBootstrap(page);
-        await mockSpeakerDoctor(page);
-        const split = await mockNeedingRoute(
-          page,
-          "**/api/speaker/split",
-          "speaker-ecapa",
-          () => false,
-        );
-        await openHostProject(page);
-        await openSplitSpeakers(page);
-        const dialog = page.getByRole("dialog", { name: "Split speakers" });
-        await dialog
-          .getByRole("button", { name: "Split speakers", exact: true })
-          .click();
-        await expect(dialog.getByText(/stored on this computer/)).toBeVisible();
-        await expect(
-          page.getByRole("dialog", { name: /^Download / }),
-        ).toHaveCount(0);
-        expect(split.posts()).toBe(0);
-
-        await dialog
-          .getByRole("button", { name: "Not now", exact: true })
-          .click();
-        await expect(
-          dialog.getByRole("button", { name: "Split speakers", exact: true }),
-        ).toBeEnabled();
-        await expect(
-          dialog.getByText(
-            "Speaker model is not downloaded. Split speakers will ask again.",
-          ),
-        ).toBeVisible();
-        await expect(dialog.getByRole("alert")).toHaveCount(0);
-        expect(mock.runs).toEqual([]);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
-        await shot(page, viewport.name, theme, "split-declined");
       });
 
       test("Export asks inside its own dialog, then exports once more", async ({
