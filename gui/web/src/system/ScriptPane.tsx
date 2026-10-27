@@ -28,15 +28,6 @@ import {
   type ScriptWord,
 } from "./scriptPieces";
 
-export type {
-  ScriptCaret,
-  ScriptSpan,
-  ScriptStatus,
-  ScriptTurn,
-  ScriptWord,
-  ScriptWordState,
-} from "./scriptPieces";
-
 export type ScriptPaneProps = {
   turns: readonly ScriptTurn[];
   status?: ScriptStatus;
