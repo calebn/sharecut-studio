@@ -1,8 +1,7 @@
 /**
  * Per-browser lane-height preference (#529): a fixed height in px, or "fit"
  * to fill the available stage height (see `timeline/timelineMetrics.ts`
- * `fitLaneHeight`). Persisted like `sharecut.tabsHeight` — a convenience for
- * this browser, not durable project state (see `docs/persistence.md`).
+ * `fitLaneHeight`). A convenience for this browser, not durable project state (see `docs/persistence.md`).
  */
 import {
   DEFAULT_LANE_HEIGHT_PX,

@@ -45,7 +45,7 @@ const preview: Preview = {
       },
     },
   },
-  // The live TransportBar re-applies the stored preference when it mounts, so
+  // The app's theme hook re-applies the stored preference when it mounts, so
   // the toolbar choice has to be the stored one or shell stories lose it.
   beforeEach: ({ globals }) => {
     writeLocal(THEME_STORAGE_KEY, themePreferenceFromGlobals(globals));

@@ -1276,11 +1276,6 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   font-size: var(--font-size-body);
 }
 
-.sys-sheet-step {
-  margin: 0;
-  font-size: var(--font-size-card-title);
-}
-
 .sys-sheet-row {
   display: flex;
   align-items: center;
