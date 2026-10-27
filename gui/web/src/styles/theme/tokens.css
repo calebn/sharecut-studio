@@ -120,6 +120,8 @@
   /* Layout — rem chrome; px canvas (lane/ruler/marker px in utils/layout.ts) */
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas lane height */
   --lane-height: 72px;
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas touch lane height (COMPACT_LANE_HEIGHT) */
+  --lane-height-touch: 104px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas ruler height */
   --ruler-height: 24px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas marker lane height */

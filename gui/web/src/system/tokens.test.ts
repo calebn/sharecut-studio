@@ -258,6 +258,7 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
 
 const SHEET_CLEARANCE_TOKENS = [
   "--sheet-header-clearance",
+  "--lane-height-touch",
   "--sheet-edit-row",
   "--sheet-chrome-clearance",
   "--sheet-lane-extra",
