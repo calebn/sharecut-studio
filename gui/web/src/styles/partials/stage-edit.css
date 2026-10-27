@@ -181,6 +181,22 @@
   --edit-header-touch: 12.5rem;
 }
 
+/* With the Blade armed the strip carries a fifth button, wider than the
+   header column holds. The column grows to hold it, as it does on touch, so
+   the button is never left under the marker lane. */
+html[data-shell]
+  .timeline-area
+  .timeline-scroll:has(
+    .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut
+  ),
+html[data-shell]
+  .timeline-area
+  .timeline-lock-inner:has(
+    .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut
+  ) {
+  --header-width: var(--edit-header-touch);
+}
+
 @media (pointer: coarse) {
   html[data-shell]
     .timeline-area
