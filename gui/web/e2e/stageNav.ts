@@ -113,6 +113,16 @@ export async function openProject(
   await goToStage(page, options.stage ?? "edit");
 }
 
+/**
+ * Reload the open project and wait until the frame is up and the landing stage
+ * has been picked, so a stage the spec goes to next is not overruled by it.
+ */
+export async function reloadProject(page: Page): Promise<void> {
+  await page.reload();
+  await waitForFrame(page);
+  await expect(saveStatus(page)).toBeVisible();
+}
+
 export const phone = {
   /**
    * The phone shows one Edit surface at a time. `listen` has no surface of its
