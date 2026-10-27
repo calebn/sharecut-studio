@@ -68,14 +68,8 @@ export async function checkPhoneMixFocus(
     await expectDismissedWithMixFocus(page);
   });
 
-  await inFreshPhoneProject(page, 1100, async () => {
-    const mix = await openMixAfterKeyboardFocus(page);
-    await page
-      .getByRole("button", { name: "Dismiss", exact: true })
-      .click({ position: { x: 8, y: 8 } });
-    await expect(mix).toHaveCount(0);
-    await expectDismissedWithMixFocus(page);
-  });
+  // The Mix sheet keeps the page interactive behind it (System Sheet,
+  // backgroundPolicy "interactive"), so it has no scrim to dismiss by.
 
   await inFreshPhoneProject(page, 740, async () => {
     await openPhoneMix(page);
