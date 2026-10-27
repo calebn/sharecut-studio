@@ -94,6 +94,20 @@ describe("Composer", () => {
       expect(event.defaultPrevented).toBe(false);
     });
 
+    it("does not post when Safari confirms an IME composition after compositionend", () => {
+      const onSubmit = vi.fn();
+      render(<Harness start="にほん" onSubmit={onSubmit} />);
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        keyCode: 229,
+        bubbles: true,
+        cancelable: true,
+      });
+      field().dispatchEvent(event);
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    });
+
     it("advertises Enter and the send hint", () => {
       render(<Harness />);
       expect(field()).toHaveAttribute("aria-keyshortcuts", "Enter");
@@ -309,6 +323,21 @@ describe("Composer", () => {
       await user.keyboard("{Control>}{Enter}{/Control}");
       expect(onSubmit).toHaveBeenCalledOnce();
     });
+  });
+
+  it("keeps focus in the name field when Safari confirms an IME composition", () => {
+    render(<Harness start="Nice" name={{ value: "ろーざ", onChange: noop }} />);
+    const input = screen.getByRole("textbox", { name: "Your name" });
+    input.focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      keyCode: 229,
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(event);
+    expect(input).toHaveFocus();
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it("queues offline: a named arrow and a glyph, still postable", () => {
