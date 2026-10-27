@@ -183,9 +183,10 @@ export function useToastDock(
     const layout = () => {
       frame = window.requestAnimationFrame(layout);
       const phone = document.documentElement.dataset.shell === "phone";
-      const rest = document.querySelector(
-        phone ? ".stage-frame-tabs" : ".stage-frame-player",
-      );
+      // A phone guest has no tab bar: the Player is the chrome at the bottom.
+      const rest =
+        (phone ? document.querySelector(".stage-frame-tabs") : null) ??
+        document.querySelector(".stage-frame-player");
       const card = region.firstElementChild;
       if (!(rest instanceof HTMLElement) || !card) {
         region.style.removeProperty("--toast-dock-bottom");
