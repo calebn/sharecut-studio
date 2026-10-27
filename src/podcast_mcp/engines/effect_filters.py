@@ -67,6 +67,11 @@ _EFFECT_FORMATTERS: Mapping[str, EffectFormatter] = MappingProxyType(
 )
 
 
+# Effects whose output depends on the audio before it (loudness, noise estimate, envelopes): a
+# window rendered cold differs from the same window inside the whole track.
+ADAPTIVE_EFFECTS = frozenset({"loudnorm", "afftdn", "arnndn", "acompressor", "agate", "deesser"})
+
+
 def supported_effect_names() -> tuple[str, ...]:
     """Return the stable, sorted names this renderer can apply to an FX chain."""
     return tuple(sorted(_EFFECT_FORMATTERS))

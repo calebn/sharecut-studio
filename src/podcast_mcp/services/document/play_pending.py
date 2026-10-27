@@ -22,6 +22,7 @@ from podcast_mcp.edits.pending_preview import (
     apply_for_suggested,
     resolve_pending_preview,
 )
+from podcast_mcp.engines.effect_filters import ADAPTIVE_EFFECTS
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.room_tone import (
     record_room_tone_pool,
@@ -46,6 +47,10 @@ from .play_headroom import _PlayHeadroom
 from .play_support import PlayResult
 
 log = logging.getLogger(__name__)
+
+# Seconds of lead-in a window renders (and drops) on a track with an adaptive effect; loudnorm's
+# residual against the whole stem falls from about -16 dB (cold) to about -50 dB at 12 s.
+PENDING_WARMUP_SEC = 15.0
 
 # The pad range the GUI routes validate against, from the one place the service validates it.
 PENDING_PREVIEW_PAD_DEFAULT_SEC = DEFAULT_PAD_SEC
@@ -76,6 +81,16 @@ def _window_render_lock(path: Path) -> Iterator[None]:
         finally:
             with _WINDOW_LOCKS_GUARD:
                 _WINDOW_LOCKS.pop(str(path), None)
+
+
+def _warmup_sec(project: EpisodeProject, track_id: str) -> float:
+    """Lead-in a window render needs on ``track_id``: 0 unless its chain has an adaptive effect."""
+    chain = next((c for c in project.processing_chains if c.track_id == track_id), None)
+    if chain is None or not any(
+        fx.effect in ADAPTIVE_EFFECTS and not fx.bypass for fx in chain.effects
+    ):
+        return 0.0
+    return PENDING_WARMUP_SEC
 
 
 class _PlayPending(_PlayCompose, _PlayHeadroom):
@@ -194,10 +209,10 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
             edit_id=window.edit_id,
             mode=kind,
             pad_sec=window.pad_sec,
-            start_sec=round(window.play_start, 3),
-            end_sec=round(end, 3),
-            edit_start_sec=round(window.timeline_start, 3),
-            edit_end_sec=round(window.timeline_end, 3),
+            start_sec=window.play_start,
+            end_sec=end,
+            edit_start_sec=window.timeline_start,
+            edit_end_sec=window.timeline_end,
         )
 
     def warm_pending_preview(
@@ -264,6 +279,8 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
             {
                 "window": [window.play_start, window.play_end],
                 "pad_sec": window.pad_sec,
+                # Bump when a side renders differently for the same inputs.
+                "render_rev": 2,
                 "edit": edit.model_dump(mode="json"),
                 "mix": self._mix_key(),
                 # The Suggested side re-optimizes the cut against every track's words.
@@ -329,7 +346,16 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 if track.muted or track.media is None:
                     continue
                 segment = Path(directory) / f"{track.id}.wav"
-                render_track_segment(project, track.id, start, end, segment, self._defaults)
+                warm = min(start, _warmup_sec(project, track.id))
+                if warm > 0:
+                    # Adaptive filters (loudnorm, noise reduction, dynamics) depend on the audio
+                    # before the window: render lead-in and drop it, so the window sounds as it
+                    # does inside the whole-episode stem.
+                    lead = Path(directory) / f"{track.id}.lead.wav"
+                    render_track_segment(project, track.id, start - warm, end, lead, self._defaults)
+                    FFmpegEngine().extract_segment(lead, segment, warm, warm + (end - start))
+                else:
+                    render_track_segment(project, track.id, start, end, segment, self._defaults)
                 segments.append((segment, track.fader_db))
             if segments:
                 render_atomic(
