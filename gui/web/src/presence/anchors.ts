@@ -2,10 +2,7 @@ export const PRESENCE_ANCHOR_ATTR = "data-presence-anchor";
 
 export type AnchorKind =
   | "track"
-  | "transport"
-  | "audition"
   | "tab"
-  | "mobile-nav"
   | "transcript"
   | "inspector"
   | "ruler"

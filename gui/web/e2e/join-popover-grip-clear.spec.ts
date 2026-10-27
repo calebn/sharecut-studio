@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { openProject } from "./stageNav";
 
 const PHONES = [
   { name: "320x460 portrait", width: 320, height: 460 },
@@ -34,7 +35,7 @@ for (const phone of PHONES) {
     // Split at a desktop size (the shortcuts need the arrange view), then
     // shrink to the phone, as crossfade-length.spec does.
     await page.setViewportSize({ width: 1280, height: 844 });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );

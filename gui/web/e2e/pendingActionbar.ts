@@ -57,7 +57,7 @@ export async function chromeBoxes(page: Page): Promise<{
     return {
       ruler: box(".time-ruler"),
       marker: box(".marker-lane"),
-      panel: box(".bottom-tabs"),
+      panel: box(".stage-frame-player"),
     };
   });
 }

@@ -6,6 +6,7 @@ import {
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { buildFixture, centerOf, lane, setZoom } from "../e2e/touchTimeline";
 
 // A mouse window: a coarse pointer at this size gets the Inspector column
@@ -25,12 +26,12 @@ test.afterEach(async () => {
 });
 async function open(page: Page) {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await page.evaluate(() =>
     localStorage.setItem("sharecut.compactInspector", "peek"),
   );
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await setZoom(page, 3);
 }
 async function selected(
@@ -38,7 +39,7 @@ async function selected(
   context: BrowserContext,
   browserName: string,
 ) {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, "e2e-pending-lifecycle");
   await open(page);
   const finger = await newFinger(context, page, browserName);

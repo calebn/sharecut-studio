@@ -1,0 +1,161 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { useDawStore } from "../../state/dawStore";
+import {
+  portaledOverlayParameters,
+  studioViewports,
+  viewportStoryParameters,
+} from "../../storybook/storyLayout";
+import { episode } from "../../test/episodeFixture";
+import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
+import { StageFrame } from "../frame/StageFrame";
+import { StageHost, type StageHostProps } from "./StageHost";
+
+const meta: Meta<StageHostProps> = {
+  title: "Stages/Review/Host",
+  component: StageHost,
+  beforeEach: episodeBeforeEach,
+  render: ({ guestShare, loadFailure }) => (
+    <StageFrame guestShare={guestShare} loadFailure={loadFailure}>
+      <StageHost guestShare={guestShare} loadFailure={loadFailure} />
+    </StageFrame>
+  ),
+  decorators: [
+    withEpisode,
+    (Story) => (
+      <div data-daw-app-chrome>
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    ...viewportStoryParameters,
+    ...portaledOverlayParameters,
+    viewport: { options: studioViewports },
+    episode: { state: { stage: "review" } },
+    docs: {
+      description: {
+        component:
+          "The Review stage host: Comments, Impact and Tighten as sections of one stage, with the open section kept in the stage slice. A Viewer or Commenter link gets Comments only and no Stage bar.\n\n**Motion.** Switching section swaps the panel in one frame. The saved scroll position of each section returns when it is reopened.",
+      },
+    },
+  },
+  globals: { viewport: { value: "desktop", isRotated: false } },
+};
+
+export default meta;
+type Story = StoryObj<StageHostProps>;
+
+const phone = {
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+} as const;
+
+const FAILURE = { message: "The server did not answer.", onRetry: fn() };
+
+export const Default: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("tablist", { name: "Review sections" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getAllByRole("tab", { name: /Comments|Impact|Tighten/ }).length,
+    ).toBeGreaterThanOrEqual(3);
+  },
+};
+
+export const SwitchSection: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("tab", { name: /Impact/ }));
+    await waitFor(() =>
+      expect(useDawStore.getState().reviewSection).toBe("impact"),
+    );
+  },
+};
+
+export const Empty: Story = {
+  parameters: {
+    episode: {
+      project: episode({
+        comments: [],
+        edit_impact: { ...episode().edit_impact, pending_review_count: 0 },
+      }),
+      state: { stage: "review" },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("tablist", {
+        name: "Review sections",
+      }),
+    ).toBeVisible();
+  },
+};
+
+export const Loading: Story = {
+  parameters: { episode: { state: { stage: "review", project: null } } },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByRole("main", { name: "Review" });
+    await expect(
+      canvasElement.querySelector(
+        "[data-stage-host='review'][aria-busy='true']",
+      ),
+    ).not.toBeNull();
+  },
+};
+
+export const LoadError: Story = {
+  args: { loadFailure: FAILURE },
+  parameters: { episode: { state: { stage: "review", project: null } } },
+  play: async ({ args, canvasElement }) => {
+    const host = canvasElement.querySelector<HTMLElement>(
+      "[data-stage-host='review']",
+    );
+    await userEvent.click(
+      await within(host as HTMLElement).findByRole("button", { name: "Retry" }),
+    );
+    await expect(args.loadFailure?.onRetry).toHaveBeenCalledOnce();
+  },
+};
+
+export const Phone: Story = {
+  ...phone,
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("tablist", {
+        name: "Review sections",
+      }),
+    ).toBeVisible();
+  },
+};
+
+export const PhoneGuestCommenter: Story = {
+  ...phone,
+  args: { guestShare: true },
+  parameters: { episode: { role: "commenter", state: { stage: "review" } } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("region", { name: "Comments" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("tablist", { name: "Review sections" }),
+    ).toBeNull();
+  },
+};
+
+export const GuestViewer: Story = {
+  args: { guestShare: true },
+  parameters: { episode: { role: "viewer", state: { stage: "review" } } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("region", { name: "Comments" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Deliver" })).toBeNull();
+    await expect(
+      canvas.queryByRole("tab", { name: /Tighten|Impact/ }),
+    ).toBeNull();
+  },
+};

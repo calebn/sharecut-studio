@@ -37,7 +37,10 @@ function renderPanel(props: { guestShare?: boolean } = {}) {
 }
 
 describe("CommentsPanel", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   beforeEach(() => {
     vi.stubGlobal(
@@ -182,6 +185,39 @@ describe("CommentsPanel", () => {
       expect.objectContaining({ author: "Dana" }),
     );
     expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+  });
+
+  it("works with storage blocked: asks once per page load and still posts", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(sampleComment());
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+    renderPanel({ guestShare: true });
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "One");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(createComment).not.toHaveBeenCalled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Your name" }),
+      "Ola{Enter}",
+    );
+    expect(createComment).toHaveBeenCalledTimes(1);
+    expect(createComment).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ author: "Ola" }),
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Two");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+    expect(createComment).toHaveBeenCalledTimes(2);
+    expect(createComment).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ author: "Ola" }),
+    );
   });
 
   it("a guest's reply uses the chosen name, else Guest, with no extra prompt", async () => {
@@ -589,7 +625,6 @@ describe("CommentsPanel", () => {
     useDawStore
       .getState()
       .hydrate("share:tok", minimalProject(), "comment", ["view", "comment"]);
-    expect(useDawStore.getState().activeTab).toBe("comments");
     render(<CommentsPanel guestShare />);
     expect(screen.getByRole("textbox", { name: "Comment" })).toBeVisible();
   });

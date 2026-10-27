@@ -1,8 +1,9 @@
 import { useId } from "react";
+import type { StageId } from "../types/stage";
 import { Button } from "../ui";
 import { KeyCaps } from "./KeyCaps";
 import { SystemIcon } from "./SystemIcon";
-import { type KeySpec, STAGES, type StageId } from "./verbs";
+import { type KeySpec, STAGES } from "./verbs";
 
 export type StageHandoffProps = {
   /** The stage this hands off to; its icon from `STAGES` leads the label. */

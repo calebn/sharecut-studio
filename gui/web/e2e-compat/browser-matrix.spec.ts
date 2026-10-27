@@ -17,6 +17,12 @@ import {
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import {
+  openPanel,
+  openProject,
+  projectMenuButton,
+  setAudition,
+} from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import {
   stubSyntheticMicrophone,
@@ -42,10 +48,7 @@ test.describe("browser compatibility matrix", () => {
   }) => {
     await openHostProject(page);
     await expect(playButton(page)).toBeEnabled();
-    await page
-      .getByRole("group", { name: "Audition mode" })
-      .getByRole("button", { name: "Original" })
-      .click();
+    await setAudition(page, "raw");
     await expectPlaybackAdvancesThenHolds(page);
     if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
       await expectPageAxeClean(page);
@@ -85,10 +88,7 @@ test.describe("browser compatibility matrix", () => {
         )
         .toBe(true);
       await expect.poll(queuedCount).toBe(0);
-      await page
-        .getByLabel("Editor panels")
-        .getByRole("tab", { name: "Comments" })
-        .click();
+      await openPanel(page, "comments");
       await expect(page.getByText(note, { exact: true }).first()).toBeVisible();
     });
     expect(
@@ -176,10 +176,7 @@ test.describe("browser compatibility matrix", () => {
             ),
           )
           .toBe(true);
-        await page
-          .getByLabel("Editor panels")
-          .getByRole("tab", { name: "Comments" })
-          .click();
+        await openPanel(page, "comments");
         await expect(
           page.locator(".comment-card-body").getByText(note, { exact: true }),
         ).toBeVisible();
@@ -207,17 +204,13 @@ test.describe("browser compatibility matrix", () => {
     }) => {
       await openHostProject(page);
 
-      await expect(page.locator(".daw-shell--phone")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Listen" })).toBeVisible();
-      await expect(page.locator(".listen-hero")).toBeVisible();
+      await expect(page.locator(".stage-frame--phone")).toBeVisible();
+      await expect(page.getByRole("tablist", { name: "Stages" })).toBeVisible();
+      await expect(page.locator(".stage-frame-player")).toBeVisible();
       expect(
         await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
       ).toBe(true);
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "More" })
-        .click();
-      const menu = page.getByRole("button", { name: "Menu", exact: true });
+      const menu = projectMenuButton(page);
       await expect(menu).toBeVisible();
       const viewport = page.viewportSize();
       expect(viewport).toBeTruthy();
@@ -240,7 +233,7 @@ test.describe("browser compatibility matrix", () => {
   }) => {
     await withShareableProject(async (projectPath) => {
       await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
-        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await openProject(host, projectPath, { query: "&e2e=1" });
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
 

@@ -1,9 +1,9 @@
 /**
  * A control changes the view or the playhead through `execute`, not through a
  * store setter (#1795). The command is where the follow break, the gate, the
- * argument checks and the announcement live: a StatusBar chip that called
- * `setActiveTab` opened the Pipeline tab without breaking the viewer's follow
- * of the host, because `view.setTab` was skipped.
+ * argument checks and the announcement live: a control that called
+ * `setPlayheadSec` directly moved the playhead without breaking the viewer's
+ * follow of the host, because `transport.seek` was skipped.
  *
  * Each setter below is owned by a catalog command that breaks follow. A `.tsx`
  * file under `src/` (a control or a panel) may not call, select or pass one;
@@ -16,12 +16,12 @@ import { COMMANDS } from "./catalog";
 
 /** Store setter → the catalog command that owns the change. */
 const COMMAND_OWNED_SETTERS: Record<string, string> = {
-  setActiveTab: "view.setTab",
-  setMobileMode: "view.setMobileMode",
-  setMoreDestination: "view.setMobileMode",
   setPlayheadSec: "transport.seek",
   applyAnchoredZoom: "view.zoomIn",
   fitToWindow: "view.fit",
+  openStage: "stage.edit",
+  setReviewSection: "stage.review",
+  setEditSurface: "stage.edit",
 };
 
 const WAIVERS: { file: string; setter: string; reason: string }[] = [
@@ -50,16 +50,16 @@ function usesSetter(text: string, setter: string): boolean {
 
 describe("control setters", () => {
   it("recognizes a store read, a bare call and a prop hand-off", () => {
-    expect(usesSetter("setActiveTab: s.setActiveTab,", "setActiveTab")).toBe(
-      true,
-    );
     expect(
-      usesSetter('onClick={() => setActiveTab("x")}', "setActiveTab"),
+      usesSetter("setPlayheadSec: s.setPlayheadSec,", "setPlayheadSec"),
     ).toBe(true);
-    expect(usesSetter("onOpenTab={setActiveTab}", "setActiveTab")).toBe(true);
-    expect(usesSetter("// setActiveTab(x)", "setActiveTab")).toBe(false);
     expect(
-      usesSetter('runPointerCommand("view.setActiveTab")', "setActiveTab"),
+      usesSetter('onClick={() => setPlayheadSec("x")}', "setPlayheadSec"),
+    ).toBe(true);
+    expect(usesSetter("onSeek={setPlayheadSec}", "setPlayheadSec")).toBe(true);
+    expect(usesSetter("// setPlayheadSec(x)", "setPlayheadSec")).toBe(false);
+    expect(
+      usesSetter('runPointerCommand("transport.seek")', "setPlayheadSec"),
     ).toBe(false);
   });
 

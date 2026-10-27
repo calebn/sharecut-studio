@@ -20,7 +20,6 @@ import { useLatestRequest } from "../hooks/useLatestRequest";
 import type { PipelineWorkingSetRecipe } from "../hooks/usePipelineWorkingSet";
 import { usePipelineWorkingSet } from "../hooks/usePipelineWorkingSet";
 import { useSingleFlight } from "../hooks/useSingleFlight";
-import { StaleProgressCopy } from "../layout/StaleProgressCopy";
 import {
   JobModelDownload,
   ModelGateDialog,
@@ -41,6 +40,7 @@ import type {
 } from "../types/pipeline";
 import { Button, Dialog, EmptyState, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { StaleProgressCopy } from "../ui/StaleProgressCopy";
 import {
   errorMessage,
   jobErrorText,
@@ -759,7 +759,7 @@ export function PipelinePanel() {
       }, needs);
       if (result.kind === "ran" && result.value) {
         setPipelineJob(result.value);
-        runPointerCommand("view.setTab", { tab: "pipeline" });
+        runPointerCommand("stage.prepare");
       }
     } catch (e) {
       setError(errorMessage(e));

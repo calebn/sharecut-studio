@@ -15,9 +15,9 @@ describe("runPointerCommand", () => {
   });
 
   it("forwards args", () => {
-    runPointerCommand("view.setTab", { tab: "mix" });
+    runPointerCommand("view.zoomIn", { tab: "mix" });
     expect(execute).toHaveBeenCalledWith(
-      "view.setTab",
+      "view.zoomIn",
       { tab: "mix" },
       { skipWhen: true },
     );
@@ -32,11 +32,11 @@ describe("runPointerCommand", () => {
     for (const result of results) {
       execute.mockResolvedValueOnce(result);
       await expect(
-        executePointerCommand("view.setTab", { tab: "mix" }),
+        executePointerCommand("view.zoomIn", { tab: "mix" }),
       ).resolves.toEqual(result);
     }
     expect(execute).toHaveBeenCalledWith(
-      "view.setTab",
+      "view.zoomIn",
       { tab: "mix" },
       { skipWhen: true },
     );

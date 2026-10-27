@@ -1,8 +1,8 @@
 import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GuestAttentionBanner } from "../layout/GuestAttentionBanner";
-import { ATTENTION_BANNER_ID } from "../layout/GuestAttentionBannerView";
-import { StatusBar } from "../layout/StatusBar";
+import { GuestAttentionBanner } from "../stage/frame/GuestAttentionBanner";
+import { ATTENTION_BANNER_ID } from "../stage/frame/GuestAttentionBannerView";
+import { StatusLive } from "../stage/frame/StatusLive";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectOutsideLiveRegions } from "../test/a11y";
@@ -51,7 +51,7 @@ describe("useOfflineAttentionAnnouncement", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <GuestAttentionBanner />
-        <StatusBar />
+        <StatusLive />
       </DawProvider>,
     );
     await act(async () => {
@@ -89,7 +89,7 @@ describe("useOfflineAttentionAnnouncement", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <GuestAttentionBanner />
-        <StatusBar />
+        <StatusLive />
       </DawProvider>,
     );
     await act(async () => {

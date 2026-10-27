@@ -1,0 +1,222 @@
+import { describe, expect, it } from "vitest";
+import { saveStateOf } from "./saveState";
+
+type SaveStateInput = Parameters<typeof saveStateOf>[0];
+
+const quiet: SaveStateInput = {
+  busy: false,
+  pending: 0,
+  conflicts: [],
+  unreadable: false,
+  loaded: true,
+  settling: false,
+};
+
+describe("saveStateOf", () => {
+  it("is saved when nothing is sending, queued or waiting for attention", () => {
+    expect(saveStateOf(quiet)).toEqual({ kind: "saved" });
+  });
+
+  it("says nothing before the queue has been read", () => {
+    expect(saveStateOf({ ...quiet, loaded: false })).toBeNull();
+  });
+
+  it("is saving while a send is in flight, even with edits already queued", () => {
+    expect(saveStateOf({ ...quiet, busy: true, pending: 2 })).toEqual({
+      kind: "saving",
+    });
+  });
+
+  it("stays saving while a finished send's queue has not been read back", () => {
+    expect(saveStateOf({ ...quiet, settling: true })).toEqual({
+      kind: "saving",
+    });
+  });
+
+  it("counts the edits waiting to send", () => {
+    expect(saveStateOf({ ...quiet, pending: 3 })).toEqual({
+      kind: "waiting",
+      count: 3,
+    });
+  });
+
+  it.each(["UndoHistory", "RedoHistory", "MoveClips"])(
+    "is not a failed save when only a refused %s is listed",
+    (type) => {
+      const refused: SaveStateInput["conflicts"][number] = {
+        command: {
+          command_id: "refused-command",
+          client_id: "client",
+          client_seq: 1,
+          type,
+          payload: {},
+          created_at: 0,
+        },
+        kind: "refused",
+        reason: "Nothing to undo",
+        recovery: "edit-and-resubmit",
+      };
+      expect(saveStateOf({ ...quiet, conflicts: [refused] })).toEqual({
+        kind: "saved",
+      });
+      expect(
+        saveStateOf({
+          ...quiet,
+          conflicts: [{ ...refused, dismissed: true }],
+        }),
+      ).toEqual({ kind: "saved" });
+    },
+  );
+
+  it("is a failed save when the project file is missing or damaged", () => {
+    const blocking: SaveStateInput["conflicts"][number] = {
+      command: {
+        command_id: "blocked",
+        client_id: "client",
+        client_seq: 1,
+        type: "SetTrackMeta",
+        payload: {},
+        created_at: 0,
+      },
+      kind: "refused",
+      reason: "The project file is missing, so nothing can be saved.",
+      recovery: "edit-and-resubmit",
+      blocksSave: true,
+    };
+    const state = saveStateOf({ ...quiet, conflicts: [blocking] });
+    expect(state).toEqual({
+      kind: "failed",
+      cause: "project-unavailable",
+      reason: blocking.reason,
+    });
+    expect(
+      saveStateOf({ ...quiet, conflicts: [{ ...blocking, dismissed: true }] }),
+    ).toEqual({ kind: "saved" });
+  });
+
+  it("still reports an unknown Undo outcome", () => {
+    expect(
+      saveStateOf({
+        ...quiet,
+        conflicts: [
+          {
+            command: {
+              command_id: "undo",
+              client_id: "client",
+              client_seq: 1,
+              type: "UndoHistory",
+              payload: {},
+              created_at: 0,
+            },
+            kind: "unknown",
+            reason: "Undo or Redo may have been applied.",
+            recovery: "inspect-history",
+          },
+        ],
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "Undo or Redo may have been applied.",
+      recovery: "inspect-history",
+    });
+  });
+
+  it("keeps the newest unknown outcome when a refusal comes after it", () => {
+    const command = (id: string, type: string) => ({
+      command_id: id,
+      client_id: "client",
+      client_seq: 1,
+      type,
+      payload: {},
+      created_at: 0,
+    });
+    expect(
+      saveStateOf({
+        ...quiet,
+        conflicts: [
+          {
+            command: command("first", "MoveClips"),
+            kind: "unknown",
+            reason: "The first result was uncertain.",
+            recovery: "retry-same-command",
+          },
+          {
+            command: command("second", "MoveClips"),
+            kind: "unknown",
+            reason: "The second result was uncertain.",
+            recovery: "retry-same-command",
+          },
+          {
+            command: command("refused", "SplitAtTime"),
+            kind: "refused",
+            reason: "No clip at that time.",
+            recovery: "edit-and-resubmit",
+          },
+        ],
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "The second result was uncertain.",
+      recovery: "retry-same-command",
+    });
+  });
+
+  it("still counts queued edits behind a refused one", () => {
+    expect(
+      saveStateOf({
+        ...quiet,
+        pending: 1,
+        conflicts: [
+          {
+            command: {
+              command_id: "old",
+              client_id: "client",
+              client_seq: 1,
+              type: "SetTrackMeta",
+              payload: {},
+              created_at: 0,
+            },
+            kind: "refused",
+            reason: "The clip moved",
+            recovery: "edit-and-resubmit",
+          },
+        ],
+      }),
+    ).toEqual({ kind: "waiting", count: 1 });
+  });
+
+  it("keeps unknown delivery distinct from a known refusal", () => {
+    expect(
+      saveStateOf({
+        ...quiet,
+        pending: 1,
+        conflicts: [
+          {
+            command: {
+              command_id: "unknown",
+              client_id: "client",
+              client_seq: 1,
+              type: "UndoHistory",
+              payload: {},
+              created_at: 0,
+            },
+            kind: "unknown",
+            reason: "Undo may have been applied",
+            recovery: "inspect-history",
+          },
+        ],
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "Undo may have been applied",
+      recovery: "inspect-history",
+    });
+  });
+
+  it("fails when the saved edits cannot be read, even before a first read", () => {
+    expect(saveStateOf({ ...quiet, loaded: false, unreadable: true })).toEqual({
+      kind: "failed",
+      cause: "unreadable",
+    });
+  });
+});

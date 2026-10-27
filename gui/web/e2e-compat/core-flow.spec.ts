@@ -4,10 +4,7 @@ import { expectPageAxeClean } from "../e2e/axe";
 import { bouncedWavs } from "../e2e/exportFiles";
 import { keeperContextSource, RECORDER_CONTEXT } from "../e2e/keeperContexts";
 import { keeperWavBytes, ONE_SECOND_KEEPER_WAV_BYTES } from "../e2e/keeperOpfs";
-import {
-  openDialogFromMenu,
-  openTransportMenu,
-} from "../e2e/overlayReachability";
+import { openDialogFromMenu } from "../e2e/overlayReachability";
 import { expectPlaybackAdvancesThenHolds, playButton } from "../e2e/playback";
 import {
   clickHostTransport,
@@ -24,6 +21,7 @@ import {
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
 import { createReviewShare, openGuestShare } from "../e2e/shareNavigation";
+import { goToStage, openPanel, waitForLanding } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import {
   openTranscriptPanel,
@@ -78,6 +76,9 @@ test.describe("core flow", () => {
               `/?project=${encodeURIComponent(projectPath)}&e2e=1`,
             );
             await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+            // The landing stage is picked once the project has loaded; a stage
+            // chosen earlier gets overruled.
+            await waitForLanding(host);
 
             const room = await createRecordRoom(host, projectPath);
             const roomDlg = await openHostRecordRoom(host);
@@ -138,6 +139,8 @@ test.describe("core flow", () => {
             await expect(closeRoom).toBeEnabled({ timeout: 60_000 });
             await closeRoom.click();
             await expect(roomDlg).toBeHidden();
+            // The landed track lives on the Edit stage; Record shows the take.
+            await goToStage(host, "edit");
             await expect(
               host.getByRole("button", { name: "Open track details, Ava" }),
             ).toBeVisible();
@@ -153,10 +156,7 @@ test.describe("core flow", () => {
           });
 
           await test.step("tighten: the panel opens on its empty state", async () => {
-            await host
-              .getByLabel("Editor panels")
-              .getByRole("tab", { name: "Tighten", exact: true })
-              .click();
+            await openPanel(host, "tighten");
             await expect(
               host.getByRole("group", { name: "Class" }),
             ).toBeVisible();
@@ -199,11 +199,11 @@ test.describe("core flow", () => {
 
           await test.step("share: a viewer plays the per-track MP3 proxies", async () => {
             await host.keyboard.press("ControlOrMeta+b");
-            await openTransportMenu(host);
+            // The mix state is a row of the Deliver stage's readiness list.
+            await goToStage(host, "deliver");
             await expect(
               host.getByText("Mix up to date", { exact: true }),
             ).toBeVisible({ timeout: 60_000 });
-            await host.keyboard.press("Escape");
             const token = await createReviewShare(host, projectPath);
             const chunkPrefix = `/api/review/${token}/daw/proxy/`;
             const isChunk = (url: string) => {

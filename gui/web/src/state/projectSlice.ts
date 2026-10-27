@@ -7,13 +7,13 @@ import { overlayDocumentDrafts } from "../document/pendingDrafts";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { trimDraft } from "../edit/ripplePreview";
 import { resetServerClock } from "../presence/clock";
-import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ProjectView } from "../types/project";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { presenceProjectInitial } from "./presenceSlice";
 import { NO_SELECTION } from "./selectionSlice";
+import { stageProjectInitial } from "./stageSlice";
 import { zoomReclampPatch } from "./storeMath";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import { transportProjectInitial } from "./transportSlice";
@@ -286,6 +286,7 @@ export const createProjectSlice: StateCreator<
             ...presenceProjectInitial(),
             ...transportProjectInitial(),
             ...uiProjectInitial(),
+            ...stageProjectInitial(),
             ...NO_SELECTION,
             chrome: {
               ...get().chrome,
@@ -294,16 +295,6 @@ export const createProjectSlice: StateCreator<
               transcriptFindReplaceOpen,
             },
             ...waveformViewState(projectPath),
-            // Commenting is the job of a Commenter or Editor link, so its
-            // guest opens on the Comments tab and its comment field.
-            ...(isShareProjectKey(projectPath) &&
-            hasShareCapability(shareCapabilities, "comment")
-              ? {
-                  activeTab: "comments" as const,
-                  // The drawer may have been left collapsed in this browser.
-                  layoutMode: "default" as const,
-                }
-              : {}),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),
     });

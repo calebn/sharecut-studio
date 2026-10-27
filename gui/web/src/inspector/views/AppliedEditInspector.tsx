@@ -65,7 +65,7 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
                 {
                   label: "Open History",
                   onClick: () =>
-                    runPointerCommand("view.setTab", { tab: "history" }),
+                    runPointerCommand("stage.edit", { sheet: "history" }),
                 },
               ]
             : undefined

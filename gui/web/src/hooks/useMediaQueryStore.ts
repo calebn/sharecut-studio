@@ -25,6 +25,13 @@ export function mediaQuerySubscription(
   };
 }
 
+/** Whether `query` matches now; `fallback` where the browser has no `matchMedia`. */
+export function matchesMedia(query: string, fallback = false): boolean {
+  return typeof globalThis.matchMedia === "function"
+    ? globalThis.matchMedia(query).matches
+    : fallback;
+}
+
 /** Read a live media-derived snapshot with a stable first render. */
 export function useMediaQueryStore<T>(
   subscribe: (onChange: () => void) => () => void,

@@ -8,7 +8,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { setTheme, withAppearance } from "../e2e/theme";
+import { openProject } from "../e2e/stageNav";
 import {
   buildFixture,
   type CaseFixtures,
@@ -20,8 +20,8 @@ import {
 /*
  * #1696 a phone held sideways (a coarse pointer, at most 40rem tall and at
  * least 40rem wide) shows the selection Inspector as a column on the inline
- * end of the shell, not a bottom sheet: the timeline keeps the whole main row
- * beside it, and the tabs row or mode nav gives way. Narrower or taller
+ * end of the stage frame, not a bottom sheet: the stage body keeps the whole
+ * row beside it, and the Player and tab bar keep the whole width. Narrower or taller
  * screens keep the sheet. Playwright cannot emulate iOS safe-area insets or a
  * real software keypad; the keyboard is the `--keyboard-inset` the column
  * reads from useKeyboardInset.
@@ -63,13 +63,15 @@ test.afterEach(async () => {
 
 async function open(page: Page, view: Layout, envelope: boolean) {
   await page.setViewportSize(view);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(`.daw-shell--${view.shell}`)).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(`.stage-frame--${view.shell}`)).toBeVisible();
   if (view.shell === "phone") await openPhoneTimeline(page);
   await expect(page.locator(".lane-row").first()).toBeVisible();
-  await expect(page.locator(".editing-tool-rail")).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Editing tools" }),
+  ).toBeVisible();
   if (envelope) {
     await layer(page, "Volume envelope", true);
     await expect(
@@ -132,7 +134,7 @@ function settleViewport(page: Page) {
   );
 }
 
-/** The column's place, the timeline's, and what the shell hid for it. */
+/** The column's place, the stage body's, and the frame chrome around them. */
 function geometry(page: Page) {
   return page.evaluate(() => {
     const box = (el: Element | null) => {
@@ -148,7 +150,7 @@ function geometry(page: Page) {
           }
         : null;
     };
-    const shell = document.querySelector(".daw-shell");
+    const frame = document.querySelector(".stage-frame");
     // A box-less host (display: contents) does not stand between a grid item
     // and its grid.
     const gridParent = (el: Element | null) => {
@@ -158,19 +160,15 @@ function geometry(page: Page) {
       return parent;
     };
     const column = document.querySelector(".bottom-sheet--column");
-    const hidden = (selector: string) => {
-      const el = document.querySelector(selector);
-      return !el || getComputedStyle(el).display === "none";
-    };
     return {
-      inGrid: gridParent(column) === shell,
-      shellClass: shell?.className ?? "",
+      inGrid: gridParent(column) === frame,
       column: box(column),
       position: column ? getComputedStyle(column).position : null,
       timeline: box(document.querySelector(".timeline-scroll")),
-      rail: box(document.querySelector(".editing-tool-rail")),
-      transport: box(document.querySelector(".daw-shell-transport")),
-      status: box(document.querySelector(".status-bar")),
+      body: box(document.querySelector(".stage-frame-body")),
+      header: box(document.querySelector(".stage-frame-header")),
+      player: box(document.querySelector(".stage-frame-player")),
+      tabs: box(document.querySelector(".stage-frame-tabs")),
       sheetRoot: document.querySelector(".bottom-sheet-root") !== null,
       compact: document.querySelector(".bottom-sheet--compact") !== null,
       scrim: document.querySelector(".bottom-sheet-scrim") !== null,
@@ -178,8 +176,6 @@ function geometry(page: Page) {
         column?.querySelector(
           ".bottom-sheet-resize-action, .bottom-sheet-detent",
         ) != null,
-      tabsHidden: hidden(".bottom-tabs"),
-      navHidden: hidden(".mobile-nav"),
       viewport: { width: innerWidth, height: innerHeight },
     };
   });
@@ -189,13 +185,15 @@ async function expectColumn(
   page: Page,
   view: Layout,
   label: string,
-  insets = { right: 0, bottom: 0 },
+  insets: { right: number; bottom: number; left?: number } = {
+    right: 0,
+    bottom: 0,
+  },
 ) {
   await expect(page.locator(".bottom-sheet--column"), label).toBeVisible();
   const g = await geometry(page);
   const column = g.column!;
-  expect(g.inGrid, `${label}: a child of the shell grid`).toBe(true);
-  expect(g.shellClass, label).toContain("daw-shell--inspector-column");
+  expect(g.inGrid, `${label}: a child of the frame grid`).toBe(true);
   expect(g.sheetRoot, `${label}: nothing portaled`).toBe(false);
   expect(g.compact, `${label}: no compact strip`).toBe(false);
   expect(g.scrim, `${label}: no scrim`).toBe(false);
@@ -218,20 +216,20 @@ async function expectColumn(
     g.timeline!.right,
     `${label}: the timeline stops at the column`,
   ).toBeLessThanOrEqual(column.left + 1);
-  // The column takes the main row's whole height, under the transport and
-  // above the status line (tablet) or the screen's end (phone).
-  expect(column.top, `${label}: under the transport`).toBeGreaterThanOrEqual(
-    g.transport!.bottom - 1,
+  // The column takes the body row's whole height, under the header and above
+  // the Player, which keeps the frame's whole width with the tab bar.
+  expect(column.top, `${label}: under the header`).toBeGreaterThanOrEqual(
+    g.header!.bottom - 1,
   );
-  const floor = g.status ? g.status.top : view.height - insets.bottom;
-  expect(
-    column.bottom,
-    `${label}: down to the status row`,
-  ).toBeGreaterThanOrEqual(floor - 2);
-  expect(
-    view.shell === "tablet" ? g.tabsHidden : g.navHidden,
-    `${label}: the tabs row or the mode nav gives way`,
-  ).toBe(true);
+  const floor = g.player ? g.player.top : view.height - insets.bottom;
+  expect(column.bottom, `${label}: down to the Player`).toBeGreaterThanOrEqual(
+    floor - 2,
+  );
+  if (g.player)
+    expect(
+      g.player.width,
+      `${label}: the Player keeps the whole width`,
+    ).toBeCloseTo(view.width - (insets.left ?? 0) - insets.right, 0);
 }
 
 async function expectCloseWorks(page: Page, label: string) {
@@ -254,9 +252,6 @@ async function expectCloseWorks(page: Page, label: string) {
   });
   await close.tap();
   await expect(page.locator(".bottom-sheet--column"), label).toHaveCount(0);
-  await expect(page.locator(".daw-shell"), label).not.toHaveClass(
-    /daw-shell--inspector-column/,
-  );
 }
 
 for (const [name, view] of Object.entries(COLUMN)) {
@@ -265,16 +260,6 @@ for (const [name, view] of Object.entries(COLUMN)) {
       page,
     }) => {
       await open(page, view, false);
-      if (view.shell === "tablet") {
-        await page
-          .getByRole("button", { name: "Show editor panels", exact: true })
-          .tap();
-        const panels = page.getByRole("region", { name: "Editor panels" });
-        await expect(panels).toBeVisible();
-        await expect(
-          panels.getByRole("separator", { name: "Resize editor panels" }),
-        ).toBeVisible();
-      }
       const before = await geometry(page);
       await page.locator(".clip-hit").first().tap();
       await expectColumn(page, view, name);
@@ -292,21 +277,17 @@ for (const [name, view] of Object.entries(COLUMN)) {
         `${name}: the toast region stops at the column`,
       ).toBeLessThanOrEqual((await geometry(page)).column!.left);
       const after = await geometry(page);
-      // The timeline and its rail take the column's whole rows: only width
-      // went to the column, and the tabs row or mode bar is not in the way.
+      // The stage body takes the column's whole row: only width went to the
+      // column, and the Player and tab bar are not in the way.
       expect(after.timeline!.width).toBeLessThan(before.timeline!.width);
       expect(
-        Math.abs(after.timeline!.top - after.column!.top),
-        `${name}: the timeline starts with the column`,
+        Math.abs(after.body!.top - after.column!.top),
+        `${name}: the stage body starts with the column`,
       ).toBeLessThanOrEqual(2);
       expect(
-        Math.abs(after.rail!.bottom - after.column!.bottom),
-        `${name}: the rail ends with the column`,
+        Math.abs(after.body!.bottom - after.column!.bottom),
+        `${name}: the stage body ends with the column`,
       ).toBeLessThanOrEqual(2);
-      expect(
-        after.rail!.height,
-        `${name}: the rail keeps one row`,
-      ).toBeLessThan(70);
       // Its form is reachable by scrolling inside the column, not the page.
       const heading = page
         .locator(".bottom-sheet--column")
@@ -314,15 +295,7 @@ for (const [name, view] of Object.entries(COLUMN)) {
       await expect(heading).toBeVisible();
       await expectCloseWorks(page, name);
       const closed = await geometry(page);
-      if (view.shell === "tablet") {
-        await expect(
-          page.getByRole("region", { name: "Editor panels" }),
-        ).toBeVisible();
-        expect(closed.tabsHidden).toBe(before.tabsHidden);
-      } else {
-        await expect(page.locator(".mobile-nav")).toBeVisible();
-        expect(closed.navHidden).toBe(before.navHidden);
-      }
+      expect(closed.player, `${name}: the Player stays`).not.toBeNull();
       expect(closed.timeline!.width).toBeCloseTo(before.timeline!.width, 0);
     });
 
@@ -462,64 +435,6 @@ for (const [name, view] of Object.entries(COLUMN)) {
   });
 }
 
-for (const {
-  cell: [name, view],
-  theme,
-  reducedMotion,
-} of withAppearance(
-  Object.entries(COLUMN).filter(([, view]) => view.shell === "tablet"),
-)) {
-  test.describe(name, () => {
-    test("Close keeps fresh adaptive panels stowed", async ({ page }) => {
-      await page.emulateMedia({
-        reducedMotion: reducedMotion ? "reduce" : "no-preference",
-      });
-      await open(page, view, false);
-      await setTheme(page, theme);
-      const panels = page.getByRole("region", { name: "Editor panels" });
-      const toggle = page.locator(".layout-toggle-btn");
-      await expect(panels).toBeHidden();
-      await expect(toggle).toHaveAccessibleName("Show editor panels");
-      const before = await geometry(page);
-      await page.locator(".clip-hit").first().tap();
-      await expectColumn(page, view, name);
-      await expectCloseWorks(page, name);
-      await expect(panels).toBeHidden();
-      await expect(toggle).toHaveAccessibleName("Show editor panels");
-      expect((await geometry(page)).timeline!.width).toBeCloseTo(
-        before.timeline!.width,
-        0,
-      );
-    });
-  });
-}
-
-test("844x390: Close keeps an explicitly maximized timeline collapsed", async ({
-  page,
-}) => {
-  const view = COLUMN["844x390 tablet shell"];
-  await open(page, view, false);
-  const panels = page.getByRole("region", { name: "Editor panels" });
-  const toggle = page.locator(".layout-toggle-btn");
-  await toggle.tap();
-  await expect(panels).toBeVisible();
-  await expect(toggle).toHaveAccessibleName("Maximize timeline");
-  await toggle.tap();
-  await expect(panels).toBeHidden();
-  await expect(toggle).toHaveAccessibleName("Restore layout");
-  const before = await geometry(page);
-  await page.locator(".clip-hit").first().tap();
-  await expectColumn(page, view, "explicit timeline");
-  await expectCloseWorks(page, "explicit timeline");
-  await expect(panels).toBeHidden();
-  await expect(toggle).toHaveAccessibleName("Restore layout");
-  await expect(page.locator(".drawer-reopen-handle")).toBeVisible();
-  expect((await geometry(page)).timeline!.width).toBeCloseTo(
-    before.timeline!.width,
-    0,
-  );
-});
-
 test("with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice", async ({
   page,
 }) => {
@@ -556,15 +471,15 @@ test("with iOS's shrunk layout height the column is exactly the visible band, no
   await setKeyboard(page, null);
 });
 
-test("with Safari's chrome collapsed the column stops above the status strip, not over the focused field", async ({
+test("with Safari's chrome collapsed the column stops above the Player, not over the focused field", async ({
   page,
   context,
   browserName,
 }) => {
   // An iPhone 15 Plus on its real keypad, chrome collapsed, reported innerHeight
   // 205 and a visual viewport 205 tall at offsetTop 142 with no inset, while
-  // the shell stayed 347 tall: the band reaches the shell's bottom edge, where
-  // the status strip (above the home indicator) paints over a taller column.
+  // the frame stayed 347 tall: the band reaches the frame's bottom edge, where
+  // the Player (above the home indicator) paints over a taller column.
   const view = COLUMN["932x430 tablet shell"];
   const insets = { top: 0, bottom: 21, left: 47, right: 47 };
   if (browserName === "chromium") {
@@ -605,7 +520,7 @@ test("with Safari's chrome collapsed the column stops above the status strip, no
   await setKeyboard(page, band);
   await expect.poll(async () => (await geometry(page)).position).toBe("fixed");
   const g = await geometry(page);
-  const strip = g.status!;
+  const strip = g.player!;
   const box = (await field.boundingBox())!;
   const close = (await page
     .locator(".bottom-sheet--column")
@@ -688,7 +603,6 @@ for (const [name, view] of Object.entries(SHEET)) {
       const g = await geometry(page);
       expect(g.column).toBeNull();
       expect(g.sheetRoot).toBe(true);
-      expect(g.shellClass).not.toContain("daw-shell--inspector-column");
     });
   });
 }

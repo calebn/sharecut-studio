@@ -13,6 +13,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { setTheme } from "../e2e/theme";
 import {
   buildFixture,
@@ -66,10 +67,10 @@ async function openPhone(
   zoomIns = 3,
 ): Promise<{ clip: Clip; pps: number }> {
   await page.setViewportSize(PHONE);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const clip = await lastClip(page);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await openPhoneTimeline(page);
   await setTheme(page, "dark");
   const pps = await setZoom(page, zoomIns);

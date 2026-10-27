@@ -3,12 +3,13 @@ import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { hostOfflineQueueCount } from "./offlineQueue";
 import { interceptCommentCommands, postHostComment } from "./queuedComment";
+import { openPanel, openProject } from "./stageNav";
 
 test.describe("ShareCut Studio smoke", () => {
   test("loads fixture project shell and is axe-clean on chrome", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
@@ -16,15 +17,14 @@ test.describe("ShareCut Studio smoke", () => {
     await expect(
       page.getByRole("button", { name: "Play", exact: true }),
     ).toBeVisible();
+    await expect(page.getByRole("region", { name: "Script" })).toBeVisible();
+    await openPanel(page, "comments");
     await expect(
       page
-        .getByLabel("Editor panels")
-        .getByRole("tab", { name: "Transcript", exact: true }),
+        .getByRole("tablist", { name: "Review sections" })
+        .getByRole("tab", { name: /^Comments\b/ }),
     ).toBeVisible();
-    await expect(
-      page.getByLabel("Editor panels").getByRole("tab", { name: "Comments" }),
-    ).toBeVisible();
-    await expect(page.locator(".daw-shell")).toBeVisible();
+    await expect(page.locator(".stage-frame")).toBeVisible();
 
     await expectPageAxeClean(page);
   });
@@ -32,7 +32,7 @@ test.describe("ShareCut Studio smoke", () => {
     page,
   }) => {
     const { commands, setOffline } = await interceptCommentCommands(page);
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await postHostComment(page, "Queued review note");
     await expect.poll(() => commands.length).toBe(1);
     await expect

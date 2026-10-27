@@ -31,7 +31,7 @@ for (const { cell: width, theme } of withAppearance([667, 844])) {
             await pointerControl(
               page,
               page
-                .getByRole("navigation", { name: "Primary" })
+                .getByRole("group", { name: "Edit surface" })
                 .getByRole("button", { name: "Timeline", exact: true }),
               receipts,
             );

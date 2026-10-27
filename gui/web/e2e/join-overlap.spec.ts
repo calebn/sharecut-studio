@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { openProject } from "./stageNav";
 import { withAppearance } from "./theme";
 
 const VIEWPORTS = [
@@ -68,7 +69,7 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       theme,
     );
     await page.setViewportSize({ width: 1280, height: 844 });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -86,8 +87,6 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       await expect(lane.locator(".clip-block")).toHaveCount(2);
       await page.setViewportSize({ width: vp.width, height: vp.height });
       if (vp.width < 600) await openPhoneTimeline(page);
-      if (vp.name === "phone-landscape")
-        await page.getByRole("button", { name: "Maximize timeline" }).click();
       const badge = lane.locator(".edit-mark");
       await badge.click();
       const panel = page.getByRole("dialog", { name: /join at/ });

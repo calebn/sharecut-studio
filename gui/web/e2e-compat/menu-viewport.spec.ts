@@ -4,6 +4,7 @@ import {
   rememberInspectorDetent,
 } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
+import { openProject, projectMenuButton } from "../e2e/stageNav";
 
 /*
  * #1372: a Menu opened from a phone track sheet stays inside the visual
@@ -60,7 +61,7 @@ for (const mode of ["native", "fallback"] as const) {
     ) {
       await page.setViewportSize({ width, height: 852 });
       await withShareableProject(async (projectPath) => {
-        await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+        await openProject(page, projectPath);
         await openPhoneTimeline(page);
         await page.locator(".track-header-open").first().tap();
         const sheet = page.getByRole("dialog", { name: "Inspector" });
@@ -153,7 +154,7 @@ for (const mode of ["native", "fallback"] as const) {
       detent: "peek" | "half" = "peek",
     ) {
       await rememberInspectorDetent(page, detent);
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       await openPhoneTimeline(page);
       await page.locator(".track-header-open").first().tap();
       const sheet = page.getByRole("dialog", { name: "Inspector" });
@@ -163,9 +164,9 @@ for (const mode of ["native", "fallback"] as const) {
     const toastCard = (page: Page) =>
       page.locator(".ui-toast-region--app .ui-toast");
     const transportMenu = (page: Page) =>
-      page.getByRole("menu", { name: "Transport menu" });
+      page.getByRole("menu", { name: "Project menu" });
 
-    test("an app toast stays topmost and tappable over a transport menu opened after it", async ({
+    test("an app toast stays topmost and tappable over the Project menu opened after it", async ({
       page,
     }) => {
       for (const detent of ["peek", "half"] as const) {
@@ -173,14 +174,14 @@ for (const mode of ["native", "fallback"] as const) {
           await reorderFirstTrack(page, projectPath, detent);
           await expect(toastCard(page)).toContainText("Reordered track");
 
-          await page.getByRole("button", { name: "Menu", exact: true }).tap();
+          await projectMenuButton(page).tap();
           await expect(transportMenu(page)).toBeVisible();
           await expectToastUndoTopmost(page, `toast first, ${detent} detent`);
         });
       }
     });
 
-    test("an app toast stays topmost and tappable over a transport menu that was open before it", async ({
+    test("an app toast stays topmost and tappable over the Project menu that was open before it", async ({
       page,
     }) => {
       for (const detent of ["peek", "half"] as const) {
@@ -192,7 +193,7 @@ for (const mode of ["native", "fallback"] as const) {
             await route.continue();
           });
           await reorderFirstTrack(page, projectPath, detent);
-          await page.getByRole("button", { name: "Menu", exact: true }).tap();
+          await projectMenuButton(page).tap();
           await expect(transportMenu(page)).toBeVisible();
           await expect(toastCard(page)).toHaveCount(0);
 

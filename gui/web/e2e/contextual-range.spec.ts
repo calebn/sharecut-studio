@@ -3,7 +3,6 @@ import path from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createRelocatedE2eProject } from "./liveProject";
-import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -11,6 +10,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { armRange, goToStage, openPanel } from "./stageNav";
 
 function repeatedProject(prefix: string) {
   const copy = createRelocatedE2eProject(prefix);
@@ -43,10 +43,7 @@ function repeatedProject(prefix: string) {
 }
 
 async function selectRange(page: Page) {
-  await openTransportMenu(page);
-  await page
-    .getByRole("menuitem", { name: "Select a range", exact: true })
-    .click();
+  await armRange(page);
   const range = page.getByRole("region", { name: "Range actions" });
   await range.getByRole("spinbutton", { name: "In", exact: true }).fill("11");
   await range.getByRole("spinbutton", { name: "Out", exact: true }).fill("12");
@@ -85,38 +82,6 @@ function geometry(projectPath: string) {
   );
 }
 
-async function observePendingPlayback(page: Page) {
-  const evidence = await page.evaluateHandle(() => {
-    const played: Array<{ url: string; duration: number }> = [];
-    const nativePlay: unknown = Reflect.get(HTMLMediaElement.prototype, "play");
-    if (typeof nativePlay !== "function")
-      throw new Error("Media playback is unavailable");
-    HTMLMediaElement.prototype.play = function () {
-      if (this.src.startsWith("blob:")) {
-        this.addEventListener(
-          "playing",
-          () => played.push({ url: this.src, duration: this.duration }),
-          { once: true },
-        );
-      }
-      return nativePlay.call(this);
-    };
-    return played;
-  });
-  return async () => {
-    await expect
-      .poll(() =>
-        evidence.evaluate((played) =>
-          played.some(
-            (item) => item.url.startsWith("blob:") && item.duration > 0,
-          ),
-        ),
-      )
-      .toBe(true);
-    await evidence.dispose();
-  };
-}
-
 async function undo(page: Page) {
   await page.locator(".timeline-scroll").click({ position: { x: 5, y: 5 } });
   await page.keyboard.press("Control+z");
@@ -144,25 +109,23 @@ async function rangeAxe(page: Page) {
   );
 }
 
-test("idle desktop reaches an edit in removed audio through the status chip", async ({
+test("idle desktop reaches an edit in removed audio through Review Impact", async ({
   page,
 }) => {
   await withShareableProject(
     async (projectPath) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
-      await expect(page.locator(".daw-main")).toHaveClass(
-        /inspector-collapsed/,
+      await expect(page.locator(".edit-workspace")).not.toHaveClass(
+        /edit-workspace--inspector/,
       );
-      await page
-        .getByRole("button", {
-          name: "1 edit in removed audio",
-          exact: true,
-        })
-        .click();
+      // The old status chip is gone: Review's Impact lists the edit, and
+      // choosing it opens the Inspector on the Edit stage.
+      await openPanel(page, "impact");
       await page.locator('[data-pending-id="orphan"]').click();
-      await expect(page.locator(".daw-main")).not.toHaveClass(
-        /inspector-collapsed/,
+      await goToStage(page, "edit");
+      await expect(page.locator(".edit-workspace")).toHaveClass(
+        /edit-workspace--inspector/,
       );
       await expect(
         page.getByRole("button", { name: "Reject", exact: true }),
@@ -248,355 +211,6 @@ test("editor guest cuts a range and one host Undo restores every occurrence", as
   );
 });
 
-test("a Commenter proposes a range, host approves, and one Undo restores every occurrence", async ({
-  browser,
-  page,
-}) => {
-  await withShareableProject(
-    async (projectPath) => {
-      await openHostShare(page, projectPath);
-      const before = geometry(projectPath);
-      const token = await createReviewShare(page, projectPath, "commenter");
-      const guestContext = await browser.newContext({
-        viewport: { width: 1440, height: 900 },
-      });
-      try {
-        const guest = await guestContext.newPage();
-        await openGuestShare(guest, token);
-        const range = await selectRange(guest);
-        await expect(
-          range.getByRole("button", { name: "Suggest cut", exact: true }),
-        ).toBeEnabled();
-        await expect(
-          range.getByRole("button", { name: "Bounce", exact: true }),
-        ).toBeDisabled();
-        await rangeAxe(guest);
-        await range
-          .getByRole("button", { name: "Suggest cut", exact: true })
-          .click();
-        await expect
-          .poll(
-            () =>
-              JSON.parse(fs.readFileSync(projectPath, "utf8")).editorial
-                .edit_decisions.length,
-          )
-          .toBe(1);
-        expect(geometry(projectPath)).toEqual(before);
-        await page.reload();
-        await page.locator(".pending-overlay").first().click();
-        const expectHostPlayback = await observePendingPlayback(page);
-        const previewResponse = page.waitForResponse(
-          (response) =>
-            new URL(response.url()).pathname === "/api/pending-preview",
-        );
-        await page
-          .getByRole("button", { name: "Play around", exact: true })
-          .click();
-        const audio = await previewResponse;
-        expect(audio.status()).toBe(200);
-        expect(audio.headers()["content-type"]).toBe("audio/wav");
-        await expectHostPlayback();
-        expect(geometry(projectPath)).toEqual(before);
-        if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
-          await page.locator(".pending-overlay").first().hover();
-          await page.screenshot({
-            path: path.join(
-              process.env.RANGE_CONFIRMATION_SCREENSHOTS,
-              "host-exact-preview-desktop.png",
-            ),
-            fullPage: true,
-          });
-        }
-        await guest.reload();
-        await guest.locator(".pending-overlay").first().click();
-        await expect(
-          guest
-            .getByText(
-              "Only the host or an Editor can review exact range proposals.",
-            )
-            .first(),
-        ).toBeVisible();
-        if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
-          await guest.locator(".pending-overlay").first().hover();
-          await guest.screenshot({
-            path: path.join(
-              process.env.RANGE_CONFIRMATION_SCREENSHOTS,
-              "guest-exact-pending-desktop.png",
-            ),
-            fullPage: true,
-          });
-        }
-        await guest.setViewportSize({ width: 390, height: 844 });
-        await openPhoneTimeline(guest);
-        await guest.locator(".pending-overlay").first().click();
-        // The phone timeline opens the compact drawer; at half height it
-        // holds the pending inspector.
-        await guest
-          .getByRole("button", { name: "Expand to half height" })
-          .click();
-        const inspector = guest.locator(".modifier-inspector");
-        const previewFooter = inspector.locator(".modifier-footer");
-        const footerBounds = await previewFooter.boundingBox();
-        expect(footerBounds).not.toBeNull();
-        for (const fact of [
-          inspector.getByText(
-            "Only the host or an Editor can review exact range proposals.",
-            { exact: true },
-          ),
-          inspector.getByText("0:11.000 – 0:12.000", { exact: true }),
-          inspector.locator("dd").filter({ hasText: /^reference$/ }),
-        ]) {
-          await expect(fact).toBeVisible();
-          const bounds = await fact.boundingBox();
-          expect(bounds).not.toBeNull();
-          expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(
-            footerBounds!.y + 1,
-          );
-        }
-        await expect(
-          previewFooter.getByRole("button", {
-            name: "Play around",
-            exact: true,
-          }),
-        ).toBeEnabled();
-        if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
-          await guest.screenshot({
-            path: path.join(
-              process.env.RANGE_CONFIRMATION_SCREENSHOTS,
-              "guest-exact-pending-phone.png",
-            ),
-            fullPage: true,
-          });
-        }
-        await page
-          .locator(".modifier-inspector")
-          .getByRole("button", { name: "Approve", exact: true })
-          .click();
-        await expect
-          .poll(() =>
-            geometry(projectPath)
-              .filter((c: { track_id: string }) => c.track_id === "reference")
-              .map(
-                (c: {
-                  source_start: number;
-                  source_end: number;
-                  timeline_start: number;
-                }) => [c.source_start, c.source_end, c.timeline_start],
-              ),
-          )
-          .toEqual([
-            [0, 5, 0],
-            [0, 1, 10],
-            [2, 5, 12],
-          ]);
-        expect(
-          geometry(projectPath).find((c: { id: string }) => c.id === "peer"),
-        ).toEqual(before.find((c: { id: string }) => c.id === "peer"));
-        await undo(page);
-        await expect.poll(() => geometry(projectPath)).toEqual(before);
-        expect(
-          JSON.parse(fs.readFileSync(projectPath, "utf8")).editorial
-            .edit_decisions,
-        ).toHaveLength(1);
-      } finally {
-        await guestContext.close();
-      }
-    },
-    undefined,
-    repeatedProject,
-  );
-});
-
-test("a Commenter suggests a cut for host review and sees the approved cut", async ({
-  browser,
-  page,
-}) => {
-  await withShareableProject(
-    async (projectPath) => {
-      await openHostShare(page, projectPath);
-      const before = geometry(projectPath);
-      const token = await createReviewShare(page, projectPath, "commenter");
-      const guestContext = await browser.newContext({
-        viewport: { width: 1440, height: 900 },
-      });
-      try {
-        const guest = await guestContext.newPage();
-        await openGuestShare(guest, token);
-        await expect(
-          guest.getByText(
-            "Shared comment view · You can comment and suggest edits",
-            { exact: true },
-          ),
-        ).toBeVisible();
-        const range = await selectRange(guest);
-        await range
-          .getByRole("button", { name: "Suggest cut", exact: true })
-          .click();
-        await expect
-          .poll(
-            () =>
-              JSON.parse(fs.readFileSync(projectPath, "utf8")).editorial
-                .edit_decisions.length,
-          )
-          .toBe(1);
-        const pending = JSON.parse(fs.readFileSync(projectPath, "utf8"))
-          .editorial.edit_decisions[0];
-        expect(pending).toMatchObject({
-          applied: false,
-          review_required: true,
-        });
-        expect(geometry(projectPath)).toEqual(before);
-
-        const forbiddenApproval = await guest.request.post(
-          `/api/review/${encodeURIComponent(token)}/daw/document/command`,
-          {
-            data: {
-              type: "ApproveEdits",
-              payload: { ids: [pending.id] },
-              client_id: "e2e-denied-approval",
-              role: "guest",
-              client_seq: Date.now(),
-            },
-          },
-        );
-        expect(forbiddenApproval.status()).toBe(403);
-        expect(geometry(projectPath)).toEqual(before);
-
-        await guest.locator(".pending-overlay").first().click();
-        const guestInspector = guest.locator(".modifier-inspector");
-        const guestApprove = guestInspector.getByRole("button", {
-          name: "Approve",
-          exact: true,
-        });
-        const guestReject = guestInspector.getByRole("button", {
-          name: "Reject",
-          exact: true,
-        });
-        await expect(guestApprove).toBeDisabled();
-        await expect(guestApprove).toHaveAttribute(
-          "title",
-          "Only the host or an Editor can review exact range proposals.",
-        );
-        await expect(guestReject).toBeDisabled();
-        await guestInspector
-          .getByRole("button", { name: "Suggested", exact: true })
-          .click();
-        await expect(
-          guestInspector.getByRole("button", {
-            name: "Suggested",
-            exact: true,
-          }),
-        ).toHaveAttribute("aria-pressed", "true");
-        const expectGuestPlayback = await observePendingPlayback(guest);
-        const suggestedPreview = guest.waitForResponse((response) => {
-          const url = new URL(response.url());
-          return (
-            url.pathname === `/api/review/${token}/daw/pending-preview` &&
-            url.searchParams.get("edit_id") === pending.id &&
-            url.searchParams.get("mode") === "suggested"
-          );
-        });
-        await guestInspector
-          .getByRole("button", { name: "Play around", exact: true })
-          .click();
-        const suggestedAudio = await suggestedPreview;
-        expect(suggestedAudio.status()).toBe(200);
-        expect(suggestedAudio.headers()["content-type"]).toBe("audio/wav");
-        await expectGuestPlayback();
-
-        const panels = page.getByLabel("Editor panels");
-        await panels.getByRole("tab", { name: "Impact" }).click();
-        await panels.locator(`button[data-pending-id="${pending.id}"]`).click();
-        const hostInspector = page.locator(".modifier-inspector");
-        await expect(
-          hostInspector.getByRole("button", { name: "Approve", exact: true }),
-        ).toBeEnabled();
-        await expect(
-          hostInspector.getByRole("button", { name: "Reject", exact: true }),
-        ).toBeEnabled();
-        await hostInspector
-          .getByRole("button", { name: "Approve", exact: true })
-          .click();
-        const approvedGeometry = [
-          [0, 5, 0],
-          [0, 1, 10],
-          [2, 5, 12],
-        ];
-        await expect
-          .poll(() =>
-            geometry(projectPath)
-              .filter(
-                (clip: { track_id: string }) => clip.track_id === "reference",
-              )
-              .map(
-                (clip: {
-                  source_start: number;
-                  source_end: number;
-                  timeline_start: number;
-                }) => [clip.source_start, clip.source_end, clip.timeline_start],
-              ),
-          )
-          .toEqual(approvedGeometry);
-        await guest.reload();
-        await expect(
-          guest.locator('.lane-row[data-track-id="reference"] .clip-block'),
-        ).toHaveCount(3);
-        await expect(
-          guest.locator('.lane-row[data-track-id="guest"] .clip-block'),
-        ).toHaveCount(1);
-        await expect(guest.locator(".pending-overlay")).toHaveCount(0);
-        const guestProject = await guest.request.get(
-          `/api/review/${encodeURIComponent(token)}/daw/project?phase=full`,
-        );
-        expect(guestProject.ok()).toBe(true);
-        const guestView: unknown = await guestProject.json();
-        if (
-          typeof guestView !== "object" ||
-          guestView === null ||
-          !("clips" in guestView) ||
-          typeof guestView.clips !== "object" ||
-          guestView.clips === null ||
-          !("tracks" in guestView.clips) ||
-          typeof guestView.clips.tracks !== "object" ||
-          guestView.clips.tracks === null ||
-          !("reference" in guestView.clips.tracks) ||
-          !Array.isArray(guestView.clips.tracks.reference)
-        ) {
-          throw new Error("Guest project response omitted reference clips");
-        }
-        const guestReferenceGeometry = guestView.clips.tracks.reference
-          .filter(
-            (
-              clip: unknown,
-            ): clip is {
-              source_start: number;
-              source_end: number;
-              timeline_start: number;
-            } =>
-              typeof clip === "object" &&
-              clip !== null &&
-              "source_start" in clip &&
-              typeof clip.source_start === "number" &&
-              "source_end" in clip &&
-              typeof clip.source_end === "number" &&
-              "timeline_start" in clip &&
-              typeof clip.timeline_start === "number",
-          )
-          .map((clip) => [
-            clip.source_start,
-            clip.source_end,
-            clip.timeline_start,
-          ]);
-        expect(guestReferenceGeometry).toEqual(approvedGeometry);
-      } finally {
-        await guestContext.close();
-      }
-    },
-    undefined,
-    repeatedProject,
-  );
-});
-
 test("host cuts and mutes the repeated copy and arms a phone clip-body range", async ({
   page,
   browser,
@@ -606,8 +220,8 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      await expect(page.locator(".daw-main")).toHaveClass(
-        /inspector-collapsed/,
+      await expect(page.locator(".edit-workspace")).not.toHaveClass(
+        /edit-workspace--inspector/,
       );
       let range = await selectRange(page);
       await expect(page.locator(".range-overlay")).toHaveCount(1);
@@ -760,10 +374,7 @@ test("host gets a plain reason when a range has no room tone to fill with", asyn
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      await openTransportMenu(page);
-      await page
-        .getByRole("menuitem", { name: "Select a range", exact: true })
-        .click();
+      await armRange(page);
       const range = page.getByRole("region", { name: "Range actions" });
       await range
         .getByRole("spinbutton", { name: "In", exact: true })

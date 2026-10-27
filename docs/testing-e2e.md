@@ -17,7 +17,7 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 | US-1 | #3 | Automated | `gui/web/e2e/record-lobby.spec.ts`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193) |
 | US-2 | #9 | Automated | `tests/test_record_host_reconnect.py`, `gui/web/src/record/RecordPanel.test.tsx`, `gui/web/src/record/Room.test.tsx`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193), listening by ear |
 | US-3 | #10 | Automated | `tests/test_ingest_recorder_import_e2e.py` | Tauri recording (#193) |
-| US-4 | #4 | Automated | `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/e2e/transcript-ignore.spec.ts`, `gui/web/e2e/transcript-refine-recovery.spec.ts`, `gui/web/e2e/sharecut.mobile.spec.ts`, `gui/web/src/panels/TranscriptPanel.test.tsx`, `gui/web/src/transcript/TranscriptTurnView.test.tsx`, `gui/web/src/layout/StatusBar.test.tsx`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
+| US-4 | #4 | Automated | `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/e2e/transcript-ignore.spec.ts`, `gui/web/e2e/transcript-refine-recovery.spec.ts`, `gui/web/e2e/sharecut.mobile.spec.ts`, `gui/web/src/panels/TranscriptPanel.test.tsx`, `gui/web/src/transcript/TranscriptTurnView.test.tsx`, `gui/web/src/stage/frame/saveState.test.ts`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
 | US-5 | #5 | Automated | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `gui/web/src/inspector/views/PendingEditInspector.test.tsx`, `gui/web/src/panels/ImpactPanel.test.tsx`, `tests/test_tighten.py`, `tests/test_mute_in_place.py` | Listening by ear |
 | US-6 | #6 | Partial | `gui/web/e2e/fade-curves.spec.ts`, `gui/web/e2e/applied-edit-seams.spec.ts`, `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/src/panels/HistoryPanel.test.tsx`, `tests/test_history.py`, `tests/test_pending_preview.py` | Listening by ear, a mid-run Cancel |
 | US-7 | #7 | Partial | `gui/web/e2e/review-surface.spec.ts`, `tests/test_review_share.py`, `tests/test_relay_proxy.py` | Host visibility of time-anchored playback feedback and host-offline fallback |
@@ -102,6 +102,32 @@ Run browser wrappers sequentially with fixture/environment unit tests. Their
 workspace-marker lifecycle must not overlap. See the
 [GUI surface audit](gui-surface-audit.md) for the complete source/render/live
 coverage map and platform limits.
+
+### Stage navigation helpers
+
+Specs reach the app's chrome only through `gui/web/e2e/stageNav.ts`, so a
+chrome change touches one file instead of fifty specs (#2292). Each helper says
+what the spec wants and none of them names the chrome that gets there. They
+drive the stage frame: the Stage bar in the App header (the tab bar on a phone),
+the Project menu, the Edit stage's eye sheet and tool strip, and the Player's
+hear menu and expanded form.
+
+| Helper | Does |
+|--------|------|
+| `goToStage(page, stage)` | Clicks the Stage bar tab for `record`, `prepare`, `edit`, `review` or `deliver`. Browsers keep Mod+1 to Mod+9 for their own tabs, so helpers click rather than press the stage keys |
+| `openProject(page, { stage? })` | Opens a project, waits for the save indicator (when the landing stage is picked), then goes to `edit` unless told otherwise |
+| `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `impact`, `tighten`, `comments` (Review sections) or `pipeline` (Prepare) |
+| `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
+| `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Export, Bounce, Record, palette, gestures), through the menu, header or palette as each lives |
+| `openViewSheet`, `setLayer`, `stepTrackHeight` | The Edit corner's eye sheet (layers, track height) |
+| `selectTool`, `armRange`, `armCommentMode`, `addTrack` | The Edit tool strip and the "+" menu |
+| `setAudition(page, mode)` | The Player hear menu: Full mix, Without mix processing, Original |
+| `expandPlayer`, `collapsePlayer` | The phone Player's expanded form with skip buttons |
+
+Rules for specs: use these helpers instead of `.daw-shell`, `.transport-*`, dock
+tab or More hub selectors (none of them exist any more); wait on a condition
+(`saveStatus`, a dialog role, `aria-pressed`), never a fixed time; and add a
+helper here when a new spec needs chrome that has none.
 
 ### Committed fixtures (Tier A)
 

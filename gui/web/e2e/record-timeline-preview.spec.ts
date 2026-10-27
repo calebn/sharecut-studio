@@ -2,6 +2,7 @@ import { expect, test, type WebSocketRoute } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { openProject } from "./stageNav";
 
 test.use({ launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] } });
 
@@ -38,7 +39,7 @@ for (const phone of [false, true]) {
         if (payload.plane === "session") connected = true;
       });
     });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     if (phone) await openPhoneTimeline(page);
     await expect(page.locator(".timeline-time")).toBeVisible();
     await expect(

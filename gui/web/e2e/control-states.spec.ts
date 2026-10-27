@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 test.describe("control state parity", () => {
   test.beforeEach(async ({ page }) => {
@@ -9,16 +10,15 @@ test.describe("control state parity", () => {
   test("transcript Annotate is quiet while Follow keeps an outline, with shared hover", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
 
-    const panels = page.getByLabel("Editor panels");
-    await panels.getByRole("tab", { name: "Transcript", exact: true }).click();
+    await openPanel(page, "transcript");
 
-    const annotate = panels.locator(".transcript-annotate-btn");
-    let follow = panels.getByRole("button", { name: /^Follow$|^Unlocked$/ });
+    const annotate = page.locator(".transcript-annotate-btn");
+    let follow = page.getByRole("button", { name: /^Follow$|^Unlocked$/ });
     await expect(annotate).toBeVisible();
     await expect(follow).toBeVisible();
 
@@ -32,7 +32,7 @@ test.describe("control state parity", () => {
     // Prefer unpressed Follow so hover border is not already accent.
     if ((await follow.getAttribute("aria-pressed")) === "true") {
       await follow.click();
-      follow = panels.getByRole("button", { name: "Unlocked" });
+      follow = page.getByRole("button", { name: "Unlocked" });
     }
     if ((await annotate.getAttribute("aria-pressed")) === "true") {
       await annotate.click();
@@ -42,7 +42,7 @@ test.describe("control state parity", () => {
     await expect(follow).toHaveAttribute("aria-pressed", "false");
 
     // Clear sticky :hover from the unlock click before measuring rest.
-    await page.getByRole("heading", { level: 1 }).hover();
+    await page.mouse.move(0, 0);
 
     const borderTop = (locator: typeof annotate) =>
       locator.evaluate((el) => getComputedStyle(el).borderTopColor);
@@ -54,7 +54,7 @@ test.describe("control state parity", () => {
 
     await annotate.hover();
     const annotateHover = await borderTop(annotate);
-    await page.getByRole("heading", { level: 1 }).hover();
+    await page.mouse.move(0, 0);
     await follow.hover();
     const followHover = await borderTop(follow);
 
@@ -75,20 +75,18 @@ test.describe("control state parity", () => {
     expect(annotatedPaint.border).not.toBe("rgba(0, 0, 0, 0)");
   });
 
-  test("active quiet tab hover keeps underline-only border", async ({
+  test("active quiet section tab hover keeps underline-only border", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
 
-    const panels = page.getByLabel("Editor panels");
-    const transcriptTab = panels.getByRole("tab", {
-      name: "Transcript",
-      exact: true,
-    });
-    await transcriptTab.click();
+    await openPanel(page, "comments");
+    const transcriptTab = page
+      .getByRole("tablist", { name: "Review sections" })
+      .getByRole("tab", { name: /^Comments\b/ });
     await expect(transcriptTab).toHaveAttribute("aria-selected", "true");
     expect(
       await transcriptTab.evaluate((el) =>
@@ -99,7 +97,7 @@ test.describe("control state parity", () => {
     const bg = (el: typeof transcriptTab) =>
       el.evaluate((node) => getComputedStyle(node).backgroundColor);
 
-    await page.getByRole("heading", { level: 1 }).hover();
+    await page.mouse.move(0, 0);
     const restBg = await bg(transcriptTab);
 
     await transcriptTab.hover();
@@ -124,8 +122,8 @@ test.describe("control state parity", () => {
     expect(borders.bottom).not.toBe(borders.top);
   });
 
-  test("pressed Comment and Mix keep fill on hover", async ({ page }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  test("the pressed mix side keeps its fill on hover", async ({ page }) => {
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -140,33 +138,11 @@ test.describe("control state parity", () => {
         };
       });
 
-    const comment = page
-      .getByRole("button", { name: "Toggle comment mode", exact: true })
-      .and(page.locator(".comment-mode-btn"));
-    await comment.click();
-    await expect(comment).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("heading", { level: 1 }).hover();
-    const commentRest = await paint(comment);
-    await comment.hover();
-    const commentHover = await paint(comment);
-    expect(commentHover.bg).toBe(commentRest.bg);
-    expect(commentHover.color).toBe(commentRest.color);
-
-    const commentToken = await page.evaluate(() => {
-      const el = document.createElement("div");
-      el.style.background = "var(--color-comment-marker)";
-      document.body.appendChild(el);
-      const bg = getComputedStyle(el).backgroundColor;
-      el.remove();
-      return bg;
-    });
-    expect(commentRest.bg).toBe(commentToken);
-
     const mix = page
-      .getByRole("group", { name: "Audition mode" })
-      .getByRole("button", { name: "Full mix", exact: true });
+      .getByRole("group", { name: "Audition" })
+      .getByRole("button", { name: "B", exact: true });
     await expect(mix).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("heading", { level: 1 }).hover();
+    await page.mouse.move(0, 0);
     const mixRest = await paint(mix);
     await mix.hover();
     const mixHover = await paint(mix);
@@ -174,16 +150,6 @@ test.describe("control state parity", () => {
     expect(mixHover.image).toBe(mixRest.image);
     expect(mixHover.color).toBe(mixRest.color);
 
-    // Selected audition mode is the transport's neutral chip, not the accent.
-    const chipToken = await page.evaluate(() => {
-      const el = document.createElement("div");
-      el.style.background = "var(--color-transport-chip)";
-      document.body.appendChild(el);
-      const bg = getComputedStyle(el).backgroundColor;
-      el.remove();
-      return bg;
-    });
-    expect(mixRest.bg).toBe(chipToken);
     expect(mixRest.image).toBe("none");
   });
 });

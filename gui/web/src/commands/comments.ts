@@ -9,9 +9,7 @@ import type { ExecuteResult } from "./types";
 export function openCommentDraft(draft: CommentDraft): void {
   const state = useDawStore.getState();
   state.setCommentDraft(draft);
-  state.setActiveTab("comments");
-  state.setMobileMode("more");
-  state.setMoreDestination("comments");
+  state.openStage("review", { section: "comments" });
 }
 
 /**

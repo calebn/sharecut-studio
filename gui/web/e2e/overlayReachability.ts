@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openProject, openProjectMenu, openProjectMenuItem } from "./stageNav";
 
 /**
  * Shared reachability helpers for overlay viewport coverage.
@@ -18,36 +19,17 @@ export async function openHostProject(
   heading: RegExp = /aligned dialogue/i,
   options: { timeout?: number } = {},
 ): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     heading,
     options,
   );
 }
 
-export async function openTransportMenu(page: Page): Promise<Locator> {
-  const menu = page.getByRole("menu", { name: "Transport menu" });
-  if (await menu.isVisible()) {
-    return menu;
-  }
-  const menuButton = page.getByRole("button", { name: "Menu", exact: true });
-  if ((await menuButton.count()) === 0) {
-    // The phone Listen mode intentionally hides transport chrome. Enter More,
-    // where the compact transport and its project menu are available.
-    await page.getByRole("button", { name: "More", exact: true }).click();
-  }
-  await menuButton.click();
-  return menu;
-}
+export const openTransportMenu = openProjectMenu;
 
 /** Open the transport Menu and choose `menuItem` (e.g. "Bounce…"). */
-export async function openDialogFromMenu(
-  page: Page,
-  menuItem: string,
-): Promise<void> {
-  await openTransportMenu(page);
-  await page.getByRole("menuitem", { name: menuItem }).click();
-}
+export const openDialogFromMenu = openProjectMenuItem;
 
 export async function expectOverflowYAuto(locator: Locator): Promise<void> {
   await expect
@@ -116,44 +98,41 @@ async function expectActionableWhenApplicable(target: Locator): Promise<void> {
 }
 
 /**
- * The transport Menu's max-height is the remaining space under the trigger
+ * The Project menu's max-height is the remaining space under the trigger
  * (`--menu-available-height`), which shrinks when guest/follow banners stack
- * above the transport. Assert the panel fits, scrolls, stays above the phone
- * bottom nav when one is rendered, and keeps its last item reachable.
+ * above the stage. Assert the panel fits, scrolls, stays above the phone tab
+ * bar when one is rendered, and keeps its last row reachable.
  */
-export async function expectMenuLastItemReachable(page: Page): Promise<void> {
-  const menu = await openTransportMenu(page);
+export async function expectMenuLastItemReachable(
+  page: Page,
+  open: (page: Page) => Promise<Locator> = openProjectMenu,
+): Promise<void> {
+  const menu = await open(page);
   await expect(menu).toBeVisible();
   await expectOverflowYAuto(menu);
   await expectFitsViewport(page, menu);
-  const primaryNav = page.getByRole("navigation", { name: "Primary" });
-  if (await primaryNav.isVisible().catch(() => false)) {
+  const tabBar = page.locator(".stage-frame-tabs");
+  if (await tabBar.isVisible().catch(() => false)) {
     const menuBox = await menu.boundingBox();
-    const navBox = await primaryNav.boundingBox();
-    if (menuBox && navBox) {
-      expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(navBox.y + 2);
+    const tabBox = await tabBar.boundingBox();
+    if (menuBox && tabBox) {
+      expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(tabBox.y + 2);
     }
   }
-  const last = menu.getByRole("menuitem", {
-    name: "Commands and shortcuts",
-  });
+  const rows = menu.locator('[role="menuitem"], [role="menuitemradio"]');
+  const last = rows.last();
   await expect(last).toBeVisible();
-  const menuitemCount = await menu.getByRole("menuitem").count();
-  for (let i = 1; i < menuitemCount; i += 1) {
-    await page.keyboard.press("ArrowDown");
-  }
-  // The last item must be reachable through the menu's own scroller when the
-  // menu overflows, or directly visible when it fits without scrolling.
+  await last.scrollIntoViewIfNeeded();
   await expect
     .poll(async () =>
       menu.evaluate((el) => {
-        const lastEl = [...el.querySelectorAll('[role="menuitem"]')].find((m) =>
-          (m.textContent ?? "").includes("Commands and shortcuts"),
+        const all = el.querySelectorAll(
+          '[role="menuitem"], [role="menuitemradio"]',
         );
+        const lastEl = all[all.length - 1];
         if (!lastEl) {
           return false;
         }
-        lastEl.scrollIntoView({ block: "nearest" });
         const vr = el.getBoundingClientRect();
         const lr = lastEl.getBoundingClientRect();
         return (

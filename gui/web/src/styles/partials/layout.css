@@ -1,127 +1,11 @@
-/* Shell layout, transport, tabs, track headers */
+/* Track headers, banners and shared editor chrome */
 /* The editor never scrolls as a page. Without this, a scroll that reaches an
  * edge rubber-bands the document on iOS: the shell's rows move while fixed
- * sheets stay put, so the status or nav row slid over the compact strip
+ * sheets stay put, so the frame's bottom rows slid over the compact strip
  * (#1051 round 4). */
 html[data-shell],
 html[data-shell] body {
   overscroll-behavior: none;
-}
-
-/* Touch shells sit fixed to the viewport and pad themselves clear of the
- * notch, Dynamic Island and home indicator (`viewport-fit=cover`, #1077), so
- * a page scroll never moves them against the fixed sheets. */
-@media (pointer: coarse) {
-  html[data-shell="phone"] .daw-shell,
-  html[data-shell="tablet"] .daw-shell {
-    position: fixed;
-    inset: 0;
-    height: auto;
-    max-height: none;
-    /* The inset bands match the nav and rail they border. */
-    background: var(--color-bg-base);
-  }
-
-  /* Safari's post-rotation pan (#1761, from useViewportPan): the fixed shell
-   * takes the visible band, and its fixed children follow it. */
-  html[data-viewport-pan][data-shell="phone"] .daw-shell,
-  html[data-viewport-pan][data-shell="tablet"] .daw-shell {
-    inset-block: var(--viewport-pan-top) auto;
-    block-size: var(--viewport-pan-height);
-  }
-}
-
-/* Named rows: banner rows are always present and `auto` (0 when empty), so a
- * layout or a banner never shifts another child. Layouts change only
- * --shell-main-row / --shell-tabs-row (responsive.css). */
-.daw-shell {
-  --shell-main-min-height: 0rem;
-  --shell-main-row: minmax(var(--shell-main-min-height), 1fr);
-  --shell-tabs-row: var(--tabs-height);
-
-  display: grid;
-  grid-template-areas:
-    "banners"
-    "follow"
-    "transport"
-    "main"
-    "tabs"
-    "status";
-  grid-template-rows:
-    auto auto auto var(--shell-main-row)
-    var(--shell-tabs-row) var(--status-height);
-  grid-template-columns: minmax(0, 1fr);
-  height: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow: hidden;
-  /* Zero everywhere except edge-to-edge screens; the rows stay clear of the
-     notch side in landscape and the home indicator (#1077). */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
-  font-size: var(--font-size-ui);
-  /* Size container for shell-local queries; do not put size containment on body
-   * (that blocks resize/overflow and fights Home Cover scroll). */
-  container: app / size;
-}
-
-/* Desktop: the main row keeps room for the ruler, a marker row and the
- * inspector's own scroll; a short window or a banner takes the bottom panel's
- * height first, so the panel never draws over the inspector's Approve and
- * Reject. `:where` keeps the layouts' own rows (responsive.css) in charge. The
- * touch shells size their sheets from `--tabs-height`, so they keep it whole. */
-:where(html[data-shell="desktop"]) .daw-shell {
-  --shell-main-min-height: var(--editor-main-min-height);
-  --shell-main-row: minmax(var(--shell-main-min-height), 1fr);
-  --shell-tabs-row: minmax(0, var(--tabs-height));
-}
-
-.daw-shell > .daw-shell-banners {
-  grid-area: banners;
-}
-
-.daw-shell > .follow-banner {
-  grid-area: follow;
-}
-
-.daw-shell > .daw-shell-transport {
-  grid-area: transport;
-}
-
-.daw-shell-transport > .transport {
-  block-size: var(--transport-height);
-}
-
-.daw-shell-transport > .transport:has(.transport-play-reason) {
-  block-size: auto;
-  min-block-size: var(--transport-height);
-  padding-block-start: var(--space-3);
-}
-
-.daw-shell--phone .daw-shell-transport > .transport {
-  block-size: auto;
-  min-block-size: var(--transport-height);
-}
-
-.daw-shell > main {
-  grid-area: main;
-}
-
-.daw-shell > .bottom-tabs {
-  grid-area: tabs;
-}
-
-.daw-shell > .status-bar {
-  grid-area: status;
-}
-
-.daw-shell > .mobile-nav {
-  grid-area: nav;
-}
-
-.daw-shell-banners {
-  display: flex;
-  flex-direction: column;
 }
 
 .guest-banner {
@@ -160,6 +44,12 @@ html[data-shell] body {
 .guest-attention-slot {
   block-size: var(--touch-min);
   background: var(--color-warning-attention);
+}
+
+/* An open inspector sheet takes the banner into its own flow, so the empty slot
+   gives its row back to the ruler and lanes above the sheet. */
+.guest-attention-slot:empty {
+  display: none;
 }
 
 .guest-attention {
@@ -217,10 +107,6 @@ html[data-shell] body {
   background: var(--color-warning-attention);
 }
 
-.guest-attention--inspector-flow {
-  margin-inline: env(safe-area-inset-left) env(safe-area-inset-right);
-}
-
 .guest-attention--inspector-flow .guest-attention-details-content {
   position: static;
   max-block-size: none;
@@ -276,19 +162,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   font-weight: 600;
   border-inline-start: 0.1875rem solid var(--color-danger);
   padding-inline-start: var(--space-3);
-}
-
-.daw-main {
-  display: grid;
-  grid-template-columns: var(--header-width) 1fr var(--inspector-width);
-  min-height: 0;
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* Headers live inside `.timeline-scroll` (sticky left); lock fills the first columns. */
-.daw-main--arrange {
-  grid-template-columns: 1fr var(--inspector-width);
 }
 
 .track-headers {
@@ -392,10 +265,12 @@ html[data-shell="phone"] .guest-attention-dismiss {
   }
 }
 
-/* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta). */
+/* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta).
+   A corner that carries the Edit tool strip keeps the wider gutter, so the
+   tools stay inside the header column instead of reaching over the lanes. */
 @container timeline (inline-size < 30rem) {
-  .timeline-scroll,
-  .timeline-lock-inner {
+  .timeline-scroll:not(:has(.edit-tool-strip)),
+  .timeline-lock-inner:not(:has(.edit-tool-strip)) {
     --header-width: 4rem;
   }
 }
@@ -403,136 +278,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
 .timeline-time {
   flex: 0 0 auto;
   min-inline-size: 0;
-}
-
-.bottom-tabs {
-  display: flex;
-  flex-direction: column;
-  background: var(--color-bg-base);
-  border-top: 1px solid var(--color-border);
-  min-height: 0;
-  position: relative;
-  z-index: var(--z-shell-chrome);
-}
-
-.bottom-tabs-splitter {
-  flex: 0 0 0.625rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: ns-resize;
-  touch-action: none;
-  user-select: none;
-  margin-top: calc(-1 * var(--space-3));
-  margin-bottom: calc(-1 * var(--space-3));
-  /* The hit area starts at the drawer's top edge. Reaching up over the
-   * timeline put it on that scroller's horizontal scrollbar, so a vertical
-   * drag grabbed the scrollbar and scrolled sideways. clip-path also clips
-   * hit testing; the padding keeps the grip clear of the clipped edge. */
-  padding-block-start: var(--space-3);
-  clip-path: inset(var(--space-3) 0 0 0);
-  z-index: var(--z-content);
-  background: transparent;
-}
-
-.bottom-tabs-splitter:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: calc(-1 * var(--focus-ring-offset));
-  /* The clipped top edge cuts the ring, so the visible strip is tinted too. */
-  --splitter-focus-tint: color-mix(
-    in srgb,
-    var(--color-accent) 22%,
-    transparent
-  );
-  background: var(--splitter-focus-tint);
-}
-
-.bottom-tabs-splitter:focus-visible .bottom-tabs-splitter-grip {
-  background: var(--color-accent);
-}
-
-.bottom-tabs-splitter-grip {
-  inline-size: 2.75rem;
-  block-size: 0.25rem;
-  border-radius: var(--radius-xs);
-  background: var(--color-border-strong);
-  box-shadow: 0 1px 0 var(--color-overlay-white-15);
-  opacity: 0.95;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .bottom-tabs-splitter:hover .bottom-tabs-splitter-grip {
-    background: var(--color-accent);
-  }
-}
-
-/* Timeline layout: the drawer is collapsed (its row is 0). The handle sits on
- * the row's line, the main area's bottom edge, and its hit area reaches up
- * over the timeline like the splitter's does. It is a centered grip, not a
- * full-width strip, so it never covers the tool rail's lowest buttons. */
-.daw-shell > .drawer-reopen {
-  grid-area: tabs;
-  align-self: end;
-  position: relative;
-  block-size: 0;
-  z-index: var(--z-shell-chrome);
-}
-
-.drawer-reopen-handle {
-  position: absolute;
-  inset-inline-start: 50%;
-  inset-block-end: var(--drawer-reopen-lift, 0);
-  inline-size: min(100%, 12rem);
-  transform: translateX(-50%);
-  block-size: var(--touch-min);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0 0 var(--space-1);
-  border: 0;
-  background: transparent;
-  cursor: ns-resize;
-  touch-action: none;
-  user-select: none;
-}
-
-.drawer-reopen-handle:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: calc(-1 * var(--focus-ring-offset));
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .drawer-reopen-handle:hover .bottom-tabs-splitter-grip {
-    background: var(--color-accent);
-  }
-}
-
-.bottom-tabs-splitter[data-collapse-armed] .bottom-tabs-splitter-grip {
-  background: var(--color-accent);
-}
-
-.tab-bar {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.tab-bar button {
-  /* Interaction paint comes from .ui-control--quiet */
-  font-size: inherit;
-}
-
-.tab-bar button.ui-control:focus-visible {
-  outline-offset: -0.125rem;
-}
-
-.tab-content {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: var(--space-3) var(--space-4);
-  display: flex;
-  flex-direction: column;
 }
 
 .transcript-panel {
@@ -598,10 +343,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
 
 @media (pointer: fine) {
   @container app (max-height: 40rem) {
-    .tab-content:has(> .transcript-panel) {
-      padding-block: 0;
-    }
-
     .transcript-mode-hint {
       margin-block-end: 0;
     }
@@ -744,22 +485,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   width: 100%;
 }
 
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-4);
-  font-size: var(--font-size-caption);
-  color: var(--color-text-secondary);
-  background: var(--color-bg-canvas);
-  border-top: 1px solid var(--color-border-subtle);
-  overflow-x: auto;
-  scrollbar-width: thin;
-  min-width: 0;
-  position: relative;
-  z-index: var(--z-shell-chrome);
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -815,135 +540,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
 
 .track-header-row.stale-whole-track {
   box-shadow: inset 0.1875rem 0 0 var(--color-warning);
-}
-
-.audition-modes button.stale-highlight {
-  outline: var(--focus-ring-width) solid var(--color-warning);
-  outline-offset: 1px;
-}
-
-.save-dot {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  inline-size: var(--save-dot-box);
-  block-size: var(--save-dot-box);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-
-button.save-dot {
-  cursor: pointer;
-}
-
-/* Painted light: shape differs per state so colour is never the only cue. */
-.save-dot::before {
-  content: "";
-  box-sizing: border-box;
-  inline-size: var(--save-dot-size);
-  block-size: var(--save-dot-size);
-  border-radius: 50%;
-}
-
-/* The 44pt target is the box plus this padding; it overlaps only empty chrome. */
-.save-dot::after {
-  content: "";
-  position: absolute;
-  inset: calc((var(--save-dot-box) - var(--touch-min)) / 2);
-}
-
-.save-dot:not(button)::after {
-  content: none;
-}
-
-.save-dot[data-save-state="saved"]::before {
-  background: var(--color-success);
-}
-
-.save-dot[data-save-state="saving"]::before {
-  border: var(--save-dot-stroke) solid var(--color-text-secondary);
-}
-
-.save-dot[data-save-state="waiting"]::before {
-  border: var(--save-dot-stroke) solid var(--color-warning);
-}
-
-.save-dot[data-save-state="failed"]::before {
-  background: var(--color-danger);
-  border-radius: var(--radius-sm);
-}
-
-.save-dot[data-save-state="unknown"]::before {
-  border: var(--save-dot-stroke) dashed var(--color-warning);
-  border-radius: var(--radius-xs);
-  transform: rotate(45deg);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .save-dot[data-save-state="saving"]::before {
-    animation: save-dot-pulse var(--motion-loop-pipeline) var(--motion-ease-out)
-      infinite;
-  }
-}
-
-@keyframes save-dot-pulse {
-  50% {
-    opacity: 0.35;
-  }
-}
-
-/* A read-only light (saved, saving) takes no tap, so it paints no target. */
-.save-dot:is([data-save-state="saved"], [data-save-state="saving"])::after {
-  content: none;
-}
-
-/* The desktop/tablet status bar is --status-height tall. Its light never paints
-   a target taller than the bar, so the bar cannot scroll on any pointer. */
-.status-bar .save-dot::after {
-  inset-block: 0;
-}
-
-/* On a touch pointer the row grows only while the light is actionable (waiting
-   or failed, the Needs attention banner is up then, or a Download button
-   follows a failed job): the full --touch-min
-   target plus the bar's 1px top border. The sheets and toasts that anchor to
-   the row follow the token. The phone shell keeps its own row. */
-@media (pointer: coarse) {
-  html:not([data-shell="phone"]):has(
-    .status-bar
-      :is(
-        button.save-dot:is(
-          [data-save-state="waiting"],
-          [data-save-state="failed"],
-          [data-save-state="unknown"]
-        ),
-        .status-chip-action
-      )
-  ) {
-    --status-height: calc(var(--touch-min) + 1px);
-  }
-
-  .status-bar
-    button.save-dot:is(
-      [data-save-state="waiting"],
-      [data-save-state="failed"],
-      [data-save-state="unknown"]
-    ) {
-    block-size: var(--touch-min);
-  }
-
-  .status-bar span.save-dot[data-save-state="failed"] {
-    block-size: var(--save-dot-box);
-  }
-}
-
-.status-bar .stale-highlight {
-  border-radius: var(--radius-sm);
-  padding-inline: var(--space-1);
-  outline-offset: 1px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1044,20 +640,6 @@ button.save-dot {
   min-height: 2rem;
 }
 
-/* The compact track grows with its buttons: on touch they take the full
-   44pt target, and a fixed-height track (the shared .ui-segmented
-   control-height, which loads after this partial) left them hanging below it. */
-.ui-segmented.tool-mode-toggle--compact {
-  block-size: auto;
-}
-
-.tool-mode-toggle--compact > .ui-control {
-  padding: var(--space-1);
-  font-size: var(--font-size-caption);
-  min-width: 2.25rem;
-  min-height: 2.25rem;
-}
-
 .ui-icon {
   display: block;
   flex: 0 0 auto;
@@ -1112,225 +694,11 @@ button.save-dot {
   pointer-events: none;
 }
 
-.editing-tool-rail {
-  position: relative;
-  z-index: var(--z-local-chrome);
-  display: flex;
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-base);
-}
-
-/* The tools sit in their own box so a rail that scrolls sideways does not
-   clip the Undo and Redo hint, which hangs from the rail above it. */
-.editing-tool-rail-tools {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  min-inline-size: 0;
-}
-
-/* The rail is a row of touch controls, not copy. Without this, a long-press on
-   an icon button starts iOS's selection loupe or the Copy / Look Up callout,
-   which cancels the pointer sequence before the label peek can show (#1878,
-   #1874). The prefixed pair is what Safari 17 honours. */
-@media (pointer: coarse) {
-  .editing-tool-rail {
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-  }
-}
-
-/* Labels never break inside a button. */
-.editing-tool-rail .ui-control {
-  white-space: nowrap;
-}
-
-/* Zoom, then Undo and Redo, close the rail at its inline end, apart from the
-   tools, as pairs that never wrap or shrink (#1077, #1028). The ingest
-   buttons give way instead: a rail too narrow for all of them hands + Track
-   and Import to Menu > Media and More, which keep both, so a phone in
-   portrait spends no second row on the pairs. Icon buttons keep the full
-   touch square. */
-.editing-tool-rail-history,
-.editing-tool-rail-zoom {
-  display: flex;
-  flex: none;
-  gap: var(--space-1);
-}
-
-/* Zoom leads the closing cluster, so Undo and Redo keep the inline end, and a
-   rail that must wrap moves the whole cluster, and only a line too narrow even
-   for the cluster (200% text on a phone) splits it between its pairs. */
-.editing-tool-rail-end {
-  display: flex;
-  flex: 0 1 auto;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  justify-content: flex-end;
-  margin-inline-start: auto;
-}
-
-/* Select range is a labelled button on a wide rail and its marquee icon on a
-   narrow one, where the label would push Zoom onto a second row. */
-.editing-tool-rail-range-icon {
-  display: none;
-}
-
-@container app (max-width: 40rem) {
-  .editing-tool-rail .editing-tool-rail-ingest {
-    display: none;
-  }
-
-  /* Seven 44px targets share the row at 360px, so the rail trades its
-     padding and gaps for the room; Zoom keeps a wider gap from Undo. */
-  .editing-tool-rail {
-    padding-inline: var(--space-3);
-  }
-
-  .editing-tool-rail-tools {
-    gap: var(--space-1);
-  }
-
-  .editing-tool-rail-range {
-    justify-content: center;
-    min-inline-size: var(--touch-min);
-  }
-
-  .editing-tool-rail-range-icon {
-    display: inline-block;
-  }
-
-  .editing-tool-rail-range-label {
-    display: none;
-  }
-}
-
-/* The Inspector column (#1696) leaves the rail a pane as wide as a phone in
-   portrait, which `@container app` cannot see, so the rail makes the same
-   trade as above: the ingest buttons go to Menu and More, Select range shows
-   its icon, and padding and gaps shrink, keeping one row and every lane. */
-.daw-shell--inspector-column .editing-tool-rail .editing-tool-rail-ingest {
-  display: none;
-}
-
-.daw-shell--inspector-column .editing-tool-rail {
-  padding-inline: var(--space-3);
-}
-
-.daw-shell--inspector-column .editing-tool-rail-tools {
-  gap: var(--space-1);
-}
-
-.daw-shell--inspector-column .editing-tool-rail-range {
-  justify-content: center;
-  min-inline-size: var(--touch-min);
-}
-
-.daw-shell--inspector-column .editing-tool-rail-range-icon {
-  display: inline-block;
-}
-
-.daw-shell--inspector-column .editing-tool-rail-range-label {
-  display: none;
-}
-
-/* Seven touch squares need about 21.5rem. A rail narrower than that, which is
-   every phone at large text, stays one row and scrolls sideways instead of
-   wrapping into rows that eat the lanes (#1347). */
-@container app (max-width: 23rem) {
-  .editing-tool-rail-tools {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-  }
-
-  .editing-tool-rail-tools > *,
-  .editing-tool-rail-tools .ui-control {
-    flex: none;
-  }
-
-  .editing-tool-rail-end {
-    flex-wrap: nowrap;
-  }
-}
-
-.editing-tool-rail-icon {
+.compact-history-button {
   justify-content: center;
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
   padding: 0;
-}
-
-/* Tapping an unavailable Undo or Redo names why. The note floats over the
-   lanes' bottom edge so it never costs the timeline a row, and it lets
-   touches through to them. */
-.editing-tool-rail-hint {
-  position: absolute;
-  inset-block-end: 100%;
-  inset-inline-end: var(--space-4);
-  margin-block-end: var(--space-1);
-  pointer-events: none;
-}
-
-.editing-tool-rail-hint:not(:empty) {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
-  box-shadow: var(--shadow-raised);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-small);
-}
-
-/* A long press on an icon-only control names it above the finger's reach. */
-.editing-tool-rail-peek {
-  position: fixed;
-  transform: translateX(-50%);
-  margin-block-end: var(--space-1);
-  max-inline-size: min(18rem, calc(100vw - 1rem));
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
-  box-shadow: var(--shadow-raised);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-small);
-  pointer-events: none;
-  z-index: var(--z-shell-chrome);
-}
-
-/* A finger gets the full touch target on every shell, sideways included. */
-@media (pointer: coarse) {
-  .editing-tool-rail .ui-control {
-    min-block-size: var(--touch-min);
-  }
-}
-
-/* A phone held sideways: the rail gives its padding back to the lanes. */
-@container app (max-height: 40rem) {
-  .editing-tool-rail {
-    padding-block: var(--space-0);
-  }
-
-  /* iPad landscape with Safari chrome: stay one scrollable row (#1632). */
-  html[data-shell="tablet"] .editing-tool-rail-tools {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-  }
-
-  html[data-shell="tablet"] .editing-tool-rail-tools > *,
-  html[data-shell="tablet"] .editing-tool-rail-tools .ui-control {
-    flex: none;
-  }
-
-  html[data-shell="tablet"] .editing-tool-rail-end {
-    flex-wrap: nowrap;
-  }
 }
 
 .overlay-legend {
@@ -2018,14 +1386,6 @@ button.save-dot {
   min-block-size: 2.75rem;
 }
 
-.daw-main--inspector-collapsed {
-  grid-template-columns: var(--header-width) 1fr;
-}
-
-.daw-main--arrange.daw-main--inspector-collapsed {
-  grid-template-columns: 1fr;
-}
-
 .track-playback-meter--inspector {
   gap: var(--space-3);
   padding: 0;
@@ -2044,53 +1404,6 @@ button.save-dot {
   padding: var(--space-3) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-}
-
-.panel-size-controls {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-3);
-}
-
-.bottom-tabs:has(> .panel-size-controls) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
-
-.bottom-tabs > .bottom-tabs-splitter {
-  grid-column: 1 / -1;
-}
-
-.bottom-tabs > .panel-size-controls {
-  grid-area: 2 / 2;
-}
-
-.bottom-tabs:has(> .panel-size-controls) > .tab-bar {
-  grid-area: 2 / 1;
-  min-inline-size: 0;
-  overflow-x: auto;
-}
-
-.bottom-tabs:has(> .panel-size-controls) > .tab-content {
-  grid-area: 3 / 1 / 4 / -1;
-}
-
-@media (pointer: coarse) {
-  .panel-size-controls button {
-    min-height: 2.75rem;
-    min-width: 2.75rem;
-  }
-}
-
-.splitter-rem-signal {
-  position: absolute;
-  inline-size: 1rem;
-  block-size: 1rem;
-  visibility: hidden;
-  pointer-events: none;
 }
 
 /* Which review version a guest hears (#1785): a quiet line; amber only when it changed or a newer cut exists. */

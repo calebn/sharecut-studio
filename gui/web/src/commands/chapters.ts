@@ -6,10 +6,9 @@ import { hostProjectGate } from "./host";
 import type { ExecuteResult } from "./types";
 
 /**
- * `edit.addChapter`: the Menu › Markers item, MobileShell's More action and
- * the touch create menu (`{ atTime }`, the held time; else the playhead)
- * share this one implementation (previously OverlayLegend's own + Chapter
- * button). Single-flight via the store's `chapterAddPending` flag rather
+ * `edit.addChapter`: the plus menu and the touch create menu (`{ atTime }`,
+ * the held time; else the playhead) share this one implementation.
+ * Single-flight via the store's `chapterAddPending` flag rather
  * than a module ref, so a menu unmounting/remounting the control mid-add
  * still sees it pending. Guarded by `projectEpoch`: a settled add whose
  * project has since changed (hydrate resets `chapterAddPending` and bumps

@@ -1,0 +1,421 @@
+/* The Edit stage host (src/stage/edit): the timeline, the Script pane, the
+   Inspector and the controls that hang off the timeline. */
+.edit-workspace {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: var(--color-bg-canvas);
+}
+
+.edit-workspace--stacked {
+  flex-direction: column;
+}
+
+.edit-timeline-col {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.edit-timeline-col[hidden] {
+  display: none;
+}
+
+.edit-workspace--side > .edit-timeline-col {
+  min-inline-size: var(--stage-lane-min);
+}
+
+.edit-timeline-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.edit-timeline-main > .timeline-area {
+  flex: 1 1 auto;
+}
+
+.edit-workspace--stacked .edit-timeline-col,
+.edit-workspace--stacked .edit-script {
+  flex: 1 1 50%;
+}
+
+/* The lanes' floor never outgrows the workspace: a frame too short for it
+   (folded, and still not tall enough) keeps the lanes inside the body, not
+   clipped under the Player. */
+.edit-workspace--stacked .edit-timeline-col {
+  min-block-size: min(
+    100%,
+    max(
+      var(--stage-stacked-lanes-min),
+      min(
+        var(--stage-stacked-lanes-want),
+        calc(100% - var(--stage-stacked-script-floor))
+      )
+    )
+  );
+}
+
+.edit-script {
+  display: flex;
+  flex: 0 1 var(--script-width);
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: var(--stage-script-floor);
+  border-inline-start: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+}
+
+.edit-workspace--stacked .edit-script {
+  border-inline-start: 0;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.edit-workspace--script-focus .edit-script {
+  flex: 1 1 0;
+}
+
+.edit-script-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.edit-inspector {
+  display: flex;
+  flex: 0 0 var(--inspector-width);
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+  border-inline-start: 1px solid var(--color-border);
+}
+
+/* The slot only carries the divider's focus region. */
+.edit-divider-slot {
+  display: contents;
+}
+
+/* The divider: a 0.5 rem hit area over a 1 px rule. */
+.script-divider {
+  display: flex;
+  flex: 0 0 var(--space-3);
+  align-items: center;
+  justify-content: center;
+  margin-inline: calc(var(--space-1) * -1);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: var(--z-content);
+}
+
+.script-divider:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
+.script-divider-grip {
+  inline-size: 1px;
+  block-size: var(--control-height);
+  background: var(--color-text-secondary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .script-divider:hover .script-divider-grip {
+    background: var(--color-accent);
+  }
+}
+
+/* EditWorkspace measures the side layout against the track headers, the lane
+   floor, the Script's floor, the divider and the Inspector column; the pane it
+   names gives way and its toggle keeps offering it. */
+.edit-workspace--yield-script :is(.edit-divider-slot, .edit-script),
+.edit-workspace--yield-inspector .edit-inspector {
+  display: none;
+}
+
+/* The tool strip fills the corner box above the track headers. */
+.track-headers-chrome:has(> .edit-tool-strip) {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+}
+
+/* The corner is one ruler row tall and as wide as the track headers, so the
+   tools stay in one row and give up padding, not controls. */
+.edit-tool-strip {
+  position: relative;
+  z-index: var(--z-content);
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.edit-tool-strip .tool-mode-toggle {
+  flex: 0 0 auto;
+}
+
+.track-headers-chrome > .edit-tool-strip .tool-mode-toggle > .ui-control,
+.track-headers-chrome > .edit-tool-strip .edit-tool-strip-range,
+.track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut {
+  padding-inline: var(--space-1);
+  min-inline-size: var(--control-height-compact);
+  min-block-size: var(--control-height-compact);
+  block-size: var(--control-height-compact);
+}
+
+/* On a touch screen the four tools each take the 44 px floor, which is wider
+   than the tablet and compact-lane header columns. The column grows to hold
+   them (the strip has no second row), and the lanes keep the rest. */
+.edit-timeline-col {
+  --edit-header-touch: 12.5rem;
+}
+
+@media (pointer: coarse) {
+  html[data-shell]
+    .timeline-area
+    .timeline-scroll:has(.track-headers-chrome > .edit-tool-strip),
+  html[data-shell]
+    .timeline-area
+    .timeline-lock-inner:has(.track-headers-chrome > .edit-tool-strip) {
+    --header-width: var(--edit-header-touch);
+  }
+
+  /* The corner wraps inside the lanes, never over the header column. */
+  .edit-timeline-col:has(.track-headers-chrome > .edit-tool-strip)
+    .edit-corner {
+    max-inline-size: calc(
+      100% -
+      var(--edit-header-touch) -
+      var(--space-4) -
+      var(--space-3)
+    );
+  }
+}
+
+/* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */
+.edit-corner {
+  position: absolute;
+  inset-block-end: var(--space-3);
+  inset-inline-end: var(--space-4);
+  z-index: var(--z-timeline-chrome);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-inline-size: calc(100% - var(--space-4) * 2);
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+/* In the Tools sheet the corner is an ordinary row, not a float over the lanes. */
+.tools-sheet .edit-corner {
+  position: static;
+  justify-content: flex-start;
+  max-inline-size: none;
+}
+
+/* An open join's length rail sits at the foot of the timeline; it stays above the
+   floating corner so its grip is never covered. */
+.stage-frame .join-edit-rail {
+  z-index: calc(var(--z-timeline-chrome) + 1);
+}
+
+/* A frame under 20 rem (a small phone at 200% text) has a 4 rem header column
+   (layout.css, timeline under 30 rem); the corner wraps in the lanes beside it. */
+@container app (max-width: 20rem) {
+  .edit-workspace .edit-corner {
+    inset-inline-end: var(--space-1);
+    max-inline-size: calc(100% - 4rem - var(--space-1) * 2);
+  }
+}
+
+.edit-corner-btn {
+  min-inline-size: var(--control-height);
+  min-block-size: var(--control-height);
+}
+
+@media (pointer: coarse) {
+  .edit-corner-btn,
+  .edit-tool-strip-range,
+  .edit-tool-strip-cut,
+  .track-headers-chrome > .edit-tool-strip .tool-mode-toggle > .ui-control,
+  .track-headers-chrome > .edit-tool-strip .edit-tool-strip-range,
+  .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+    block-size: auto;
+  }
+}
+
+/* Outside the corner (the phone's strip) the Select, Blade and Comment tools
+   take the full touch target, and their track grows with them. */
+@media (pointer: coarse) {
+  .edit-tool-strip .ui-segmented.tool-mode-toggle {
+    block-size: auto;
+  }
+
+  .edit-tool-strip .tool-mode-toggle > .ui-control {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+.plus-menu {
+  display: block;
+}
+
+.plus-menu-trigger {
+  text-align: center;
+}
+
+/* The View sheet. */
+.view-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.view-sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.view-sheet-heading {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+
+.view-sheet-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The phone's Edit: a bar with the surface switch, then lanes or Script. */
+.edit-workspace--phone {
+  flex-direction: column;
+}
+
+.phone-edit {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.phone-edit-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.phone-edit-mix {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
+.phone-edit-timeline {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.phone-edit .edit-tool-strip {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.phone-edit-lanes {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.phone-edit-lanes > .timeline-area {
+  flex: 1 1 auto;
+}
+
+.phone-edit-script {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+  background: var(--color-bg-base);
+}
+
+/* Wide enough for the surface switch, the tool strip and Mix side by side
+   (360 px at the default size): they share one row, and the lanes or the
+   Script take the height that frees. Narrower, or at a larger text size, they
+   keep their own rows. */
+@container app (min-width: 22rem) {
+  .phone-edit {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .phone-edit-bar,
+  .phone-edit-timeline {
+    display: contents;
+  }
+
+  .phone-edit-switch {
+    grid-area: 1 / 1;
+    margin-inline-start: var(--space-3);
+  }
+
+  .phone-edit .edit-tool-strip {
+    grid-area: 1 / 2;
+    padding-block: 0;
+    border-block-end: 0;
+  }
+
+  .phone-edit-mix {
+    grid-area: 1 / 3;
+    margin-inline-end: var(--space-3);
+  }
+
+  .phone-edit-lanes,
+  .phone-edit-script {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    align-self: stretch;
+    border-block-start: 1px solid var(--color-border);
+  }
+}
+
+.waveform-amp-readout {
+  align-self: center;
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 import { setTheme } from "./theme";
 
 const semanticTokens = [
@@ -58,13 +59,13 @@ const semanticTokens = [
 test("semantic theme roles preserve browser values in both themes", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, e2eProjectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
 
   const receipt: Record<string, unknown> = {};
   for (const theme of ["dark", "light"] as const) {
     await setTheme(page, theme);
-    await expect(page.locator(".daw-shell")).toHaveCSS(
+    await expect(page.locator(".stage-frame")).toHaveCSS(
       "color",
       theme === "dark" ? "rgb(241, 239, 232)" : "rgb(26, 33, 30)",
     );
@@ -72,18 +73,14 @@ test("semantic theme roles preserve browser values in both themes", async ({
       "background-color",
       theme === "dark" ? "rgb(14, 12, 11)" : "rgb(238, 241, 240)",
     );
-    await expect(page.locator(".transport")).toHaveCSS(
-      "color",
-      "rgb(241, 239, 232)",
-    );
     receipt[theme] = await page.evaluate((tokens) => {
       const style = getComputedStyle(document.documentElement);
       const values = Object.fromEntries(
         tokens.map((token) => [token, style.getPropertyValue(token).trim()]),
       );
       const representatives = [
-        ".daw-shell",
-        ".transport",
+        ".stage-frame",
+        ".stage-frame-header",
         ".timeline-area",
       ].map((selector) => {
         const element = document.querySelector(selector);

@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import { StudioShell } from "../layout/StudioShell";
+import { StageFrame } from "../stage/frame/StageFrame";
 import type { FeedbackToast as FeedbackToastState } from "../state/types";
 import {
+  portaledOverlayParameters,
   studioViewports,
   viewportStoryParameters,
 } from "../storybook/storyLayout";
@@ -24,11 +25,13 @@ const toast = (over: Partial<FeedbackToastState>): FeedbackToastState => ({
   ...over,
 });
 
-function ToastOverShell() {
+function ToastOverFrame() {
   return (
     <>
       <div data-daw-app-chrome>
-        <StudioShell />
+        <StageFrame>
+          <div style={{ padding: "var(--space-5)" }}>Stage host</div>
+        </StageFrame>
       </div>
       <FeedbackToast />
     </>
@@ -40,9 +43,10 @@ const meta: Meta<typeof FeedbackToast> = {
   component: FeedbackToast,
   beforeEach: episodeBeforeEach,
   decorators: [withEpisode],
-  render: () => <ToastOverShell />,
+  render: () => <ToastOverFrame />,
   parameters: {
     ...viewportStoryParameters,
+    ...portaledOverlayParameters,
     viewport: { options: studioViewports },
     episode: { state: { feedbackToast: toast({}) } },
   },
@@ -95,7 +99,7 @@ export const Failure: Story = {
   },
 };
 
-export const PhoneAboveNav: Story = {
+export const PhoneAboveTabBar: Story = {
   globals: { viewport: { value: "mobile360", isRotated: false } },
   parameters: { episode: { state: { mobileMode: "timeline" } } },
   play: async ({ canvasElement }) => {

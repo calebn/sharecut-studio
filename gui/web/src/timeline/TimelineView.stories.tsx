@@ -14,14 +14,21 @@ const meta: Meta<typeof TimelineView> = {
     withEpisode,
     (Story, context) => (
       <div
-        className={`daw-shell${context.parameters.dawShellPhone ? " daw-shell--phone" : ""}`}
+        className={`stage-frame stage-frame--${context.parameters.framePhone ? "phone" : "desktop"}`}
         style={{
           blockSize: "24rem",
-          inlineSize: context.parameters.dawShellPhone ? "360px" : undefined,
+          gridTemplateRows: "minmax(0, 1fr)",
+          inlineSize: context.parameters.framePhone ? "360px" : undefined,
         }}
       >
-        <main className="daw-main daw-main--arrange">
-          <Story />
+        <main className="stage-frame-body">
+          <div className="edit-workspace">
+            <div className="edit-timeline-col">
+              <div className="edit-timeline-main">
+                <Story />
+              </div>
+            </div>
+          </div>
         </main>
       </div>
     ),
@@ -70,5 +77,5 @@ export const Loading: Story = {
 
 export const PhoneFixedPlayhead: Story = {
   args: { fixedPlayhead: true, headerSlot: undefined },
-  parameters: { dawShellPhone: true },
+  parameters: { framePhone: true },
 };

@@ -1,85 +1,102 @@
-import { isShareProjectKey } from "../shareMode";
+import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import type { DawTab, MobileMode, MoreDestination } from "../state/types";
+import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
+import {
+  type EditSurface,
+  REVIEW_SECTIONS,
+  type ReviewSection,
+  STAGE_IDS,
+  STAGE_SHEETS,
+  type StageSheet,
+} from "../types/stage";
 import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
+
+const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
+const NOT_EDIT = { status: "disabled", reason: "Open Edit" } as const;
+
+const isReviewSection = (v: unknown): v is ReviewSection =>
+  (REVIEW_SECTIONS as readonly unknown[]).includes(v);
+const isStageSheet = (v: unknown): v is StageSheet =>
+  (STAGE_SHEETS as readonly unknown[]).includes(v);
+const isEditSurface = (v: unknown): v is EditSurface =>
+  v === "lanes" || v === "text";
 
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("in"));
     return { status: "ok" };
   });
 
   registerCommand("view.zoomOut", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("out"));
     return { status: "ok" };
   });
 
   registerCommand("view.fit", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.fitToWindow(s.measureTimelineViewport());
     return { status: "ok" };
   });
 
-  const TABS = new Set<DawTab>([
-    "transcript",
-    "history",
-    "impact",
-    "tighten",
-    "pipeline",
-    "comments",
-  ]);
-  registerCommand("view.setTab", (args) => {
-    const tab = args.tab;
-    if (typeof tab !== "string" || !TABS.has(tab as DawTab)) {
-      return { status: "disabled", reason: "tab required" };
+  for (const stage of STAGE_IDS) {
+    registerCommand(`stage.${stage}`, (args) => {
+      const s = useDawStore.getState();
+      if (!s.project) return NO_PROJECT;
+      if (!stagesForRole(stageRoleOf(s.guestMode)).includes(stage)) {
+        return { status: "disabled", reason: "This link cannot open that" };
+      }
+      const section = args.section;
+      const sheet = args.sheet;
+      const options = {
+        ...(isReviewSection(section) ? { section } : {}),
+        ...(isStageSheet(sheet) ? { sheet } : {}),
+      };
+      s.openStage(stage, options);
+      // The phone's Timeline or Script, which only Edit has.
+      if (stage === "edit" && isEditSurface(args.surface)) {
+        useDawStore.getState().setEditSurface(args.surface);
+      }
+      return { status: "ok" };
+    });
+  }
+
+  registerCommand("edit.history", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
+      return { status: "disabled", reason: "This link cannot edit" };
     }
-    useDawStore.getState().setActiveTab(tab as DawTab);
+    s.openStage("edit", { sheet: "history" });
     return { status: "ok" };
   });
 
-  const MODES = new Set<MobileMode>(["listen", "timeline", "text", "more"]);
-  const DESTINATIONS = new Set<MoreDestination>([
-    "hub",
-    "comments",
-    "history",
-    "impact",
-    "tighten",
-    "pipeline",
-  ]);
-  registerCommand("view.setMobileMode", (args) => {
-    const mode = args.mode;
-    if (typeof mode !== "string" || !MODES.has(mode as MobileMode)) {
-      return { status: "disabled", reason: "mode required" };
-    }
-    const dest = args.destination;
-    if (typeof dest === "string") {
-      if (!DESTINATIONS.has(dest as MoreDestination)) {
-        return { status: "disabled", reason: "destination unknown" };
-      }
-      useDawStore.getState().setMoreDestination(dest as MoreDestination);
-    } else {
-      useDawStore.getState().setMobileMode(mode as MobileMode);
-    }
+  registerCommand("view.toggleScript", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    if (s.stage !== "edit") return NOT_EDIT;
+    s.setScriptCollapsed(!s.scriptCollapsed);
+    s.announceStatus(s.scriptCollapsed ? "Script shown" : "Script hidden");
+    return { status: "ok" };
+  });
+
+  registerCommand("view.scriptFocus", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    if (s.stage !== "edit") return NOT_EDIT;
+    s.setScriptFocus(!s.scriptFocus);
+    s.announceStatus(s.scriptFocus ? "Script focus off" : "Script focus on");
     return { status: "ok" };
   });
 
   registerCommand("view.waveformZoomIn", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.nudgeWaveformAmp("in");
     const amp = useDawStore.getState().waveformAmpZoom;
     s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);
@@ -88,9 +105,7 @@ export function registerViewCommands(): void {
 
   registerCommand("view.waveformZoomOut", () => {
     const s = useDawStore.getState();
-    if (!s.project) {
-      return { status: "disabled", reason: "No project" };
-    }
+    if (!s.project) return NO_PROJECT;
     s.nudgeWaveformAmp("out");
     const amp = useDawStore.getState().waveformAmpZoom;
     s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);
@@ -137,7 +152,8 @@ export function registerTranscriptViewCommands(): void {
     const state = useDawStore.getState();
     if (!state.project || isShareProjectKey(state.projectPath))
       return { status: "disabled", reason: "Host project required" };
-    state.setActiveTab("transcript");
+    state.openStage("edit");
+    state.setScriptCollapsed(false);
     useDawStore
       .getState()
       .setTranscriptFindReplaceOpen(!state.chrome.transcriptFindReplaceOpen);

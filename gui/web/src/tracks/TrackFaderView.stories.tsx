@@ -32,9 +32,10 @@ const meta: Meta<typeof TrackFaderView> = {
   decorators: [
     (Story, context) => (
       <div
-        className="daw-shell"
+        className="stage-frame stage-frame--desktop"
         style={{
           height: "12rem",
+          gridTemplateRows: "minmax(0, 1fr)",
           width: context.parameters.faderPhone ? "22.5rem" : "32rem",
           maxWidth: "100%",
         }}

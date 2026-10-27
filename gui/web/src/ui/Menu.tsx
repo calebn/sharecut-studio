@@ -26,7 +26,7 @@ function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   }
   const ownerDocument = trigger.ownerDocument;
   const viewport = visualViewportBox(
-    ownerDocument.querySelector(".mobile-nav"),
+    ownerDocument.querySelector(".stage-frame-tabs"),
   );
   const natural = {
     width: panel.offsetWidth,

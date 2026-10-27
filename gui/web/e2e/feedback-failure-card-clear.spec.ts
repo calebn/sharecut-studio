@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectFeedback } from "./feedback";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 
 /**
  * #1960: a failure card must not cover Listen's Play row, the dock or the mode
@@ -46,12 +47,12 @@ for (const phone of PHONES) {
           body: JSON.stringify({ detail: "Bad request" }),
         }),
       );
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       const play = page.getByRole("button", { name: "Play", exact: true });
       await expect(play).toBeVisible();
       await expectFeedback(page, /^Refresh failed/);
       const card = page.locator(".ui-toast-region--app .ui-toast");
-      const nav = page.locator(".mobile-nav");
+      const nav = page.locator(".stage-frame-tabs");
       // A short landscape window scrolls Listen's hero under the comment
       // field; bring Play into view, as a person would to press it.
       await play.scrollIntoViewIfNeeded();

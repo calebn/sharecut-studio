@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { shallow } from "zustand/shallow";
 import { executePointerCommand } from "../commands/pointer";
@@ -14,12 +8,9 @@ import {
   useWaitingMove,
 } from "../commands/undoWait";
 import { useDawStore } from "../state/dawStore";
-import {
-  documentActivityBusy,
-  subscribeDocumentActivity,
-} from "../state/documentSendOrder";
 import type { ReverseAction } from "../state/types";
 import { useDaw } from "../state/useDaw";
+import { useDocumentBusy } from "../state/useDocumentBusy";
 import type { HistoryEntryId } from "../types/project";
 import { TOAST_MS, TOAST_UNDO_MS, Toast } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -58,9 +49,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   }));
   // An edit still on its way may make this toast's entry stale once it lands.
   // A press waits for it and runs only if the entry is still the newest step.
-  const saving = useSyncExternalStore(subscribeDocumentActivity, () =>
-    documentActivityBusy(projectPath),
-  );
+  const saving = useDocumentBusy(projectPath);
   const waiting = useWaitingMove(projectPath);
   const [undoing, setUndoing] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);

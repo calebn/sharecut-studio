@@ -39,7 +39,7 @@ const widthsFor = (story: IndexEntry) =>
       : [PHONE, WIDE];
 
 /** Full-geometry stories: the shell fits the viewport; the others fit the root. */
-const SHELL_TITLES = ["Templates/Shell"];
+const SHELL_TITLES = ["Stages/Edit/Frame"];
 const ROOT_FIT_TITLES = [
   "Templates/Editor · Transcript panel",
   "Templates/Home",

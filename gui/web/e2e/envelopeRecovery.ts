@@ -5,6 +5,7 @@ import { layer } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
 type Point = { id: string; time: number; value: number };
@@ -72,8 +73,8 @@ export async function exerciseEnvelopeRecovery(
       const shell =
         width < 720 ? "phone" : width <= 1194 ? "tablet" : "desktop";
       if (shell !== "desktop") await rememberInspectorDetent(page, "half");
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
+      await openProject(page, projectPath);
+      await expect(page.locator(`.stage-frame--${shell}`)).toBeVisible();
       if (shell === "phone") await openPhoneTimeline(page);
       await layer(page, "Volume envelope", true);
       const lane = page.locator(".lane-row").first();
@@ -81,7 +82,7 @@ export async function exerciseEnvelopeRecovery(
       await expect(owner).toBeVisible();
       await setTheme(page, theme);
       const otherControl = page.getByRole("button", {
-        name: "Menu",
+        name: "View options",
         exact: true,
       });
       const geometry = () =>

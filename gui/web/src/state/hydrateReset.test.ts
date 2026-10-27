@@ -59,6 +59,10 @@ const RESET_ON_SWITCH: Reset = {
   spokenJobResultIds: [],
   envelopeSaving: [],
   feedbackToast: null,
+  stage: "edit",
+  stageViews: {},
+  openSheet: null,
+  landingSettled: false,
 };
 
 const SENTINEL = { sentinel: true };

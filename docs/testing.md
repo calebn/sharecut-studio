@@ -717,21 +717,18 @@ Bypass toggles. A control inside a closed `<details>` is not measured until it o
 The sheet's hidden detent range is the keyboard route to the drawer height; a finger
 swipes the header or taps the resize buttons. Page zoom is not that 32 px root:
 Safari Aa 200% shrinks the layout or visual viewport while rem stays 16 px, which
-the sweep never opens. `gui/web/e2e-compat/phone-transport-zoom.spec.ts` covers the
-compact transport and Listen timer at 197×329 CSS px, matching the measured
-iPhone 15 Pro Safari 200% layout viewport, and at 430×932 with a 32 px root. The
-WebKit case checks browser layout at that width; it does not reproduce native
+the sweep never opens. The compact transport and Listen timer case (`phone-transport-zoom.spec.ts`, 197×329 and 430×932 at a 32 px root) was deleted with the transport bar and Listen hero (#2292); the stage frame's phone chrome is measured through `gui/web/e2e/compactChromeFixture.ts`. A WebKit case checks browser layout at that width; it does not reproduce native
 Safari's select painting or stand for a physical iPhone. `gui/web/e2e/reachability.ts` is the measuring helper. It
 leaves out only the canvas dense targets (fade corners, trim handles, clip
 bodies, the ruler, the deselect strip, the track row's open overlay), which meet
 the floor through the dense-target pattern, the track grip, which has Move
 track up and down in the track sheet, the transcript words and their timestamps
-(inline text, #1602), and the status-bar chips, whose floor the fixed-height
-status bar waives by decision. Findings outside the swept surfaces are lines on
+(inline text, #1602), and the Stage bar badges, whose floor the header's fixed height
+waives by decision. Findings outside the swept surfaces are lines on
 #1445's Ledger. A new control that fails the sweep is
 fixed, or its class is named in that list with the equivalent control that
 replaces it. The selection surfaces themselves are covered at the unit level by
-`gui/web/src/layout/selectionSurface.test.tsx`, which renders every selection
+`gui/web/src/stage/edit/selectionSurface.test.tsx`, which renders every selection
 kind on the phone, tablet and desktop shells and asserts a non-empty body, its
 actions in the one place the shell offers them, and no range control behind a
 sheet's scrim.

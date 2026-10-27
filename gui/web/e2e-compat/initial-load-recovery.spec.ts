@@ -1,5 +1,6 @@
 import { expect, type Page, type Request, test } from "@playwright/test";
 import { assertDisposableE2eProject, e2eProjectPath } from "../e2e/env";
+import { openProject } from "../e2e/stageNav";
 
 const STATE_LOAD_TIMEOUT_MS = 30_000;
 
@@ -18,7 +19,7 @@ async function proveHungLoadRecovers(
     if (answering) await route.continue();
   });
   await page.clock.install();
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect.poll(() => stateRequests.length).toBeGreaterThan(0);
   await page.clock.runFor(STATE_LOAD_TIMEOUT_MS + 1_000);
 

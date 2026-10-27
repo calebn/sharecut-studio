@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { hit, interrupt, record, runAudit, snapshot } from "./lifecycleAudit";
+import { openPanel } from "./stageNav";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 for (const terminal of ["loss", "cancel"] as const)
@@ -61,10 +62,7 @@ test("F06 wrapped passage reversal and existing Mute action restores exact clips
 }, info) => {
   await runAudit(page, info, false, async (p, c) => {
     await page.setViewportSize({ width: 820, height: 1024 });
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .click();
+    await openPanel(page, "transcript");
     await expect(page.getByRole("button", { name: /^Correct:/ })).toBeEnabled();
     await page.getByRole("button", { name: /^Select:/ }).click();
     const words = page.locator(

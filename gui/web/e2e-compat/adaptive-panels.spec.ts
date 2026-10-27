@@ -13,6 +13,7 @@ import {
 } from "../e2e/liveProject";
 import { hostOfflineQueueCount } from "../e2e/offlineQueue";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject, saveStatus } from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, isMobile: true });
@@ -51,10 +52,7 @@ function muteAcknowledgment(
 
 async function expectMixSettled(page: Page, projectPath: string) {
   await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(0);
-  await expect(page.locator(".save-dot")).toHaveAttribute(
-    "data-save-state",
-    "saved",
-  );
+  await expect(saveStatus(page)).toHaveText("Saved");
   await expect(
     page.getByRole("region", { name: /Needs attention/ }),
   ).toBeHidden();
@@ -85,7 +83,7 @@ async function expectTouchable(page: Page, control: Locator) {
 
 for (const { theme, reducedMotion } of withAppearance([0, 1])) {
   test.describe(`${theme}`, () => {
-    test("fresh short landscape exposes both tracks and explicit panel access", async ({
+    test("fresh short landscape exposes both tracks and keeps their Mute and Solo reachable", async ({
       page,
     }) => {
       const fixture = createRelocatedE2eProject(
@@ -103,27 +101,16 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
           localStorage.setItem("daw_theme", selectedTheme);
           localStorage.setItem("sharecut.homeScreenHintDismissed", "1");
         }, theme);
-        await page.goto(`/?project=${encodeURIComponent(fixture.projectPath)}`);
+        await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
-        await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+        await expect(page.locator(".stage-frame--tablet")).toBeVisible();
         await expect(page.locator(".track-header-row")).toHaveCount(2);
+        // The stacked tablet gives the lower half to the Script; the timeline
+        // takes the whole body once the Script is hidden.
+        await page.getByRole("button", { name: "Show or hide Script" }).click();
+        await expect(page.locator(".edit-script")).toHaveCount(0);
         await page.evaluate(() => document.fonts.ready);
         const scroller = page.locator(".timeline-scroll");
-        const panels = page.getByRole("region", { name: "Editor panels" });
-        const toggle = page.locator(".layout-toggle-btn");
-        const handle = page.locator(".drawer-reopen-handle");
-        await expect(toggle).toHaveAccessibleName("Show editor panels");
-        await expect(panels).toBeHidden();
-        await page.getByRole("button", { name: "Menu", exact: true }).tap();
-        await expect(
-          page.getByRole("menuitemradio", {
-            name: "Maximize timeline",
-            exact: true,
-          }),
-        ).toHaveAttribute("aria-checked", "true");
-        await page.keyboard.press("Escape");
-        await expect(toggle).toHaveText("Panels");
-        await expect(handle).toHaveCount(0);
         await expect(scroller).toHaveJSProperty("scrollTop", 0);
         for (const track of ["reference", "guest"]) {
           const identity = page
@@ -171,39 +158,6 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
             }
           }
         }
-        await page.setViewportSize({ width: 844, height: 600 });
-        await expect(panels).toBeVisible();
-        await expect(toggle).toHaveAccessibleName("Maximize timeline");
-        await page.getByRole("button", { name: "Menu", exact: true }).tap();
-        await expect(
-          page.getByRole("menuitemradio", {
-            name: "Default layout",
-            exact: true,
-          }),
-        ).toHaveAttribute("aria-checked", "true");
-        await page.keyboard.press("Escape");
-        expect(
-          await page.evaluate(() =>
-            localStorage.getItem("sharecut.tabsCollapsed"),
-          ),
-        ).toBeNull();
-        await page.setViewportSize({ width: 844, height: 390 });
-        await expect(toggle).toHaveText("Panels");
-        await toggle.tap();
-        await expect(panels).toBeVisible();
-        await expect(toggle).toHaveAccessibleName("Maximize timeline");
-        await page.setViewportSize({ width: 844, height: 600 });
-        await page.setViewportSize({ width: 844, height: 390 });
-        await expect(panels).toBeVisible();
-        await toggle.tap();
-        await expect(panels).toBeHidden();
-        await expect(toggle).toHaveAccessibleName("Restore layout");
-        await page.reload();
-        await expect(toggle).toHaveAccessibleName("Restore layout");
-        await toggle.tap();
-        await expect(panels).toBeVisible();
-        await page.reload();
-        await expect(toggle).toHaveAccessibleName("Show editor panels");
       } finally {
         await switchE2eProject(e2eProjectPath);
         removeRelocatedE2eProject(fixture.workspaceDir);
@@ -214,7 +168,7 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
 
 for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
   test.describe(`root${rootPx} ${theme}`, () => {
-    test("adaptive Panels leaves tool rail targets clear", async ({ page }) => {
+    test("the tool strip leaves its targets clear", async ({ page }) => {
       const fixture = createRelocatedE2eProject(
         "sharecut-e2e-adaptive-rail-",
         undefined,
@@ -229,7 +183,7 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         await page.addInitScript(() =>
           localStorage.setItem("sharecut.homeScreenHintDismissed", "1"),
         );
-        await page.goto(`/?project=${encodeURIComponent(fixture.projectPath)}`);
+        await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
         await expect(page.locator(".track-header-row")).toHaveCount(2);
         await page.evaluate(() => document.fonts.ready);
@@ -237,40 +191,33 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
           html.style.fontSize = `${size}px`;
         }, rootPx);
         const controls = page.locator(
-          ".layout-toggle-btn,.tool-rail button,.editing-tool-rail button",
+          '[role="group"][aria-label="Editing tools"] button',
         );
         let visible = 0;
         for (const control of await controls.all()) {
           if (!(await control.isVisible())) continue;
           visible++;
-          expect(
-            await control.evaluate((element) => {
-              const box = element.getBoundingClientRect();
-              return [0.1, 0.5, 0.9].every((x) =>
-                [0.1, 0.5, 0.9].every((y) =>
-                  element.contains(
-                    document.elementFromPoint(
-                      box.x + box.width * x,
-                      box.y + box.height * y,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ).toBe(true);
+          const probe = await control.evaluate((element) => {
+            const box = element.getBoundingClientRect();
+            const covering = new Set<string>();
+            for (const x of [0.1, 0.5, 0.9])
+              for (const y of [0.1, 0.5, 0.9]) {
+                const hit = document.elementFromPoint(
+                  box.x + box.width * x,
+                  box.y + box.height * y,
+                );
+                if (!element.contains(hit))
+                  covering.add(`${hit?.tagName}.${hit?.className}`);
+              }
+            return {
+              label: element.getAttribute("aria-label"),
+              box: [box.x, box.y, box.width, box.height],
+              covering: [...covering],
+            };
+          });
+          expect(probe.covering, JSON.stringify(probe)).toEqual([]);
         }
         expect(visible).toBeGreaterThan(1);
-        const toggle = page.locator(".layout-toggle-btn");
-        await expect(toggle).toHaveAccessibleName("Show editor panels");
-        await expect(toggle).toHaveText("Panels");
-        await expect(page.locator(".drawer-reopen-handle")).toHaveCount(0);
-        const box = await toggle.boundingBox();
-        expect(box!.width).toBeGreaterThanOrEqual((44 * rootPx) / 16);
-        expect(box!.height).toBeGreaterThanOrEqual((44 * rootPx) / 16);
-        await toggle.tap();
-        await expect(
-          page.getByRole("region", { name: "Editor panels" }),
-        ).toBeVisible();
       } finally {
         await switchE2eProject(e2eProjectPath);
         removeRelocatedE2eProject(fixture.workspaceDir);
@@ -321,9 +268,13 @@ for (const { theme, reducedMotion } of withAppearance([0], 3)) {
             await route.fulfill({ response });
           } else await route.continue();
         });
-        await page.goto(`/?project=${encodeURIComponent(fixture.projectPath)}`);
+        await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
         await expect(page.locator(".track-header-row")).toHaveCount(2);
+        // The stacked tablet gives the lower half to the Script; the timeline
+        // takes the whole body once the Script is hidden.
+        await page.getByRole("button", { name: "Show or hide Script" }).click();
+        await expect(page.locator(".edit-script")).toHaveCount(0);
         await page.evaluate(() => document.fonts.ready);
         await expectMixSettled(page, fixture.projectPath);
         const scroller = page.locator(".timeline-scroll");

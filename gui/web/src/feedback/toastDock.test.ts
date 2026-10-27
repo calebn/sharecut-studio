@@ -90,67 +90,6 @@ describe("toastDockBottomPx (phone)", () => {
   });
 });
 
-describe("toastDockBottomPx keeps body controls clear (#1960)", () => {
-  /** 320×460: status row 0–20, dock top 295, nav 408; Listen's Play row 205–261. */
-  const short = {
-    viewportHeight: 460,
-    ceilingPx: 20,
-    floorTopsPx: [408, 295],
-    restTopPx: 408,
-    toastHeightPx: 62,
-    gapPx: 8,
-  };
-  const playRow = { top: 205, bottom: 261 };
-
-  it("moves above the Play row when the dock spot would land on it", () => {
-    const bottom = toastDockBottomPx({ ...short, keepClearPx: [playRow] });
-    expect(bottom).toBe(460 - (205 - 8));
-    expect(460 - bottom).toBeLessThanOrEqual(playRow.top);
-  });
-
-  it("keeps the dock spot when the Play row is clear of it", () => {
-    expect(
-      toastDockBottomPx({
-        ...short,
-        viewportHeight: 520,
-        floorTopsPx: [468, 355],
-        restTopPx: 468,
-        keepClearPx: [playRow],
-      }),
-    ).toBe(520 - 355 + 8);
-  });
-
-  it("moves below the Play row when there is no room above it", () => {
-    const bottom = toastDockBottomPx({
-      ...short,
-      ceilingPx: 150,
-      keepClearPx: [playRow],
-    });
-    expect(bottom).toBe(460 - (261 + 8 + 62));
-  });
-
-  it("keeps the dock spot when neither side of the Play row has room", () => {
-    expect(
-      toastDockBottomPx({
-        ...short,
-        ceilingPx: 150,
-        floorTopsPx: [408],
-        keepClearPx: [{ top: 160, bottom: 400 }],
-      }),
-    ).toBe(460 - 408 + 8);
-  });
-
-  it("clears both the pressed control and the Play row", () => {
-    // Above the Play row lands on the pressed control, so the toast goes above that.
-    const bottom = toastDockBottomPx({
-      ...short,
-      pressedPx: { top: 130, bottom: 190 },
-      keepClearPx: [playRow],
-    });
-    expect(bottom).toBe(460 - (130 - 8));
-  });
-});
-
 describe("toastDockBottomPx keeps the comment field and name step clear (#2199)", () => {
   const landscape = {
     viewportHeight: 390,
@@ -201,7 +140,7 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
     ).toBe(390 - 362 + 8);
   });
 
-  it("passes the ceiling to clear a Play row as well as the field", () => {
+  it("passes the ceiling to clear a pressed control as well as the field", () => {
     expect(
       toastDockBottomPx({
         viewportHeight: 400,
@@ -210,7 +149,7 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
         restTopPx: 380,
         toastHeightPx: 62,
         gapPx: 8,
-        keepClearPx: [{ top: 300, bottom: 370 }],
+        pressedPx: { top: 300, bottom: 370 },
         protectPx: [{ top: 200, bottom: 260 }],
       }),
     ).toBe(400 - (200 - 8));
@@ -225,10 +164,7 @@ describe("toastDockBottomPx keeps the comment field and name step clear (#2199)"
         restTopPx: 380,
         toastHeightPx: 62,
         gapPx: 8,
-        keepClearPx: [
-          { top: 0, bottom: 300 },
-          { top: 380, bottom: 400 },
-        ],
+        pressedPx: { top: 0, bottom: 300 },
         protectPx: [{ top: 300, bottom: 380 }],
       }),
     ).toBe(400 - (300 - 8));
@@ -278,19 +214,17 @@ describe("useToastDock", () => {
 
   it("docks above the crossfade rail, which a join's popover leaves over the lanes", () => {
     document.documentElement.dataset.shell = "phone";
-    const shell = box("daw-shell--phone", 0, 844);
+    const shell = box("stage-frame--phone", 0, 844);
     const region = document.createElement("div");
     const card = document.createElement("div");
     card.getBoundingClientRect = () => new DOMRect(40, 0, 310, 62);
     region.append(card);
     document.body.append(region);
     boxes.push(region);
-    box("mobile-nav", 792, 844);
-    const toolRail = box("editing-tool-rail", 732, 792);
-    shell.append(toolRail);
+    box("stage-frame-tabs", 792, 844);
+    box("stage-frame-player", 732, 792);
     box("join-edit-rail", 655, 725);
-    box("daw-shell-transport", 0, 52);
-    shell.append(...document.querySelectorAll(".daw-shell-transport"));
+    shell.append(box("stage-frame-header", 0, 52));
     const { unmount } = renderHook(() =>
       useToastDock({ current: region }, true),
     );
@@ -301,7 +235,7 @@ describe("useToastDock", () => {
     expect(bottom * 16).toBe(window.innerHeight - 655 + 8);
   });
 
-  it("moves above Listen's Play row when the dock spot would cover it", () => {
+  it("docks above the Player so a toast leaves it free", () => {
     document.documentElement.dataset.shell = "phone";
     const region = document.createElement("div");
     const card = document.createElement("div");
@@ -309,33 +243,8 @@ describe("useToastDock", () => {
     region.append(card);
     document.body.append(region);
     boxes.push(region);
-    box("mobile-nav", window.innerHeight - 52, window.innerHeight);
-    box("mobile-dock", window.innerHeight - 165, window.innerHeight - 52);
-    box(
-      "listen-hero-controls",
-      window.innerHeight - 255,
-      window.innerHeight - 199,
-    );
-    const { unmount } = renderHook(() =>
-      useToastDock({ current: region }, true),
-    );
-    const bottom = Number.parseFloat(
-      region.style.getPropertyValue("--toast-dock-bottom"),
-    );
-    unmount();
-    expect(bottom * 16).toBe(255 + 8);
-  });
-
-  it("docks above Listen's comment field so a posted comment's toast leaves the field free", () => {
-    document.documentElement.dataset.shell = "phone";
-    const region = document.createElement("div");
-    const card = document.createElement("div");
-    card.getBoundingClientRect = () => new DOMRect(40, 0, 310, 62);
-    region.append(card);
-    document.body.append(region);
-    boxes.push(region);
-    box("mobile-nav", 792, 844);
-    box("mobile-dock", 690, 792);
+    box("stage-frame-tabs", 792, 844);
+    box("stage-frame-player", 690, 792);
     const { unmount } = renderHook(() =>
       useToastDock({ current: region }, true),
     );
@@ -370,7 +279,7 @@ describe("useToastDock", () => {
     document.documentElement.dataset.shell = "tablet";
     const H = window.innerHeight;
     const { readBottom } = mountRegion();
-    box("status-bar", H - 28, H);
+    box("stage-frame-player", H - 28, H);
     box("comment-compose", H - 84, H - 36);
     expect(readBottom()).toBe(H - (H - 84) + 8);
   });
@@ -379,7 +288,7 @@ describe("useToastDock", () => {
     document.documentElement.dataset.shell = "tablet";
     const H = window.innerHeight;
     const { readBottom } = mountRegion();
-    box("status-bar", H - 28, H);
+    box("stage-frame-player", H - 28, H);
     const panel = box("panel", H - 200, H - 100);
     panel.style.overflowY = "auto";
     panel.append(box("comment-compose", H - 60, H - 10));
@@ -400,7 +309,7 @@ describe("useToastDock", () => {
       const { readBottom, card, region } = mountRegion();
       card.getBoundingClientRect = () => new DOMRect(577.5, 537, 285, 43.59375);
       region.getBoundingClientRect = () => new DOMRect(16, 537, 1408, 43.59375);
-      box("status-bar", 872, 900, 0, 1440);
+      box("stage-frame-player", 872, 900, 0, 1440);
       const inspector = box("inspector", 57, 871, 0, 1440);
       inspector.style.overflowY = "auto";
       inspector.append(
@@ -418,34 +327,23 @@ describe("useToastDock", () => {
   ])("ignores a disjoint protected %s", (className) => {
     const H = window.innerHeight;
     const { readBottom } = mountRegion();
-    box("status-bar", H - 28, H);
+    box("stage-frame-player", H - 28, H);
     box(className, H - 84, H - 36, 360, 390);
     expect(readBottom()).toBe(36);
   });
 
-  it.each(["pressed", "play"])(
-    "projects the %s control against the card",
-    (kind) => {
-      document.documentElement.dataset.shell = "phone";
-      const H = window.innerHeight;
-      const { readBottom } = mountRegion();
-      box("mobile-nav", H - 52, H);
-      const control = box(
-        kind === "play" ? "listen-hero-controls" : "",
-        H - 110,
-        H - 60,
-        360,
-        390,
-      );
-      if (kind === "pressed") {
-        control.tabIndex = 0;
-        rememberPressedControl(control);
-      }
-      expect(readBottom()).toBe(60);
-      control.getBoundingClientRect = () => new DOMRect(340, H - 110, 50, 50);
-      expect(readBottom()).toBe(118);
-    },
-  );
+  it("projects the pressed control against the card", () => {
+    document.documentElement.dataset.shell = "phone";
+    const H = window.innerHeight;
+    const { readBottom } = mountRegion();
+    box("stage-frame-tabs", H - 52, H);
+    const control = box("", H - 110, H - 60, 360, 390);
+    control.tabIndex = 0;
+    rememberPressedControl(control);
+    expect(readBottom()).toBe(60);
+    control.getBoundingClientRect = () => new DOMRect(340, H - 110, 50, 50);
+    expect(readBottom()).toBe(118);
+  });
 
   it.each([
     ["horizontal", "hidden", "visible", 360, 390, 0, 768, 36],
@@ -460,7 +358,7 @@ describe("useToastDock", () => {
     (_name, overflowX, overflowY, left, right, top, bottom, expected) => {
       vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
       const { readBottom } = mountRegion();
-      box("status-bar", 740, 768);
+      box("stage-frame-player", 740, 768);
       const panel = box("panel", top, bottom, left, right);
       panel.style.overflowX = overflowX;
       panel.style.overflowY = overflowY;
@@ -477,7 +375,7 @@ describe("useToastDock", () => {
     (width, height) => {
       const H = window.innerHeight;
       const { readBottom } = mountRegion();
-      box("status-bar", H - 28, H);
+      box("stage-frame-player", H - 28, H);
       box("comment-compose", H - 84, H - 84 + height, 40, 40 + width);
       expect(readBottom()).toBe(36);
     },
@@ -491,7 +389,7 @@ describe("useToastDock", () => {
     });
     const H = window.innerHeight;
     const { region, card } = mountRegion();
-    box("status-bar", H - 28, H);
+    box("stage-frame-player", H - 28, H);
     box("comment-compose", H - 84, H - 36, 360, 390);
     const { unmount } = renderHook(() =>
       useToastDock({ current: region }, true),

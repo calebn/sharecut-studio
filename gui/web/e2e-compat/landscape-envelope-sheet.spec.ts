@@ -6,6 +6,7 @@ import { openEnvelopeTrackDetails } from "../e2e/envelopeCreationEvidence";
 import { createRelocatedE2eProject } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
+import { openProject, saveStatus } from "../e2e/stageNav";
 
 /*
  * #1694 a phone held sideways (the short tablet shell) editing a volume
@@ -139,12 +140,11 @@ async function expectInSheet(control: Locator, label: string) {
 async function editedLaneInReach(page: Page, vp: Viewport) {
   await page.setViewportSize(vp);
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await seed(page, projectPath);
     await openEnvelope(page);
 
-    await expect(page.locator(".bottom-tabs")).toBeHidden();
     const band = await laneBand(page, TRACK_INDEX);
     expect(band.visible).toBe(band.laneHeight);
     await expectInSheet(
@@ -161,8 +161,8 @@ async function editedLaneInReach(page: Page, vp: Viewport) {
 async function formInReach(page: Page, vp: Viewport) {
   await page.setViewportSize(vp);
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await seed(page, projectPath);
     await openEnvelope(page);
     await page.getByRole("button", { name: "Add point", exact: true }).tap();
@@ -201,8 +201,8 @@ async function formInReach(page: Page, vp: Viewport) {
 async function formRuns(page: Page, vp: Viewport) {
   await page.setViewportSize(vp);
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await seed(page, projectPath);
     await openEnvelope(page);
     await page.getByRole("button", { name: "Add point", exact: true }).tap();
@@ -262,8 +262,8 @@ test("a typed envelope draft survives rotating from portrait to landscape", asyn
 }) => {
   await page.setViewportSize({ width: 430, height: 932 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame--phone")).toBeVisible();
     await openPhoneTimeline(page);
     await seed(page, projectPath);
     await openEnvelope(page);
@@ -272,50 +272,15 @@ test("a typed envelope draft survives rotating from portrait to landscape", asyn
     await page.getByLabel("Level (×)").fill("0.25");
 
     await page.setViewportSize({ width: 932, height: 430 });
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await expect(page.getByLabel("Time (seconds on timeline)")).toHaveValue(
       "7",
     );
     await expect(page.getByLabel("Level (×)")).toHaveValue("0.25");
 
     await page.setViewportSize({ width: 430, height: 932 });
-    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await expect(page.locator(".stage-frame--phone")).toBeVisible();
     await expect(page.getByLabel("Level (×)")).toHaveValue("0.25");
-  });
-});
-
-test("the bottom panel splitter can shrink a short window's default panel", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 914, height: 331 });
-  await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
-    const panels = page.getByRole("region", { name: "Editor panels" });
-    const showPanels = page.getByRole("button", {
-      name: "Show editor panels",
-      exact: true,
-    });
-    await expect(panels).toBeHidden();
-    await expect(showPanels).toBeVisible();
-    await showPanels.tap();
-    await expect(panels).toBeVisible();
-    const separator = panels.getByRole("separator", {
-      name: "Resize editor panels",
-    });
-    await expect(separator).toBeVisible();
-    const tabs = page.locator(".bottom-tabs");
-    const before = (await tabs.boundingBox())!.height;
-    const min = Number(await separator.getAttribute("aria-valuemin"));
-    const rem = await page.evaluate(() =>
-      Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
-    );
-    expect(min * rem).toBeLessThanOrEqual(before + 0.5);
-    await separator.focus();
-    await page.keyboard.press("ArrowDown");
-    const after = (await tabs.boundingBox())!.height;
-    expect(after).toBeLessThan(before);
-    await expect(panels).toBeVisible();
   });
 });
 
@@ -350,8 +315,8 @@ async function openGuestDetails(page: Page) {
 }
 
 async function openDemoEnvelope(page: Page, projectPath: string) {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame--tablet")).toBeVisible();
   await openGuestDetails(page);
   await page
     .getByRole("button", { name: "Add volume envelope", exact: true })
@@ -424,8 +389,8 @@ async function demoLaneAndFormWithKeyboard(page: Page, vp: Viewport) {
 async function demoRotationKeepsLane(page: Page, vp: Viewport) {
   await page.setViewportSize({ width: vp.height, height: vp.width });
   await withDemoProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame--phone")).toBeVisible();
     await openPhoneTimeline(page);
     await openGuestDetails(page);
     await page
@@ -436,7 +401,7 @@ async function demoRotationKeepsLane(page: Page, vp: Viewport) {
       .tap();
     await page.getByRole("button", { name: "Add point", exact: true }).tap();
     await page.setViewportSize(vp);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await expect(page.getByLabel("Level (×)")).toBeVisible();
     const label = `${vp.width}x${vp.height} after rotation`;
     await expectLaneFullyVisible(page, label);
@@ -453,8 +418,8 @@ const PHONE_VIEWPORTS: Viewport[] = [
 
 /** The phone shell (under 768 px wide) held sideways, on the demo project. */
 async function openPhoneDemoEnvelope(page: Page, projectPath: string) {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell--phone")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame--phone")).toBeVisible();
   await openPhoneTimeline(page);
   await openGuestDetails(page);
   await page
@@ -541,8 +506,8 @@ async function formLayout(
 ) {
   await page.setViewportSize(vp);
   return withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(`.stage-frame--${shell}`)).toBeVisible();
     if (shell === "phone") await openPhoneTimeline(page);
     await seed(page, projectPath);
     await openEnvelope(page);
@@ -590,8 +555,8 @@ test("914x331 idle: a touch tap on the guest track header opens its details and 
 }) => {
   await page.setViewportSize({ width: 914, height: 331 });
   await withDemoProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     const header = page.getByRole("button", {
       name: `Open track details, ${DEMO_TRACK}`,
       exact: true,
@@ -632,8 +597,8 @@ async function expectIdleMarkerPosition(
 ) {
   await page.setViewportSize(vp);
   await withDemoProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(`.stage-frame--${shell}`)).toBeVisible();
     if (shell === "phone") await openPhoneTimeline(page);
     const position = await page
       .locator(".marker-lane")
@@ -688,49 +653,57 @@ test("1024x768 idle: the marker rows stay pinned under the ruler", async ({
   await expectIdleMarkerPosition(page, { width: 1024, height: 768 }, "sticky");
 });
 
-/** The status line is on screen and exposed, with the open sheet resting on it. */
-async function expectStatusLineKept(page: Page, label: string) {
-  const bar = page.locator(".daw-shell > .status-bar");
-  await expect(bar, `${label}: status line visible`).toBeVisible();
-  await expect(
-    bar.getByRole("status"),
-    `${label}: polite live region in the accessibility tree`,
-  ).toHaveCount(1);
-  await expect(
-    bar.locator("[data-save-state]"),
-    `${label}: save state shown`,
-  ).toBeVisible();
-  const { barTop, sheetBottom, barHeight } = await page.evaluate(() => {
+/** The Player and the save state are on screen, with the open sheet resting on the Player. */
+async function expectBottomChromeKept(
+  page: Page,
+  label: string,
+  save: "status" | "alert",
+) {
+  const player = page.locator(".stage-frame-player");
+  await expect(player, `${label}: Player visible`).toBeVisible();
+  const state = saveStatus(page);
+  await expect(state, `${label}: save state shown`).toBeVisible();
+  if (save === "status")
+    await expect(
+      page.locator(".sys-app-header-host").getByRole("status"),
+      `${label}: polite live region in the accessibility tree`,
+    ).not.toHaveCount(0);
+  else
+    await expect(
+      state.getByRole("alert"),
+      `${label}: the failure is announced`,
+    ).toHaveText("Save failed");
+  const { playerTop, sheetBottom, playerHeight } = await page.evaluate(() => {
     const bar = document
-      .querySelector(".daw-shell > .status-bar")!
+      .querySelector(".stage-frame-player")!
       .getBoundingClientRect();
     const sheet = document
       .querySelector(".bottom-sheet")!
       .getBoundingClientRect();
     return {
-      barTop: bar.top,
-      barHeight: bar.height,
+      playerTop: bar.top,
+      playerHeight: bar.height,
       sheetBottom: sheet.bottom,
     };
   });
-  expect(barHeight, `${label}: status line has height`).toBeGreaterThan(0);
+  expect(playerHeight, `${label}: Player has height`).toBeGreaterThan(0);
   expect(
-    Math.abs(sheetBottom - barTop),
-    `${label}: the sheet rests on the status line`,
+    Math.abs(sheetBottom - playerTop),
+    `${label}: the sheet rests on the Player`,
   ).toBeLessThanOrEqual(1);
 }
 
-test("914x331 with the envelope sheet open: the status line, its live region and the save state stay", async ({
+test("914x331 with the envelope sheet open: the Player and the save state stay", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 914, height: 331 });
   await withDemoProject(async (projectPath) => {
     await openDemoEnvelope(page, projectPath);
-    await expectStatusLineKept(page, "saved");
+    await expectBottomChromeKept(page, "saved", "status");
   });
 });
 
-test("914x331 with a failed save and the envelope sheet open: the status line keeps the save state and the sheet rests on it", async ({
+test("914x331 with a failed save and the envelope sheet open: the save state stays and the sheet rests on the Player", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -744,11 +717,7 @@ test("914x331 with a failed save and the envelope sheet open: the status line ke
   await page.setViewportSize({ width: 914, height: 331 });
   await withDemoProject(async (projectPath) => {
     await openDemoEnvelope(page, projectPath);
-    await expect(page.locator(".status-bar [data-save-state]")).toHaveAttribute(
-      "data-save-state",
-      "failed",
-    );
-    await expectStatusLineKept(page, "failed save");
+    await expectBottomChromeKept(page, "failed save", "alert");
   });
 });
 
@@ -757,8 +726,8 @@ test("a soloed track keeps Clear solo tappable at the top of the timeline at 914
 }) => {
   await page.setViewportSize({ width: 914, height: 331 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await openProject(page, projectPath);
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await seed(page, projectPath);
     await page
       .getByRole("button", { name: `Solo ${TRACK}`, exact: true })

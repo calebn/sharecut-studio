@@ -14,6 +14,10 @@
   flex: 0 0 auto;
 }
 
+.ui-avatar[data-initials]::before {
+  content: attr(data-initials);
+}
+
 .ui-avatar--sm {
   inline-size: 1.25rem;
   block-size: 1.25rem;
@@ -213,10 +217,6 @@
   .follow-banner-stop {
     min-block-size: var(--touch-min);
     flex: 0 0 auto;
-  }
-
-  .mobile-more-hub [role="menuitem"] {
-    min-block-size: var(--touch-min);
   }
 }
 

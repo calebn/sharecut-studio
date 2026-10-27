@@ -6,6 +6,7 @@ import {
   waiveRefineGate,
 } from "./documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 const CLIENT_ID = "e2e-edit-boundary-archive";
 
@@ -13,7 +14,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
   page,
 }) => {
   assertDisposableE2eProject(e2eProjectPath);
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );
@@ -50,9 +51,8 @@ test("rolling a cut boundary restores an archived transcript word through histor
     );
     expect(archivedWord?.word_index).toBeLessThan(0);
 
-    const panels = page.getByLabel("Editor panels");
-    await panels.getByRole("tab", { name: "Transcript", exact: true }).click();
-    const annotate = panels.locator(".transcript-annotate-btn");
+    await openPanel(page, "transcript");
+    const annotate = page.locator(".transcript-annotate-btn");
     await expect(annotate).toBeVisible();
     if ((await annotate.getAttribute("aria-pressed")) !== "true") {
       await annotate.click();
@@ -122,10 +122,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
       activeWord,
       "dissatisfied is restored as an active mappable word",
     ).toBeTruthy();
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .click();
+    await openPanel(page, "transcript");
     await expect(
       page
         .locator("[data-transcript-word]")

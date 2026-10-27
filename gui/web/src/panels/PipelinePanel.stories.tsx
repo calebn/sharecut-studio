@@ -87,13 +87,13 @@ export const SettingsUnavailable: Story = {
 };
 
 export const Phone: Story = {
-  parameters: { ...loaded, dawShellPhone: true },
+  parameters: { ...loaded, framePhone: true },
 };
 
 export const PhoneStepParameters: Story = {
   parameters: {
     episode: { ...loaded.episode, state: { shellBreakpoint: "phone" } },
-    dawShellPhone: true,
+    framePhone: true,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

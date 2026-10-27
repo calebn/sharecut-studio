@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { goToStage, openProject, saveStatus } from "./stageNav";
 
 const failedSaveInit = () => {
   // An unreadable offline queue is the Failed save state, with the Needs attention banner up.
@@ -8,11 +9,13 @@ const failedSaveInit = () => {
   };
 };
 
-const MODES = ["Listen", "Timeline", "Text", "More"] as const;
-
 async function openPhone(
   page: Page,
-  { failed, rootPx }: { failed: boolean; rootPx?: number },
+  {
+    failed,
+    rootPx,
+    stage,
+  }: { failed: boolean; rootPx?: number; stage?: "edit" | "review" },
 ) {
   if (failed) await page.addInitScript(failedSaveInit);
   if (rootPx) {
@@ -22,28 +25,8 @@ async function openPhone(
       });
     }, rootPx);
   }
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator("[data-save-state]")).toBeVisible();
-}
-
-function mode(page: Page, name: (typeof MODES)[number]) {
-  return page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("button", { name, exact: true });
-}
-
-/** Distance from the mode body's top edge to the first thing the mode draws in it. */
-async function contentOffset(page: Page) {
-  return page.evaluate(() => {
-    const body = document.querySelector(".mobile-mode-body");
-    const first = [...(body?.children ?? [])].find(
-      (child) =>
-        !child.classList.contains("mobile-status-row") &&
-        child.getBoundingClientRect().height > 0,
-    );
-    if (!body || !first) return null;
-    return first.getBoundingClientRect().top - body.getBoundingClientRect().top;
-  });
+  await openProject(page, e2eProjectPath, { stage });
+  await expect(saveStatus(page)).toBeVisible();
 }
 
 test.describe("phone save attention", () => {
@@ -53,62 +36,44 @@ test.describe("phone save attention", () => {
     hasTouch: true,
   });
 
-  test("a Failed light moves no mode content and takes no tap", async ({
-    browser,
+  test("a Failed save keeps Retry in the header and the stage reachable", async ({
+    page,
   }) => {
-    const offsets: Record<string, Array<number | null>> = {};
-    for (const failed of [false, true]) {
-      const context = await browser.newContext({
-        viewport: { width: 375, height: 667 },
-        isMobile: true,
-        hasTouch: true,
-      });
-      const page = await context.newPage();
-      await openPhone(page, { failed });
-      const state = failed ? "failed" : "saved";
-      await expect(page.locator("[data-save-state]")).toHaveAttribute(
-        "data-save-state",
-        state,
+    await openPhone(page, { failed: true });
+    const status = page.getByRole("group", { name: "Save status" });
+    await expect(status).toBeVisible();
+    const retry = status.getByRole("button", { name: /^Retry/ });
+    await expect(retry).toBeVisible();
+    const box = (await retry.boundingBox())!;
+    const hit = await retry.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const at = document.elementFromPoint(
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
       );
-      offsets[state] = [];
-      for (const name of MODES) {
-        await mode(page, name).click();
-        offsets[state].push(await contentOffset(page));
-        const box = (await page.locator("[data-save-state]").boundingBox())!;
-        const below = await page.evaluate(
-          ({ x, y }) =>
-            document.elementFromPoint(x, y)?.closest("[data-save-state]") !==
-            null,
-          { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-        );
-        expect(below, `${state} light in ${name} takes no tap`).toBe(false);
-      }
-      await context.close();
-    }
-    expect(
-      offsets.failed,
-      "mode content sits where it does when Saved",
-    ).toEqual(offsets.saved);
+      return at === element || (at !== null && element.contains(at));
+    });
+    expect(hit, "Retry takes a tap").toBe(true);
+    expect(box.y + box.height).toBeLessThanOrEqual(667);
+    await goToStage(page, "review");
+    await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
   });
 
-  test("More keeps Search commands tappable while Saved", async ({ page }) => {
+  test("the Palette stays tappable while Saved", async ({ page }) => {
     await openPhone(page, { failed: false });
-    await mode(page, "More").click();
-    const search = page.locator(".mobile-more-search");
-    await expect(search).toBeVisible();
-    await search.tap();
+    await page.getByRole("button", { name: /^Palette\b/ }).tap();
     await expect(
       page.getByRole("combobox", { name: "Search commands" }),
     ).toBeFocused();
   });
 
-  test("Listen takes a tap just below the Saved light", async ({ page }) => {
+  test("Review takes a tap just below the Saved light", async ({ page }) => {
     await openPhone(page, { failed: false });
-    await mode(page, "Listen").click();
-    const box = (await page.locator("[data-save-state]").boundingBox())!;
+    await goToStage(page, "review");
+    const box = (await saveStatus(page).boundingBox())!;
     const reaches = await page.evaluate(
       ({ x, y }) =>
-        document.elementFromPoint(x, y)?.closest("[data-save-state]") === null,
+        document.elementFromPoint(x, y)?.closest(".sys-save") === null,
       { x: box.x + box.width / 2, y: box.y + box.height + 12 },
     );
     expect(reaches).toBe(true);
@@ -122,37 +87,39 @@ test.describe("phone save attention in a short window at twice the text size", (
     hasTouch: true,
   });
 
-  test("Listen keeps a mode body, the banner and the navigation on screen", async ({
+  test("Review keeps a stage body, the banner and the Stage menu on screen", async ({
     page,
   }) => {
-    await openPhone(page, { failed: true, rootPx: 32 });
-    await mode(page, "Listen").click();
+    // At twice the text size this window folds the tab bar into the header's
+    // Stage menu, so the header, banner and mini Player leave the stage a body.
+    await openPhone(page, { failed: true, rootPx: 32, stage: "review" });
     const geometry = await page.evaluate(() => {
       const rect = (selector: string) => {
         const box = document.querySelector(selector)?.getBoundingClientRect();
         return box && { top: box.top, bottom: box.bottom, height: box.height };
       };
       return {
-        body: rect(".mobile-mode-body"),
-        banner: rect(".daw-shell-banners"),
-        nav: rect(".mobile-nav"),
-        shellScroll: document.querySelector(".daw-shell")?.scrollTop,
+        body: rect(".stage-frame-body"),
+        banner: rect(".stage-frame-banners"),
+        stageMenu: rect(".sys-header-stage-button"),
+        frameScroll: document.querySelector(".stage-frame")?.scrollTop,
         height: window.innerHeight,
       };
     });
     expect(geometry.body?.height ?? 0).toBeGreaterThan(0);
     expect(geometry.banner?.top ?? -1).toBeGreaterThanOrEqual(0);
-    expect(geometry.nav?.bottom ?? Infinity).toBeLessThanOrEqual(
+    expect(
+      geometry.stageMenu?.height ?? 0,
+      "the Stage menu shows",
+    ).toBeGreaterThan(0);
+    expect(geometry.stageMenu?.bottom ?? Infinity).toBeLessThanOrEqual(
       geometry.height,
     );
-    expect(geometry.shellScroll, "the shell does not scroll").toBe(0);
-    await mode(page, "Text").click();
-    await expect(mode(page, "Text")).toHaveAttribute("aria-pressed", "true");
+    expect(geometry.frameScroll, "the frame does not scroll").toBe(0);
   });
 
   test("the banner's details open with Retry reachable", async ({ page }) => {
-    await openPhone(page, { failed: true, rootPx: 32 });
-    await mode(page, "Listen").click();
+    await openPhone(page, { failed: true, rootPx: 32, stage: "review" });
     const attention = page.getByRole("region", {
       name: /Saved edits could not be read/,
     });

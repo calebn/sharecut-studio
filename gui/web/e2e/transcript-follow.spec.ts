@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { COMFORT_BAND } from "../src/panels/transcriptFollow";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 type Word = Record<string, unknown>;
 
@@ -70,14 +71,9 @@ async function openFollowedTranscript(page: Page): Promise<Locator> {
       await route.fulfill({ response, json: body });
     },
   );
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  const compact = (page.viewportSize()?.width ?? 0) < 720;
-  await page
-    .getByRole(compact ? "button" : "tab", {
-      name: compact ? "Text" : "Transcript",
-      exact: true,
-    })
-    .click();
+  await openProject(page, e2eProjectPath);
+
+  await openPanel(page, "transcript");
   const list = page.locator(".transcript-list");
   await expect(list.locator("[data-transcript-word]")).toHaveCount(
     LANES.length * UTTERANCES_PER_LANE * WORDS_PER_UTTERANCE,
@@ -246,8 +242,8 @@ for (const viewport of viewports) {
         const activeWord = list.locator(
           '.utterance-word.active[data-track-id="reference"]',
         );
-        await expect(activeWord).toBeInViewport({ ratio: 1 });
-        await page.getByRole("button", { name: "Taller", exact: true }).click();
+        // The Taller button went with the bottom splitter (#2292); the stacked
+        // Script pane is half the frame, and the word must be fully inside it.
         await expect(activeWord).toBeInViewport({ ratio: 1 });
       }
     });

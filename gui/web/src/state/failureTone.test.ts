@@ -8,8 +8,8 @@ const FAILURE_WORDING =
 
 /** Disabled-by-policy reasons ("Select a range"); a handler's own failure sets `announced`. */
 const POLICY_REASONS = [
-  "layout/CommandPalette.tsx",
-  "layout/SplitSpeakersDialog.tsx",
+  "stage/dialogs/CommandPalette.tsx",
+  "stage/dialogs/SplitSpeakersDialog.tsx",
 ];
 
 /** Every `announceStatus(...)` call in production source, with its text. */

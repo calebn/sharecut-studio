@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -14,7 +15,7 @@ test.describe("Timeline fade curves", () => {
   test("saves each focused keyboard burst once and restores it with one Undo", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     const block = page.locator(".lane-row").first().locator(".clip-block");
     await expect(block).toHaveCount(1);
     const clipId = await block.getAttribute("data-clip-id");
@@ -140,7 +141,7 @@ test.describe("Timeline fade curves", () => {
   test("drags a hover-revealed corner handle into a drawn fade", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -184,7 +185,7 @@ test.describe("Timeline fade curves", () => {
   test("reveals trim strips and zero fade corners on keyboard focus, both Tab directions", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -216,7 +217,7 @@ test.describe("Timeline fade curves", () => {
   test("keeps the join glyph clear of the fade corners, the roll seam and the marker lane at any root font size", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -282,6 +283,20 @@ test.describe("Timeline fade curves", () => {
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "24px";
       });
+      // The side columns give way before the timeline drops under its floor.
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const probe = document.createElement("div");
+            probe.style.inlineSize = "var(--stage-lane-min)";
+            document.body.append(probe);
+            const floor = probe.getBoundingClientRect().width;
+            probe.remove();
+            const col = document.querySelector(".edit-timeline-col");
+            return (col?.getBoundingClientRect().width ?? 0) >= floor - 1;
+          }),
+        )
+        .toBe(true);
       await expectBadgeClear();
 
       // Two clips with a drawn join glyph and the seam clip's revealed zero fade corners.

@@ -154,14 +154,14 @@ it.each(["draft", "mode", "epoch"] as const)(
 it("restores on unmount without undoing its initial seek or reopening Comments", () => {
   const { ruler, unmount, captured, onSeek } = setup();
   fireEvent.pointerDown(ruler, { pointerId: 1, clientX: 40, button: 0 });
-  act(() => useDawStore.getState().setActiveTab("transcript"));
+  act(() => useDawStore.getState().openStage("edit"));
   unmount();
   expect(captured.size).toBe(0);
   expect(useDawStore.getState().commentDraft).toEqual({
     startSec: 2,
     endSec: null,
   });
-  expect(useDawStore.getState().activeTab).toBe("transcript");
+  expect(useDawStore.getState().stage).toBe("edit");
   expect(onSeek).toHaveBeenCalledExactlyOnceWith(4);
 });
 
@@ -190,4 +190,13 @@ it("preserves global Escape tool exit without resurrecting the prior draft", () 
     keymap.unmount();
     clearRegisteredCommands();
   }
+});
+
+it("announces where the comment lands, a span included, in comment mode", () => {
+  const { ruler } = setup();
+  expect(ruler.getAttribute("aria-valuetext")).toBe("Comment at 0:02");
+  act(() => {
+    useDawStore.getState().setCommentDraft({ startSec: 4, endSec: 10 });
+  });
+  expect(ruler.getAttribute("aria-valuetext")).toBe("Comment at 0:04–0:10");
 });

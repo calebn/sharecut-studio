@@ -129,7 +129,8 @@ describe("AppliedEditInspector restore", () => {
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open History" }));
-    expect(useDawStore.getState().activeTab).toBe("history");
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(useDawStore.getState().openSheet).toBe("history");
     expect(restoreAppliedEdit).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
