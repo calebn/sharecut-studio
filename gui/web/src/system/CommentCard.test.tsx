@@ -233,13 +233,33 @@ describe("CommentCard", () => {
         />,
       );
       expect(screen.getByText("Not sent")).toBeVisible();
-      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "Try again: comment by Rosa" }),
+      );
       expect(onRetry).toHaveBeenCalledOnce();
       expect(onRetry).toHaveBeenCalledWith();
-      await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "Remove: comment by Rosa" }),
+      );
       expect(onRemove).toHaveBeenCalledOnce();
       expect(onRemove).toHaveBeenCalledWith();
       expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
+    });
+
+    it("names Try again and Remove by their comment, keeping the visible words first", () => {
+      render(
+        <CommentCard
+          comment={base}
+          pending={{ state: "failed", onRetry: noop, onRemove: noop }}
+          onResolve={noop}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: /^Try again: comment by Rosa$/ }),
+      ).toHaveTextContent("Try again");
+      expect(
+        screen.getByRole("button", { name: /^Remove: comment by Rosa$/ }),
+      ).toHaveTextContent("Remove");
     });
 
     it("shows no reply field and static action items on a pending parent", () => {
