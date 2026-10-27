@@ -81,7 +81,6 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/InlineWordEditor.tsx",
   "transcript/TranscriptWordbar.tsx",
   "transcript/TranscriptSpeakerEditor.tsx",
-  "layout/BottomTabsSplitterView.tsx",
   // The separator pattern: arrows resize the Script pane, Enter resets it.
   "stage/edit/ScriptDivider.tsx",
   "tracks/TrackHeaderView.tsx",

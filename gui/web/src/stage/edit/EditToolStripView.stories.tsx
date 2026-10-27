@@ -30,7 +30,7 @@ const meta: Meta<typeof EditToolStripView> = {
     docs: {
       description: {
         component:
-          "Select / Blade, Comment mode and Select range in the timeline corner, over the track headers. The strip keeps today's tools until #2294 replaces them (Alt-click split, C for Comment, the Action bar); it adds no behaviour of its own.\n\n**Motion.** None: a pressed tool changes its chip in one frame.",
+          "Select / Blade, Comment mode and Select range in the timeline corner, over the track headers. It adds no behaviour of its own.\n\n**Motion.** None: a pressed tool changes its chip in one frame.",
       },
     },
   },

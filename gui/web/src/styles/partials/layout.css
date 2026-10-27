@@ -874,7 +874,7 @@ html[data-shell="phone"] .guest-attention-dismiss {
 
 /* Landing places for focus after Clear solo when no S button survives; a
    region ring would only be noise. */
-:is(.track-headers, .track-mix, .mobile-mode-body):focus {
+:is(.track-headers, .track-mix):focus {
   outline: none;
 }
 
@@ -1037,11 +1037,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-}
-
-.track-badges {
-  display: flex;
-  gap: var(--space-1);
 }
 
 .badge {

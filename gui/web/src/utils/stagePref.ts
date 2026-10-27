@@ -2,6 +2,7 @@
  * Per-browser stage conveniences: the stage last used in each project and the
  * Script pane state. Not project state (see `docs/persistence.md`).
  */
+import { isShareProjectKey } from "../shareMode";
 import { STAGE_IDS, type StageId } from "../types/stage";
 import { readLocal, removeLocal, writeLocal } from "./storage";
 
@@ -10,12 +11,15 @@ const SCRIPT_COLLAPSED_STORAGE_KEY = "sharecut.scriptCollapsed";
 const SCRIPT_FOCUS_STORAGE_KEY = "sharecut.scriptFocus";
 
 export function readLastStage(projectPath: string): StageId | null {
+  if (isShareProjectKey(projectPath)) return null;
   const raw = readLocal(LAST_STAGE_PREFIX + projectPath);
   return STAGE_IDS.find((id) => id === raw) ?? null;
 }
 
+/** A share key embeds the bearer token, so a guest never gets a storage key. */
 export function writeLastStage(projectPath: string, stage: StageId): void {
-  if (projectPath) writeLocal(LAST_STAGE_PREFIX + projectPath, stage);
+  if (projectPath && !isShareProjectKey(projectPath))
+    writeLocal(LAST_STAGE_PREFIX + projectPath, stage);
 }
 
 function readFlag(key: string): boolean {

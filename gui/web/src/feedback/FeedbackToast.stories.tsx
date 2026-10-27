@@ -99,9 +99,8 @@ export const Failure: Story = {
   },
 };
 
-export const PhoneAboveTabBar: Story = {
+export const PhoneAbovePlayer: Story = {
   globals: { viewport: { value: "mobile360", isRotated: false } },
-  parameters: { episode: { state: { mobileMode: "timeline" } } },
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement.ownerDocument.body).findByText(

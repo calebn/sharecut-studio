@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { shareProjectKey } from "../shareMode";
 import { minimalProject } from "../test/fixtures";
 import { readLastStage } from "../utils/stagePref";
 import { useDawStore } from "./dawStore";
@@ -157,6 +158,21 @@ describe("stageSlice", () => {
     expect(readLastStage("/tmp/stage-a.json")).toBe("deliver");
     expect(readLastStage("/tmp/other.json")).toBeNull();
     expect(st().landingSettled).toBe(true);
+  });
+
+  it("never writes a guest's share token into localStorage", () => {
+    useDawStore.setState({ projectPath: shareProjectKey("SECRETTOKEN") });
+    st().openStage("review");
+    expect(readLastStage(shareProjectKey("SECRETTOKEN"))).toBeNull();
+    expect(
+      Object.keys(localStorage).filter((k) => k.includes("SECRETTOKEN")),
+    ).toEqual([]);
+    useDawStore.setState({
+      projectPath: "/tmp/stage-a.json",
+      guestMode: "view",
+    });
+    st().openStage("edit");
+    expect(Object.keys(localStorage)).toEqual([]);
   });
 
   it("clears stage state on a project switch but not on a refresh", () => {

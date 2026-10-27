@@ -11,7 +11,7 @@ export type KeymapOverrides = Record<string, string[]>;
 
 let memory: KeymapOverrides | null = null;
 
-/** Remaps saved under command ids that were renamed or removed; null = removed (the dock layouts went with the old shell). */
+/** Remaps saved under command ids that were renamed or removed; null = removed. */
 const RENAMED_COMMANDS: Readonly<Record<string, string | null>> = {
   "focus.default": null,
   "focus.timeline": null,

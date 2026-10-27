@@ -19,7 +19,7 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 
 /**
  * The eye sheet: the view toggles and scales, wired to their commands and
- * state. #2294 trims it; pending, comments and markers stay toggles until then.
+ * state.
  */
 export function ViewSheet() {
   const {

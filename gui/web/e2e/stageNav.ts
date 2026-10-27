@@ -84,37 +84,41 @@ export async function waitForFrame(page: Page): Promise<void> {
 /** Go to `stage` by its Stage bar tab and wait for it to be the open one. */
 export async function goToStage(page: Page, stage: Stage): Promise<void> {
   // A window too short or too narrow for the tab bar folds it into the
-  // header's Stage menu. Right after a resize it is one or the other.
-  const menu = page.getByRole("button", { name: /^Stage menu, / });
-  await expect(menu.or(stageTab(page, stage))).toBeVisible();
-  if (await menu.isVisible()) {
-    if (
-      !(await menu.getAttribute("aria-label"))?.endsWith(STAGE_LABEL[stage])
-    ) {
-      await menu.click();
-      await page
-        .getByRole("menuitem", {
-          name: new RegExp(`^${STAGE_LABEL[stage]}\\b`),
-        })
-        .click();
+  // header's Stage menu, and the fold is decided by measuring the frame, so it
+  // can flip while the page settles. Retry the whole step against whichever
+  // control the frame shows now.
+  await expect(async () => {
+    const menu = page.getByRole("button", { name: /^Stage menu, / });
+    const tab = stageTab(page, stage);
+    await expect(menu.or(tab)).toBeVisible({ timeout: 2000 });
+    if (await menu.isVisible()) {
+      if (
+        !(await menu.getAttribute("aria-label"))?.endsWith(STAGE_LABEL[stage])
+      ) {
+        await menu.click({ timeout: 2000 });
+        await page
+          .getByRole("menuitem", {
+            name: new RegExp(`^${STAGE_LABEL[stage]}\\b`),
+          })
+          .click({ timeout: 2000 });
+      }
+      await expect(menu).toHaveAttribute(
+        "aria-label",
+        `Stage menu, ${STAGE_LABEL[stage]}`,
+        { timeout: 2000 },
+      );
+    } else {
+      if ((await tab.getAttribute("aria-selected")) !== "true") {
+        await tab.click({ timeout: 2000 });
+      }
+      await expect(tab).toHaveAttribute("aria-selected", "true", {
+        timeout: 2000,
+      });
     }
-    await expect(menu).toHaveAttribute(
-      "aria-label",
-      `Stage menu, ${STAGE_LABEL[stage]}`,
-    );
     await expect(
       page.getByRole("main", { name: STAGE_LABEL[stage] }),
-    ).toBeVisible();
-    return;
-  }
-  const tab = stageTab(page, stage);
-  if ((await tab.getAttribute("aria-selected")) !== "true") {
-    await tab.click();
-  }
-  await expect(tab).toHaveAttribute("aria-selected", "true");
-  await expect(
-    page.getByRole("main", { name: STAGE_LABEL[stage] }),
-  ).toBeVisible();
+    ).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15000 });
 }
 
 /**
