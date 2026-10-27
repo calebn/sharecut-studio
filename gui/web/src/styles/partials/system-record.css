@@ -435,3 +435,33 @@
   margin: 0;
   padding: 0;
 }
+
+/* Room alert slot: one 44 px row. Every alert row in the slot, the top one and
+   the rest, draws its glyph at 20 px here rather than the 16 px of other rows. */
+.sys-room-alert-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sys-room-alert-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sys-room-alert-live {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.sys-room-alert-slot .sys-status--alert .sys-glyph > svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.sys-room-alert-more {
+  flex: none;
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+}
