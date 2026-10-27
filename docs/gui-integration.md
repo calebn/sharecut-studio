@@ -137,7 +137,7 @@ form and disclosure state. Browser coverage lives in
 
 - **Headline / phase** from `message` (primary when a bar would be dishonest)
 - **Determinate bar** only when `total` is set (`role="progressbar"` + `aria-valuenow` / `aria-valuemax`); otherwise a pulse + `role="status"` live summary (no `n/?` fake units)
-- **Elapsed** as a companion; Cancel remains on the Pipeline tab
+- **Elapsed** as a companion; Cancel remains on the Prepare stage
 - **Failed** vs **cancelled** are distinct status labels
 - **Stale:** if `now − last_progress_at > 15s` while running, chip/panel show “last update Ns ago” next to the headline (dim companion, not accent). The pulse stays; elapsed still ticks as a companion; no determinate bar movement. A new domain event or job-reporter heartbeat clears the copy. Pipeline tab live region does not include the ticking stale string (one-shot stall/resume announce only). `last_progress_at` is wall-clock `time.time()` on the Studio host vs client `Date.now()` — same-machine Studio is fine; a remote client clock ahead by more than 15s can show false stale.
 

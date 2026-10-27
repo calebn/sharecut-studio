@@ -1,17 +1,9 @@
-import { resolveSelectionRange } from "../edit/rangeSelection";
 import type {
   ExactRangeTarget,
   HistoryEntryId,
   ProjectView,
-  Selection,
   TrackView,
 } from "../types/project";
-import { formatTimeShort } from "./time";
-import { clipsForTrack, timelinePointToSource } from "./timebase";
-
-/** Bounds the host's speaker count (the server enforces the same range). */
-export const MIN_SPLIT_SPEAKERS = 2;
-export const MAX_SPLIT_SPEAKERS = 8;
 
 /** Why Split speakers cannot run on `track`, or null when it can. */
 export function splitSpeakersBlocker(
@@ -169,141 +161,12 @@ export function parseSplitSpeakersResult(
   };
 }
 
-/** A few seconds of one speaker, kept as the exact range that was selected. */
-export type VoiceSample = {
-  /** The selection as it was when marked, so Listen can play it again. */
-  target: ExactRangeTarget;
-  /** The same seconds on the recording's own clock, which is what enrollment takes. */
-  sourceStart: number;
-  sourceEnd: number;
-};
-
-/** A sample shorter than this is too little to recognise a voice by. */
-export const MIN_VOICE_SAMPLE_SEC = 1;
-/** Float noise allowed between a range's length on the timeline and on the recording. */
-const SAMPLE_EDGE_EPS_SEC = 1e-3;
-
-/**
- * The selected range as a voice sample of `trackId`, or why it cannot be one.
- * Enrollment spans are source seconds (`TOOL_TIMEBASE.speaker_split_tool`), so the
- * timeline range is mapped through the track's clip.
- */
-export function voiceSampleFromSelection(
-  project: ProjectView | null,
-  selection: Selection,
-  trackId: string | null,
-): { sample: VoiceSample; reason: null } | { sample: null; reason: string } {
-  const none = (reason: string) => ({ sample: null, reason });
-  if (!project || trackId == null) return none("Open a project");
-  const { targets, reason } = resolveSelectionRange(project, selection);
-  const target = targets.length === 1 ? targets[0]! : null;
-  if (!target) return none(reason ?? "Select a range on the timeline first");
-  if (target.intervals.length !== 1)
-    return none("Select one stretch of the track");
-  if (target.track_ids.length !== 1 || target.track_ids[0] !== trackId)
-    return none("Select the range on the track being split only");
-  const { start, end } = target.intervals[0]!;
-  if (end - start < MIN_VOICE_SAMPLE_SEC)
-    return none(
-      `Select at least ${MIN_VOICE_SAMPLE_SEC} second of one person talking`,
-    );
-  const clips = clipsForTrack(project.clips?.tracks, trackId);
-  const first = clips.find(
-    (clip) => start + 1e-9 >= clip.timeline_start && start < clip.timeline_end,
-  );
-  if (!first) return none("Select audio that is on the track");
-  // One clip must hold the whole range: a gap between clips is audio that was removed.
-  if (end - SAMPLE_EDGE_EPS_SEC >= first.timeline_end)
-    return none("The range crosses a cut. Select within one stretch.");
-  const sourceStart = timelinePointToSource(clips, start);
-  const lastInside = timelinePointToSource(clips, end - SAMPLE_EDGE_EPS_SEC);
-  if (sourceStart == null || lastInside == null)
-    return none("Select audio that is on the track");
-  const sourceEnd = lastInside + SAMPLE_EDGE_EPS_SEC;
-  const ms = (sec: number) => Math.round(sec * 1000) / 1000;
-  if (Math.abs(sourceEnd - sourceStart - (end - start)) > SAMPLE_EDGE_EPS_SEC)
-    return none("The range crosses a cut. Select within one stretch.");
-  return {
-    sample: { target, sourceStart: ms(sourceStart), sourceEnd: ms(sourceEnd) },
-    reason: null,
-  };
-}
-
-/** `{name: [[start, end]]}` in source seconds for the speakers that have a sample. */
-export function splitSpeakersEnrollment(
-  names: readonly string[] | null,
-  samples: ReadonlyArray<VoiceSample | null | undefined>,
-): Record<string, Array<[number, number]>> | null {
-  const out: Record<string, Array<[number, number]>> = {};
-  names?.forEach((name, i) => {
-    const sample = samples[i];
-    if (sample) out[name] = [[sample.sourceStart, sample.sourceEnd]];
-  });
-  return Object.keys(out).length ? out : null;
-}
-
-/**
- * Names to send: what was typed, "Speaker N" for blanks, null when nothing was typed.
- * A sample belongs to a name, so `named` asks for names even when none were typed.
- */
-export function splitSpeakerNames(
-  typed: readonly string[],
-  count: number,
-  named = false,
-): string[] | null {
-  const names = Array.from({ length: count }, (_, i) => typed[i]?.trim() ?? "");
-  if (!named && names.every((name) => name === "")) {
-    return null;
-  }
-  return names.map((name, i) => name || `Speaker ${i + 1}`);
-}
-
-export function splitSpeakersRequestBlocker(
-  count: number | null,
-  names: readonly string[] | null,
-): string | null {
-  if (
-    count == null ||
-    !Number.isInteger(count) ||
-    count < MIN_SPLIT_SPEAKERS ||
-    count > MAX_SPLIT_SPEAKERS
-  ) {
-    return `Enter ${MIN_SPLIT_SPEAKERS} to ${MAX_SPLIT_SPEAKERS} speakers.`;
-  }
-  if (names && new Set(names.map((n) => n.toLowerCase())).size < names.length) {
-    return "Give each speaker a different name.";
-  }
-  return null;
-}
-
-function seconds(sec: number): string {
-  return sec < 60 ? `${Math.round(sec)} s` : formatTimeShort(sec);
-}
-
 export function splitSpeakersDoneCopy(
   result: SplitSpeakersResult,
   trackLabel: string,
 ): string {
   const names = joinNames(result.lanes.map((lane) => lane.name));
   return `Split ${trackLabel} into ${result.lanes.length} tracks: ${names}.`;
-}
-
-/** What the person should listen to before relying on the tracks. */
-export function splitSpeakersListenNotes(
-  result: SplitSpeakersResult,
-): string[] {
-  const notes: string[] = [];
-  if (result.low_confidence_sec >= 1) {
-    notes.push(
-      `${seconds(result.low_confidence_sec)} where the speaker is unclear. Listen there before relying on the tracks.`,
-    );
-  }
-  if (result.crosstalk_sec >= 1) {
-    notes.push(
-      `${seconds(result.crosstalk_sec)} where people talk over each other. It plays once, on the track of the speaker heard most.`,
-    );
-  }
-  return notes;
 }
 
 function joinNames(names: readonly string[]): string {

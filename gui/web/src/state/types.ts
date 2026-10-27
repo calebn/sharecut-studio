@@ -366,20 +366,6 @@ export interface DawState {
   setBounceRangeTarget: (
     target: import("../types/project").ExactRangeTarget | null,
   ) => void;
-  splitSpeakersReview: {
-    trackId: string;
-    splitId: string;
-    historyHeadId: HistoryEntryId;
-  } | null;
-  setSplitSpeakersReview: (
-    review: {
-      trackId: string;
-      splitId: string;
-      historyHeadId: HistoryEntryId;
-    } | null,
-  ) => void;
-  /** Track the Split speakers dialog is open for; null while it is closed. */
-  splitSpeakersTrackId: string | null;
   /** Source Prepare shows its split prompt for, set by "Split speakers…"; null otherwise. */
   prepareFocusTrackId: string | null;
   /** Tighten tab Apply-eligible scope for keyboard shortcuts. */
@@ -580,7 +566,6 @@ export interface DawState {
   setBounceDialogOpen: (on: boolean) => void;
   setTranscriptFindReplaceOpen: (on: boolean) => void;
   setExportDialogOpen: (on: boolean) => void;
-  setSplitSpeakersTrackId: (trackId: string | null) => void;
   setPrepareFocusTrackId: (trackId: string | null) => void;
   setShareDialogOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;

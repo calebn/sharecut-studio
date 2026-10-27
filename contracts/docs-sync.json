@@ -887,10 +887,9 @@
         "include": [
           "src/podcast_mcp/gui/routes/pipeline.py",
           "src/podcast_mcp/services/pipeline/config.py",
-          "gui/web/src/panels/PipelinePanel.tsx",
+          "gui/web/src/stages/prepare/usePrepareRun.ts",
+          "gui/web/src/stages/prepare/advancedModel.ts",
           "gui/web/src/panels/TightenPanel.tsx",
-          "gui/web/src/panels/WhisperModelPicker.tsx",
-          "gui/web/src/panels/WordAlignerStatus.tsx",
           "gui/web/src/api/pipeline.ts",
           "gui/web/src/types/pipeline.ts",
           "gui/web/src/utils/pipeline.ts"
