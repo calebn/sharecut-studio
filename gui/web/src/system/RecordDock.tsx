@@ -15,6 +15,8 @@ export type RecordDockProps = {
     "face" | "busy" | "disabledReason" | "onStart" | "onStop"
   >;
   muted?: boolean;
+  /** Comment is hidden until a take is live; a waiting room has nothing to mark. */
+  showComment?: boolean;
   /** Unread notes, shown as a count on the Notes button. */
   unreadNotes?: number;
   notesOpen?: boolean;
@@ -41,6 +43,7 @@ export function RecordDock({
   seat,
   record,
   muted = false,
+  showComment = true,
   unreadNotes = 0,
   notesOpen = false,
   status,
@@ -66,7 +69,7 @@ export function RecordDock({
       />
     </button>
   );
-  const comment = (
+  const comment = showComment ? (
     <VerbButton
       verb="comment"
       className={
@@ -77,7 +80,7 @@ export function RecordDock({
       size={seat === "producer" ? 24 : 20}
       onClick={onComment}
     />
-  );
+  ) : null;
   const notes = (
     <button
       type="button"
@@ -100,12 +103,14 @@ export function RecordDock({
   let center: ReactNode;
   if (status !== undefined) {
     center = <div className="sys-dock-status">{status}</div>;
-  } else if (seat === "host" && record) {
+  } else if (seat === "host") {
+    // The host dock is whole without a record prop; only the Record button and
+    // its Pause depend on it.
     center = (
       <>
         {mute}
         {comment}
-        <RecordButton {...record} />
+        {record ? <RecordButton {...record} /> : null}
         {recording ? (
           <VerbButton
             verb="pauseTake"
