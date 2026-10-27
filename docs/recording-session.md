@@ -1323,6 +1323,15 @@ are one `BEGIN IMMEDIATE` transaction on the record store's connection
 connections (other processes) serialize and a failed apply leaves no command
 row; `mutate_snapshot` and `reset` are transactional too (#332).
 
+Host-generated commands from CLI, MCP, and HTTP use
+`RecordControlService.submit_host` with `client_seq=None`. The ledger allocates a
+negative integer sequence for each new command inside that transaction, so
+independent processes cannot reuse a process-local counter. Retrying the same
+command ID with `client_seq=None` does not apply it again. Commands with an
+explicit integer sequence retain their `(client_id, client_seq)` retry coordinate,
+even when a retry carries a new command ID. Persisted commands always have integer
+sequences. Roles and participant IDs still determine authorization and actor identity.
+
 | Data | How |
 |------|-----|
 | Roster, consent, take clock, `pauses[]`, `host_offline_since_wall_ms`, `host_last_beat_wall_ms`, live `pause_reason` | `RecordSessionService` + pure `apply_record_command` reducer; hub key `record:{workspace}`. `pause_reason: "host_reconnect"` is stored on the `PauseEntry` (pause log) and mirrored on the snapshot while that pause is open. Each take also stores `consented_participant_ids` (see "Locked for the lobby PR" below). |
