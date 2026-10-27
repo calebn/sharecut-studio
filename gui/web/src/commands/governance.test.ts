@@ -92,6 +92,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "layout/CommandPaletteView.tsx",
   // Enter sends the note and Shift+Enter adds a line, as in the Composer.
   "system/ActionBarInline.tsx",
+  // Cmd or Ctrl+Enter posts the comment from its field or the guest name field.
+  "system/Composer.tsx",
   // A focused suggestion handle moves with the arrow keys, 0.5 s with Shift.
   "system/SuggestionWaveform.tsx",
   // Enter or Space on a live Record button opens the stop question, since a
