@@ -26,7 +26,7 @@ from podcast_mcp.services.collaboration import (
     ShareService,
     share_public_origin,
 )
-from podcast_mcp.services.record import RecordStateError
+from podcast_mcp.services.record import RecordLandingError, RecordStateError
 
 router = APIRouter()
 
@@ -115,6 +115,7 @@ def create_host_record_room(
             public_base_url=origin,
             expires_at=body.expires_at,
             target=body.target,
+            land_first=body.land_first,
         )
     except RecordStaleLinksError as exc:
         detail = {
@@ -126,6 +127,8 @@ def create_host_record_room(
         raise coded_http_error(409, detail, code=exc.code) from exc
     except RecordStateError as exc:
         raise coded_exception_error(409, exc, code="record_room_unavailable") from exc
+    except RecordLandingError as exc:
+        raise coded_exception_error(400, exc, code="record_landing_refused") from exc
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="record_room_request_invalid") from exc
     return {"room": room}

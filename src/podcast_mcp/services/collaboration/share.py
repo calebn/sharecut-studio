@@ -466,20 +466,36 @@ class ShareService:
         public_base_url: str | None = None,
         expires_at: str | None = None,
         target: str | dict[str, Any] | None = None,
+        land_first: bool = False,
     ) -> dict[str, Any]:
         """Mint one room: session_id + guest token + producer token.
 
         ``target`` is where the session lands (default: the end of the episode); every
         mint states it, so a remint never inherits the previous room's choice by accident.
+
+        A stopped take of the current room that is not saved yet is reported on the result
+        (``unlanded_take``, ``unlanded_takes``, ``warning``); the mint still goes ahead.
+        ``land_first`` lands it before minting; a land refusal stops the mint.
         """
         from podcast_mcp.services.record import (
+            RecordLandingService,
             assert_no_open_take,
             begin_record_session,
             invalidate_record_session_cache,
         )
+        from podcast_mcp.services.record.preflight import (
+            describe_unlanded_takes,
+            unlanded_take_fields,
+            unlanded_takes,
+        )
 
         with _record_room_lock:
             assert_no_open_take(self.ws.project)
+            left = unlanded_takes(self.ws.project)
+            landed: dict[str, Any] | None = None
+            if land_first and left:
+                landed = RecordLandingService(self.ws).land()
+                left = unlanded_takes(self.ws.project)
             session_id = uuid.uuid4().hex[:12]
             try:
                 guest = self.create_record_token(
@@ -499,7 +515,16 @@ class ShareService:
             except Exception:
                 self._rollback_room(session_id)
                 raise
-            room = {"session_id": session_id, "guest": guest, "producer": producer}
+            room: dict[str, Any] = {
+                "session_id": session_id,
+                "guest": guest,
+                "producer": producer,
+                **unlanded_take_fields(left),
+            }
+            if landed is not None:
+                room["landed_first"] = landed
+            if left:
+                room["warning"] = describe_unlanded_takes(left)
             attempted: Sequence[str] = []
             try:
                 attempted = self._live_other_record_rooms(session_id)

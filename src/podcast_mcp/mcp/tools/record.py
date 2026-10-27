@@ -14,7 +14,7 @@ def _ctrl(project_path: str) -> RecordControlService:
 
 
 def record_state_tool(project_path: str) -> str:
-    """Read the live recording-room snapshot (roster, take clock, consent)."""
+    """Read the live recording-room snapshot (roster, take clock, consent, and unlanded_take / unlanded_takes: stopped takes not yet saved to the episode)."""
     try:
         snap = _ctrl(project_path).snapshot()
     except FileNotFoundError:
