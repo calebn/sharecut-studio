@@ -11,9 +11,7 @@ from podcast_mcp.edits.audio_check_override import active_override
 from podcast_mcp.edits.comment_remap import (
     pending_decisions_in_range,
     remap_review_anchors_for_replace,
-    shift_pending_decisions_for_insert,
     shift_pending_decisions_for_replace,
-    shift_review_anchors_for_insert,
 )
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.cut_speech import (
@@ -25,6 +23,7 @@ from podcast_mcp.edits.decisions import unplayed_pending_ids
 from podcast_mcp.edits.insert_anchor import resolve_insert_anchor, resolve_range
 from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip
 from podcast_mcp.edits.ripple import RippleRemoval, ripple_insert_clips, ripple_track_ids
+from podcast_mcp.edits.session_gap import open_session_gap
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete, ripple_delete_range
 from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.track_media import refresh_timeline_duration
@@ -168,6 +167,8 @@ def drop_staged_segment(project: EpisodeProject, session_id: str, source_id: str
             before = len(row.takes)
             row.takes = [take for take in row.takes if take.source_id != source_id]
             found = found or len(row.takes) != before
+            if row.selected_take not in {take.take_index for take in row.takes}:
+                row.selected_take = None
             if not row.takes:
                 continue
         kept.append(row)
@@ -187,6 +188,33 @@ def drop_staged_takes(project: EpisodeProject, session_id: str, take_index: int)
                 continue
         kept.append(row)
     project.editorial.session_suggestions = kept
+
+
+def discard_unchosen_takes(
+    project: EpisodeProject, row: SessionSuggestion, chosen: int
+) -> list[int]:
+    """Drop the staged segments (and the comments held on them) of every take but ``chosen``.
+
+    Only staged rows go: the takes' recordings stay registered as sources and on disk, since a
+    history step or a clip may still reference them. Returns the take indexes dropped.
+    """
+    dropped = sorted({take.take_index for take in row.takes if take.take_index != chosen})
+    for index in dropped:
+        drop_staged_takes(project, row.session_id, index)
+    return dropped
+
+
+def _discard_message(discarded: list[int], comments: int) -> str | None:
+    """What Accept left behind, in words for the person, or None when it left nothing."""
+    if not discarded:
+        return None
+    many = len(discarded) != 1
+    names = ", ".join(str(i) for i in discarded)
+    text = f"The other take{'s' if many else ''} ({names}) {'were' if many else 'was'} discarded."
+    if comments:
+        noun = "comment" if comments == 1 else "comments"
+        text += f" {comments} {noun} on {'them' if many or comments > 1 else 'it'} left out."
+    return f"{text} Undo brings {'them' if many else 'it'} back."
 
 
 def _not_pending_message(row: SessionSuggestion) -> str:
@@ -362,9 +390,9 @@ def _accept_insert(
 ) -> dict[str, Any]:
     at_sec, span = _insert_plan(project, row)
     ripple_ids = ripple_track_ids(project)
-    ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
-    shift_review_anchors_for_insert(project, at_sec, span)
-    shift_pending_decisions_for_insert(project, at_sec, span, set(ripple_ids))
+    open_session_gap(
+        project, at_sec, span, ripple_ids, defaults=defaults, except_suggestion_id=row.id
+    )
     unmoved = sorted(
         {
             clip.track_id
@@ -406,7 +434,11 @@ def _chosen_take(row: SessionSuggestion, take_index: int | None) -> int:
             code="session_suggestion_empty",
         )
     if take_index is not None:
-        if take_index not in available:
+        if (
+            isinstance(take_index, bool)
+            or not isinstance(take_index, int)
+            or take_index not in available
+        ):
             raise CodedValueError(
                 f"Session {row.session_number} has no take {take_index}. "
                 f"Pick one of: {', '.join(str(i) for i in available)}.",
@@ -557,10 +589,14 @@ def _apply_replace(
     comments = _place_comments(project, takes, from_sec)
     refresh_timeline_duration(project)
     rebuild_combined(project, defaults=defaults)
+    comments_not_placed = sum(len(take.comments) for take in row.takes if take.take_index != chosen)
+    discarded = discard_unchosen_takes(project, row, chosen)
     row.selected_take = chosen
     row.status = "accepted"
     return {
         "suggestion": row.model_dump(mode="json"),
+        "discarded_takes": discarded,
+        "discard_message": _discard_message(discarded, comments_not_placed),
         "at_sec": from_sec,
         "from_sec": from_sec,
         "to_sec": to_sec,
@@ -570,9 +606,7 @@ def _apply_replace(
         "take_index": chosen,
         "clips": placed,
         "comments": comments,
-        "comments_not_placed": sum(
-            len(take.comments) for take in row.takes if take.take_index != chosen
-        ),
+        "comments_not_placed": comments_not_placed,
         "room_tone_not_placed": len(row.room_tone),
         "clamped_comment_ids": clamped,
         "retired_decision_ids": sorted(set(unplayed_pending_ids(project)) - unplayed_before),

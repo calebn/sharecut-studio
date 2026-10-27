@@ -21,7 +21,9 @@ import logging
 import os
 import re
 import secrets
+import socket
 import stat
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,7 +58,11 @@ CANCEL_GRACE_SEC = 30.0
 _CANCELLED_EXIT_CODE = 130
 #: Terminal control characters (escape sequences, bell) never pass through from Studio.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+_LOOPBACK_ADDRESSES = {
+    "127.0.0.1": ((socket.AF_INET, "127.0.0.1"),),
+    "::1": ((socket.AF_INET6, "::1"),),
+    "localhost": ((socket.AF_INET6, "::1"), (socket.AF_INET, "127.0.0.1")),
+}
 #: Environment variables that never decide whether a command may run in Studio.
 _ENV_PREFIX = "PODCAST_"
 _ENV_SKIPPED_FRAGMENTS = ("TOKEN", "SECRET", "KEY", "PASSWORD", "SIDECAR")
@@ -192,7 +198,7 @@ def read_studio_host(project_path: Path | str) -> StudioHost | None:
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
-    if host.host not in _LOOPBACK_HOSTS or not 0 < host.port < 65536 or not host.token:
+    if host.host not in _LOOPBACK_ADDRESSES or not 0 < host.port < 65536 or not host.token:
         return None
     return host
 
@@ -213,12 +219,83 @@ def _connection(host: StudioHost, timeout: float) -> http.client.HTTPConnection:
     return http.client.HTTPConnection(host.host, host.port, timeout=timeout)
 
 
+def _remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Studio ping deadline expired")
+    return remaining
+
+
+class _DeadlineSocket(socket.socket):
+    def __init__(self, family: socket.AddressFamily, *, deadline: float) -> None:
+        super().__init__(family, socket.SOCK_STREAM)
+        self.deadline = deadline
+
+    def connect(self, address: Any) -> None:
+        self.settimeout(_remaining(self.deadline))
+        try:
+            super().connect(address)
+        except OSError:
+            _remaining(self.deadline)
+            raise
+
+    def sendall(self, data: Any, flags: int = 0) -> None:
+        self.settimeout(_remaining(self.deadline))
+        try:
+            super().sendall(data, flags)
+        except OSError:
+            _remaining(self.deadline)
+            raise
+
+    def recv_into(self, buffer: Any, nbytes: int = 0, flags: int = 0) -> int:
+        self.settimeout(_remaining(self.deadline))
+        try:
+            return super().recv_into(buffer, nbytes, flags)
+        except OSError:
+            _remaining(self.deadline)
+            raise
+
+
+class _PingConnection(http.client.HTTPConnection):
+    def __init__(self, host: str, port: int, *, deadline: float) -> None:
+        super().__init__(host, port, timeout=_remaining(deadline))
+        self.deadline = deadline
+        self._create_connection = self._dial
+
+    def _dial(
+        self,
+        address: tuple[str, int],
+        _timeout: float,
+        _source_address: tuple[str, int] | None,
+    ) -> _DeadlineSocket:
+        host, port = address
+        last_error: OSError | None = None
+        for family, ip in _LOOPBACK_ADDRESSES[host]:
+            try:
+                sock = _DeadlineSocket(family, deadline=self.deadline)
+            except OSError as exc:
+                _remaining(self.deadline)
+                last_error = exc
+                continue
+            try:
+                sock.connect((ip, port))
+                return sock
+            except OSError as exc:
+                sock.close()
+                _remaining(self.deadline)
+                last_error = exc
+        assert last_error is not None
+        raise last_error
+
+
 def _headers(host: StudioHost) -> dict[str, str]:
     return {HANDOFF_TOKEN_HEADER: host.token, "Accept": "application/json"}
 
 
 def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
-    conn = _connection(host, PING_TIMEOUT_SEC)
+    deadline = time.monotonic() + PING_TIMEOUT_SEC
+    conn = _PingConnection(host.host, host.port, deadline=deadline)
+    response: http.client.HTTPResponse | None = None
     try:
         conn.request(
             "GET", f"{HANDOFF_PING_PATH}?project={quote(resolved)}", headers=_headers(host)
@@ -228,19 +305,28 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
         try:
             raw = response.read(PING_BODY_MAX_BYTES + 1)
             if len(raw) > PING_BODY_MAX_BYTES:
+                _remaining(deadline)
                 return status, None
-            return status, json.loads(raw.decode("utf-8"))
+            body = json.loads(raw.decode("utf-8"))
+            _remaining(deadline)
+            return status, body
         except (http.client.HTTPException, ValueError, RecursionError):
+            _remaining(deadline)
             return status, None
+    except (OSError, http.client.HTTPException, ValueError):
+        _remaining(deadline)
+        raise
     finally:
+        if response is not None:
+            response.close()
         conn.close()
 
 
 def locate_studio(project_path: Path | str) -> StudioHost | None:
     """Find the Studio serving ``project_path``, or return None when it is absent.
 
-    Raises ``StudioUnresponsive`` when an announced Studio accepts the connection but stays
-    silent, and ``StudioBadReply`` when it answers with an invalid or unsupported reply.
+    Raises ``StudioUnresponsive`` when both discovery attempts time out, and
+    ``StudioBadReply`` when Studio answers with an invalid or unsupported reply.
     """
     if settings.flag(DIRECT_ENV_VAR):
         return None

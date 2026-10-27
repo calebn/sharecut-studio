@@ -218,6 +218,7 @@ def test_staging_an_insert_registers_sources_and_leaves_the_timeline_alone(
     _land_end_session(ws)
     before = _timeline(ws)
     sources_before = {s.id for s in ws.project.sources}
+    first_track = next(t.id for t in ws.project.tracks if t.label == "Ava")
 
     room, guest, _svc, landed = _stage(ws, INSERT, comment_in_take=0)
 
@@ -231,7 +232,7 @@ def test_staging_an_insert_registers_sources_and_leaves_the_timeline_alone(
     assert (row.kind, row.status, row.session_number, row.at_sec) == ("insert", "pending", 2, 1.0)
     [take] = row.takes
     assert take.source_id in new_sources
-    assert take.track_id == guest
+    assert take.track_id == first_track != guest  # Ava returns: matched to her Session 1 track
     assert take.offset_s == 0.0
     assert [(c.id, c.body, c.author) for c in take.comments] == [("live-note", "Fix this", guest)]
     assert ws.project.comments == []
@@ -1028,7 +1029,7 @@ def test_accept_refuses_a_replace_over_an_unrecorded_track_and_an_empty_session(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
-    _seed_replaceable(ws)
+    _seed_replaceable(ws, label="Someone else")
     _seed_timeline(ws)
     room, _guest, _svc, _landed = _stage(ws, REPLACE)
     before = _everything(ws)
@@ -1229,9 +1230,9 @@ def _seed_single_clip(ws, *, start: float = 0.0, end: float = 8.0, source_id: st
     ws.mutate("seed", "seeded", build)
 
 
-def _seed_replaceable(ws, track_id: str = "ava") -> None:
+def _seed_replaceable(ws, track_id: str = "ava", label: str = "Ava") -> None:
     def build(project: EpisodeProject) -> None:
-        project.tracks.append(Track(id=track_id, label="Ava", role=TrackRole.DIALOGUE))
+        project.tracks.append(Track(id=track_id, label=label, role=TrackRole.DIALOGUE))
         project.clips.append(
             Clip(
                 id="base",
@@ -1657,6 +1658,71 @@ def test_a_replace_target_past_the_timeline_end_is_refused_by_field(
         ws, {"kind": "replace", "from_sec": 8, "to_sec": 12, "track_ids": ["ava"]}
     )
     assert message.startswith("to_sec:") and "10.000s" in message
+
+
+@pytest.mark.parametrize(
+    "target", [{"kind": "end"}, {"kind": "start"}, {"kind": "insert", "at_sec": 2}]
+)
+@pytest.mark.parametrize("damaged_file", ["project", "history"])
+def test_nonreplace_target_persists_when_saved_project_is_unreadable(
+    minimal_project, sample_wav, tmp_workspace, target, damaged_file
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _join(ws, room)
+    damaged_path = ws.path if damaged_file == "project" else ws.project.history_dir() / "index.json"
+    damaged_path.parent.mkdir(parents=True, exist_ok=True)
+    damaged_path.write_text("{ invalid generated saved state")
+
+    svc.submit(_cmd("SetTarget", payload={"target": target}), now_wall_ms=0)
+    assert (
+        RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"]
+        == target
+    )
+    loader_error = (
+        "project file is damaged" if damaged_file == "project" else "corrupt JSON sidecar"
+    )
+    with pytest.raises(ValueError, match=loader_error):
+        svc.submit(
+            _cmd(
+                "SetTarget",
+                payload={
+                    "target": {
+                        "kind": "replace",
+                        "from_sec": 1,
+                        "to_sec": 2,
+                        "track_ids": ["ava"],
+                    }
+                },
+            ),
+            now_wall_ms=0,
+        )
+    assert (
+        RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"]
+        == target
+    )
+
+
+def test_replace_target_uses_saved_identity_while_live_workspace_path_is_temporary(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _join(ws, room)
+    ws.project.tracks.append(Track(id="unsaved", label="Unsaved", role=TrackRole.MUSIC))
+    target = {"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["unsaved"]}
+    monkeypatch.chdir(tmp_path)
+    original_workspace = ws.project.workspace_dir
+    ws.project.workspace_dir = "."
+    try:
+        with pytest.raises(CodedValueError, match="unsaved"):
+            svc.submit(_cmd("SetTarget", payload={"target": target}), now_wall_ms=0)
+    finally:
+        ws.project.workspace_dir = original_workspace
+    assert RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"] == {
+        "kind": "end"
+    }
 
 
 def test_a_replace_target_over_a_track_added_after_connect_is_accepted(

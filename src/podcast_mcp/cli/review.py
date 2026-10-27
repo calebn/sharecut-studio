@@ -100,6 +100,50 @@ def review_skip_session_suggestion_cmd(
     typer.echo(json.dumps(row, indent=2))
 
 
+@review_app.command("session-takes")
+def review_session_takes_cmd(
+    project: Path = typer.Option(..., "--project"),
+    suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
+) -> None:
+    """List the takes of a staged session: length, words, which is picked and which is default.
+
+    The default is the take accept-session-suggestion places when --take is not given. A take
+    accept would refuse shows the reason. Change the pick with select-session-take.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project)
+    try:
+        result = SessionSuggestionService(ws).takes(suggestion_id)
+    except CodedError as exc:
+        typer.echo(describe_error(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result, indent=2))
+
+
+@review_app.command("select-session-take")
+def review_select_session_take_cmd(
+    project: Path = typer.Option(..., "--project"),
+    suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
+    take: int = typer.Option(..., "--take", help="Take index from session-takes"),
+) -> None:
+    """Pick the take a pending replace session will place (one undo step).
+
+    Accept and the preview then use it unless they are given another --take. Refuses a session
+    that is not pending, an insert, an unknown take, a take that did not record every track and
+    a range that has changed.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project)
+    try:
+        result = SessionSuggestionService(ws).select_take(suggestion_id, take)
+    except CodedError as exc:
+        typer.echo(describe_error(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result, indent=2))
+
+
 @review_app.command("accept-session-suggestion")
 def review_accept_session_suggestion_cmd(
     project: Path = typer.Option(..., "--project"),
@@ -114,9 +158,10 @@ def review_accept_session_suggestion_cmd(
     """Place a pending session on the timeline in one undo step.
 
     An insert opens the session's length at its insert point on every dialogue track. A replace
-    removes its range on every dialogue track and puts one take in its place; if that also
-    removes speech of a track the take did not record, nothing changes until you repeat with
-    --override-audio-checks.
+    removes its range on every dialogue track, puts one take in its place and discards the
+    other takes and the comments held on them (the result counts them; undo brings them back).
+    If that also removes speech of a track the take did not record, nothing changes until you
+    repeat with --override-audio-checks.
     """
     from podcast_mcp.services.document import SessionSuggestionService
 
@@ -126,7 +171,8 @@ def review_accept_session_suggestion_cmd(
             result = require_cut_applied(
                 lambda: SessionSuggestionService(ws).accept(
                     suggestion_id, take_index=take, override_audio_checks=override_checks
-                )
+                ),
+                what="this replace",
             )
     except CodedError as exc:
         typer.echo(describe_error(exc), err=True)
@@ -144,8 +190,12 @@ def review_preview_session_suggestion_cmd(
         help="Take index to hear for a replace session (default: the selected or last take)",
     ),
     mode: str = typer.Option("ab", "--mode", help="current | suggested | ab"),
-    pad: float = typer.Option(1.5, "--pad", help="Seconds of audio around the change"),
-    gap: float = typer.Option(0.4, "--gap", help="Silence between A and B"),
+    pad: float = typer.Option(
+        1.5, "--pad", help="Seconds of audio around the change, 0 to 10 (pad_sec_invalid outside)"
+    ),
+    gap: float = typer.Option(
+        0.4, "--gap", help="Silence between A and B, 0 to 5 (gap_sec_invalid outside)"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Render the WAVs; do not play"),
     player: str | None = typer.Option(None, "--player", help="Override player binary"),
     rerender: bool = typer.Option(False, "--rerender", help="Render the windows again"),
@@ -326,7 +376,7 @@ def review_share_cmd(
         None,
         "--target",
         help=(
-            "record: where the session lands: end (default), or a JSON object for "
+            "record: where the session lands: end (default), start, or a JSON object for "
             'insert {"kind":"insert","at_sec":12.5} or replace '
             '{"kind":"replace","from_sec":12.5,"to_sec":20,"track_ids":["p_host"]}'
         ),

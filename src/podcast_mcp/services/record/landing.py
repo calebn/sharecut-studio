@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 import wave
@@ -38,6 +39,7 @@ from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.room_tone import room_tone_source_id
 from podcast_mcp.engines.track_ids import slug_track_id
 from podcast_mcp.engines.track_media import refresh_timeline_duration
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     EpisodeProject,
     InsertAnchor,
@@ -75,6 +77,12 @@ from podcast_mcp.services.record.landing_rollback import (
     registration_present,
     revert_registration,
 )
+from podcast_mcp.services.record.landing_start import (
+    close_start_tail,
+    is_start_session,
+    open_start_gap,
+    own_extent_s,
+)
 from podcast_mcp.services.record.live_comments import (
     LIVE_COMMENT_ID_PREFIX,
     RecordLiveCommentStore,
@@ -92,6 +100,7 @@ from podcast_mcp.services.record.state import (
     TakeState,
     take_recording_duration_ms,
 )
+from podcast_mcp.services.record.track_match import TrackMatch, resolve_session_tracks
 from podcast_mcp.services.record.upload import (
     ROOM_TONE_MAX_PCM_BYTES,
     ROOM_TONE_TAKE_INDEX,
@@ -230,6 +239,12 @@ class TakeAlreadyPlacedError(RecordLandingError):
     """Discard of a take an accepted session already placed (``code`` ``take_already_placed``)."""
 
     code = "take_already_placed"
+
+
+class TakeNotLastError(RecordLandingError):
+    """Discard of a take that is not the last of a session that starts the episode."""
+
+    code = "take_not_last"
 
 
 class RecordTakeOpenError(RecordLandingError):
@@ -446,6 +461,7 @@ class RecordLandingService:
         self._bound_project: EpisodeProject | None = None
         self._bound_room: RecordSessionService | None = None
         self._bound_upload: RecordUploadService | None = None
+        self._plan: dict[str, TrackMatch] | None = None
 
     # Bound to the current ``workspace.project``: ``reload()``
     # replaces that object during a land (#503); ``mutate()`` adopts a newer saved project in
@@ -537,14 +553,33 @@ class RecordLandingService:
         reload: bool = True,
         session_closed: bool | None = None,
     ) -> dict[str, Any]:
+        try:
+            return self._land_planned(
+                align=align, drift_ms=drift_ms, reload=reload, session_closed=session_closed
+            )
+        finally:
+            self._plan = None
+
+    def _land_planned(
+        self,
+        *,
+        align: AlignFn | None,
+        drift_ms: float | None,
+        reload: bool = True,
+        session_closed: bool | None = None,
+    ) -> dict[str, Any]:
         if reload:
             # Land callers open their workspace before the body read / land lock wait;
             # adopt any land another request committed meanwhile (#503).
             self.workspace.reload()
         self._retry_deferred_rollbacks()
         snap = self._snapshot()
+        # One answer to "who is on which track" for this whole land, so the pre-lock checks and
+        # the placement under the lock cannot disagree.
+        self._plan = self._track_matches(self.workspace.project, snap)
         tombstoned = self._upload.tombstoned_takes(self.session_id)
         staged = snap.target.kind in STAGED_TARGET_KINDS
+        at_start = snap.target.kind == "start"
         anchor_s = (
             round(
                 session_placement(self.workspace.project.clips, self.session_id, snap.target) * 1000
@@ -765,14 +800,16 @@ class RecordLandingService:
                 record_session_number(planning_project, self.session_id),
                 first=not session_landed_before(planning_project, self.session_id),
                 staged=staged,
+                at_start=at_start,
             )
             session_params["session_staged"] = staged
+            session_params["session_at_start"] = at_start
 
         # ``mutate`` runs on the project it re-reads under the cross-process
         # project lock. It can be newer than the copy planned from above when a
         # non-land writer (edit, share, comment) committed meanwhile. Land and
         # discard are serialized by the session land lock, other writers are not.
-        # Everything written here is re-derived from ``project``:
+        # Everything written here is re-derived from ``project`` (track ids included, below):
         # ``_copied_raw_matches``, the source/clip/track upserts, and
         # ``_land_live_comments``, which upserts by id. The earlier inputs come from
         # the record session store (``snap`` offsets, ``fallback``) or only widen what
@@ -785,14 +822,25 @@ class RecordLandingService:
             staged_takes: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
             touched: set[str] = set()
-            for item in copied:
-                if not self._copied_raw_matches(project, item):
-                    self._mark_copied_failed(item)
-                    continue
-                if not self._ack_generation_current(item):
-                    _log_superseded(self.session_id, item)
-                    continue
-                track_id = slug_track_id(str(item["participant_id"]))
+            # Tracks are decided again on the project read under the lock (and the host's choices
+            # as they are now), so an assign made while the files were copying is honoured and a
+            # person's later takes follow the ones already staged. The checks after this use it too.
+            matches = self._plan = self._track_matches(project, snap)
+            usable = [item for item in copied if self._usable_copy(project, item)]
+            shifted = (
+                open_start_gap(
+                    project,
+                    self.session_id,
+                    usable,
+                    defaults=self.workspace.effective_config(),
+                    keep_comment_ids=self._own_comment_ids(snap),
+                )
+                if at_start
+                else []
+            )
+            touched.update(shifted)
+            for item in usable:
+                track_id, item["label"] = _track_for(matches, item)
                 source_id = str(item["source_id"])
                 rel = str(item["rel"])
                 prior = capture_prior(
@@ -885,8 +933,7 @@ class RecordLandingService:
                 if not self._ack_generation_current(item):
                     _log_superseded(self.session_id, item)
                     continue
-                pid = str(item["participant_id"])
-                track_id = slug_track_id(pid)
+                track_id, item["label"] = _track_for(matches, item)
                 rel = str(item["rel"])
                 prior = capture_prior(
                     project,
@@ -931,6 +978,8 @@ class RecordLandingService:
                 first = not landed_before
                 session_params.update(session_number=number, session_first=first)
                 refresh_timeline_duration(project)
+                if shifted:
+                    rebuild_combined(project, defaults=self.workspace.effective_config())
                 if touched:
                     record_invalidation(project, track_ids=sorted(touched), reason="other")
                 if fallback and align is not None:
@@ -1064,6 +1113,8 @@ class RecordLandingService:
                     f"Take {take} is already on the timeline as part of Session "
                     f"{placed.session_number}. Undo the accept to discard it."
                 )
+            self._require_last_take(project, take)
+            extent_before = own_extent_s(project.clips, self.session_id)
             drop_ids = {src.id for src in project.sources if src.id.startswith(prefix)}
             drop_tracks = {clip.track_id for clip in project.clips if clip.source_id in drop_ids}
             project.sources = [src for src in project.sources if src.id not in drop_ids]
@@ -1077,6 +1128,7 @@ class RecordLandingService:
                 if str(comment_id).startswith(LIVE_COMMENT_ID_PREFIX):
                     delete_comment(project, comment_id)
             refresh_timeline_duration(project)
+            self._close_start_tail(project, extent_before)
 
         self.workspace.mutate(
             f"before discard take {take}",
@@ -1106,6 +1158,59 @@ class RecordLandingService:
             return False
         source_id = self._landed_source_id(pid, int(row["take_index"]), int(row["segment_index"]))
         return self.workspace.project.source_by_id(source_id) is None
+
+    def _close_start_tail(self, project: EpisodeProject, extent_before: float) -> bool:
+        """After dropping clips of a session that starts the episode, take back the time they filled."""
+        if not is_start_session(project, self.session_id):
+            return False
+        defaults = self.workspace.effective_config()
+        closed = close_start_tail(
+            project,
+            self.session_id,
+            extent_before,
+            defaults=defaults,
+            keep_comment_ids=self._own_comment_ids(self._snapshot()),
+        )
+        if closed:
+            rebuild_combined(project, defaults=defaults)
+        return closed
+
+    def _require_last_take(self, project: EpisodeProject, take: int) -> None:
+        """A session that starts the episode gives time back only from its end, so only its last take can go."""
+        if not is_start_session(project, self.session_id):
+            return
+        prefix = record_source_prefix(self.session_id)
+        later = {
+            int(found.group(1))
+            for clip in project.clips
+            if (clip.source_id or "").startswith(prefix)
+            and (found := re.match(r"(\d+)-", (clip.source_id or "")[len(prefix) :]))
+            and int(found.group(1)) > take
+        }
+        if later:
+            raise TakeNotLastError(
+                f"Take {take} is not the last take of this session, which starts the episode, so "
+                f"discarding it would leave a hole before take {min(later)}. Discard the later "
+                "takes first, or undo back to before them."
+            )
+
+    def _usable_copy(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
+        """Whether a copied keeper may be registered now; a copy that cannot is marked failed or logged."""
+        if not self._copied_raw_matches(project, item):
+            self._mark_copied_failed(item)
+            return False
+        if not self._ack_generation_current(item):
+            _log_superseded(self.session_id, item)
+            return False
+        return True
+
+    def _own_comment_ids(self, snap: RecordSnapshot) -> set[str]:
+        """Every live comment of this room; they sit inside its own audio, so a start gap leaves them."""
+        return {
+            comment_id
+            for take in snap.takes
+            for comment_id in self._comments.ids_for_take(self.session_id, take.take_index)
+        }
 
     def _suggestion_closed(self) -> bool:
         suggestion = session_suggestion_for(self.workspace.project, self.session_id)
@@ -1179,19 +1284,32 @@ class RecordLandingService:
             if str(row["comment_id"]) in after
         ]
 
+    def _track_matches(
+        self, project: EpisodeProject, snap: RecordSnapshot | None = None
+    ) -> dict[str, TrackMatch]:
+        snap = snap or self._snapshot()
+        return resolve_session_tracks(
+            project, self.session_id, snap.participants, self._room.track_choices()
+        )
+
+    def _track_id_for(self, participant_id: str) -> str:
+        plan = self._plan if self._plan is not None else self._track_matches(self.workspace.project)
+        match = plan.get(participant_id)
+        return match.track_id if match is not None else slug_track_id(participant_id)
+
     def _room_tone_missing(self, participant_id: str, staged: bool = False) -> bool:
+        track_id = self._track_id_for(participant_id)
         if staged:
             suggestion = session_suggestion_for(self.workspace.project, self.session_id)
-            track_id = slug_track_id(participant_id)
             return suggestion is None or all(
                 bed.track_id != track_id for bed in suggestion.room_tone
             )
-        track = self.workspace.project.track_by_id(slug_track_id(participant_id))
+        track = self.workspace.project.track_by_id(track_id)
         return track is None or track.room_tone is None
 
     def _landed_source_id(self, participant_id: str, take_index: int, segment_index: int) -> str:
         if take_index == ROOM_TONE_TAKE_INDEX:
-            return room_tone_source_id(slug_track_id(participant_id))
+            return room_tone_source_id(self._track_id_for(participant_id))
         return record_source_id(self.session_id, take_index, participant_id, segment_index)
 
     def _mark_missing_acked(
@@ -1336,6 +1454,7 @@ class RecordLandingService:
 
         def mutate(project: EpisodeProject) -> None:
             touched: set[str] = set()
+            extent_before = own_extent_s(project.clips, self.session_id)
             for item in reversed(stale):
                 prior: PriorRegistration = item["prior"]
                 if (
@@ -1352,6 +1471,8 @@ class RecordLandingService:
                     touched.add(prior.track_id)
             if touched:
                 refresh_timeline_duration(project)
+                if self._close_start_tail(project, extent_before):
+                    touched = {track.id for track in project.tracks}
                 record_invalidation(project, track_ids=sorted(touched), reason="other")
 
         self.workspace.mutate(
@@ -1624,6 +1745,15 @@ def _item_from_deferred(row: dict[str, Any]) -> dict[str, Any]:
         "prior": prior_from_json(str(row["prior_json"])),
         "attempts": int(row.get("attempts") or 0),
     }
+
+
+def _track_for(matches: Mapping[str, TrackMatch], item: Mapping[str, Any]) -> tuple[str, str]:
+    """The track id and label a copied item lands on: matched by name, else a fresh track."""
+    pid = str(item["participant_id"])
+    match = matches.get(pid)
+    if match is None:
+        return slug_track_id(pid), str(item["label"])
+    return match.track_id, match.track_label
 
 
 def _log_superseded(session_id: str, item: dict[str, Any]) -> None:

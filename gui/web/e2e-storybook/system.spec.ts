@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -178,4 +178,168 @@ test("System/Player follow pill X has a 44 px hit area at 360", async ({
     [20, 0],
   );
   expect(reach).toBe(true);
+});
+
+test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({
+  page,
+}) => {
+  await open(page, "system-marker--range-under-chapter", 1280);
+  const range = page.getByRole("button", { name: /^Comment by Maya/ });
+  const chapter = page.getByRole("button", { name: /^Chapter Intro/ });
+  await expect(range).toBeVisible();
+  const box = await range.boundingBox();
+  const chapterBox = await chapter.boundingBox();
+  if (!box || !chapterBox) throw new Error("Markers did not render");
+  const x = box.x + box.width * 0.65;
+  expect(x).toBeGreaterThan(chapterBox.x + chapterBox.width);
+  const hit = await page.evaluate(
+    ([px, py]) =>
+      document.elementFromPoint(px, py)?.closest("button")?.ariaLabel ?? null,
+    [x, box.y + box.height / 2],
+  );
+  expect(hit).toMatch(/^Comment by Maya/);
+  await page.mouse.move(x, box.y + box.height / 2);
+  await expect(page.getByRole("tooltip")).not.toContainText("Intro");
+});
+
+test("System/Seam a coarse text pill leaves the lines around it to the text", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: "http://127.0.0.1:6010",
+  });
+  const page = await context.newPage();
+  await page.goto(storyUrl("system-seam--text-pill", { theme: "light" }));
+  const pill = page.getByRole("button", { name: "Cut, 2.4 s removed" });
+  await expect(pill).toBeVisible();
+  const box = await pill.boundingBox();
+  if (!box) throw new Error("Pill did not render");
+  const hits = await page.evaluate(
+    ([x, top, bottom, middle]) => {
+      const at = (y: number) =>
+        document.elementFromPoint(x, y)?.closest("button") !== null;
+      return { above: at(top), below: at(bottom), pill: at(middle) };
+    },
+    [
+      box.x + box.width / 2,
+      box.y - 10,
+      box.y + box.height + 10,
+      box.y + box.height / 2,
+    ],
+  );
+  await context.close();
+  expect(hits).toEqual({ above: false, below: false, pill: true });
+});
+
+test("System/ScriptPane header is 40 px, the margin 88 px and the avatar 20 px", async ({
+  page,
+}) => {
+  await open(page, "system-scriptpane--turns", 1280);
+  const header = page.locator(".sys-script-header");
+  await expect(header).toBeVisible();
+  expect((await header.boundingBox())?.height).toBe(40);
+  expect(
+    (await page.locator(".sys-script-margin").first().boundingBox())?.width,
+  ).toBe(88);
+  expect(
+    (await page.locator(".sys-person-avatar").first().boundingBox())?.width,
+  ).toBe(20);
+});
+
+test("System/ScriptPane header buttons and the Back to playhead pill reach 44 px under a coarse pointer", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: "http://127.0.0.1:6010",
+  });
+  const page = await context.newPage();
+  await page.goto(
+    storyUrl("system-scriptpane--back-to-playhead", { theme: "light" }),
+  );
+  const names = [
+    "Find in transcript",
+    "Show cut text",
+    "Follow the playhead",
+    "Back to playhead",
+  ];
+  const reach = [];
+  for (const name of names) {
+    const target = page.getByRole("button", { name });
+    await expect(target).toBeVisible();
+    reach.push(
+      await target.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const at = (x: number, y: number) =>
+          document.elementFromPoint(x, y)?.closest("button") === el;
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        return {
+          width: Math.round(r.width),
+          height: Math.round(r.height),
+          corners:
+            at(cx - 19, cy - 19) &&
+            at(cx + 19, cy - 19) &&
+            at(cx - 19, cy + 19) &&
+            at(cx + 19, cy + 19),
+        };
+      }),
+    );
+  }
+  await context.close();
+  expect(reach.map((r) => r.height)).toEqual([44, 44, 44, 44]);
+  expect(reach.map((r) => r.width >= 44)).toEqual([true, true, true, true]);
+  expect(reach.map((r) => r.corners)).toEqual([true, true, true, true]);
+});
+
+test("System/ScriptPane a word, a suggested run and a cut pill reach 44 px under a coarse pointer", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: "http://127.0.0.1:6010",
+  });
+  const page = await context.newPage();
+  await page.goto(
+    storyUrl("stages-edit-scriptpane--cuts-and-suggestions", {
+      theme: "light",
+    }),
+  );
+  const targets = {
+    pill: page.getByRole("button", { name: "Cut, 1.1 s removed" }),
+    word: page.getByRole("button", { name: "Welcome", exact: true }),
+    run: page.getByRole("button", { name: /^Suggested cut: / }),
+  };
+  const reach: Record<string, { width: number; height: number; own: boolean }> =
+    {};
+  for (const [kind, target] of Object.entries(targets)) {
+    await expect(target).toBeVisible();
+    reach[kind] = await target.evaluate((el) => {
+      const region = getComputedStyle(el, "::after");
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      return {
+        width: Math.round(Number.parseFloat(region.width)),
+        height: Math.round(Number.parseFloat(region.height)),
+        own: hit?.closest("button") === el,
+      };
+    });
+  }
+  await context.close();
+  expect(
+    Object.fromEntries(
+      Object.entries(reach).map(([kind, r]) => [
+        kind,
+        [r.width >= 44, r.height >= 44, r.own],
+      ]),
+    ),
+  ).toEqual({
+    pill: [true, true, true],
+    word: [true, true, true],
+    run: [true, true, true],
+  });
 });

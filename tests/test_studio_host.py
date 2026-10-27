@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import io
 import json
@@ -409,6 +410,184 @@ def test_a_studio_slow_to_answer_once_is_pinged_again(project: Path, quick_ping:
     assert located is not None
     assert located.instance == instance
     assert pings["count"] == 2
+
+
+@contextlib.contextmanager
+def _trickling_ping(framing: str) -> Iterator[tuple[int, list[None], threading.Event]]:
+    stop = threading.Event()
+    requests: list[None] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            requests.append(None)
+            self.close_connection = True
+            if framing == "headers":
+                prefix = b"HTTP/1.1 200 OK\r\nX-Pad: "
+                piece = b"x"
+            else:
+                headers = {
+                    "content-length": b"Content-Length: 1000000\r\n",
+                    "chunked": b"Transfer-Encoding: chunked\r\n",
+                    "close-delimited": b"Connection: close\r\n",
+                }
+                prefix = b"HTTP/1.1 200 OK\r\n" + headers[framing] + b"\r\n"
+                piece = b"1\r\nx\r\n" if framing == "chunked" else b"x"
+            try:
+                self.connection.sendall(prefix)
+                while not stop.wait(0.025):
+                    self.connection.sendall(piece)
+            except OSError:
+                pass
+
+        def log_message(self, *_args: object) -> None:
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = False
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    try:
+        yield server.server_port, requests, stop
+    finally:
+        stop.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(3)
+
+
+@pytest.mark.timeout(12)
+@pytest.mark.parametrize("framing", ["headers", "content-length", "chunked", "close-delimited"])
+def test_a_trickling_ping_expires_both_attempts_without_bypassing_studio(
+    project: Path, quick_ping: None, framing: str
+) -> None:
+    with _trickling_ping(framing) as (port, requests, stop):
+        announce_studio_host(project, _host(port=port))
+        outcome: list[BaseException | StudioHost | None] = []
+
+        def locate() -> None:
+            try:
+                outcome.append(locate_studio(project))
+            except BaseException as exc:
+                outcome.append(exc)
+
+        worker = threading.Thread(target=locate)
+        worker.start()
+        try:
+            worker.join(3)
+            assert not worker.is_alive(), "trickling bytes kept Studio discovery blocked"
+            assert len(requests) == 2
+            assert len(outcome) == 1
+            assert type(outcome[0]) is StudioUnresponsive
+        finally:
+            stop.set()
+            worker.join(3)
+            assert not worker.is_alive(), "Studio discovery did not stop after the peer closed"
+
+
+def test_localhost_uses_numeric_loopbacks_and_closes_failed_candidate(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL, "serves": True}).encode()
+    attempted: list[studio_host_module._DeadlineSocket] = []
+
+    class CandidateSocket(studio_host_module._DeadlineSocket):
+        def __init__(self, family: socket.AddressFamily, *, deadline: float) -> None:
+            super().__init__(socket.AF_INET, deadline=deadline)
+            self.requested_family = family
+
+        def connect(self, address: object) -> None:
+            attempted.append(self)
+            if self.requested_family == socket.AF_INET6:
+                raise OSError("IPv6 unavailable")
+            super().connect(address)
+
+    monkeypatch.setattr(studio_host_module, "_DeadlineSocket", CandidateSocket)
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: pytest.fail("DNS used"))
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(host="localhost", port=port))
+        assert locate_studio(project) is not None
+    assert len(attempted) == 2
+    assert all(sock.fileno() == -1 for sock in attempted)
+
+
+def test_ping_closes_returned_close_delimited_response_after_timeout(
+    project: Path, quick_ping: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    responses: list[http.client.HTTPResponse] = []
+    original_getresponse = studio_host_module._PingConnection.getresponse
+
+    def getresponse(conn: studio_host_module._PingConnection) -> http.client.HTTPResponse:
+        response = original_getresponse(conn)
+        responses.append(response)
+        return response
+
+    monkeypatch.setattr(studio_host_module._PingConnection, "getresponse", getresponse)
+    with _trickling_ping("close-delimited") as (port, _requests, _stop):
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioUnresponsive):
+            locate_studio(project)
+    assert len(responses) == 2
+    assert all(response.isclosed() for response in responses)
+
+
+def test_ping_classifies_transport_error_after_deadline_as_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 0.0}
+
+    class Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            clock["now"] = 1.0
+            raise OSError("late reset")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_PingConnection", Connection)
+    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
+    monkeypatch.setattr(studio_host_module.time, "monotonic", lambda: clock["now"])
+    with pytest.raises(TimeoutError):
+        studio_host_module._ping(_host(), "/project")
+
+
+def test_ping_rejects_success_after_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = {"now": 0.0}
+
+    class Response:
+        status = 200
+        closed = False
+
+        def read(self, _size: int) -> bytes:
+            clock["now"] = 1.0
+            return b"{}"
+
+        def close(self) -> None:
+            self.closed = True
+
+    response = Response()
+
+    class Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> Response:
+            return response
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_PingConnection", Connection)
+    monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
+    monkeypatch.setattr(studio_host_module.time, "monotonic", lambda: clock["now"])
+    with pytest.raises(TimeoutError):
+        studio_host_module._ping(_host(), "/project")
+    assert response.closed
 
 
 @pytest.mark.parametrize("body", [b"", b"[]", b"not json", b"null"])

@@ -149,7 +149,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Copy guest link | `record.copyGuestLink` | Loaded host project | Copy the open record room's guest link |
 | Start recording | `record.start` | Host project management |  |
 | Capture room tone | `record.roomTone` | Host project management | Ask every recorded device to capture 3 s of room tone (lobby or stopped) |
-| Set session target | `record.setTarget` | Host project management | Choose where this session lands (before the first take): the end, or staged as an insert or replace |
+| Set session target | `record.setTarget` | Host project management | Choose where this session lands (before the first take): the start or the end of the episode, or staged as an insert or replace |
 | Pause recording | `record.pause` | Host project management |  |
 | Resume recording | `record.resume` | Host project management |  |
 | Stop recording | `record.stop` | Host project management |  |

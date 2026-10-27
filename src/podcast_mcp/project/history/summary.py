@@ -15,10 +15,14 @@ def _human_op(operation: str | None, label: str | None) -> str:
     return "snapshot"
 
 
-def record_land_title(number: int, *, first: bool, staged: bool = False) -> str:
+def record_land_title(
+    number: int, *, first: bool, staged: bool = False, at_start: bool = False
+) -> str:
     if staged:
         return f"Staged Session {number}"
-    return f"Added Session {number}" if first else f"Added to Session {number}"
+    if not first:
+        return f"Added to Session {number}"
+    return f"Added Session {number} at the start" if at_start else f"Added Session {number}"
 
 
 def _track_list(ids: list[Any] | None) -> str | None:
@@ -46,11 +50,16 @@ def format_history_group_title(
             int(params["session_number"]),
             first=bool(params.get("session_first")),
             staged=bool(params.get("session_staged")),
+            at_start=bool(params.get("session_at_start")),
         )
     if operation == "skip_session_suggestion" and params.get("session_number"):
         return f"Skipped Session {int(params['session_number'])}"
+    if operation == "select_session_take" and params.get("session_number"):
+        return f"Chose take {params.get('take_index')} for Session {int(params['session_number'])}"
     if operation == "accept_session_suggestion" and params.get("session_number"):
         return f"Added Session {int(params['session_number'])}"
+    if operation == "remap_session_track" and params.get("title"):
+        return str(params["title"])
     op = _human_op(operation, label)
     bits: list[str] = [op]
 

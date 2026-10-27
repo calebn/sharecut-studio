@@ -64,6 +64,24 @@ describe("placeAnchored", () => {
     expect(placed).toMatchObject({ side: "above", top: 740 - 4 - 120 });
   });
 
+  it("sits above the anchor when asked and there is room", () => {
+    const placed = placeAnchored(anchorAt(100, 300), panel, viewport, {
+      ...options,
+      align: "center",
+      prefer: "above",
+    });
+    expect(placed).toMatchObject({ side: "above", top: 300 - 4 - 120 });
+  });
+
+  it("flips below a preferred-above panel when the anchor hugs the top", () => {
+    const placed = placeAnchored(anchorAt(100, 20), panel, viewport, {
+      ...options,
+      align: "center",
+      prefer: "above",
+    });
+    expect(placed).toMatchObject({ side: "below", top: 20 + 32 + 4 });
+  });
+
   it("keeps the panel below and caps its height when neither side fits it", () => {
     const placed = placeAnchored(
       anchorAt(100, 150),

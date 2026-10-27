@@ -185,7 +185,7 @@ def validate_record_payload(command_type: str, payload: dict[str, Any]) -> dict[
         raw_target = (payload or {}).get("target")
         if not isinstance(raw_target, dict):
             raise CodedValueError(
-                'target: pass an object such as {"kind": "end"}, {"kind": "insert", ...} '
+                'target: pass an object such as {"kind": "end"}, {"kind": "start"}, {"kind": "insert", ...} '
                 'or {"kind": "replace", ...}',
                 code="invalid_record_request",
             )
@@ -203,7 +203,7 @@ class RecordCommand:
     client_id: str
     role: RecordRole
     participant_id: str | None
-    client_seq: int
+    client_seq: int | None
     command_id: str = field(default_factory=lambda: uuid4().hex)
 
     @classmethod
@@ -215,7 +215,7 @@ class RecordCommand:
         client_id: str,
         role: RecordRole,
         participant_id: str | None,
-        client_seq: int,
+        client_seq: int | None,
         command_id: str | None = None,
     ) -> RecordCommand:
         cleaned = validate_record_payload(command_type, payload or {})

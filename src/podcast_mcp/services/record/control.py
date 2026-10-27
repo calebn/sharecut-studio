@@ -9,8 +9,9 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService, RecordTakeOpenError
 from podcast_mcp.services.record.live_comments import LIVE_COMMENT_ID_PREFIX
-from podcast_mcp.services.record.service import RecordSessionService, next_record_client_seq
+from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID, parse_session_target
+from podcast_mcp.services.record.track_choice import RecordTrackService
 
 
 class RecordControlService:
@@ -64,6 +65,16 @@ class RecordControlService:
     def discard_take(self, take_index: int) -> dict[str, Any]:
         return RecordLandingService(self.workspace).delete_take(take_index)
 
+    def tracks(self) -> dict[str, Any]:
+        """Which track each recorded person lands on: matched by name, new, or ambiguous."""
+        return {"participants": RecordTrackService(self.workspace, self._svc.session_id).matches()}
+
+    def assign_track(self, participant_id: str, track: str) -> dict[str, Any]:
+        """Host correction: put a person on an existing track id, or ``new``, before Accept."""
+        return RecordTrackService(self.workspace, self._svc.session_id).assign(
+            participant_id, track
+        )
+
     def submit_host(
         self, command_type: str, payload: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -73,7 +84,7 @@ class RecordControlService:
             client_id="cli",
             role="host",
             participant_id=HOST_PARTICIPANT_ID,
-            client_seq=next_record_client_seq(),
+            client_seq=None,
         )
         return self._svc.submit(cmd)
 

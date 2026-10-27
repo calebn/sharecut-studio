@@ -57,7 +57,6 @@ from podcast_mcp.services.record.state import (
     room_tone_countdown_left_ms,
     start_blockers,
     take_containing_wall,
-    unsupported_target_message,
 )
 from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.services.session_sync import (
@@ -333,9 +332,6 @@ def begin_record_session(
     ``target`` is where the session lands (default: the end of the episode).
     """
     room_target = parse_session_target(target)
-    refusal = unsupported_target_message(room_target)
-    if refusal is not None:
-        raise RecordStateError(refusal)
     check_target_for_project(room_target, project)
     hub = record_hub_key(project)
     store = _store_for(project)
@@ -371,6 +367,7 @@ def assert_no_open_take(project: EpisodeProject) -> None:
 class RecordSessionService:
     def __init__(self, project: EpisodeProject, *, session_id: str) -> None:
         self.project = project
+        self._saved_project_store = ProjectStore(project.workspace_path())
         self.session_id = session_id
         self._store = _store_for(project)
         self._participants = _participants_for(project)
@@ -398,7 +395,7 @@ class RecordSessionService:
     def _saved_project(self) -> EpisodeProject:
         """The project as saved now, so edits made after this service was built are seen."""
         try:
-            return ProjectStore(self.project.workspace_path()).load()
+            return self._saved_project_store.load()
         except FileNotFoundError:
             return self.project
 
@@ -408,6 +405,13 @@ class RecordSessionService:
     def _model(self) -> RecordSnapshot:
         raw = self._store.get_snapshot() or self._empty()
         return RecordSnapshot.model_validate(raw)
+
+    def track_choices(self) -> dict[str, str]:
+        """The host's track choice per participant for this session (host-only)."""
+        return self._participants.track_choices(self.session_id)
+
+    def set_track_choice(self, participant_id: str, track_id: str) -> None:
+        self._participants.set_track_choice(self.session_id, participant_id, track_id)
 
     def verify_lease(self, participant_id: str, lease: str, *, token: str) -> bool:
         if participant_id == HOST_PARTICIPANT_ID:
@@ -661,9 +665,9 @@ class RecordSessionService:
             raise RecordStateError("participant removed")
         wall = time.time_ns() // 1_000_000 if now_wall_ms is None else now_wall_ms
         if cmd.type == "SetTarget" and not self._model().takes:
-            check_target_for_project(
-                parse_session_target(cmd.payload.get("target")), self._saved_project()
-            )
+            target = parse_session_target(cmd.payload.get("target"))
+            if target.kind == "replace":
+                check_target_for_project(target, self._saved_project())
         if cmd.type == "Comment":
             self._rewrite_comment(cmd, now_wall_ms=wall)
         stored_payload = dict(cmd.payload)

@@ -294,6 +294,16 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Discard recording take",
     tooltip: "Discard recording take",
   },
+  "daw.record.listTracks": {
+    label: "Show who lands on which track",
+    tooltip:
+      "Show which track each person is matched to: matched, new or ambiguous",
+  },
+  "daw.record.assignTrack": {
+    label: "Move a person to a track",
+    tooltip:
+      "Put a person on a different existing track or a new one before Accept",
+  },
   "daw.review.listSessionSuggestions": {
     label: "List staged sessions",
     tooltip: "List recorded sessions staged for insert or replace",
@@ -305,6 +315,14 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.review.hearSessionSuggestion": {
     label: "Hear staged session",
     tooltip: "Hear a staged recorded session before and after it is placed",
+  },
+  "daw.review.listSessionTakes": {
+    label: "List staged session takes",
+    tooltip: "List the takes of a staged recorded session",
+  },
+  "daw.review.selectSessionTake": {
+    label: "Choose staged session take",
+    tooltip: "Choose which take of a staged recorded session is placed",
   },
   "daw.review.skipSessionSuggestion": {
     label: "Skip staged session",

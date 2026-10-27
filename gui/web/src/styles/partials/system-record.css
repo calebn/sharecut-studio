@@ -178,3 +178,290 @@
     margin-inline-start: calc(-1 * var(--space-3));
   }
 }
+
+/* Room tile: the live form of the person tile. */
+
+.sys-room-tile {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  aspect-ratio: 4 / 3;
+  min-inline-size: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-room-tile[data-speaking] {
+  --sys-room-ring: var(--sys-person-color);
+  border-color: var(--sys-person-color);
+}
+
+.sys-room-tile[data-presence="joining"] {
+  border-style: dashed;
+}
+
+.sys-room-tile--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-ui);
+  cursor: pointer;
+}
+
+.sys-room-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.sys-room-face {
+  --sys-room-level: 0;
+  position: relative;
+  flex: none;
+  inline-size: 40%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: 0 0 0 calc(0.1875rem + 0.3125rem * var(--sys-room-level))
+    var(--sys-room-ring, var(--color-accent-muted));
+}
+
+.sys-room-face .sys-person-avatar {
+  inline-size: 100%;
+  block-size: 100%;
+  font-size: var(--font-size-emphasis);
+}
+
+/* Away states dim the colour, not the text, so words keep their contrast. */
+.sys-room-tile:is(
+    [data-presence="lost"],
+    [data-presence="left"],
+    [data-presence="declined"],
+    [data-presence="joining"]
+  )
+  .sys-person-avatar {
+  --sys-room-dim: color-mix(
+    in srgb,
+    var(--sys-person-color) 40%,
+    var(--color-bg-elevated)
+  );
+  background: var(--sys-room-dim);
+  color: var(--color-text-primary);
+}
+
+.sys-room-tile[data-presence="lost"],
+.sys-room-tile[data-presence="left"] {
+  border-color: var(--color-border-subtle);
+}
+
+.sys-room-status {
+  line-height: 1;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  text-align: center;
+}
+
+.sys-room-badges {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-end: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sys-room-clip {
+  min-inline-size: 1.25rem;
+  padding-inline: var(--space-1);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-canvas);
+  color: var(--color-danger);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  line-height: 1.125rem;
+  text-align: center;
+}
+
+.sys-room-alert {
+  display: inline-flex;
+  color: var(--color-warning-on-surface);
+}
+
+.sys-room-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.sys-room-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0);
+  min-inline-size: 0;
+  flex: 1;
+}
+
+.sys-room-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-room-meter {
+  display: block;
+  block-size: 0.5rem;
+  border-radius: var(--radius-xl);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.sys-room-meter-fill {
+  --sys-room-level: 0;
+  display: block;
+  inline-size: calc(100% * var(--sys-room-level));
+  block-size: 100%;
+  background: var(--color-accent-solid);
+}
+
+.sys-room-glyphs {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+}
+
+.sys-room-signal--weak {
+  color: var(--color-warning-on-surface);
+}
+
+.sys-room-signal--lost {
+  color: var(--color-danger);
+}
+
+.sys-room-saving {
+  position: absolute;
+  inset: calc(-1 * var(--space-1));
+  inline-size: calc(100% + 2 * var(--space-1));
+  block-size: calc(100% + 2 * var(--space-1));
+  fill: none;
+  stroke-width: 6;
+}
+
+.sys-room-saving-track {
+  stroke: var(--color-border);
+}
+
+.sys-room-saving-fill {
+  stroke: var(--color-accent-solid);
+  stroke-linecap: round;
+}
+
+.sys-room-saving--success .sys-room-saving-fill {
+  stroke: var(--color-success);
+}
+
+.sys-room-saving--warning .sys-room-saving-fill {
+  stroke: var(--color-warning-on-surface);
+}
+
+.sys-room-saving-mark {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+}
+
+.sys-room-saving-mark--success {
+  color: var(--color-success);
+}
+
+.sys-room-saving-mark--warning {
+  color: var(--color-warning-on-surface);
+}
+
+.sys-room-listeners {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sys-room-listener {
+  position: relative;
+  display: inline-flex;
+}
+
+.sys-room-listener-glyph {
+  position: absolute;
+  inset-block-end: calc(-1 * var(--space-1));
+  inset-inline-end: calc(-1 * var(--space-1));
+  display: inline-flex;
+  padding: var(--space-0);
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+}
+
+.sys-room-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  max-inline-size: 45rem;
+  margin: 0;
+  padding: 0;
+}
+
+/* Room alert slot: one 44 px row. Every alert row in the slot, the top one and
+   the rest, draws its glyph at 20 px here rather than the 16 px of other rows. */
+.sys-room-alert-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sys-room-alert-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sys-room-alert-live {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.sys-room-alert-slot .sys-status--alert .sys-glyph > svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.sys-room-alert-more {
+  flex: none;
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+}

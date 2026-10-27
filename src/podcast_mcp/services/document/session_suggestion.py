@@ -16,6 +16,7 @@ from podcast_mcp.edits.session_suggestions import (
     list_session_suggestions,
     skip_session_suggestion,
 )
+from podcast_mcp.edits.session_takes import select_session_take, session_takes
 from podcast_mcp.edits.transcript_refine_status import (
     REFINE_GATE,
     TranscriptRefineRequiredError,
@@ -40,8 +41,12 @@ MAX_PREVIEW_PAD_SEC = 10.0
 MAX_PREVIEW_GAP_SEC = 5.0
 
 
-def _require_seconds(name: str, code: str, value: float, ceiling: float) -> None:
-    if not (math.isfinite(value) and 0.0 <= value <= ceiling):
+def _require_seconds(name: str, code: str, value: object, ceiling: float) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not (math.isfinite(value) and 0.0 <= value <= ceiling)
+    ):
         raise CodedValueError(
             f"{name} must be a number of seconds from 0 to {ceiling:g} (got {value}).", code=code
         )
@@ -70,6 +75,42 @@ class SessionSuggestionService:
             params={"suggestion_id": suggestion_id, "session_number": number},
         )
 
+    def takes(self, suggestion_id: str) -> dict[str, Any]:
+        """The takes of a staged session for a take switcher; reads only.
+
+        Per take: length (overall and per track), word count and a snippet of what is said
+        (both None for a take nobody has transcribed), whether it is the one picked
+        (``chosen``), whether it is the one Accept places when none is named (``default``),
+        and the refusal Accept would give it, if any.
+        """
+        return session_takes(self.ws.project, suggestion_id)
+
+    def select_take(self, suggestion_id: str, take_index: int) -> dict[str, Any]:
+        """Pick the take Accept places for a pending replace (one undo step "Chose take N").
+
+        Refuses what Accept refuses for that take, in the same words and codes: a session that
+        is not pending, an unknown take (take_not_found), an insert (take_not_applicable), a
+        track the take did not record, and a range that has changed (stale_anchor). Picking
+        the take already picked changes nothing and writes no history step.
+        """
+        row = find_session_suggestion(self.ws.project, suggestion_id)
+        number = row.session_number
+        title = f"Chose take {take_index} for Session {number}"
+        if row.status == "pending" and row.selected_take == take_index:
+            # The same refusals as a real pick, then nothing to write.
+            return select_session_take(self.ws.project, suggestion_id, take_index)
+        return self.ws.mutate(
+            f"before {title}",
+            f"after {title}",
+            lambda p: select_session_take(p, suggestion_id, take_index),
+            operation="select_session_take",
+            params={
+                "suggestion_id": suggestion_id,
+                "session_number": number,
+                "take_index": take_index,
+            },
+        )
+
     def accept(
         self,
         suggestion_id: str,
@@ -83,7 +124,10 @@ class SessionSuggestionService:
         range on every dialogue track and puts one take (``take_index``, else the selected or
         last one) in its place. A replace that also removes speech of a track the take did not
         record changes nothing and returns ``needs_confirmation``; repeat with
-        ``override_audio_checks=true`` to apply it. Marks the suggestion accepted.
+        ``override_audio_checks=true`` to apply it. Marks the suggestion accepted. A replace
+        discards the other takes' staged segments and the live comments held on them in the same
+        step (``discarded_takes``, ``comments_not_placed``, ``discard_message``); Undo brings
+        them back.
         """
         row = find_session_suggestion(self.ws.project, suggestion_id)
         self._require_refine_clear(row)

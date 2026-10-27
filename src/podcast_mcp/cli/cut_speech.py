@@ -21,15 +21,15 @@ def _pending(result: object) -> dict[str, Any] | None:
     return None
 
 
-def require_cut_applied(run: Callable[[], T]) -> T:
+def require_cut_applied(run: Callable[[], T], *, what: str = "this cut") -> T:
+    """Run ``run``; a held result prints its message and exits, naming ``what`` it would apply."""
     result = run()
     pending = _pending(result)
     if pending is None:
         return result
     typer.echo(str(pending["message"]), err=True)
     typer.echo(
-        "Nothing changed. To apply this cut as is, repeat the command with "
-        "--override-audio-checks.",
+        f"Nothing changed. To apply {what} as is, repeat the command with --override-audio-checks.",
         err=True,
     )
     raise typer.Exit(1)

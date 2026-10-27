@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from podcast_mcp.models import ChapterMarker, EditDecision, EpisodeProject, TimelineComment
-from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.models.episode import CutSpeech, RangeInterval
 
 _EPS = 1e-9
 
@@ -119,13 +119,79 @@ def remap_review_anchors_for_cuts(
     project.editorial.chapters = chapters
 
 
-def _start_after_insert(start: float, at_time: float, duration_sec: float) -> float:
+def _after_close(value: float, at_time: float, duration_sec: float) -> float:
+    """Where a time goes when ``[at_time + duration_sec, at_time)`` is taken out (``duration_sec < 0``).
+
+    Inside the removed span it clamps to the seam, as a cut-remap does for a surviving edge.
+    """
+    cut_start = at_time + duration_sec
+    if value <= cut_start + _EPS:
+        return value
+    if value >= at_time - _EPS:
+        return value + duration_sec
+    return cut_start
+
+
+def start_after_insert(start: float, at_time: float, duration_sec: float) -> float:
+    """A negative ``duration_sec`` closes the span ending at ``at_time`` and clamps to its seam."""
+    if duration_sec < 0:
+        return _after_close(start, at_time, duration_sec)
     return start + duration_sec if start >= at_time - _EPS else start
 
 
-def _end_after_insert(start: float, end: float, at_time: float, duration_sec: float) -> float:
+def end_after_insert(start: float, end: float, at_time: float, duration_sec: float) -> float:
+    """Like :func:`start_after_insert` for an interval end, so the end never lands before the start."""
+    if duration_sec < 0:
+        return _after_close(end, at_time, duration_sec)
     moved = start >= at_time - _EPS or end > at_time + _EPS
     return end + duration_sec if moved else end
+
+
+def _shifted_range(
+    span: RangeInterval, at_time: float, duration_sec: float
+) -> RangeInterval | None:
+    start = start_after_insert(span.start, at_time, duration_sec)
+    end = end_after_insert(span.start, span.end, at_time, duration_sec)
+    return RangeInterval(start=start, end=end) if end > start + _EPS else None
+
+
+def _shifted_cut_speech(speech: CutSpeech, at_time: float, duration_sec: float) -> CutSpeech:
+    """Move a decision's recorded cut speech (timeline clock) with the decision."""
+    spans = [r for s in speech.spans if (r := _shifted_range(s, at_time, duration_sec))]
+    if not spans:
+        return speech
+    tracks = [
+        track.model_copy(
+            update={
+                "words": [
+                    word.model_copy(
+                        update={
+                            "timeline_start": start_after_insert(
+                                word.timeline_start, at_time, duration_sec
+                            ),
+                            "timeline_end": end_after_insert(
+                                word.timeline_start, word.timeline_end, at_time, duration_sec
+                            ),
+                        }
+                    )
+                    for word in track.words
+                ],
+                "sound_spans": [
+                    r for s in track.sound_spans if (r := _shifted_range(s, at_time, duration_sec))
+                ],
+            }
+        )
+        for track in speech.tracks
+    ]
+    return speech.model_copy(update={"spans": spans, "tracks": tracks})
+
+
+def _shifted_comment_end(c: TimelineComment, at_time: float, duration_sec: float) -> float | None:
+    if c.timeline_end is None:
+        return None
+    end = end_after_insert(c.timeline_start, c.timeline_end, at_time, duration_sec)
+    start = start_after_insert(c.timeline_start, at_time, duration_sec)
+    return end if end > start + _EPS else None
 
 
 def shift_review_anchors_for_insert(
@@ -140,25 +206,19 @@ def shift_review_anchors_for_insert(
     project.review.comments = [
         c.model_copy(
             update={
-                "timeline_start": _start_after_insert(c.timeline_start, at_time, duration_sec),
-                "timeline_end": (
-                    None
-                    if c.timeline_end is None
-                    else _end_after_insert(c.timeline_start, c.timeline_end, at_time, duration_sec)
-                ),
+                "timeline_start": start_after_insert(c.timeline_start, at_time, duration_sec),
+                "timeline_end": _shifted_comment_end(c, at_time, duration_sec),
                 "timeline_spans": [
-                    RangeInterval(
-                        start=_start_after_insert(span.start, at_time, duration_sec),
-                        end=_end_after_insert(span.start, span.end, at_time, duration_sec),
-                    )
+                    r
                     for span in c.timeline_spans
+                    if (r := _shifted_range(span, at_time, duration_sec))
                 ],
             }
         )
         for c in project.review.comments
     ]
     project.editorial.chapters = [
-        ch.model_copy(update={"time": _start_after_insert(ch.time, at_time, duration_sec)})
+        ch.model_copy(update={"time": start_after_insert(ch.time, at_time, duration_sec)})
         for ch in project.editorial.chapters
     ]
 
@@ -172,8 +232,10 @@ def shift_pending_decisions_for_insert(
     """Move pending timeline-timebase edit decisions for a gap opened on ``track_ids`` (mutates project).
 
     Only decisions whose tracks are all among them move; an interval starting at or
-    after the point moves and one the point falls inside grows. Source-timebase decisions
-    follow their clips, exact ranges are re-checked at approval, and applied records stay.
+    after the point moves and one the point falls inside grows. A source-timebase decision
+    follows its clips, but its ``source_timeline_span`` witness (a timeline-clock placement check)
+    moves with them; a recorded ``cut_speech`` moves with either kind. Exact ranges are
+    re-checked at approval, and applied records stay.
     """
     project.editorial.edit_decisions = [
         _shifted_decision(edit, at_time, duration_sec)
@@ -184,16 +246,23 @@ def shift_pending_decisions_for_insert(
 
 
 def _shifted_decision(edit: EditDecision, at_time: float, duration_sec: float) -> EditDecision:
-    if edit.applied or edit.timebase != "timeline" or edit.exact_range is not None:
+    if edit.applied or edit.exact_range is not None:
         return edit
-    return edit.model_copy(
-        update={
-            "start": _start_after_insert(edit.start, at_time, duration_sec),
-            "end": _end_after_insert(edit.start, edit.end, at_time, duration_sec)
+    update: dict[str, object] = {}
+    if edit.timebase == "timeline":
+        update["start"] = start_after_insert(edit.start, at_time, duration_sec)
+        update["end"] = (
+            end_after_insert(edit.start, edit.end, at_time, duration_sec)
             if edit.end > edit.start
-            else _start_after_insert(edit.end, at_time, duration_sec),
-        }
-    )
+            else start_after_insert(edit.end, at_time, duration_sec)
+        )
+    elif edit.source_timeline_span is not None:
+        witness = _shifted_range(edit.source_timeline_span, at_time, duration_sec)
+        if witness is not None:
+            update["source_timeline_span"] = witness
+    if edit.cut_speech is not None:
+        update["cut_speech"] = _shifted_cut_speech(edit.cut_speech, at_time, duration_sec)
+    return edit.model_copy(update=update) if update else edit
 
 
 def remap_interval_for_replace(

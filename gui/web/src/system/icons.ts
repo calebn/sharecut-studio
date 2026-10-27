@@ -7,6 +7,7 @@ import {
   Circle,
   CircleCheck,
   CircleHelp,
+  ClipboardPaste,
   CloudDownload,
   CloudOff,
   Copy,
@@ -34,6 +35,7 @@ import {
   OctagonAlert,
   PanelRight,
   Pause,
+  Pin,
   Play,
   Plug,
   Plus,
@@ -44,6 +46,9 @@ import {
   Send,
   Settings,
   ShieldCheck,
+  SignalHigh,
+  SignalLow,
+  SignalZero,
   SlidersHorizontal,
   Split,
   SquareSplitHorizontal,
@@ -68,6 +73,7 @@ import {
 export const LUCIDE_ICONS = {
   play: Play,
   pause: Pause,
+  pin: Pin,
   ear: Ear,
   "shield-check": ShieldCheck,
   "fold-horizontal": FoldHorizontal,
@@ -85,6 +91,7 @@ export const LUCIDE_ICONS = {
   settings: Settings,
   plug: Plug,
   "circle-help": CircleHelp,
+  "clipboard-paste": ClipboardPaste,
   "square-split-horizontal": SquareSplitHorizontal,
   "message-square": MessageSquare,
   "text-cursor-input": TextCursorInput,
@@ -124,6 +131,9 @@ export const LUCIDE_ICONS = {
   lock: Lock,
   mic: Mic,
   "panel-right": PanelRight,
+  "signal-high": SignalHigh,
+  "signal-low": SignalLow,
+  "signal-zero": SignalZero,
 } as const satisfies Record<string, LucideIcon>;
 
 /** No Lucide equivalent: drawn by hand in `SystemIcon`. */

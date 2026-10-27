@@ -11,7 +11,6 @@ from podcast_mcp.services.record.state import (
     SessionTarget,
     TakeState,
     take_recording_duration_ms,
-    unsupported_target_message,
 )
 from podcast_mcp.services.record.upload import KEEPER_SAMPLE_RATE
 from podcast_mcp.util.coded_error import CodedValueError
@@ -70,9 +69,8 @@ def check_target_for_project(target: SessionTarget, project: EpisodeProject) -> 
 
 def session_placement(clips: Iterable[Clip], session_id: str, target: SessionTarget) -> float:
     """Where a session's first take starts for ``target``; the one place landing and the live clock agree."""
-    refusal = unsupported_target_message(target)
-    if refusal is not None:
-        raise CodedValueError(refusal, code="invalid_record_request")
+    if target.kind == "start":
+        return 0.0
     if target.kind == "insert":
         return target.at_sec
     if target.kind == "replace":
@@ -90,8 +88,8 @@ def session_take_offsets_s(
 ) -> dict[int, float]:
     """Each live take's origin on the timeline for ``target``; landing and the live clock share it.
 
-    End takes follow each other with the take gap. Insert takes concatenate with no gap. Replace
-    takes are alternatives, so each starts at the range start.
+    End and start takes follow each other with the take gap. Insert takes concatenate with no gap.
+    Replace takes are alternatives, so each starts at the range start.
     """
     return take_offsets_s(
         takes,

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -255,6 +257,39 @@ def test_record_room_tone_cli_and_mcp_announce_a_round(
         RecordControlService(ws).room_tone_countdown()
 
 
+def test_record_host_commands_from_separate_processes_are_not_deduped(minimal_project, sample_wav):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    host = RecordSessionService(ws.project, session_id=room["session_id"])
+    host.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="record-join:host",
+        connection_id="c0",
+    )
+    script = (
+        "import json, sys; "
+        "from podcast_mcp.services.app import ProjectWorkspace; "
+        "from podcast_mcp.services.record import RecordControlService; "
+        "state = RecordControlService(ProjectWorkspace.open(sys.argv[1])).room_tone_countdown(); "
+        "print(json.dumps(state['room_tone']['round']))"
+    )
+    rounds = []
+    for _ in range(2):
+        completed = subprocess.run(
+            [sys.executable, "-c", script, str(minimal_project)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rounds.append(json.loads(completed.stdout))
+
+    assert rounds == [1, 2]
+    assert host.snapshot()["room_tone"]["round"] == 2
+
+
 def test_record_room_tone_tool_is_registered() -> None:
     from mcp.server import MCPServer
 
@@ -276,11 +311,11 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
     assert done.exit_code == 0, done.output
     assert json.loads(done.output)["target"] == {"kind": "end"}
     assert json.loads(record_target_tool(str(minimal_project)))["target"] == {"kind": "end"}
-    refused = runner.invoke(
+    started = runner.invoke(
         cli_app, ["record", "target", "start", "--project", str(minimal_project)]
     )
-    assert refused.exit_code == 1, refused.output
-    assert "the start target is not available yet" in refused.output
+    assert started.exit_code == 0, started.output
+    assert json.loads(started.output)["target"] == {"kind": "start"}
     for bare in ("insert", "replace"):
         needs_time = runner.invoke(
             cli_app, ["record", "target", bare, "--project", str(minimal_project)]
@@ -290,9 +325,7 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
     bad = runner.invoke(cli_app, ["record", "target", "middle", "--project", str(minimal_project)])
     assert bad.exit_code == 1
     assert "invalid session target" in bad.output
-    with pytest.raises(RecordStateError, match="is not available yet"):
-        RecordControlService(ws).set_target({"kind": "start"})
-    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "end"}
+    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "start"}
 
 
 def test_record_target_cli_and_mcp_refuse_a_replace_over_an_unknown_track(

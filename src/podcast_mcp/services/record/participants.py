@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS record_participants (
   created_ns INTEGER NOT NULL,
   last_seen_ns INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS record_track_choices (
+  session_id TEXT NOT NULL,
+  participant_id TEXT NOT NULL,
+  track_id TEXT NOT NULL,
+  PRIMARY KEY (session_id, participant_id)
+);
 """
 
 
@@ -125,6 +131,25 @@ class RecordParticipantStore:
     def clear_all(self) -> None:
         with self._lock:
             self._conn.execute("DELETE FROM record_participants")
+            self._conn.execute("DELETE FROM record_track_choices")
+
+    def set_track_choice(self, session_id: str, participant_id: str, track_id: str) -> None:
+        """Remember the host's choice of track for one participant (host-only; never sent to guests)."""
+        with self._lock:
+            self._conn.execute(
+                """INSERT INTO record_track_choices (session_id, participant_id, track_id)
+                VALUES (?, ?, ?)
+                ON CONFLICT (session_id, participant_id) DO UPDATE SET track_id = excluded.track_id""",
+                (session_id, participant_id, track_id),
+            )
+
+    def track_choices(self, session_id: str) -> dict[str, str]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT participant_id, track_id FROM record_track_choices WHERE session_id = ?",
+                (session_id,),
+            ).fetchall()
+        return {str(row["participant_id"]): str(row["track_id"]) for row in rows}
 
     def for_session(self, session_id: str) -> list[dict[str, str]]:
         with self._lock:

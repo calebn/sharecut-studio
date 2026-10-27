@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**130** capabilities · **110** ShareCut Studio commands · **58** keyed · **193** MCP tools · **17** skills on rows (+ **19** hub skills).
+**134** capabilities · **110** ShareCut Studio commands · **58** keyed · **197** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -147,9 +147,13 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Label | Effect | MCP | CLI | Skill | Host-only |
 | ----- | ------ | --- | --- | ----- | --------- |
 | Discard recording take | project | `record_discard_take_tool` | `podcast record discard-take` | `podcast-record-session` | yes |
+| Show who lands on which track | session | `record_tracks_tool` | `podcast record tracks` | `podcast-record-session` | yes |
+| Move a person to a track | project | `record_assign_track_tool` | `podcast record assign-track` | `podcast-record-session` | yes |
 | List staged sessions | project | `list_session_suggestions_tool` | `podcast review session-suggestions` | `podcast-record-session` | yes |
 | Accept staged session | project | `accept_session_suggestion_tool` | `podcast review accept-session-suggestion` | `podcast-record-session` | yes |
 | Hear staged session | session | `hear_session_suggestion_tool` | `podcast review preview-session-suggestion` | `podcast-record-session` | yes |
+| List staged session takes | project | `list_session_takes_tool` | `podcast review session-takes` | `podcast-record-session` | yes |
+| Choose staged session take | project | `select_session_take_tool` | `podcast review select-session-take` | `podcast-record-session` | yes |
 | Skip staged session | project | `skip_session_suggestion_tool` | `podcast review skip-session-suggestion` | `podcast-record-session` | yes |
 | Episode / track CRUD | project | `episode_create`, `track_set_meta_tool` | `podcast episode` | `podcast-setup` | yes |
 | Transcript layers | project | `transcribe_track`, `get_transcript`, `get_transcript_vocabulary_tool`, `set_transcript_vocabulary_tool`, `export_transcript`, `precorrect_transcript_tool`, +4 | `podcast transcript` | `podcast-transcript-workflow` | yes |
