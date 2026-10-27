@@ -311,7 +311,9 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
             body = json.loads(raw.decode("utf-8"))
             _remaining(deadline)
             return status, body
-        except (http.client.HTTPException, ValueError, RecursionError):
+        except TimeoutError:
+            raise
+        except (OSError, http.client.HTTPException, ValueError, RecursionError):
             _remaining(deadline)
             return status, None
     except (OSError, http.client.HTTPException, ValueError):

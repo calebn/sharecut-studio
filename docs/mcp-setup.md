@@ -20,8 +20,10 @@ part of a reply does not restart that time. A timeout is retried once. If both
 attempts time out,
 the tool stops with an error instead of running locally, since Studio may still
 be serving the project. A refused connection before the deadline is treated as
-a stale announcement and allows local execution. The CLI uses the same discovery
-limit.
+a stale announcement and allows local execution. Once response headers arrive,
+a connection reset while reading the ping body is an incomplete reply. The tool
+stops with an error and does not run locally. Body-read timeouts still follow
+the retry rule above. The CLI uses the same discovery rules.
 
 ## Mode 1: stdio
 
