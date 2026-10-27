@@ -16,31 +16,18 @@
   padding: var(--space-3);
 }
 
-.stage-host-columns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-5);
-  align-items: flex-start;
+/* The Prepare view pads itself, so its scroller adds nothing. */
+.stage-host--prepare {
+  padding: 0;
 }
 
-.stage-host--phone .stage-host-columns {
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: stretch;
-}
-
-/* Preferred column widths: a column shrinks and wraps to its own row, and the
-   wide one takes the room left. */
+/* Preferred column width: a section shrinks and wraps to its own row. */
 .stage-host-section {
   display: flex;
   flex: 0 1 22rem;
   flex-direction: column;
   gap: var(--space-3);
   min-inline-size: 0;
-}
-
-.stage-host-section--wide {
-  flex: 1 1 28rem;
 }
 
 .stage-host-title {
@@ -69,13 +56,6 @@
 
 .stage-host--phone .stage-host-handoff {
   justify-content: stretch;
-}
-
-.stage-host-empty {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  max-inline-size: 40rem;
 }
 
 .stage-host-page {
