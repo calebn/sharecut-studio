@@ -41,10 +41,14 @@ test("snap ticks, mute regions and a live trim ghost share the ruler geometry", 
       await expect
         .poll(() => scroll.evaluate((el) => el.scrollLeft))
         .toBeGreaterThan(0);
+      // Selecting the clip opens the Inspector column and narrows the
+      // timeline, so select first and measure on the settled layout; a drag
+      // that selected it would shift every box it measured beforehand.
+      await clip.getByRole("button", { name: /^Select guest clip/ }).click();
+      await expect(page.locator(".edit-inspector")).toBeVisible();
+      const trimOut = clip.getByTestId(timelineTestIds.trimOut);
       const committed = await clip.boundingBox();
-      const handle = await clip
-        .getByTestId(timelineTestIds.trimOut)
-        .boundingBox();
+      const handle = await trimOut.boundingBox();
       if (!committed || !handle)
         throw new Error("The clip trim handle did not mount");
       await page.mouse.move(
