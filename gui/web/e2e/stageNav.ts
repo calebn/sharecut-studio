@@ -307,7 +307,8 @@ export async function openRecordRoom(page: Page): Promise<Locator> {
 
 /** Open the Edit stage's eye sheet (view options) and return it. */
 export async function openViewSheet(page: Page): Promise<Locator> {
-  await goToStage(page, "edit");
+  // The eye sits on the Timeline surface; the phone shows one surface at a time.
+  await phone.showTimeline(page);
   const sheet = page.getByRole("dialog", { name: "View" });
   if (await sheet.isVisible()) return sheet;
   await page.getByRole("button", { name: "View options" }).click();
