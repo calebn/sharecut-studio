@@ -400,123 +400,6 @@ html[data-shell="phone"]
   overflow-wrap: anywhere;
 }
 
-.split-speakers-count {
-  inline-size: 7rem;
-  min-block-size: var(--touch-min);
-}
-
-.split-speakers-names {
-  min-inline-size: 0;
-  border: 0;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-3);
-}
-
-.split-speakers-names legend {
-  padding: 0;
-  margin-bottom: var(--space-1);
-  font-weight: 600;
-}
-
-.split-speakers-name-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
-  gap: var(--space-0) var(--space-4);
-}
-
-.split-speakers-name-grid input {
-  min-block-size: var(--touch-min);
-  inline-size: 100%;
-  box-sizing: border-box;
-}
-
-.split-speakers-subhead {
-  margin: 0;
-  font-size: var(--font-size-body);
-  font-weight: 600;
-}
-
-.split-speakers-panel .pipeline-bar {
-  background: var(--color-border);
-}
-
-.split-speakers-panel .pipeline-bar-fill {
-  min-inline-size: var(--space-4);
-}
-
-.split-speakers-lanes,
-.split-speakers-notes {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.split-speakers-lanes li {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-4);
-  padding-block: var(--space-3);
-  border-block-end: 1px solid var(--color-border);
-}
-
-.split-speakers-lane-name {
-  font-weight: 600;
-}
-
-.split-speakers-lane-time {
-  color: var(--color-text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.split-speakers-notes li {
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-}
-
-.split-speakers-review {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.split-speakers-review-list {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.split-speakers-review-list li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3);
-  padding-block: var(--space-3);
-  border-block-end: 1px solid var(--color-border);
-}
-
-.split-speakers-review-detail {
-  display: grid;
-  min-inline-size: 0;
-  gap: var(--space-1);
-  color: var(--color-text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.split-speakers-review-labels {
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-
-.split-speakers-actions {
-  gap: var(--space-3);
-}
-
 .command-palette-panel.share-dialog-panel {
   width: min(32rem, calc(100vw - 2rem));
 }
@@ -874,26 +757,8 @@ html[data-shell="phone"]
   box-shadow: inset 0 0 0 var(--focus-ring-width) var(--color-accent);
 }
 
-.split-speakers-name-cell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.split-speakers-sample {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.split-speakers-sample-range {
-  font-size: var(--font-size-caption);
-  color: var(--color-text-secondary);
-}
-
 /* Footer button rows own their spacing; the body-level margins do not apply. */
-.command-palette-footer :is(.share-dialog-actions, .pipeline-whisper-actions) {
+.command-palette-footer .share-dialog-actions {
   margin: 0;
   gap: var(--space-3);
 }
