@@ -104,7 +104,12 @@ export function Composer(props: ComposerProps) {
       : submitLabel;
 
   const onBodyKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    if (
+      event.key !== "Enter" ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    )
+      return;
     const chord = event.metaKey || event.ctrlKey;
     if (!chord && (event.shiftKey || isCoarsePointer())) return;
     event.preventDefault();
@@ -113,7 +118,12 @@ export function Composer(props: ComposerProps) {
   };
 
   const onNameKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    if (
+      event.key !== "Enter" ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    )
+      return;
     event.preventDefault();
     event.stopPropagation();
     if (event.metaKey || event.ctrlKey) {

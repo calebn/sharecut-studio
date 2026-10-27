@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   type AnchorIntent,
+  type AnchorSpan,
+  anchorSpan,
   type ComposerAnchor,
   formatAnchor,
   idleAnchor,
@@ -106,5 +108,20 @@ describe("formatAnchor", () => {
     expect(formatAnchor({ start: 1116 })).toBe("18:36");
     expect(formatAnchor({ start: 1116, end: 1121 })).toBe("18:36 to 18:41");
     expect(formatAnchor({ start: 702.3 })).toBe("11:42");
+  });
+});
+
+describe("anchorSpan", () => {
+  it.each<[string, ComposerAnchor, AnchorSpan | undefined]>([
+    ["follow", follow, { start: 600 }],
+    ["pinned point", pinned, { start: 700 }],
+    [
+      "pinned range",
+      { kind: "pinned", start: 1000, end: 1005 },
+      { start: 1000, end: 1005 },
+    ],
+    ["episode", episode, undefined],
+  ])("%s", (_, anchor, expected) => {
+    expect(anchorSpan(anchor)).toEqual(expected);
   });
 });
