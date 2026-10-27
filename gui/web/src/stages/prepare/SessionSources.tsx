@@ -33,6 +33,7 @@ export function SessionSources({
       takes={session.takes}
       duration={session.duration}
       target={session.target}
+      targetLocked={session.targetLocked}
       targetFor={session.title}
       onTarget={onTarget}
       status={session.status}
@@ -65,7 +66,11 @@ export function SessionSources({
                 onRetry={() => actions.onRetry(source.id)}
                 onDetails={() => actions.onDetails(source.id)}
                 onReplace={() => actions.onReplace(source.id)}
-                onMerge={() => actions.onMerge(source.id)}
+                onMerge={
+                  actions.onMerge
+                    ? () => actions.onMerge?.(source.id)
+                    : undefined
+                }
                 onMoveUp={
                   at > 0 ? () => actions.onMove(source.id, "up") : undefined
                 }
