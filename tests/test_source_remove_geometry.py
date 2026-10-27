@@ -592,6 +592,53 @@ def test_unrelated_recording_mute_does_not_qualify_an_effect(tmp_path):
     assert "voiced_edge" in holds[0].detail
 
 
+def test_completed_effects_preserve_unchanged_downstream_fade_after_ripple(tmp_path):
+    audio = room(seconds=92, seed=2375, db=-70)
+    voice(audio, 90.7, 91.11)
+    write_wav(tmp_path / "raw/host.wav", audio)
+    project = EpisodeProject.create("downstream fade ripple", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=92),
+        )
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="downstream", start=90.7, end=91.11)],
+        )
+    ]
+    project.clips = [
+        Clip(id="cut-clip", track_id="host", source_start=0, source_end=45, timeline_start=0),
+        Clip(
+            id="downstream",
+            track_id="host",
+            source_start=90,
+            source_end=91.11,
+            timeline_start=90,
+            fade_out_ms=200,
+        ),
+    ]
+    candidate = project.model_copy(deep=True)
+    candidate.clips[0].source_end = 44.8
+    candidate.clips[1].timeline_start -= 0.2
+    effects = cut_effects.completed_audio_effects(
+        project, candidate, frozenset({"cut"}), defaults={}
+    )
+    assert [
+        (effect.start, effect.end, effect.join, effect.retained, effect.contributors)
+        for effect in effects
+    ] == [
+        (44.8, 44.8, cut_policy.CutJoin.SPLICE, False, frozenset({"cut"})),
+        (44.8, 45, cut_policy.CutJoin.SPLICE, False, frozenset({"cut"})),
+    ]
+    assert candidate.clips[1].fade_out_ms == 200
+    assert cut_safety.complete_effect_acoustics(project, effects, defaults={}) == []
+
+
 @pytest.mark.parametrize("aliased", [False, True])
 def test_completed_effects_bind_repeated_physical_occurrences(tmp_path, aliased):
     path = tmp_path / "raw/host.wav"
