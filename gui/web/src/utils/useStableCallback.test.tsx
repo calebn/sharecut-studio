@@ -312,6 +312,11 @@ describe("stable callback source governance", () => {
         .sort(),
     ).toEqual([
       "stages/edit/FixTextField.tsx:finish",
+      "system/Clip.tsx:abort",
+      "system/Clip.tsx:endNudge",
+      "system/Clip.tsx:escapeDrag",
+      "system/Clip.tsx:stopWatching",
+      "system/TrackHeader.tsx:commitLevel",
       "timeline/JoinEditor.tsx:place",
       "timeline/TimelineView.tsx:measure",
       "timeline/TimelineView.tsx:onClipBodyEnd",

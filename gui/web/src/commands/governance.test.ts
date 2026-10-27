@@ -41,6 +41,8 @@ const MANIFEST_CAPABILITIES: ManifestCapability[] = JSON.parse(
 /** Allowlisted non-bus keydown sites (component Escape / a11y widgets). */
 const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "keymap/listener.ts",
+  // A clip drag in progress takes Escape from the document, wherever focus is, so the cancel does not depend on the clip holding focus.
+  "system/Clip.tsx",
   "timeline/ClipBlock.tsx",
   "ui/useDialogModal.ts",
   "ui/useMenuKeyboard.ts",

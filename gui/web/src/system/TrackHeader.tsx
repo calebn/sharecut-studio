@@ -1,12 +1,15 @@
 import {
   type CSSProperties,
-  type DragEventHandler,
+  type DragEvent,
   type KeyboardEvent,
+  memo,
   useId,
+  useRef,
 } from "react";
 import { presenceColorVar } from "../presence/colors";
 import type { MuteState } from "../utils/audio";
 import { clamp } from "../utils/math";
+import { useStableCallback } from "../utils/useStableCallback";
 import { PersonAvatar } from "./Person";
 import { ScrubField } from "./ScrubField";
 import { SystemIcon } from "./SystemIcon";
@@ -20,7 +23,12 @@ const TRACK_LEVEL_MIN_DB = -60;
 const TRACK_LEVEL_MAX_DB = 12;
 const LEVEL_STEP_DB = 0.5;
 
+/** `data-*` attributes (a presence anchor) the host wants on the header's elements. */
+export type TrackHeaderAttrs = Readonly<Record<string, string>>;
+
 export type TrackHeaderProps = {
+  /** The track's id, first argument of every callback so one function serves every header. */
+  id: string;
   name: string;
   /** Index into the eight presence colours; the track's. */
   colorIndex: number;
@@ -37,18 +45,28 @@ export type TrackHeaderProps = {
   rebuilding?: boolean;
   selected?: boolean;
   reorder?: TrackReorder;
+  /** Attributes for the header, and for its Mute and Solo buttons, such as presence anchors. */
+  anchorProps?: {
+    header?: TrackHeaderAttrs;
+    mute?: TrackHeaderAttrs;
+    solo?: TrackHeaderAttrs;
+  };
   /** A guest hears the mix but cannot change it: the level is fixed and a mix mute stays on. */
   readOnly?: boolean;
-  onSelect: () => void;
-  onMute: () => void;
-  onSolo: () => void;
+  /** `additive` is Shift, Ctrl or Cmd held: add the track to the selection. */
+  onSelect: (id: string, additive: boolean) => void;
+  onMute: (id: string) => void;
+  onSolo: (id: string) => void;
   /** A drag, key press or typed value on the level; one gesture is one call. */
-  onLevel: (db: number) => void;
-  /** Shift with Up or Down on the header: move the track one place. */
-  onMove?: (direction: -1 | 1) => void;
-  /** Native drag on the name row reorders; the column owns the drop. */
-  onDragStart?: DragEventHandler<HTMLButtonElement>;
-  onDragEnd?: DragEventHandler<HTMLButtonElement>;
+  onLevel: (id: string, db: number) => void;
+  /** Shift with Up or Down on the select button: move the track one place. */
+  onMove?: (id: string, direction: -1 | 1) => void;
+  /**
+   * A native drag from anywhere on the header except its controls reorders;
+   * the column owns the drop.
+   */
+  onDragStart?: (id: string, event: DragEvent<HTMLDivElement>) => void;
+  onDragEnd?: (id: string, event: DragEvent<HTMLDivElement>) => void;
 };
 
 const MUTE_TIPS: Record<MuteState, string> = {
@@ -61,7 +79,8 @@ const MUTE_TIPS: Record<MuteState, string> = {
 const MUTE_GUEST_TIP =
   "Muted in the mix. Only the host and editors can unmute it";
 
-export function TrackHeader({
+export const TrackHeader = memo(function TrackHeader({
+  id,
   name,
   colorIndex,
   form = "default",
@@ -72,6 +91,7 @@ export function TrackHeader({
   rebuilding = false,
   selected = false,
   reorder,
+  anchorProps,
   readOnly = false,
   onSelect,
   onMute,
@@ -92,6 +112,8 @@ export function TrackHeader({
   ].filter((fact) => fact !== null);
   const isSet = mute !== "off" || solo || level !== 0;
   const phone = form === "phone";
+  const fromControl = useRef(false);
+  const commitLevel = useStableCallback((db: number) => onLevel(id, db));
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!event.shiftKey || !onMove) return;
@@ -99,12 +121,28 @@ export function TrackHeader({
       event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
     if (direction === 0) return;
     event.preventDefault();
-    onMove(direction);
+    event.stopPropagation();
+    onMove(id, direction);
+  };
+  const dragStart = (event: DragEvent<HTMLDivElement>) => {
+    if (fromControl.current) {
+      event.preventDefault();
+      return;
+    }
+    onDragStart?.(id, event);
   };
 
   return (
     <div
       className="sys-track"
+      {...anchorProps?.header}
+      draggable={onDragStart ? true : undefined}
+      onPointerDown={(event) => {
+        fromControl.current =
+          (event.target as Element).closest(".sys-track-controls") !== null;
+      }}
+      onDragStart={onDragStart ? dragStart : undefined}
+      onDragEnd={onDragEnd ? (event) => onDragEnd(id, event) : undefined}
       data-form={form}
       data-selected={selected || undefined}
       data-mute={mute}
@@ -124,11 +162,10 @@ export function TrackHeader({
         className="sys-track-main"
         aria-pressed={selected}
         aria-describedby={facts.length > 0 ? statusId : undefined}
-        draggable={onDragStart ? true : undefined}
-        onClick={onSelect}
+        onClick={(event) =>
+          onSelect(id, event.shiftKey || event.ctrlKey || event.metaKey)
+        }
         onKeyDown={onKeyDown}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
       >
         <span className="sys-track-avatar">
           <PersonAvatar person={{ name, colorIndex }} size={28} />
@@ -151,6 +188,7 @@ export function TrackHeader({
             type="button"
             className="sys-track-toggle"
             data-kind="mute"
+            {...anchorProps?.mute}
             data-state={mute}
             aria-pressed={muted}
             aria-disabled={readOnly && mute === "saved" ? true : undefined}
@@ -158,7 +196,9 @@ export function TrackHeader({
             title={
               readOnly && mute === "saved" ? MUTE_GUEST_TIP : MUTE_TIPS[mute]
             }
-            onClick={readOnly && mute === "saved" ? undefined : onMute}
+            onClick={
+              readOnly && mute === "saved" ? undefined : () => onMute(id)
+            }
           >
             <SystemIcon name="volume-x" size={16} />
           </button>
@@ -166,6 +206,7 @@ export function TrackHeader({
             type="button"
             className="sys-track-toggle"
             data-kind="solo"
+            {...anchorProps?.solo}
             aria-pressed={solo}
             aria-label={`Solo ${name}`}
             title={
@@ -173,7 +214,7 @@ export function TrackHeader({
                 ? "Unsolo. Soloed for you only"
                 : "Solo. Solos the track for you only"
             }
-            onClick={onSolo}
+            onClick={() => onSolo(id)}
           >
             <SystemIcon name="headphones" size={16} />
           </button>
@@ -187,7 +228,7 @@ export function TrackHeader({
             defaultValue={0}
             value={level}
             readOnly={readOnly}
-            onCommit={onLevel}
+            onCommit={commitLevel}
           />
           {form === "wide" ? (
             <span className="sys-track-meter" aria-hidden="true">
@@ -198,4 +239,4 @@ export function TrackHeader({
       )}
     </div>
   );
-}
+});

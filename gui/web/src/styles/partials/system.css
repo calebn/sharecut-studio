@@ -4878,7 +4878,11 @@ input.sys-edit-fix {
   border-radius: inherit;
   background: transparent;
   cursor: pointer;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
+}
+
+.sys-clip[data-selected]:not([data-readonly]) .sys-clip-body {
+  touch-action: none;
 }
 
 .sys-clip-body[data-movable] {
@@ -4940,20 +4944,29 @@ input.sys-edit-fix {
 }
 
 .sys-clip-handle[data-handle^="fade"] {
+  --sys-clip-knob: max(var(--sys-clip-hit), 0.75rem);
+  --sys-clip-knob-room: calc(50% - var(--sys-clip-knob));
+
   inset-block-start: 0;
-  inline-size: max(var(--sys-clip-hit), 0.75rem);
-  block-size: max(var(--sys-clip-hit), 0.75rem);
+  inline-size: var(--sys-clip-knob);
+  block-size: min(var(--sys-clip-knob), 100%);
   cursor: ew-resize;
 }
 
 .sys-clip-handle[data-handle="fade-in"] {
-  inset-inline-start: var(--sys-clip-fade-in);
-  translate: -50% 0;
+  inset-inline-start: clamp(
+    var(--sys-clip-zone),
+    calc(var(--sys-clip-fade-in) - var(--sys-clip-knob) / 2),
+    var(--sys-clip-knob-room)
+  );
 }
 
 .sys-clip-handle[data-handle="fade-out"] {
-  inset-inline-end: var(--sys-clip-fade-out);
-  translate: 50% 0;
+  inset-inline-end: clamp(
+    var(--sys-clip-zone),
+    calc(var(--sys-clip-fade-out) - var(--sys-clip-knob) / 2),
+    var(--sys-clip-knob-room)
+  );
 }
 
 .sys-clip-grip {
@@ -4987,7 +5000,11 @@ input.sys-edit-fix {
   outline-offset: var(--focus-ring-offset);
 }
 
-@media (hover: hover) {
+.sys-clip[data-ghost] {
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
   .sys-clip:hover .sys-clip-handle {
     pointer-events: auto;
   }
@@ -5001,6 +5018,15 @@ input.sys-edit-fix {
   .sys-clip {
     --sys-clip-hit: var(--touch-min);
   }
+
+  .sys-clip[data-compact][data-selected] .sys-clip-handle[data-handle^="fade"] {
+    pointer-events: none;
+  }
+}
+
+.sys-clip[data-touch][data-compact][data-selected]
+  .sys-clip-handle[data-handle^="fade"] {
+  pointer-events: none;
 }
 
 @media (forced-colors: active) {
@@ -5023,9 +5049,9 @@ input.sys-edit-fix {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: var(--space-1);
+  gap: var(--space-0);
   inline-size: 10.5rem;
-  padding: var(--space-3);
+  padding: var(--space-0) var(--space-3);
   border-block-end: 1px solid var(--color-border);
   background: var(--color-bg-raised);
   color: var(--color-text-primary);
@@ -5039,6 +5065,12 @@ input.sys-edit-fix {
   align-items: center;
   inline-size: 3.5rem;
   padding-inline: 0;
+}
+
+.sys-track[data-form="phone"] .sys-track-main {
+  justify-content: center;
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
 }
 
 .sys-track[data-selected] {
@@ -5076,7 +5108,7 @@ input.sys-edit-fix {
   cursor: pointer;
 }
 
-.sys-track-main[draggable="true"] {
+.sys-track[draggable="true"] {
   cursor: grab;
 }
 
@@ -5143,11 +5175,13 @@ input.sys-edit-fix {
   align-items: center;
   gap: var(--space-1);
   opacity: 0;
+  pointer-events: none;
 }
 
 .sys-track:is(:hover, :focus-within, [data-set], [data-form="wide"])
   .sys-track-controls {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .sys-track-controls .sys-scrub {
@@ -5157,7 +5191,7 @@ input.sys-edit-fix {
 
 .sys-track-controls .sys-scrub-box {
   min-inline-size: 0;
-  min-block-size: 1.5rem;
+  min-block-size: 2rem;
   padding-inline: var(--space-1);
 }
 
@@ -5167,8 +5201,8 @@ input.sys-edit-fix {
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: 2rem;
+  block-size: 2rem;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -5213,12 +5247,29 @@ input.sys-edit-fix {
 }
 
 @media (pointer: coarse) {
+  .sys-track:not([data-form="phone"]) {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-1);
+    padding-inline: var(--space-1);
+  }
+
+  .sys-track:not([data-form="phone"]) .sys-track-main {
+    flex: 1;
+    min-inline-size: var(--touch-min);
+  }
+
+  .sys-track[data-form="default"] .sys-scrub {
+    display: none;
+  }
+
   .sys-track-main {
     min-block-size: var(--touch-min);
   }
 
   .sys-track-controls {
     opacity: 1;
+    pointer-events: auto;
   }
 
   .sys-track-toggle {

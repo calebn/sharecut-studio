@@ -249,9 +249,9 @@ const SURFACE_GESTURES: Record<string, string> = {
   "system/SelectionHandles.tsx":
     "the script text's selection grips: a drag on either end moves an edge of the selected words by word with pointer capture, and a tap that never moves passes through to the word under it; the grips have no keys, because Shift and Alt+Shift with the arrows do the same from the words; it is a text selection, not a timeline target",
   "system/Clip.tsx":
-    "the clip view: a press on its body or a handle is captured and reported as drag start, drag and drag end intents with pixels from the press; it edits nothing and owns no timeline target, because the lane host that mounts it turns the intents into one edit",
+    "the clip view: a press on its body or a handle is captured and reported as drag start, drag and drag end intents with the pointer, its keys and pixels from the press, and a finger only grabs a selected clip; it edits nothing and owns no timeline target, because the lane host that mounts it turns the intents into one edit",
   "system/TrackHeader.tsx":
-    "the track header's name row is draggable so the column can reorder it by HTML drag; Shift with Up or Down asks the host to do the same by key; it is not a timeline target",
+    "the track header is draggable except on its controls so the column can reorder it by HTML drag; Shift with Up or Down asks the host to do the same by key; it is not a timeline target",
   "system/SuggestionWaveform.tsx":
     "a suggestion's edge handles move a control inside one Decision card, not a timeline target; they preview the range and the card saves on decision",
   "stages/deliver/ClipTrimWave.tsx":
@@ -286,7 +286,7 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
   "stage/edit/ScriptDivider.tsx":
     "the separator pattern: Left and Right move the divider between the timeline and the Script pane",
   "system/Clip.tsx":
-    "a focused clip handle reports a nudge of its edge with the arrows, 10 ms and 100 ms with Shift, like a slider; the host applies it",
+    "a focused clip handle reports a nudge of its edge with the arrows, 10 ms and 100 ms with Shift, like a slider, and Alt with the arrows walks focus along the handles; the host applies the nudge",
   "system/ScrubField.tsx":
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "system/scriptSelection.ts":

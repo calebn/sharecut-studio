@@ -5,6 +5,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { TrackHeader, type TrackHeaderProps } from "./TrackHeader";
 
 const base: TrackHeaderProps = {
+  id: "track-1",
   name: "Maya",
   colorIndex: 2,
   level: -3,
@@ -36,12 +37,26 @@ describe("TrackHeader controls", () => {
     await user.click(select());
     await user.click(mute());
     await user.click(solo());
-    expect([onSelect, onMute, onSolo].map((f) => f.mock.calls.length)).toEqual([
-      1, 1, 1,
+    expect([onSelect, onMute, onSolo].map((f) => f.mock.calls)).toEqual([
+      [["track-1", false]],
+      [["track-1"]],
+      [["track-1"]],
     ]);
     expect(
       screen.getByRole("spinbutton", { name: "Maya level" }),
     ).toHaveAttribute("aria-valuenow", "-3");
+  });
+
+  it("says when the select click is additive: Shift, Ctrl or Cmd", () => {
+    const { onSelect } = setup();
+    fireEvent.click(select(), { shiftKey: true });
+    fireEvent.click(select(), { ctrlKey: true });
+    fireEvent.click(select(), { metaKey: true });
+    expect(onSelect.mock.calls).toEqual([
+      ["track-1", true],
+      ["track-1", true],
+      ["track-1", true],
+    ]);
   });
 
   it("pins mute and solo as toggles that say what they are", () => {
@@ -78,7 +93,7 @@ describe("TrackHeader controls", () => {
     const { onLevel } = setup();
     screen.getByRole("spinbutton", { name: "Maya level" }).focus();
     await user.keyboard("{Enter}-6{Enter}");
-    expect(onLevel.mock.calls).toEqual([[-6]]);
+    expect(onLevel.mock.calls).toEqual([["track-1", -6]]);
   });
 
   it("steps the level 0.5 dB with an arrow", async () => {
@@ -86,7 +101,7 @@ describe("TrackHeader controls", () => {
     const { onLevel } = setup();
     screen.getByRole("spinbutton", { name: "Maya level" }).focus();
     await user.keyboard("{ArrowUp}");
-    expect(onLevel.mock.calls).toEqual([[-2.5]]);
+    expect(onLevel.mock.calls).toEqual([["track-1", -2.5]]);
   });
 });
 
@@ -175,25 +190,51 @@ describe("TrackHeader forms", () => {
 });
 
 describe("TrackHeader reordering", () => {
-  it("moves the track with Shift and Up or Down, and only with Shift", async () => {
+  it("moves the track with Shift and Up or Down, only with Shift, and keeps those keys from the window", async () => {
     const user = userEvent.setup();
     const onMove = vi.fn();
-    setup({ onMove });
+    const seen = vi.fn();
+    render(
+      <div
+        role="toolbar"
+        aria-label="keymap"
+        onKeyDown={(event) => event.key.startsWith("Arrow") && seen(event.key)}
+      >
+        <TrackHeader {...base} onMove={onMove} />
+      </div>,
+    );
     select().focus();
     await user.keyboard(
       "{ArrowUp}{Shift>}{ArrowUp}{ArrowDown}{ArrowLeft}{/Shift}",
     );
-    expect(onMove.mock.calls).toEqual([[-1], [1]]);
+    expect(onMove.mock.calls).toEqual([
+      ["track-1", -1],
+      ["track-1", 1],
+    ]);
+    expect(seen.mock.calls).toEqual([["ArrowUp"], ["ArrowLeft"]]);
   });
 
-  it("is draggable only when the host takes the drag", () => {
+  it("is draggable only when the host takes the drag, from the header and not from its controls", () => {
     const onDragStart = vi.fn();
-    const { rerender } = render(<TrackHeader {...base} />);
-    expect(select()).not.toHaveAttribute("draggable");
+    const { container, rerender } = render(<TrackHeader {...base} />);
+    const header = () => container.querySelector<HTMLElement>(".sys-track");
+    expect(header()).not.toHaveAttribute("draggable");
     rerender(<TrackHeader {...base} onDragStart={onDragStart} />);
-    expect(select()).toHaveAttribute("draggable", "true");
+    expect(header()).toHaveAttribute("draggable", "true");
+    fireEvent.pointerDown(select());
     fireEvent.dragStart(select());
-    expect(onDragStart).toHaveBeenCalledTimes(1);
+    fireEvent.pointerDown(header() as HTMLElement);
+    fireEvent.dragStart(header() as HTMLElement);
+    expect(onDragStart.mock.calls.map(([id]) => id)).toEqual([
+      "track-1",
+      "track-1",
+    ]);
+    fireEvent.pointerDown(mute());
+    const refused = fireEvent.dragStart(header() as HTMLElement);
+    fireEvent.pointerDown(screen.getByRole("spinbutton"));
+    fireEvent.dragStart(header() as HTMLElement);
+    expect(refused).toBe(false);
+    expect(onDragStart).toHaveBeenCalledTimes(2);
   });
 
   it("marks the lifted header and the drop line", () => {
@@ -204,6 +245,30 @@ describe("TrackHeader reordering", () => {
     expect(header()).toHaveAttribute("data-reorder", "lifted");
     rerender(<TrackHeader {...base} reorder="after" />);
     expect(header()).toHaveAttribute("data-reorder", "after");
+  });
+});
+
+describe("TrackHeader host attributes", () => {
+  it("passes anchors to the header and to Mute and Solo", () => {
+    const { container } = setup({
+      anchorProps: {
+        header: { "data-presence-anchor": "track:track-1" },
+        mute: { "data-presence-anchor": "track-mute:track-1" },
+        solo: { "data-presence-anchor": "track-solo:track-1" },
+      },
+    });
+    expect(container.querySelector(".sys-track")).toHaveAttribute(
+      "data-presence-anchor",
+      "track:track-1",
+    );
+    expect(mute()).toHaveAttribute(
+      "data-presence-anchor",
+      "track-mute:track-1",
+    );
+    expect(solo()).toHaveAttribute(
+      "data-presence-anchor",
+      "track-solo:track-1",
+    );
   });
 });
 
