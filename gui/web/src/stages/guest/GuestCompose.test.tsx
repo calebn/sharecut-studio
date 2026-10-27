@@ -238,8 +238,8 @@ describe("Comments", () => {
     setup({ comments: [{ comment: base, status: "queued" }] });
     expect(screen.getByText("Waiting to send")).toBeInTheDocument();
     expect(screen.queryByText("Not sent")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Try again/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
   });
 
   it("offers Try again and Remove on a failed comment, for that comment only", async () => {
@@ -250,9 +250,9 @@ describe("Comments", () => {
       ],
     });
     expect(screen.getAllByText("Not sent")).toHaveLength(1);
-    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Try again/ }));
     expect(onRetryComment).toHaveBeenCalledExactlyOnceWith("c1");
-    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Remove/ }));
     expect(onRemoveComment).toHaveBeenCalledExactlyOnceWith("c1");
   });
 
