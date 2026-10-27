@@ -81,6 +81,44 @@ def accept_session_suggestion_tool(
     )
 
 
+def hear_session_suggestion_tool(
+    project_path: str,
+    suggestion_id: str,
+    take_index: int | None = None,
+    mode: str = "ab",
+    pad_sec: float = 1.5,
+    gap_sec: float = 0.4,
+    rerender: bool = False,
+    dry_run: bool = False,
+) -> str:
+    """Hear a pending session before accepting it: the place as it is, after accepting, or both.
+
+    mode: current (the window as it is), suggested (the same window after
+    accept_session_suggestion_tool, take_index chosen as there) or ab (current, a gap, then
+    suggested; the default). pad_sec is the audio kept each side of the change. Nothing in the
+    project, its history or the session changes, and a replace that would remove another
+    track's speech still plays; the result's speech names the words. Refuses what accepting
+    refuses, with the same codes: a session that is not pending, a range or insert point that
+    changed (stale_anchor), an unknown take (take_not_found), a take_index on an insert
+    (take_not_applicable), a track the take did not record (track_not_recorded) and pending
+    edits inside the range (pending_edits_in_range). dry_run renders the WAVs without playing.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        SessionSuggestionService(ws).preview(
+            suggestion_id,
+            mode=mode,
+            take_index=take_index,
+            pad_sec=pad_sec,
+            gap_sec=gap_sec,
+            rerender=rerender,
+            dry_run=dry_run,
+        )
+    )
+
+
 def set_active_review_version_tool(
     project_path: str,
     version_id: str | None = None,
@@ -174,6 +212,7 @@ def register_core(mcp: MCPServer) -> None:
     """Local review mix freeze tools (FOSS core - no share minting)."""
     for fn in (
         accept_session_suggestion_tool,
+        hear_session_suggestion_tool,
         publish_review_version_tool,
         list_review_versions_tool,
         list_session_suggestions_tool,

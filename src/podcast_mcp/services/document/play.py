@@ -12,13 +12,13 @@ from podcast_mcp.util.process import run
 
 from .play_boundary import _PlayBoundary
 from .play_follow import _PlayFollow
-from .play_pending import _PlayPending
+from .play_session import _PlaySession
 from .play_support import PlayRequest, PlayResult, TransportPath, _compose_gain_db
 
 __all__ = ["PlayRequest", "PlayResult", "PlayService", "TransportPath", "_compose_gain_db"]
 
 
-class PlayService(_PlayPending, _PlayFollow, _PlayBoundary):
+class PlayService(_PlaySession, _PlayFollow, _PlayBoundary):
     def play(
         self,
         req: PlayRequest,

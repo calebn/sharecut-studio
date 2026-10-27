@@ -5,6 +5,7 @@ import {
   LUCIDE_ICONS,
   type SystemIconName,
 } from "./icons";
+import { clampUnit } from "./progress";
 
 /** Stroke in the design system (section 3), drawn on the 20 grid of `ui/Icon`. */
 export const DS_ICON_STROKE = 1.75;
@@ -12,9 +13,9 @@ const DS_GRID = 20;
 const LUCIDE_GRID = 24;
 
 /**
- * Decision (owner, section 3 of the design system): Lucide draws on a 24 grid,
- * so the DS 1.75 on the 20 grid scales to 1.75 * 24 / 20 = 2.1 to keep the
- * same on-screen weight beside the existing icons.
+ * Lucide draws on a 24 grid, so the DS 1.75 (section 3) on the 20 grid scales
+ * to 1.75 * 24 / 20 = 2.1 to keep the same on-screen weight beside the
+ * existing icons.
  */
 export const SYSTEM_ICON_STROKE = (DS_ICON_STROKE * LUCIDE_GRID) / DS_GRID;
 
@@ -29,10 +30,6 @@ type Props = {
 
 const RING_RADIUS = 9;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-
-function clamp01(value: number) {
-  return Math.min(1, Math.max(0, value));
-}
 
 const SKIP_15 = (
   <text
@@ -76,7 +73,7 @@ function customGlyph(name: CustomIconName, progress: number | undefined) {
         </>
       );
     case "progress-ring": {
-      const value = clamp01(progress ?? 0.25);
+      const value = progress === undefined ? 0.25 : clampUnit(progress);
       return (
         <>
           <circle cx="12" cy="12" r={RING_RADIUS} opacity="0.3" />

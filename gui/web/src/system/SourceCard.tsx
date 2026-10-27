@@ -1,8 +1,10 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
+import { percentOf } from "./progress";
 import { StatusRow } from "./StatusRow";
 import { SystemIcon } from "./SystemIcon";
+import { useFocusRescue } from "./useFocusRescue";
 
 type SourceCardState =
   | "uploading"
@@ -10,10 +12,12 @@ type SourceCardState =
   | "ready"
   | "needs-name"
   | "failed"
-  | "split-prompt";
+  | "split-prompt"
+  | "splitting";
 
 const MIN_VOICES = 2;
 const MAX_VOICES = 8;
+const MAX_NAME = 80;
 
 export type SourceCardProps = {
   state: SourceCardState;
@@ -24,28 +28,53 @@ export type SourceCardProps = {
   fileName: string;
   /** "5:11 of audio". Never a share. */
   audioTime?: string;
-  /** 0 to 1 while uploading. */
+  /** 0 to 1 while uploading or splitting (held to that range). */
   progress?: number;
   peaks?: readonly number[];
   playing?: boolean;
   onHear?: () => void;
   voices?: number;
   onVoices?: (voices: number) => void;
+  /**
+   * Show the voice count and Split. Defaults to the `split-prompt` state: one
+   * recording that sounds like several people. Other cards are one voice.
+   */
+  canSplit?: boolean;
   onSplit?: () => void;
+  /** Plain progress while `splitting`: "Finding voices · 1 of 1517". */
+  splitDetail?: string;
+  onCancelSplit?: () => void;
   onRemove: () => void;
   onReplace?: () => void;
   onMerge?: () => void;
+  /** Reorder within the session without dragging. Omit at the ends. */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   /** Plain cause when the file failed. */
   cause?: string;
   onRetry?: () => void;
   onDetails?: () => void;
-  /** Another card carries this name too. */
+  /** Another card in this session carries this name too: said aloud and shown. */
   sameNameAs?: string;
+  /** A card in another session carries this name: only the control names differ. */
+  nameElsewhere?: string;
 };
 
 function hasAudio(state: SourceCardState): boolean {
   return (
-    state === "ready" || state === "needs-name" || state === "split-prompt"
+    state === "ready" ||
+    state === "needs-name" ||
+    state === "split-prompt" ||
+    state === "splitting"
+  );
+}
+
+/** Visible words plus the card's name for assistive tech, so stacked cards differ. */
+function Named({ label, who }: { label: string; who: string }) {
+  return (
+    <>
+      {label} <span className="sr-only">{`for ${who}`}</span>
+    </>
   );
 }
 
@@ -66,20 +95,32 @@ export function SourceCard({
   onHear,
   voices = MIN_VOICES,
   onVoices,
+  canSplit,
   onSplit,
+  splitDetail,
+  onCancelSplit,
   onRemove,
   onReplace,
   onMerge,
+  onMoveUp,
+  onMoveDown,
   cause,
   onRetry,
   onDetails,
   sameNameAs,
+  nameElsewhere,
 }: SourceCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const stepperId = useId();
+  const card = useRef<HTMLElement>(null);
+  useFocusRescue(card, () => () => card.current);
   const reasonId = useId();
   const named = name.trim();
-  const who = named || `voice ${index}`;
+  const who = !named
+    ? `voice ${index}`
+    : sameNameAs || nameElsewhere
+      ? `${named}, voice ${index}`
+      : named;
+  const splittable = canSplit ?? state === "split-prompt";
   const atFewest = voices <= MIN_VOICES;
   const atMost = voices >= MAX_VOICES;
   const reason = atFewest
@@ -89,6 +130,8 @@ export function SourceCard({
       : null;
   return (
     <section
+      ref={card}
+      tabIndex={-1}
       className="sys-source"
       aria-label={named ? `Voice ${index}, ${named}` : `Voice ${index}`}
       data-state={state}
@@ -104,7 +147,9 @@ export function SourceCard({
           <input
             {...control}
             type="text"
+            aria-label={`Speaker name for voice ${index}`}
             autoComplete="off"
+            maxLength={MAX_NAME}
             value={name}
             onChange={(event) => onName(event.target.value)}
           />
@@ -116,8 +161,10 @@ export function SourceCard({
           density="inline"
           state="running"
           title="Uploading"
+          barLabel={`Uploading ${fileName}`}
           progress={progress ?? 0}
-          detail={`${Math.round((progress ?? 0) * 100)}%`}
+          detail={`${percentOf(progress)}%`}
+          valueText={`${percentOf(progress)} percent`}
         />
       ) : null}
       {state === "probing" ? (
@@ -143,8 +190,26 @@ export function SourceCard({
         <StatusRow
           density="inline"
           state="needs-you"
-          title="Sounds like more than one person"
+          title="One recording of several people?"
           detail={audioTime}
+        />
+      ) : null}
+      {state === "splitting" ? (
+        <StatusRow
+          density="inline"
+          state="running"
+          title="Finding voices"
+          detail={splitDetail}
+          progress={progress ?? 0}
+          action={
+            onCancelSplit
+              ? {
+                  label: "Cancel splitting",
+                  name: `Cancel splitting ${who}`,
+                  onAction: onCancelSplit,
+                }
+              : undefined
+          }
         />
       ) : null}
       {state === "failed" ? (
@@ -153,7 +218,13 @@ export function SourceCard({
           state="failed"
           title={cause ?? "Could not read this file"}
           action={
-            onRetry ? { label: "Try again", onAction: onRetry } : undefined
+            onRetry
+              ? {
+                  label: "Try again",
+                  name: `Try again for ${who}`,
+                  onAction: onRetry,
+                }
+              : undefined
           }
         />
       ) : null}
@@ -162,68 +233,76 @@ export function SourceCard({
           <div className="sys-source-wave" aria-hidden="true">
             <OverviewStrip height={16} peaks={peaks} label="Waveform" />
           </div>
-          <div className="sys-source-controls">
-            <Button
-              className="ui-control--quiet sys-source-hear"
-              aria-pressed={playing || undefined}
-              onClick={onHear}
-            >
-              <SystemIcon name={playing ? "pause" : "play"} size={16} />
-              {`Hear ${who}`}
-            </Button>
-            <div
-              className="sys-stepper"
-              role="group"
-              aria-label="Number of voices"
-              aria-describedby={reason ? reasonId : undefined}
-            >
+          {state === "splitting" ? null : (
+            <div className="sys-source-controls">
               <Button
-                className="sys-stepper-button"
-                aria-label="Fewer voices"
-                aria-disabled={atFewest || undefined}
-                aria-describedby={atFewest ? reasonId : undefined}
-                onClick={atFewest ? undefined : () => onVoices?.(voices - 1)}
+                className="ui-control--quiet sys-source-hear"
+                aria-pressed={playing || undefined}
+                onClick={onHear}
               >
-                <SystemIcon name="minus" size={16} />
+                <SystemIcon name={playing ? "pause" : "play"} size={16} />
+                {`Hear ${who}`}
               </Button>
-              <output
-                id={stepperId}
-                className="sys-stepper-value"
-                aria-live="polite"
-              >
-                {voices}
-              </output>
-              <Button
-                className="sys-stepper-button"
-                aria-label="More voices"
-                aria-disabled={atMost || undefined}
-                aria-describedby={atMost ? reasonId : undefined}
-                onClick={atMost ? undefined : () => onVoices?.(voices + 1)}
-              >
-                <SystemIcon name="plus" size={16} />
-              </Button>
+              {splittable ? (
+                <>
+                  <div
+                    className="sys-stepper"
+                    role="group"
+                    aria-label="Number of voices"
+                    aria-describedby={reason ? reasonId : undefined}
+                  >
+                    <Button
+                      className="sys-stepper-button"
+                      aria-label={`Fewer voices for ${who}`}
+                      aria-disabled={atFewest || undefined}
+                      aria-describedby={atFewest ? reasonId : undefined}
+                      onClick={
+                        atFewest ? undefined : () => onVoices?.(voices - 1)
+                      }
+                    >
+                      <SystemIcon name="minus" size={16} />
+                    </Button>
+                    <output className="sys-stepper-value" aria-live="polite">
+                      {voices}
+                    </output>
+                    <Button
+                      className="sys-stepper-button"
+                      aria-label={`More voices for ${who}`}
+                      aria-disabled={atMost || undefined}
+                      aria-describedby={atMost ? reasonId : undefined}
+                      onClick={
+                        atMost ? undefined : () => onVoices?.(voices + 1)
+                      }
+                    >
+                      <SystemIcon name="plus" size={16} />
+                    </Button>
+                  </div>
+                  {reason ? (
+                    <span id={reasonId} className="sys-stepper-reason">
+                      {reason}
+                    </span>
+                  ) : null}
+                  <Button onClick={onSplit} aria-label={`Split ${who}`}>
+                    <SystemIcon name="split" size={14} />
+                    Split
+                  </Button>
+                </>
+              ) : null}
             </div>
-            {reason ? (
-              <span id={reasonId} className="sys-stepper-reason">
-                {reason}
-              </span>
-            ) : null}
-            <Button onClick={onSplit}>
-              <SystemIcon name="split" size={14} />
-              Split
-            </Button>
-          </div>
+          )}
         </>
       ) : null}
       <div className="sys-source-actions">
         {state === "failed" && onDetails ? (
-          <Button onClick={onDetails}>Details</Button>
+          <Button onClick={onDetails} aria-label={`Details for ${who}`}>
+            Details
+          </Button>
         ) : null}
-        <Button onClick={onRemove}>
+        <Button onClick={onRemove} aria-label={`Remove ${who}`}>
           <SystemIcon name="trash-2" size={14} />
           Remove
         </Button>
-        {hasAudio(state) ? (
+        {hasAudio(state) && state !== "splitting" ? (
           <Menu
             open={menuOpen}
             onOpenChange={setMenuOpen}
@@ -241,7 +320,7 @@ export function SourceCard({
                 onReplace?.();
               }}
             >
-              Replace audio...
+              <Named label="Replace audio" who={who} />
             </MenuItem>
             <MenuItem
               onSelect={() => {
@@ -249,8 +328,28 @@ export function SourceCard({
                 onMerge?.();
               }}
             >
-              Merge
+              <Named label="Merge" who={who} />
             </MenuItem>
+            {onMoveUp ? (
+              <MenuItem
+                onSelect={() => {
+                  setMenuOpen(false);
+                  onMoveUp();
+                }}
+              >
+                <Named label="Move up" who={who} />
+              </MenuItem>
+            ) : null}
+            {onMoveDown ? (
+              <MenuItem
+                onSelect={() => {
+                  setMenuOpen(false);
+                  onMoveDown();
+                }}
+              >
+                <Named label="Move down" who={who} />
+              </MenuItem>
+            ) : null}
           </Menu>
         ) : null}
       </div>

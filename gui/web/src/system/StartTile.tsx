@@ -2,10 +2,10 @@ import { KeyCaps } from "./KeyCaps";
 import { SystemIcon } from "./SystemIcon";
 import { verbOf } from "./verbDisplay";
 
-export type StartTileProps = {
+type StartTileProps = {
   kind: "import" | "record";
   /** Tile height in px; `phone-bar` is the 72 px half of the thumb-zone bar. */
-  size: 220 | 160 | 80 | "phone-bar";
+  size: 240 | 220 | 160 | 80 | "phone-bar";
   state?: "rest" | "drag-hover" | "disabled";
   /** Shown in place of the line when `state` is `disabled`. */
   disabledReason?: string;

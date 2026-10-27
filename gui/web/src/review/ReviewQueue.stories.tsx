@@ -11,7 +11,7 @@ import { Sheet } from "../system/Sheet";
 import { openDialogByLauncher } from "../test/storyDialog";
 import { Button } from "../ui";
 import { ReviewQueue, type ReviewQueueProps } from "./ReviewQueue";
-import type { ReviewFilter } from "./reviewQueue";
+import type { ReviewFilter } from "./reviewQueueModel";
 
 function StatefulQueue(props: ReviewQueueProps) {
   const [filter, setFilter] = useState<ReviewFilter>(props.filter);

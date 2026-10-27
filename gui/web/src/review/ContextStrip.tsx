@@ -1,5 +1,5 @@
 import { OverviewStrip, type OverviewTick } from "../system/OverviewStrip";
-import type { ReviewItem } from "./reviewQueue";
+import type { ReviewItem } from "./reviewQueueModel";
 
 /** 32 px Overview strip above the Player. */
 export function ContextStrip({

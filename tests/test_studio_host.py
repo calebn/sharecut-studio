@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import os
@@ -31,6 +32,7 @@ from podcast_mcp.services.app import studio_host as studio_host_module
 from podcast_mcp.services.app.studio_host import (
     HANDOFF_PROTOCOL,
     HandoffLost,
+    HandoffRefused,
     hand_off,
     handoff_env,
 )
@@ -230,6 +232,137 @@ def test_a_studio_that_goes_silent_after_the_ping_is_lost_not_bypassed(
         )
 
 
+def test_a_dropped_handoff_response_is_uncertain_even_before_start_event(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class DroppedResponse:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> None:
+            raise http.client.RemoteDisconnected("response dropped")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: DroppedResponse())
+    with pytest.raises(HandoffLost, match="may have changed the project"):
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "expected"),
+    [
+        (409, "protocol", HandoffRefused),
+        (429, "too_many", HandoffRefused),
+        (409, "unexpected", HandoffLost),
+        (503, "protocol", HandoffLost),
+    ],
+)
+def test_only_defined_pre_execution_responses_are_refusals(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    code: str,
+    expected: type[Exception],
+) -> None:
+    class Response:
+        def __init__(self) -> None:
+            self.status = status
+
+        def read(self) -> bytes:
+            return json.dumps({"code": code, "detail": "Studio declined."}).encode()
+
+    class Connection:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> Response:
+            return Response()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: Connection())
+    with pytest.raises(expected) as caught:
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+    if expected is HandoffLost:
+        assert "may have changed the project" in str(caught.value)
+    else:
+        assert caught.value.code == code
+
+
+def test_a_deeply_nested_refusal_body_is_reported_as_uncertain(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = b"[" * 10000
+
+    class Response:
+        status = 503
+
+        def read(self) -> bytes:
+            return body
+
+    class Connection:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> Response:
+            return Response()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: Connection())
+    with pytest.raises(HandoffLost, match="may have changed the project"):
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+
+
+def test_post_transport_error_does_not_expose_exception_text(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Connection:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            raise OSError("private transport detail")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: Connection())
+    with pytest.raises(HandoffLost) as caught:
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+    assert "may have changed the project" in str(caught.value)
+    assert "private transport detail" not in str(caught.value)
+
+
 def test_a_studio_nothing_listens_for_is_a_stale_announcement(project: Path) -> None:
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
@@ -306,10 +439,79 @@ def test_a_ping_body_that_is_too_deep_or_too_long_is_never_bypassed(
 
 
 @pytest.mark.parametrize(("status", "body"), [(503, b""), (503, b"[]"), (404, b"not json")])
-def test_a_ping_that_is_not_200_is_a_direct_write(project: Path, status: int, body: bytes) -> None:
+def test_a_ping_that_is_not_200_is_never_bypassed(project: Path, status: int, body: bytes) -> None:
     with ping_answering(status, body) as port:
         announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply") as caught:
+            locate_studio(project)
+    assert caught.value.host.port == port
+
+
+@pytest.mark.parametrize(
+    "protocol",
+    [
+        pytest.param(HANDOFF_PROTOCOL + 1, id="unsupported-integer"),
+        pytest.param(True, id="boolean-equal-to-integer"),
+        pytest.param(1.0, id="float-equal-to-integer"),
+        pytest.param("1", id="string"),
+        pytest.param(None, id="null"),
+    ],
+)
+def test_a_matching_ping_with_an_unsupported_protocol_is_never_bypassed(
+    project: Path, protocol: object
+) -> None:
+    body = json.dumps({"instance": "a1", "protocol": protocol, "serves": True}).encode()
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply") as caught:
+            locate_studio(project)
+    assert caught.value.host.port == port
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        pytest.param({}, id="missing"),
+        pytest.param({"instance": None}, id="null"),
+        pytest.param({"instance": ""}, id="empty"),
+        pytest.param({"instance": 1}, id="not-a-string"),
+    ],
+)
+def test_a_ping_with_an_invalid_instance_is_never_bypassed(
+    project: Path, identity: dict[str, object]
+) -> None:
+    body = json.dumps({"protocol": HANDOFF_PROTOCOL, "serves": True, **identity}).encode()
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply"):
+            locate_studio(project)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        json.dumps({"instance": "another-run", "protocol": HANDOFF_PROTOCOL, "serves": True}),
+        json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL, "serves": False}),
+    ],
+    ids=["different-instance", "not-serving-project"],
+)
+def test_a_positive_ping_for_another_instance_or_project_is_absence(
+    project: Path, body: str
+) -> None:
+    with ping_answering(200, body.encode()) as port:
+        announce_studio_host(project, _host(port=port))
         assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize("fields", [{}, {"serves": None}, {"serves": "yes"}, {"serves": 1}])
+def test_a_matching_ping_with_missing_or_invalid_serves_is_never_bypassed(
+    project: Path, fields: dict[str, object]
+) -> None:
+    body = json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL, **fields})
+    with ping_answering(200, body.encode()) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply"):
+            locate_studio(project)
 
 
 @pytest.mark.parametrize(

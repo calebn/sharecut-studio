@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
 import { planDecision, stepUndecided, undoDecisions } from "./advance";
-import type { ReviewItem } from "./reviewQueue";
+import type { ReviewItem } from "./reviewQueueModel";
 
 const make = (id: string, at: number, result?: "applied"): ReviewItem => ({
   id,
