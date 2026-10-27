@@ -25,6 +25,20 @@ function Frame() {
   );
 }
 
+/** An Edit frame whose rows exist only on one surface, so the fit changes with no stage switch. */
+function EditFrame() {
+  const ref = useRef<HTMLDivElement>(null);
+  const folded = useShortFrame(ref);
+  const surface = useDawStore((s) => s.editSurface);
+  return (
+    <div ref={ref} data-folded={folded ? "yes" : "no"}>
+      <div className="stage-frame-header" />
+      <div className="stage-frame-player" />
+      {surface === "text" ? <div className="phone-edit-bar" /> : null}
+    </div>
+  );
+}
+
 function sizeOf(el: Element): number {
   if (el.classList.contains("stage-frame-header")) return 60;
   if (el.classList.contains("stage-frame-player")) return 80;
@@ -74,5 +88,20 @@ describe("useShortFrame", () => {
     expect((container.firstElementChild as HTMLElement).dataset.folded).toBe(
       "yes",
     );
+  });
+
+  it("re-measures the fold when the Edit surface changes on the same stage", () => {
+    useDawStore.setState({ stage: "edit", editSurface: "lanes" });
+    const { container } = render(<EditFrame />);
+    const frame = () => container.firstElementChild as HTMLElement;
+    // Lanes: 60 + 80 + 200 fits 380.
+    expect(frame().dataset.folded).toBe("no");
+
+    // The text surface adds the 60 px rows: 400 does not.
+    act(() => useDawStore.getState().setEditSurface("text"));
+    expect(frame().dataset.folded).toBe("yes");
+
+    act(() => useDawStore.getState().setEditSurface("lanes"));
+    expect(frame().dataset.folded).toBe("no");
   });
 });
