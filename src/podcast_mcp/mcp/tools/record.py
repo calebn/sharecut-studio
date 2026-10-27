@@ -68,7 +68,7 @@ def record_discard_take_tool(project_path: str, take_index: int) -> str:
 
 
 def record_tracks_tool(project_path: str) -> str:
-    """Show which track each recorded person lands on (matched by name to an existing track, new, or ambiguous), with a plain-words reason. Host only."""
+    """Show which track each recorded person lands on (matched by name to an existing track, new, or ambiguous, which also covers a track already used by someone else: reason track_in_use), with a plain-words reason. Host only."""
     return json.dumps(_ctrl(project_path).tracks(), indent=2)
 
 

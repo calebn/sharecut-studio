@@ -83,6 +83,13 @@ def held_tracks(project: EpisodeProject, session_id: str) -> dict[str, str]:
         found = pid_of.match(source_id)
         if found:
             held[found.group(1)] = track_id
+    if suggestion is not None:
+        # A staged room-tone bed holds its person too, even before any take of theirs is staged.
+        bed_of = re.compile(rf"^raw/room-tone/{re.escape(session_id)}/(.+)\.wav$")
+        for bed in suggestion.room_tone:
+            found = bed_of.match(bed.path)
+            if found:
+                held.setdefault(found.group(1), bed.track_id)
     return held
 
 
@@ -153,46 +160,59 @@ def resolve_session_tracks(
             candidates,
         )  # fmt: skip
 
-    def settled(p: ParticipantState, track_id: str, reason: str, how: str) -> TrackMatch:
-        who = p.display_name or "This person"
+    def settled(p: ParticipantState, track_id: str, reason: str, lead: str) -> TrackMatch:
         if track_id in pool:
             return build(
-                p,
-                "matched",
-                track_id,
-                reason,
-                f'{who} {how} the existing track "{pool[track_id]}".',
+                p, "matched", track_id, reason, f'{lead} the existing track "{pool[track_id]}".'
             )
         if reason == "own_track":
-            return build(p, "new", track_id, reason, f"{who} keeps their own track.")
-        return build(p, "new", track_id, reason, f"{who} {how} a new track.")
+            return build(
+                p,
+                "new",
+                track_id,
+                reason,
+                f"{p.display_name or 'This person'} keeps their own track.",
+            )
+        return build(p, "new", track_id, reason, f"{lead} a new track.")
 
     # Strongest claim first (held, host choice, own track); a track goes to one person only.
     out: dict[str, TrackMatch] = {}
     claimed: set[str] = set()
     gone: set[str] = set()
+    # Someone who was removed before any of their takes went in cannot claim a track by choice,
+    # own track or first pick of a name; they are placed last so a rejoiner is not flagged.
+    here = [p for p in recorded if not p.removed or p.participant_id in held]
+    away = [p for p in recorded if p not in here]
+    auto = resolve_session_tracks(project, session_id, people, {}) if choices else {}
 
-    def claim(p: ParticipantState, track_id: str, reason: str, how: str) -> None:
+    def claim(p: ParticipantState, track_id: str, reason: str, lead: str) -> None:
         if track_id not in claimed:
             claimed.add(track_id)
-            out[p.participant_id] = settled(p, track_id, reason, how)
+            out[p.participant_id] = settled(p, track_id, reason, lead)
 
-    for p in recorded:
+    for p in here:
         if p.participant_id in held:
-            claim(p, held[p.participant_id], "held", "is already recorded in this session on")
-    for p in recorded:
+            who = p.display_name or "This person"
+            claim(
+                p, held[p.participant_id], "held", f"{who} is already recorded in this session on"
+            )
+    for p in here:
         chosen = choices.get(p.participant_id)
         if chosen is None or p.participant_id in out:
             continue
         if chosen == slug_track_id(p.participant_id) or chosen in labels:
-            claim(p, chosen, "host_choice", "was moved there by the host, onto")
+            who = p.display_name or "this person"
+            was = auto.get(p.participant_id)
+            kept = was is not None and was.track_id == chosen
+            lead = f"You kept {who} on" if kept else f"You moved {who} to"
+            claim(p, chosen, "host_choice", lead)
         else:
             gone.add(p.participant_id)
-    for p in recorded:
+    for p in here:
         own = slug_track_id(p.participant_id)
         if p.participant_id not in out and project.track_by_id(own) is not None:
-            claim(p, own, "own_track", "stays on")
-    for p in recorded:
+            claim(p, own, "own_track", f"{p.display_name or 'This person'} stays on")
+    for p in here + away:
         if p.participant_id in out:
             continue
         match = _by_name(

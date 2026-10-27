@@ -1817,7 +1817,7 @@
         "keyboard_reason": "host CLI/MCP only",
         "guest": true
       },
-      "tooltip": "Show which track each person is matched to: existing, new or ambiguous",
+      "tooltip": "Show which track each person is matched to: matched, new or ambiguous",
       "presence": {
         "cursor": "none",
         "follow": "none"

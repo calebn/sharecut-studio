@@ -57,7 +57,7 @@ class RecordTrackService:
         match = current.get(participant_id)
         if match is None:
             raise CodedKeyError(
-                f"unknown participant: {participant_id}. Run `podcast record tracks` "
+                f"Unknown participant: {participant_id}. Run `podcast record tracks` "
                 "(record_tracks_tool) to list the people in this session and their ids.",
                 code="unknown_participant",
             )
@@ -77,6 +77,12 @@ class RecordTrackService:
             return {**match.as_dict(), "changed": False}
         if not staged:
             self._require_target_stays(match)
+        follows = bool(
+            suggestion is not None
+            and staged
+            and suggestion.kind == "replace"
+            and match.track_id in suggestion.track_ids
+        )
         if suggestion is not None and staged:
             title = f"Moved {match.display_name} to {label}"
             self.workspace.mutate(
@@ -104,7 +110,13 @@ class RecordTrackService:
             # has nothing staged yet needs the choice remembered.
             self._room.set_track_choice(participant_id, target)
         after = self._matches(self.workspace.project)[participant_id]
-        return {**after.as_dict(), "changed": True}
+        out = {**after.as_dict(), "changed": True}
+        if follows:
+            out["note"] = (
+                f'This replace now covers "{label}" instead of "{match.track_label}"; '
+                f"it follows {match.display_name}."
+            )
+        return out
 
     def _require_target_stays(self, match: TrackMatch) -> None:
         """A replace room names the tracks it covers; their person cannot leave before staging."""
@@ -153,7 +165,7 @@ class RecordTrackService:
             if track not in pool:
                 names = ", ".join(f'"{label}" ({tid})' for tid, label in sorted(pool.items()))
                 raise CodedKeyError(
-                    f"unknown track: {track}. Use one of: {names or 'none yet'}, "
+                    f"Unknown track: {track}. Use one of: {names or 'none yet'}, "
                     'or "new" for a new track.',
                     code="unknown_track",
                 )
