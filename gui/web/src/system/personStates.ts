@@ -26,3 +26,16 @@ export const PERSON_STATES: Record<
   saving: { icon: "progress-ring", text: "Saving", tone: "neutral" },
   saved: { icon: "circle-check", text: "Saved", tone: "success" },
 };
+
+/** Words on a live-room tile (RoomTile), shared with the vocabulary above. */
+export const ROOM_TILE_TEXT = {
+  joining: "Joining…",
+  lost: "Reconnecting…",
+  left: "Left",
+  // The spec names the room tile state "Declined"; the flat PersonTile keeps its own wording.
+  declined: "Declined",
+  weak: PERSON_STATES.weak.text,
+  saved: PERSON_STATES.saved.text,
+  failed: "Couldn't save",
+  invite: "Invite",
+} as const;
