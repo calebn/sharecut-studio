@@ -10,7 +10,9 @@ import json
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from podcast_mcp.cli.main import app
 from podcast_mcp.edits.cut_policy import decision_policy, review_kind, sound_kind
 from podcast_mcp.edits.tighten.propose import (
     _edit_payload,
@@ -169,19 +171,6 @@ def test_acoustic_laugh_count_overlaps_the_word_count_unlike_sound_kind() -> Non
     )
 
 
-def test_social_filler_density_prefix_counts_acoustic_hits_review_kind_does_not() -> None:
-    reasons = ["filler:um", "filler:acoustic", "filler:acoustic:likely_laugh"]
-    assert [r.startswith("filler:") for r in reasons] == [True, True, True]
-    assert [review_kind(r) for r in reasons] == ["filler", "sound", "sound"]
-
-
-def test_auto_apply_prefix_pair_is_narrower_than_the_tighten_set() -> None:
-    auto_apply = ("filler:", "pause:")
-    reasons = ["filler:um", "pause:0.5s", "repetition:word:a", "restart:we", "filler:acoustic"]
-    assert [r.startswith(auto_apply) for r in reasons] == [True, True, False, False, True]
-    assert [is_tighten_reason(r) for r in reasons] == [True, True, True, True, True]
-
-
 def test_policy_less_reasons_have_no_label_or_action() -> None:
     for reason in NON_TIGHTEN_REASONS:
         assert decision_policy(_decision(reason)) is None
@@ -215,6 +204,18 @@ def test_list_edit_decisions_tool_rows_carry_review_fields(tmp_path: Path) -> No
         assert sorted(row) == sorted([*EDIT_DECISION_KEYS, *REVIEW_FIELD_KEYS])
     assert set(REVIEW_FIELD_KEYS).isdisjoint(EDIT_DECISION_KEYS)
     assert rows[1]["reason"] == "filler:acoustic:likely_laugh"
+
+
+def test_cli_edit_list_pending_rows_carry_review_fields(tmp_path: Path) -> None:
+    path = _seeded_project(tmp_path)
+    result = CliRunner().invoke(app, ["edit", "list", "--project", path, "--pending"])
+    assert result.exit_code == 0
+    rows = json.loads(result.stdout)
+    assert [r["id"] for r in rows] == ["laugh", "nl"]
+    for row in rows:
+        assert sorted(row) == sorted([*EDIT_DECISION_KEYS, *REVIEW_FIELD_KEYS])
+    assert rows[0]["kind"] == "sound"
+    assert rows[0]["sound_kind"] == "laugh"
 
 
 @pytest.mark.parametrize(

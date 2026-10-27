@@ -340,8 +340,8 @@ def edit_list_cmd(
     pending: bool = typer.Option(False, "--pending"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    edits = EditService(ws).list_decisions(review_required=True if pending else None)
-    typer.echo(json.dumps([e.model_dump() for e in edits], indent=2))
+    rows = EditService(ws).list_decision_rows(review_required=True if pending else None)
+    typer.echo(json.dumps(rows, indent=2))
 
 
 @edit_app.command("impact")
