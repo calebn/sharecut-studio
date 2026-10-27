@@ -604,3 +604,94 @@
 .sys-sheet-bottom .sys-notes-list {
   max-block-size: 16rem;
 }
+
+/* Room view: a fixed-height column in the live phase. The header is 48 px, the
+   dock 80 px; the alert slot is 0 px with no alert and one 44 px row with one. */
+.sys-room-view {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  block-size: 100%;
+  min-block-size: 0;
+  overflow: hidden;
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+}
+
+.sys-room-view-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  block-size: 3rem;
+  padding-inline: var(--space-5);
+  border-block-end: 1px solid var(--color-border-subtle);
+}
+
+.sys-room-view-wordmark {
+  flex: none;
+  block-size: 1.5rem;
+}
+
+.sys-room-view-title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The slot takes no height with no alert; the stage pads its edges. */
+.sys-room-view-alert {
+  flex: none;
+}
+
+.sys-room-view-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.sys-room-view-stage {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: var(--space-5);
+  overflow: hidden;
+}
+
+.sys-room-view-grid {
+  display: grid;
+  grid-template-columns: repeat(
+      var(--sys-room-view-columns, 2),
+      minmax(0, 1fr)
+    );
+  gap: var(--space-3);
+  max-inline-size: 45rem;
+  margin-block: auto;
+  margin-inline: auto;
+  inline-size: 100%;
+}
+
+.sys-room-view-rail {
+  display: flex;
+  flex: none;
+  min-block-size: 0;
+  border-inline-start: 1px solid var(--color-border);
+}
+
+.sys-room-view-dock {
+  display: flex;
+  flex: none;
+}
+
+.sys-room-view-dock > .sys-dock {
+  flex: 1 1 auto;
+}

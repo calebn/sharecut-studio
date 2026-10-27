@@ -72,4 +72,22 @@ describe("RecordDock", () => {
     expect(leave).toBeDisabled();
     expect(leave).toHaveAttribute("title", "Your recording is still saving");
   });
+
+  it("hides Comment while the room waits, for every seat", () => {
+    const { rerender } = render(
+      <RecordDock seat="host" record={record} showComment={false} />,
+    );
+    expect(names()).toEqual(["Mute", "Record", "Notes", "More"]);
+    rerender(<RecordDock seat="guest" showComment={false} />);
+    expect(names()).toEqual(["Mute", "Notes", "Leave room"]);
+    rerender(<RecordDock seat="producer" showComment={false} />);
+    expect(names()).toEqual(["Notes", "Leave room"]);
+  });
+
+  it("a host seat without a record prop keeps the host controls but no Record or Pause", () => {
+    render(<RecordDock seat="host" />);
+    expect(names()).toEqual(["Mute", "Comment", "Notes", "More"]);
+    expect(screen.queryByRole("button", { name: "Record" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pause take" })).toBeNull();
+  });
 });
