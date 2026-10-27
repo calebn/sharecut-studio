@@ -391,6 +391,11 @@ test("touch seam, fade corners, and trim strips retain distinct hit areas", asyn
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "24px";
     });
+    // At 24px text the Script and the Inspector leave the lanes 13rem; the
+    // seam is wider than the first clip. Read the lanes with Script hidden.
+    const scriptToggle = page.locator(".edit-corner-script");
+    await scriptToggle.click();
+    await expect(scriptToggle).toHaveAttribute("aria-pressed", "false");
     await lane.locator(".clip-block").nth(1).locator(".clip-hit").tap();
     const seam = lane.locator("button.join-seam");
     const s = (await seam.boundingBox())!;
