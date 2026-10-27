@@ -1,15 +1,5 @@
 /* Home / empty-session / track ingest affordances */
 
-.bootstrap-wizard-header h1 {
-  margin: 0;
-  font-size: var(--s1);
-}
-
-.bootstrap-wizard-header p {
-  margin: 0;
-  color: var(--color-text-secondary);
-}
-
 .track-add-row {
   display: block;
   width: 100%;

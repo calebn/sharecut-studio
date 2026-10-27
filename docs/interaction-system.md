@@ -144,8 +144,8 @@ There are three overlay primitives.
 | `InlineConfirm` | A destructive step confirmed beside its control | In place, Keep first, danger last | Same |
 
 1. **One at a time.** A sheet closes before another opens. Stacking is a bug.
-   `askConfirm` and `askText` (`feedback/ask.ts`) render through `Dialog`, so
-   they obey the same rule.
+   `askConfirm` (`feedback/ask.ts`) renders through `Dialog`, so
+   it obeys the same rule.
 2. **Sheets have three zones** on phone: a header with the title and Close, a
    scrolling body, and a footer with the primary and secondary actions
    ([`docs/gui-mobile.md` § Selection sheet: three zones](gui-mobile.md#selection-sheet-three-zones)).
@@ -283,7 +283,7 @@ There are three overlay primitives.
 | A menu | `ui/Menu`, `ui/MenuItem`, `ui/MenuSection`, `ui/CommandMenuItem` | a `<div role="menu">` |
 | A dialog or sheet | `ui/Dialog` (sheet on phone and tablet) | `ui/BottomSheet` directly, a custom popover |
 | A destructive confirm | `ui/InlineConfirm` | `askConfirm` for an in-place choice, `window.confirm` |
-| A question with text input | `feedback/ask.ts` `askText` | a bespoke dialog |
+| A question with text input | `ui/Field` in a `ui/Dialog`, or a popover on its surface (Home's Open other…) | a bespoke dialog |
 | A disabled control | `disabledReason` | `disabled` |
 | A form field | `ui/Field`, `ui/FieldRow`, `ui/InlineError` | a bare `<input>` with a sibling `<span>` |
 | Feedback | `announceStatus` with `undo` or `reverse` | `ui/Toast` in a panel, a local `role="status"`, a second `StatusLiveRegion` |

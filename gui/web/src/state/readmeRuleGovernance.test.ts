@@ -148,13 +148,12 @@ describe("README rule: prefer useProjectMutation", () => {
     "comments/useCommentActions.ts",
     "comments/usePostComment.ts",
     "home/HelpDialog.tsx",
-    "home/HomeScreen.tsx",
     "hooks/useProjectBootstrap.ts",
     "inspector/views/EnvelopeWorkspace.tsx",
     "stage/dialogs/BounceDialog.tsx",
     "stage/dialogs/ShareDialog.tsx",
   ];
-  const ALLOWLIST_SIZE = 9;
+  const ALLOWLIST_SIZE = 8;
 
   it("keeps API-call error state in useProjectMutation outside the allowlist", () => {
     expect(handRolledMutations(sourceFiles())).toEqual(ALLOWLIST);
