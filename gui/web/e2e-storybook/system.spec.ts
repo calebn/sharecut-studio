@@ -941,7 +941,12 @@ test("System/Clip a swipe starting on an unselected clip or a guest's clip pans 
     fresh.y + fresh.height / 2,
     80,
   );
-  await page.waitForTimeout(300);
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+      ),
+  );
   expect(await start()).toBe("4");
   expect(
     await page.locator(".sys-clip").getAttribute("data-dragging"),
