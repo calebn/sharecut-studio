@@ -85,7 +85,7 @@ export const NeedsModel: Story = {
       "Transcribe",
     );
     await userEvent.click(
-      canvas.getByRole("button", { name: "Download 1.6 GB" }),
+      canvas.getByRole("button", { name: /^Download 1.6 GB/ }),
     );
     await expect(args.onAction).toHaveBeenCalledWith(
       "transcribe",
@@ -120,7 +120,7 @@ export const Failed: Story = {
   args: { rows: ROWS.failed },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await userEvent.click(canvas.getByRole("button", { name: /^Try again/ }));
     await expect(args.onAction).toHaveBeenCalledWith("transcribe", "try-again");
     await expect(canvas.getByText("Not enough memory to finish")).toBeVisible();
     const details = canvas.getByRole("button", {
@@ -144,7 +144,7 @@ export const ApproximateTiming: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: "Download word timing (360 MB)" }),
+      canvas.getByRole("button", { name: /^Download word timing \(360 MB\)/ }),
     );
     await expect(args.onAction).toHaveBeenCalledWith(
       "transcribe",
