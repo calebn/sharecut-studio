@@ -176,8 +176,9 @@ const COVERED: Record<string, Proof> = {
     test: "asks by the track's name, then offers Undo for the entry its reply names",
   },
   "track.splitSpeakers": {
-    file: "stage/dialogs/SplitSpeakersDialog.test.tsx",
-    test: "splits with the typed count and names, then shows the tracks and announces with Undo",
+    file: "stages/prepare/usePrepareSources.test.tsx",
+    test: "splits with the chosen voice count, then refreshes and says it with Undo",
+    shows: /undo: "h2"/,
   },
   "transcript.ignoreWords": {
     file: "commands/transcriptIgnore.test.ts",
