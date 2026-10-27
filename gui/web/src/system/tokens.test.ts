@@ -265,7 +265,11 @@ const SHEET_CLEARANCE_TOKENS = [
   "--sheet-lane-clearance",
 ];
 
-const STACKED_EDIT_TOKENS = ["--stage-stacked-lanes-min"];
+const STACKED_EDIT_TOKENS = [
+  "--stage-stacked-lanes-min",
+  "--stage-stacked-lanes-want",
+  "--stage-stacked-script-floor",
+];
 
 describe("theme tokens.css", () => {
   const current = declarations("tokens.css");
