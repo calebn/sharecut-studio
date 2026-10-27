@@ -4294,3 +4294,60 @@ describe("the loading blocker", () => {
     expect(button).toHaveAttribute("title", "Still loading.");
   });
 });
+
+describe("round six of the audit", () => {
+  it.each([
+    ["the header action", CLIPS],
+    ["the empty state", []],
+  ] as const)(
+    "Find clips in %s reaches onFindClips, not onRetry",
+    async (_where, initialClips) => {
+      const onRetry = vi.fn();
+      const { all } = setup({ initialClips, onRetry });
+      await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+      expect(all.onFindClips).toHaveBeenCalledOnce();
+      expect(onRetry).not.toHaveBeenCalled();
+    },
+  );
+
+  it("Try again reaches onRetry only", async () => {
+    const onRetry = vi.fn();
+    const { all } = setup({ state: "error", onRetry });
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(all.onFindClips).not.toHaveBeenCalled();
+  });
+
+  it("keeps two-decimal times typed into the chapter, In and Out fields", async () => {
+    const { stage, all } = setup();
+    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
+    await userEvent.clear(time);
+    await userEvent.type(time, "1:23.26{Enter}");
+    expect(
+      screen.getByRole("textbox", { name: "Time of The old mill" }),
+    ).toHaveValue("1:23.3");
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    const start = screen.getByRole("textbox", { name: "In" });
+    await userEvent.clear(start);
+    await userEvent.type(start, "1:23.26{Enter}");
+    const out = screen.getByRole("textbox", { name: "Out" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "2:00.74{Enter}");
+    modE(stage());
+    const sent = vi.mocked(all.onExport).mock.calls[0]?.[0];
+    expect(sent?.range?.start).toBeCloseTo(83.26, 5);
+    expect(sent?.range?.end).toBeCloseTo(120.74, 5);
+    expect(sent?.chapters.find((c) => c.id === "c2")?.at).toBeCloseTo(83.26, 5);
+  });
+
+  it("lists formats in the order they were switched on", async () => {
+    const { stage, all } = setup();
+    await userEvent.click(screen.getByRole("button", { name: /^MP3/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^MP3/ }));
+    modE(stage());
+    expect(vi.mocked(all.onExport).mock.calls[0]?.[0].settings.formats).toEqual(
+      ["wav", "flac", "mp3"],
+    );
+  });
+});

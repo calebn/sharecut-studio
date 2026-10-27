@@ -711,3 +711,22 @@ describe("every readiness row keeps its exact title", () => {
     );
   });
 });
+
+describe("parseClock fractions", () => {
+  it.each([
+    ["1:23.45", 83.45],
+    ["83.25", 83.25],
+    ["0:00.125", 0.125],
+    ["12.5", 12.5],
+    ["1:23.0", 83],
+    ["0.5", 0.5],
+  ])("reads %j as %f", (text, seconds) => {
+    expect(parseClock(text)).toBeCloseTo(seconds, 9);
+  });
+  it.each(["1:23.", "1.2.3", ".5", "1:.5", "1:23.4.5"])(
+    "rejects %j",
+    (text) => {
+      expect(parseClock(text)).toBeNull();
+    },
+  );
+});
