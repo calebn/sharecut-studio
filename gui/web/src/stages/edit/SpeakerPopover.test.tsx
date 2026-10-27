@@ -163,6 +163,7 @@ describe("SpeakerPopover rename", () => {
   it("applies on Enter, once, and puts focus back on Fix text", async () => {
     const user = userEvent.setup();
     const { onRename } = setup();
+    await opened();
     await user.click(fixButton("Joss"));
     expect(
       screen.getByRole("textbox", { name: "Name for Joss" }),
