@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_ITEMS, QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
 import { ReviewStage, type ReviewStageProps } from "./ReviewStage";
-import type { ReviewItem } from "./reviewQueue";
+import type { ReviewItem } from "./reviewQueueModel";
 
 const CLOCK = { time: "12:04", total: "52:10" };
 

@@ -1,5 +1,5 @@
 import type { ReviewContent } from "../review/ReviewQueue";
-import { isCut, type ReviewItem } from "../review/reviewQueue";
+import { isCut, type ReviewItem } from "../review/reviewQueueModel";
 import type { SuggestionSegment } from "../system/Suggestion";
 import { Suggestion } from "../system/Suggestion";
 import { formatSeconds } from "../system/seconds";
