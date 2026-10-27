@@ -27,6 +27,8 @@ export type PrepareSession = {
   /** "14:20". */
   duration: string;
   target: SessionTarget;
+  /** The first take has landed, so the place is set. */
+  targetLocked?: boolean;
   status: "idle" | "running" | "done" | "failed";
   progress?: number;
   sources: readonly PrepareSource[];
@@ -43,6 +45,7 @@ export type SourceActions = {
   onRetry: (id: string) => void;
   onDetails: (id: string) => void;
   onReplace: (id: string) => void;
-  onMerge: (id: string) => void;
+  /** Left out where merging two voices is not offered. */
+  onMerge?: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
 };
