@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -253,6 +255,39 @@ def test_record_room_tone_cli_and_mcp_announce_a_round(
     assert "Stop the take first" in refused.output
     with pytest.raises(RecordStateError):
         RecordControlService(ws).room_tone_countdown()
+
+
+def test_record_host_commands_from_separate_processes_are_not_deduped(minimal_project, sample_wav):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    host = RecordSessionService(ws.project, session_id=room["session_id"])
+    host.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="record-join:host",
+        connection_id="c0",
+    )
+    script = (
+        "import json, sys; "
+        "from podcast_mcp.services.app import ProjectWorkspace; "
+        "from podcast_mcp.services.record import RecordControlService; "
+        "state = RecordControlService(ProjectWorkspace.open(sys.argv[1])).room_tone_countdown(); "
+        "print(json.dumps(state['room_tone']['round']))"
+    )
+    rounds = []
+    for _ in range(2):
+        completed = subprocess.run(
+            [sys.executable, "-c", script, str(minimal_project)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rounds.append(json.loads(completed.stdout))
+
+    assert rounds == [1, 2]
+    assert host.snapshot()["room_tone"]["round"] == 2
 
 
 def test_record_room_tone_tool_is_registered() -> None:
