@@ -14,7 +14,7 @@ def _ctrl(project_path: str) -> RecordControlService:
 
 
 def record_state_tool(project_path: str) -> str:
-    """Read the live recording-room snapshot (roster, take clock, consent, and unlanded_take / unlanded_takes: stopped takes not yet saved to the episode)."""
+    """Read the live recording-room snapshot (roster, take clock, consent, and the mint preflight: unlanded_take / unlanded_takes = stopped takes not yet saved to the episode, unlanded_saving = how many of those still have a guest upload in flight, land_first_possible = whether create_record_room_tool(land_first=True) would go ahead)."""
     try:
         snap = _ctrl(project_path).snapshot()
     except FileNotFoundError:

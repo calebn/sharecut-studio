@@ -254,6 +254,75 @@ def test_a_take_still_uploading_is_counted_and_land_first_asks_to_wait(
     assert "still saving" in new["warning"]
 
 
+def _stopped_room(ws, names, *, pause: bool = False):
+    """A room with a stopped take and no uploads at all (the normal window right after Stop)."""
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    pids = [_join_guest(svc, room, name, i) for i, name in enumerate(names)]
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    if pause:
+        svc.submit(_cmd("Pause"), now_wall_ms=1_000)
+        svc.submit(_cmd("Resume"), now_wall_ms=2_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    return room, pids
+
+
+def test_a_stopped_take_nobody_has_started_uploading_is_still_saving(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, _ = _stopped_room(ws, ["Ava"])
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_takes"], snap["unlanded_saving"]) == (1, 1)
+    assert snap["land_first_possible"] is False
+    with pytest.raises(RecordLandingError, match=r"still saving\. Try again"):
+        ShareService(ws).create_record_room(land_first=True)
+    assert lookup_share(old["guest"]["token"], kind="record")
+    new = ShareService(ws).create_record_room()
+    assert "still saving" in new["warning"] and "Start anyway" in new["warning"]
+
+
+def test_one_guest_acked_and_one_with_nothing_yet_is_not_reported_as_zero(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava, _bea] = _stopped_room(ws, ["Ava", "Bea"])
+    _ack(ws, old, ava, 0)
+    assert _flags(ws) == (True, 1)
+    with pytest.raises(RecordLandingError, match="still saving"):
+        ShareService(ws).create_record_room(land_first=True)
+    ws.reload()
+    assert not ws.project.clips  # refused before landing anything
+    assert lookup_share(old["guest"]["token"], kind="record")
+    new = ShareService(ws).create_record_room()
+    assert new["unlanded_takes"] == 1 and "warning" in new
+
+
+def test_a_resumed_take_waits_for_its_second_segment(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava] = _stopped_room(ws, ["Ava"], pause=True)
+    _ack(ws, old, ava, 0)
+    RecordLandingService(ws).land()
+    assert _flags(ws) == (True, 1)  # segment 0 landed; segment 1 has not started
+    with pytest.raises(RecordLandingError, match="still saving"):
+        ShareService(ws).create_record_room(land_first=True)
+
+
+def test_bad_target_or_expiry_fails_before_land_first_lands_anything(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, _ = _room(ws, ["Ava"])
+    for bad in ({"target": "bogus"}, {"expires_at": "not-a-date"}):
+        with pytest.raises(ValueError):
+            ShareService(ws).create_record_room(land_first=True, **bad)
+        ws.reload()
+        assert not ws.project.clips
+        assert _flags(ws) == (True, 1)
+        assert lookup_share(old["guest"]["token"], kind="record")
+
+
 def test_land_first_refuses_when_the_land_leaves_a_take_unsaved(
     minimal_project, sample_wav, tmp_workspace
 ):
@@ -276,6 +345,10 @@ def test_cli_and_mcp_carry_the_warning_and_land_first(minimal_project, sample_wa
     assert res.exit_code == 0, res.output
     assert "Warning: 1 stopped take in this room is not saved" in res.output
     assert "Add --land-first" in res.output
+    _stopped_room(ws, ["Ava"])
+    res = runner.invoke(cli_app, base)
+    assert "still saving" in res.output and "Add --land-first" not in res.output
+    _room(ws, ["Ava"])
 
     _room(ws, ["Bea"])
     out = json.loads(create_record_room_tool(str(minimal_project)))

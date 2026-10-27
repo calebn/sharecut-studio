@@ -222,7 +222,7 @@ def create_record_room_tool(
 ) -> str:
     """Mint a recording room: guest + producer /rec/ links; revokes earlier rooms' links (docs/recording-session.md).
 
-    If the current room has a stopped take not saved to the episode, the result says so (``unlanded_take``, ``unlanded_takes``, ``warning``) and the mint still happens. Pass ``land_first`` to save that take first.
+    If the current room has a stopped take not saved to the episode, the result says so (``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``warning``) and the mint still happens. Pass ``land_first`` to save that take first (result adds ``landed_first``). Land-first mints nothing and keeps the old links when uploads are still saving (try again, or mint without it), when the room's staged session was already accepted or skipped, or when the land leaves a take unsaved.
 
     ``target`` is where the session lands: ``end`` (the default), ``start`` (the front of the episode), or an ``insert``/``replace`` JSON object
     that stages the session as a suggestion.

@@ -139,9 +139,12 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    If the tunnel drops during REC, guests keep recording on their device ("Host offline —
    still recording locally."). After ≥ 10 s the host return **pauses** the take
    (`pause_reason: host_reconnect`); Resume starts a new segment. Do not mint a
-   second room while REC/PAUSED — Stop first. Land the take before minting a
-   new room: a new room supersedes the old one and kills its links (guest and
-   producer), and landing reads only the active room.
+   second room while REC/PAUSED — Stop first. A new room supersedes
+   the old one and kills its links (guest and producer), and landing reads only the
+   active room, so a stopped take that is not landed would be left behind. The mint
+   warns (`unlanded_take`, `warning`) and still goes ahead; use `--land-first` /
+   `land_first` to land then mint, or start anyway. Land-first refuses while guests
+   are still saving.
 
 ## Rules
 
