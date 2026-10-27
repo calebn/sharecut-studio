@@ -50,6 +50,22 @@ describe("stage commands", () => {
     );
   });
 
+  it("edit.history opens the History sheet for a host, even with nothing to undo", async () => {
+    useDawStore.setState({ stage: "review", openSheet: null });
+    expect(await execute("edit.history")).toEqual({ status: "ok" });
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(useDawStore.getState().openSheet).toBe("history");
+  });
+
+  it("edit.history is refused on a link that cannot edit", async () => {
+    useDawStore.setState({
+      projectPath: "share:tok",
+      guestMode: "comment",
+      shareCapabilities: ["comment"],
+    });
+    expect((await execute("edit.history")).status).toBe("disabled");
+  });
+
   it("keeps Mod+1 to Mod+4 on layout.* and Mod+O on project.open for now", () => {
     expect(COMMANDS["project.home"]).toBeDefined();
     expect(COMMANDS["project.open"]).toBeDefined();

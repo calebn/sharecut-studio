@@ -196,6 +196,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Go to Deliver",
     tooltip: "Go to Deliver",
   },
+  "daw.edit.history": {
+    label: "Open history",
+    tooltip: "Open history",
+  },
   "daw.view.toggleScript": {
     label: "Show or hide Script",
     tooltip: "Show or hide Script",
@@ -552,9 +556,9 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   viewSheet: "daw.view.trackHeightDecrease",
   "transport.fit": "daw.view.fit",
   stageBar: "daw.stage.deliver",
+  historyPanel: "daw.history.redo",
   "timeline.waveform": "daw.view.waveformZoomOut",
   "transport.fitTracksHeight": "daw.view.fitTracksHeight",
-  historyPanel: "daw.history.redo",
   "mobileShell.gesture.twoFingerTap": "daw.history.undo",
   "transcript.findReplace": "daw.transcript.findReplace",
   "transcript.wordbar": "daw.transcript.adjustTiming",

@@ -130,6 +130,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
+| Open history | `edit.history` | Project loaded | Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor. |
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |

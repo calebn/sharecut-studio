@@ -221,7 +221,7 @@ export function AppHeader({
           {loading || !save ? null : <SaveIndicator {...save} />}
           {canEdit ? (
             <>
-              {/* Long-press and right-click open History: the Undo button's own press stays Undo. */}
+              {/* Long-press and right-click on Undo or Redo open History; a plain press stays Undo or Redo. */}
               <span
                 className="sys-header-history"
                 onContextMenu={
@@ -239,12 +239,12 @@ export function AppHeader({
                   disabled={loading || !canUndo}
                   onClick={onUndo}
                 />
+                <VerbButton
+                  verb="redo"
+                  disabled={loading || !canRedo}
+                  onClick={onRedo}
+                />
               </span>
-              <VerbButton
-                verb="redo"
-                disabled={loading || !canRedo}
-                onClick={onRedo}
-              />
             </>
           ) : null}
         </div>
