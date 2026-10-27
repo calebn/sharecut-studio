@@ -5,12 +5,9 @@ import {
   portaledOverlayParameters,
   viewportStoryParameters,
 } from "../storybook/storyLayout";
-import {
-  ScriptPane,
-  type ScriptPaneProps,
-  type ScriptSpan,
-} from "./ScriptPane";
+import { ScriptPane, type ScriptPaneProps } from "./ScriptPane";
 import { patchWords, SCRIPT_TURNS, spanPatch } from "./scriptFixtures";
+import type { ScriptSpan } from "./scriptPieces";
 
 const meta: Meta<typeof ScriptPane> = {
   title: "System/ScriptPane",
