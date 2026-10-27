@@ -124,7 +124,10 @@ class SessionSuggestionService:
         range on every dialogue track and puts one take (``take_index``, else the selected or
         last one) in its place. A replace that also removes speech of a track the take did not
         record changes nothing and returns ``needs_confirmation``; repeat with
-        ``override_audio_checks=true`` to apply it. Marks the suggestion accepted.
+        ``override_audio_checks=true`` to apply it. Marks the suggestion accepted. A replace
+        discards the other takes' staged segments and the live comments held on them in the same
+        step (``discarded_takes``, ``comments_not_placed``, ``discard_message``); Undo brings
+        them back.
         """
         row = find_session_suggestion(self.ws.project, suggestion_id)
         self._require_refine_clear(row)

@@ -8,6 +8,7 @@ from podcast_mcp.edits.insert_anchor import resolve_range
 from podcast_mcp.edits.session_suggestions import (
     _check_take,
     _chosen_take,
+    _require_pending,
     chosen_take_for_preview,
     find_session_suggestion,
     staged_span_s,
@@ -65,17 +66,22 @@ def session_takes(project: EpisodeProject, suggestion_id: str) -> dict[str, Any]
     no take), and ``chosen`` marks the one a person picked (``selected_take``), so the list,
     the preview and Accept name the same take. A take Accept would refuse carries that refusal
     (``refusal``) instead of being left out. An insert has one run of takes played in order, so
-    it has nothing to pick: ``selectable`` is false and no take is default.
+    it has nothing to pick: ``selectable`` is false and no take is default. ``selectable`` is
+    also false for a session that is not pending (it is decided, and every take then reports
+    ``acceptable: false`` with ``session_suggestion_not_pending``) and for a replace with a
+    single take. A pick that no longer names a staged take (its recordings were deleted) is
+    not reported.
     """
     row = find_session_suggestion(project, suggestion_id)
     indexes = sorted({take.take_index for take in row.takes})
+    selected = row.selected_take if row.selected_take in indexes else None
     replace = row.kind == "replace"
     default = _chosen_take(row, None) if replace and indexes else None
     rows: list[dict[str, Any]] = []
     for index in indexes:
         takes = [take for take in row.takes if take.take_index == index]
         words = _take_words(project, takes)
-        refusal = _refusal(project, row, index) if replace and row.status == "pending" else None
+        refusal = _refusal(project, row, index, replace=replace)
         rows.append(
             {
                 "take_index": index,
@@ -83,7 +89,7 @@ def session_takes(project: EpisodeProject, suggestion_id: str) -> dict[str, Any]
                 "tracks": _track_rows(takes),
                 "word_count": None if words is None else len(words),
                 "speech_text": None if not words else _snippet(words),
-                "chosen": replace and row.selected_take == index,
+                "chosen": replace and selected == index,
                 "default": replace and default == index,
                 "acceptable": refusal is None,
                 "refusal": refusal,
@@ -94,15 +100,19 @@ def session_takes(project: EpisodeProject, suggestion_id: str) -> dict[str, Any]
         "kind": row.kind,
         "status": row.status,
         "selectable": replace and row.status == "pending" and len(indexes) > 1,
-        "selected_take": row.selected_take if replace else None,
+        "selected_take": selected if replace else None,
         "default_take": default,
         "takes": rows,
     }
 
 
-def _refusal(project: EpisodeProject, row: SessionSuggestion, index: int) -> dict[str, str] | None:
+def _refusal(
+    project: EpisodeProject, row: SessionSuggestion, index: int, *, replace: bool
+) -> dict[str, str] | None:
     try:
-        _check_take(project, row, index)
+        _require_pending(row)
+        if replace:
+            _check_take(project, row, index)
     except CodedError as refused:
         return {"code": str(refused.code), "message": str(refused)}
     return None
