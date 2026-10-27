@@ -125,3 +125,11 @@
 .stage-host-panel {
   overflow-y: auto;
 }
+
+.stage-host-guest-script {
+  display: flex;
+  flex-direction: column;
+  block-size: min(28rem, 55dvh);
+  min-block-size: 0;
+  margin-block-end: var(--space-4);
+}
