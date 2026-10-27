@@ -379,6 +379,8 @@ export interface DawState {
   ) => void;
   /** Track the Split speakers dialog is open for; null while it is closed. */
   splitSpeakersTrackId: string | null;
+  /** Source Prepare shows its split prompt for, set by "Split speakers…"; null otherwise. */
+  prepareFocusTrackId: string | null;
   /** Tighten tab Apply-eligible scope for keyboard shortcuts. */
   tightenApplyScope: { ids: string[] };
   setTightenApplyScope: (scope: { ids: string[] }) => void;
@@ -578,6 +580,7 @@ export interface DawState {
   setTranscriptFindReplaceOpen: (on: boolean) => void;
   setExportDialogOpen: (on: boolean) => void;
   setSplitSpeakersTrackId: (trackId: string | null) => void;
+  setPrepareFocusTrackId: (trackId: string | null) => void;
   setShareDialogOpen: (on: boolean) => void;
   setRecordPanelOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;

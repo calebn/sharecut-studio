@@ -48,7 +48,7 @@ describe("TrackInspector", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/ep.json", minimalProject({ tracks: [hostTrack] }));
-    useDawStore.setState({ splitSpeakersReview: null });
+    useDawStore.setState({ prepareFocusTrackId: null });
     useDawStore.getState().setLayerVisible("showLevels", false);
   });
 
@@ -223,30 +223,15 @@ describe("TrackInspector", () => {
   describe("Split speakers…", () => {
     const withAudio: TrackView = { ...hostTrack, media_path: "raw/host.wav" };
 
-    it("opens the Split speakers dialog for a track that has audio", async () => {
+    it("opens Prepare at the split prompt for a track that has audio", async () => {
       const user = userEvent.setup();
       useDawStore
         .getState()
         .hydrate("/tmp/ep.json", minimalProject({ tracks: [withAudio] }));
       render(<TrackInspector track={withAudio} effects={[]} />);
       await user.click(screen.getByRole("button", { name: "Split speakers…" }));
-      expect(useDawStore.getState().splitSpeakersTrackId).toBe("host");
-    });
-
-    it("reopens the current split result from its track inspector", async () => {
-      const user = userEvent.setup();
-      const splitTrack = { ...withAudio, speaker_split_id: "split_1" };
-      const project = minimalProject({ tracks: [splitTrack] });
-      useDawStore.getState().hydrate("/tmp/ep.json", project);
-      useDawStore.getState().setSplitSpeakersReview({
-        trackId: "host",
-        splitId: "split_1",
-        historyHeadId: project.history!.head_id,
-      });
-      render(<TrackInspector track={splitTrack} effects={[]} />);
-
-      await user.click(screen.getByRole("button", { name: "Review split…" }));
-      expect(useDawStore.getState().splitSpeakersTrackId).toBe("host");
+      expect(useDawStore.getState().prepareFocusTrackId).toBe("host");
+      expect(useDawStore.getState().stage).toBe("prepare");
     });
 
     it.each([

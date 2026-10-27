@@ -50,6 +50,7 @@ export function SessionSources({
               <SourceCard
                 key={source.id}
                 {...source}
+                sourceId={source.id}
                 sameNameAs={sameNameAs}
                 nameElsewhere={
                   !sameNameAs && repeated?.has(key)
