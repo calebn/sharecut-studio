@@ -314,8 +314,20 @@ def test_a_ping_that_is_not_200_is_never_bypassed(project: Path, status: int, bo
     assert caught.value.host.port == port
 
 
-def test_a_matching_ping_with_an_unsupported_protocol_is_never_bypassed(project: Path) -> None:
-    body = json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL + 1, "serves": True}).encode()
+@pytest.mark.parametrize(
+    "protocol",
+    [
+        pytest.param(HANDOFF_PROTOCOL + 1, id="unsupported-integer"),
+        pytest.param(True, id="boolean-equal-to-integer"),
+        pytest.param(1.0, id="float-equal-to-integer"),
+        pytest.param("1", id="string"),
+        pytest.param(None, id="null"),
+    ],
+)
+def test_a_matching_ping_with_an_unsupported_protocol_is_never_bypassed(
+    project: Path, protocol: object
+) -> None:
+    body = json.dumps({"instance": "a1", "protocol": protocol, "serves": True}).encode()
     with ping_answering(200, body) as port:
         announce_studio_host(project, _host(port=port))
         with pytest.raises(StudioBadReply, match="not a Studio reply") as caught:
