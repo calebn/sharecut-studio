@@ -12,9 +12,9 @@ Per-surface **display schemas**: what regions exist, what data they show, empty/
 
 | | |
 |--|--|
-| **Purpose** | Create a new episode workspace or open an existing `episode.project.json` on the host |
-| **Primary actions** | New project… · Open project… · **Browse…** (OS file dialog via the local engine) · paste path · **Connect agent…** · **Help** (create and preview a sanitized diagnostics zip; optionally submit a public report after consent, or open a prefilled GitHub issue and attach the local zip; local **Creating…** busy, not StatusBar) |
-| **Data shown** | Episode name + workspace directory (New); path to `episode.project.json` (Open) |
+| **Purpose** | Start a new episode (Import audio or Record) or reopen a recent one on the host |
+| **Primary actions** | **Import audio** · **Record** · recent episode cards (**Find…** when a folder moved) · **Open other…** (OS folder picker via the local engine, or a path field) · **Connect agent…** · **Models** · **Help** (create and preview a sanitized diagnostics zip; optionally submit a public report after consent, or open a prefilled GitHub issue and attach the local zip; local **Creating…** busy, not StatusBar) |
+| **Data shown** | Recent episodes (name, length, last edited, the stage they open to); a path to the episode folder (Open other, browsers without a folder picker) |
 | **Pinned project** | Opening `/` while a project is pinned goes straight to that project; `/?home=1` (recovery page “Choose a different project…”, Studio **New project**) shows home. Only New project unpins (a reload of `/` returns to the open project, keeping the desktop close-guard marker); if the unpin fails or takes over 10 s, Studio stays open, says so in the status line, and best-effort re-pins the open project (the server may still finish the stalled unpin late). New and Open are refused while this browser tab is recording, in a plain browser as well as the desktop app. |
 | **Empty / error** | Missing OS dialog tool → keep paste field + alert; wrong filename → server error |
 | **Out of scope** | Guests / share tokens; uploading project JSON as a browser File |

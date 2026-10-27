@@ -15,21 +15,10 @@ export type ConfirmQuestion = {
   danger: boolean;
 };
 
-/** A one-line text answer, such as a file path. */
-export type TextQuestion = {
-  kind: "text";
-  title: string;
-  label: string;
-  hint?: string;
-  submitLabel: string;
-  /** Shown under the field when the person submits it empty. */
-  requiredMessage: string;
-};
+export type Question = ConfirmQuestion;
 
-export type Question = ConfirmQuestion | TextQuestion;
-
-/** Go ahead (true, or the typed text) or back out (false or null). */
-export type Answer = boolean | string | null;
+/** Go ahead (true) or back out (false or null). */
+export type Answer = boolean | null;
 
 export type PendingQuestion = {
   id: number;
@@ -58,19 +47,6 @@ export function askConfirm(
   return new Promise((resolve) =>
     open({ kind: "confirm", ...question }, (answer) =>
       resolve(answer === true),
-    ),
-  );
-}
-
-/** The trimmed text, or null when the person cancels or closes. */
-export function askText(
-  question: Omit<TextQuestion, "kind">,
-): Promise<string | null> {
-  return new Promise((resolve) =>
-    open({ kind: "text", ...question }, (answer) =>
-      resolve(
-        typeof answer === "string" && answer.trim() ? answer.trim() : null,
-      ),
     ),
   );
 }

@@ -27,13 +27,6 @@
   overflow-wrap: anywhere;
 }
 
-.model-row-select {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: var(--touch-min);
-}
-
 .model-row-size,
 .model-row-state {
   color: var(--color-text-secondary);
@@ -110,12 +103,7 @@
   }
 }
 
-.model-summary {
-  font-weight: 600;
-}
-
-.model-tools,
-.model-note {
+.model-tools {
   color: var(--color-text-secondary);
 }
 
@@ -139,23 +127,6 @@
   max-inline-size: 100%;
   padding-inline: var(--space-3) var(--space-1);
   text-overflow: ellipsis;
-}
-
-/* A busy wizard's primary button is the one word saying what is happening: keep it legible. */
-.bootstrap-wizard .ui-control.primary:disabled {
-  opacity: 1;
-  background: var(--color-bg-sunken);
-  border: 1px dashed var(--color-border-strong);
-  color: var(--color-text-secondary);
-  font-style: italic;
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
-/* "Skip for now" while a download holds the slot: inactive, but still readable text. */
-.bootstrap-wizard .ui-control.linkish:is(:disabled, [aria-disabled="true"]) {
-  opacity: 1;
-  color: var(--color-text-secondary);
 }
 
 /* The gate's choices wrap: on a phone each takes the row, so every one is a full thumb target. */

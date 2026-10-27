@@ -90,9 +90,9 @@ podcast gui --project /path/to/episode.project.json
 ```
 
 On first open of the host home screen (no project), Sharecut Studio checks audio
-tools and can download Whisper via the GUI bootstrap wizard (`/api/bootstrap/*`) — same as
+tools and can download Whisper via the Setup card on Home (`/api/bootstrap/*`) — same as
 `podcast bootstrap`, without a terminal. Default speech model is **large-v3-turbo**;
-the wizard (and `./install.sh --whisper-model` / `podcast setup --whisper-model`)
+the Models dialog (and `./install.sh --whisper-model` / `podcast setup --whisper-model`)
 can pick a smaller size.
 
 Optional native window: see `gui/desktop/` and `docs/desktop-packaging.md`.
