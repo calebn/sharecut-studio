@@ -263,6 +263,8 @@ const SHEET_CLEARANCE_TOKENS = [
   "--sheet-lane-clearance",
 ];
 
+const STACKED_EDIT_TOKENS = ["--stage-stacked-lanes-min"];
+
 describe("theme tokens.css", () => {
   const current = declarations("tokens.css");
 
@@ -297,8 +299,16 @@ describe("theme tokens.css", () => {
       ...FROZEN.map(([name]) => name),
       ...Object.keys(STAGE_LAYOUT),
       ...SHEET_CLEARANCE_TOKENS,
+      ...STACKED_EDIT_TOKENS,
     ]);
     expect([...current.keys()].filter((name) => !known.has(name))).toEqual([]);
+  });
+
+  it("keeps a ruler, a marker row and two lanes for the stacked Edit timeline", () => {
+    const value = current.get("--stage-stacked-lanes-min")?.[0] ?? "";
+    expect(value.replace(/\s+/g, " ")).toMatch(
+      /2 \* var\(--ruler-height\) \+ 2 \* var\(--lane-height\)/,
+    );
   });
 
   it("sums the phone chrome budget to 176px at a 16px root", () => {
