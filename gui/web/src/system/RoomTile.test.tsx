@@ -8,7 +8,7 @@ import {
   type RoomTileProps,
   roomTileLabel,
   savingFraction,
-} from "./roomTile";
+} from "./roomTileModel";
 
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
 const live = (rest: Partial<Extract<RoomTileProps, { presence: "live" }>>) =>
