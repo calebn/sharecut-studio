@@ -55,7 +55,7 @@ phone; the phone design uses a bottom sheet. Use the terms “tighten hit” and
 On a phone, launch toward recording; on desktop, show the current project's
 next step. Keep multitrack, effects, and render options one deliberate action
 away. Empty states should explain the next useful action and provide its
-control. Frequent tablet actions belong in reachable tool rails, while other
+control. Frequent tablet actions belong in reachable tool strips, while other
 actions remain discoverable through More or overflow. Progressive disclosure
 must never make an action unavailable on a shell that supports it.
 
