@@ -278,9 +278,8 @@ const refreshMixRow: Probe = async (user) => {
   asHost("deliver");
   useDawStore.getState().setProject(staleProject());
   render(<StageHost />);
-  const list = screen.getByRole("list", { name: "Readiness" });
   await runs("render.refreshMix", () =>
-    user.click(within(list).getByRole("button", { name: "Refresh mix" })),
+    user.click(screen.getByRole("button", { name: "Refresh mix" })),
   );
 };
 
