@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import subprocess
 from collections import defaultdict
 from pathlib import Path, PurePosixPath
@@ -18,6 +19,10 @@ def _case_collisions(root: Path) -> list[list[str]]:
         ["git", "-C", str(root), "ls-files", "-z"], check=True, capture_output=True
     ).stdout
     tracked = [p for p in raw.decode("utf-8", errors="surrogateescape").split("\0") if p]
+    return _collisions_among(tracked)
+
+
+def _collisions_among(tracked: list[str]) -> list[list[str]]:
     by_path: dict[str, set[str]] = defaultdict(set)
     dir_spellings: dict[str, set[str]] = defaultdict(set)
     dir_users: dict[str, set[str]] = defaultdict(set)
@@ -124,6 +129,10 @@ def _index_repo(root: Path, paths: list[str]) -> None:
         (["a/b/c/Foo.TXT", "a/b/c/foo.txt"], [["a/b/c/Foo.TXT", "a/b/c/foo.txt"]]),
         (["a/b/c/foo.ts", "a/b/c/foo.tsx"], []),
         (["foo.d.ts", "Foo.ts"], [["Foo.ts", "foo.d.ts"]]),
+        (["docs", "Docs/a/b/c.md"], [["Docs/a/b/c.md", "docs"]]),
+        (["a/foo.ts", "b/Foo.tsx"], []),
+        (["a/Foo.ts", "a/foo.css"], []),
+        (["a/Foo.tsx", "a/foo.css"], []),
     ],
 )
 def test_case_collisions_scenarios(
@@ -131,3 +140,46 @@ def test_case_collisions_scenarios(
 ) -> None:
     _index_repo(tmp_path, files)
     assert _case_collisions(tmp_path) == expected
+
+
+def _module_base(path: str) -> tuple[str, str] | None:
+    """(directory, base name) of an importable file, else None; `x.d.ts` counts as `x.ts`."""
+    directory, _, name = path.rpartition("/")
+    for ext in ("ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"):
+        if name.lower().endswith("." + ext) and len(name) > len(ext) + 1:
+            base = name[: -len(ext) - 1]
+            if ext == "ts" and base.lower().endswith(".d"):
+                base = base[:-2]
+            return directory, base
+    return None
+
+
+def _dirs(path: str) -> list[str]:
+    parts = path.split("/")
+    return ["/".join(parts[:i]) for i in range(1, len(parts))]
+
+
+def _oracle_collide(p: str, q: str) -> bool:
+    if p != q and p.lower() == q.lower():
+        return True
+    for x, y in ((p, q), (q, p)):
+        if any(d.lower() == o.lower() and d != o for d in _dirs(x) for o in [*_dirs(y), y]):
+            return True
+    mp, mq = _module_base(p), _module_base(q)
+    return bool(mp and mq and mp[0] == mq[0] and mp[1] != mq[1] and mp[1].lower() == mq[1].lower())
+
+
+_VOCAB = [
+    "a/Foo.ts", "a/foo.tsx", "a/foo.ts", "a/Foo.tsx", "b/Foo.tsx", "A/x.md", "a/x.md",
+    "docs", "Docs/a/b/c.md", "a/foo.css", "a/Foo.TXT", "a/foo.txt", "README.md",
+    "readme.txt", "a/foo.d.ts", "a/Foo.d.ts", "a/Foo.TSX", "a/Foo.D.ts", "a/bd.ts",
+    "a/BD.tsx", "a/foo.d.js", "a/Foo.js", "a/b/Foo.js", "a/b/foo.jsx",
+]  # fmt: skip
+
+
+def test_guard_flags_same_files_as_naive_oracle() -> None:
+    for size in (1, 2, 3):
+        for files in itertools.combinations(_VOCAB, size):
+            expected = {p for p, q in itertools.permutations(files, 2) if _oracle_collide(p, q)}
+            flagged = {p for group in _collisions_among(list(files)) for p in group}
+            assert flagged == expected, files
