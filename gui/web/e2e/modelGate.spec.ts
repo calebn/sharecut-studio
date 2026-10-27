@@ -211,8 +211,10 @@ async function openSplitSpeakers(page: Page): Promise<void> {
 for (const viewport of VIEWPORTS) {
   for (const theme of THEMES) {
     test.describe(`model gate ${viewport.name} ${theme}`, () => {
+      // Axe reads colors as painted: with motion on, a scan can land mid-fade and measure a blend.
       test.use({
         viewport: { width: viewport.width, height: viewport.height },
+        reducedMotion: "reduce",
       });
 
       test("Run asks on its row, shows the live bar, then resends the run", async ({

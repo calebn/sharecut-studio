@@ -207,7 +207,9 @@ test.describe("pyramid waveforms", () => {
       try {
         const host = await hostContext.newPage();
         await openHostShare(host, projectPath);
-        const token = await createReviewShare(host, projectPath);
+        // A viewer link opens on Review, which has no timeline; an editor link
+        // opens on the Edit stage, where the waveforms are.
+        const token = await createReviewShare(host, projectPath, "editor");
 
         const guest = await guestContext.newPage();
         const seen = watchWaveformTraffic(guest);

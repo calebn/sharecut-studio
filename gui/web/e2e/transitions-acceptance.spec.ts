@@ -10,7 +10,7 @@ import {
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import { openProject } from "./stageNav";
+import { openProject, waitForLanding } from "./stageNav";
 
 let projectPath: string;
 let workspaceDir: string;
@@ -159,6 +159,7 @@ test("pending suggestions preserve drafts and save the displayed full range once
     // The phone timeline's drawer opens at full height, with the inspector.
     await rememberInspectorDetent(phone, "full");
     await phone.goto(page.url());
+    await waitForLanding(phone);
     await openPhoneTimeline(phone);
     await phone
       .locator(`.pending-overlay[data-pending-id="${editId}"] .pending-hit`)

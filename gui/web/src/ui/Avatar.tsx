@@ -10,6 +10,11 @@ type Props = {
   ring?: "none" | "dashed" | "solid";
   badge?: number;
   title?: string;
+  /**
+   * The initials are drawn by CSS from `data-initials`, so they are not text in the page. Use it
+   * inside a control whose accessible name already says who is there (WCAG 2.5.3).
+   */
+  decorative?: boolean;
 };
 
 export function Avatar({
@@ -20,6 +25,7 @@ export function Avatar({
   ring = "none",
   badge,
   title,
+  decorative = false,
 }: Props) {
   const classes = [
     "ui-avatar",
@@ -36,6 +42,9 @@ export function Avatar({
         { "--avatar-color": presenceColorVar(colorIndex) } as CSSProperties
       }
       title={title ?? name}
+      data-initials={
+        decorative && sessionRole !== "agent" ? initials(name) : undefined
+      }
     >
       {sessionRole === "agent" ? (
         <Icon
@@ -43,7 +52,7 @@ export function Avatar({
           title={title ?? name}
           size={size === "sm" ? 12 : 14}
         />
-      ) : (
+      ) : decorative ? null : (
         initials(name)
       )}
       {badge != null && badge > 0 ? (

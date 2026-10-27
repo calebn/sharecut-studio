@@ -145,7 +145,9 @@ export const Header: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: "People here, 4. Follow someone" }),
+      canvas.getByRole("button", {
+        name: "People here, 4. Follow someone",
+      }),
     );
     await userEvent.click(
       await within(document.body).findByRole("menuitem", { name: /Ada/ }),

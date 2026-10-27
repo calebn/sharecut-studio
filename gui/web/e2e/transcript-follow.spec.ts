@@ -242,8 +242,8 @@ for (const viewport of viewports) {
         const activeWord = list.locator(
           '.utterance-word.active[data-track-id="reference"]',
         );
-        await expect(activeWord).toBeInViewport({ ratio: 1 });
-        await page.getByRole("button", { name: "Taller", exact: true }).click();
+        // The Taller button went with the bottom splitter (#2292); the stacked
+        // Script pane is half the frame, and the word must be fully inside it.
         await expect(activeWord).toBeInViewport({ ratio: 1 });
       }
     });

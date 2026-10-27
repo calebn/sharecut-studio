@@ -1,4 +1,4 @@
-import { memo, type RefCallback, useMemo, useRef } from "react";
+import { memo, type RefCallback, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { isRangeSelection } from "../../edit/rangeSelection";
 import {
@@ -28,6 +28,7 @@ import { InspectorSheet } from "./InspectorSheet";
 import { PhoneEditSurfaceView } from "./PhoneEditSurfaceView";
 import { PlusMenu } from "./PlusMenu";
 import { ScriptDivider } from "./ScriptDivider";
+import { useSideYield } from "./sideFit";
 import { useAudioDrop } from "./useAudioDrop";
 import { useScriptSize } from "./useScriptSize";
 import { useSelectionSheet } from "./useSelectionSheet";
@@ -85,6 +86,7 @@ function EditWorkspaceAdapter({
         ? "stacked"
         : "side";
   const size = useScriptSize();
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
 
   // The timeline column keeps timeline keys firing; the Script pane, the
   // divider and the Inspector do not (spec: focus regions).
@@ -197,6 +199,11 @@ function EditWorkspaceAdapter({
   const showInspector = selectionDragging
     ? heldInspector.current
     : inspectorWanted;
+  const yields = useSideYield(
+    arrangement === "side" ? root : null,
+    showInspector,
+    scriptFocus,
+  );
   const rangeActions =
     selectionSheet.rangeActionsInSheet || phone ? null : <RangeActions />;
   const corner = <EditCorner showScript={!phone} />;
@@ -209,6 +216,7 @@ function EditWorkspaceAdapter({
       scriptHidden={scriptCollapsed}
       scriptFocus={scriptFocus}
       scriptWidthRem={size.widthRem}
+      yields={yields}
       rangeActions={rangeActions}
       timeline={timeline}
       corner={corner}
@@ -246,6 +254,7 @@ function EditWorkspaceAdapter({
         ) : null
       }
       bindings={{
+        root: setRoot,
         timeline: timelineRegion,
         divider: dividerRegion,
         script: scriptRegion,

@@ -135,12 +135,6 @@ const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--inspector-width", ["17.5rem"]],
   ["--stage-lane-min", ["22rem"]],
   ["--stage-script-floor", ["12rem"]],
-  [
-    "--sheet-lane-clearance",
-    [
-      "calc( var(--app-header-height) + 2 * (var(--control-height) + 2 * var(--space-1)) + var(--ruler-height) + var(--marker-lane-height) + var(--lane-height) + var(--control-height) + var(--space-3) )",
-    ],
-  ],
   ["--player-height", ["3.5rem"]],
   ["--control-height", ["2rem"]],
   ["--control-height-compact", ["1.75rem"]],
@@ -262,6 +256,15 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   ...SELECTION_FROM_SPEC,
 };
 
+const SHEET_CLEARANCE_TOKENS = [
+  "--sheet-edit-row",
+  "--sheet-chrome-clearance",
+  "--sheet-lane-extra",
+  "--sheet-lane-clearance",
+];
+
+const STACKED_EDIT_TOKENS = ["--stage-stacked-lanes-min"];
+
 describe("theme tokens.css", () => {
   const current = declarations("tokens.css");
 
@@ -295,8 +298,17 @@ describe("theme tokens.css", () => {
     const known = new Set([
       ...FROZEN.map(([name]) => name),
       ...Object.keys(STAGE_LAYOUT),
+      ...SHEET_CLEARANCE_TOKENS,
+      ...STACKED_EDIT_TOKENS,
     ]);
     expect([...current.keys()].filter((name) => !known.has(name))).toEqual([]);
+  });
+
+  it("keeps a ruler, a marker row and two lanes for the stacked Edit timeline", () => {
+    const value = current.get("--stage-stacked-lanes-min")?.[0] ?? "";
+    expect(value.replace(/\s+/g, " ")).toMatch(
+      /2 \* var\(--ruler-height\) \+ 2 \* var\(--lane-height\)/,
+    );
   });
 
   it("sums the phone chrome budget to 176px at a 16px root", () => {
@@ -312,21 +324,28 @@ describe("theme tokens.css", () => {
 
 describe("--sheet-lane-clearance", () => {
   const current = declarations("tokens.css");
+  const px = (name: string) => {
+    const value = current.get(name)?.[0] ?? "";
+    return Number.parseFloat(value) * (value.endsWith("rem") ? 16 : 1);
+  };
 
-  it("stays 21rem at the default size, summed from the row tokens", () => {
-    const px = (name: string) => {
-      const value = current.get(name)?.[0] ?? "";
-      return Number.parseFloat(value) * (value.endsWith("rem") ? 16 : 1);
-    };
+  it("is 18.5rem at the default size with the Edit rows shared, summed from the row tokens", () => {
+    const row = px("--control-height") + 2 * px("--space-1");
     const clearance =
       px("--app-header-height") +
-      2 * (px("--control-height") + 2 * px("--space-1")) +
+      row +
       px("--ruler-height") +
       px("--marker-lane-height") +
       px("--lane-height") +
       px("--control-height") +
       px("--space-3");
-    expect(clearance).toBe(21 * 16);
+    expect(clearance).toBe(18.5 * 16);
+  });
+
+  it("builds the clearance from the chrome clearance plus one lane", () => {
+    expect(current.get("--sheet-lane-clearance")?.[0]).toMatch(
+      /var\(--sheet-chrome-clearance\)\s*\+\s*var\(--sheet-lane-extra\)/,
+    );
   });
 });
 

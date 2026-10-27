@@ -201,10 +201,10 @@ test("F03/F13 native ruler clock and modifier wheel anchor reversal bounds and t
     seed,
   );
 });
-test("F09 host numeric inspector and view-only guest select without envelope mutation", async ({
+// A view-only guest link opens Review only, with no timeline to select an envelope point on.
+test("F09 host numeric inspector opens an envelope point's time and level", async ({
   page,
-  browser,
-}, info) => {
+}) => {
   await withShareableProject(
     async (projectPath) => {
       await openHostShare(page, projectPath);
@@ -225,69 +225,37 @@ test("F09 host numeric inspector and view-only guest select without envelope mut
       await expect(
         page.getByRole("button", { name: "Save point", exact: true }),
       ).toBeEnabled();
+    },
+    undefined,
+    seed,
+  );
+});
+
+test("F09 a viewer link shows no envelope points and posts no document command", async ({
+  page,
+  browser,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
       const token = await createReviewShare(page, projectPath, "viewer");
-      const savedAfterShare = fs.readFileSync(projectPath, "utf8");
       const context = await browser.newContext({
         baseURL: new URL(page.url()).origin,
         viewport: { width: 1440, height: 900 },
-        reducedMotion: "reduce",
       });
       try {
         const guest = await context.newPage();
-        await openGuestShare(guest, token);
-        await layer(guest, "Volume envelope", true);
-        await setTheme(guest, "dark");
-        await expect(guest.locator("html")).toHaveAttribute(
-          "data-theme",
-          "dark",
-        );
-        await nativeEvidence(guest);
-        const requests: string[] = [];
+        const commands: string[] = [];
         guest.on("request", (r) => {
           if (r.method() === "POST" && r.url().includes("/document/command"))
-            requests.push(r.postData() ?? "");
+            commands.push(r.postData() ?? "");
         });
-        const point = guest
-          .locator('circle[aria-label^="Envelope point 1 at"]')
-          .first();
-        await expect(point).toBeVisible();
-        await point.click();
-        await expect(point).toHaveAttribute("aria-pressed", "true");
+        await openGuestShare(guest, token);
+        await expect(guest.getByRole("main", { name: "Review" })).toBeVisible();
         await expect(
-          guest.getByLabel("Time (seconds on timeline)"),
+          guest.locator('circle[aria-label^="Envelope point"]'),
         ).toHaveCount(0);
-        await expect(guest.getByLabel("Level (×)")).toHaveCount(0);
-        await expect(guest.locator(".modifier-inspector")).toContainText(
-          "Envelope",
-        );
-        const geometry = () =>
-          point.evaluate((el) => ({
-            cx: el.getAttribute("cx"),
-            cy: el.getAttribute("cy"),
-          }));
-        const origin = await geometry();
-        const box = (await point.boundingBox())!;
-        await guest.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        await guest.mouse.down();
-        await guest.mouse.move(
-          box.x + box.width / 2 + 28,
-          box.y + box.height / 2 - 8,
-          { steps: 4 },
-        );
-        await guest.mouse.up();
-        expect(await geometry()).toEqual(origin);
-        expect(requests).toEqual([]);
-        await point.focus();
-        await guest.keyboard.press("Enter");
-        await expect(point).toHaveAttribute("aria-pressed", "true");
-        expect(fs.readFileSync(projectPath, "utf8")).toBe(savedAfterShare);
-        fs.writeFileSync(
-          info.outputPath("envelope-view-policy.json"),
-          `${JSON.stringify({ role: "viewer", theme: "dark", motion: "reduce", nativeMouseKeyboard: true, physicalDevice: false, origin, after: await geometry(), requests, inputEvents: await events(guest), hostFields: { time: 2, value: 0.8 } }, null, 2)}\n`,
-        );
-        await guest.screenshot({
-          path: info.outputPath("envelope-view-inspector.png"),
-        });
+        expect(commands).toEqual([]);
       } finally {
         await context.close();
       }

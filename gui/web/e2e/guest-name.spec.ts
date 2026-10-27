@@ -6,7 +6,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { openPanel } from "./stageNav";
+import { openPanel, reloadProject } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
 const TOUCH_MIN = 44;
@@ -38,7 +38,7 @@ async function expectNoHorizontalScroll(page: Page, width: number) {
 }
 
 async function hostComments(host: Page, count: number): Promise<string[]> {
-  await host.reload();
+  await reloadProject(host);
   await openPanel(host, "comments");
   const rows = host.locator(".comments-list > li");
   await expect(rows).toHaveCount(count);

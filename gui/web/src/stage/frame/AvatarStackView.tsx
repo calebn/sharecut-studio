@@ -103,6 +103,7 @@ export function AvatarStackView({
                       colorIndex={c.meta?.color_index}
                       sessionRole={c.role}
                       size="sm"
+                      decorative
                       ring={
                         followingClientId === c.client_id ? "solid" : "none"
                       }
@@ -110,17 +111,18 @@ export function AvatarStackView({
                   ))}
                 </span>
                 {others.length > 3 ? (
-                  <span className="avatar-header-extra" aria-hidden="true">
-                    +{others.length - 3}
-                  </span>
+                  <span
+                    className="avatar-header-extra"
+                    aria-hidden="true"
+                    data-count={others.length - 3}
+                  />
                 ) : null}
                 {others.length > 1 ? (
                   <span
                     className="avatar-header-phone-count"
                     aria-hidden="true"
-                  >
-                    +{others.length - 1}
-                  </span>
+                    data-count={others.length - 1}
+                  />
                 ) : null}
               </button>
             )}
