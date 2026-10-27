@@ -10,8 +10,7 @@ import { plainError } from "../utils/plainError";
 /**
  * Speak the Activity/Pipeline chip's status in the shell's polite live region,
  * plus any job's own result copy (Bounce, Export) handed over through
- * `announceJobResult` (#704). Mounted by whichever shell is showing:
- * `StatusBar` (desktop/tablet) or `MobileShellView` (phone).
+ * `announceJobResult` (#704). Mounted once, by the stage frame's `StatusLive`.
  *
  * - A job registered with `expectJobResult` never gets the generic
  *   "<Kind>: ok" headline. Its caller's copy is spoken instead, so the two

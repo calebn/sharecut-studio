@@ -1,6 +1,7 @@
 /* Bottom sheet — phone/tablet inspector & quick actions.
- * Portaled to body; inset above shell chrome via html[data-shell] so tabs /
- * mode nav stay visible (z-shell-chrome is a hit-test backup). */
+ * Portaled to body; inset above the frame's bottom chrome via html[data-shell]
+ * so the Player and tab bar stay visible (z-shell-chrome is a hit-test
+ * backup). */
 .bottom-sheet-root {
   position: fixed;
   inset: 0;
@@ -16,17 +17,20 @@
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 
+html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
+  bottom: var(--frame-bottom-chrome);
+}
+
+/* A phone's sheet never covers the header row, at any detent: its slot starts at
+   the header's bottom edge, so the Stage menu and Tools button stay reachable
+   while a selection is open (R-short-8). The clearance below then counts the
+   rows under the header only. */
+html[data-shell="phone"] {
+  --sheet-header-clearance: 0rem;
+}
+
 html[data-shell="phone"] .bottom-sheet-root {
-  bottom: var(--mobile-nav-height);
-}
-
-html[data-shell="tablet"] .bottom-sheet-root {
-  bottom: calc(var(--tabs-height) + var(--status-height));
-}
-
-html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root,
-html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
-  bottom: var(--status-height);
+  top: calc(var(--app-header-height-phone) + env(safe-area-inset-top));
 }
 
 /* The compact strip stacks above the shell's rows, so the status or nav row
@@ -91,13 +95,63 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 }
 
 /* A selection the page cannot scroll clear of shortens the half sheet to sit
-   under it (useKeepSelectionClear); the sheet body scrolls. */
+   under it (useKeepSelectionClear); the sheet body scrolls. On a tall screen it
+   also leaves the header, ruler, marker lane and one lane above it, so a pin or
+   a clip stays in reach of the next tap. */
 .bottom-sheet--inspector.bottom-sheet--half {
   max-block-size: min(var(--sheet-cap, 100%), var(--sheet-lane-cap, 100%));
 }
 
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (min-height: 40rem) {
+  .bottom-sheet--inspector.bottom-sheet--half {
+    max-block-size: min(
+      var(--sheet-cap, 100%),
+      var(--sheet-lane-cap, 100%),
+      max(100% - var(--sheet-lane-clearance), min(100%, 9rem))
+    );
+  }
+}
+
+/* A touch lane is --lane-height-touch tall on a tall screen, so the one lane the
+   sheet keeps clear is that tall (the next lane's header stays in reach). */
+@media (pointer: coarse) {
+  /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+  @media (min-height: 40rem) {
+    .bottom-sheet {
+      --sheet-lane-extra: calc(
+        var(--lane-height-touch) +
+        var(--control-height) +
+        var(--space-3)
+      );
+      --sheet-lane-clearance: calc(
+        var(--sheet-chrome-clearance) +
+        var(--sheet-lane-extra)
+      );
+    }
+  }
+}
+
 .bottom-sheet--full {
   height: min(100%, 56.25rem);
+}
+
+/* The Edit stage's surface switch and tool strip stack under 22rem wide
+   (src/styles/partials/stage-edit.css), so the sheet keeps clear of both rows. */
+@container sheet-slot (max-width: 22rem) {
+  .bottom-sheet {
+    --sheet-chrome-clearance: calc(
+      var(--sheet-header-clearance) +
+      2 *
+      var(--sheet-edit-row) +
+      var(--ruler-height) +
+      var(--marker-lane-height)
+    );
+    --sheet-lane-clearance: calc(
+      var(--sheet-chrome-clearance) +
+      var(--sheet-lane-extra)
+    );
+  }
 }
 
 /* A strip as tall as its content: the selection's name, value and nudges. */
@@ -105,11 +159,12 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   height: auto;
 }
 
-/* A refused Approve adds its form to the strip. Cap that strip at the half sheet's lane
-   clearance (not its 50% limit) so the transport, ruler, marker lane and one lane stay in
-   view; the sheet body scrolls (#2158). Other peek strips keep their content height. */
+/* A refused Approve adds its form to the strip. Cap that strip at the header, ruler and
+   marker lane clearance (not the half sheet's 50% limit, and not a lane too, so the form
+   and its Waive button keep their room); the sheet body scrolls (#2158). Other peek strips
+   keep their content height. */
 .bottom-sheet--compact.bottom-sheet--peek:has(.transcript-refine-recovery) {
-  max-block-size: max(100% - 13.625rem, min(100%, 9rem));
+  max-block-size: max(100% - var(--sheet-chrome-clearance), min(100%, 9rem));
 }
 
 .bottom-sheet--peek .bottom-sheet-header {
@@ -122,7 +177,10 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
    selection stays in view (the inspector scrolls inside). */
 .bottom-sheet--compact.bottom-sheet--half,
 .bottom-sheet--compact.bottom-sheet--half:has(.modifier-inspector) {
-  height: max(min(50%, 26.25rem, 100% - 13.625rem), min(100%, 9rem));
+  height: max(
+    min(50%, 26.25rem, 100% - var(--sheet-lane-clearance)),
+    min(100%, 9rem)
+  );
 }
 
 /* The compact inspector keeps its name, Collapse and Close in reach. A new
@@ -152,7 +210,13 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   background: var(--color-border-strong);
 }
 
-/* The detent control is a visually hidden range; its focus rings the pill. */
+/* The detent control is a visually hidden range; its focus rings the pill.
+   It is never a touch target: the header drags, and the range is the keyboard
+   and assistive-technology equivalent. */
+.bottom-sheet-detent {
+  pointer-events: none;
+}
+
 .bottom-sheet-grabber:has(.bottom-sheet-detent:focus-visible) {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
@@ -163,6 +227,11 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
    compositor and never lays the inspector out again. */
 .bottom-sheet[data-drawer-motion] {
   will-change: transform;
+
+  /* The half detent's clearance cap would cut the sheet short of its slot and
+     leave the drag unable to reach full; the ceiling is the slot's top, the
+     header's bottom edge (R-short-10). */
+  max-block-size: none;
 }
 
 /* Out of the way while the user drags what it describes. */
@@ -198,12 +267,6 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   .bottom-sheet--half:has(.modifier-inspector),
   .bottom-sheet--half:has(.range-actions--sheet) {
     height: min(70%, 22rem);
-  }
-
-  /* A sheet that edits a lane gives the tabs row to the lane above it
-     (responsive.css), so it rests on the status row (#1694). */
-  html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--lane-band) {
-    bottom: var(--status-height);
   }
 }
 
@@ -327,6 +390,14 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   padding-block: var(--space-1);
 }
 
+/* A slot this short (a small phone, or one the keyboard shrank) pads every
+   sheet's header as the strip does, so the form under it keeps its rows. */
+@container sheet-slot (max-height: 28rem) {
+  .bottom-sheet-header {
+    padding-block: var(--space-1);
+  }
+}
+
 /* A phone held sideways (636x390) at large text leaves the strip a slot under
    20rem tall, with no room for a title line of its own beside its header actions;
    let the title shrink so they share a row (#1762). This holds at the strip,
@@ -352,7 +423,7 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   gap: var(--space-1);
 }
 
-.compact-history-controls .editing-tool-rail-icon {
+.compact-history-controls .compact-history-button {
   position: relative;
 }
 
@@ -546,9 +617,10 @@ html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
    top is `--visual-viewport-top` (the visual viewport's page offset) and the
    height is `--visual-viewport-height`, with no subtraction of the keyboard
    from a layout height iOS already shrank. With Safari's chrome collapsed the
-   band can reach the shell's bottom edge, where the tablet status strip (and
-   the home indicator) paint over it, so the shell publishes `--column-floor`
-   (responsive.css) and the column ends there: the focused field and Close stay
+   band can reach the shell's bottom edge, where the Player (and the
+   home indicator) paint over it, so the shell publishes `--column-floor`
+   (stage-frame.css), less whatever of it the keyboard already covers, and the
+   column ends there: the focused field and Close stay
    clear of the strip. The column leaves the grid flow but its track stays, so
    the timeline does not move. The root rule above assumes a fixed slot, so the
    column has its own. */
@@ -558,7 +630,14 @@ html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
   inset-block: var(--visual-viewport-top, 0) auto;
   block-size: min(
     var(--visual-viewport-height, 100dvh),
-    calc(100% - var(--visual-viewport-top, 0rem) - var(--column-floor, 0rem))
+    calc(
+      100% -
+      var(--visual-viewport-top, 0rem) -
+      (
+        var(--column-floor, 0rem) -
+        min(var(--keyboard-inset, 0rem), var(--column-floor, 0rem))
+      )
+    )
   );
   inset-inline-end: env(safe-area-inset-right);
   inline-size: var(--inspector-column-width);

@@ -7,6 +7,7 @@ import type { WorkloadObservation } from "./editorProfileReport";
 import { e2eProjectPath } from "./env";
 import { openHostProject } from "./overlayReachability";
 import { scrollToEnd } from "./scroll";
+import { openPanel } from "./stageNav";
 
 // Diagnostic benchmark: no hardware-dependent pass/fail thresholds, so waits
 // are generous and only bound a hung run.
@@ -308,9 +309,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
       await expect(slider).toHaveAttribute("aria-valuenow", "0");
       profiles.push(
         await profile(recorder, "transcript-open", async () => {
-          await page
-            .getByRole("tab", { name: "Transcript", exact: true })
-            .click();
+          await openPanel(page, "transcript");
           await expect(page.locator(".transcript-list")).toBeVisible(HEAVY);
           await expect(
             page.locator('.utterance-turn[data-turn-index="0"]'),
@@ -346,7 +345,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
 
       profiles.push(
         await profile(recorder, "history-load", async () => {
-          await page.getByRole("tab", { name: "History", exact: true }).click();
+          await openPanel(page, "history");
           const history = page.locator(".history-list");
           await expect(history).toBeVisible(HEAVY);
           await expect(history).not.toHaveAttribute("aria-busy", /.*/, HEAVY);
@@ -439,7 +438,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
         round: number;
       })[] = [];
       const enduranceStart = performance.now();
-      await page.getByRole("tab", { name: "Transcript", exact: true }).click();
+      await openPanel(page, "transcript");
       await expect(page.locator(".transcript-list")).toBeVisible(HEAVY);
       for (let round = 0; round < SCRUB_ROUNDS; round++) {
         await recorder.measure(

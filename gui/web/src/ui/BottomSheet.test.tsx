@@ -706,7 +706,7 @@ describe("BottomSheet", () => {
       const onExpandedChange = vi.fn();
       const shell = document.body.appendChild(
         Object.assign(document.createElement("div"), {
-          className: "daw-shell",
+          className: "stage-frame",
           innerHTML: "<main></main>",
         }),
       );
@@ -792,7 +792,7 @@ describe("BottomSheet", () => {
       const shell = () =>
         document.body.appendChild(
           Object.assign(document.createElement("div"), {
-            className: "daw-shell",
+            className: "stage-frame",
             innerHTML: "<main></main>",
           }),
         );

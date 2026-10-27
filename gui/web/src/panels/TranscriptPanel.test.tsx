@@ -38,22 +38,6 @@ vi.mock("../prosody/useProsodyOverlay", () => ({
   useProsodyOverlay: useProsodyOverlayMock,
 }));
 
-vi.mock("../inspector/views/TranscriptWordInspector", () => ({
-  TranscriptWordInspector: ({
-    trackId,
-    wordIndex,
-    embedded,
-  }: {
-    trackId: string;
-    wordIndex: number;
-    embedded?: boolean;
-  }) => (
-    <div data-testid="docked-word-editor">
-      {embedded ? "embedded" : "rail"} {trackId}:{wordIndex}
-    </div>
-  ),
-}));
-
 function project() {
   return minimalProject({
     timeline_duration_sec: 10,
@@ -144,7 +128,6 @@ describe("TranscriptPanel", () => {
       playheadSec: 0,
       selection: null,
       transcriptFollowPlayhead: false,
-      layoutMode: "default",
       pointerKind: "fine",
       transcriptInlineEditRequest: null,
       transcriptInlineCommitPending: false,
@@ -219,18 +202,6 @@ describe("TranscriptPanel", () => {
       within(container).getByRole("button", { name: /^Correct/ }),
     ).toHaveAttribute("aria-pressed", "false");
     expect(useDawStore.getState().transcriptCorrecting).toBe(false);
-  });
-
-  it("docks word editor in text focus when Correct selects a word", () => {
-    useDawStore.setState({ layoutMode: "text" });
-    const { container } = render(<TranscriptPanel />);
-    fireEvent.click(
-      within(container).getByRole("button", { name: /Correct/i }),
-    );
-    fireEvent.click(within(container).getByRole("button", { name: "hello" }));
-    expect(
-      within(container).getByTestId("docked-word-editor").textContent,
-    ).toContain("embedded host:0");
   });
 
   describe("touch gestures", () => {
@@ -2016,7 +1987,6 @@ describe("TranscriptPanel virtualization", () => {
       transcriptFollowPlayhead: false,
       transcriptScrollRequest: null,
       followingClientId: null,
-      layoutMode: "default",
     });
   });
 
@@ -2242,7 +2212,6 @@ describe("TranscriptPanel prosody emphasis (#719)", () => {
       playheadSec: 0,
       selection: null,
       transcriptFollowPlayhead: false,
-      layoutMode: "default",
       pointerKind: "fine",
       transcriptInlineEditRequest: null,
       transcriptInlineCommitPending: false,

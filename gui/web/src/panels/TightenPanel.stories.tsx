@@ -91,5 +91,5 @@ export const Viewer: Story = {
 };
 
 export const Phone: Story = {
-  parameters: { ...loadedWithRows, dawShellPhone: true },
+  parameters: { ...loadedWithRows, framePhone: true },
 };

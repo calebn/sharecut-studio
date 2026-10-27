@@ -12,6 +12,7 @@ import {
   waiveRefineGate,
 } from "./documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
+import { openProject, phone, reloadProject } from "./stageNav";
 import { setTheme } from "./theme";
 
 const CLIENT_ID = "e2e-edit-boundary-precision";
@@ -53,7 +54,7 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     };
   });
 
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );
@@ -275,14 +276,7 @@ test("precision boundary editing previews, cancels, and restores transcript audi
         await page.setViewportSize({ width: shot.width, height: 900 });
         await setTheme(page, shot.theme);
         if (shot.width < 720) {
-          const textTab = page.getByRole("button", {
-            name: "Text",
-            exact: true,
-          });
-          await expect(textTab).toBeVisible();
-          if ((await textTab.getAttribute("aria-pressed")) !== "true") {
-            await textTab.click();
-          }
+          await phone.showText(page);
           await expect(mark).toBeVisible();
           if (await dialog.isHidden()) {
             await mark.click();
@@ -354,7 +348,7 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     expect(applyPayload?.delta_sec).toBeCloseTo(1.5, 3);
     expect(applyPayload?.expected_token).toBeTruthy();
 
-    await page.reload();
+    await reloadProject(page);
     const restoredResponse = await page.request.get(
       `/api/project?path=${encodeURIComponent(e2eProjectPath)}&phase=full`,
     );

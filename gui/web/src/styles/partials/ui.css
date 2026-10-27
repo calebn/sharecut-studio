@@ -190,15 +190,6 @@ button.pill.pill--action:focus-visible {
   }
 }
 
-button.pill.pill--busy {
-  opacity: 0.75;
-  cursor: progress;
-}
-
-button.pill.pill--info {
-  cursor: help;
-}
-
 .pill.ok {
   background: var(--color-success-subtle);
   color: var(--color-text-primary);
@@ -375,7 +366,7 @@ button.pill.pill--info {
      wide, or controls sharing an edge, would move their hit edge, so a press
      near it would release outside and lose the click. */
   .ui-control:active:not(:disabled, [aria-disabled="true"]):where(
-    :not(.ui-menu-panel *, [role^="menuitem"], .ui-segmented > *, .mobile-nav *)
+    :not(.ui-menu-panel *, [role^="menuitem"], .ui-segmented > *)
   ) {
     transform: translateY(0.0625rem) scale(0.98);
     transition-duration: var(--motion-press);
@@ -418,8 +409,6 @@ button.pill.pill--info {
       .linkish,
       [data-variant="link"],
       .pill,
-      .status-chip,
-      .status-pipeline,
       .trk-btn.mute,
       .trk-btn.mute-implied,
       .trk-btn.solo,
@@ -457,17 +446,6 @@ button.pill.pill--info {
     [aria-disabled="true"]
   ) {
     color: var(--color-accent-fg);
-    border-color: transparent;
-  }
-
-  .ui-control.status-chip:hover:not(:disabled, [aria-disabled="true"]),
-  .ui-control.status-pipeline:hover:not(
-    :disabled,
-    [aria-disabled="true"],
-    .running,
-    .status-pipeline--static
-  ) {
-    color: var(--color-text-primary);
     border-color: transparent;
   }
 
@@ -613,12 +591,6 @@ button.pill.pill--info {
   padding: 0 var(--space-3);
   cursor: pointer;
   text-align: left;
-}
-
-@container transport (inline-size < 68.75rem) {
-  .ui-menu-root {
-    --menu-item-min-block-size: var(--touch-min);
-  }
 }
 
 html[data-shell="phone"] .ui-menu-root {
@@ -888,7 +860,7 @@ html[data-shell="phone"] .ui-menu-shortcut {
   inset-inline: var(--space-4);
   inset-block-end: var(
     --toast-dock-bottom,
-    calc(var(--status-height) + var(--space-3))
+    calc(var(--frame-bottom-chrome) + var(--space-3))
   );
   z-index: var(--z-toast);
   display: flex;
@@ -912,24 +884,20 @@ html[data-shell="phone"] .ui-menu-shortcut {
 }
 
 /* Phone: the toast docks just above the highest bottom chrome that is shown
-   (an open sheet, the Timeline tool rail, the mode nav) and below the
-   transport, so it covers no controls or sheet fields while it waits.
+   (an open sheet, the Player, the tab bar) and below the header, so it covers
+   no controls or sheet fields while it waits.
    feedback/toastDock.ts measures that into --toast-dock-bottom; until it has,
    the toast sits above the mode nav. */
 html[data-shell="phone"] .ui-toast-region--app {
   inset-block-end: var(
     --toast-dock-bottom,
-    calc(
-      var(--mobile-nav-height) +
-      env(safe-area-inset-bottom) +
-      var(--space-3)
-    )
+    calc(var(--frame-bottom-chrome) + var(--space-3))
   );
 }
 
 /* The Inspector column (#1696) owns the inline end of a phone held sideways,
    so the toast centres over the timeline beside it, not over the column. */
-html:has(.daw-shell--inspector-column) .ui-toast-region--app {
+html:has(.stage-frame .bottom-sheet--column) .ui-toast-region--app {
   inset-inline-end: calc(
     var(--inspector-column-width) +
     env(safe-area-inset-right) +

@@ -22,7 +22,10 @@ const meta: Meta<typeof TranscriptVocabularyEditor> = {
   decorators: [
     withEpisode,
     (Story) => (
-      <div className="daw-shell" style={{ inlineSize: "min(28rem, 100%)" }}>
+      <div
+        className="stage-frame stage-frame--desktop"
+        style={{ blockSize: "auto", inlineSize: "min(28rem, 100%)" }}
+      >
         <Story />
       </div>
     ),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
+import { planFollowUi } from "./followPlan";
 import {
   expectedPlayheadSec,
   followBannerDetail,
@@ -8,7 +9,6 @@ import {
   isProgrammaticScroll,
   type NudgeClock,
   planCorrection,
-  planFollowUi,
   remotePlayheadSec,
   remotePresenceClients,
   resolveFollowTarget,
@@ -254,7 +254,7 @@ describe("followSync", () => {
       },
       { guestShare: false, breakpoint: "desktop" },
     );
-    expect(plan.apply.tab).toBe("comments");
+    expect(plan.apply.stage).toEqual({ stage: "review", section: "comments" });
     expect(plan.apply.audition).toBe("fx");
     expect(plan.apply.viewerMute).toEqual({ host: true });
     expect(plan.apply.soloTracks).toEqual({ guest: true });
@@ -266,7 +266,7 @@ describe("followSync", () => {
       { tab: "pipeline", audition: "fx", viewer_mute: ["host"], solo: ["g"] },
       { guestShare: true, breakpoint: "desktop" },
     );
-    expect(pipeline.apply.tab).toBeUndefined();
+    expect(pipeline.apply.stage).toBeUndefined();
     expect(pipeline.degraded.tab).toBe("pipeline");
     expect(pipeline.degraded.audition).toBe("fx");
     expect(pipeline.apply.audition).toBe("mix");
@@ -277,7 +277,7 @@ describe("followSync", () => {
       { tab: "transcript", audition: "mix" },
       { guestShare: true, breakpoint: "desktop" },
     );
-    expect(mix.apply.tab).toBe("transcript");
+    expect(mix.apply.stage).toEqual({ stage: "edit" });
     expect(mix.apply.audition).toBe("mix");
     expect(mix.degraded.audition).toBeUndefined();
 
@@ -294,38 +294,52 @@ describe("followSync", () => {
       { tab: "mix" as never, audition: "fx" },
       { guestShare: false, breakpoint: "desktop" },
     );
-    expect(plan.apply.tab).toBeUndefined();
+    expect(plan.apply.stage).toBeUndefined();
     expect(plan.apply.audition).toBe("fx");
     expect(plan.degraded.tab).toBeUndefined();
   });
 
-  it("maps leader tabs to phone modes", () => {
+  it("maps leader tabs to stages on a phone", () => {
     const comments = planFollowUi(
       { tab: "comments" },
       { guestShare: false, breakpoint: "phone" },
     );
-    expect(comments.apply.mobile).toEqual({
-      mobileMode: "more",
-      moreDestination: "comments",
+    expect(comments.apply.stage).toEqual({
+      stage: "review",
+      section: "comments",
     });
     const text = planFollowUi(
       { tab: "transcript" },
       { guestShare: false, breakpoint: "phone" },
     );
-    expect(text.apply.mobile).toEqual({ mobileMode: "text" });
+    expect(text.apply.stage).toEqual({ stage: "edit" });
   });
 
-  it("prefers published mobile_mode on phone", () => {
-    const listen = planFollowUi(
-      { tab: "transcript", mobile_mode: "listen" },
+  it("follows the leader's phone surface in Edit", () => {
+    const text = planFollowUi(
+      { tab: "transcript", mobile_mode: "text" },
       { guestShare: false, breakpoint: "phone" },
     );
-    expect(listen.apply.mobile).toEqual({ mobileMode: "listen" });
+    expect(text.apply.editSurface).toBe("text");
     const timeline = planFollowUi(
       { tab: "transcript", mobile_mode: "timeline" },
       { guestShare: false, breakpoint: "phone" },
     );
-    expect(timeline.apply.mobile).toEqual({ mobileMode: "timeline" });
+    expect(timeline.apply.editSurface).toBe("lanes");
+    const review = planFollowUi(
+      { tab: "comments", mobile_mode: "listen" },
+      { guestShare: false, breakpoint: "phone" },
+    );
+    expect(review.apply.editSurface).toBeUndefined();
+  });
+
+  it("degrades a stage the guest link cannot open", () => {
+    const viewer = planFollowUi(
+      { tab: "transcript" },
+      { guestShare: true, breakpoint: "desktop", role: "viewer" },
+    );
+    expect(viewer.apply.stage).toBeUndefined();
+    expect(viewer.degraded.tab).toBe("transcript");
   });
 
   it("formats follow banner degrade strings", () => {

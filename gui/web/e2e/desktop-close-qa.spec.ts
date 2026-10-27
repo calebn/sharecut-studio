@@ -7,6 +7,7 @@ import {
   openHostRecordRoom,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 
 test.use({
   launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
@@ -28,7 +29,7 @@ test("host publishes close risk across recording and pause, then clears after st
         target.isTauri = true;
         target.__SHARECUT_E2E = true;
       });
-      await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+      await openProject(host, projectPath, { query: "&e2e=1" });
       await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
       const room = await createRecordRoom(host, projectPath);
       const dialog = await openHostRecordRoom(host);

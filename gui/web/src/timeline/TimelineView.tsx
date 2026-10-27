@@ -1016,8 +1016,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       onSelectComment={(c) => {
                         setSelection({ kind: "comment", id: c.id });
                         void seekTransport(c.timeline_start);
-                        runPointerCommand("view.setTab", {
-                          tab: "comments",
+                        runPointerCommand("stage.review", {
+                          section: "comments",
                         });
                       }}
                       clippingFlags={clipFlags}
@@ -1090,8 +1090,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                         onSelect={(c) => {
                           setSelection({ kind: "comment", id: c.id });
                           void seekTransport(c.timeline_start);
-                          runPointerCommand("view.setTab", {
-                            tab: "comments",
+                          runPointerCommand("stage.review", {
+                            section: "comments",
                           });
                         }}
                       />

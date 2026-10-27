@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -103,7 +103,7 @@ Domain components get stories by default when they are **props in, UI out**
 (scope rule from #172/#173): renderable from a pure prop contract alone — no
 store, socket, AudioContext or router. The exception is a component that needs
 live app, session or sync context (the live `TimelineView`, `inspector/`, the
-live `TransportBar`, the full DAW page): it gets a story that hydrates the DAW
+live `StageFrame`, the full DAW page): it gets a story that hydrates the DAW
 store through `withEpisode`, as described under [Catalog
 boundary](#catalog-boundary-store-bound-components). Those components compose
 the library (see `gui/web/docs/ui-library.md`), and Playwright still covers
@@ -121,11 +121,11 @@ with its story colocated in the feature folder (for example
   (`src/record/recordStoryDecorator.tsx`), which wraps the story in
   `cover review-shell record-shell` and loads
   `styles/partials/record-entry.css` (as `RecordApp.tsx` does); its
-  `recordMobileViewport` gives a 360px phone view. DAW-shell banners use
-  `dawShellStoryDecorator` (`src/layout/dawShellStoryDecorator.tsx`), which
-  renders the story inside a real `.daw-shell` (or
-  `.daw-shell daw-shell--phone` at 360px with `parameters.dawShellPhone`) at a
-  fixed `20rem` height, since `.daw-shell` is `container: app / size` and size
+  `recordMobileViewport` gives a 360px phone view. Frame banners use
+  `frameStoryDecorator` (`src/stage/frame/frameStoryDecorator.tsx`), which
+  renders the story inside a real `.stage-frame` (or
+  `.stage-frame--phone` at 360px with `parameters.framePhone`) at a
+  fixed `20rem` height, since `.stage-frame` is `container: app / size` and size
   containment collapses at `height: auto`, plus an empty
   `<main aria-label="Stage" />` sibling so the banner isn't the story's only
   landmark. A standalone full-screen surface may import the entry stylesheet
@@ -144,25 +144,23 @@ with its story colocated in the feature folder (for example
 - The story does not replace the component's own Vitest + axe test.
 
 A live surface can still get a template when its chrome is split into a
-presentational frame that the live component renders. `Templates/Transport`
-(`src/layout/TransportFrame.stories.tsx`) assembles `TransportFrame` /
-`TransportZone` with `Timecode`, `SegmentedControl`, `Pill`, `Button`, and
-`Icon`; `TransportBar` renders the same frame and adds command wiring, the
-store-driven tool cluster, avatars, and menus. Templates that render a page
-banner also render a `<main>` region beside it, so the story harness does not
-nest the banner inside its fallback main landmark.
+presentational frame that the live component renders. `System/Player` and
+`System/AppHeader` (`src/system/`) are props-only: `Player` carries Play and
+Pause, time, edited length, Hear original (with its hear menu on long-press or
+right-click), the mix ring and the Solo chip, and `AppHeader` carries the
+Project menu, save indicator, Undo and Redo, a people slot (the live frame
+mounts `AvatarStack` there; on a phone one avatar plus a count), Invite and
+search. `StageFrame` (`src/stage/frame/`) adds command wiring, the store
+selectors and the sheets around them. Templates that render a page banner also
+render a `<main>` region beside it, so the story harness does not nest the
+banner inside its fallback main landmark.
 
-`Templates/TransportPlayControls` shows the shipped Play/Pause and Stop
-controls in the wide `TransportFrame` and the phone `ListenHero`, including
-the empty-project disabled state. `Templates/PipelineStatusChip` shows the
-shipped status chip in the desktop footer and the phone Listen status row
-with fictional pipeline and activity jobs. Both accept props and callbacks
-alone; the live `TransportBar` remains outside Storybook because it reads DAW
-state directly — `StatusBar` renders the cataloged `StatusBarView` below. The
-live chip omits `nowSec` and ticks its stall copy
-once a second; most running-chip examples omit a progress timestamp entirely
-so the catalog does not depend on a moving clock, and the `Stalled` example
-instead passes a fixed `nowSec` so its "last update Ns ago" copy renders
+`System/StatusRow` and `System/SaveIndicator` show the pipeline and activity
+status and the save light with fictional pipeline and activity jobs. They accept
+props alone; the live pipeline chip omits `nowSec` and ticks its stall copy
+once a second, and most running examples omit a progress timestamp entirely so
+the catalog does not depend on a moving clock. The `Stalled` example instead
+passes a fixed `nowSec` so its "last update Ns ago" copy renders
 deterministically without ticking.
 
 `Templates/TimelineRange` previews the shipped audition range, selected
@@ -302,17 +300,6 @@ The view derives the blocked-Suggested reason id
 with `useId()`, so several footers on one autodocs page never share an
 `aria-describedby` target.
 
-`Templates/BottomTabsSplitter` renders the production `BottomTabsSplitterView`,
-the separator above the Transcript/Comments/History band, with fixed default,
-custom-height, keyboard-resize and 360px examples. The view owns the pointer
-and keyboard gestures (arrows, Shift+arrows, Home/End, Enter and double-click
-reset). The live `BottomTabsSplitter` adapter supplies `useTabsHeight`, which
-persists `sharecut.tabsHeight` and sets the root `--tabs-height`; the story
-clamps story-local state with the production `clampTabsHeightRem` over a
-fixed 640px shell (24rem max) and never touches localStorage or the root
-variable. As in production, `onResize` receives the unclamped request and the
-owner clamps it.
-
 `Templates/FollowBanner` renders the production `FollowBannerView` used by
 the live `FollowBanner`. The adapter looks up the followed client's display
 name and roster role and dispatches `presence.unfollow`; the view computes
@@ -324,27 +311,20 @@ edits and host/guest 409 conflicts and resolves the share-token vs.
 host-project path; the view renders the pending/conflict summary, the
 conflict list (first 5 items, then a muted, unbulleted "+N more" summary
 item), and the dismiss control from props alone.
-Both stories share `dawShellStoryDecorator` for a real `.daw-shell` frame at
+Both stories share `frameStoryDecorator` for a real `.stage-frame` at
 desktop and 360px widths.
 
-`Templates/StatusBar`, `Templates/AvatarStack` and `Templates/OverlayLegend`
-follow the same adapter/view split as `TrackHeaderView`, `TimeRulerView` and
-`TranscriptTurnView`: each live component became a thin adapter that reads
-the DAW store and renders a new props-only `XView`. `StatusBarView` takes a
-`summary: StatusBarSummary | null` built by the pure `statusBarSummary(project,
-render)` helper, so its story copy (pending/unmapped counts, the cut chip,
-render freshness, transcript sync) comes from the same fixtures as the live
-footer instead of invented text; `null` renders the "Loading episode…"
-footer. Presence stays a store leaf for re-render isolation: `StatusBarView`
-takes a `presence?: ReactNode` slot, the live `StatusBar` fills it with the
-memoized `PresenceStatus`, and its stories pass the new `PresenceStatusView`
-with a fixed roster instead. `AvatarStackView` and `OverlayLegendView` take
-the roster/layers and callbacks as props; their adapters keep the store
-selectors, the presence-follow command dispatch, and the chapter-add side
-effect (its store-backed `chapterAddPending` flag reaches the view as
-`addChapterBusy`). Stories cover desktop, phone, menu-hosted, stale-render,
-guest-share, chapter-adding, and loading/overflow/following states for the
-three templates.
+`Templates/AvatarStack` and `Templates/OverlayLegend` follow the same
+adapter/view split as `TrackHeaderView`, `TimeRulerView` and
+`TranscriptTurnView`: each live component is a thin adapter that reads the DAW
+store and renders a props-only `XView`. `AvatarStackView` and
+`OverlayLegendView` take the roster/layers and callbacks as props; their adapters
+keep the store selectors, the presence-follow command dispatch, and the
+chapter-add side effect (its store-backed `chapterAddPending` flag reaches the
+view as `addChapterBusy`). The stage frame mounts `AvatarStack` in the header's
+people slot and `OverlayLegend` in the Edit eye sheet. Stories cover desktop,
+phone, menu-hosted, guest-share, chapter-adding, and loading/overflow/following
+states.
 
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies
@@ -376,33 +356,30 @@ bouncing, a nothing-selected error and 360px.
 
 ### Shell chrome
 
-`Templates/MobileShell` and `Templates/StudioShell` render the production shell
-views from grouped presentation props. `MobileScreen` selects Listen, Timeline,
-Text, or More content. `StudioWorkspace` selects loading, ingest, or arrangement.
-`inspector.kind` selects desktop or tablet chrome. The views own navigation,
-pressed states, guest visibility, layout classes, More-back, ingest coach, and
-interactive inspector sheets. The adapters keep DAW selectors, command dispatch,
-presence and focus bindings, gestures, sheet eligibility, and memoized timeline
-headers.
+The frame (#2292) replaced the Studio and Mobile shells. `Stages/Edit/Frame`
+renders the production `StageFrameView` from grouped presentation props: the
+app header, the Stage bar (a bottom tab bar on a phone), stage content, the
+Player bar and banners. `Stages/Edit/Workspace`, `Stages/Edit/ToolStrip`,
+`Stages/Edit/Corner`, `Stages/Edit/PlusMenu` and `Stages/Edit/Divider` cover the
+Edit stage, and `Stages/Record`, `Prepare`, `Review` and `Deliver` each have a
+host story with empty, loading, error, phone and guest states. The system
+parts live in `System/` (`AppHeader`, `StageBar`, `Player`, `Sheet`, `Menu`,
+`Palette`, `Toast`, `StatusRow`, `SaveIndicator`). The views own navigation,
+pressed states, guest visibility and layout classes; the adapters keep DAW
+selectors, command dispatch, presence and focus bindings, gestures and sheet
+eligibility. Hydrated stories share one store, so the Frame story never takes
+the `autodocs` tag.
 
-Stories compose fictional factory data with `ListenHero`, `TrackHeaderView`,
-`TranscriptTurnView`, `FollowBannerView`, `StatusBarView`, and
-`BottomTabsSplitterView`. Their representative transport uses `TransportFrame`,
-`TransportZone`, `TransportPlayControls`, and `ToolModeToggleView`. It does not
-implement the full transport menus, live timecode, recording adapter, or scrubber.
-Listen and More bodies and the timeline are bounded fixture regions rather than
-complete pages. Callbacks forward to `fn()` spies and update local state.
+Stories compose fictional factory data with `TrackHeaderView`,
+`TranscriptTurnView` and `FollowBannerView`. Callbacks forward to `fn()` spies
+and update local state. The fullscreen fixture frame has a definite block size
+and sets document shell metadata for portaled sheets; cleanup restores the
+previous document metadata. Phone stories use a 360 CSS-pixel frame.
+`e2e-storybook/coverage.spec.ts` (`SHELL_TITLES`) and `shellFit.ts` verify usable
+body height and horizontal fit in both themes. `src/stage/` holds the app-wired
+adapter and View pairs; `src/system/` stays presentational.
 
-The fullscreen fixture frame has a definite block size and sets document shell
-metadata for portaled sheets. Cleanup restores the previous document metadata.
-Mobile stories use a 360 CSS-pixel frame. Studio stories include desktop, tablet, guest, loading,
-ingest, and inspector states. `e2e-storybook/shells.spec.ts` verifies usable body
-height, horizontal fit, navigation, keyboard resize, and sheet portals in both
-themes. `layout/shellViews.test.ts` checks the views' runtime dependency graphs.
-`layout/shellStoryFixtures.tsx` and `layout/shellStoryData.ts` are catalog-only
-and cannot enter the app bundle.
 
-### Catalog boundary (store-bound components)
 
 A store-bound component gets a story that hydrates the DAW store with the shared
 fictional episode (`src/test/episodeFixture.ts`) through the `withEpisode`
@@ -426,8 +403,7 @@ A component splits into a props-only `XView` rendered by its live adapter only
 where its render path crosses an I/O seam that store state cannot fake: `api.ts`
 calls, a provider such as `useModels`, timers or media. The shell chrome catalog
 from [#616](https://github.com/calebn/sharecut-studio/issues/616) uses the
-production props-only `MobileShellView` and `StudioShellView` rendered by
-their live adapters. Hydrated stories share one store, so a hydrated story
+production props-only `StageFrameView` rendered by its live adapter. Hydrated stories share one store, so a hydrated story
 file never takes the `autodocs` tag: autodocs renders every story of a file on
 one page and the stories would overwrite each other's hydration.
 
@@ -436,9 +412,9 @@ and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
 examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
 `GuestAttentionBannerView`, `ShareDialogView`, `BounceDialogView`,
-`ToolModeToggleView`, `EditingToolRailView`, `CommandPaletteView`,
+`ToolModeToggleView`, `EditToolStripView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
-`EditBoundaryMarkView`, `InspectorSeekFooterView` and `BottomTabsSplitterView`.
+`EditBoundaryMarkView` and `InspectorSeekFooterView`.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -486,21 +462,20 @@ and 360px phone states. The live `TrackHeader` and `TrackMuteSoloButtons`
 adapters continue to read DAW state and dispatch commands; catalog stories do
 not mount that store or simulate command execution.
 
-`Templates/ToolModeToggle`, `Templates/EditingToolRail` and
-`Templates/CommandPalette` follow the same split. `ToolModeToggleView` and
-`EditingToolRailView` render from fixed props with a local-state preview
-wrapper so a story's tool/comment/blade-confirm clicks feel live without
-touching the DAW store; `EditingToolRailView` takes its `ToolModeToggle` as a
-`toolToggle` slot, the same pattern as `TrackHeaderView`'s `mixer` slot.
+`Stages/Edit/ToolStrip` and `Templates/CommandPalette` follow the same split.
+`ToolModeToggleView` and `EditToolStripView` render from fixed props with a
+local-state preview wrapper so a story's tool/comment/blade-confirm clicks feel
+live without touching the DAW store; `EditToolStripView` takes its
+`ToolModeToggle` as a `toolToggle` slot, the same pattern as
+`TrackHeaderView`'s `mixer` slot.
 `CommandPaletteView` takes its rows (`PaletteCommand[]`) as a prop that the
-live adapter builds with `layout/commandPaletteRows.ts`, a `.ts` helper that
+live adapter builds with `stage/dialogs/commandPaletteRows.ts`, a `.ts` helper that
 reads the command catalog, the keymap registry (and its remap overrides) and
 the `when` gates at runtime. The view searches and groups those rows with the
-store-free `layout/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
+store-free `stage/dialogs/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
 nothing store-bound.
-The live `ToolModeToggle`, `EditingToolRail` and `CommandPalette` adapters are
-unchanged for callers and continue to read DAW state and dispatch through
-`execute`.
+The live `ToolModeToggle`, `EditToolStrip` and `CommandPalette` adapters read
+DAW state and dispatch through `execute`.
 
 ## Adding a story
 
@@ -562,7 +537,7 @@ jsdom visibility checks.
    network. Components that need DAW context don't get stories until they can
    render standalone. For interactive stories, a small story-local controlled
    wrapper mirrors the callback into `useState` and still forwards it to the
-   `fn()` spy (`ToastPreview`, `PreviewModesPreview`, `SplitterPreview`).
+   `fn()` spy (`ToastPreview`, `PreviewModesPreview`).
    Keep these wrappers inside the story file while their state shapes differ;
    if a fourth story needs the same "local state + forward to spy" wiring,
    extract a helper and register it in `STORY_SUPPORT_MODULES`.
@@ -647,6 +622,13 @@ jsdom visibility checks.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-10-27 — The stage frame replaced the Studio and Mobile shells (#2292).
+  `Templates/MobileShell`, `StudioShell`, `Transport`, `TransportPlayControls`,
+  `StatusBar`, `PipelineStatusChip`, `EditingToolRail` and `BottomTabsSplitter`
+  were deleted with their components; `Stages/Edit/Frame` and the `System/` and
+  `Stages/<Stage>/` stories cover the same ground. `dawShellStoryDecorator`
+  became `frameStoryDecorator`. Older entries below name the deleted parts.
 
 - 2026-10-26 — Story titles may also be `System/<Element>` and
   `Stages/<Stage>/<Surface>` (#2291); `storySort` lists System and Stages after

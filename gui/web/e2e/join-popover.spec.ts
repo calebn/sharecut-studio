@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 
 /** The popover lies inside the viewport and does not cover its badge. */
 async function expectPlacedBeside(
@@ -32,7 +33,7 @@ test.describe("Join glyph popover", () => {
   test("the join glyph opens a popover that changes the join mode", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -116,7 +117,7 @@ test.describe("Join glyph popover", () => {
   test("the popover re-places when a mode change resizes it near the bottom edge", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -130,10 +131,6 @@ test.describe("Join glyph popover", () => {
     await page.keyboard.press("Shift+ArrowRight");
     await page.keyboard.press("ControlOrMeta+K");
     await expect(clips).toHaveCount(2);
-    // Maximize the timeline so the bottom Transcript/Pipeline tabs (pinned
-    // to a minimum height) don't sit over the glyph once the window shrinks.
-    await page.getByRole("heading", { level: 1 }).click();
-    await page.keyboard.press("ControlOrMeta+2");
     const original = page.viewportSize();
     let modeChanges = 0;
     try {

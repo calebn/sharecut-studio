@@ -1,6 +1,6 @@
 # ShareCut Studio UI library
 
-Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / shadcn / Tailwind.** Domain folders (`timeline/`, `layout/` transport chrome, `inspector/` views) compose this library; they do not reimplement overlays, menus, or pressed toggles.
+Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / shadcn / Tailwind.** Domain folders (`timeline/`, `stage/` frame and hosts, `inspector/` views) compose this library; they do not reimplement overlays, menus, or pressed toggles.
 
 ## Library vs domain
 
@@ -8,13 +8,13 @@ Storybook **Style guide → Start here** provides a task-oriented index and
 live type, spacing, and control-state examples. Use it to find a component;
 use this contract to decide where code and behavior belong.
 
-| In the library (`ui/`)                                                                             | Out of the library (domain)                                                                                                                                                                      |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Button, ToggleButton, Field, FieldRow, InlineError                                                 | ClipBlock, TrackLane, Playhead                                                                                                                                                                   |
-| Dialog, Menu, BottomSheet, `useDialogModal`                                                        | Timeline zoom / selection math                                                                                                                                                                   |
-| CommandButton, CommandMenuItem, `useCommand`                                                       | Pipeline param schemas                                                                                                                                                                           |
-| Icon (stroke SVGs, filled transport glyphs), LoadingScreen, ErrorScreen, FocusPull, DefinitionList | Comment domain (`comments/` — use library Button/Field)                                                                                                                                          |
-| SegmentedControl, Pill, Timecode, EmptyState                                                       | Transport wiring (`layout/TransportBar` over the presentational `layout/TransportFrame` and `layout/TransportPlayControls`); status wiring (`layout/StatusBar` over `layout/PipelineStatusChip`) |
+| In the library (`ui/`)                                                                             | Out of the library (domain)                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Button, ToggleButton, Field, FieldRow, InlineError                                                 | ClipBlock, TrackLane, Playhead                                                                                                                                                     |
+| Dialog, Menu, BottomSheet, `useDialogModal`                                                        | Timeline zoom / selection math                                                                                                                                                     |
+| CommandButton, CommandMenuItem, `useCommand`                                                       | Pipeline param schemas                                                                                                                                                             |
+| Icon (stroke SVGs, filled transport glyphs), LoadingScreen, ErrorScreen, FocusPull, DefinitionList | Comment domain (`comments/` — use library Button/Field)                                                                                                                            |
+| SegmentedControl, Pill, Timecode, EmptyState                                                       | Player and header wiring (`stage/frame/PlayerBar` and `stage/frame/StageFrame` over the presentational `system/Player` and `system/AppHeader`); status wiring (`system/StatusRow`) |
 
 ## Public API
 
@@ -70,12 +70,12 @@ use `Button variant="link"`, including the shortcut/gesture cross-links.
 
 ## Keyboard governance
 
-| Concern                                 | Owner                                                                                                                                              |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DAW shortcuts (Space, B, zoom, …)       | [`keymap/listener.ts`](../src/keymap/listener.ts) → `execute`                                                                                      |
-| Overlay Escape / Tab trap / menu arrows | Library modules (`useDialogModal`, `Menu`) — allowlisted in `commands/governance.test.ts`                                                          |
-| Bottom-tabs resize (ArrowUp/Down)       | [`layout/BottomTabsSplitterView.tsx`](../src/layout/BottomTabsSplitterView.tsx) — allowlisted separator widget (live adapter `BottomTabsSplitter`) |
-| Pointer → same actions as keys          | **Command bridge** (`CommandButton`, `CommandMenuItem`) → `execute`                                                                                |
+| Concern                                 | Owner                                                                                                |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| DAW shortcuts (Space, B, zoom, …)       | [`keymap/listener.ts`](../src/keymap/listener.ts) → `execute`                                        |
+| Overlay Escape / Tab trap / menu arrows | Library modules (`useDialogModal`, `Menu`) — allowlisted in `commands/governance.test.ts`            |
+| Script resize (ArrowLeft/Right)         | [`stage/edit/ScriptDivider.tsx`](../src/stage/edit/ScriptDivider.tsx) — allowlisted separator widget |
+| Pointer → same actions as keys          | **Command bridge** (`CommandButton`, `CommandMenuItem`) → `execute`                                  |
 
 Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`commandPaletteOpen` / `bounceDialogOpen` / `shareDialogOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
 

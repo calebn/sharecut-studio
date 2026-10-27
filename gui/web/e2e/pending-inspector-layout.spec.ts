@@ -4,6 +4,7 @@ import { e2eProjectPath } from "./env";
 import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
 import { exposeControl } from "./inspectorResponsiveEvidence";
 import { openSuggestedPendingEdit } from "./pendingEdit";
+import { phone } from "./stageNav";
 
 const REFINE_GATE =
   "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine (whole-episode pass), then `podcast transcript refine-waive --reason ...` / transcript_refine_waive_tool.";
@@ -104,9 +105,7 @@ test.describe("Pending inspector layout", () => {
         let root = page.getByRole("region", { name: "Pending edit actions" });
         if (entrypoint === "phone inspector") {
           await page.setViewportSize({ width: 390, height: 844 });
-          await page
-            .getByRole("button", { name: "Timeline", exact: true })
-            .click();
+          await phone.showTimeline(page);
           const sheet = page.locator(".bottom-sheet--inspector");
           await expect(sheet).toBeVisible();
           for (let step = 0; step < 2; step++) {
@@ -180,7 +179,7 @@ test.describe("Pending inspector layout", () => {
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize({ width: 1024, height: 768 });
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     // The tablet opens the same compact drawer as the phone; at full height it
     // holds the whole pending inspector.
     const dialog = page.locator(".bottom-sheet--compact");
@@ -207,11 +206,11 @@ test.describe("Pending inspector layout", () => {
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await expect(page.locator(".stage-frame--phone")).toBeVisible();
     expect(
       await page.evaluate(() => matchMedia("(pointer: fine)").matches),
     ).toBe(true);
-    await page.getByRole("button", { name: "Timeline" }).click();
+    await phone.showTimeline(page);
     // The phone timeline opens the compact drawer; at full height it holds
     // the whole pending inspector.
     const dialog = page.locator(".bottom-sheet--compact");

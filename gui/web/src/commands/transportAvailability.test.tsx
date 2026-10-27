@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useDawKeymapListener } from "../keymap/listener";
-import { TransportBar } from "../layout/TransportBar";
+import { PlayerBar } from "../stage/frame/PlayerBar";
 import { useDawStore } from "../state/dawStore";
 import { setChrome } from "../test/chrome";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -14,7 +14,7 @@ function TransportHost() {
   useDawKeymapListener();
   return (
     <>
-      <TransportBar />
+      <PlayerBar />
       <div tabIndex={-1} data-testid="timeline">
         Timeline
       </div>
@@ -38,7 +38,6 @@ beforeEach(() => {
     playStartSec: null,
     playheadSec: 0,
     timelineFocused: true,
-    activeTab: "comments",
     followingClientId: null,
   });
 });
@@ -140,7 +139,9 @@ it("keeps focused Play inert while loading and empty, then activates without edi
   await user.keyboard(" ");
   expect(useDawStore.getState().isPlaying).toBe(true);
   act(() => useDawStore.getState().setPlayheadSec(20));
-  await user.click(screen.getByRole("button", { name: "Stop playback" }));
+  expect(await executePointerCommand("transport.stop")).toEqual({
+    status: "ok",
+  });
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(8);
 });
@@ -168,9 +169,6 @@ it("keeps Pause and Stop reachable when the last track disappears during playbac
   act(() => useDawStore.getState().setProject(minimalProject()));
   const pause = screen.getByRole("button", { name: "Pause" });
   expect(pause).not.toHaveAttribute("aria-disabled");
-  expect(
-    screen.getByRole("button", { name: "Stop playback" }),
-  ).not.toHaveAttribute("aria-disabled");
   await user.click(pause);
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(25);
@@ -183,13 +181,12 @@ it("keeps Pause and Stop reachable when the last track disappears during playbac
       reason: "Import audio to play.",
     },
   );
-  const stop = screen.getByRole("button", { name: "Stop playback" });
-  expect(stop).not.toHaveAttribute("aria-disabled");
-  await user.click(stop);
+  expect(await executePointerCommand("transport.stop")).toEqual({
+    status: "ok",
+  });
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(10);
   expect(useDawStore.getState().playStartSec).toBeNull();
-  expect(stop).toHaveAccessibleDescription("Import audio to play.");
 });
 
 it("lets K finish a paused transport after last-track removal and clamps its return", async () => {

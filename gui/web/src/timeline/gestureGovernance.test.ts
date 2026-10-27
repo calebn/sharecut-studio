@@ -222,16 +222,10 @@ const SURFACE_GESTURES: Record<string, string> = {
     "sheet drag: the grabber drags a bottom sheet between detents; a range input under it keeps the keyboard and screen reader path",
   "ui/BottomSheet.tsx":
     "the detent slider under the grabber is the keyboard and screen reader path to the same detents",
-  "layout/CollapsedDrawerHandle.tsx":
-    "reopen swipe: a drag up on the collapsed drawer handle reopens the drawer, and a press does the same",
-  "layout/BottomTabsSplitterView.tsx":
-    "splitter: a drag resizes the bottom tabs; arrow keys and the size buttons do the same by key",
-  "layout/useRailLabelPeek.ts":
-    "rail label: a touch long press on an icon-only rail control names it for a moment without activating it (useLongPress timing)",
-  "layout/ListenCommentComposer.tsx":
-    "a press on a dock button keeps the focused comment or name field focused, so the keyboard and the dock height hold through the tap; it starts no gesture",
-  "layout/ListenPlayhead.tsx":
-    "Listen scrub: a native range input seeks the playhead; it is not a timeline target",
+  "stage/edit/ScriptDivider.tsx":
+    "divider: a drag resizes the Script pane beside the timeline; the arrow keys, Enter and double-click do the same by key",
+  "system/Player.tsx":
+    "hold to hear: a press on A hears the original and letting go after a hold goes back; a quick release latches it, and the A and B buttons do the same by key",
   "tracks/TrackFaderView.tsx":
     "fader: a native range input previews its gain and saves one track volume on release (useCommitRange)",
   "tracks/TrackHeaderView.tsx":
@@ -285,6 +279,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "a focused suggestion handle moves its edge with the arrows, 0.05 s and 0.5 s with Shift, like a slider",
   "stages/deliver/ClipTrimWave.tsx":
     "a focused clip trim handle moves its edge with the arrows, 10 ms and 100 ms with Shift, like a slider",
+  "stage/edit/ScriptDivider.tsx":
+    "the separator pattern: Left and Right move the divider between the timeline and the Script pane",
   "system/ScrubField.tsx":
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "system/scriptSelection.ts":

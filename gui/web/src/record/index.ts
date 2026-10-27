@@ -12,6 +12,7 @@ export {
   postLiveComment,
 } from "./liveCommentQueue";
 export { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
+export { RecIndicator } from "./RecIndicator";
 export { RecordTransportChip } from "./RecordTransportChip";
 export {
   activeGuestLink,

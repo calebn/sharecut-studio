@@ -44,7 +44,6 @@ for (const theme of ["light", "dark"] as const) {
             .getByRole("button", { name: "Toggle comment mode", exact: true })
             .first()
             .click();
-          await guest.getByRole("slider", { name: "Comment time" }).click();
           const body = `Commenter feedback in ${theme}`;
           await guest
             .getByRole("textbox", { name: "Comment", exact: true })
@@ -102,7 +101,7 @@ for (const theme of ["light", "dark"] as const) {
             guest.getByRole("dialog", { name: "Inspector" }),
           ).toHaveCount(0);
 
-          const dock = guest.getByRole("region", { name: "Add a comment" });
+          const dock = guest.locator(".comments-panel");
           const field = dock.getByRole("textbox", {
             name: "Comment",
             exact: true,
@@ -122,8 +121,8 @@ for (const theme of ["light", "dark"] as const) {
           await dock.getByRole("button", { name: "Post as Guest" }).tap();
           await expect(field).toHaveValue("");
           await expect(
-            guest.locator(".mobile-comment-row").filter({ hasText: body }),
-          ).toContainText("00:00");
+            guest.locator(".comment-card").filter({ hasText: body }),
+          ).toContainText("0:00");
           await expect(
             guest.getByRole("dialog", { name: "Inspector" }),
           ).toHaveCount(0);
@@ -133,14 +132,6 @@ for (const theme of ["light", "dark"] as const) {
             path: test.info().outputPath("commenter-phone-posted.png"),
           });
 
-          await guest
-            .getByRole("navigation", { name: "Primary" })
-            .getByRole("button", { name: "More", exact: true })
-            .click();
-          await guest
-            .getByRole("button", { name: "Comments", exact: true })
-            .first()
-            .click();
           await expect(guest.getByText("Commenting as")).toContainText("Guest");
           await expect(
             guest.locator(".comments-list > li").filter({ hasText: body }),
@@ -163,12 +154,7 @@ test("a Viewer link shows no comment field on the phone", async ({
         await openHostShare(host, projectPath);
         const token = await createReviewShare(host, projectPath, "viewer");
         await openGuestShare(guest, token);
-        await expect(
-          guest.getByRole("navigation", { name: "Primary" }),
-        ).toBeVisible();
-        await expect(
-          guest.getByRole("region", { name: "Add a comment" }),
-        ).toHaveCount(0);
+        await expect(guest.getByRole("main", { name: "Review" })).toBeVisible();
         await expect(
           guest.getByRole("textbox", { name: "Comment", exact: true }),
         ).toHaveCount(0);

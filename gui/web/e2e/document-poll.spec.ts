@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 
 test.describe("Document poll double-apply", () => {
   test("a host commit is one socket frame and no shell recovery GET", async ({
@@ -28,7 +29,7 @@ test.describe("Document poll double-apply", () => {
       });
     });
 
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );

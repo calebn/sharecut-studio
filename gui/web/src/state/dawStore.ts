@@ -4,6 +4,7 @@ import { oneWordOf } from "../utils/rangeSelect";
 import { createPresenceSlice } from "./presenceSlice";
 import { createProjectSlice } from "./projectSlice";
 import { createSelectionSlice } from "./selectionSlice";
+import { createStageSlice } from "./stageSlice";
 import { createTransportSlice } from "./transportSlice";
 import type { DawStore } from "./types";
 import { createUiSlice } from "./uiSlice";
@@ -33,6 +34,7 @@ export const useDawStore = create<DawStore>()(
     ...createPresenceSlice(...args),
     ...createSelectionSlice(...args),
     ...createUiSlice(...args),
+    ...createStageSlice(...args),
   })),
 );
 

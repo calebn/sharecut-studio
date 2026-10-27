@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { parseWavHeader } from "../src/audio/wavHeader";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath, e2eUrl } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 /**
  * RMS of the reference track stem in `[startSec, endSec)`, rebuilt fresh
@@ -57,14 +58,11 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
     const baseline = await stemRms(request, 2.56, 2.75);
     expect(baseline).toBeGreaterThan(0.03);
 
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .click();
+    await openPanel(page, "transcript");
     await page.getByRole("button", { name: /^Select:/ }).click();
 
     const list = page.locator(".transcript-list");

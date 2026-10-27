@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
-import type { StageId } from "../../system/verbs";
+import type { StageId } from "../../types/stage";
 import { type ReadinessRow, readinessSummary } from "./deliverLogic";
 
 type Props = {

@@ -85,7 +85,7 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   await publishAgentRange(page, clientId, 2);
 
   const barActions = page
-    .locator(".daw-shell-transport")
+    .locator(".edit-timeline-col")
     .getByRole("region", { name: "Range actions" });
   const selectedTrack = barActions.getByRole("checkbox").first();
   await selectedTrack.click();
@@ -213,7 +213,7 @@ test("a tablet track sheet owns the agent range controls", async ({ page }) => {
     }),
   ).toBeVisible();
   await expect(
-    page.locator(".daw-shell-transport").getByRole("region", {
+    page.locator(".edit-timeline-col").getByRole("region", {
       name: "Range actions",
     }),
   ).toHaveCount(0);

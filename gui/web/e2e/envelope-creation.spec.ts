@@ -12,6 +12,7 @@ import { type InteractionReceipt, test } from "./interactionEvidence";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
+import { setAudition } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
 async function openWorkspace(
@@ -371,7 +372,7 @@ for (const core of [
             expectEnvelopeMutation(two, edited, track.id);
             observer.stage("reopen-and-delete");
             await page.reload();
-            await expect(page.locator(".daw-shell")).toBeVisible();
+            await expect(page.locator(".stage-frame")).toBeVisible();
             if (core.phone) await openPhoneTimeline(page);
             await setTheme(page, core.theme);
             await openEnvelopeTrackDetails(page, track.label, receipts);
@@ -738,9 +739,7 @@ test.describe("host envelope playback", () => {
             checkpoint: "actual-unity-playback-baseline",
             observation: baseline.receipt,
           });
-          await page
-            .getByRole("button", { name: "Original", exact: true })
-            .click();
+          await setAudition(page, "raw");
           await page
             .getByRole("button", { name: "Add point", exact: true })
             .click();

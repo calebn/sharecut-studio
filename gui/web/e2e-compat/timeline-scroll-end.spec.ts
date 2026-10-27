@@ -1,13 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "../e2e/env";
+import { openProject } from "../e2e/stageNav";
 import { zoomTimelineIn } from "../e2e/timelineZoom";
 
 test("short desktop lanes reach the horizontal end with classic scrollbars", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1512, height: 805 });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator('.daw-shell[data-shell="desktop"]')).toBeVisible();
+  await openProject(page, e2eProjectPath);
+  await expect(page.locator(".stage-frame--desktop")).toBeVisible();
   await expect(page.locator(".track-header-row")).toHaveCount(2);
   await page.addStyleTag({
     content:

@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { followUntilBannerVisible, withTwoHostPages } from "./followBanner";
+import {
+  followUntilBannerVisible,
+  openPeopleMenu,
+  withTwoHostPages,
+} from "./followBanner";
 import {
   expectMenuLastItemReachable,
   expectShareRecordRoomsReachable,
-  openTransportMenu,
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
@@ -22,15 +25,11 @@ test.describe("overlay with follow banner", () => {
       browser,
     }) => {
       await withTwoHostPages(browser, viewport, async (_pageA, pageB) => {
-        await followUntilBannerVisible(pageB, async () => {
-          await openTransportMenu(pageB);
-        });
+        await followUntilBannerVisible(pageB);
         await expect(pageB.locator(".follow-banner")).toBeVisible();
-        // The banner row above the transport shrinks --menu-available-height;
+        // The banner row above the stage shrinks --menu-available-height;
         // the menu must still fit and keep its last item reachable, and Share's
         // Record rooms must stay reachable through the dialog scroller.
-        // Keep it open to cover callers that enter this check after a Follow click.
-        await openTransportMenu(pageB);
         await expectMenuLastItemReachable(pageB);
         await expectShareRecordRoomsReachable(pageB);
       });
@@ -59,13 +58,12 @@ test.describe("overlay with guest and follow banners", () => {
 
             // Stack the follow banner under the guest banner. Phone uses the
             // People menu while desktop keeps Follow controls in the avatar stack.
-            await followUntilBannerVisible(guest, async () => {
-              await openTransportMenu(guest);
-            });
+            await followUntilBannerVisible(guest);
             await expect(guest.locator(".follow-banner")).toBeVisible();
             await expect(guest.locator(".guest-banner")).toBeVisible();
 
-            await expectMenuLastItemReachable(guest);
+            // A shared link has no Project menu; the People menu is its menu.
+            await expectMenuLastItemReachable(guest, openPeopleMenu);
           },
         );
       });

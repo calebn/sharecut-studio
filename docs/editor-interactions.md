@@ -47,7 +47,7 @@ by a test are synthetic, even when the browser viewport resembles a phone.
 | Existing volume envelope | Drag an existing point. Enter/Space selects an idle point; Time/Value Apply is the exact alternative. Arrow keys do not provide point editing and may retain global playhead navigation. | Owned preview, for the host and Editor links (other links view envelopes only); Escape, blur and owner interruption cancel, foreign pointer events are ignored. `envelope-recovery.spec.ts` uses native mouse owners and explicitly synthetic foreign events. Points are created from the track inspector's **Add volume envelope** and **Add point**, or the touch create menu's **Add envelope point**. |
 | Pending region and chapter/social marker | Pending bodies select; only eligible outer start/end handles drag. There is no whole pending-span drag transaction. Drag chapter position or social body/edge. Existing inspector numeric bounds supply exact edits; dense touch pending regions use Edit timing. | Pending drafts save through `UpdatePendingEdit`; review/apply remains separate. Chapter/social changes use their existing commands. Their owning marker restores its preview on Escape, cancellation/capture loss, blur or unmount; project switches end the old marker lifetime even when values match. Other pointer events are ignored. `transitions-acceptance.spec.ts`, `pending-edge-controls.spec.ts` and `MarkerLane.test.tsx` cover distinct paths; `inventory-audit.spec.ts` checks native chapter/social body preview, Escape, release, exact saved values and Undo in the representative fixture. |
 | Transcript edit boundary | Drag the boundary grab; Precision boundary supplies exact offsets, Apply/Cancel and Listen current/proposed. | Existing owned preview and roll lock. `edit-boundary-touch.spec.ts` checks owner isolation, grab geometry and one saved roll; `edit-boundary-precision.spec.ts` checks exact edits, stale recovery and current/proposed routes. The landed boundary engine remains unchanged. |
-| Editor panel space | Desktop/tablet Shorter/Taller buttons request a 1 rem step; Reset panel size clears the preference. Separator drag; arrows, Shift arrows, Home/End, Enter resets, and double-click and End collapse to the rail (the rail handle reopens at the previous height). Phone inspectors use Expand/Collapse. | Browser preference only. Buttons, keyboard, drag clamps and accessible values use the rendered panel and available bounds, including the desktop main-row floor. A retained preference can exceed fresh bounds after a passive layout change. The next step starts at the visible height and can clamp by more than 1 rem. Passive banner or root-font changes do not rewrite the preference. Owner interruption or Escape restores through current policy bounds while the same value remains owned; it does not promise an exact out-of-policy value. `splitter-recovery.spec.ts` checks intermediate/reversed geometry, cancellation, capture loss, clamp/no-op and phone alternatives in both themes. |
+| Script pane width | The Script divider (`role="separator"`, "Resize Script"): drag; arrows (1 rem), Shift arrows (4 rem), Home/End (smallest, largest), Enter or double-click resets. **T** hides or shows Script. Phone inspectors use Expand/Collapse. | Browser preference only. Keyboard, drag clamps and accessible values use `SCRIPT_WIDTH_MIN_REM` and `SCRIPT_WIDTH_MAX_REM`. The Shorter/Taller/Reset buttons, the bottom splitter and its rail collapse were removed in #2292, with `splitter-recovery.spec.ts`; `ScriptDivider.test.tsx` covers the keyboard and pointer paths. |
 | Zoom, pinch and scroll | Persistent zoom controls and Fit; Ctrl/Meta wheel and two-touch pinch at their anchor. Ordinary wheel scrolls. Safari gesture routing is a separate path. | Navigation only. `waveform.spec.ts`, `timelineZoomGestures.test.ts` and `applyAnchoredZoom.test.ts` check deep geometry and anchoring. Synthetic contact tests do not establish physical trackpad or touch delivery. |
 | Word timing resize | Wordbar source-local start/end handles, native range/number fields, explicit Apply timing/Cancel draft and optional edge listening. | Owned local draft before `SetTranscriptWordTiming`. `transcript-wordbar.spec.ts` checks real source timing, reload and Undo. Existing transcript boundary wrapping/grab checks live in `edit-boundary-touch.spec.ts`; they are retained rather than reimplemented. |
 
@@ -58,8 +58,7 @@ runs. Do not run concurrent browsers against one mutable fixture.
 
 ```bash
 npm --prefix gui/web run build
-npm --prefix gui/web run test:e2e -- splitter-recovery.spec.ts \
-  envelope-recovery.spec.ts arrange-chrome.spec.ts pinned-ruler.spec.ts \
+npm --prefix gui/web run test:e2e -- envelope-recovery.spec.ts arrange-chrome.spec.ts pinned-ruler.spec.ts \
   fade-curves.spec.ts crossfade-length.spec.ts transitions-acceptance.spec.ts \
   contextual-range.spec.ts edit-boundary-touch.spec.ts \
   edit-boundary-precision.spec.ts transcript-wordbar.spec.ts \
@@ -121,7 +120,7 @@ remain host-only; guest navigation does not grant those commands.
 
 The representative cloud matrix uses desktop 1440×900, tablet 820×1024 and
 phone 390×844 in light/dark, with sampled reduced motion and fit/deep zoom.
-Desktop splitters are absent on phone; test the shipped Expand/Collapse control.
+The Script divider is absent on phone; test the shipped Expand/Collapse control.
 A mouse at phone width is a mouse test. Record trusted contacts separately from
 synthetic foreign-pointer rejection and DOM-dispatched touch.
 
@@ -177,7 +176,7 @@ checks; a prepared test is not a runtime PASS.
 
 Actual inventory runs covered desktop 1440×900, tablet 820×1024 and phone 390×844
 in both themes: light with normal motion and dark with reduced motion. The
-splitter desktop run used 1440×1024. Some phone clip preparation used public zoom
+splitter desktop run (before the splitter was removed in #2292) used 1440×1024. Some phone clip preparation used public zoom
 controls for a legal body target; those cases are not fit-zoom claims. The tablet
 pending case used Source end/Apply timing/Undo because the Inspector covered its
 edge. A mouse at phone width remains a mouse result.

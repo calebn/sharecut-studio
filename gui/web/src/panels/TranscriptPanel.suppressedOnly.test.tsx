@@ -1,6 +1,7 @@
 import { fireEvent, render, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTranscriptWordSuppressed } from "../api";
+import { Inspector } from "../inspector/Inspector";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -106,7 +107,6 @@ describe("TranscriptPanel suppressed-only rows (#758)", () => {
       playheadSec: 0,
       selection: null,
       transcriptFollowPlayhead: false,
-      layoutMode: "text",
       pointerKind: "fine",
       transcriptInlineCommitPending: false,
       transcriptInlineEditFailure: null,
@@ -116,7 +116,12 @@ describe("TranscriptPanel suppressed-only rows (#758)", () => {
   });
 
   it("dims the suppressed-only row, notes it, and round-trips Correct -> Unsuppress", async () => {
-    const { container } = render(<TranscriptPanel />);
+    const { container } = render(
+      <>
+        <TranscriptPanel />
+        <Inspector />
+      </>,
+    );
 
     const seg = container.querySelector(".utterance-seg.suppressed-only");
     expect(seg).not.toBeNull();
@@ -154,7 +159,12 @@ describe("TranscriptPanel suppressed-only rows (#758)", () => {
 
   it("excludes the suppressed-only row from the utterance count and low-confidence review", () => {
     useDawStore.setState({ transcriptAnnotate: true });
-    const { container } = render(<TranscriptPanel />);
+    const { container } = render(
+      <>
+        <TranscriptPanel />
+        <Inspector />
+      </>,
+    );
 
     expect(
       within(container).getByText("1 utterances", { exact: false }),
@@ -169,7 +179,12 @@ describe("TranscriptPanel suppressed-only rows (#758)", () => {
 
   it("never marks the suppressed-only row active, even under the playhead", () => {
     useDawStore.setState({ playheadSec: 0.15 });
-    const { container } = render(<TranscriptPanel />);
+    const { container } = render(
+      <>
+        <TranscriptPanel />
+        <Inspector />
+      </>,
+    );
 
     const seg = container.querySelector(".utterance-seg.suppressed-only");
     expect(seg).not.toBeNull();

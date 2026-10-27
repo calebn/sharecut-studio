@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openSuggestedPendingEdit } from "./pendingEdit";
+import { phone } from "./stageNav";
 
 const SERVER_TEXT =
   "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine (whole-episode pass), then `podcast transcript refine-done` / `transcript_refine_done_tool`, or `podcast transcript refine-waive --reason ...` / `transcript_refine_waive_tool`.";
@@ -28,7 +29,7 @@ for (const [width, height] of [
     await page.setViewportSize({ width: 1280, height: 720 });
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize({ width, height });
-    await page.getByRole("button", { name: "Timeline" }).click();
+    await phone.showTimeline(page);
     const sheet = page.locator(".bottom-sheet--compact");
     await expect(sheet).toBeVisible();
     await sheet
@@ -78,7 +79,7 @@ for (const [width, height] of [
     expect(layout.recoveryScrolls, "the form has no inner scroller").toBe(
       false,
     );
-    // 13.625rem of transport, ruler and lanes stays above the sheet.
+    // The sheet clearance (header, rows, ruler and a lane) stays above it.
     expect(layout.sheetTop).toBeGreaterThanOrEqual(200);
   });
 }

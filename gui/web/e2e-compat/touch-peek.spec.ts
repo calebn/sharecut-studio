@@ -18,6 +18,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import {
@@ -79,12 +80,12 @@ async function open(
   { theme = "dark" as Theme, inspector = "peek" } = {},
 ): Promise<void> {
   await page.setViewportSize(SIZES[size]);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await page.evaluate((view) => {
     localStorage.setItem("sharecut.compactInspector", view);
   }, inspector);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (SIZES[size].width < 768) await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
@@ -227,9 +228,6 @@ async function sheetState(page: Page) {
       open: panel != null,
       sheetInert:
         panel?.closest(".bottom-sheet-root")?.hasAttribute("inert") ?? false,
-      railInert:
-        document.querySelector(".editing-tool-rail")?.hasAttribute("inert") ??
-        false,
       size:
         [...(panel?.classList ?? [])]
           .find((c) => /^bottom-sheet--(peek|half|full)$/.test(c))
@@ -287,7 +285,7 @@ async function setUp(
   context: BrowserContext,
   browserName: string,
 ): Promise<Finger> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   await open(page, "portrait-360");
   return newFinger(context, page, browserName);
@@ -447,7 +445,7 @@ test("no grab while passing over chips or moving off the axis", async ({
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-360");
@@ -523,7 +521,7 @@ test("the strip and the expanded inspector leave the selection in view", async (
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   // The lanes may still be loading after the fixture's commands.
@@ -696,9 +694,6 @@ async function dragStowsStrip(
   expect(row.opened.sheetInert).toBe(false);
   expect(row.midChipDrag.sheetInert).toBe(true);
   expect(row.released.sheetInert).toBe(false);
-  expect(row.opened.railInert).toBe(true);
-  expect(row.midChipDrag.railInert).toBe(false);
-  expect(row.released.railInert).toBe(true);
   expect(row.midChipDrag.stowed).toBe(true);
   expect(row.released).toMatchObject({ stowed: false, title: "Trim start" });
   expect(row.released.value).not.toBe(row.opened.value);
@@ -725,7 +720,7 @@ async function expandRemembered(
   { page, context, browserName }: CaseFixtures,
   info: TestInfo,
 ): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, size);
@@ -811,7 +806,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const commands = watchCommands(page);
   const finger = await newFinger(context, page, browserName);
@@ -934,7 +929,7 @@ test("both themes and reduced motion with the strip open", async ({
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   const rows: Record<string, unknown>[] = [];
@@ -1078,7 +1073,7 @@ async function expandAtRootFont(
   { page, context, browserName }: CaseFixtures,
   info: TestInfo,
 ): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, "landscape-636");
@@ -1139,7 +1134,7 @@ async function halfTitleAtRootFont(
   { page, context, browserName }: CaseFixtures,
   info: TestInfo,
 ): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-390");
@@ -1192,7 +1187,7 @@ test("a timeline tap while a track's sheet is open goes to the strip: portrait-3
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-390");
@@ -1218,7 +1213,7 @@ test("a point saved from a track's envelope form stays in that sheet: portrait-3
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-390");
@@ -1275,7 +1270,7 @@ test("Tab focus never lands a field under the drawer header at 32 px text: a pen
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-390", { inspector: "full" });
@@ -1359,7 +1354,7 @@ test("the strip leaves the timeline undimmed and the half sheet dims it: portrai
   context,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-390");

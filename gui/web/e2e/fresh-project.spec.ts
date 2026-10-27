@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import { registerE2eCleanupWorkspace } from "./cleanupManifest";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 import { switchE2eProject } from "./shareableProject";
+import { addTrack, openPanel } from "./stageNav";
 
 test("new project stays fresh without an audio error on desktop and phone", async ({
   page,
@@ -30,22 +31,19 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
       .fill(workspaceDir);
     await page.getByRole("button", { name: "Create", exact: true }).click();
 
-    // "Mix up to date" also appears in the status bar once a project loads;
-    // scope to the transport's end zone (the desktop Pill) to stay strict.
-    const transportEnd = page.locator(".transport-zone--end");
+    const audioError = page.locator(".sys-player-pill", {
+      hasText: "Audio error",
+    });
     await expect(page.getByRole("heading", { name: "Fresh QA" })).toBeVisible();
-    await expect(
-      transportEnd.getByText("Mix up to date", { exact: true }),
-    ).toBeVisible();
-    await expect(page.locator(".pill.audio-error")).toHaveCount(0);
+    await expect(audioError).toHaveCount(0);
 
     const play = page.getByRole("button", { name: "Play", exact: true });
-    await expect(play).toHaveAccessibleDescription("Import audio to play.");
-    await page.getByRole("tab", { name: "Transcript", exact: true }).click();
-    await page.getByRole("heading", { name: "Fresh QA" }).click();
+    await expect(play).toBeVisible();
+    await openPanel(page, "transcript");
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
     const playbackProbe = await page.evaluateHandle(() => {
-      const button = document.querySelector(".play-btn");
-      if (!button) throw new Error("Transport Play is missing");
+      const button = document.querySelector(".sys-play-btn");
+      if (!button) throw new Error("Player Play is missing");
       const labels: (string | null)[] = [];
       const observer = new MutationObserver((records) => {
         for (const record of records) {
@@ -61,8 +59,7 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     });
     try {
       await page.keyboard.press("Space");
-      await expect(play).toHaveAttribute("data-playing", "false");
-      await expect(play).toHaveAccessibleDescription("Import audio to play.");
+      await expect(play).toHaveAccessibleName("Play");
       const labels = await playbackProbe.evaluate((probe) => {
         for (const record of probe.observer.takeRecords()) {
           probe.labels.push(record.oldValue);
@@ -75,16 +72,13 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
       await playbackProbe.dispose();
     }
 
-    await page.getByRole("button", { name: "+ Track" }).click();
-    await expect(
-      transportEnd.getByText("Mix up to date", { exact: true }),
-    ).toBeVisible();
-    await expect(page.locator(".pill.audio-error")).toHaveCount(0);
+    await addTrack(page);
+    await expect(audioError).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.locator(".listen-hero")).toBeVisible();
+    await expect(page.locator(".stage-frame-player")).toBeVisible();
     await expect(page.getByText("Mix out of date")).toHaveCount(0);
-    await expect(page.locator(".pill.audio-error")).toHaveCount(0);
+    await expect(audioError).toHaveCount(0);
   } finally {
     try {
       await page.close();

@@ -1,9 +1,9 @@
 import {
-  act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
@@ -267,9 +267,8 @@ describe("TargetChooser", () => {
 
   it("moves between chips with the arrow keys", async () => {
     show();
-    await act(() => new Promise(requestAnimationFrame));
     const chips = screen.getAllByRole("menuitemradio");
-    expect(chips[0]).toHaveFocus();
+    await waitFor(() => expect(chips[0]).toHaveFocus());
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(chips[1]).toHaveFocus();
   });

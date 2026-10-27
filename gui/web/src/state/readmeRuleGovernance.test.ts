@@ -59,11 +59,11 @@ describe("README rule: api.ts is the facade", () => {
     "hooks/useProjectPoll.ts -> api/project",
     "inspector/usePendingCutSuggestion.ts -> api/documentEdits",
     "inspector/views/PendingEditInspector.tsx -> api/documentEdits",
-    "layout/useTunnelStatus.ts -> api/tunnelStatus",
     "prosody/useProsodyOverlay.ts -> api/prosody",
     "record/recordBootstrap.ts -> api/http",
     "record/upload/http.ts -> api/http",
     "services/commandQueue.ts -> api/documentTransport",
+    "stage/dialogs/useTunnelStatus.ts -> api/tunnelStatus",
     "timeline/ClipBlock.tsx -> api/boundary",
     "transcript/EditBoundaryMark.tsx -> api/boundary",
     "transcript/EditBoundaryMarkView.tsx -> api/boundary",
@@ -151,10 +151,10 @@ describe("README rule: prefer useProjectMutation", () => {
     "home/HomeScreen.tsx",
     "hooks/useProjectBootstrap.ts",
     "inspector/views/EnvelopeWorkspace.tsx",
-    "layout/BounceDialog.tsx",
-    "layout/ShareDialog.tsx",
     "panels/PipelinePanel.tsx",
     "panels/TranscriptVocabularyEditor.tsx",
+    "stage/dialogs/BounceDialog.tsx",
+    "stage/dialogs/ShareDialog.tsx",
   ];
   const ALLOWLIST_SIZE = 11;
 

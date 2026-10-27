@@ -15,9 +15,9 @@ import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
-import { openTransportMenu } from "../e2e/overlayReachability";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import {
@@ -113,11 +113,11 @@ async function openWith<T>(
   size: { width: number; height: number } = IPHONE,
 ): Promise<T> {
   await page.setViewportSize(size);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const made = await setup();
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (size.width < 768) await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
   await setTheme(page, "dark");
@@ -273,10 +273,10 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
   browserName,
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await openPhoneTimeline(page);
   await setTheme(page, "dark");
   await setZoom(page, 3);
@@ -798,13 +798,10 @@ test("a create menu taller than 90% of the screen, with room beside the finger, 
     width: 844,
     height: 390,
   });
-  const menu = await openTransportMenu(page);
-  await menu
-    .getByRole("menuitemradio", { name: "Maximize timeline", exact: true })
-    .click();
-  await expect(page.locator(".layout-toggle-btn")).toHaveAccessibleName(
-    "Restore layout",
-  );
+  // The stacked tablet gives the lower half to the Script; hide it so the
+  // timeline has the whole body.
+  await page.getByRole("button", { name: "Show or hide Script" }).click();
+  await expect(page.locator(".edit-script")).toHaveCount(0);
   const finger = await newFinger(context, page, browserName);
   const rows: MenuRow[] = [];
   for (const rootPx of [24, 26, 28, 30, 32, 34, 36]) {
@@ -1215,10 +1212,10 @@ test("#1135: a plain mouse grab at a join rolls it, as on main", async ({
   page,
 }, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await setZoom(page, 3);
   const commands = watchCommands(page);
   const seam = await centerOf(

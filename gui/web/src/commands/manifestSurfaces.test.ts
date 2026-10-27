@@ -36,40 +36,13 @@ type RenderKind = "CommandButton" | "CommandMenuItem" | "label";
 /**
  * Manifest `gui` ids each file hosts. A key may end in `#CommandButton`,
  * `#CommandMenuItem` or `#label` to host different surfaces by element kind
- * (the transport bar holds both its More menu and its buttons). A command a
+ * (the transport bar held both its menu and its buttons). A command a
  * file renders needs at least one of the file's ids in its `gui` row.
  */
 const FILE_SURFACES: Record<string, string[]> = {
   "inspector/views/ClipInspector.tsx": ["clipInspector"],
+  "stage/frame/HistoryControls.tsx": ["historyPanel"],
   "inspector/views/TrackInspector.tsx": ["trackInspector"],
-  "layout/EditingToolRail.tsx": ["EditingToolRail"],
-  "layout/EditingToolRailView.tsx": ["editingToolRail"],
-  "layout/LayoutControls.tsx": ["layoutChip", "transport.layout"],
-  "layout/MobileShell.tsx#CommandButton": ["mobileShell.more"],
-  "layout/MobileShell.tsx#label": ["moreHub.searchCommands"],
-  "layout/ToolModeToggle.tsx": ["toolModeToggle"],
-  "layout/ToolModeToggleView.tsx": ["toolModeToggle", "transport.comment"],
-  "layout/TransportBar.tsx#CommandMenuItem": ["transport.menu"],
-  "layout/TransportBar.tsx#CommandButton": [
-    "toolModeToggle",
-    "transport.comment",
-    "transport.fit",
-    "transport.fitTracksHeight",
-    "staleRenderPill",
-    "timeline",
-    "editingToolRail",
-  ],
-  "layout/TransportBar.tsx#label": [
-    "transport.menu",
-    "toolModeToggle",
-    "transport.comment",
-    "editingToolRail",
-  ],
-  "layout/TransportPlayControls.tsx": ["transport.stop"],
-  "layout/WaveformViewSections.tsx": [
-    "transport.viewMenu.waveformAmplitudeIn",
-    "transport.viewMenu.waveformAmplitudeOut",
-  ],
   "panels/CommentsPanel.tsx": ["transport.comment"],
   "panels/TightenPanel.tsx": ["tightenPanel"],
   "panels/TranscriptPanel.tsx": [
@@ -79,34 +52,17 @@ const FILE_SURFACES: Record<string, string[]> = {
     "transcript.lowConfidencePrev",
   ],
   "record/RecordTransportChip.tsx": ["transport.recChip"],
+  "stage/edit/EditCornerView.tsx": ["editCorner"],
+  "stage/edit/EditToolStrip.tsx": ["editToolStrip"],
+  "stage/edit/EditToolStripView.tsx": ["editToolStrip"],
+  "stage/edit/PlusMenu.tsx": ["editPlusMenu"],
+  "stage/edit/ToolModeToggle.tsx": ["toolModeToggle"],
+  "stage/edit/ToolModeToggleView.tsx": ["toolModeToggle", "transport.comment"],
+  "stage/edit/ViewSheet.tsx": ["viewSheet"],
   "tracks/SoloChip.tsx": ["trackHeaders.soloChip"],
   "transcript/TranscriptFindReplace.tsx": ["transcript.findReplace"],
   "transcript/TranscriptWordbar.tsx": ["transcript.wordbar"],
   "transcript/WordRangeControls.tsx": ["rangeActions.words"],
-};
-
-/**
- * Control groups two parents mount. The group's commands count for each
- * parent, which must list the group's surface in the `gui` row.
- */
-const WRAPPER_MOUNTS: Record<
-  string,
-  { component: string; mounts: Record<string, string> }
-> = {
-  "layout/HistoryControls.tsx": {
-    component: "HistoryControls",
-    mounts: {
-      "layout/EditingToolRailView.tsx": "editingToolRail",
-      "layout/TransportBar.tsx": "transport.editControls",
-    },
-  },
-  "layout/ZoomControls.tsx": {
-    component: "ZoomControls",
-    mounts: {
-      "layout/EditingToolRailView.tsx": "editingToolRail",
-      "layout/TransportBar.tsx": "transport.editControls",
-    },
-  },
 };
 
 const RENDERED =
@@ -142,11 +98,10 @@ function hostsOf(file: string, kind: RenderKind): string[] | undefined {
 
 describe("manifest surfaces", () => {
   it("lists every surface that renders a command in its gui row", () => {
-    const wrapperFiles = new Set(Object.keys(WRAPPER_MOUNTS));
     const unmapped = new Set<string>();
     const missing: string[] = [];
     for (const { file, kind, commandId } of renderedCommands()) {
-      if (wrapperFiles.has(file) || !COMMANDS[commandId]) {
+      if (!COMMANDS[commandId]) {
         continue;
       }
       const hosts = hostsOf(file, kind);
@@ -165,43 +120,6 @@ describe("manifest surfaces", () => {
     expect(missing).toEqual([]);
   });
 
-  it("lists the surface of each mounted control group", () => {
-    const mounted = new Map<string, Set<string>>();
-    const sources = new Map<string, string>();
-    for (const { rel, text } of sourceFiles()) {
-      if (rel.endsWith(".tsx") && !/\.(test|stories)\./.test(rel)) {
-        sources.set(rel, text);
-      }
-    }
-    for (const [wrapper, { component, mounts }] of Object.entries(
-      WRAPPER_MOUNTS,
-    )) {
-      const parents = new Set<string>();
-      for (const [rel, text] of sources) {
-        if (rel !== wrapper && new RegExp(`<${component}\\b`).test(text)) {
-          parents.add(rel);
-        }
-      }
-      mounted.set(wrapper, parents);
-      expect([...parents].sort(), `${component} mounts`).toEqual(
-        Object.keys(mounts).sort(),
-      );
-    }
-    const missing: string[] = [];
-    for (const { file, commandId } of renderedCommands()) {
-      const wrapper = WRAPPER_MOUNTS[file];
-      if (!wrapper) {
-        continue;
-      }
-      for (const surface of Object.values(wrapper.mounts)) {
-        if (!guiOf(commandId).includes(surface)) {
-          missing.push(`${commandId} (${wrapper.component}) lacks ${surface}`);
-        }
-      }
-    }
-    expect([...new Set(missing)]).toEqual([]);
-  });
-
   it("declares only surfaces the manifest knows", () => {
     const known = new Set(MANIFEST.flatMap((cap) => cap.surfaces?.gui ?? []));
     const files = new Set(
@@ -214,16 +132,6 @@ describe("manifest surfaces", () => {
       }
       stale.push(
         ...ids.filter((id) => !known.has(id)).map((id) => `${key} ${id}`),
-      );
-    }
-    for (const [wrapper, { mounts }] of Object.entries(WRAPPER_MOUNTS)) {
-      if (!files.has(wrapper)) {
-        stale.push(wrapper);
-      }
-      stale.push(
-        ...Object.values(mounts)
-          .filter((id) => !known.has(id))
-          .map((id) => `${wrapper} ${id}`),
       );
     }
     expect(stale).toEqual([]);

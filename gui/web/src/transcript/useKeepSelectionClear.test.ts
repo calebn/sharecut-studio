@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { KEEP_CLEAR_PX } from "../layout/useCompactInspector";
+import { KEEP_CLEAR_PX } from "../stage/edit/useCompactInspector";
 import {
   keepSelectionClear,
   useKeepSelectionClear,

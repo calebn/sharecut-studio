@@ -105,7 +105,17 @@ async function undoStaysReachable(
       feedback = {
         geometry,
         visible: feedbackVisible,
-        inView: geometry.fullyVisible,
+        // A card taller than the sheet body (R-short-8: the sheet starts under
+        // the header) scrolls, so part of it showing is the most it can do.
+        inView:
+          geometry.fullyVisible ||
+          (feedbackVisible.state === "positive" &&
+            (await card.evaluate(
+              (element) =>
+                element.getBoundingClientRect().height >
+                (document.querySelector(".bottom-sheet-body")?.clientHeight ??
+                  Number.POSITIVE_INFINITY),
+            ))),
         dismissOnTop: dismiss.hitsControl,
         controls,
         overlaps: controls.filter((control) => control.overlaps),
@@ -141,11 +151,7 @@ async function undoStaysReachable(
           strip: strip?.toJSON(),
           chrome: chrome?.toJSON(),
           bottomChrome: document
-            .querySelector(
-              document.documentElement.dataset.shell === "phone"
-                ? ".mobile-nav"
-                : ".daw-shell > .status-bar",
-            )
+            .querySelector(".stage-frame-player")
             ?.getBoundingClientRect()
             .toJSON(),
           shell: document.documentElement.dataset.shell,
@@ -184,11 +190,18 @@ async function undoStaysReachable(
         step.startsWith("feedback-") ||
         step === "level-saved")
     ) {
-      await exposeControl(
-        page,
-        page.locator(".ui-toast-region--app .ui-toast"),
-        discovery,
-      );
+      // The sheet starts under the header (R-short-8), so at large text held
+      // sideways its body is shorter than the card: the card scrolls, and its
+      // Undo and Dismiss are each exposed below.
+      const card = page.locator(".ui-toast-region--app .ui-toast");
+      const cardFits = () =>
+        card.evaluate((element) => {
+          const body = document.querySelector(".bottom-sheet-body");
+          return (
+            !body || element.getBoundingClientRect().height <= body.clientHeight
+          );
+        });
+      if (await cardFits()) await exposeControl(page, card, discovery);
       for (const action of await page
         .locator(".ui-toast-region--app button")
         .all()) {
@@ -199,6 +212,9 @@ async function undoStaysReachable(
         expect(geometry.rect.width).toBeGreaterThanOrEqual(44);
         expect(geometry.rect.height).toBeGreaterThanOrEqual(44);
       }
+      // Exposing the actions may expand the sheet and scroll its body; a card
+      // that fits comes back whole.
+      if (await cardFits()) await exposeControl(page, card, discovery);
       await receipt(info, `feedback-discovery-${step}`, discovery);
     }
     seen[step] = await measure(controls);
@@ -251,7 +267,7 @@ async function undoStaysReachable(
         },
         shell: {
           rect: document
-            .querySelector(".daw-shell")
+            .querySelector(".stage-frame")
             ?.getBoundingClientRect()
             .toJSON(),
           style: document.documentElement.style.cssText,
@@ -461,12 +477,9 @@ async function undoStaysReachable(
         0,
       );
     }
-    if (rootPx === 16 && (step === "peek" || step === "feedback-dismissed")) {
-      expect(row.visibleLaneHeight.visible).toBeCloseTo(
-        name === "portrait" ? 547 : 116,
-        0,
-      );
-    }
+    // The old shell's pixel budget for the lanes above the strip (547 portrait,
+    // 116 landscape) has no successor: the frame's header, tool row, Player and
+    // tab bar take their own share. The height stays in the receipts.
   }
 
   await expect(page.locator(".bottom-sheet--peek")).toBeVisible();

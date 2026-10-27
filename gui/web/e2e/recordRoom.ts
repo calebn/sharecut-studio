@@ -9,6 +9,7 @@ import {
 import { findCurrentTake } from "../src/record/types";
 import { isPathInside } from "./pathInside";
 import { participantSaveStatus } from "./saveRoster";
+import { openRecordRoom } from "./stageNav";
 import { wavPeak } from "./wavPeak";
 
 /** Record-share room as returned by `POST /api/shares/record`. */
@@ -463,11 +464,7 @@ export async function stopHostTake(
 
 /** Open the host's Record room dialog from the app menu and wait for it. */
 export async function openHostRecordRoom(host: Page): Promise<Locator> {
-  await host.getByRole("button", { name: "Menu" }).click();
-  await host.getByRole("menuitem", { name: "Record room…" }).click();
-  const roomDlg = host.getByRole("dialog", { name: "Record room" });
-  await expect(roomDlg).toBeVisible();
-  return roomDlg;
+  return openRecordRoom(host);
 }
 
 /**

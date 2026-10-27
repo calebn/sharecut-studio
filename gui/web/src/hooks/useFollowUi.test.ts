@@ -1,10 +1,27 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { STAGE_FOR_TAB, tabForStage } from "../state/stageRoutes";
 import { minimalProject, sampleTrack, sessionRoster } from "../test/fixtures";
+import type { PresenceTab } from "../types/session";
 import { useFollowUi } from "./useFollowUi";
 
 const tracks = [sampleTrack({ id: "host" })];
+
+/** The wire tab of what the follower is showing. */
+const shownTab = () => {
+  const { stage, reviewSection } = useDawStore.getState();
+  return tabForStage(stage, reviewSection);
+};
+
+/** What the follower chose for itself: the stage a tab lives in. */
+const choose = (tab: PresenceTab) => {
+  const { stage, section } = STAGE_FOR_TAB[tab];
+  useDawStore.setState({
+    stage,
+    ...(section ? { reviewSection: section } : {}),
+  });
+};
 
 function leader(
   ui: Record<string, unknown>,
@@ -27,8 +44,7 @@ describe("useFollowUi", () => {
       shellBreakpoint: "desktop",
       guestMode: null,
       followingClientId: "a",
-      activeTab: "transcript",
-      layoutMode: "default",
+      stage: "edit",
       auditionMode: "mix",
       viewerMute: {},
       soloTracks: {},
@@ -39,7 +55,7 @@ describe("useFollowUi", () => {
 
   it("mirrors the leader tab without unfollowing", () => {
     renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("comments");
+    expect(shownTab()).toBe("comments");
     expect(useDawStore.getState().followingClientId).toBe("a");
   });
 
@@ -49,7 +65,7 @@ describe("useFollowUi", () => {
       sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
     });
     renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(shownTab()).toBe("transcript");
     expect(useDawStore.getState().followDegraded.tab).toBe("pipeline");
     expect(useDawStore.getState().followingClientId).toBe("a");
   });
@@ -79,79 +95,90 @@ describe("useFollowUi", () => {
     expect(useDawStore.getState().followDegraded.audition).toBeUndefined();
   });
 
-  it("reveals the leader tab on the first tick even behind the timeline layout", () => {
+  it("opens the leader's stage on the first tick", () => {
     useDawStore.setState({
-      activeTab: "comments",
-      layoutMode: "timeline",
+      stage: "review",
+      reviewSection: "comments",
+      openSheet: "view",
       sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("comments");
-    expect(useDawStore.getState().layoutMode).toBe("default");
+    expect(shownTab()).toBe("comments");
+    expect(useDawStore.getState().openSheet).toBeNull();
     expect(useDawStore.getState().followingClientId).toBe("a");
   });
 
-  it("keeps a follower's timeline layout until the leader changes tab", () => {
+  it("keeps a follower's sheet until the leader changes stage", () => {
     const { rerender } = renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("comments");
-    useDawStore.setState({ layoutMode: "timeline" });
+    expect(shownTab()).toBe("comments");
+    useDawStore.setState({ openSheet: "view" });
     useDawStore.setState({
       sessionClients: sessionRoster([
         leader({ tab: "comments", audition: "fx" }),
       ]),
     });
     rerender();
-    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    expect(useDawStore.getState().openSheet).toBe("view");
     useDawStore.setState({
       sessionClients: sessionRoster([
         leader({ tab: "comments", transcript_anchor: "transcript:turn:0" }),
       ]),
     });
     rerender();
-    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    expect(useDawStore.getState().openSheet).toBe("view");
     useDawStore.setState({
       sessionClients: sessionRoster([leader({ tab: "transcript" })]),
     });
     rerender();
-    expect(useDawStore.getState().activeTab).toBe("transcript");
-    expect(useDawStore.getState().layoutMode).toBe("default");
+    expect(shownTab()).toBe("transcript");
+    expect(useDawStore.getState().openSheet).toBeNull();
   });
 
-  it("reveals a leader tab the follower holds behind the timeline layout", () => {
-    const { rerender } = renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("comments");
-    useDawStore.setState({ activeTab: "transcript", layoutMode: "timeline" });
+  it("opens History over Edit for a leader on the history tab", () => {
     useDawStore.setState({
-      sessionClients: sessionRoster([leader({ tab: "transcript" })]),
+      sessionClients: sessionRoster([leader({ tab: "history" })]),
     });
-    rerender();
-    expect(useDawStore.getState().activeTab).toBe("transcript");
-    expect(useDawStore.getState().layoutMode).toBe("default");
+    renderHook(() => useFollowUi());
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(useDawStore.getState().openSheet).toBe("history");
+  });
+
+  it("follows the leader's phone surface in Edit", () => {
+    useDawStore.setState({
+      shellBreakpoint: "phone",
+      editSurface: "lanes",
+      sessionClients: sessionRoster([
+        leader({ tab: "transcript", mobile_mode: "text" }),
+      ]),
+    });
+    renderHook(() => useFollowUi());
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(useDawStore.getState().editSurface).toBe("text");
   });
 
   it("keeps a tab the follower chose until the leader's tab changes", () => {
     const { rerender } = renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("comments");
-    useDawStore.setState({ activeTab: "transcript" });
+    expect(shownTab()).toBe("comments");
+    choose("transcript");
     useDawStore.setState({
       sessionClients: sessionRoster([
         leader({ tab: "comments", audition: "fx" }),
       ]),
     });
     rerender();
-    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(shownTab()).toBe("transcript");
     expect(useDawStore.getState().followingClientId).toBe("a");
     useDawStore.setState({
       sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
     });
     rerender();
-    expect(useDawStore.getState().activeTab).toBe("pipeline");
+    expect(shownTab()).toBe("pipeline");
   });
 
   it("ignores a leader tab flip it never saw and follows one it did", () => {
     const { rerender } = renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("comments");
-    useDawStore.setState({ activeTab: "transcript" });
+    expect(shownTab()).toBe("comments");
+    choose("transcript");
     // Leader went comments -> pipeline -> comments between two renders.
     useDawStore.setState({
       sessionClients: sessionRoster([
@@ -159,27 +186,27 @@ describe("useFollowUi", () => {
       ]),
     });
     rerender();
-    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(shownTab()).toBe("transcript");
     // A flip the hook does see is mirrored at each step.
     useDawStore.setState({
       sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
     });
     rerender();
-    expect(useDawStore.getState().activeTab).toBe("pipeline");
+    expect(shownTab()).toBe("pipeline");
     useDawStore.setState({
       sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     rerender();
-    expect(useDawStore.getState().activeTab).toBe("comments");
+    expect(shownTab()).toBe("comments");
   });
 
   it("applies the same ui only once", () => {
     let tabSets = 0;
-    const orig = useDawStore.getState().setActiveTab;
+    const orig = useDawStore.getState().openStage;
     useDawStore.setState({
-      setActiveTab: (tab) => {
+      openStage: (stage, options) => {
         tabSets += 1;
-        orig(tab);
+        orig(stage, options);
       },
     });
     const { rerender } = renderHook(() => useFollowUi());
@@ -193,7 +220,7 @@ describe("useFollowUi", () => {
 
   it("scrolls after a combined tab and transcript_anchor tick", () => {
     useDawStore.setState({
-      activeTab: "comments",
+      stage: "review",
       sessionClients: sessionRoster([
         leader({
           tab: "transcript",
@@ -202,7 +229,7 @@ describe("useFollowUi", () => {
       ]),
     });
     renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(shownTab()).toBe("transcript");
     expect(useDawStore.getState().transcriptScrollRequest).toBe(
       "transcript:turn:0",
     );
@@ -236,7 +263,7 @@ describe("useFollowUi", () => {
       sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
     });
     const { rerender } = renderHook(() => useFollowUi());
-    expect(useDawStore.getState().activeTab).toBe("pipeline");
+    expect(shownTab()).toBe("pipeline");
     expect(useDawStore.getState().followDegraded.tab).toBeUndefined();
     useDawStore.setState({ guestMode: "view" });
     rerender();
