@@ -148,6 +148,21 @@ describe("prepareSessions", () => {
     expect(many.map((s) => s.canSplit)).toEqual([true, false]);
   });
 
+  it("shows the prompt on the file the person asked to split", () => {
+    const sources = prepareSessions({
+      ...sessionBase,
+      focusTrackId: "b",
+      tracks: [sampleTrack({ id: "a" }), sampleTrack({ id: "b" })],
+    })[0].sources;
+    expect(sources.map((s) => s.state)).toEqual(["needs-name", "split-prompt"]);
+    const lane = prepareSessions({
+      ...sessionBase,
+      focusTrackId: "a",
+      tracks: [sampleTrack({ id: "a", speaker_split_id: "s1" })],
+    })[0].sources[0];
+    expect(lane.canSplit).toBe(false);
+  });
+
   it("does not offer the split to a guest, or on a lane that is already split", () => {
     const guest = prepareSessions({
       ...sessionBase,
