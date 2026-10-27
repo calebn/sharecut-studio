@@ -159,6 +159,23 @@ describe("Review host", () => {
     expect(screen.queryByRole("button", { name: "Deliver" })).toBeNull();
   });
 
+  it("puts the read-only Script above a guest's comments, and not above the host's", () => {
+    asGuest("review", "comment");
+    const { unmount } = mount(true);
+    const script = screen.getByRole("heading", { name: "Nothing to read yet" });
+    const comments = screen.getByText("guest comments panel");
+    expect(
+      script.compareDocumentPosition(comments) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    unmount();
+    asHost("review");
+    mount();
+    expect(
+      screen.queryByRole("heading", { name: "Nothing to read yet" }),
+    ).toBeNull();
+  });
+
   it("marks sections that wait on the person", () => {
     asHost("review");
     useDawStore.getState().hydrate(
