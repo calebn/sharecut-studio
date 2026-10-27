@@ -4794,3 +4794,475 @@ input.sys-edit-fix {
   gap: var(--space-1);
   white-space: nowrap;
 }
+
+/* Clip (element 17) */
+
+.sys-clip {
+  --sys-clip-hit: 0.5rem;
+  --sys-clip-zone: min(var(--sys-clip-hit), 34%);
+  --sys-clip-fade-wash: 0.6;
+  --sys-clip-fill: color-mix(
+    in srgb,
+    var(--sys-clip-color) 30%,
+    var(--color-bg-raised)
+  );
+
+  position: relative;
+  box-sizing: border-box;
+  inline-size: var(--sys-clip-width);
+  block-size: 100%;
+  min-block-size: 2.5rem;
+  border: 1px solid var(--sys-clip-color);
+  border-radius: var(--radius-lg);
+  background: var(--sys-clip-fill);
+  color: var(--color-text-primary);
+}
+
+.sys-clip[data-touch] {
+  --sys-clip-hit: var(--touch-min);
+}
+
+.sys-clip[data-selected] {
+  outline: var(--selection-outline-width) solid var(--color-accent);
+}
+
+.sys-clip-art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.sys-clip-peaks {
+  position: absolute;
+  inset: 0;
+}
+
+.sys-clip-peaks svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.sys-clip-peaks .sys-wave-peak {
+  fill: var(--sys-clip-color);
+}
+
+.sys-clip-fade {
+  position: absolute;
+  inset-block: 0;
+  block-size: 100%;
+}
+
+.sys-clip-fade[data-edge="in"] {
+  inset-inline-start: 0;
+  inline-size: var(--sys-clip-fade-in);
+}
+
+.sys-clip-fade[data-edge="out"] {
+  inset-inline-end: 0;
+  inline-size: var(--sys-clip-fade-out);
+}
+
+.sys-clip-fade polygon {
+  fill: var(--color-bg-raised);
+  fill-opacity: var(--sys-clip-fade-wash);
+}
+
+.sys-clip-fade line {
+  stroke: var(--color-text-primary);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.sys-clip-muted {
+  --sys-clip-hatch: repeating-linear-gradient(
+    -45deg,
+    var(--color-border-strong) 0 var(--space-0),
+    transparent var(--space-0) var(--space-3)
+  );
+  --sys-clip-grey: color-mix(in srgb, var(--color-bg-sunken) 70%, transparent);
+
+  position: absolute;
+  inset-block: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--space-1);
+  background-color: var(--sys-clip-grey);
+  background-image: var(--sys-clip-hatch);
+  color: var(--color-text-secondary);
+}
+
+.sys-clip-body {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.sys-clip-body[data-movable] {
+  cursor: grab;
+}
+
+.sys-clip[data-dragging="move"] .sys-clip-body {
+  cursor: grabbing;
+}
+
+.sys-clip-body:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sys-clip-label {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-start: var(--space-3);
+  box-sizing: border-box;
+  max-inline-size: calc(100% - var(--space-5));
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--sys-clip-fill);
+  overflow: hidden;
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sys-clip-handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.sys-clip[data-selected] .sys-clip-handle {
+  pointer-events: auto;
+}
+
+.sys-clip-handle[data-handle^="trim"] {
+  inset-block: 0;
+  inline-size: var(--sys-clip-zone);
+  cursor: ew-resize;
+}
+
+.sys-clip-handle[data-handle="trim-in"] {
+  inset-inline-start: 0;
+}
+
+.sys-clip-handle[data-handle="trim-out"] {
+  inset-inline-end: 0;
+}
+
+.sys-clip-handle[data-handle^="fade"] {
+  inset-block-start: 0;
+  inline-size: max(var(--sys-clip-hit), 0.75rem);
+  block-size: max(var(--sys-clip-hit), 0.75rem);
+  cursor: ew-resize;
+}
+
+.sys-clip-handle[data-handle="fade-in"] {
+  inset-inline-start: var(--sys-clip-fade-in);
+  translate: -50% 0;
+}
+
+.sys-clip-handle[data-handle="fade-out"] {
+  inset-inline-end: var(--sys-clip-fade-out);
+  translate: 50% 0;
+}
+
+.sys-clip-grip {
+  box-sizing: border-box;
+  border: 1px solid var(--color-bg-raised);
+  background: var(--color-accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sys-clip-handle[data-handle^="trim"] .sys-clip-grip {
+  inline-size: 0.375rem;
+  block-size: 1.5rem;
+  border-radius: var(--radius-xl);
+}
+
+.sys-clip-handle[data-handle^="fade"] .sys-clip-grip {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border-radius: 50%;
+}
+
+.sys-clip[data-selected] .sys-clip-grip,
+.sys-clip-handle[data-dragging] .sys-clip-grip,
+.sys-clip-handle:focus-visible .sys-clip-grip {
+  opacity: 1;
+}
+
+.sys-clip-handle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .sys-clip:hover .sys-clip-handle {
+    pointer-events: auto;
+  }
+
+  .sys-clip:hover .sys-clip-handle[data-handle^="fade"] .sys-clip-grip {
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .sys-clip {
+    --sys-clip-hit: var(--touch-min);
+  }
+}
+
+@media (forced-colors: active) {
+  .sys-clip-grip {
+    border-color: var(--color-accent);
+  }
+
+  .sys-clip-muted {
+    border-inline-start: 1px solid var(--color-border-strong);
+  }
+}
+
+/* Track header (element 16) */
+
+.sys-track {
+  --sys-track-color: var(--color-presence-0);
+
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  inline-size: 10.5rem;
+  padding: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+}
+
+.sys-track[data-form="wide"] {
+  inline-size: 17.5rem;
+}
+
+.sys-track[data-form="phone"] {
+  align-items: center;
+  inline-size: 3.5rem;
+  padding-inline: 0;
+}
+
+.sys-track[data-selected] {
+  outline: var(--selection-outline-width) solid var(--color-accent);
+  outline-offset: calc(var(--selection-outline-width) * -1);
+}
+
+.sys-track[data-reorder="lifted"] {
+  background: var(--color-bg-sunken);
+  outline: var(--focus-ring-width) dashed var(--color-text-secondary);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.sys-track[data-reorder="before"] {
+  border-block-start: var(--selection-outline-width) solid var(--color-accent);
+}
+
+.sys-track[data-reorder="after"] {
+  border-block-end: var(--selection-outline-width) solid var(--color-accent);
+}
+
+.sys-track-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  min-block-size: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sys-track-main[draggable="true"] {
+  cursor: grab;
+}
+
+.sys-track-main:focus-visible,
+.sys-track-toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sys-track-name {
+  overflow: hidden;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-track-avatar {
+  --sys-track-ring: conic-gradient(
+    var(--sys-track-color) calc(var(--sys-track-level) * 1turn),
+    var(--color-border) 0
+  );
+
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  padding: var(--space-0);
+  border-radius: 50%;
+  background: var(--sys-track-ring);
+}
+
+.sys-track[data-rebuilding] .sys-track-avatar {
+  background: none;
+  outline: 1px dashed var(--color-text-secondary);
+}
+
+:is(.sys-track[data-mute="saved"], .sys-track[data-mute="listen"])
+  .sys-person-avatar {
+  filter: grayscale(1);
+}
+
+:is(.sys-track[data-mute="saved"], .sys-track[data-mute="listen"])
+  .sys-track-name {
+  color: var(--color-text-secondary);
+}
+
+.sys-track-badge {
+  position: absolute;
+  inset-block-end: calc(var(--space-1) * -1);
+  inset-inline-end: calc(var(--space-1) * -1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+}
+
+.sys-track-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  opacity: 0;
+}
+
+.sys-track:is(:hover, :focus-within, [data-set], [data-form="wide"])
+  .sys-track-controls {
+  opacity: 1;
+}
+
+.sys-track-controls .sys-scrub {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.sys-track-controls .sys-scrub-box {
+  min-inline-size: 0;
+  min-block-size: 1.5rem;
+  padding-inline: var(--space-1);
+}
+
+.sys-track-toggle {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.sys-track-toggle:hover {
+  background: var(--color-hover);
+}
+
+.sys-track-toggle[aria-pressed="true"] {
+  border-color: var(--color-text-primary);
+  background: var(--color-chip-selected);
+  color: var(--color-chip-selected-fg);
+}
+
+.sys-track-toggle[data-state="listen"],
+.sys-track-toggle[data-state="implied"] {
+  border-style: dashed;
+  border-color: var(--color-text-secondary);
+}
+
+.sys-track-toggle[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.sys-track-meter {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  block-size: var(--space-1);
+  background: var(--color-border);
+}
+
+.sys-track-meter span {
+  display: block;
+  inline-size: calc(var(--sys-track-level) * 100%);
+  block-size: 100%;
+  background: var(--sys-track-color);
+}
+
+@media (pointer: coarse) {
+  .sys-track-main {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-track-controls {
+    opacity: 1;
+  }
+
+  .sys-track-toggle {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+  }
+
+  .sys-track-controls .sys-scrub-box {
+    min-block-size: var(--touch-min);
+  }
+}
+
+@media (forced-colors: active) {
+  .sys-track-avatar {
+    border: 1px solid var(--color-border);
+  }
+
+  .sys-track-meter {
+    border: 1px solid var(--color-border);
+  }
+}

@@ -664,3 +664,214 @@ test("System/ScriptPane Up and Down move the caret by line", async ({
   await page.keyboard.press("Shift+ArrowDown");
   await expect(page.getByRole("status")).toHaveText(/^\d\d words selected: /);
 });
+
+test("System/Clip hover shows the fade knobs and the edge zones, selected shows the trim tabs, and the label rule holds at 79 and 80 px", async ({
+  page,
+}) => {
+  await open(page, "system-clip--idle", 1280);
+  const body = page.getByRole("button", { name: "Maya, take 2" });
+  const opacity = (selector: string) =>
+    page
+      .locator(selector)
+      .evaluate((el) => getComputedStyle(el).opacity as string);
+  const knob = ".sys-clip-handle[data-handle=fade-in] .sys-clip-grip";
+  const tab = ".sys-clip-handle[data-handle=trim-out] .sys-clip-grip";
+  await expect(body).toBeVisible();
+  expect([await opacity(knob), await opacity(tab)]).toEqual(["0", "0"]);
+  await body.hover();
+  expect([await opacity(knob), await opacity(tab)]).toEqual(["1", "0"]);
+  const zone = await page
+    .locator(".sys-clip-handle[data-handle=trim-in]")
+    .boundingBox();
+  const clip = await page.locator(".sys-clip").boundingBox();
+  if (!zone || !clip) throw new Error("Clip did not render");
+  expect(zone.width).toBe(8);
+  const edge = await page.evaluate(
+    ([x, y]) =>
+      document
+        .elementFromPoint(x, y)
+        ?.closest("[data-handle]")
+        ?.getAttribute("data-handle"),
+    [clip.x + 3, clip.y + clip.height / 2],
+  );
+  expect(edge).toBe("trim-in");
+  await page.goto(storyUrl("system-clip--selected", { theme: "light" }));
+  await expect(page.locator(".sys-clip[data-selected]")).toBeVisible();
+  expect(await opacity(tab)).toBe("1");
+  const tabBox = await page.locator(tab).boundingBox();
+  expect([tabBox?.width, tabBox?.height]).toEqual([6, 24]);
+  await page.goto(storyUrl("system-clip--label-rule", { theme: "light" }));
+  const widths = await page
+    .locator(".sys-clip")
+    .evaluateAll((clips) =>
+      clips.map((c) => [
+        Math.round(c.getBoundingClientRect().width),
+        c.querySelector(".sys-clip-label") !== null,
+      ]),
+    );
+  expect(widths).toEqual([
+    [79, false],
+    [80, true],
+  ]);
+});
+
+test("System/Clip selected edges and fade knobs are 44 px under a coarse pointer, a real touch lands on them, and an unselected clip's edge selects", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, "system-clip--idle");
+  const body = page.getByRole("button", { name: "Maya, take 2" });
+  await expect(body).toBeVisible();
+  const box = await body.boundingBox();
+  if (!box) throw new Error("Clip did not render");
+  await page.touchscreen.tap(box.x + 3, box.y + box.height / 2);
+  await expect(body).toHaveAttribute("aria-pressed", "false");
+  await page.goto(storyUrl("system-clip--selected", { theme: "light" }));
+  await expect(page.locator(".sys-clip[data-selected]")).toBeVisible();
+  const sizes = await page.locator(".sys-clip-handle").evaluateAll((handles) =>
+    handles.map((h) => {
+      const r = h.getBoundingClientRect();
+      return [
+        h.getAttribute("data-handle"),
+        Math.round(r.width),
+        Math.round(r.height),
+      ];
+    }),
+  );
+  const trims = sizes.filter(([name]) => String(name).startsWith("trim"));
+  const fades = sizes.filter(([name]) => String(name).startsWith("fade"));
+  expect(trims.map(([, w]) => w)).toEqual([44, 44]);
+  expect(fades.map(([, w, h]) => [w, h])).toEqual([
+    [44, 44],
+    [44, 44],
+  ]);
+  const handle = page.locator(".sys-clip-handle[data-handle=fade-out]");
+  const r = await handle.boundingBox();
+  if (!r) throw new Error("No fade knob");
+  await page.evaluate(() => {
+    const log: string[] = [];
+    Object.assign(window, { downs: log });
+    document.addEventListener(
+      "pointerdown",
+      (event) =>
+        log.push(
+          (event.target as HTMLElement)
+            .closest("[data-handle]")
+            ?.getAttribute("data-handle") ?? "none",
+        ),
+      true,
+    );
+  });
+  for (const [dx, dy] of [
+    [-19, 19],
+    [19, 19],
+    [0, 0],
+  ]) {
+    await page.touchscreen.tap(r.x + r.width / 2 + dx, r.y + r.height / 2 + dy);
+  }
+  expect(
+    await page.evaluate(() => (window as unknown as { downs: string[] }).downs),
+  ).toEqual(["fade-out", "fade-out", "fade-out"]);
+  await context.close();
+});
+
+test("System/Clip draws its selection, handles and muted hatch with borders and outlines under forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(storyUrl("system-clip--muted", { theme: "light" }));
+  const clip = page.locator(".sys-clip");
+  await expect(clip).toBeVisible();
+  const look = await page.evaluate(() => {
+    const style = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (!el) throw new Error(selector);
+      return getComputedStyle(el);
+    };
+    return {
+      clipBorder: style(".sys-clip").borderTopWidth,
+      mutedEdge: style(".sys-clip-muted").borderInlineStartWidth,
+      gripBorder: style(".sys-clip-grip").borderTopWidth,
+    };
+  });
+  expect(look).toEqual({
+    clipBorder: "1px",
+    mutedEdge: "1px",
+    gripBorder: "1px",
+  });
+  await page.goto(storyUrl("system-clip--selected", { theme: "light" }));
+  const outline = await page
+    .locator(".sys-clip")
+    .evaluate((el) => getComputedStyle(el).outlineStyle);
+  expect(outline).toBe("solid");
+});
+
+test("System/TrackHeader is 168, 280 and 56 px wide, shows row two on hover until something is set, and fits its level in the narrow column", async ({
+  page,
+}) => {
+  await open(page, "system-trackheader--default", 1280);
+  const header = page.locator(".sys-track");
+  const mute = page.getByRole("button", { name: "Mute Maya Okafor" });
+  await expect(header).toBeVisible();
+  expect((await header.boundingBox())?.width).toBe(168);
+  const shown = () =>
+    page
+      .locator(".sys-track-controls")
+      .evaluate((el) => getComputedStyle(el).opacity);
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.mouse.move(0, 0);
+  expect(await shown()).toBe("0");
+  await page.getByRole("button", { name: "Maya Okafor", exact: true }).hover();
+  expect(await shown()).toBe("1");
+  await expect(mute).toBeVisible();
+  const fit = await page.locator(".sys-track-controls").evaluate((el) => ({
+    scroll: el.scrollWidth,
+    client: el.clientWidth,
+    box: Math.round(
+      el.querySelector(".sys-scrub-box")?.getBoundingClientRect().height ?? 0,
+    ),
+  }));
+  expect(fit.scroll).toBeLessThanOrEqual(fit.client);
+  expect(fit.box).toBe(24);
+  for (const [id, width] of [
+    ["system-trackheader--wide", 280],
+    ["system-trackheader--phone", 56],
+    ["system-trackheader--soloed", 168],
+  ] as const) {
+    await page.goto(storyUrl(id, { theme: "light" }));
+    await expect(header).toBeVisible();
+    expect((await header.boundingBox())?.width).toBe(width);
+  }
+  await expect(
+    page.getByRole("button", { name: "Mute Maya Okafor" }),
+  ).toBeVisible();
+});
+
+test("Stages/Edit/Tracks header controls are 44 px, hit-testable all over, and real touches mute and solo under a coarse pointer", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "stages-edit-tracks--three-tracks",
+  );
+  const mute = page.getByRole("button", { name: "Mute Maya Okafor" });
+  const solo = page.getByRole("button", { name: "Solo Maya Okafor" });
+  const name = page.getByRole("button", { name: "Maya Okafor", exact: true });
+  await expect(mute).toBeVisible();
+  for (const target of [mute, solo, name]) {
+    const box = await target.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(await hitsAround(target, [-19, 0, 19])).toEqual([true, true, true]);
+  }
+  const m = await mute.boundingBox();
+  const s = await solo.boundingBox();
+  if (!m || !s) throw new Error("Controls did not render");
+  await page.touchscreen.tap(m.x + m.width / 2 - 19, m.y + m.height / 2 + 19);
+  await expect(mute).toHaveAttribute("aria-pressed", "true");
+  await page.touchscreen.tap(s.x + s.width / 2 + 19, s.y + s.height / 2 - 19);
+  await expect(solo).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("button", { name: "Mute Anneke de Vries" }),
+  ).toHaveAccessibleDescription(/silent because you soloed another track/);
+  await context.close();
+});

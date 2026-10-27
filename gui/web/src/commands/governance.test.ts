@@ -114,6 +114,10 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/Seam.tsx",
   // The notes composer is one field: Enter sends and Shift+Enter adds a line, and an IME's own Enter (isComposing or keyCode 229) never sends.
   "system/NotesRail.tsx",
+  // A clip's body and handles: Escape cancels a drag in progress, Left and Right on a handle nudge its edge 10 ms (Shift 100 ms) like a slider, and every other key goes to the lane that hosts the clip.
+  "system/Clip.tsx",
+  // Shift with Up or Down on a track header asks the host to move the track one place; the name button keeps its own Enter and Space.
+  "system/TrackHeader.tsx",
   // A selection grip is a slider: arrows, Home and End move its edge one place on or back, or to the first or last place.
   "system/SelectionHandles.tsx",
   // The inline Fix text field commits on Enter and Tab and puts the words back on Escape.
