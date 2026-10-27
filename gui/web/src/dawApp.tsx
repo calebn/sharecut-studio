@@ -27,7 +27,6 @@ import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
 import { ExportDialog } from "./stage/dialogs/ExportDialog";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { ShareDialog } from "./stage/dialogs/ShareDialog";
-import { SplitSpeakersDialog } from "./stage/dialogs/SplitSpeakersDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
@@ -232,7 +231,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <CheatsheetDialogs />
       <BounceDialog />
       <ExportDialog />
-      <SplitSpeakersDialog />
       <ShareDialog />
       <RecordPanel />
       <HostMcpDialog

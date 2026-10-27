@@ -75,7 +75,7 @@
 /* Phone and tablet raise a Dialog from the bottom edge so its footer sits in
    the thumb zone. A tablet sheet keeps a readable measure and stays centered. */
 :is(html[data-shell="phone"], html[data-shell="tablet"])
-  .ui-dialog-root:not(.ui-dialog-root--anchored) {
+.ui-dialog-root:not(.ui-dialog-root--anchored) {
   place-items: end center;
 }
 
