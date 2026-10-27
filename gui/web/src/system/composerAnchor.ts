@@ -46,6 +46,20 @@ export function idleAnchor(playhead: Playhead): ComposerAnchor {
     : { kind: "follow", seconds: playhead.seconds };
 }
 
+/** The span a posted comment carries. A whole-episode note has none. */
+export function anchorSpan(anchor: ComposerAnchor): AnchorSpan | undefined {
+  switch (anchor.kind) {
+    case "follow":
+      return { start: anchor.seconds };
+    case "pinned":
+      return anchor.end === undefined
+        ? { start: anchor.start }
+        : { start: anchor.start, end: anchor.end };
+    case "episode":
+      return undefined;
+  }
+}
+
 /** "18:36", or "18:36 to 18:41" (design system 4.5). */
 export function formatAnchor(span: AnchorSpan): string {
   const start = formatTimeShort(span.start);

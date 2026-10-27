@@ -152,6 +152,19 @@ describe("CommentCard", () => {
       expect(onResolve).not.toHaveBeenCalled();
     });
 
+    it("ignores a wider reply object, so a reply never carries a time chip", () => {
+      const wider = {
+        ...replyField,
+        anchor: { kind: "pinned", start: 3 },
+        onAnchor: noop,
+      };
+      render(<CommentCard comment={base} reply={wider} />);
+      expect(
+        screen.queryByRole("button", { name: /Pinned|Move to the playhead/ }),
+      ).toBeNull();
+      expect(screen.queryByText(/0:03/)).toBeNull();
+    });
+
     it("shows the name line to a guest's first reply", () => {
       render(
         <CommentCard
@@ -222,8 +235,10 @@ describe("CommentCard", () => {
       expect(screen.getByText("Not sent")).toBeVisible();
       await userEvent.click(screen.getByRole("button", { name: "Try again" }));
       expect(onRetry).toHaveBeenCalledOnce();
+      expect(onRetry).toHaveBeenCalledWith();
       await userEvent.click(screen.getByRole("button", { name: "Remove" }));
       expect(onRemove).toHaveBeenCalledOnce();
+      expect(onRemove).toHaveBeenCalledWith();
       expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
     });
 
