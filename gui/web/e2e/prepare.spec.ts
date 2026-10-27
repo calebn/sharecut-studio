@@ -1,0 +1,88 @@
+import { expect, test } from "@playwright/test";
+import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
+
+/** A tenth of a second of silence: enough for the server to take as a track. */
+function silentWav(): Buffer {
+  const rate = 8000;
+  const samples = rate / 10;
+  const data = samples * 2;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + data, 4);
+  header.write("WAVEfmt ", 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(rate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(data, 40);
+  return Buffer.concat([header, Buffer.alloc(data)]);
+}
+
+test("Prepare: importing audio starts the run by itself and hands off to the next stage", async ({
+  page,
+}) => {
+  let posts = 0;
+  let body: Record<string, unknown> | null = null;
+  // The run is mocked: this spec is about when Prepare starts it, not about transcribing.
+  await page.route("**/api/pipeline/run", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    posts += 1;
+    body = route.request().postDataJSON();
+    await route.fulfill({
+      status: 409,
+      headers: { "X-Sharecut-Error-Code": "pipeline_busy" },
+      json: { detail: "A pipeline job is already running" },
+    });
+  });
+  await openProject(page, e2eProjectPath, { stage: "prepare" });
+  await expect(
+    page.getByRole("heading", { name: "Sources", exact: true }),
+  ).toBeVisible();
+  expect(posts).toBe(0);
+
+  const chooser = page.waitForEvent("filechooser");
+  await page
+    .getByRole("button", { name: /^Import audio/ })
+    .first()
+    .click();
+  await (await chooser).setFiles({
+    name: "intro.wav",
+    mimeType: "audio/wav",
+    buffer: silentWav(),
+  });
+
+  await expect.poll(() => posts).toBeGreaterThanOrEqual(1);
+  expect(body).toMatchObject({ use_working_set: true });
+  expect(body).not.toHaveProperty("force_transcribe", true);
+
+  const handoff = page.getByRole("button", { name: /^(Edit|Review)/ }).last();
+  await expect(handoff).toBeVisible();
+  await handoff.click();
+  await expect(
+    page.getByRole("tab", { name: /^(Edit|Review)\b/, selected: true }),
+  ).toBeVisible();
+});
+
+test("Prepare: Advanced opens the step sheet and Escape returns to the stage", async ({
+  page,
+}) => {
+  await openProject(page, e2eProjectPath, { stage: "prepare" });
+  const advanced = page.getByRole("button", { name: /^Advanced/ });
+  await advanced.click();
+  await expect(
+    page.getByRole("heading", { name: "Advanced steps" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("heading", { name: "Advanced steps" }),
+  ).toHaveCount(0);
+  await expect(advanced).toBeFocused();
+});

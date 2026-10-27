@@ -1,59 +1,59 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { openPanel, openProject } from "./stageNav";
 
-async function saveVocabulary(page: Page, save: Locator): Promise<void> {
-  const response = page.waitForResponse(
+function savedVocabulary(page: Page) {
+  return page.waitForResponse(
     (response) =>
       response.url().includes("/api/transcript/vocabulary") &&
       response.request().method() === "PUT",
   );
-  await save.click();
-  expect((await response).status()).toBe(200);
 }
 
-test("shows the real prompt budget before saving and persists a fitting draft", async ({
+test("saves each term as it is added, refuses one past the prompt budget, and keeps them after a reload", async ({
   page,
 }, testInfo) => {
   await openProject(page, e2eProjectPath);
   await openPanel(page, "pipeline");
-  const editor = page.getByRole("region", { name: "Transcription vocabulary" });
-  const input = editor.getByLabel("Terms", { exact: true });
+  const input = page.getByLabel("Names and terms", { exact: true });
   await expect(input).toBeEnabled();
-  const save = editor.getByRole("button", { name: "Save vocabulary" });
-  const remove = editor.getByRole("button", { name: /^Remove / });
-  if (await remove.count()) {
-    while (await remove.count()) await remove.first().click();
-    await saveVocabulary(page, save);
-    await expect(
-      editor.getByText("Vocabulary saved.", { exact: true }),
-    ).toBeVisible();
+  const removers = page.getByRole("button", { name: /^Remove / });
+  while (await removers.count()) {
+    const saved = savedVocabulary(page);
+    await removers.first().click();
+    expect((await saved).status()).toBe(200);
   }
   const names = ["A", "B", "C", "D"].map((letter) => letter.repeat(100));
+  const added: string[] = [];
   for (const name of names) {
     await input.fill(name);
-    await editor.getByRole("button", { name: "Add term", exact: true }).click();
+    const saved = savedVocabulary(page);
+    await input.press("Enter");
+    if (
+      await page
+        .getByText("That is the limit. Remove a term to add more.")
+        .isVisible()
+    ) {
+      break;
+    }
+    expect((await saved).status()).toBe(200);
+    added.push(name);
   }
-  await expect(save).toBeDisabled();
-  await expect(save).toHaveAccessibleDescription(
-    /Remove terms or guest names before saving vocabulary/,
-  );
-  await expectPageAxeClean(page, ".pipeline-vocabulary");
-  await page.screenshot({
-    path: testInfo.outputPath("vocabulary-prompt-overflow.png"),
-  });
-  await editor.getByRole("button", { name: `Remove ${names[3]}` }).click();
-  await expect(save).toBeEnabled();
-  await saveVocabulary(page, save);
+  expect(added.length).toBeGreaterThan(0);
+  expect(added.length).toBeLessThan(names.length);
   await expect(
-    editor.getByText("Vocabulary saved.", { exact: true }),
+    page.getByText("That is the limit. Remove a term to add more."),
   ).toBeVisible();
+  await expectPageAxeClean(page, ".sys-vocab");
+  await page.screenshot({
+    path: testInfo.outputPath("vocabulary-prompt-limit.png"),
+  });
   await page.reload();
   await openPanel(page, "pipeline");
-  for (const name of names.slice(0, 3)) {
+  for (const name of added) {
     await expect(
-      editor.getByRole("button", { name: `Remove ${name}` }),
+      page.getByRole("button", { name: `Remove ${name}` }),
     ).toBeVisible();
   }
 });
