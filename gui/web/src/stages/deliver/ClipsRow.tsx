@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Skeleton } from "../../system/Skeleton";
 import { SystemIcon } from "../../system/SystemIcon";
 import { formatSeconds } from "../../system/seconds";
@@ -9,6 +9,7 @@ import { Button, EmptyState, Menu, MenuItem } from "../../ui";
 import { ClipTrimWave } from "./ClipTrimWave";
 import {
   type ClipWord,
+  normaliseWords,
   peaksForWindow,
   type TimeWindow,
   trimWindow,
@@ -30,7 +31,7 @@ type Props = {
   state?: "ready" | "loading";
   /** The clip whose In and Out are open for trimming. */
   trimming?: string | null;
-  /** Episode words in seconds, sorted; the handles snap to them. Without them the handles move freely. */
+  /** Episode words in seconds; the handles snap to them. Without them the handles move freely. */
   words?: readonly ClipWord[];
   /** Peaks spread evenly over the episode, 0 to 1. Without them the strip shows a flat line. */
   peaks?: readonly number[];
@@ -42,6 +43,14 @@ type Props = {
   onOpenInEdit: (id: string) => void;
   onFind: () => void;
 };
+
+const shown = (
+  { window }: { window: TimeWindow },
+  clip: { start: number; end: number },
+): TimeWindow => ({
+  start: Math.min(window.start, clip.start),
+  end: Math.max(window.end, clip.end),
+});
 
 const STRENGTH_NAME = ["Weak", "Fair", "Strong"] as const;
 
@@ -94,8 +103,8 @@ export function ClipsRow({
   total,
   state = "ready",
   trimming: initialTrimming = null,
-  words = [],
-  peaks = [],
+  words,
+  peaks,
   onRetitle,
   onTrim,
   onPlay,
@@ -104,6 +113,10 @@ export function ClipsRow({
   onOpenInEdit,
   onFind,
 }: Props) {
+  const sortedWords = useMemo(
+    () => (words ? normaliseWords(words) : undefined),
+    [words],
+  );
   const [trimming, setTrimming] = useState<{
     id: string;
     window: TimeWindow;
@@ -139,7 +152,7 @@ export function ClipsRow({
           {clips.map((clip, index) => {
             const name = names[index] ?? clip.title;
             const strength = clipStrength(clip.score);
-            const trim = trimming?.id === clip.id;
+            const active = trimming?.id === clip.id ? trimming : null;
             return (
               <li
                 key={clip.id}
@@ -159,15 +172,18 @@ export function ClipsRow({
                   value={clip.title}
                   onChange={(event) => onRetitle(clip.id, event.target.value)}
                 />
-                {trim && trimming ? (
+                {active ? (
                   <div className="dv-clip-trim">
                     <ClipTrimWave
                       name={name}
-                      peaks={peaksForWindow(peaks, total, trimming.window)}
-                      window={trimming.window}
+                      peaks={
+                        peaks &&
+                        peaksForWindow(peaks, total, shown(active, clip))
+                      }
+                      window={shown(active, clip)}
                       start={clip.start}
                       end={clip.end}
-                      words={words}
+                      words={sortedWords}
                       onTrim={(edge, at) => onTrim(clip.id, edge, at)}
                     />
                     <TimeField
@@ -232,10 +248,10 @@ export function ClipsRow({
                   )}
                   <ClipMenu
                     name={name}
-                    trimming={trim}
+                    trimming={active !== null}
                     onTrim={() =>
                       setTrimming(
-                        trim
+                        active
                           ? null
                           : { id: clip.id, window: trimWindow(clip, total) },
                       )
