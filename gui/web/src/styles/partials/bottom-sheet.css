@@ -488,7 +488,7 @@ html[data-shell="phone"] .bottom-sheet-root {
    its two buttons, so it is as tall as they are and the lanes the range is
    dragged across stay in view (#1793). */
 html[data-shell="tablet"]
-  .bottom-sheet--half:not(.bottom-sheet--compact):has(.range-numeric) {
+.bottom-sheet--half:not(.bottom-sheet--compact):has(.range-numeric) {
   height: auto;
   max-block-size: min(70%, 22rem);
 }

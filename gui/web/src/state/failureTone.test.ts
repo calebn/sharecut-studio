@@ -7,10 +7,7 @@ const FAILURE_WORDING =
   /errorMessage|\b(?:reason|error|fail\w*|could not|couldn't|can't|cannot|unable|refus\w*|STALE\w*)\b/i;
 
 /** Disabled-by-policy reasons ("Select a range"); a handler's own failure sets `announced`. */
-const POLICY_REASONS = [
-  "stage/dialogs/CommandPalette.tsx",
-  "stage/dialogs/SplitSpeakersDialog.tsx",
-];
+const POLICY_REASONS = ["stage/dialogs/CommandPalette.tsx"];
 
 /** Every `announceStatus(...)` call in production source, with its text. */
 function calls(): { where: string; text: string }[] {
