@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { Avatar, BrandSymbol, Menu, MenuItem, MenuSection, Pill } from "../ui";
+import { Avatar, BrandSymbol, Menu, MenuItem, MenuSection } from "../ui";
+import { CoachTip } from "./CoachTip";
 import type { SystemIconName } from "./icons";
+import type { LinkRole } from "./linkRoles";
+import { RoleChip } from "./RoleChip";
 import { SaveIndicator, type SaveIndicatorProps } from "./SaveIndicator";
 import { StageBar, type StageBarProps } from "./StageBar";
 import { SystemIcon } from "./SystemIcon";
@@ -16,7 +19,12 @@ export type AppHeaderProps = {
   stages?: StageBarProps;
   people?: readonly HeaderPerson[];
   /** A guest: the title gets a second line with the version and a Role chip. */
-  guest?: { version: string; role: "Editor" | "Commenter" | "Viewer" };
+  guest?: {
+    version: string;
+    role: LinkRole;
+    compact?: boolean;
+    hint?: { text: string; shown: boolean; onDismiss: () => void };
+  };
   recent?: readonly string[];
   /** The project is still loading: the title is known, the rest waits. */
   loading?: boolean;
@@ -32,6 +40,17 @@ export type AppHeaderProps = {
 };
 
 const MAX_AVATARS = 3;
+
+function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
+  const chip = <RoleChip access={guest.role} compact={guest.compact} />;
+  return guest.hint ? (
+    <CoachTip edge {...guest.hint}>
+      {chip}
+    </CoachTip>
+  ) : (
+    chip
+  );
+}
 
 function Row({ icon, children }: { icon: SystemIconName; children: string }) {
   return (
@@ -138,7 +157,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const shown = people.slice(0, MAX_AVATARS);
   const extra = people.length - shown.length;
-  const canEdit = !guest || guest.role === "Editor";
+  const canEdit = !guest || guest.role === "editor";
   return (
     <header className="sys-app-header-host" aria-busy={loading || undefined}>
       <div className="sys-app-header">
@@ -148,7 +167,7 @@ export function AppHeader({
               <span className="sys-header-title">{title}</span>
               <span className="sys-header-sub">
                 <span className="sys-mono">{guest.version}</span>
-                <Pill>{guest.role}</Pill>
+                <RoleHint guest={guest} />
               </span>
             </div>
           ) : (
