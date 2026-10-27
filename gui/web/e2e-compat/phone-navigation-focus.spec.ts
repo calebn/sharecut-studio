@@ -94,7 +94,11 @@ for (const { cell: rootPx, theme } of withAppearance([16, 32])) {
             for (let index = 0; index < count; index++) {
               const item = items.nth(index);
               await expect(item).toBeFocused();
-              await check((await item.innerText()).replaceAll("\n", " "), item);
+              await check(
+                (await item.innerText()).replaceAll("\n", " "),
+                item,
+                "inset",
+              );
               if (index < count - 1) await page.keyboard.press("ArrowDown");
             }
             expect(failures).toEqual([]);
