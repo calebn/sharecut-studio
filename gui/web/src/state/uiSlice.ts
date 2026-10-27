@@ -115,6 +115,7 @@ function endGestureToast(
 
 /** Save the waveform view of the open project (per browser). */
 function persistWaveformView(s: DawStore): void {
+  if (s.guestMode != null) return;
   writeWaveformViewPref(s.projectPath, {
     scale: s.waveformScale,
     amp: s.waveformAmpZoom,

@@ -3,6 +3,7 @@
  * post-fader drawing, in one `localStorage` map keyed by project path. A
  * convenience like `sharecut.laneHeight`, not durable project state.
  */
+import { isShareProjectKey } from "../shareMode";
 import type { WaveformScaleMode } from "../waveform/types";
 import { readLocal, writeLocal } from "./storage";
 import { clampWaveformAmp } from "./zoom";
@@ -76,13 +77,16 @@ export function parseWaveformViewPrefs(
 }
 
 export function readWaveformViewPref(projectPath: string): WaveformViewPref {
+  if (isShareProjectKey(projectPath)) {
+    return { ...DEFAULT_WAVEFORM_VIEW_PREF };
+  }
   const map = parseWaveformViewPrefs(readLocal(WAVEFORM_VIEW_STORAGE_KEY));
   const entry = map.get(projectPath);
   return entry ? entry : { ...DEFAULT_WAVEFORM_VIEW_PREF };
 }
 
 /**
- * Saves `pref` as `projectPath`'s entry, most recent last, and trims the map
+ * A share key embeds the bearer token, so it is never stored. Saves `pref` as `projectPath`'s entry, most recent last, and trims the map
  * to `WAVEFORM_VIEW_MAX_PROJECTS`. It rewrites the whole map with no version
  * check, so across tabs the last writer wins (as with `sharecut.laneHeight`):
  * two tabs saving at once can drop the other's entry. The cost is a
@@ -92,7 +96,7 @@ export function writeWaveformViewPref(
   projectPath: string,
   pref: WaveformViewPref,
 ): void {
-  if (projectPath === "") {
+  if (projectPath === "" || isShareProjectKey(projectPath)) {
     return;
   }
   const map = parseWaveformViewPrefs(readLocal(WAVEFORM_VIEW_STORAGE_KEY));
