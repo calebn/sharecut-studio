@@ -27,6 +27,7 @@ from podcast_mcp.models import (
     InsertAnchor,
     SessionSuggestion,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 _EPS = SPAN_EPS_S
 
@@ -136,6 +137,24 @@ def _move_keyed_state(
         project.review.comments = [kept.get(c.id, c) for c in project.review.comments]
 
 
+def _require_no_pending_replace_across(
+    project: EpisodeProject, at_sec: float, except_suggestion_id: str | None
+) -> None:
+    """Refuse to open time inside the range a pending replace session is waiting to replace."""
+    for row in project.editorial.session_suggestions:
+        if row.kind != "replace" or row.status != "pending" or row.id == except_suggestion_id:
+            continue
+        start = row.anchor.at_sec if row.anchor is not None else row.from_sec
+        stop = row.end_anchor.at_sec if row.end_anchor is not None else row.to_sec
+        if start is not None and stop is not None and start + _EPS < at_sec < stop - _EPS:
+            raise CodedValueError(
+                f"Session {row.session_number} is waiting to replace {start:.1f}s to {stop:.1f}s, "
+                "and this would add time inside that range. Accept or skip that session first, "
+                "then try again.",
+                code="pending_replace_in_the_way",
+            )
+
+
 def open_session_gap(
     project: EpisodeProject,
     at_sec: float,
@@ -149,7 +168,10 @@ def open_session_gap(
     """Open ``span_s`` of time at ``at_sec`` on ``track_ids`` and move everything keyed to it.
 
     ``keep_comment_ids`` stay where they are (a session's own comments, which sit before the gap).
+    A pending replace session whose range contains ``at_sec`` is refused
+    (``pending_replace_in_the_way``): opening time inside it would widen it over the new audio.
     """
+    _require_no_pending_replace_across(project, at_sec, except_suggestion_id)
     ripple_insert_clips(project, at_sec, span_s, track_ids, defaults=defaults)
     _move_keyed_state(
         project,
