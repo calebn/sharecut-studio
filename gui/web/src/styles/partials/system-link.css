@@ -3,7 +3,7 @@
   flex: none;
   align-items: center;
   gap: var(--space-1);
-  min-block-size: var(--status-chip-height);
+  min-block-size: var(--pill-height);
   padding-inline: var(--space-3);
   border-radius: var(--radius-lg);
   background: var(--color-bg-sunken);
