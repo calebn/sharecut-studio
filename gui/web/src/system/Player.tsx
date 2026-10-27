@@ -267,7 +267,9 @@ export function Player(props: PlayerProps) {
           </div>
           <div className="sys-player-right">
             {guest ? null : <HearOriginal {...props} />}
-            <VerbButton verb="comment" onClick={onComment} />
+            {onComment ? (
+              <VerbButton verb="comment" onClick={onComment} />
+            ) : null}
             <StatePills {...props} />
           </div>
         </div>
@@ -288,16 +290,18 @@ export function Player(props: PlayerProps) {
             <p className="sys-player-chapter">{chapters[chapter].title}</p>
           ) : null}
         </div>
-        <button
-          ref={collapseRef}
-          type="button"
-          className="sys-icon-btn"
-          aria-label="Collapse player"
-          title="Collapse player"
-          onClick={onCollapse}
-        >
-          <SystemIcon name="chevron-down" size={16} />
-        </button>
+        {onCollapse ? (
+          <button
+            ref={collapseRef}
+            type="button"
+            className="sys-icon-btn"
+            aria-label="Collapse player"
+            title="Collapse player"
+            onClick={onCollapse}
+          >
+            <SystemIcon name="chevron-down" size={16} />
+          </button>
+        ) : null}
       </div>
       <OverviewStrip
         height={64}
@@ -317,7 +321,7 @@ export function Player(props: PlayerProps) {
       </div>
       <div className="sys-player-actions">
         {guest ? null : <HearOriginal {...props} />}
-        <VerbButton verb="comment" onClick={onComment} />
+        {onComment ? <VerbButton verb="comment" onClick={onComment} /> : null}
       </div>
       {chapters.length > 0 ? (
         <ol className="sys-player-chapters" aria-label="Chapters">

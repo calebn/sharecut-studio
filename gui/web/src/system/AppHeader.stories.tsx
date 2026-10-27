@@ -106,7 +106,7 @@ export const Host: Story = {
 export const Guest: Story = {
   render: () => (
     <Header
-      guest={{ version: "v3", role: "Commenter" }}
+      guest={{ version: "v3", role: "commenter" }}
       people={people.slice(0, 2)}
     />
   ),
@@ -120,7 +120,7 @@ export const Guest: Story = {
 export const GuestEditor: Story = {
   render: () => (
     <Header
-      guest={{ version: "v3", role: "Editor" }}
+      guest={{ version: "v3", role: "editor" }}
       people={people.slice(0, 2)}
       stageIds={["edit", "review"]}
     />
@@ -134,7 +134,7 @@ export const GuestEditor: Story = {
 
 export const GuestViewer: Story = {
   render: () => (
-    <Header guest={{ version: "v3", role: "Viewer" }} withStages={false} />
+    <Header guest={{ version: "v3", role: "viewer" }} withStages={false} />
   ),
   play: async ({ canvasElement }) => {
     await expect(
@@ -193,7 +193,7 @@ export const RecordGuest: Story = {
   render: () => (
     <Header
       withStages={false}
-      guest={{ version: "Room", role: "Editor" }}
+      guest={{ version: "Room", role: "editor" }}
       title="Episode 14 recording"
       people={[]}
     />
