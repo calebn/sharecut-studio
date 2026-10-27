@@ -837,6 +837,13 @@ html[data-frame-short] .edit-workspace .edit-corner {
   display: none;
 }
 
+/* The phone's header bar steps aside for its Stage menu; off the phone the
+   bar stays and the menu is not needed. */
+html[data-frame-short][data-shell="phone"] .sys-header-stages,
+html[data-frame-short]:not([data-shell="phone"]) .sys-header-stage-button {
+  display: none;
+}
+
 html[data-frame-short] .sys-header-right {
   display: none;
 }

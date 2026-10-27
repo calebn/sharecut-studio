@@ -157,7 +157,7 @@ export async function waitForLanding(page: Page): Promise<void> {
  * and the tool strip behind the header's Tools button. Open its sheet when it
  * is there; the controls it holds are then visible. Returns whether it opened.
  */
-async function openToolsIfFolded(page: Page): Promise<boolean> {
+export async function openToolsIfFolded(page: Page): Promise<boolean> {
   const button = page.getByRole("button", { name: "Tools", exact: true });
   if (!(await button.isVisible())) return false;
   const sheet = page.getByRole("dialog", { name: "Tools" });
@@ -169,7 +169,7 @@ async function openToolsIfFolded(page: Page): Promise<boolean> {
 }
 
 /** Close the Tools sheet after a control inside it was used, if it is open. */
-async function closeTools(page: Page): Promise<void> {
+export async function closeTools(page: Page): Promise<void> {
   const sheet = page.getByRole("dialog", { name: "Tools" });
   if (await sheet.isVisible()) {
     await sheet.getByRole("button", { name: "Close" }).click();

@@ -22,6 +22,7 @@ import { type InteractionReceipt, test } from "./interactionEvidence";
 import { rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
+import { closeTools, openToolsIfFolded } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 import { json } from "./touchTimeline";
 
@@ -46,6 +47,8 @@ async function setup(
   }
   await openHostShare(page, projectPath);
   if (page.viewportSize()!.width < 720) {
+    // A frame too short for its rows folds the surface switch into Tools.
+    const folded = await openToolsIfFolded(page);
     await pointerControl(
       page,
       page
@@ -53,6 +56,7 @@ async function setup(
         .getByRole("button", { name: "Timeline", exact: true }),
       receipts,
     );
+    if (folded) await closeTools(page);
   }
   await expect(
     page.locator('.timeline-scroll .track-headers:not([aria-busy="true"])'),
