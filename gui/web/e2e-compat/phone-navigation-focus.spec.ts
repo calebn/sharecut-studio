@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+import { expect, type Locator } from "@playwright/test";
 import { emptyEnvelopeProject } from "../e2e/envelopeCreationEvidence";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
 import { test } from "../e2e/interactionEvidence";
@@ -36,9 +36,70 @@ for (const { cell: rootPx, theme } of withAppearance([16, 32])) {
           );
 
           // The Stage bar is one roving tab stop: native Tab reaches it, and
-          // the arrows walk its tabs.
+          // the arrows walk its tabs. Too narrow for the bar (large text on a
+          // phone), it folds into the header's Stage menu: native Tab reaches
+          // that button, and the arrows walk the menu's items.
           const navigation = page.getByRole("tablist", { name: "Stages" });
-          await expect(navigation).toBeVisible();
+          const stageMenu = page.getByRole("button", { name: /^Stage menu, / });
+          await expect(navigation.or(stageMenu)).toBeVisible();
+          const folded = await stageMenu.isVisible();
+          if (folded) {
+            const tabKey = browserName === "webkit" ? "Alt+Tab" : "Tab";
+            const focusableCount = await page
+              .locator(
+                'a[href], input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), [tabindex]:not([tabindex="-1"])',
+              )
+              .count();
+            const isFocused = () =>
+              stageMenu.evaluate((el) => el === document.activeElement);
+            for (let step = 0; step <= focusableCount; step++) {
+              await page.keyboard.press(tabKey);
+              if (await isFocused()) break;
+            }
+            expect(await isFocused(), "native Tab reaches the Stage menu").toBe(
+              true,
+            );
+            const failures: string[] = [];
+            // The menu's items draw an inset ring (box-shadow) so the panel's
+            // scrollport never clips it; the button keeps its outline.
+            const check = async (
+              label: string,
+              target: Locator,
+              ring: "outline" | "inset",
+            ) => {
+              const geometry = await controlGeometry(target);
+              receipts.push({
+                checkpoint: "phone-navigation-native-focus",
+                observation: { browserName, rootPx, theme, label, geometry },
+              });
+              await shot(info, page, `nav-${label}-${theme}-root${rootPx}`);
+              const indicator = geometry.focusIndicator;
+              const drawn =
+                ring === "outline"
+                  ? indicator.state === "outline" &&
+                    indicator.full &&
+                    indicator.visibleArea.state === "positive"
+                  : (
+                      await target.evaluate(
+                        (el) => getComputedStyle(el).boxShadow,
+                      )
+                    ).includes("inset");
+              if (!drawn || !geometry.measured[0]?.full) failures.push(label);
+            };
+            await check("Stage menu", stageMenu, "outline");
+            await page.keyboard.press("Enter");
+            const items = page.getByRole("menuitem");
+            const count = await items.count();
+            expect(count).toBeGreaterThan(0);
+            for (let index = 0; index < count; index++) {
+              const item = items.nth(index);
+              await expect(item).toBeFocused();
+              await check((await item.innerText()).replaceAll("\n", " "), item);
+              if (index < count - 1) await page.keyboard.press("ArrowDown");
+            }
+            expect(failures).toEqual([]);
+            return;
+          }
           const buttons = await navigation.getByRole("tab").all();
           expect(buttons.length).toBeGreaterThan(0);
           const measured = [];
