@@ -25,6 +25,7 @@ from podcast_mcp.engines.room_tone import (
     room_tone_pool_digest,
 )
 from podcast_mcp.engines.timeline_render import render_track_segment
+from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
@@ -258,27 +259,28 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         else:
             project, play_end = self.project, window.play_end
         trim = self.mix_trim_db(lock_timeout=lock_timeout)
+        self._render_mix_window(project, window.play_start, play_end, out, trim_db=trim)
+        self._mark_play_cache_used(out)
+        return out
+
+    def _render_mix_window(
+        self, project: EpisodeProject, start: float, end: float, out: Path, *, trim_db: float
+    ) -> None:
+        """Mix ``project``'s audible tracks over ``[start, end]`` into ``out`` at ``trim_db``."""
         with tempfile.TemporaryDirectory(dir=out.parent) as directory:
             segments: list[tuple[Path, float]] = []
             for track in project.tracks:
                 if track.muted or track.media is None:
                     continue
                 segment = Path(directory) / f"{track.id}.wav"
-                render_track_segment(
-                    project, track.id, window.play_start, play_end, segment, self._defaults
-                )
+                render_track_segment(project, track.id, start, end, segment, self._defaults)
                 segments.append((segment, track.fader_db))
             if segments:
                 render_atomic(
                     out,
-                    lambda temporary: FFmpegEngine().mix_tracks(segments, temporary, trim_db=trim),
-                )
-            else:
-                render_atomic(
-                    out,
-                    lambda temporary: FFmpegEngine().silence(
-                        temporary, play_end - window.play_start
+                    lambda temporary: FFmpegEngine().mix_tracks(
+                        segments, temporary, trim_db=trim_db
                     ),
                 )
-        self._mark_play_cache_used(out)
-        return out
+            else:
+                render_atomic(out, lambda temporary: FFmpegEngine().silence(temporary, end - start))

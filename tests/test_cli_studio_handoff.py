@@ -596,3 +596,27 @@ def test_a_studio_answering_the_ping_with_an_empty_list_stops_the_command_with_a
     assert "Traceback" not in result.output
     assert result.exception is None or isinstance(result.exception, SystemExit)
     assert comment_bodies(minimal_project) == []
+
+
+@pytest.mark.parametrize("status", [404, 503])
+def test_a_live_studio_http_error_stops_the_command_without_a_direct_write(
+    minimal_project: Path, status: int
+) -> None:
+    from typer.testing import CliRunner
+
+    with ping_answering(status, b"service unavailable") as port:
+        announce_studio_host(
+            minimal_project, StudioHost("x", os.getpid(), "127.0.0.1", port, "tok", "0")
+        )
+        result = CliRunner().invoke(
+            cli_app,
+            [
+                "comment", "add", "--project", str(minimal_project), "--body", "x",
+                "--author", "a", "--start", "1",
+            ],
+        )  # fmt: skip
+    assert result.exit_code == 1
+    assert "not a Studio reply" in result.output
+    assert "Traceback" not in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert comment_bodies(minimal_project) == []

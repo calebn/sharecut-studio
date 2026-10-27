@@ -102,16 +102,16 @@ class StudioUnresponsive(Exception):
 
 
 class StudioBadReply(StudioUnresponsive):
-    """A Studio is announced and answered the ping with 200, but the body is not a Studio reply.
+    """A Studio is announced but answered the ping with an invalid or unsupported reply.
 
-    Another program may hold the port, so the caller must not write directly on its own.
+    The caller cannot safely establish a handoff, so it must not write directly on its own.
     """
 
     def __init__(self, host: StudioHost) -> None:
         Exception.__init__(
             self,
-            f"Studio (pid {host.pid}) is serving this project but answered the handoff check "
-            "with something that is not a Studio reply, so another program may hold its port. "
+            f"Studio (pid {host.pid}) is announced for this project but answered the handoff "
+            "check with a reply that is not a Studio reply or uses an unsupported protocol. "
             f"Nothing was run. Set {DIRECT_ENV_VAR}=1 to write directly "
             "(this may overwrite what Studio is holding).",
         )
@@ -230,10 +230,10 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
 
 
 def locate_studio(project_path: Path | str) -> StudioHost | None:
-    """The Studio that is serving ``project_path`` right now, or None to write directly.
+    """Find the Studio serving ``project_path``, or return None when it is absent.
 
-    Raises ``StudioUnresponsive`` when a Studio accepts the connection but stays silent, and
-    ``StudioBadReply`` when it answers 200 with something that is not a Studio reply.
+    Raises ``StudioUnresponsive`` when an announced Studio accepts the connection but stays
+    silent, and ``StudioBadReply`` when it answers with an invalid or unsupported reply.
     """
     if settings.flag(DIRECT_ENV_VAR):
         return None
@@ -252,14 +252,21 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
         log.debug("studio announced at %s:%s did not answer", host.host, host.port)
         return None
     if status != 200:
-        return None
+        raise StudioBadReply(host)
     if not isinstance(body, dict):
         raise StudioBadReply(host)
-    if (
-        body.get("instance") != host.instance
-        or body.get("protocol") != HANDOFF_PROTOCOL
-        or body.get("serves") is not True
-    ):
+    instance = body.get("instance")
+    if not isinstance(instance, str) or not instance:
+        raise StudioBadReply(host)
+    if instance != host.instance:
+        return None
+    protocol = body.get("protocol")
+    if type(protocol) is not int or protocol != HANDOFF_PROTOCOL:
+        raise StudioBadReply(host)
+    serves = body.get("serves")
+    if not isinstance(serves, bool):
+        raise StudioBadReply(host)
+    if not serves:
         return None
     # An older Studio sends no key and does mount /mcp.
     return dataclasses.replace(host, mcp=body.get("mcp") is not False)

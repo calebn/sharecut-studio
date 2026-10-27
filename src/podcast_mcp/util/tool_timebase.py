@@ -17,6 +17,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "play_ab_wavs_tool": "na",
     "play_pending_preview_tool": "timeline",
     "audition_context_tool": "timeline",
+    "hear_session_suggestion_tool": "timeline",
     # Edit decisions and transcript words are stored in source media seconds.
     "cut_time_range_tool": "source",
     "cut_text_match_tool": "source",

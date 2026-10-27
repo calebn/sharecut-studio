@@ -134,6 +134,47 @@ def review_accept_session_suggestion_cmd(
     typer.echo(json.dumps(result, indent=2))
 
 
+@review_app.command("preview-session-suggestion")
+def review_preview_session_suggestion_cmd(
+    project: Path = typer.Option(..., "--project"),
+    suggestion_id: str = typer.Option(..., "--id", help="Suggestion id from session-suggestions"),
+    take: int | None = typer.Option(
+        None,
+        "--take",
+        help="Take index to hear for a replace session (default: the selected or last take)",
+    ),
+    mode: str = typer.Option("ab", "--mode", help="current | suggested | ab"),
+    pad: float = typer.Option(1.5, "--pad", help="Seconds of audio around the change"),
+    gap: float = typer.Option(0.4, "--gap", help="Silence between A and B"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Render the WAVs; do not play"),
+    player: str | None = typer.Option(None, "--player", help="Override player binary"),
+    rerender: bool = typer.Option(False, "--rerender", help="Render the windows again"),
+) -> None:
+    """Hear a pending session before accepting it: now (A), after accepting (B), or A then B.
+
+    B is what accept-session-suggestion would give, for the same --take. Nothing in the project
+    changes, and a replace that would remove another track's speech still plays.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project)
+    try:
+        result = SessionSuggestionService(ws).preview(
+            suggestion_id,
+            mode=mode,
+            take_index=take,
+            pad_sec=pad,
+            gap_sec=gap,
+            rerender=rerender,
+            dry_run=dry_run,
+            player=player,
+        )
+    except CodedError as exc:
+        typer.echo(describe_error(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result, indent=2))
+
+
 @review_app.command("set-active")
 def review_set_active_cmd(
     project: Path = typer.Option(..., "--project"),

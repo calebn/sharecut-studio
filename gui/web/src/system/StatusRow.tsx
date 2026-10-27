@@ -1,6 +1,7 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Button } from "../ui";
 import type { SystemIconName } from "./icons";
+import { clampUnit, percentOf } from "./progress";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
 import type { StatusState } from "./statusText";
@@ -20,15 +21,26 @@ const GLYPH: Record<StatusRowState, StatusState> = {
   failed: "failed",
 };
 
-export type StatusRowProps = {
+type StatusRowProps = {
   state: StatusRowState;
   title: string;
   /** Numbers and plain detail: "3 of 5 sources". */
   detail?: string;
-  /** 0 to 1, shown as a 4 px bar while running. */
+  /** 0 to 1 (held to that range), shown as a 4 px bar while running. */
   progress?: number;
-  /** At most one action. */
-  action?: { label: string; icon?: SystemIconName; onAction: () => void };
+  /** Words for the bar when `detail` is not a sentence of its own ("62 percent"). */
+  valueText?: string;
+  /** The bar's accessible name when the title alone would repeat across rows. */
+  barLabel?: string;
+  /** At most one action; `name` is the accessible name when the label alone would repeat. */
+  action?: {
+    label: string;
+    name?: string;
+    icon?: SystemIconName;
+    onAction: () => void;
+  };
+  /** The technical cause of a failed row, behind a Details button. */
+  details?: string;
   /** `list` 48, `alert` 44, `inline` 32. */
   density?: "list" | "alert" | "inline";
   /** Child rows make the row expandable. */
@@ -43,14 +55,22 @@ export function StatusRow({
   title,
   detail,
   progress,
+  valueText,
+  barLabel,
   action,
+  details,
   density = "list",
   children,
   expanded = false,
   onToggle,
 }: StatusRowProps) {
   const childrenId = useId();
-  const expandable = children !== undefined && children !== null;
+  const detailsId = useId();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const cause = details?.trim();
+  const showDetails = state === "failed" && Boolean(cause);
+  if (!showDetails && detailsOpen) setDetailsOpen(false);
+  const expandable = Boolean(children);
   const text = (
     <>
       <span className="sys-status-title">{title}</span>
@@ -60,7 +80,7 @@ export function StatusRow({
   return (
     <div className={`sys-status sys-status--${density}`} data-state={state}>
       <div className="sys-status-line">
-        <StatusGlyph state={GLYPH[state]} progress={progress} />
+        <StatusGlyph state={GLYPH[state]} progress={progress} colon />
         {expandable ? (
           <button
             type="button"
@@ -74,23 +94,51 @@ export function StatusRow({
         ) : (
           <span className="sys-status-text">{text}</span>
         )}
-        {action ? (
-          <Button onClick={action.onAction}>
-            {action.icon ? <SystemIcon name={action.icon} size={14} /> : null}
-            {action.label}
-          </Button>
+        {action || showDetails ? (
+          <div className="sys-status-actions">
+            {showDetails ? (
+              <Button
+                aria-expanded={detailsOpen}
+                aria-controls={detailsOpen ? detailsId : undefined}
+                aria-label={`Details for ${title}`}
+                onClick={() => setDetailsOpen((open) => !open)}
+              >
+                Details
+              </Button>
+            ) : null}
+            {action ? (
+              <Button
+                variant={state === "failed" ? "primary" : "default"}
+                aria-label={action.name}
+                onClick={action.onAction}
+              >
+                {action.icon ? (
+                  <SystemIcon name={action.icon} size={14} />
+                ) : null}
+                {action.label}
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
+      {showDetails && detailsOpen ? (
+        <p id={detailsId} className="sys-status-cause">
+          {cause}
+        </p>
+      ) : null}
       {state === "running" && progress !== undefined ? (
         <div
           className="sys-status-bar"
           role="progressbar"
-          aria-label={title}
+          aria-label={barLabel ?? title}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(progress * 100)}
+          aria-valuenow={percentOf(progress)}
+          aria-valuetext={
+            valueText ?? (detail || `${percentOf(progress)} percent`)
+          }
         >
-          <span style={{ inlineSize: `${progress * 100}%` }} />
+          <span style={{ inlineSize: `${clampUnit(progress) * 100}%` }} />
         </div>
       ) : null}
       {expandable && expanded ? (

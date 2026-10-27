@@ -306,10 +306,79 @@ def test_a_ping_body_that_is_too_deep_or_too_long_is_never_bypassed(
 
 
 @pytest.mark.parametrize(("status", "body"), [(503, b""), (503, b"[]"), (404, b"not json")])
-def test_a_ping_that_is_not_200_is_a_direct_write(project: Path, status: int, body: bytes) -> None:
+def test_a_ping_that_is_not_200_is_never_bypassed(project: Path, status: int, body: bytes) -> None:
     with ping_answering(status, body) as port:
         announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply") as caught:
+            locate_studio(project)
+    assert caught.value.host.port == port
+
+
+@pytest.mark.parametrize(
+    "protocol",
+    [
+        pytest.param(HANDOFF_PROTOCOL + 1, id="unsupported-integer"),
+        pytest.param(True, id="boolean-equal-to-integer"),
+        pytest.param(1.0, id="float-equal-to-integer"),
+        pytest.param("1", id="string"),
+        pytest.param(None, id="null"),
+    ],
+)
+def test_a_matching_ping_with_an_unsupported_protocol_is_never_bypassed(
+    project: Path, protocol: object
+) -> None:
+    body = json.dumps({"instance": "a1", "protocol": protocol, "serves": True}).encode()
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply") as caught:
+            locate_studio(project)
+    assert caught.value.host.port == port
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        pytest.param({}, id="missing"),
+        pytest.param({"instance": None}, id="null"),
+        pytest.param({"instance": ""}, id="empty"),
+        pytest.param({"instance": 1}, id="not-a-string"),
+    ],
+)
+def test_a_ping_with_an_invalid_instance_is_never_bypassed(
+    project: Path, identity: dict[str, object]
+) -> None:
+    body = json.dumps({"protocol": HANDOFF_PROTOCOL, "serves": True, **identity}).encode()
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply"):
+            locate_studio(project)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        json.dumps({"instance": "another-run", "protocol": HANDOFF_PROTOCOL, "serves": True}),
+        json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL, "serves": False}),
+    ],
+    ids=["different-instance", "not-serving-project"],
+)
+def test_a_positive_ping_for_another_instance_or_project_is_absence(
+    project: Path, body: str
+) -> None:
+    with ping_answering(200, body.encode()) as port:
+        announce_studio_host(project, _host(port=port))
         assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize("fields", [{}, {"serves": None}, {"serves": "yes"}, {"serves": 1}])
+def test_a_matching_ping_with_missing_or_invalid_serves_is_never_bypassed(
+    project: Path, fields: dict[str, object]
+) -> None:
+    body = json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL, **fields})
+    with ping_answering(200, body.encode()) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply"):
+            locate_studio(project)
 
 
 @pytest.mark.parametrize(
