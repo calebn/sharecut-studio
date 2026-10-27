@@ -12,9 +12,6 @@ import { stubViewportShell } from "../../test/viewportShell";
 import type { StageId } from "../../types/stage";
 import { StageHost } from "./StageHost";
 
-vi.mock("../../panels/PipelinePanel", () => ({
-  PipelinePanel: () => <div>pipeline panel</div>,
-}));
 vi.mock("../../panels/ImpactPanel", () => ({
   ImpactPanel: () => <div>impact panel</div>,
 }));
@@ -73,7 +70,7 @@ describe("StageHost gating", () => {
       expect(
         screen.queryByRole("button", { name: /Open the room/ }),
       ).toBeNull();
-      expect(screen.queryByText("pipeline panel")).toBeNull();
+      expect(screen.queryByRole("list", { name: "Getting ready" })).toBeNull();
     },
   );
 
@@ -97,7 +94,7 @@ describe("StageHost gating", () => {
   it("opens every stage for the host", () => {
     for (const [stage, text] of [
       ["record", "No take yet"],
-      ["prepare", "Getting ready"],
+      ["prepare", "Help the transcriber"],
       ["edit", "edit workspace"],
       ["review", "comments panel"],
       ["deliver", "Episode file"],
@@ -160,41 +157,66 @@ describe("Review host", () => {
 });
 
 describe("Prepare host", () => {
-  it("shows the import entry points and the pipeline", () => {
+  it("shows the import entry points and the Getting ready rows", () => {
     asHost("prepare");
     mount();
     expect(
-      screen.getByRole("button", { name: /Add audio/ }),
+      screen.getByRole("button", { name: /Import audio/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Record/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Getting ready" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Record another session" }),
+      screen.getByRole("button", { name: /Advanced/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText("pipeline panel")).toBeInTheDocument();
   });
 
   it("goes to Record from the record entry point", async () => {
     asHost("prepare");
     mount();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Record another session" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: /^Record/ }));
     expect(useDawStore.getState().stage).toBe("record");
   });
 
-  it("hands off to Edit when nothing waits", async () => {
+  it("offers the hand-off to Edit while it works, quietly, with its reason", () => {
     asHost("prepare");
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const handoff = screen.getByRole("button", { name: /Edit/ });
+    expect(handoff).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Still getting ready")).toBeInTheDocument();
+  });
+
+  it("hands off to Edit once everything is done", async () => {
+    asHost("prepare");
+    useDawStore.setState({
+      project: minimalProject({
+        tracks: [sampleTrack({ speaker: "Maya" })],
+        transcript: {
+          utterances: [
+            {
+              track_id: "host",
+              speaker: "Maya",
+              start: 0,
+              end: 1,
+              text: "Hello",
+            },
+          ],
+        },
+      }),
+    });
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: /Edit/ }));
     expect(useDawStore.getState().stage).toBe("edit");
   });
 
-  it("shows only the drop target and sources for a project with no tracks", () => {
+  it("shows only the two large tiles for a project with no tracks", () => {
     asHost("prepare", []);
     mount();
     expect(
-      screen.getByRole("button", { name: /Drop audio files here/ }),
+      screen.getByRole("button", { name: /Import audio/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("pipeline panel")).toBeNull();
+    expect(screen.queryByRole("list", { name: "Getting ready" })).toBeNull();
   });
 
   it("keeps a skeleton while the project loads", () => {
@@ -202,7 +224,7 @@ describe("Prepare host", () => {
     useDawStore.setState({ project: null });
     const { container } = mount();
     expect(container.querySelector("[aria-busy='true']")).not.toBeNull();
-    expect(screen.queryByText("pipeline panel")).toBeNull();
+    expect(screen.queryByRole("list", { name: "Getting ready" })).toBeNull();
   });
 
   it("says the project could not load and retries", async () => {

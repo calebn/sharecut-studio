@@ -75,7 +75,7 @@ const REMOVED_SURFACES: Entry[] = [
     { file: "stage/frame/useHeaderProps.ts", needle: "mcp.connect" },
   ]),
   entry("transport Menu", "Import audio", "media.import", [
-    { file: "stage/hosts/PrepareStage.tsx", needle: "media.import" },
+    { file: "stages/prepare/usePrepareModel.ts", needle: "pickAudioFiles" },
   ]),
   entry("transport Menu", "New track", "track.add"),
   entry("transport Menu", "Remove track", "track.remove"),
@@ -168,7 +168,7 @@ const REMOVED_SURFACES: Entry[] = [
     { file: "stage/hosts/ReviewStage.tsx", needle: "TightenPanel" },
   ]),
   component("More hub", "Pipeline", [
-    { file: "stage/hosts/PrepareStage.tsx", needle: "PipelinePanel" },
+    { file: "stage/hosts/PrepareStageView.tsx", needle: "AdvancedSteps" },
   ]),
   entry("More hub", "History", "edit.history", [
     { file: "stage/frame/SheetHost.tsx", needle: "HistoryPanel" },
