@@ -189,6 +189,20 @@ def drop_staged_takes(project: EpisodeProject, session_id: str, take_index: int)
     project.editorial.session_suggestions = kept
 
 
+def discard_unchosen_takes(
+    project: EpisodeProject, row: SessionSuggestion, chosen: int
+) -> list[int]:
+    """Drop the staged segments (and the comments held on them) of every take but ``chosen``.
+
+    Only staged rows go: the takes' recordings stay registered as sources and on disk, since a
+    history step or a clip may still reference them. Returns the take indexes dropped.
+    """
+    dropped = sorted({take.take_index for take in row.takes if take.take_index != chosen})
+    for index in dropped:
+        drop_staged_takes(project, row.session_id, index)
+    return dropped
+
+
 def _not_pending_message(row: SessionSuggestion) -> str:
     return (
         f"Session {row.session_number} was already {row.status}, so it cannot be changed again. "
@@ -557,10 +571,13 @@ def _apply_replace(
     comments = _place_comments(project, takes, from_sec)
     refresh_timeline_duration(project)
     rebuild_combined(project, defaults=defaults)
+    comments_not_placed = sum(len(take.comments) for take in row.takes if take.take_index != chosen)
+    discarded = discard_unchosen_takes(project, row, chosen)
     row.selected_take = chosen
     row.status = "accepted"
     return {
         "suggestion": row.model_dump(mode="json"),
+        "discarded_takes": discarded,
         "at_sec": from_sec,
         "from_sec": from_sec,
         "to_sec": to_sec,
@@ -570,9 +587,7 @@ def _apply_replace(
         "take_index": chosen,
         "clips": placed,
         "comments": comments,
-        "comments_not_placed": sum(
-            len(take.comments) for take in row.takes if take.take_index != chosen
-        ),
+        "comments_not_placed": comments_not_placed,
         "room_tone_not_placed": len(row.room_tone),
         "clamped_comment_ids": clamped,
         "retired_decision_ids": sorted(set(unplayed_pending_ids(project)) - unplayed_before),

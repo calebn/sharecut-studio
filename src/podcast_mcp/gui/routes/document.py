@@ -276,6 +276,43 @@ def session_suggestion_warm(
         raise bad_request_error(exc) from exc
 
 
+@router.get("/api/session-suggestion/takes")
+def session_suggestion_takes(
+    request: Request,
+    path: str = Query(...),
+    suggestion_id: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    """The takes of a staged session for a take switcher: length, words, chosen and default."""
+    _ws, service = _session_heard(request, path, token, x_podcast_token)
+    try:
+        return service.takes(suggestion_id)
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="session_suggestion_not_found") from exc
+    except ValueError as exc:
+        raise bad_request_error(exc) from exc
+
+
+@router.post("/api/session-suggestion/select-take")
+def session_suggestion_select_take(
+    request: Request,
+    path: str = Query(...),
+    suggestion_id: str = Query(...),
+    take_index: int = Query(..., ge=0),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    """Pick the take Accept places for a pending replace (one undo step)."""
+    _ws, service = _session_heard(request, path, token, x_podcast_token)
+    try:
+        return service.select_take(suggestion_id, take_index)
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="session_suggestion_not_found") from exc
+    except ValueError as exc:
+        raise bad_request_error(exc) from exc
+
+
 @router.get("/api/session-suggestion/hear")
 def session_suggestion_hear(
     request: Request,

@@ -201,7 +201,14 @@ def resolve_range(project: EpisodeProject, row: SessionSuggestion) -> tuple[floa
         )
     start = resolve_insert_anchor(project, anchor)
     stop = resolve_insert_anchor(project, end_anchor)
-    if start < -_EPS or stop - start <= _EPS:
+    if start >= -_EPS and stop - start <= _EPS:
+        raise CodedValueError(
+            "The audio this session was recorded to replace has been cut away, so there is "
+            "nothing left in that range to replace. Record the session again over audio that "
+            "is still there.",
+            code="stale_anchor",
+        )
+    if start < -_EPS:
         raise _stale()
     staged_length = end_anchor.at_sec - anchor.at_sec
     if abs((stop - start) - staged_length) > _EPS:
