@@ -1,9 +1,9 @@
-export type ScrubModifiers = {
+type ScrubModifiers = {
   readonly shiftKey: boolean;
   readonly altKey: boolean;
 };
 
-export type ScrubBounds = { readonly min?: number; readonly max?: number };
+type ScrubBounds = { readonly min?: number; readonly max?: number };
 
 const COARSE = 10;
 const FINE = 0.1;

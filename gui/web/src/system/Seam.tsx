@@ -2,7 +2,7 @@ import { HoverTip } from "./HoverTip";
 import { SystemIcon } from "./SystemIcon";
 import { useHoverTip } from "./useHoverTip";
 
-export type SeamKind = "cut" | "split";
+type SeamKind = "cut" | "split";
 
 type SeamFormProps =
   | {

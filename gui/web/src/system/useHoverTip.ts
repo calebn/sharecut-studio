@@ -14,7 +14,7 @@ type TipHandlers = {
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 };
 
-export type HoverTipState<T extends HTMLElement> = {
+type HoverTipState<T extends HTMLElement> = {
   open: boolean;
   id: string;
   /** The ref callback for the trigger the tip hangs over. */
