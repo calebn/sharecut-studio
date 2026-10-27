@@ -9,7 +9,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService, RecordTakeOpenError
 from podcast_mcp.services.record.live_comments import LIVE_COMMENT_ID_PREFIX
-from podcast_mcp.services.record.service import RecordSessionService, next_record_client_seq
+from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID, parse_session_target
 
 
@@ -73,7 +73,7 @@ class RecordControlService:
             client_id="cli",
             role="host",
             participant_id=HOST_PARTICIPANT_ID,
-            client_seq=next_record_client_seq(),
+            client_seq=None,
         )
         return self._svc.submit(cmd)
 

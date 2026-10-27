@@ -203,7 +203,7 @@ class RecordCommand:
     client_id: str
     role: RecordRole
     participant_id: str | None
-    client_seq: int
+    client_seq: int | None
     command_id: str = field(default_factory=lambda: uuid4().hex)
 
     @classmethod
@@ -215,7 +215,7 @@ class RecordCommand:
         client_id: str,
         role: RecordRole,
         participant_id: str | None,
-        client_seq: int,
+        client_seq: int | None,
         command_id: str | None = None,
     ) -> RecordCommand:
         cleaned = validate_record_payload(command_type, payload or {})
