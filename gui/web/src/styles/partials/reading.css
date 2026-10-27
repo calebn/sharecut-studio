@@ -4,29 +4,20 @@
    live in cover-layout.css (synced from deploy/brand/). Timeline z-index is
    paint order, not elevation. */
 
-.home-screen,
 .loading-screen,
 .error-screen,
 .review-shell,
-.record-shell,
-.bootstrap-wizard {
+.record-shell {
   font-size: var(--font-size-review);
   line-height: 1.5;
 }
 
-.home-screen .modifier-action,
-.bootstrap-wizard .modifier-action {
-  min-block-size: var(--tap-comfortable);
-  padding-inline: var(--s1);
-}
-
-:is(.home-screen, .review-shell, .record-shell, .bootstrap-wizard)
-  .ui-control:not(.dialog-close) {
+:is(.review-shell, .record-shell) .ui-control:not(.dialog-close) {
   min-block-size: var(--touch-min);
   font-size: var(--font-size-review);
 }
 
-:is(.home-screen, .review-shell, .record-shell, .bootstrap-wizard)
+:is(.review-shell, .record-shell)
   :is(.ui-field-label, .ui-field-hint, .inline-error) {
   font-size: var(--font-size-body);
 }
@@ -36,11 +27,8 @@
   margin: 0;
 }
 
-.home-screen input:not([type="checkbox"], [type="radio"], [type="range"]),
-.home-screen select,
 .record-shell input:not([type="checkbox"], [type="radio"], [type="range"]),
-.record-shell select,
-.bootstrap-wizard select {
+.record-shell select {
   font: inherit;
   font-size: var(--font-size-field-current);
   padding: var(--space-3) var(--space-3);
@@ -52,19 +40,12 @@
   inline-size: 100%;
 }
 
-.home-screen select:disabled,
-.record-shell select:disabled,
-.bootstrap-wizard select:disabled {
+.record-shell select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.home-screen .ui-field {
-  margin-bottom: 0;
-}
-
-:is(.home-screen, .record-shell, .bootstrap-wizard)
-  label:has(input[type="checkbox"], input[type="radio"]) {
+.record-shell label:has(input[type="checkbox"], input[type="radio"]) {
   min-block-size: var(--touch-min);
 }
 

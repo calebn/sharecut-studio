@@ -6,15 +6,6 @@ import type { ModelView } from "./types";
 
 export type ModelRowAction =
   | {
-      kind: "select";
-      checked: boolean;
-      /** Not changeable: a required model, or a download that has started. */
-      locked: boolean;
-      /** Id of a visible note that says why the box is locked (for example a running download). */
-      lockedNoteId?: string;
-      onToggle: () => void;
-    }
-  | {
       kind: "download";
       onDownload: () => void;
       /** Offered while this row downloads. */
@@ -47,39 +38,8 @@ export function ModelRow({ model, variantPicker, action }: Props) {
   const uid = useId();
   const rowRef = useRef<HTMLLIElement>(null);
   const keepFocus = useRef(false);
-  const nameId = `${uid}-name`;
-  const purposeId = `${uid}-purpose`;
-  const requiredId = `${uid}-required`;
   const blockedId = `${uid}-blocked`;
   const { state } = model;
-  const requiredNote =
-    action.kind === "select" && model.tier === "required"
-      ? `Required for ${model.purpose}`
-      : null;
-
-  const name =
-    action.kind === "select" ? (
-      <label className="model-row-name model-row-select">
-        <input
-          type="checkbox"
-          checked={action.checked}
-          disabled={action.locked}
-          onChange={action.onToggle}
-          aria-describedby={[
-            purposeId,
-            requiredNote ? requiredId : null,
-            action.locked && action.lockedNoteId ? action.lockedNoteId : null,
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        />
-        <span id={nameId}>{model.label}</span>
-      </label>
-    ) : (
-      <span className="model-row-name" id={nameId}>
-        {model.label}
-      </span>
-    );
 
   const buttonLabel = downloadLabel(state.kind);
   const showDownload =
@@ -125,21 +85,14 @@ export function ModelRow({ model, variantPicker, action }: Props) {
       data-state={state.kind}
     >
       <div className="cluster model-row-head">
-        {name}
+        <span className="model-row-name">{model.label}</span>
         <Pill>{tierText(model.tier)}</Pill>
         <span className="model-row-size">{model.size}</span>
         <span className="model-row-state" role="status">
           {stateText(state)}
         </span>
       </div>
-      <p className="model-row-purpose" id={purposeId}>
-        {capitalize(model.purpose)}
-      </p>
-      {requiredNote ? (
-        <p className="model-row-note" id={requiredId}>
-          {requiredNote}
-        </p>
-      ) : null}
+      <p className="model-row-purpose">{capitalize(model.purpose)}</p>
       {variantPicker}
       {state.kind === "downloading" ? (
         <ModelProgress state={state} label={model.label} />
