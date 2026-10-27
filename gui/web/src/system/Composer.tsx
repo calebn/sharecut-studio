@@ -68,8 +68,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
  * posts. On a coarse pointer Return adds a line and the arrow posts.
  *
  * The anchor is the caller's: it passes `anchor` and applies the `onAnchor`
- * intents with `nextAnchor`. Announcements go through the shell's live region
- * (see `ComposerProps`).
+ * intents with `nextAnchor`.
  */
 export function Composer(props: ComposerProps) {
   const {
