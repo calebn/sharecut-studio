@@ -227,6 +227,11 @@ html[data-shell="phone"] .bottom-sheet-root {
    compositor and never lays the inspector out again. */
 .bottom-sheet[data-drawer-motion] {
   will-change: transform;
+
+  /* The half detent's clearance cap would cut the sheet short of its slot and
+     leave the drag unable to reach full; the ceiling is the slot's top, the
+     header's bottom edge (R-short-10). */
+  max-block-size: none;
 }
 
 /* Out of the way while the user drags what it describes. */
