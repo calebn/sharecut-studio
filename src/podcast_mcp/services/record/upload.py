@@ -1326,13 +1326,18 @@ class RecordUploadService:
     ) -> int | None:
         """Wall time (ms) of the newest part saved for a segment; None if no part file is left."""
         folder = self._root / parse_session_id(session_id) / str(take_index) / participant_id
+        folder = folder / str(segment_index)
         newest: float | None = None
         try:
-            for path in (folder / str(segment_index)).glob("*.part"):
-                mtime = path.stat().st_mtime
-                newest = mtime if newest is None else max(newest, mtime)
+            paths = list(folder.glob("*.part"))
         except OSError:
             return None
+        for path in paths:
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue  # a part finished or was cleaned up between the listing and the stat
+            newest = mtime if newest is None else max(newest, mtime)
         return None if newest is None else int(newest * 1000)
 
     def take_manifest_terminal(self, session_id: str, take_index: int) -> bool:

@@ -10,12 +10,14 @@ from podcast_mcp.edits.session_suggestions import session_suggestion_for
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.record.landing import STAGED_TARGET_KINDS
 from podcast_mcp.services.record.service import RecordSessionService, _store_for
-from podcast_mcp.services.record.state import RecordSnapshot
+from podcast_mcp.services.record.state import RecordSnapshot, TakeState
 from podcast_mcp.services.record.upload import RecordUploadService
 
 #: How long after Stop (or after a guest's last chunk) an upload still counts as "saving".
 #: Later than this it is "never finished": reported, but it no longer blocks land-first.
 UPLOAD_GRACE_MS = 10 * 60 * 1000
+#: Timestamps further ahead than this are not trusted (see ``_quiet_ms``).
+CLOCK_SKEW_MS = 60 * 1000
 
 
 def _now_ms() -> int:
@@ -41,6 +43,31 @@ class Unsaved:
     closed: bool = False
 
 
+def _expected_segments(take: TakeState) -> int:
+    """Segments a recorded guest uploads for a take: one, plus one per real Resume.
+
+    Stop while paused also closes the open pause, with ``resume_wall_ms`` equal to the stop
+    time; that is not a Resume and records nothing.
+    """
+    return 1 + sum(
+        1
+        for entry in take.pauses
+        if entry.resume_wall_ms is not None and entry.resume_wall_ms != take.stopped_wall_ms
+    )
+
+
+def _quiet_ms(now: int, *stamps: int | None) -> int | None:
+    """Milliseconds since the first usable timestamp; None when none can be trusted.
+
+    A timestamp more than ``CLOCK_SKEW_MS`` ahead of now (clock moved, odd file time) is
+    skipped, so skew cannot keep an upload "saving" past the grace window.
+    """
+    for stamp in stamps:
+        if stamp is not None and stamp <= now + CLOCK_SKEW_MS:
+            return max(0, now - stamp)
+    return None
+
+
 def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) -> Unsaved:
     """Count the active room's stopped, not-discarded takes with a recording not on the episode."""
     now = _now_ms() if now_wall_ms is None else now_wall_ms
@@ -53,43 +80,45 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
     rows = uploads.status(session_id=session_id)["segments"]
     tombstoned = uploads.tombstoned_takes(session_id)
     by_pid = {p.participant_id: p for p in snap.participants}
+    have = {(int(r["take_index"]), str(r["participant_id"]), int(r["segment_index"])) for r in rows}
     landable: set[int] = set()
     saving: set[int] = set()
-    stalled: set[tuple[int, str]] = set()
-    seen = {(int(r["take_index"]), str(r["participant_id"])) for r in rows}
+    stalled: set[tuple[int, str, int]] = set()
     for take in snap.takes:
         if take.stopped_wall_ms is None or take.take_index in tombstoned:
             continue
         index = take.take_index
+        stopped_quiet = _quiet_ms(now, take.stopped_wall_ms)
         for row in rows:
             if int(row["take_index"]) != index or row.get("landed"):
                 continue
-            pid = str(row["participant_id"])
+            pid, segment = str(row["participant_id"]), int(row["segment_index"])
             if row.get("file_ack"):
                 landable.add(index)
                 continue
             person = by_pid.get(pid)
-            last = uploads.segment_last_activity_ms(
-                session_id, index, pid, int(row["segment_index"])
-            )
-            quiet = now - (last if last is not None else take.stopped_wall_ms)
-            if (person is not None and person.removed) or quiet > UPLOAD_GRACE_MS:
-                stalled.add((index, pid))
+            last = uploads.segment_last_activity_ms(session_id, index, pid, segment)
+            quiet = _quiet_ms(now, last, take.stopped_wall_ms)
+            if (person is not None and person.removed) or quiet is None or quiet > UPLOAD_GRACE_MS:
+                stalled.add((index, pid, segment))
             else:
                 saving.add(index)
-        # A consenting guest with no upload at all yet: expected within the grace window only.
-        # The host is not expected (a host whose mic was denied never uploads).
+        # A consenting guest owes one upload per recorded segment; none yet is "saving" for the
+        # grace window after Stop, then stalled. The host is not expected (a host whose mic was
+        # denied never uploads), and a removed guest with no upload at all is not known.
         for pid in take.consented_participant_ids:
             person = by_pid.get(pid)
             if person is None or person.role != "guest" or person.removed:
                 continue
-            if (index, pid) in seen:
-                continue
-            if now - take.stopped_wall_ms > UPLOAD_GRACE_MS:
-                stalled.add((index, pid))
-            else:
-                saving.add(index)
-    all_takes = landable | saving | {index for index, _pid in stalled}
+            for segment in range(_expected_segments(take)):
+                if (index, pid, segment) in have:
+                    continue
+                if stopped_quiet is None or stopped_quiet > UPLOAD_GRACE_MS:
+                    stalled.add((index, pid, segment))
+                else:
+                    saving.add(index)
+    landable -= saving
+    all_takes = landable | saving | {index for index, _pid, _seg in stalled}
     if not all_takes:
         return Unsaved()
     held = (
@@ -131,7 +160,7 @@ def _takes(count: int) -> str:
 
 
 def _recordings(count: int) -> str:
-    return "1 guest recording" if count == 1 else f"{count} guest recordings"
+    return "1 recording" if count == 1 else f"{count} recordings"
 
 
 def describe_unsaved_takes(unsaved: Unsaved) -> str:
@@ -158,7 +187,8 @@ def describe_unsaved_takes(unsaved: Unsaved) -> str:
     if land_first_would_work(unsaved):
         parts.append("Save before starting a new room, or start anyway.")
     elif unsaved.landable or unsaved.saving:
-        parts.append("Start anyway to leave them behind.")
+        many = unsaved.landable + unsaved.saving > 1
+        parts.append(f"Start anyway to leave {'them' if many else 'it'} behind.")
     return " ".join(parts)
 
 
@@ -168,8 +198,8 @@ def refuse_land_first(unsaved: Unsaved, *, after_land: bool) -> str | None:
         return None
     if unsaved.saving:
         return (
-            f"{_takes(unsaved.saving)} still saving. Try again in a moment, or start anyway. "
-            "No new room was started."
+            f"{_takes(unsaved.saving)} still saving. Uploads can take up to 10 minutes after "
+            "Stop: wait for them to finish, or start anyway. No new room was started."
         )
     if unsaved.closed:
         return (
@@ -188,4 +218,8 @@ def left_behind_message(unsaved: Unsaved) -> str | None:
     """What a mint left behind that no land could have saved (None when nothing)."""
     if not unsaved.stalled:
         return None
-    return f"{_recordings(unsaved.stalled)} never finished uploading and were left behind."
+    many = unsaved.stalled > 1
+    return (
+        f"{_recordings(unsaved.stalled)} never finished uploading and "
+        f"{'were' if many else 'was'} left behind."
+    )

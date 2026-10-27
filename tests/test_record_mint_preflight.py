@@ -23,6 +23,7 @@ from podcast_mcp.services.record import (
 )
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.services.record.upload import RecordUploadService, sha256_hex
+from podcast_mcp.util.wav import pcm_wav_header
 from test_record_returning_people import _ack, _clips_by_track, _join_guest, _room, _tracks
 from test_record_staging import _cmd, _seed, _suggestion
 from test_record_start_target import (
@@ -249,7 +250,9 @@ def test_a_take_still_uploading_is_counted_and_land_first_asks_to_wait(
     )
     snap = RecordControlService(ws).snapshot()
     assert (snap["unlanded_takes"], snap["unlanded_saving"]) == (1, 1)
-    with pytest.raises(RecordLandingError, match=r"still saving\. Try again in a moment"):
+    with pytest.raises(
+        RecordLandingError, match=r"still saving\. Uploads can take up to 10 minutes"
+    ):
         ShareService(ws).create_record_room(land_first=True)
     assert lookup_share(old["guest"]["token"], kind="record")
     new = ShareService(ws).create_record_room()
@@ -264,13 +267,16 @@ def _at(monkeypatch, wall_ms: int) -> None:
     monkeypatch.setattr(preflight, "_now_ms", lambda: wall_ms)
 
 
-def _stopped_room(ws, names, *, pause: bool = False):
+def _stopped_room(ws, names, *, pause: bool = False, resumes: int = 0):
     """A room whose take stopped at ``STOP_AT`` with no uploads at all (the gap right after Stop)."""
     room = ShareService(ws).create_record_room()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     pids = [_join_guest(svc, room, name, i) for i, name in enumerate(names)]
     svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=STOP_AT - 3_000)
     svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
+    for n in range(resumes):
+        svc.submit(_cmd("Pause"), now_wall_ms=STOP_AT - 2_500 + n * 100)
+        svc.submit(_cmd("Resume"), now_wall_ms=STOP_AT - 2_450 + n * 100)
     if pause:
         svc.submit(_cmd("Pause"), now_wall_ms=STOP_AT - 2_000)
     svc.submit(_cmd("Stop"), now_wall_ms=STOP_AT)
@@ -300,7 +306,9 @@ def test_a_guest_who_has_not_started_uploading_is_saving_inside_the_grace_window
     snap = RecordControlService(ws).snapshot()
     assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 1, 0)
     assert snap["land_first_possible"] is False
-    with pytest.raises(RecordLandingError, match=r"still saving\. Try again"):
+    with pytest.raises(
+        RecordLandingError, match=r"still saving\. Uploads can take up to 10 minutes"
+    ):
         ShareService(ws).create_record_room(land_first=True)
     assert lookup_share(old["guest"]["token"], kind="record")
     new = ShareService(ws).create_record_room()
@@ -383,6 +391,111 @@ def test_stop_while_paused_no_longer_waits_for_a_segment_that_never_records(
     RecordLandingService(ws).land()
     assert _flags(ws) == (False, 0)
     assert RecordControlService(ws).snapshot()["land_first_possible"] is False
+
+
+def _ack_segment(ws, room, pid: str, segment: int) -> None:
+    pcm = bytes(48_000)
+    RecordUploadService(ws.project).ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=pid,
+        segment_index=segment,
+        part_seq=0,
+        data=pcm,
+        digest=sha256_hex(pcm),
+        file_sha256=sha256_hex(pcm_wav_header(len(pcm)) + pcm),
+        final=True,
+        expected_parts=1,
+    )
+
+
+@pytest.mark.parametrize("resumes", [1, 2])
+def test_a_resumed_take_waits_for_each_later_segment_then_reports_it_stalled(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, resumes
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], _ = _stopped_room(ws, ["Ava"], resumes=resumes)
+    for segment in range(resumes):  # the last segment never arrives
+        _ack_segment(ws, old, ava, segment)
+    _at(monkeypatch, STOP_AT + 60_000)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    with pytest.raises(RecordLandingError, match="still saving"):
+        ShareService(ws).create_record_room(land_first=True)
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+    assert snap["land_first_possible"] is True
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert len(new["landed_first"]["clips"]) == resumes
+    assert new["left_behind"] == 1 and "1 recording never finished" in new["left_behind_message"]
+    assert "was left behind" in new["left_behind_message"]
+
+
+def test_a_resumed_take_with_every_segment_in_is_not_flagged(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], _ = _stopped_room(ws, ["Ava"], resumes=2)
+    for segment in range(3):
+        _ack_segment(ws, old, ava, segment)
+    RecordLandingService(ws).land()
+    assert _flags(ws) == (False, 0)
+
+
+def test_a_part_that_disappears_between_listing_and_stat_does_not_stall_a_live_upload(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from pathlib import Path
+
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], _ = _stopped_room(ws, ["Ava"])
+    _partial(ws, old, ava)
+    _partial_more = RecordUploadService(ws.project)
+    pcm = bytes(48_000)
+    _partial_more.ingest_part(
+        session_id=old["session_id"],
+        take_index=0,
+        participant_id=ava,
+        segment_index=0,
+        part_seq=1,
+        data=pcm,
+        digest=sha256_hex(pcm),
+        final=False,
+    )
+    real_stat = Path.stat
+    gone: list[Path] = []
+
+    def flaky(self, *a, **k):
+        if self.suffix == ".part" and self.stem == "0" and not gone:
+            gone.append(self)
+            raise FileNotFoundError(self)
+        return real_stat(self, *a, **k)
+
+    monkeypatch.setattr(Path, "stat", flaky)
+    last = _partial_more.segment_last_activity_ms(old["session_id"], 0, ava, 0)
+    assert gone and last is not None  # the other part still counts
+
+
+def test_a_future_part_time_cannot_keep_an_upload_saving(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import os
+
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], _ = _stopped_room(ws, ["Ava"])
+    _partial(ws, old, ava)
+    part = next((tmp_workspace / "artifacts").rglob("0.part"), None) or next(
+        tmp_workspace.rglob("0.part")
+    )
+    future = time.time() + 86_400
+    os.utime(part, (future, future))
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+    # A stop time in the future is not trusted either.
+    assert preflight._quiet_ms(1_000, 1_000 + preflight.CLOCK_SKEW_MS + 1) is None
+    assert preflight._quiet_ms(1_000, 5_000_000, 400) == 600
 
 
 def test_land_first_possible_values(minimal_project, sample_wav, tmp_workspace):
