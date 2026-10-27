@@ -9,6 +9,14 @@ describe("projectUrl helpers", () => {
     expect(u.searchParams.get("theme")).toBe("dark");
   });
 
+  it("homeUrl can ask Home for the path field, and drops a stale ask", () => {
+    const asked = new URL(homeUrl("http://h/?project=a", { openOther: true }));
+    expect(asked.searchParams.get("openOther")).toBe("1");
+    expect(
+      new URL(homeUrl(asked.toString())).searchParams.has("openOther"),
+    ).toBe(false);
+  });
+
   it("projectUrl drops home, sets project and keeps other params", () => {
     const u = new URL(projectUrl("http://h/?home=1&theme=dark", "/p.json"));
     expect(u.searchParams.has("home")).toBe(false);

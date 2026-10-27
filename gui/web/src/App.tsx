@@ -5,7 +5,6 @@ import "./styles/daw.css";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import { useFeaturesReady, useHasFeature } from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
-import { HomeScreen } from "./home/HomeScreen";
 import { ModelsProvider } from "./models";
 import {
   clearOfflineSnapshot,
@@ -13,6 +12,7 @@ import {
 } from "./services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
+import { HomeScreen } from "./stages/home/HomeScreen";
 import { DawProvider } from "./state/store";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen, LoadingScreen } from "./ui";
