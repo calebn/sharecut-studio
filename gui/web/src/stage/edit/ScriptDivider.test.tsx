@@ -37,6 +37,20 @@ describe("ScriptDivider", () => {
     expect(onResize).toHaveBeenLastCalledWith(29);
   });
 
+  it("goes to its smallest on Home and largest on End, without reaching the keymap", async () => {
+    const user = userEvent.setup();
+    const { divider, onResize } = mount();
+    const bubbled = vi.fn();
+    document.addEventListener("keydown", bubbled);
+    divider.focus();
+    await user.keyboard("{Home}");
+    expect(onResize).toHaveBeenLastCalledWith(20);
+    await user.keyboard("{End}");
+    expect(onResize).toHaveBeenLastCalledWith(40);
+    document.removeEventListener("keydown", bubbled);
+    expect(bubbled).not.toHaveBeenCalled();
+  });
+
   it("resets on Enter and on double-click", async () => {
     const user = userEvent.setup();
     const { divider, onReset } = mount();

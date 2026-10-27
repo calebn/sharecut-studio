@@ -263,10 +263,12 @@ html[data-shell="phone"] .guest-attention-dismiss {
   }
 }
 
-/* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta). */
+/* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta).
+   A corner that carries the Edit tool strip keeps the wider gutter, so the
+   tools stay inside the header column instead of reaching over the lanes. */
 @container timeline (inline-size < 30rem) {
-  .timeline-scroll,
-  .timeline-lock-inner {
+  .timeline-scroll:not(:has(.edit-tool-strip)),
+  .timeline-lock-inner:not(:has(.edit-tool-strip)) {
     --header-width: 4rem;
   }
 }

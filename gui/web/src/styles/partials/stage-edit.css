@@ -162,6 +162,12 @@
   background: var(--color-bg-raised);
 }
 
+/* An open join's length rail sits at the foot of the timeline; it stays above the
+   floating corner so its grip is never covered. */
+.stage-frame .join-edit-rail {
+  z-index: calc(var(--z-timeline-chrome) + 1);
+}
+
 .edit-corner-btn {
   min-inline-size: var(--control-height);
   min-block-size: var(--control-height);
@@ -171,6 +177,19 @@
   .edit-corner-btn,
   .edit-tool-strip-range,
   .edit-tool-strip-cut {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+/* Outside the corner (the phone's strip) the Select, Blade and Comment tools
+   take the full touch target, and their track grows with them. */
+@media (pointer: coarse) {
+  .edit-tool-strip .ui-segmented.tool-mode-toggle {
+    block-size: auto;
+  }
+
+  .edit-tool-strip .tool-mode-toggle > .ui-control {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
   }

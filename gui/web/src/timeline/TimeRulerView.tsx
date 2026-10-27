@@ -35,6 +35,8 @@ export interface TimeRulerViewProps {
   commentGesture?: CommentAnchorGesture;
   /** Display value may be throttled while audio is playing. */
   valueSec: number;
+  /** What the slider announces instead of the time (comment mode: where the comment lands). */
+  valueText?: string;
   /** Reads the precise current position when a keyboard step is requested. */
   getPlayheadSec: () => number;
   visibleChunks: readonly [number, number];
@@ -105,6 +107,7 @@ export function TimeRulerView({
   commentMode = false,
   commentGesture,
   valueSec,
+  valueText,
   getPlayheadSec,
   visibleChunks,
   playhead,
@@ -152,7 +155,7 @@ export function TimeRulerView({
       aria-valuemin={0}
       aria-valuemax={sessionEnd}
       aria-valuenow={valueSec}
-      aria-valuetext={formatRulerTime(valueSec, majorStep)}
+      aria-valuetext={valueText ?? formatRulerTime(valueSec, majorStep)}
       onClick={(e) => {
         if (commentMode) {
           return;

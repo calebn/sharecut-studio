@@ -6,6 +6,7 @@ import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { GuestVersionNotice } from "./GuestVersionNotice";
 import { HomeScreenHint } from "./HomeScreenHint";
+import { JobModelBanner } from "./JobModelBanner";
 import { type LoadFailure, LoadFailureBanner } from "./LoadFailureBanner";
 
 /** The notices under the header, in the order the old shell stacked them. */
@@ -31,6 +32,7 @@ export function BannerStack({
       </Slot>
       {guestShare ? <GuestVersionNotice /> : null}
       <GuestAttentionBanner host={attentionHost} />
+      <JobModelBanner guestShare={guestShare} />
       <HomeScreenHint />
       <FollowBanner />
     </>

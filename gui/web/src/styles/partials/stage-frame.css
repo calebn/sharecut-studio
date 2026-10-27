@@ -75,10 +75,12 @@ html[data-shell="phone"] {
   overflow: hidden;
 }
 
+/* The Player and the tab bar each draw their own top hairline inside their
+   56 rem-step height, so the wrappers add none: the two together are exactly
+   the --frame-bottom-chrome the sheets and toasts rest above. */
 .stage-frame-player,
 .stage-frame-tabs {
   min-inline-size: 0;
-  border-block-start: 1px solid var(--color-border-subtle);
   background: var(--color-bg-canvas);
 }
 

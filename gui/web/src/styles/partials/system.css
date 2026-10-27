@@ -298,7 +298,8 @@
   flex-direction: column;
   gap: var(--space-0);
   inline-size: auto;
-  min-block-size: var(--tab-bar-height);
+  /* The bar's own top hairline is part of the token's height. */
+  min-block-size: calc(var(--tab-bar-height) - 1px);
   border-radius: 0;
   font-size: var(--font-size-caption);
   box-shadow: none;

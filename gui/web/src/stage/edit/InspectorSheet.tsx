@@ -20,6 +20,7 @@ export function InspectorSheet({
       placement={sheet.placement}
       className={sheet.className ?? INSPECTOR_SHEET_CLASS}
       expanded={sheet.expanded}
+      stowed={sheet.stowed}
       onExpandedChange={sheet.onExpandedChange}
       {...sheet.compact}
       bodyHeader={
