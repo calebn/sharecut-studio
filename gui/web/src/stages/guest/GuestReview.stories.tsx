@@ -250,9 +250,11 @@ export const FailedComment: Story = {
     const view = within(canvasElement);
     await expect(view.getByText("Not sent")).toBeInTheDocument();
     await userEvent.click(view.getByRole("button", { name: "Try again" }));
-    await expect(args.onRetryComment).toHaveBeenCalledExactlyOnceWith("c1");
+    await expect(args.onRetryComment).toHaveBeenCalledTimes(1);
+    await expect(args.onRetryComment).toHaveBeenCalledWith("c1");
     await userEvent.click(view.getByRole("button", { name: "Remove" }));
-    await expect(args.onRemoveComment).toHaveBeenCalledExactlyOnceWith("c1");
+    await expect(args.onRemoveComment).toHaveBeenCalledTimes(1);
+    await expect(args.onRemoveComment).toHaveBeenCalledWith("c1");
   }),
 };
 
@@ -276,7 +278,8 @@ export const WholeEpisodeNote: Story = {
       view.getByRole("textbox", { name: "Comment" }),
       "Great show{Enter}",
     );
-    await expect(args.onPost).toHaveBeenCalledExactlyOnceWith({
+    await expect(args.onPost).toHaveBeenCalledTimes(1);
+    await expect(args.onPost).toHaveBeenCalledWith({
       body: "Great show",
       name: "Guest",
     });
