@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import tempfile
 import threading
 from collections.abc import Iterator
@@ -51,6 +52,7 @@ log = logging.getLogger(__name__)
 # Seconds of lead-in a window renders (and drops) on a track with an adaptive effect; loudnorm's
 # residual against the whole stem falls from about -16 dB (cold) to about -50 dB at 12 s.
 PENDING_WARMUP_SEC = 15.0
+LEAD_IN_GRID_SEC = 0.64
 
 # The pad range the GUI routes validate against, from the one place the service validates it.
 PENDING_PREVIEW_PAD_DEFAULT_SEC = DEFAULT_PAD_SEC
@@ -81,6 +83,19 @@ def _window_render_lock(path: Path) -> Iterator[None]:
         finally:
             with _WINDOW_LOCKS_GUARD:
                 _WINDOW_LOCKS.pop(str(path), None)
+
+
+def _lead_in_start(project: EpisodeProject, track_id: str, start: float) -> float:
+    """Where a window render begins: ``start`` itself, or earlier on a track with an adaptive effect.
+
+    The lead-in begins on a multiple of ``LEAD_IN_GRID_SEC`` (30720 samples at 48 kHz, a whole number of
+    the 480-sample RNNoise frames and of FFT frames up to 2048), so frame-based filters see the same frame
+    grid as in the whole-episode stem, whose first frame is at 0.
+    """
+    warm = _warmup_sec(project, track_id)
+    if warm <= 0:
+        return start
+    return max(0.0, math.floor(max(0.0, start - warm) / LEAD_IN_GRID_SEC) * LEAD_IN_GRID_SEC)
 
 
 def _warmup_sec(project: EpisodeProject, track_id: str) -> float:
@@ -280,7 +295,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 "window": [window.play_start, window.play_end],
                 "pad_sec": window.pad_sec,
                 # Bump when a side renders differently for the same inputs.
-                "render_rev": 2,
+                "render_rev": 3,
                 "edit": edit.model_dump(mode="json"),
                 "mix": self._mix_key(),
                 # The Suggested side re-optimizes the cut against every track's words.
@@ -346,7 +361,8 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 if track.muted or track.media is None:
                     continue
                 segment = Path(directory) / f"{track.id}.wav"
-                warm = min(start, _warmup_sec(project, track.id))
+                lead_start = _lead_in_start(project, track.id, start)
+                warm = start - lead_start
                 if warm > 0:
                     # Adaptive filters (loudnorm, noise reduction, dynamics) depend on the audio
                     # before the window: render lead-in and drop it, so the window sounds as it
