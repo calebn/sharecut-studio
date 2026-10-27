@@ -303,6 +303,7 @@ def _payload(
         "media": media,
         "words": words,
         "pause": _pause_words_seen(project, edit, near),
+        "pause_span": _pause_span_seen(project, edit, span, defaults),
         "batch": chosen,
         "disk": _disk_stamps(project),
         "policy": [
@@ -332,6 +333,24 @@ def _pause_words_seen(
         after.model_dump(mode="json") if after is not None else None,
         near(edit.track_id, None, lo, hi),
     ]
+
+
+def _pause_span_seen(
+    project: EpisodeProject, edit: EditDecision, span: tuple[float, float], defaults: dict
+) -> list[float] | None:
+    """The span a held pause is observed over, which the verdict records as ``peer_observation_span``.
+
+    It widens by the longest fade in the whole project, also on a clip that lies before the
+    window and is otherwise not hashed, so the span itself is hashed: a fade that does not move
+    it (the word gap is wider) leaves the key as it was.
+    """
+    if not (edit.reason or "").startswith("pause:"):
+        return None
+    words = pause_words(project, edit.track_id, edit.start, edit.end)
+    if isinstance(words, CutRejected):
+        return None
+    seen = held_pause_observation_span(project, edit, span, words, defaults)
+    return [seen.lo, seen.hi, seen.word_gap]
 
 
 def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
