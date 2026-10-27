@@ -19,6 +19,18 @@ def test_format_history_group_title_with_range() -> None:
     assert "host, guest" in title
 
 
+def test_record_land_title_says_when_a_session_starts_the_episode() -> None:
+    first = {"session_number": 2, "session_first": True, "session_at_start": True}
+    later = {"session_number": 2, "session_first": False, "session_at_start": True}
+    staged = {"session_number": 2, "session_first": True, "session_staged": True}
+    title = lambda params: format_history_group_title(  # noqa: E731
+        kind="mutation", operation="record_land", params=params
+    )
+    assert title(first) == "Added Session 2 at the start"
+    assert title(later) == "Added to Session 2"
+    assert title({**staged, "session_at_start": False}) == "Staged Session 2"
+
+
 def test_format_pipeline_snapshot_title() -> None:
     title = format_history_group_title(
         kind="snapshot",

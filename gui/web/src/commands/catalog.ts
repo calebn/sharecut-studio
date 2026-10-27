@@ -492,10 +492,10 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "record.setTarget",
     category: "ui",
     label: "Set session target",
-    keywords: ["end", "where", "land", "place"],
+    keywords: ["start", "end", "where", "land", "place"],
     when: "canManageProjects",
     notes:
-      "Choose where this session lands (before the first take): the end, or staged as an insert or replace",
+      "Choose where this session lands (before the first take): the start or the end of the episode, or staged as an insert or replace",
   },
   "record.pause": {
     id: "record.pause",

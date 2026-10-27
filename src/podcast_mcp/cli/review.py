@@ -376,7 +376,7 @@ def review_share_cmd(
         None,
         "--target",
         help=(
-            "record: where the session lands: end (default), or a JSON object for "
+            "record: where the session lands: end (default), start, or a JSON object for "
             'insert {"kind":"insert","at_sec":12.5} or replace '
             '{"kind":"replace","from_sec":12.5,"to_sec":20,"track_ids":["p_host"]}'
         ),
