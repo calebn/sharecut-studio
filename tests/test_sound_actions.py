@@ -7,6 +7,7 @@ import pytest
 from podcast_mcp.edits.cut_policy import (
     CUT_ACTION_TABLE,
     SUGGESTED_ACTIONS,
+    review_kind,
     sound_kind,
     sound_policy,
 )
@@ -85,3 +86,41 @@ def test_propose_payload_carries_label_and_action() -> None:
     rows = TightenProposal([laugh, other], {}).to_payload()["edits"]
     assert (rows[0]["label"], rows[0]["suggested_action"]) == ("Laugh", "lower")
     assert (rows[1]["label"], rows[1]["suggested_action"]) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("reason", "expected"),
+    [
+        ("filler:um", "filler"),
+        ("pause:2.1s:solo", "pause"),
+        ("repetition:word:the", "repeat"),
+        ("restart:partial:we", "false-start"),
+        ("filler:acoustic", "sound"),
+        ("filler:acoustic:likely_laugh", "sound"),
+        ("filler:acoustic:possible_word", "sound"),
+        ("guest:suggest", "other"),
+        ("nl:topic", "other"),
+        ("tangent", "other"),
+        (None, "other"),
+    ],
+)
+def test_review_kind_is_the_queue_group_of_a_reason(reason: str | None, expected: str) -> None:
+    assert review_kind(reason) == expected
+
+
+def test_every_sound_kind_maps_to_a_review_kind() -> None:
+    from typing import get_args
+
+    from podcast_mcp.edits import cut_policy
+
+    assert {row[5] for row in cut_policy._SOUND_ACTIONS} <= set(get_args(cut_policy.ReviewKind))
+
+
+def test_propose_payload_carries_kind_and_sound_kind() -> None:
+    laugh = EditDecision(
+        id="e1", track_id="t1", start=1.0, end=2.0, reason="filler:acoustic:likely_laugh"
+    )
+    other = EditDecision(id="e2", track_id="t1", start=3.0, end=4.0, reason="manual")
+    rows = TightenProposal([laugh, other], {}).to_payload()["edits"]
+    assert (rows[0]["kind"], rows[0]["sound_kind"]) == ("sound", "laugh")
+    assert (rows[1]["kind"], rows[1]["sound_kind"]) == ("other", None)

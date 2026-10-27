@@ -1,9 +1,9 @@
 /** Plain-language names for a pending edit's type and reason code. */
 
-import type { PendingEditView, TrackView } from "../types/project";
+import type { PendingEditView, PendingKind, TrackView } from "../types/project";
 import { knownPendingKind, markerLabel } from "./editMarkerRegistry";
 import { capitalize } from "./format";
-import { type TightenClass, tightenClassOfReason } from "./tightenHits";
+import type { TightenClass } from "./tightenHits";
 import { clockLabel } from "./time";
 
 // Keys mirror src/podcast_mcp/edits/edit_reasons.py; tests/test_edit_reasons.py fails when one is missing.
@@ -26,15 +26,15 @@ const ACOUSTIC_FLAG_LABELS: readonly (readonly [string, string])[] = [
 
 /** One label per tighten class; a new class in `tightenHits` fails to type-check until it has one. */
 const TIGHTEN_REASON_LABELS: Record<TightenClass, (tail: string) => string> = {
-  filler: (tail) => {
+  filler: (tail) => `Filler word "${tail}"`,
+  pause: (tail) => (tail ? `Long pause (${tail})` : "Long pause"),
+  repeat: () => "Repeated word",
+  "false-start": () => "False start",
+  sound: (tail) => {
     const flags = tail.split(":");
     const flagged = ACOUSTIC_FLAG_LABELS.find(([flag]) => flags.includes(flag));
-    if (flagged) return flagged[1];
-    return tail === "acoustic" ? "Filler sound" : `Filler word "${tail}"`;
+    return flagged ? flagged[1] : "Filler sound";
   },
-  pause: (tail) => (tail ? `Long pause (${tail})` : "Long pause"),
-  repetition: () => "Repeated word",
-  restart: () => "False start",
 };
 
 export function pendingTypeLabel(type: string): string {
@@ -48,13 +48,21 @@ export function pendingListRowLabel(
 ): string {
   const track = tracks.find((t) => t.id === edit.track_id);
   const who = track?.speaker ?? track?.label ?? edit.track_id;
-  const kind = edit.reason?.startsWith("pause:") ? "pause trim" : "cut";
+  const kind = edit.kind === "pause" ? "pause trim" : "cut";
   const at = clockLabel(edit.source_start);
-  const detail = pendingReasonLabel(edit.reason) ?? pendingTypeLabel(edit.type);
+  const detail =
+    pendingReasonLabel(edit.reason, edit.kind) ?? pendingTypeLabel(edit.type);
   return `${who}'s ${kind} at ${at} · ${detail}`;
 }
 
-export function pendingReasonLabel(reason: string | null | undefined): string {
+/**
+ * A plain label for a reason code. The server's `kind` picks the label; the reason only supplies
+ * the detail after its first colon (the filler word, the pause length), never the grouping.
+ */
+export function pendingReasonLabel(
+  reason: string | null | undefined,
+  kind: PendingKind,
+): string {
   if (!reason) {
     return "No reason given";
   }
@@ -68,11 +76,8 @@ export function pendingReasonLabel(reason: string | null | undefined): string {
   if (reason.startsWith("nl:utterance:")) {
     return "Agent edit (utterance)";
   }
-  const tightenClass = tightenClassOfReason(reason);
-  if (tightenClass) {
-    return TIGHTEN_REASON_LABELS[tightenClass](
-      reason.slice(tightenClass.length + 1),
-    );
+  if (kind !== "other") {
+    return TIGHTEN_REASON_LABELS[kind](reason.slice(reason.indexOf(":") + 1));
   }
   return reason;
 }

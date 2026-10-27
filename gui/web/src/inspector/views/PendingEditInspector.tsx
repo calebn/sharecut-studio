@@ -528,7 +528,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
             ? "Pending split"
             : "Pending edit"
       }
-      subtitle={pendingReasonLabel(edit.reason)}
+      subtitle={pendingReasonLabel(edit.reason, edit.kind)}
       primaryActions={
         canApply || edit.exact_range
           ? [

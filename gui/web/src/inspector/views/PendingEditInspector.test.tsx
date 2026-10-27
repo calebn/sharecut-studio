@@ -93,6 +93,7 @@ const sessionCut: PendingEditView = {
   boundary_mode: null,
   cut_confidence: null,
   review_required: true,
+  kind: "other",
   harsh: false,
   applied: false,
   suggest_reason: null,

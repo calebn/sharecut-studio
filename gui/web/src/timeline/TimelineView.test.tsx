@@ -1524,6 +1524,7 @@ describe("TimelineView render isolation", () => {
         boundary_mode: null,
         cut_confidence: null,
         review_required: false,
+        kind: "other",
         harsh: false,
         applied: false,
         suggest_reason: null,

@@ -97,19 +97,27 @@ class CutActionPolicy:
     acoustic_override: bool = False
 
 
-_SOUND_ACTIONS: tuple[tuple[str, str, SuggestedAction, bool, bool], ...] = (
-    ("filler", "Filler word", "cut", True, False),
-    ("pause", "Long pause", "shorten", True, False),
-    ("repetition", "Repeated words", "cut", True, True),
-    ("restart", "False start", "cut", True, True),
-    ("acoustic", "Unclear sound", "leave", False, True),
-    ("laugh", "Laugh", "lower", False, True),
-    ("possible_word", "Possible missed word", "leave", False, True),
-    ("backchannel", "Backchannel", "lower", False, False),
-    ("breath", "Breath", "leave", False, False),
-    ("mouth_click", "Mouth click", "cut", False, False),
-    ("playful_phrase", "Playful phrase", "leave", False, False),
+# Review item kinds, the queue-group vocabulary the Review stage sends on every pending edit.
+# ``unsure-word`` is deliberately absent: it is a separate per-edit list, not a kind.
+ReviewKind = Literal["filler", "pause", "repeat", "false-start", "sound", "other"]
+
+
+# (sound kind, label, default action, editorial, proposal review, review kind)
+_SOUND_ACTIONS: tuple[tuple[str, str, SuggestedAction, bool, bool, ReviewKind], ...] = (
+    ("filler", "Filler word", "cut", True, False, "filler"),
+    ("pause", "Long pause", "shorten", True, False, "pause"),
+    ("repetition", "Repeated words", "cut", True, True, "repeat"),
+    ("restart", "False start", "cut", True, True, "false-start"),
+    ("acoustic", "Unclear sound", "leave", False, True, "sound"),
+    ("laugh", "Laugh", "lower", False, True, "sound"),
+    ("possible_word", "Possible missed word", "leave", False, True, "sound"),
+    ("backchannel", "Backchannel", "lower", False, False, "sound"),
+    ("breath", "Breath", "leave", False, False, "sound"),
+    ("mouth_click", "Mouth click", "cut", False, False, "sound"),
+    ("playful_phrase", "Playful phrase", "leave", False, False, "other"),
 )
+
+_REVIEW_KIND_BY_SOUND: dict[str, ReviewKind] = {row[0]: row[5] for row in _SOUND_ACTIONS}
 
 
 _SAFETY_ACTIONS = (
@@ -152,7 +160,7 @@ CUT_ACTION_TABLE: dict[tuple[str, CutMode], CutActionPolicy] = {
         editorial,
         proposal_review=review,
     )
-    for kind, label, action, editorial, review in _SOUND_ACTIONS
+    for kind, label, action, editorial, review, _review_kind in _SOUND_ACTIONS
     for mode in ("ripple", "mute")
 }
 
@@ -201,6 +209,12 @@ def sound_kind(reason: str | None) -> str | None:
     if text.startswith(RESTART_REASON_PREFIX):
         return "restart"
     return None
+
+
+def review_kind(reason: str | None) -> ReviewKind:
+    """The Review queue group for a reason code; ``other`` for guest, agent and manual edits."""
+    kind = sound_kind(reason)
+    return _REVIEW_KIND_BY_SOUND[kind] if kind is not None else "other"
 
 
 def sound_policy(reason: str | None, mode: CutMode = "ripple") -> CutActionPolicy | None:

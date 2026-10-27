@@ -19,7 +19,9 @@ vi.mock("../api", async (importOriginal) => ({
 }));
 
 const project = minimalProject({
-  pending_edits: [pendingEditView({ id: "hit1", reason: "filler:um" })],
+  pending_edits: [
+    pendingEditView({ id: "hit1", reason: "filler:um", kind: "filler" }),
+  ],
 });
 
 beforeEach(() => {

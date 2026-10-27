@@ -245,6 +245,8 @@ const PENDING = pendingEditView({
   timeline_end: 41.4,
   timeline_spans: [{ start: 40.6, end: 41.4 }],
   cut_confidence: 0.78,
+  kind: "pause",
+  sound_kind: "pause",
   label: "Pause",
   suggested_action: "shorten",
 });
@@ -388,16 +390,26 @@ export function tightenHits(): PendingEditView[] {
       ...overrides,
     });
   return [
-    hit("tighten-filler", TOMAS, "filler:um", 20, 20.45, { label: "Filler" }),
+    hit("tighten-filler", TOMAS, "filler:um", 20, 20.45, {
+      kind: "filler",
+      sound_kind: "filler",
+      label: "Filler",
+    }),
     hit("tighten-pause", MIRA, "pause:long", 49.6, 52, {
+      kind: "pause",
+      sound_kind: "pause",
       label: "Pause",
       suggested_action: "shorten",
     }),
     hit("tighten-repeat", TOMAS, "repetition:the", 94, 94.4, {
+      kind: "repeat",
+      sound_kind: "repetition",
       label: "Repetition",
       review_required: true,
     }),
     hit("tighten-restart", TOMAS, "restart:i", 134, 134.5, {
+      kind: "false-start",
+      sound_kind: "restart",
       label: "Restart",
       harsh: true,
       listen_one_by_one: true,

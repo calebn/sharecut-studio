@@ -121,6 +121,7 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
     boundary_mode: null,
     cut_confidence: 0.9,
     review_required: false,
+    kind: "filler",
     harsh: false,
     listen_one_by_one: false,
     applied: false,
@@ -179,11 +180,12 @@ function projectWithHits() {
           label: "join_review",
           source: "reason",
         },
+        kind: "pause",
         harsh: true,
         source_start: 4,
         timeline_start: 4,
       }),
-      pending({ id: "e3", reason: "nl:topic" }),
+      pending({ id: "e3", reason: "nl:topic", kind: "other" }),
     ],
     transcript: {
       utterances: [
@@ -368,12 +370,14 @@ describe("TightenPanel", () => {
         id: "repeat",
         reason: "repetition:word:um",
         review_required: true,
+        kind: "repeat",
         harsh: true,
       }),
       pending({
         id: "restart",
         reason: "restart:phrase:i went",
         review_required: true,
+        kind: "false-start",
         harsh: true,
       }),
     ];

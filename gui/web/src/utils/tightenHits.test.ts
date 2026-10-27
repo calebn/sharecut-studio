@@ -6,7 +6,7 @@ import {
   isHarshTightenHit,
   isTightenPending,
   listTightenHits,
-  tightenClassOfReason,
+  tightenClassOf,
   tightenHitCanGoTo,
   tightenHitCanPreview,
   tightenSnippet,
@@ -28,6 +28,7 @@ function edit(overrides: Partial<PendingEditView> = {}): PendingEditView {
     boundary_mode: null,
     cut_confidence: 0.8,
     review_required: false,
+    kind: "filler",
     harsh: false,
     listen_one_by_one: false,
     applied: false,
@@ -71,14 +72,23 @@ const transcript: ProjectView["transcript"] = {
 describe("tightenHits", () => {
   it("selects all tighten proposal classes", () => {
     expect(isTightenPending(edit())).toBe(true);
-    expect(isTightenPending(edit({ reason: "pause:1.1s" }))).toBe(true);
-    expect(isTightenPending(edit({ reason: "repetition:word:the" }))).toBe(
-      true,
+    expect(isTightenPending(edit({ kind: "pause" }))).toBe(true);
+    expect(isTightenPending(edit({ kind: "repeat" }))).toBe(true);
+    expect(isTightenPending(edit({ kind: "false-start" }))).toBe(true);
+    expect(isTightenPending(edit({ kind: "sound" }))).toBe(true);
+    expect(isTightenPending(edit({ kind: "other", reason: "nl:topic" }))).toBe(
+      false,
     );
-    expect(isTightenPending(edit({ reason: "restart:phrase:i went" }))).toBe(
-      true,
+  });
+
+  it("groups on the server kind and never reads the reason", () => {
+    // A reason that looks like a filler, sent as another kind, follows the kind.
+    expect(tightenClassOf(edit({ reason: "filler:um", kind: "pause" }))).toBe(
+      "pause",
     );
-    expect(isTightenPending(edit({ reason: "nl:topic" }))).toBe(false);
+    expect(
+      tightenClassOf(edit({ reason: "filler:um", kind: "other" })),
+    ).toBeNull();
   });
 
   it("lists and filters repetition and restart hits as review-required", () => {
@@ -88,25 +98,27 @@ describe("tightenHits", () => {
           id: "repeat",
           reason: "repetition:word:um",
           review_required: true,
+          kind: "repeat",
           harsh: true,
         }),
         edit({
           id: "restart",
           reason: "restart:phrase:i went",
           review_required: true,
+          kind: "false-start",
           harsh: true,
         }),
       ],
       transcript,
     );
     expect(hits.map((hit) => hit.tightenClass)).toEqual([
-      "repetition",
-      "restart",
+      "repeat",
+      "false-start",
     ]);
     expect(hits.map((hit) => hit.riskBadge)).toEqual(["review", "review"]);
     expect(
       filterTightenHits(hits, {
-        classFilter: "restart",
+        classFilter: "false-start",
         trackId: "",
         harshOnly: false,
         query: "",
@@ -143,11 +155,12 @@ describe("tightenHits", () => {
           reason: "pause:0.8s",
           track_id: "guest",
           review_required: true,
+          kind: "pause",
           harsh: true,
           source_start: 4,
           timeline_start: 4,
         }),
-        edit({ id: "e3", reason: "nl:cut" }),
+        edit({ id: "e3", reason: "nl:cut", kind: "other" }),
       ],
       transcript,
     );
@@ -217,13 +230,5 @@ describe("tightenHits", () => {
     )[0];
     expect(tightenHitCanGoTo(hit)).toBe(false);
     expect(tightenHitCanPreview(hit)).toBe(false);
-  });
-});
-
-describe("tightenClassOfReason", () => {
-  it("classifies a bare reason code", () => {
-    expect(tightenClassOfReason("restart:partial:we")).toBe("restart");
-    expect(tightenClassOfReason("tangent")).toBeNull();
-    expect(tightenClassOfReason(null)).toBeNull();
   });
 });
