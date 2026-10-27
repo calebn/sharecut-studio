@@ -1,7 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
-import { withShareableProject } from "./shareableProject";
+import {
+  createRelocatedE2eProject,
+  removeRelocatedE2eProject,
+} from "./liveProject";
+import { switchE2eProject, withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
   openGuestShare,
@@ -186,9 +190,26 @@ for (const width of [1024, 1440]) {
   test.describe(`Blade cut button at ${width}`, () => {
     test.use({ viewport: { width, height: 900 } });
 
+    // The cut stays in the project, so it runs on a copy: a cut left in the
+    // shared fixture shows up as joins and short clips in every later spec.
+    let projectPath: string;
+    let workspaceDir: string;
+
+    test.beforeEach(async () => {
+      const fixture = createRelocatedE2eProject("sharecut-e2e-blade-cut-");
+      projectPath = fixture.projectPath;
+      workspaceDir = fixture.workspaceDir;
+      await switchE2eProject(projectPath);
+    });
+
+    test.afterEach(async () => {
+      await switchE2eProject(e2eProjectPath);
+      if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
+    });
+
     test("takes a real click and adds a clip", async ({ page }) => {
-      await openProject(page);
-      const pathParam = encodeURIComponent(e2eProjectPath);
+      await openStageProject(page, projectPath);
+      const pathParam = encodeURIComponent(projectPath);
       const clipCount = async () => {
         const res = await page.request.get(
           `/api/project?path=${pathParam}&phase=full`,
