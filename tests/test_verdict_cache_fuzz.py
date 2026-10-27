@@ -35,14 +35,7 @@ SEEDS = [
     13,
     15,
     21,
-    pytest.param(
-        26,
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="#2383 zero-fade split of a far clip on another track: warm cache adds a "
-            "'voiced edge' flag",
-        ),
-    ),
+    26,
     29,
 ]
 
