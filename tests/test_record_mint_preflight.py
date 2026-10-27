@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 from typer.testing import CliRunner
@@ -17,6 +18,7 @@ from podcast_mcp.services.record import (
     RecordLandingError,
     RecordSessionService,
     RecordStateError,
+    preflight,
     unsaved_takes,
 )
 from podcast_mcp.services.record.landing import RecordLandingService
@@ -254,27 +256,49 @@ def test_a_take_still_uploading_is_counted_and_land_first_asks_to_wait(
     assert "still saving" in new["warning"]
 
 
+STOP_AT = int(time.time() * 1000)  # a take that just stopped, on the wall clock
+GRACE = preflight.UPLOAD_GRACE_MS
+
+
+def _at(monkeypatch, wall_ms: int) -> None:
+    monkeypatch.setattr(preflight, "_now_ms", lambda: wall_ms)
+
+
 def _stopped_room(ws, names, *, pause: bool = False):
-    """A room with a stopped take and no uploads at all (the normal window right after Stop)."""
+    """A room whose take stopped at ``STOP_AT`` with no uploads at all (the gap right after Stop)."""
     room = ShareService(ws).create_record_room()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     pids = [_join_guest(svc, room, name, i) for i, name in enumerate(names)]
-    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
-    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=STOP_AT - 3_000)
+    svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
     if pause:
-        svc.submit(_cmd("Pause"), now_wall_ms=1_000)
-        svc.submit(_cmd("Resume"), now_wall_ms=2_000)
-    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
-    return room, pids
+        svc.submit(_cmd("Pause"), now_wall_ms=STOP_AT - 2_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=STOP_AT)
+    return room, pids, svc
 
 
-def test_a_stopped_take_nobody_has_started_uploading_is_still_saving(
-    minimal_project, sample_wav, tmp_workspace
+def _partial(ws, room, pid: str, take: int = 0) -> None:
+    pcm = bytes(48_000)
+    RecordUploadService(ws.project).ingest_part(
+        session_id=room["session_id"],
+        take_index=take,
+        participant_id=pid,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=sha256_hex(pcm),
+        final=False,
+    )
+
+
+def test_a_guest_who_has_not_started_uploading_is_saving_inside_the_grace_window(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed(minimal_project, sample_wav)
-    old, _ = _stopped_room(ws, ["Ava"])
+    old, _, _ = _stopped_room(ws, ["Ava"])
+    _at(monkeypatch, STOP_AT + 60_000)
     snap = RecordControlService(ws).snapshot()
-    assert (snap["unlanded_takes"], snap["unlanded_saving"]) == (1, 1)
+    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 1, 0)
     assert snap["land_first_possible"] is False
     with pytest.raises(RecordLandingError, match=r"still saving\. Try again"):
         ShareService(ws).create_record_room(land_first=True)
@@ -283,30 +307,92 @@ def test_a_stopped_take_nobody_has_started_uploading_is_still_saving(
     assert "still saving" in new["warning"] and "Start anyway" in new["warning"]
 
 
-def test_one_guest_acked_and_one_with_nothing_yet_is_not_reported_as_zero(
-    minimal_project, sample_wav, tmp_workspace
+def test_a_guest_who_never_uploads_is_stalled_after_the_window_and_land_first_goes_ahead(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed(minimal_project, sample_wav)
-    old, [ava, _bea] = _stopped_room(ws, ["Ava", "Bea"])
+    old, [ava, _bea], _ = _stopped_room(ws, ["Ava", "Bea"])
     _ack(ws, old, ava, 0)
-    assert _flags(ws) == (True, 1)
+    _at(monkeypatch, STOP_AT + 60_000)
+    assert RecordControlService(ws).snapshot()["unlanded_saving"] == 1
     with pytest.raises(RecordLandingError, match="still saving"):
         ShareService(ws).create_record_room(land_first=True)
     ws.reload()
     assert not ws.project.clips  # refused before landing anything
-    assert lookup_share(old["guest"]["token"], kind="record")
-    new = ShareService(ws).create_record_room()
-    assert new["unlanded_takes"] == 1 and "warning" in new
+
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0, 1)
+    assert snap["land_first_possible"] is True  # Ava's finished recording can be saved
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert len(new["landed_first"]["clips"]) == 1
+    assert new["left_behind"] == 1 and "left behind" in new["left_behind_message"]
+    assert "never finished uploading" in new["warning"]
+    assert new["land_first_possible"] is False  # nothing left a land could save
+    assert _revoked(old["guest"]["token"])
 
 
-def test_a_resumed_take_waits_for_its_second_segment(minimal_project, sample_wav, tmp_workspace):
+def test_a_stalled_partial_upload_stops_blocking_and_is_reported(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
     ws = _seed(minimal_project, sample_wav)
-    old, [ava] = _stopped_room(ws, ["Ava"], pause=True)
+    old, [ava, bea], _ = _stopped_room(ws, ["Ava", "Bea"])
+    _ack(ws, old, ava, 0)
+    _partial(ws, old, bea)
+    assert RecordControlService(ws).snapshot()["unlanded_saving"] == 1  # chunk just arrived
+    _at(monkeypatch, int(time.time() * 1000) + GRACE + 1_000)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert len(new["landed_first"]["clips"]) == 1 and new["left_behind"] == 1
+
+
+def test_stalled_audio_only_means_nothing_to_land_and_the_mint_just_reports_it(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, _, _ = _stopped_room(ws, ["Ava"])
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_stalled"], snap["land_first_possible"]) == (1, False)
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert "landed_first" not in new and new["left_behind"] == 1
+    assert _revoked(old["guest"]["token"])
+
+
+def test_a_removed_guest_with_an_unfinished_upload_is_reported_not_cleared(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava, bea], svc = _stopped_room(ws, ["Ava", "Bea"])
+    _ack(ws, old, ava, 0)
+    _partial(ws, old, bea)
+    svc.submit(_cmd("RemoveParticipant", payload={"participant_id": bea}), now_wall_ms=STOP_AT + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)  # cannot finish, now
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert len(new["landed_first"]["clips"]) == 1 and new["left_behind"] == 1
+
+
+def test_stop_while_paused_no_longer_waits_for_a_segment_that_never_records(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], _ = _stopped_room(ws, ["Ava"], pause=True)
     _ack(ws, old, ava, 0)
     RecordLandingService(ws).land()
-    assert _flags(ws) == (True, 1)  # segment 0 landed; segment 1 has not started
-    with pytest.raises(RecordLandingError, match="still saving"):
-        ShareService(ws).create_record_room(land_first=True)
+    assert _flags(ws) == (False, 0)
+    assert RecordControlService(ws).snapshot()["land_first_possible"] is False
+
+
+def test_land_first_possible_values(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    ShareService(ws).create_record_room()
+    assert RecordControlService(ws).snapshot()["land_first_possible"] is False  # nothing to save
+    _room(ws, ["Ava"])
+    assert RecordControlService(ws).snapshot()["land_first_possible"] is True
+    RecordLandingService(ws).land()
+    assert RecordControlService(ws).snapshot()["land_first_possible"] is False
 
 
 def test_bad_target_or_expiry_fails_before_land_first_lands_anything(

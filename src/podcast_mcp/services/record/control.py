@@ -24,7 +24,8 @@ class RecordControlService:
         self._svc = RecordSessionService(workspace.project, session_id=session_id)
 
     def snapshot(self) -> dict[str, Any]:
-        """Host snapshot plus ``unlanded_take``, ``unlanded_takes`` and ``unlanded_saving`` (the mint preflight)."""
+        """Host snapshot plus ``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``unlanded_stalled`` and
+        ``land_first_possible`` (the mint preflight: true when a land can save a finished recording)."""
         return with_unsaved_takes(self.workspace.project, self._svc.snapshot())
 
     def roster(self) -> list[dict[str, Any]]:

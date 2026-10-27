@@ -29,8 +29,8 @@ use the same path). Comments land as ordinary `review.comments[]` at
 
 | Tool | When |
 |------|------|
-| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`). If the current room has a stopped take not yet landed, the result carries `unlanded_take`, `unlanded_takes`, `unlanded_saving` and a `warning` and still mints; pass `land_first` to land it first (refused, nothing minted, while uploads are still saving, after the session was accepted or skipped, or if the land leaves a take unsaved) |
-| `record_state_tool` | Roster, take clock, `start_blockers`, consent, `unlanded_take` / `unlanded_takes` / `unlanded_saving` (stopped takes not yet landed, and how many still upload) |
+| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`). If the current room has a stopped take not yet landed, the result carries `unlanded_take`, `unlanded_takes`, `unlanded_saving`, `unlanded_stalled`, `land_first_possible` and a `warning` and still mints; pass `land_first` to land it first (adds `landed_first`; guest audio that never finished uploading is reported as `left_behind`; refused, nothing minted, while uploads are still saving, after the session was accepted or skipped, or if the land leaves a finished recording unsaved) |
+| `record_state_tool` | Roster, take clock, `start_blockers`, consent, `unlanded_take` / `unlanded_takes` / `unlanded_saving` / `unlanded_stalled` / `land_first_possible` (stopped takes not yet landed, how many still upload, how many guest recordings never finished, and whether a land can save something now) |
 | `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
@@ -143,8 +143,10 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    the old one and kills its links (guest and producer), and landing reads only the
    active room, so a stopped take that is not landed would be left behind. The mint
    warns (`unlanded_take`, `warning`) and still goes ahead; use `--land-first` /
-   `land_first` to land then mint, or start anyway. Land-first refuses while guests
-   are still saving.
+   `land_first` to land then mint, or start anyway. Land-first refuses (mints
+   nothing) while guests are still saving, after the session was decided, or if the land
+   leaves a finished recording unsaved; audio that never finished is left behind with a
+   report.
 
 ## Rules
 
