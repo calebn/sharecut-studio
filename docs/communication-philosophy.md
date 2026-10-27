@@ -399,19 +399,17 @@ the empty state, not a separate discovery task.
 
 ## Why lines on suggestions
 
-Each suggested edit can carry one plain sentence saying why it is suggested (`edits/why_lines.py`, sent as `pending_edits[].why`). It names what was heard, in words a listener would use, and never a detector, score or reason code. The line is absent, not blank, for guest, agent and manual edits. `{Name}` is the speaker's name; with no name known the line drops it.
+Each suggested edit can carry one plain sentence saying why it is suggested (`edits/tighten_hits.py`, sent as `pending_edits[].why`). It states only what the suggestion's own record shows, in words a listener would use, and never a detector, score or reason code. It makes no claim the server did not measure: no "reads the same without it", no "nobody talks over it". The line is absent, not blank, for guest, agent and manual edits and for a reason the server cannot read. `{Name}` is the speaker's name; with no name known the line drops it ("“{word}” is said twice", "The sentence restarts"). A repeated word longer than 24 characters is cut with an ellipsis.
 
 | Kind | Line |
 |------|------|
-| Filler word | Filler word; the sentence reads the same without it |
-| Pause | A {gap} s gap; keeps {kept} s |
+| Filler word | Filler word |
+| Pause | A {gap} s gap |
 | Repeated word | {Name} says “{word}” twice |
-| False start | {Name} restarts the sentence; nobody talks over it |
-| Laugh | Sounds like a laugh, not a word |
+| False start | {Name} restarts the sentence |
+| Laugh | Might be a laugh; listen before cutting |
 | Possible missed word | Might be a word the transcript missed; listen before cutting |
 | Unclear sound | An unclear sound; listen before deciding |
-
-The false-start line adds "nobody talks over it" only when another speaker is known to be quiet there. Without a name it reads "“{word}” is said twice" and "The sentence restarts".
 
 ## Mobile ergonomics checklist
 

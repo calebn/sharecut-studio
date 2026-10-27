@@ -181,10 +181,10 @@ def test_studio_view_sends_a_plain_why_line_only_for_tighten_hits(tmp_path) -> N
     ]
     rows = map_pending_edits_to_timeline(proj, proj.edit_decisions)
     assert {r["id"]: r["why"] for r in rows} == {
-        "safe": "Filler word; the sentence reads the same without it",
-        "risky": "Filler word; the sentence reads the same without it",
-        "join": "A 0.8 s gap; keeps 0.5 s",
+        "safe": "Filler word",
+        "risky": "Filler word",
+        "join": "A 0.8 s gap",
         "review": "Jon says “the” twice",
         "nl": None,
-        "restart": "Jon restarts the sentence; nobody talks over it",
+        "restart": "Jon restarts the sentence",
     }
