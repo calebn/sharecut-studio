@@ -569,7 +569,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",
   trackInspector: "daw.track.setVolume",
-  SplitSpeakersDialog: "daw.track.splitSpeakers",
+  SourceCard: "daw.track.splitSpeakers",
   trackHeader: "daw.track.soloToggle",
   trackHeadersWell: "daw.track.deselectAll",
   "trackHeaders.soloChip": "daw.track.clearSolo",
