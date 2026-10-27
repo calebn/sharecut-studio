@@ -8,6 +8,8 @@ import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 import type { TimeRange } from "./seconds";
 import { clampRange, snapToSilence, WAVEFORM_WINDOW_S } from "./silenceSnap";
+import { capturePointer, pointerRatio } from "./wavePointer";
+import { PeakStrip } from "./waveStrip";
 
 const KEY_STEP_S = 0.05;
 const KEY_STEP_BIG_S = 0.5;
@@ -62,25 +64,14 @@ export function SuggestionWaveform({
     onAdjust?.(clampRange({ start, end, [edge]: snapped }, edge, bounds));
   };
 
-  const timeAt = (clientX: number) => {
-    const rect = track.current?.getBoundingClientRect();
-    const width = rect?.width || 1;
-    const ratio = Math.min(
-      1,
-      Math.max(0, (clientX - (rect?.left ?? 0)) / width),
-    );
-    return windowStart + ratio * WAVEFORM_WINDOW_S;
-  };
+  const timeAt = (clientX: number) =>
+    windowStart + pointerRatio(track.current, clientX) * WAVEFORM_WINDOW_S;
 
   const onDown = (edge: Edge) => (event: PointerEvent<HTMLElement>) => {
     if (readOnly) return;
     dragging.current = edge;
     started.current = false;
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // A synthetic pointer has nothing to capture.
-    }
+    capturePointer(event);
   };
   const onMove = (event: PointerEvent<HTMLElement>) => {
     const edge = dragging.current;
@@ -141,29 +132,9 @@ export function SuggestionWaveform({
     );
   };
 
-  const count = Math.max(peaks.length, 1);
   return (
     <div ref={track} className="sys-wave" role="group" aria-label={label}>
-      <svg
-        viewBox={`0 0 ${count} 1`}
-        preserveAspectRatio="none"
-        aria-hidden="true"
-        focusable="false"
-      >
-        {peaks.map((peak, index) => {
-          const x = index + 0.15;
-          return (
-            <rect
-              key={x}
-              className="sys-wave-peak"
-              x={x}
-              y={(1 - peak) / 2}
-              width={0.7}
-              height={Math.max(peak, 0.04)}
-            />
-          );
-        })}
-      </svg>
+      <PeakStrip peaks={peaks} />
       <span
         className="sys-wave-region"
         style={
