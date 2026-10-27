@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.review_gate import ReviewSource
 from podcast_mcp.edits.transcript_correct import UNSURE_WORD_CONFIDENCE, list_low_confidence
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
@@ -31,7 +32,8 @@ class TranscriptRefineService(ReviewGateService):
         A waiver does not count: checking the transcript after "Cut anyway" is the
         stronger record, so it replaces the waiver. Returns :meth:`gate_status`.
         """
-        current = self.status()
-        if not (current["clear"] and current["stored_status"] == "done"):
-            self.mark_done(notes=notes, source=source)
+        with self.ws.transaction():
+            current = self.gate.report(self.ws.project, load_defaults())
+            if not (current["clear"] and current["stored_status"] == "done"):
+                self.mark_done(notes=notes, source=source)
         return self.gate_status()

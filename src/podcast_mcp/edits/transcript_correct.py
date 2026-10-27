@@ -348,6 +348,8 @@ def list_low_confidence(
     out: list[dict] = []
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
+            if w.suppressed:
+                continue
             conf = w.confidence if w.confidence is not None else 1.0
             if conf >= threshold:
                 continue

@@ -3416,6 +3416,34 @@ def test_api_transcript_refine_done_and_status_refuse_guests(minimal_project, mo
     assert not (minimal_project.parent / "artifacts" / "transcript_refine_status.json").exists()
 
 
+def test_api_transcript_refine_routes_refuse_a_relayed_guest(minimal_project) -> None:
+    client = _refine_client(minimal_project)
+    path = str(minimal_project)
+    relayed = {"x-sharecut-relayed": "1"}
+    done = client.post("/api/transcript/refine/done", json={"path": path}, headers=relayed)
+    status = client.get("/api/transcript/refine/status", params={"path": path}, headers=relayed)
+    for response in (done, status):
+        assert response.status_code == 403
+    assert not (minimal_project.parent / "artifacts" / "transcript_refine_status.json").exists()
+
+
+def test_api_transcript_refine_routes_require_a_path(minimal_project) -> None:
+    client = _refine_client(minimal_project)
+    assert client.get("/api/transcript/refine/status").status_code == 422
+    assert client.post("/api/transcript/refine/done", json={}).status_code == 422
+
+
+def test_api_transcript_refine_status_skips_suppressed_words(minimal_project) -> None:
+    from podcast_mcp.models import load_project, save_project
+
+    client = _refine_client(minimal_project)
+    proj = load_project(minimal_project)
+    proj.transcripts[0].words[0].suppressed = True
+    save_project(proj, minimal_project)
+    body = client.get("/api/transcript/refine/status", params={"path": str(minimal_project)}).json()
+    assert body["low_confidence_words"] == 0
+
+
 def test_api_document_command_refine_gate_has_stable_error_code(
     minimal_project, monkeypatch
 ) -> None:

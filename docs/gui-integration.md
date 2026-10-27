@@ -168,17 +168,17 @@ mappable in both. Edit-boundary `cutaway_word_ids` ask the same helper and
 leave out a zero-length word it maps onto the left clip, so they cannot drift
 from the word views.
 
-### Transcript find and replace
-
 ### Transcript check routes
 
 Both routes are host-only; a guest or an unauthorized remote client gets the usual `authz_denied` refusal (403) and nothing is written. Both answer with the same `TranscriptRefineStatusView`: `status` (`pending` for open, `done` or `waived`), `clear`, `stale` (a record whose transcript text changed since), `mode`, `source`, `notes` (the waiver reason when `waived`), `updated_at`, `low_confidence_words` (words below `low_confidence_threshold`, the project's one unsure-word line, 0.7) and `hint`.
 
 - `GET /api/transcript/refine/status?path=` reads the gate without writing.
-- `POST /api/transcript/refine/done {path, notes?}` records refine-done for the human through `TranscriptRefineService.mark_checked` (the service behind CLI `refine-done` and MCP `transcript_refine_done_tool`, with source `user`). It is idempotent: while the record is `done` and current, a repeat writes nothing and returns the same `updated_at`. After a waiver or a stale record it writes `done`.
+- `POST /api/transcript/refine/done {path, notes?}` records refine-done for the human through `TranscriptRefineService.mark_checked` with source `user` (CLI `refine-done` and MCP `transcript_refine_done_tool` call `mark_done` directly: they always write and return the raw record). It is idempotent: while the record is `done` and current, a repeat writes nothing and returns the same `updated_at`. After a waiver or a stale record it writes `done`.
 - `POST /api/transcript/refine/waive {path, reason}` is unchanged. "Cut anyway" sends the reason "Approved after listening in Review" and is recorded as `waived`, not `done`.
 
 The web client is `loadTranscriptCheck` / `markTranscriptChecked` in `api/transcriptCheck.ts`.
+
+### Transcript find and replace
 
 The host Transcript toolbar and command palette open a form to review literal replacements across source recordings. `POST /api/transcript/replacement-preview` delegates to `TranscriptService`; the `ReplaceTranscriptMatches` document command revalidates the preview and applies the complete set as one Undo action. See [the find-and-replace guide](daw-editing.md#transcript-find-and-replace) for matching rules, source scope, timing warnings, and queued delivery.
 

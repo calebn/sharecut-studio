@@ -14,6 +14,13 @@ const status = {
   low_confidence_threshold: 0.7,
 };
 
+function requestUrl(input: RequestInfo | URL | undefined): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  if (input instanceof Request) return input.url;
+  throw new Error("fetch was called without a URL");
+}
+
 describe("transcript check client", () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -22,8 +29,10 @@ describe("transcript check client", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify(status)));
     await expect(loadTranscriptCheck("/tmp/p.json")).resolves.toEqual(status);
-    const url = String(fetch.mock.calls[0]?.[0]);
-    expect(url).toContain("/api/transcript/refine/status?path=%2Ftmp%2Fp.json");
+    const [url] = fetch.mock.calls[0] ?? [];
+    expect(requestUrl(url)).toContain(
+      "/api/transcript/refine/status?path=%2Ftmp%2Fp.json",
+    );
   });
 
   it("posts the path and optional notes to mark the transcript checked", async () => {
@@ -32,9 +41,10 @@ describe("transcript check client", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(status)));
     await expect(markTranscriptChecked("/tmp/p.json")).resolves.toEqual(status);
     const [url, init] = fetch.mock.calls[0] ?? [];
-    expect(String(url)).toContain("/api/transcript/refine/done");
+    expect(requestUrl(url)).toContain("/api/transcript/refine/done");
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({ path: "/tmp/p.json" });
+    expect(typeof init?.body).toBe("string");
+    expect(JSON.parse(init?.body as string)).toEqual({ path: "/tmp/p.json" });
   });
 
   it("surfaces a refusal from the server", async () => {
