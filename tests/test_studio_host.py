@@ -32,6 +32,7 @@ from podcast_mcp.services.app import studio_host as studio_host_module
 from podcast_mcp.services.app.studio_host import (
     HANDOFF_PROTOCOL,
     HandoffLost,
+    HandoffRefused,
     hand_off,
     handoff_env,
 )
@@ -254,6 +255,79 @@ def test_a_dropped_handoff_response_is_uncertain_even_before_start_event(
             out=io.StringIO(),
             err=io.StringIO(),
         )
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "expected"),
+    [
+        (409, "protocol", HandoffRefused),
+        (429, "too_many", HandoffRefused),
+        (409, "unexpected", HandoffLost),
+        (503, "protocol", HandoffLost),
+    ],
+)
+def test_only_defined_pre_execution_responses_are_refusals(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    code: str,
+    expected: type[Exception],
+) -> None:
+    class Response:
+        def __init__(self) -> None:
+            self.status = status
+
+        def read(self) -> bytes:
+            return json.dumps({"code": code, "detail": "Studio declined."}).encode()
+
+    class Connection:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> Response:
+            return Response()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: Connection())
+    with pytest.raises(expected) as caught:
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+    if expected is HandoffLost:
+        assert "may have changed the project" in str(caught.value)
+    else:
+        assert caught.value.code == code
+
+
+def test_post_transport_error_does_not_expose_exception_text(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Connection:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            raise OSError("private transport detail")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: Connection())
+    with pytest.raises(HandoffLost) as caught:
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+    assert "may have changed the project" in str(caught.value)
+    assert "private transport detail" not in str(caught.value)
 
 
 def test_a_studio_nothing_listens_for_is_a_stale_announcement(project: Path) -> None:
