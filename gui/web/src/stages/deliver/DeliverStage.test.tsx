@@ -4862,6 +4862,18 @@ describe("write-back to the host", () => {
     );
   });
 
+  it("reads a playhead function when the chapter is added", async () => {
+    const onChapters = vi.fn();
+    const playhead = vi.fn(() => 900);
+    setup({ onChapters, playhead });
+    expect(playhead).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Add at playhead/ }),
+    );
+    const next = onChapters.mock.calls[0]?.[0] as typeof CHAPTERS;
+    expect(next.map((chapter) => chapter.at)).toContain(900);
+  });
+
   it("reports the chapters after one is removed, and not the clips", async () => {
     const onChapters = vi.fn();
     const onClips = vi.fn();
