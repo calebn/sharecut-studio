@@ -65,3 +65,9 @@ export const menuStoryDecorator: Decorator = (Story) => (
     <Story />
   </div>
 );
+
+export const columnStoryDecorator: Decorator = (Story) => (
+  <div style={{ padding: "var(--space-5)", maxInlineSize: "30rem" }}>
+    <Story />
+  </div>
+);

@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { ComposerHarness, PhoneFrame } from "../storybook/ComposerHarness";
-import { viewportStoryParameters } from "../storybook/storyLayout";
+import {
+  columnStoryDecorator,
+  viewportStoryParameters,
+} from "../storybook/storyLayout";
 import { playInCanvas } from "../storybook/storyPlay";
 import { Composer } from "../system/Composer";
 
@@ -11,20 +14,14 @@ const meta: Meta<typeof ComposerHarness> = {
   render: (args) => <ComposerHarness {...args} />,
   tags: ["autodocs"],
   args: { onSubmit: fn(), onAnchor: fn() },
-  decorators: [
-    (Story) => (
-      <div style={{ padding: "var(--space-5)", maxInlineSize: "30rem" }}>
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: [columnStoryDecorator],
   parameters: {
     ...viewportStoryParameters,
     docs: {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Review comment field in its states, restyled from the old comment compose. The anchor chip leads and pins on the first keystroke; Enter posts and Shift+Enter adds a line.\n\n**Motion.** Animations come later.",
+          "The Review comment field in its states. The anchor chip leads and pins on the first keystroke; Enter posts and Shift+Enter adds a line.\n\n**Motion.** Animations come later.",
       },
     },
   },
