@@ -10,28 +10,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _case_collisions(root: Path) -> list[list[str]]:
-    """Groups of tracked paths that differ only in case.
-
-    Paths are grouped by lowercased path *without* the final extension, so
-    ``reviewQueue.ts`` vs ``ReviewQueue.tsx`` (extensionless imports resolve to
-    the same file on case-insensitive checkouts) is caught. A same-case stem with
-    different extensions (``foo.ts`` / ``foo.tsx``) is not a collision.
-    """
+    """Tracked paths whose extensionless path or a parent directory differ only in case."""
     tracked = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout.split("\0")
-    groups: dict[str, list[str]] = defaultdict(list)
+    stems: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+    dirs: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     for path in filter(None, tracked):
-        groups[str(PurePosixPath(path).with_suffix("")).lower()].append(path)
-    collisions = []
-    for paths in groups.values():
-        stems = {str(PurePosixPath(p).with_suffix("")) for p in paths}
-        if len(stems) > 1 or len({p.lower() for p in paths}) < len(paths):
-            collisions.append(sorted(paths))
-    return sorted(collisions)
+        pure = PurePosixPath(path)
+        stem = str(pure.with_suffix(""))
+        stems[stem.lower()][stem].append(path)
+        for parent in pure.parents:
+            if str(parent) != ".":
+                dirs[str(parent).lower()][str(parent)].append(path)
+    collisions = set()
+    for table in (stems, dirs):
+        for spellings in table.values():
+            paths = {p for group in spellings.values() for p in group}
+            if len(spellings) > 1 or len(paths) > len(set(map(str.lower, paths))):
+                collisions.add(tuple(sorted(paths)))
+    return [list(group) for group in sorted(collisions)]
 
 
 def test_tracked_paths_do_not_collide_on_case_insensitive_filesystems() -> None:
