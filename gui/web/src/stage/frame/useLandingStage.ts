@@ -1,6 +1,11 @@
 import { useEffect } from "react";
 import { useDawStore } from "../../state/dawStore";
-import { landingStage, stageRoleOf } from "../../state/stageRoutes";
+import {
+  landingStage,
+  stageRoleOf,
+  stagesForRole,
+} from "../../state/stageRoutes";
+import { takeOpenStage } from "../../utils/openIntent";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
 import { readLastStage } from "../../utils/stagePref";
 
@@ -15,14 +20,21 @@ export function useLandingStage(): void {
     const s = useDawStore.getState();
     const project = s.project;
     if (!project) return;
-    const next = landingStage({
-      role: stageRoleOf(s.guestMode),
-      trackCount: project.tracks.length,
-      jobBusy:
-        isPipelineSlotBusy(s.activityJob) || isPipelineSlotBusy(s.pipelineJob),
-      pendingReviewCount: project.edit_impact.pending_review_count,
-      lastStage: readLastStage(s.projectPath),
-    });
+    const role = stageRoleOf(s.guestMode);
+    // A Home card names the stage its chip promised; that wins once.
+    const named = takeOpenStage(s.projectPath);
+    const next =
+      named && stagesForRole(role).includes(named)
+        ? named
+        : landingStage({
+            role,
+            trackCount: project.tracks.length,
+            jobBusy:
+              isPipelineSlotBusy(s.activityJob) ||
+              isPipelineSlotBusy(s.pipelineJob),
+            pendingReviewCount: project.edit_impact.pending_review_count,
+            lastStage: readLastStage(s.projectPath),
+          });
     if (next === s.stage) s.markLandingSettled();
     else s.openStage(next);
   }, [waiting]);
