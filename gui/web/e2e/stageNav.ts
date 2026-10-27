@@ -83,6 +83,28 @@ export async function waitForFrame(page: Page): Promise<void> {
 
 /** Go to `stage` by its Stage bar tab and wait for it to be the open one. */
 export async function goToStage(page: Page, stage: Stage): Promise<void> {
+  // A window too short for the tab bar folds it into the header's Stage menu.
+  const menu = page.getByRole("button", { name: /^Stage menu, / });
+  if (await menu.count()) {
+    if (
+      !(await menu.getAttribute("aria-label"))?.endsWith(STAGE_LABEL[stage])
+    ) {
+      await menu.click();
+      await page
+        .getByRole("menuitem", {
+          name: new RegExp(`^${STAGE_LABEL[stage]}\\b`),
+        })
+        .click();
+    }
+    await expect(menu).toHaveAttribute(
+      "aria-label",
+      `Stage menu, ${STAGE_LABEL[stage]}`,
+    );
+    await expect(
+      page.getByRole("main", { name: STAGE_LABEL[stage] }),
+    ).toBeVisible();
+    return;
+  }
   const tab = stageTab(page, stage);
   if ((await tab.getAttribute("aria-selected")) !== "true") {
     await tab.click();
