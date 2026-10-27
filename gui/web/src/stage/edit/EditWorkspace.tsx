@@ -1,5 +1,6 @@
 import { memo, type RefCallback, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { runPointerCommand } from "../../commands/pointer";
 import { isRangeSelection } from "../../edit/rangeSelection";
 import {
   matchesMedia,
@@ -56,7 +57,6 @@ function EditWorkspaceAdapter({
     scriptCollapsed,
     scriptFocus,
     editSurface,
-    setEditSurface,
     setOpenSheet,
     setTimelineFocused,
     projectPath,
@@ -69,7 +69,6 @@ function EditWorkspaceAdapter({
       scriptCollapsed: s.scriptCollapsed,
       scriptFocus: s.scriptFocus,
       editSurface: s.editSurface,
-      setEditSurface: s.setEditSurface,
       setOpenSheet: s.setOpenSheet,
       setTimelineFocused: s.setTimelineFocused,
       projectPath: s.projectPath,
@@ -232,7 +231,9 @@ function EditWorkspaceAdapter({
       phone={
         <PhoneEditSurfaceView
           surface={editSurface}
-          onSurfaceChange={setEditSurface}
+          onSurfaceChange={(surface) =>
+            runPointerCommand("stage.edit", { surface })
+          }
           tools={<EditToolStrip />}
           corner={corner}
           lanes={timeline}

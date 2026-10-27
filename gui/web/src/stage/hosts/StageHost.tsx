@@ -1,5 +1,6 @@
 import { memo, type RefCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { runPointerCommand } from "../../commands/pointer";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../../state/stageRoutes";
 import { Cover } from "../../system/Cover";
@@ -23,12 +24,8 @@ function StageHostAdapter({
   feedbackHostRef,
   loadFailure,
 }: StageHostProps) {
-  const { stage, guestMode, openStage } = useDawStore(
-    useShallow((s) => ({
-      stage: s.stage,
-      guestMode: s.guestMode,
-      openStage: s.openStage,
-    })),
+  const { stage, guestMode } = useDawStore(
+    useShallow((s) => ({ stage: s.stage, guestMode: s.guestMode })),
   );
   const role = stageRoleOf(guestMode);
   if (!stageAvailable(stage, role)) {
@@ -41,7 +38,7 @@ function StageHostAdapter({
         title="This link can't open that"
         primary={{
           label: `Go to ${stageLabel(first)}`,
-          onClick: () => openStage(first),
+          onClick: () => runPointerCommand(`stage.${first}`),
         }}
       >
         Your link doesn't include this part of the project.

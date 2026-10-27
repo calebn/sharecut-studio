@@ -2,6 +2,7 @@ import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import {
+  type EditSurface,
   REVIEW_SECTIONS,
   type ReviewSection,
   STAGE_IDS,
@@ -12,11 +13,14 @@ import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
 
 const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
+const NOT_EDIT = { status: "disabled", reason: "Open Edit" } as const;
 
 const isReviewSection = (v: unknown): v is ReviewSection =>
   (REVIEW_SECTIONS as readonly unknown[]).includes(v);
 const isStageSheet = (v: unknown): v is StageSheet =>
   (STAGE_SHEETS as readonly unknown[]).includes(v);
+const isEditSurface = (v: unknown): v is EditSurface =>
+  v === "lanes" || v === "text";
 
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
@@ -54,6 +58,10 @@ export function registerViewCommands(): void {
         ...(isStageSheet(sheet) ? { sheet } : {}),
       };
       s.openStage(stage, options);
+      // The phone's Timeline or Script, which only Edit has.
+      if (stage === "edit" && isEditSurface(args.surface)) {
+        useDawStore.getState().setEditSurface(args.surface);
+      }
       return { status: "ok" };
     });
   }
@@ -71,6 +79,7 @@ export function registerViewCommands(): void {
   registerCommand("view.toggleScript", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    if (s.stage !== "edit") return NOT_EDIT;
     s.setScriptCollapsed(!s.scriptCollapsed);
     s.announceStatus(s.scriptCollapsed ? "Script shown" : "Script hidden");
     return { status: "ok" };
@@ -79,6 +88,7 @@ export function registerViewCommands(): void {
   registerCommand("view.scriptFocus", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    if (s.stage !== "edit") return NOT_EDIT;
     s.setScriptFocus(!s.scriptFocus);
     s.announceStatus(s.scriptFocus ? "Script focus off" : "Script focus on");
     return { status: "ok" };

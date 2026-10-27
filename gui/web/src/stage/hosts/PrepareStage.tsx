@@ -27,7 +27,6 @@ function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
     shareCapabilities,
     pipelineJob,
     activityJob,
-    openStage,
   } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -36,7 +35,6 @@ function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
       shareCapabilities: s.shareCapabilities,
       pipelineJob: s.pipelineJob,
       activityJob: s.activityJob,
-      openStage: s.openStage,
     })),
   );
   const shell = useViewportClass();
@@ -61,7 +59,7 @@ function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
       scrollRef={scrollRef}
       onImport={() => runPointerCommand("media.import", {})}
       onRecord={() => runPointerCommand("stage.record")}
-      onHandoff={() => openStage(handoff.target)}
+      onHandoff={() => runPointerCommand(`stage.${handoff.target}`)}
     />
   );
 }

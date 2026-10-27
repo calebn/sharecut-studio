@@ -43,6 +43,21 @@ describe("stage commands", () => {
     expect((await execute("stage.review")).status).toBe("ok");
   });
 
+  it("takes a Review section and a phone Edit surface as arguments", async () => {
+    await execute("stage.review", { section: "tighten" });
+    expect(useDawStore.getState().reviewSection).toBe("tighten");
+    await execute("stage.edit", { surface: "text" });
+    expect(useDawStore.getState().editSurface).toBe("text");
+    await execute("stage.edit", { surface: "nope" });
+    expect(useDawStore.getState().editSurface).toBe("text");
+  });
+
+  it("breaks the follow of the host when a control switches stage", async () => {
+    useDawStore.setState({ followingClientId: "host-1" });
+    await execute("stage.review", { section: "impact" });
+    expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+
   it("is disabled without a project", async () => {
     useDawStore.setState({ project: null });
     expect((await execute("stage.review", {}, { skipWhen: true })).status).toBe(

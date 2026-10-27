@@ -19,16 +19,14 @@ export type DeliverStageProps = {
 };
 
 function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
-  const { project, projectPath, guestMode, shareCapabilities, openStage } =
-    useDawStore(
-      useShallow((s) => ({
-        project: s.project,
-        projectPath: s.projectPath,
-        guestMode: s.guestMode,
-        shareCapabilities: s.shareCapabilities,
-        openStage: s.openStage,
-      })),
-    );
+  const { project, projectPath, guestMode, shareCapabilities } = useDawStore(
+    useShallow((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+    })),
+  );
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body");
   const breakdown = useStaleRenderBreakdown(project);
@@ -49,7 +47,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     if (fix.kind === "refreshMix") {
       runPointerCommand("render.refreshMix");
     } else {
-      openStage(fix.stage, fix.section ? { section: fix.section } : undefined);
+      runPointerCommand(
+        `stage.${fix.stage}`,
+        fix.section ? { section: fix.section } : {},
+      );
     }
   };
   const action = (

@@ -1,4 +1,5 @@
 import { useShallow } from "zustand/react/shallow";
+import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { canEditMix } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -15,10 +16,9 @@ import { EditSurfaceSwitch } from "./PhoneEditSurfaceView";
  * lanes) and Mix.
  */
 export function ToolsSheet() {
-  const { surface, setSurface, setOpenSheet, mixAllowed } = useDawStore(
+  const { surface, setOpenSheet, mixAllowed } = useDawStore(
     useShallow((s) => ({
       surface: s.editSurface,
-      setSurface: s.setEditSurface,
       setOpenSheet: s.setOpenSheet,
       mixAllowed: canEditMix(s.projectPath, s.guestMode, s.shareCapabilities),
     })),
@@ -27,7 +27,12 @@ export function ToolsSheet() {
   return (
     <div className="tools-sheet">
       {phone ? (
-        <EditSurfaceSwitch surface={surface} onSurfaceChange={setSurface} />
+        <EditSurfaceSwitch
+          surface={surface}
+          onSurfaceChange={(next) =>
+            runPointerCommand("stage.edit", { surface: next })
+          }
+        />
       ) : null}
       {phone && surface === "lanes" ? <EditToolStrip /> : null}
       {surface === "lanes" || !phone ? (

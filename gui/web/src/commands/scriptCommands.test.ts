@@ -29,6 +29,23 @@ describe("Script commands", () => {
     expect(useDawStore.getState().scriptFocus).toBe(false);
   });
 
+  it.each(["review", "prepare", "deliver", "record"] as const)(
+    "refuses both on %s and announces nothing",
+    async (stage) => {
+      useDawStore.setState({ stage, statusAnnouncement: "" });
+      for (const id of ["view.toggleScript", "view.scriptFocus"]) {
+        expect(await execute(id)).toEqual({
+          status: "disabled",
+          reason: "Open Edit",
+        });
+      }
+      const s = useDawStore.getState();
+      expect(s.scriptCollapsed).toBe(false);
+      expect(s.scriptFocus).toBe(false);
+      expect(s.statusAnnouncement).toBe("");
+    },
+  );
+
   it("refuses both without a project", async () => {
     useDawStore.setState({ project: null });
     expect(await execute("view.toggleScript")).toMatchObject({

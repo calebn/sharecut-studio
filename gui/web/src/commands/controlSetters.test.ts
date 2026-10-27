@@ -19,6 +19,9 @@ const COMMAND_OWNED_SETTERS: Record<string, string> = {
   setPlayheadSec: "transport.seek",
   applyAnchoredZoom: "view.zoomIn",
   fitToWindow: "view.fit",
+  openStage: "stage.edit",
+  setReviewSection: "stage.review",
+  setEditSurface: "stage.edit",
 };
 
 const WAIVERS: { file: string; setter: string; reason: string }[] = [

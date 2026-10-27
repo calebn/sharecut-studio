@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { CommentsPanel } from "../../panels/CommentsPanel";
 import { ImpactPanel } from "../../panels/ImpactPanel";
@@ -33,16 +34,13 @@ function ReviewStageAdapter({
   guestShare = false,
   loadFailure,
 }: ReviewStageProps) {
-  const { project, guestMode, reviewSection, setReviewSection, openStage } =
-    useDawStore(
-      useShallow((s) => ({
-        project: s.project,
-        guestMode: s.guestMode,
-        reviewSection: s.reviewSection,
-        setReviewSection: s.setReviewSection,
-        openStage: s.openStage,
-      })),
-    );
+  const { project, guestMode, reviewSection } = useDawStore(
+    useShallow((s) => ({
+      project: s.project,
+      guestMode: s.guestMode,
+      reviewSection: s.reviewSection,
+    })),
+  );
   const role = stageRoleOf(guestMode);
   const shell = useViewportClass();
   const sections = useMemo(() => reviewSectionsFor(role), [role]);
@@ -60,9 +58,11 @@ function ReviewStageAdapter({
       sections={sections}
       active={active}
       waiting={waiting}
-      onSection={setReviewSection}
+      onSection={(section) => runPointerCommand("stage.review", { section })}
       panel={panelFor(active, guestShare)}
-      onDeliver={role === "host" ? () => openStage("deliver") : undefined}
+      onDeliver={
+        role === "host" ? () => runPointerCommand("stage.deliver") : undefined
+      }
       scrollRef={scrollRef}
     />
   );
