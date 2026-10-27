@@ -391,22 +391,51 @@ def test_a_cached_verdict_equals_a_cold_check_when_words_inside_a_clip_gap_chang
     assert cached == cold
 
 
-def _early_clip(fade_out_ms: int) -> Callable[[EpisodeProject], None]:
-    """Splits off a clip ending far before the cut, whose fade is the longest in the project."""
+def _early_clip(
+    fade_out_ms: int = 0,
+    *,
+    thin: bool = False,
+    moved_by: float = 0.0,
+    reason: str | None = None,
+) -> Callable[[EpisodeProject], None]:
+    """Splits off a clip ending far before the cut, whose fade is the longest in the project.
+
+    ``thin`` leaves one word 5.6 s before the pause (so its span is clamped there on the left)
+    and one 0.1 s after it (so the right end of the span follows the fade). ``moved_by`` slides
+    the early clip later on the timeline, in the hole left before the main clip, which moves the
+    word it plays without touching any clip near the cut. ``reason`` replaces the edit's reason.
+    """
 
     def mutate(p: EpisodeProject) -> None:
         head = p.clips[0]
         early = head.model_copy(
-            update={"id": "c_early", "source_end": 10.0, "fade_out_ms": fade_out_ms}
+            update={
+                "id": "c_early",
+                "source_end": 10.0,
+                "fade_out_ms": fade_out_ms,
+                "timeline_start": moved_by,
+            }
         )
-        head.source_start = head.timeline_start = 10.0
+        head.source_start = 10.0
+        head.timeline_start = 10.0 + (2.0 if moved_by else 0.0)
         p.clips = [early, head]
+        if thin:
+            _no_source(p).words = [
+                TranscriptWord(text="far", start=36.0, end=36.2),
+                TranscriptWord(text="near", start=41.9, end=42.1),
+            ]
+        if reason is not None:
+            p.edit_decisions[0].reason = reason
 
     return mutate
 
 
 def _keys_and_spans(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fades: list[int]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    variants: list[Callable[[EpisodeProject], None]],
+    *,
+    clear: bool = True,
 ) -> tuple[list[str | None], list[tuple[float, float]]]:
     from podcast_mcp.edits import cut_safety
 
@@ -428,9 +457,11 @@ def _keys_and_spans(
     monkeypatch.setattr(cut_safety, "assess_held_pause", spy_assess)
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
     monkeypatch.delenv(verdict_cache.VERIFY_ENV, raising=False)
-    for fade in fades:
-        verdict_cache._STORE.clear()
-        _outcome(_project(tmp_path, sourced=True, mutate=_early_clip(fade)))
+    verdict_cache._STORE.clear()
+    for mutate in variants:
+        if clear:
+            verdict_cache._STORE.clear()
+        _outcome(_project(tmp_path, sourced=True, mutate=mutate))
     return keys, spans
 
 
@@ -438,17 +469,77 @@ def test_a_pause_key_moves_with_a_fade_before_the_window_that_widens_its_observa
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """#2433: the span reads the longest fade in the project, even on a clip far before the cut."""
-    keys, spans = _keys_and_spans(tmp_path, monkeypatch, [20, 800])
+    keys, spans = _keys_and_spans(tmp_path, monkeypatch, [_early_clip(20), _early_clip(800)])
     assert len(spans) == 2
     assert spans[0] != spans[1], "the fade must move the cold observation span"
+    assert keys[0] != keys[1]
+
+
+def test_a_pause_key_moves_with_the_right_end_of_the_span_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    keys, spans = _keys_and_spans(
+        tmp_path, monkeypatch, [_early_clip(130, thin=True), _early_clip(800, thin=True)]
+    )
+    assert spans[0][0] == spans[1][0], "the left end is clamped at the far word"
+    assert spans[0][1] != spans[1][1]
+    assert keys[0] != keys[1]
+
+
+def test_a_pause_key_moves_when_a_clip_outside_the_window_moves_the_far_word(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The far word's place comes from a clip the window does not hold; the gap needs no entry."""
+    keys, spans = _keys_and_spans(
+        tmp_path, monkeypatch, [_early_clip(thin=True), _early_clip(thin=True, moved_by=1.0)]
+    )
+    assert spans[0] != spans[1]
     assert keys[0] != keys[1]
 
 
 def test_a_pause_verdict_stays_cached_when_a_far_fade_changes_nothing_the_span_reads(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The word gap is wider than either fade, so the span is the same and the entry still hits."""
-    keys, spans = _keys_and_spans(tmp_path, monkeypatch, [20, 60])
+    """130 and 400 ms both pass the 120 ms floor and differ, yet the word gap bounds the span."""
+    variants = [_early_clip(130), _early_clip(400)]
+    keys, spans = _keys_and_spans(tmp_path, monkeypatch, variants)
     assert spans[0] == spans[1]
     assert keys[0] is not None
     assert keys[0] == keys[1]
+    # And the entry the first approval stored is served to the second.
+    verdict_cache._STORE.clear()
+    keys, _ = _keys_and_spans(tmp_path, monkeypatch, variants, clear=False)
+    assert verdict_cache.lookup(keys[1]) is not None
+    hits: list[bool] = []
+    real = verdict_cache.lookup
+
+    def spy(key: str | None) -> Any:
+        found = real(key)
+        hits.extend([True] if found else [])
+        return found
+
+    monkeypatch.setattr(verdict_cache, "lookup", spy)
+    _outcome(_project(tmp_path, sourced=True, mutate=variants[1]))
+    assert hits
+
+
+def test_only_a_pause_key_carries_an_observation_span(tmp_path: Path) -> None:
+    """Any other edit hashes no span: a far fade would otherwise miss for nothing it reads."""
+    parts = {}
+    for reason in ("pause:0.19s", "noise"):
+        project = _project(
+            tmp_path, sourced=True, mutate=_early_clip(130, thin=True, reason=reason)
+        )
+        edit = project.edit_decisions[0]
+        found = verdict_cache.key_parts(
+            project,
+            edit,
+            defaults=load_defaults(),
+            manual=False,
+            batch=[],
+            span=(PAUSE[0], PAUSE[1]),
+        )
+        assert found is not None
+        parts[reason] = found["pause_span"]
+    assert parts["noise"] == verdict_cache._digest(None)
+    assert parts["pause:0.19s"] != parts["noise"]

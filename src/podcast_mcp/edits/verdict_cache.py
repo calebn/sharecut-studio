@@ -30,6 +30,7 @@ from podcast_mcp import settings
 from podcast_mcp.edits import cut_policy
 from podcast_mcp.edits.cut_placement import (
     CutRejected,
+    HeldPauseSpan,
     held_pause_observation_span,
     pause_neighbours,
     pause_words,
@@ -146,6 +147,38 @@ def _digest(payload: Any) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def _is_pause(edit: EditDecision) -> bool:
+    return (edit.reason or "").startswith("pause:")
+
+
+def _held_pause_span(
+    project: EpisodeProject, edit: EditDecision, span: tuple[float, float], defaults: dict
+) -> HeldPauseSpan | None:
+    """The span a held pause is observed over; ``None`` for any other edit or a rejected pause."""
+    if not _is_pause(edit):
+        return None
+    words = pause_words(project, edit.track_id, edit.start, edit.end)
+    if isinstance(words, CutRejected):
+        return None
+    return held_pause_observation_span(project, edit, span, words, defaults)
+
+
+def _reach_sec(
+    project: EpisodeProject,
+    edit: EditDecision,
+    span: tuple[float, float],
+    defaults: dict,
+    seen: HeldPauseSpan | None,
+) -> float:
+    reach = READ_SEC + fade_reach_sec(project, edit, defaults)
+    if not _is_pause(edit):
+        return reach
+    reach = max(PAUSE_REACH_FLOOR_SEC, reach)
+    if seen is None:
+        return reach
+    return max(reach, float(span[0]) - seen.lo + READ_SEC, seen.hi - float(span[1]) + READ_SEC)
+
+
 def check_reach_sec(
     project: EpisodeProject,
     edit: EditDecision,
@@ -153,15 +186,9 @@ def check_reach_sec(
     defaults: dict,
 ) -> float:
     """How far from its cut a check reads."""
-    reach = READ_SEC + fade_reach_sec(project, edit, defaults)
-    if not (edit.reason or "").startswith("pause:"):
-        return reach
-    reach = max(PAUSE_REACH_FLOOR_SEC, reach)
-    words = pause_words(project, edit.track_id, edit.start, edit.end)
-    if isinstance(words, CutRejected):
-        return reach
-    seen = held_pause_observation_span(project, edit, span, words, defaults)
-    return max(reach, float(span[0]) - seen.lo + READ_SEC, seen.hi - float(span[1]) + READ_SEC)
+    return _reach_sec(
+        project, edit, span, defaults, _held_pause_span(project, edit, span, defaults)
+    )
 
 
 def verdict_key(
@@ -228,7 +255,8 @@ def _payload(
 ) -> dict[str, Any]:
     from podcast_mcp.util.tracks import recording_audio_path
 
-    reach = check_reach_sec(project, edit, span, defaults)
+    seen = _held_pause_span(project, edit, span, defaults)
+    reach = _reach_sec(project, edit, span, defaults, seen)
     lo = float(span[0]) - reach
     hi = float(span[1]) + reach
     s_lo, s_hi = edit.start - reach, edit.end + reach
@@ -303,7 +331,13 @@ def _payload(
         "media": media,
         "words": words,
         "pause": _pause_words_seen(project, edit, near),
-        "pause_span": _pause_span_seen(project, edit, span, defaults),
+        # A held pause records its observation span (``peer_observation_span``), which fade_reach_sec
+        # widens: by the cut crossfade, the pad fade config and the longest fade of any clip, also
+        # one ending before the window that nothing else here hashes. The words' places clamp the
+        # span. The two ends are hashed (not their inputs), so a fade that moves neither still
+        # hits. The gap between the words needs no entry: each word is hashed in ``pause`` and
+        # placed by the clips in the window, or else by its end of the span.
+        "pause_span": None if seen is None else [seen.lo, seen.hi],
         "batch": chosen,
         "disk": _disk_stamps(project),
         "policy": [
@@ -323,7 +357,7 @@ def _pause_words_seen(
     word on each side of the cut. Everything between and including those two decides it; a side
     with none is open ended, as a word added anywhere on it would end the rejection.
     """
-    if not (edit.reason or "").startswith("pause:"):
+    if not _is_pause(edit):
         return None
     before, after = pause_neighbours(project, edit.track_id, edit.start, edit.end)
     lo = before.start if before is not None else -math.inf
@@ -333,24 +367,6 @@ def _pause_words_seen(
         after.model_dump(mode="json") if after is not None else None,
         near(edit.track_id, None, lo, hi),
     ]
-
-
-def _pause_span_seen(
-    project: EpisodeProject, edit: EditDecision, span: tuple[float, float], defaults: dict
-) -> list[float] | None:
-    """The span a held pause is observed over, which the verdict records as ``peer_observation_span``.
-
-    It widens by the longest fade in the whole project, also on a clip that lies before the
-    window and is otherwise not hashed, so the span itself is hashed: a fade that does not move
-    it (the word gap is wider) leaves the key as it was.
-    """
-    if not (edit.reason or "").startswith("pause:"):
-        return None
-    words = pause_words(project, edit.track_id, edit.start, edit.end)
-    if isinstance(words, CutRejected):
-        return None
-    seen = held_pause_observation_span(project, edit, span, words, defaults)
-    return [seen.lo, seen.hi, seen.word_gap]
 
 
 def _heard(clip: Any, lo: float, hi: float) -> list[Any]:

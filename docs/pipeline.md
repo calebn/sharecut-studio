@@ -629,12 +629,14 @@ an approval starts, and an approval reuses the check of every cut whose neighbou
 (`edits/verdict_cache.py`) hashes the cut, the intent, the whole settings mapping, what every
 track plays within 6 s of the cut plus the longest fade (cut crossfade, pad fade or clip fade;
 a project with any clip fade over 1 s is never cached), and for a pause at least 13 s out and out
-to the words its check observes, the words there,
+to the words its check observes, the words there, the span the pause is observed over (its two
+ends, which the longest fade of any clip, also one ending before the window, can widen),
 the recordings' file revisions, the policy tables and the speaker-profile files. The key also
 covers the fade ramp ends outside that window of the clips from the window start onward (a clip
 past it, or the far end of one straddling it), hashed on the source clock with the words around
 them, because the check assesses every ramp; clips ending before the window are excluded, since a
-cut only ripples what follows it. The cheap,
+cut only ripples what follows it (a pause is the exception only through its span, above: a fade on
+such a clip enters the key only if it moves an end of that span). The cheap,
 timeline-dependent part always runs again: the placement, the written cut, and the room-tone
 pads, which must equal what the entry recorded or the full check runs. A check that read an
 unreadable file is never stored. A batch applied from the end backward builds its timeline loudness
