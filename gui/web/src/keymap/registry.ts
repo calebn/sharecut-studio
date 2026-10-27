@@ -387,7 +387,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Remove track",
     keys: ["Backspace", "Delete"],
     bareKey: true,
-    when: "trackInspectorSelected",
+    when: "editStageTrackInspector",
     notes: "Before edit.delete: inspector track selection only",
   },
   {
@@ -397,7 +397,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["ArrowUp"],
     bareKey: true,
     requireShift: false,
-    when: "canMoveSelectedTrackUp",
+    when: "editStageMoveSelectedTrackUp",
     notes: "Inspector track selected",
   },
   {
@@ -407,7 +407,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["ArrowDown"],
     bareKey: true,
     requireShift: false,
-    when: "canMoveSelectedTrackDown",
+    when: "editStageMoveSelectedTrackDown",
     notes: "Inspector track selected",
   },
   {
@@ -666,7 +666,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: true,
-    when: "canIngestMedia",
+    when: "editStageIngest",
     notes: "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
   },
   {
