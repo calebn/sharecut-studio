@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -141,6 +141,8 @@ describe("AvatarStackView", () => {
     await user.keyboard("{Enter}");
     const menu = screen.getByRole("menu", { name: "People" });
     await expectNoA11yViolations(menu);
+    const [first] = within(menu).getAllByRole("menuitem");
+    await waitFor(() => expect(first).toHaveFocus());
     await user.keyboard("{ArrowDown}{Enter}");
     expect(onFollow).toHaveBeenCalledWith("b");
     expect(screen.queryByRole("menu")).toBeNull();
