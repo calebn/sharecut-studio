@@ -21,7 +21,6 @@ import { StageBar, type StageBarProps } from "./StageBar";
 import { StageMenu } from "./StageMenu";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
-import { capsOf, verbOf } from "./verbDisplay";
 
 export type HeaderPerson = { name: string; colorIndex?: number };
 
@@ -53,7 +52,6 @@ export type AppHeaderProps = {
     compact?: boolean;
     hint?: { text: string; shown: boolean; onDismiss: () => void };
   };
-  recent?: readonly string[];
   /** Theme row at the bottom of the Project menu. */
   appearance?: {
     value: ThemePreference;
@@ -67,8 +65,6 @@ export type AppHeaderProps = {
   onRedo?: () => void;
   onInvite?: () => void;
   onPalette?: () => void;
-  /** The title row in the Project menu was chosen: the host starts renaming in place (Fix text, F2). */
-  onRename?: () => void;
   /** Undo was long-pressed or right-clicked: the host opens History. */
   onHistory?: () => void;
   onMenuCommand?: (command: string) => void;
@@ -104,22 +100,16 @@ function Row({ icon, children }: { icon: SystemIconName; children: string }) {
 
 function ProjectMenu({
   title,
-  recent = [],
   appearance,
   onCommand,
-  onRename,
   onInvite,
   onPalette,
   people,
-}: Pick<
-  AppHeaderProps,
-  "title" | "recent" | "appearance" | "onRename" | "onInvite" | "onPalette"
-> & {
+}: Pick<AppHeaderProps, "title" | "appearance" | "onInvite" | "onPalette"> & {
   people?: ReactNode;
   onCommand?: (command: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const rename = verbOf("fixText");
   const run = (command: string) => () => {
     setOpen(false);
     onCommand?.(command);
@@ -137,36 +127,6 @@ function ProjectMenu({
         </button>
       )}
     >
-      {/*
-        The title as a field-looking row (design system 2, Menu). A real text
-        input cannot sit in role="menu" (axe: aria-required-children, and a
-        menu item's children are presentational), so choosing the row starts
-        the in-place rename instead.
-      */}
-      {onRename ? (
-        <MenuItem
-          shortcut={capsOf(rename.keys[0]).join(" ")}
-          onSelect={() => {
-            setOpen(false);
-            onRename();
-          }}
-        >
-          <span className="sys-menu-field">
-            <SystemIcon name="text-cursor-input" size={16} />
-            <span className="sr-only">Rename project, </span>
-            <span className="sys-menu-field-text">{title}</span>
-          </span>
-        </MenuItem>
-      ) : null}
-      {recent.length > 0 ? (
-        <MenuSection label="Recent">
-          {recent.slice(0, 5).map((name) => (
-            <MenuItem key={name} onSelect={run(`open:${name}`)}>
-              <Row icon="history">{name}</Row>
-            </MenuItem>
-          ))}
-        </MenuSection>
-      ) : null}
       <MenuItem onSelect={run("projects")}>
         <Row icon="folder-open">All projects</Row>
       </MenuItem>
@@ -260,7 +220,6 @@ export function AppHeader({
   compact = false,
   stagesInMenu = true,
   guest,
-  recent,
   appearance,
   loading = false,
   canUndo = true,
@@ -269,7 +228,6 @@ export function AppHeader({
   onRedo,
   onInvite,
   onPalette,
-  onRename,
   onHistory,
   onMenuCommand,
 }: AppHeaderProps) {
@@ -320,10 +278,8 @@ export function AppHeader({
           ) : (
             <ProjectMenu
               title={title}
-              recent={recent}
               appearance={appearance}
               onCommand={onMenuCommand}
-              onRename={onRename}
               onInvite={canInvite ? onInvite : undefined}
               onPalette={onPalette}
               people={menuPeople}

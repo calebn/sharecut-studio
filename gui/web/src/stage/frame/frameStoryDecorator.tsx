@@ -18,7 +18,6 @@ export const frameStoryDecorator: Decorator = (Story, context) => {
       <div className="stage-frame-banners">
         <Story />
       </div>
-      <div className="stage-frame-alerts" />
       <main aria-label="Stage" className="stage-frame-body" />
     </div>
   );

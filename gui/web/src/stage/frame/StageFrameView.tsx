@@ -13,8 +13,6 @@ export type StageFrameViewProps = {
   following?: boolean;
   header: ReactNode;
   banners?: ReactNode;
-  /** Host-supplied alerts that must not scroll away. */
-  alerts?: ReactNode;
   /** The stage host. */
   children: ReactNode;
   /** The Player bar; null on Record. */
@@ -33,7 +31,7 @@ export type StageFrameViewProps = {
 };
 
 /**
- * Lays the frame out top to bottom: header, banners, alerts, the stage body,
+ * Lays the frame out top to bottom: header, banners, the stage body,
  * the Player, and on a phone the tab bar. Props only; the adapter owns the
  * store, the role and the focus regions.
  */
@@ -45,7 +43,6 @@ export function StageFrameView({
   following = false,
   header,
   banners,
-  alerts,
   children,
   player,
   tabs,
@@ -71,7 +68,6 @@ export function StageFrameView({
         {header}
       </div>
       <div className="stage-frame-banners">{banners}</div>
-      <div className="stage-frame-alerts">{alerts}</div>
       <main
         ref={bindings?.body}
         id={STAGE_BODY_ID}

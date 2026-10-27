@@ -23,8 +23,8 @@ html:is([data-shell="phone"], [data-shell="tablet"]) .bottom-sheet-root {
 
 /* A phone's sheet never covers the header row, at any detent: its slot starts at
    the header's bottom edge, so the Stage menu and Tools button stay reachable
-   while a selection is open (R-short-8). The clearance below then counts the
-   rows under the header only. */
+   while a selection is open. The clearance below then counts the rows under
+   the header only. */
 html[data-shell="phone"] {
   --sheet-header-clearance: 0rem;
 }
@@ -230,7 +230,7 @@ html[data-shell="phone"] .bottom-sheet-root {
 
   /* The half detent's clearance cap would cut the sheet short of its slot and
      leave the drag unable to reach full; the ceiling is the slot's top, the
-     header's bottom edge (R-short-10). */
+     header's bottom edge. */
   max-block-size: none;
 }
 

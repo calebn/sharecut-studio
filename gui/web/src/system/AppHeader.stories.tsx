@@ -56,8 +56,6 @@ function Header(
     <AppHeader
       title="Episode 14 - The long way round"
       save={{ state: "saved" }}
-      recent={["Episode 13", "Episode 12", "Pilot cut"]}
-      onRename={() => undefined}
       people={people}
       stages={
         withStages
@@ -95,11 +93,6 @@ export const Host: Story = {
     const body = within(document.body);
     await expect(
       await body.findByRole("menuitem", { name: "All projects" }),
-    ).toBeVisible();
-    await expect(
-      body.getByRole("menuitem", {
-        name: /Rename project,\s*Episode 14 - The long way round/,
-      }),
     ).toBeVisible();
   },
 };
