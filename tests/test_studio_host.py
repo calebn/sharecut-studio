@@ -324,6 +324,25 @@ def test_a_matching_ping_with_an_unsupported_protocol_is_never_bypassed(project:
 
 
 @pytest.mark.parametrize(
+    "identity",
+    [
+        pytest.param({}, id="missing"),
+        pytest.param({"instance": None}, id="null"),
+        pytest.param({"instance": ""}, id="empty"),
+        pytest.param({"instance": 1}, id="not-a-string"),
+    ],
+)
+def test_a_ping_with_an_invalid_instance_is_never_bypassed(
+    project: Path, identity: dict[str, object]
+) -> None:
+    body = json.dumps({"protocol": HANDOFF_PROTOCOL, "serves": True, **identity}).encode()
+    with ping_answering(200, body) as port:
+        announce_studio_host(project, _host(port=port))
+        with pytest.raises(StudioBadReply, match="not a Studio reply"):
+            locate_studio(project)
+
+
+@pytest.mark.parametrize(
     "body",
     [
         json.dumps({"instance": "another-run", "protocol": HANDOFF_PROTOCOL, "serves": True}),
