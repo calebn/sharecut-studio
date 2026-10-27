@@ -309,7 +309,7 @@ Mint a room (`session_id` + guest + producer tokens) with
 `recording` or `paused` (`RecordStateError`, HTTP 409, CLI non-zero, MCP error:
 "A take is open (REC/PAUSED). Stop it before minting a new room."). Stop the
 take first. A successful remint revokes every guest and producer token of the
-earlier rooms (land rollbacks survive; an unlanded stopped take only warns, and
+earlier rooms (land rollbacks survive; an unlanded stopped take the server can see only warns, and
 `--land-first` lands it first); a revoke
 that fails raises `record_stale_links` with the new room and the old session ids. Re-invite
 (`--session-id`) requires a usable room that is the active one. A crash after the guest mint can leave a one-token room;

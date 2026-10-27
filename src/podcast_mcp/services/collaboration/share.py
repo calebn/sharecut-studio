@@ -478,11 +478,11 @@ class ShareService:
         (``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``unlanded_stalled``,
         ``land_first_possible``, ``warning``); the mint still goes ahead. These describe what the
         mint left behind (recomputed after a land-first). ``land_first`` lands the finished
-        recordings first and adds ``landed_first``. Every mint that leaves audio that never finished
-        uploading behind (it cannot be landed) sets ``left_behind`` (a count) and
+        recordings first and adds ``landed_first``. Every mint that leaves audio the server detected as never
+        finished uploading behind (it cannot be landed) sets ``left_behind`` (a count) and
         ``left_behind_message``. It refuses
         (nothing minted, old links kept) while uploads are still saving, when the room's session was
-        already decided, or when the land leaves a finished recording unsaved. A land that already
+        already decided and something is landable or saving, or when the land leaves a finished recording unsaved. A land that already
         ran stays saved.
         """
         from podcast_mcp.services.record import (
