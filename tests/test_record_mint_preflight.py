@@ -17,9 +17,9 @@ from podcast_mcp.services.record import (
     RecordLandingError,
     RecordSessionService,
     RecordStateError,
+    unlanded_takes,
 )
 from podcast_mcp.services.record.landing import RecordLandingService
-from podcast_mcp.services.record.preflight import unlanded_takes
 from test_record_returning_people import _ack, _clips_by_track, _join_guest, _room, _tracks
 from test_record_staging import _cmd, _seed
 from test_record_start_target import (
