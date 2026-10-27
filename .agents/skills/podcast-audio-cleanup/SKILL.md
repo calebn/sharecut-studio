@@ -27,8 +27,9 @@ description: >-
   `balance` map also reports per-dialogue-track measurement freshness
 
 Full mastering loudness measurements return no measurement when their FFmpeg
-process fails or the input has no audio. Successful audio measurements retain
-their values and automatic audio stream selection.
+process fails, the input has no audio, or zero audio frames decode, including with
+progress callbacks. Decoded silence still measures at -70 LUFS. Successful audio
+measurements retain their values and automatic audio stream selection.
 
 **Analyze before/after (heuristics-first)**
 - `analyze_cleanup_tool` — full report: gate risk, low-audibility words, bleed flags, fade recommendations, reconciliation staleness, and per-track `health` (astats + hum, see below)

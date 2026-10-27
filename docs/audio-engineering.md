@@ -264,7 +264,7 @@ composed playback rebuild. Per-track stems remain reusable.
 
 The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line, then the trim the whole mix got. A window mixed from segments measures only its own peak, so both pending preview sides mix at the trim the whole mix gets (`PlayService.mix_trim_db`): the recorded one while the premix is fresh, otherwise one measured from the current stems with the same `peak_trim_db`. A fader or mute change re-measures the peak; it never re-mixes the premix. Render status and review publish have no run config, so they compare the premix against the ceiling it was mixed under. A volume, mute, or mix-rule change makes that hash stale. A changed stem for any included track also makes the premix stale, including music, intro, outro, and sound effects. A muted track is excluded until it is unmuted.
 
-`check_loudness_tool` measures the existing exported WAV, or `premix.wav` when no exported WAV exists. Its `pass` field judges measured loudness. Its separate `stale` and `stale_reason` fields report known render age without rendering. For a premix, the check uses its hash and included stems. For an exported WAV, it also checks the current master hash and whether the export predates the master. Missing or unverified upstream artifacts report stale. An explicit unrelated audio path has `stale: null` and `stale_reason: "untracked_audio"`. The measured stream is the file's first audio stream (#2131). Only ebur128's own summary is read, never the file's metadata tags (#2143), so a file with no audio stream measures `null` and fails `pass`. `stale: false` means these checks found no known mismatch; timestamps cannot prove the export's content came from the current master. The check does not refresh audio or alter the loudness verdict.
+`check_loudness_tool` measures the existing exported WAV, or `premix.wav` when no exported WAV exists. Its `pass` field judges measured loudness. Its separate `stale` and `stale_reason` fields report known render age without rendering. For a premix, the check uses its hash and included stems. For an exported WAV, it also checks the current master hash and whether the export predates the master. Missing or unverified upstream artifacts report stale. An explicit unrelated audio path has `stale: null` and `stale_reason: "untracked_audio"`. The measured stream is the file's first audio stream (#2131). Only ebur128's own summary is read, never the file's metadata tags (#2143), so a file with no audio stream or zero decoded audio frames measures `null` and fails `pass`. `stale: false` means these checks found no known mismatch; timestamps cannot prove the export's content came from the current master. The check does not refresh audio or alter the loudness verdict.
 
 ## Dialogue gain staging (`balance_tracks`)
 
@@ -295,7 +295,9 @@ checking a premix or export.
 ## Mastering plan + mastering QC
 
 Full loudness measurement excludes video and returns no measurement when its FFmpeg
-process fails or the input has no audio. This applies to pass-1 planning, limiter
+process fails, the input has no audio, or no audio frames decode. An empty decode
+cannot supply a measurement from FFmpeg's synthetic summary. Decoded silence still
+measures at the -70 LUFS gating floor. This applies to pass-1 planning, limiter
 retry measurements, and post-master QC, including progress callbacks. Metadata
 Summary tag keys cannot supply a measurement on a failed run. Successful audio
 measurements retain their values and automatic audio stream selection. Selecting
