@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { sourceFiles } from "../test/sourceFiles";
+import { STAGE_IDS } from "../types/stage";
 import { COMMANDS } from "./catalog";
 
 /** Store setter → the catalog command that owns the change. */
@@ -70,6 +71,10 @@ describe("control setters", () => {
         `${setter} → ${commandId}`,
       ).toBe(true);
     }
+  });
+
+  it.each(STAGE_IDS)("breaks follow when stage.%s runs", (stage) => {
+    expect(COMMANDS[`stage.${stage}`]?.breaksFollow).toBe(true);
   });
 
   it("calls no command-owned setter from a .tsx control", () => {
