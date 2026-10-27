@@ -62,8 +62,9 @@ def accept_session_suggestion_tool(
 
     An insert opens the session's length at its insert point on every dialogue track and places
     its takes, room-tone beds and live comments there. A replace removes its range on every
-    dialogue track and puts one take in its place (take_index, else the selected or last take);
-    its range is found again from the audio it was staged on. Refuses a session that is not
+    dialogue track and puts one take in its place (take_index, else the selected or last take)
+    and discards the other takes' staged segments (undo brings them back; the recordings stay in
+    the project); its range is found again from the audio it was staged on. Refuses a session that is not
     pending, a range or insert point that is gone or changed (stale_anchor), an unknown take
     (take_not_found), a take_index on an insert (take_not_applicable), a track the take did not
     record (track_not_recorded) and pending edits inside the range (pending_edits_in_range).
@@ -81,6 +82,36 @@ def accept_session_suggestion_tool(
     )
 
 
+def list_session_takes_tool(project_path: str, suggestion_id: str) -> str:
+    """List the takes of a staged session for a take switcher (reads only).
+
+    Per take: take_index, duration_s (and per track), word_count and speech_text (a snippet;
+    null for a take nobody has transcribed), chosen (the one select_session_take_tool picked),
+    default (the one accept_session_suggestion_tool places when no take_index is given) and
+    refusal ({code, message}) when accepting that take would be refused. An insert is
+    selectable: false, its takes play in order.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(SessionSuggestionService(ws).takes(suggestion_id))
+
+
+def select_session_take_tool(project_path: str, suggestion_id: str, take_index: int) -> str:
+    """Pick the take a pending replace session will place (one undo step).
+
+    Accept and hear_session_suggestion_tool use it unless given another take_index. Refuses a
+    session that is not pending (session_suggestion_not_pending), an unknown take
+    (take_not_found), an insert (take_not_applicable), a track the take did not record
+    (track_not_recorded), a range that changed (stale_anchor) and anything else accepting that
+    take refuses. Choosing the take already chosen changes nothing.
+    """
+    from podcast_mcp.services.document import SessionSuggestionService
+
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(SessionSuggestionService(ws).select_take(suggestion_id, take_index))
+
+
 def hear_session_suggestion_tool(
     project_path: str,
     suggestion_id: str,
@@ -95,7 +126,9 @@ def hear_session_suggestion_tool(
 
     mode: current (the window as it is), suggested (the same window after
     accept_session_suggestion_tool, take_index chosen as there) or ab (current, a gap, then
-    suggested; the default). pad_sec is the audio kept each side of the change. Nothing in the
+    suggested; the default). pad_sec is the audio kept each side of the change (0 to 10 s,
+    else pad_sec_invalid) and gap_sec the silence between A and B (0 to 5 s, else
+    gap_sec_invalid). Nothing in the
     project, its history or the session changes, and a replace that would remove another
     track's speech still plays; the result's speech names the words. Refuses what accepting
     refuses, with the same codes: a session that is not pending, a range or insert point that
@@ -216,6 +249,8 @@ def register_core(mcp: MCPServer) -> None:
         publish_review_version_tool,
         list_review_versions_tool,
         list_session_suggestions_tool,
+        list_session_takes_tool,
+        select_session_take_tool,
         set_active_review_version_tool,
         skip_session_suggestion_tool,
     ):

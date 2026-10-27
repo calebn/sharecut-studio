@@ -151,8 +151,10 @@ from podcast_mcp.mcp.tools.review import (  # noqa: E402, F401
     hear_session_suggestion_tool,
     list_review_versions_tool,
     list_session_suggestions_tool,
+    list_session_takes_tool,
     publish_review_version_tool,
     revoke_record_room_tool,
+    select_session_take_tool,
     set_active_review_version_tool,
     skip_session_suggestion_tool,
 )
