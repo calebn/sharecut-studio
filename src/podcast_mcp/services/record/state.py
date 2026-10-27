@@ -120,16 +120,6 @@ def parse_session_target(raw: str | dict[str, Any] | BaseModel | None) -> Sessio
         ) from exc
 
 
-def unsupported_target_message(target: SessionTarget) -> str | None:
-    """Why ``target`` cannot be used yet; ``None`` unless it is ``start``."""
-    if target.kind != "start":
-        return None
-    return (
-        "the start target is not available yet: sessions can only be added at the end of the "
-        "episode or staged as an insert or replace"
-    )
-
-
 class RoomToneRound(BaseModel):
     model_config = ConfigDict(extra="ignore")
     round: int

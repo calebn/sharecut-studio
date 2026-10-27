@@ -11,9 +11,7 @@ from podcast_mcp.edits.audio_check_override import active_override
 from podcast_mcp.edits.comment_remap import (
     pending_decisions_in_range,
     remap_review_anchors_for_replace,
-    shift_pending_decisions_for_insert,
     shift_pending_decisions_for_replace,
-    shift_review_anchors_for_insert,
 )
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.cut_speech import (
@@ -25,6 +23,7 @@ from podcast_mcp.edits.decisions import unplayed_pending_ids
 from podcast_mcp.edits.insert_anchor import resolve_insert_anchor, resolve_range
 from podcast_mcp.edits.record_placement import place_room_tone, place_take_clip
 from podcast_mcp.edits.ripple import RippleRemoval, ripple_insert_clips, ripple_track_ids
+from podcast_mcp.edits.session_gap import open_session_gap
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete, ripple_delete_range
 from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.track_media import refresh_timeline_duration
@@ -391,9 +390,9 @@ def _accept_insert(
 ) -> dict[str, Any]:
     at_sec, span = _insert_plan(project, row)
     ripple_ids = ripple_track_ids(project)
-    ripple_insert_clips(project, at_sec, span, ripple_ids, defaults=defaults)
-    shift_review_anchors_for_insert(project, at_sec, span)
-    shift_pending_decisions_for_insert(project, at_sec, span, set(ripple_ids))
+    open_session_gap(
+        project, at_sec, span, ripple_ids, defaults=defaults, except_suggestion_id=row.id
+    )
     unmoved = sorted(
         {
             clip.track_id

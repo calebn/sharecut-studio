@@ -38,6 +38,7 @@ from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.room_tone import room_tone_source_id
 from podcast_mcp.engines.track_ids import slug_track_id
 from podcast_mcp.engines.track_media import refresh_timeline_duration
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     EpisodeProject,
     InsertAnchor,
@@ -74,6 +75,12 @@ from podcast_mcp.services.record.landing_rollback import (
     prior_to_json,
     registration_present,
     revert_registration,
+)
+from podcast_mcp.services.record.landing_start import (
+    close_start_tail,
+    is_start_session,
+    open_start_gap,
+    own_extent_s,
 )
 from podcast_mcp.services.record.live_comments import (
     LIVE_COMMENT_ID_PREFIX,
@@ -565,6 +572,7 @@ class RecordLandingService:
         self._plan = self._track_matches(self.workspace.project, snap)
         tombstoned = self._upload.tombstoned_takes(self.session_id)
         staged = snap.target.kind in STAGED_TARGET_KINDS
+        at_start = snap.target.kind == "start"
         anchor_s = (
             round(
                 session_placement(self.workspace.project.clips, self.session_id, snap.target) * 1000
@@ -785,8 +793,10 @@ class RecordLandingService:
                 record_session_number(planning_project, self.session_id),
                 first=not session_landed_before(planning_project, self.session_id),
                 staged=staged,
+                at_start=at_start,
             )
             session_params["session_staged"] = staged
+            session_params["session_at_start"] = at_start
 
         # ``mutate`` runs on the project it re-reads under the cross-process
         # project lock. It can be newer than the copy planned from above when a
@@ -809,13 +819,20 @@ class RecordLandingService:
             # as they are now), so an assign made while the files were copying is honoured and a
             # person's later takes follow the ones already staged. The checks after this use it too.
             matches = self._plan = self._track_matches(project, snap)
-            for item in copied:
-                if not self._copied_raw_matches(project, item):
-                    self._mark_copied_failed(item)
-                    continue
-                if not self._ack_generation_current(item):
-                    _log_superseded(self.session_id, item)
-                    continue
+            usable = [item for item in copied if self._usable_copy(project, item)]
+            shifted = (
+                open_start_gap(
+                    project,
+                    self.session_id,
+                    usable,
+                    defaults=self.workspace.effective_config(),
+                    keep_comment_ids=self._own_comment_ids(snap),
+                )
+                if at_start
+                else []
+            )
+            touched.update(shifted)
+            for item in usable:
                 track_id, item["label"] = _track_for(matches, item)
                 source_id = str(item["source_id"])
                 rel = str(item["rel"])
@@ -954,6 +971,8 @@ class RecordLandingService:
                 first = not landed_before
                 session_params.update(session_number=number, session_first=first)
                 refresh_timeline_duration(project)
+                if shifted:
+                    rebuild_combined(project, defaults=self.workspace.effective_config())
                 if touched:
                     record_invalidation(project, track_ids=sorted(touched), reason="other")
                 if fallback and align is not None:
@@ -1087,6 +1106,7 @@ class RecordLandingService:
                     f"Take {take} is already on the timeline as part of Session "
                     f"{placed.session_number}. Undo the accept to discard it."
                 )
+            extent_before = own_extent_s(project.clips, self.session_id)
             drop_ids = {src.id for src in project.sources if src.id.startswith(prefix)}
             drop_tracks = {clip.track_id for clip in project.clips if clip.source_id in drop_ids}
             project.sources = [src for src in project.sources if src.id not in drop_ids]
@@ -1100,6 +1120,8 @@ class RecordLandingService:
                 if str(comment_id).startswith(LIVE_COMMENT_ID_PREFIX):
                     delete_comment(project, comment_id)
             refresh_timeline_duration(project)
+            if self._close_start_tail(project, extent_before):
+                rebuild_combined(project, defaults=self.workspace.effective_config())
 
         self.workspace.mutate(
             f"before discard take {take}",
@@ -1129,6 +1151,36 @@ class RecordLandingService:
             return False
         source_id = self._landed_source_id(pid, int(row["take_index"]), int(row["segment_index"]))
         return self.workspace.project.source_by_id(source_id) is None
+
+    def _close_start_tail(self, project: EpisodeProject, extent_before: float) -> bool:
+        """After dropping clips of a session that starts the episode, take back the time they filled."""
+        if not is_start_session(project, self.session_id):
+            return False
+        return close_start_tail(
+            project,
+            self.session_id,
+            extent_before,
+            defaults=self.workspace.effective_config(),
+            keep_comment_ids=self._own_comment_ids(self._snapshot()),
+        )
+
+    def _usable_copy(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
+        """Whether a copied keeper may be registered now; a copy that cannot is marked failed or logged."""
+        if not self._copied_raw_matches(project, item):
+            self._mark_copied_failed(item)
+            return False
+        if not self._ack_generation_current(item):
+            _log_superseded(self.session_id, item)
+            return False
+        return True
+
+    def _own_comment_ids(self, snap: RecordSnapshot) -> set[str]:
+        """Every live comment of this room; they sit inside its own audio, so a start gap leaves them."""
+        return {
+            comment_id
+            for take in snap.takes
+            for comment_id in self._comments.ids_for_take(self.session_id, take.take_index)
+        }
 
     def _suggestion_closed(self) -> bool:
         suggestion = session_suggestion_for(self.workspace.project, self.session_id)
@@ -1372,6 +1424,7 @@ class RecordLandingService:
 
         def mutate(project: EpisodeProject) -> None:
             touched: set[str] = set()
+            extent_before = own_extent_s(project.clips, self.session_id)
             for item in reversed(stale):
                 prior: PriorRegistration = item["prior"]
                 if (
@@ -1388,6 +1441,8 @@ class RecordLandingService:
                     touched.add(prior.track_id)
             if touched:
                 refresh_timeline_duration(project)
+                if self._close_start_tail(project, extent_before):
+                    touched = {track.id for track in project.tracks}
                 record_invalidation(project, track_ids=sorted(touched), reason="other")
 
         self.workspace.mutate(
