@@ -29,6 +29,8 @@ export type AppHeaderProps = {
   people?: readonly HeaderPerson[];
   /** The app's own people control (Follow, Go to). Replaces the static list. */
   peopleSlot?: ReactNode;
+  /** The People rows (Follow) in the Project menu, for a window too short for the header's right side. */
+  menuPeople?: ReactNode;
   /** A guest: the title gets a second line with the version and a Role chip. */
   guest?: { version: string; role: "Editor" | "Commenter" | "Viewer" };
   recent?: readonly string[];
@@ -75,7 +77,14 @@ function ProjectMenu({
   appearance,
   onCommand,
   onRename,
-}: Pick<AppHeaderProps, "title" | "recent" | "appearance" | "onRename"> & {
+  onInvite,
+  onPalette,
+  people,
+}: Pick<
+  AppHeaderProps,
+  "title" | "recent" | "appearance" | "onRename" | "onInvite" | "onPalette"
+> & {
+  people?: ReactNode;
   onCommand?: (command: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -130,6 +139,28 @@ function ProjectMenu({
       <MenuItem onSelect={run("projects")}>
         <Row icon="folder-open">All projects</Row>
       </MenuItem>
+      {/* In a window too short for the header's right side, these stay reachable. */}
+      {onInvite ? (
+        <MenuItem
+          onSelect={() => {
+            setOpen(false);
+            onInvite();
+          }}
+        >
+          <Row icon="user-plus">Invite</Row>
+        </MenuItem>
+      ) : null}
+      {onPalette ? (
+        <MenuItem
+          onSelect={() => {
+            setOpen(false);
+            onPalette();
+          }}
+        >
+          <Row icon="search">Search commands and people</Row>
+        </MenuItem>
+      ) : null}
+      {people}
       <MenuItem onSelect={run("settings")}>
         <Row icon="settings">Settings</Row>
       </MenuItem>
@@ -176,6 +207,7 @@ export function AppHeader({
   stages,
   people = [],
   peopleSlot,
+  menuPeople,
   guest,
   recent,
   appearance,
@@ -216,6 +248,9 @@ export function AppHeader({
               appearance={appearance}
               onCommand={onMenuCommand}
               onRename={onRename}
+              onInvite={canEdit ? onInvite : undefined}
+              onPalette={onPalette}
+              people={menuPeople}
             />
           )}
           {loading || !save ? null : <SaveIndicator {...save} />}

@@ -93,6 +93,7 @@ function StageFrameAdapter({
             }
           }
           peopleSlot={<AvatarStack variant="header" />}
+          menuPeople={<AvatarStack variant="menu" />}
         />
       }
       banners={
