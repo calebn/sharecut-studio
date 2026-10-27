@@ -1658,11 +1658,6 @@ button.history-row {
   flex-wrap: wrap;
   block-size: auto;
   max-inline-size: 100%;
-  align-self: flex-start;
-}
-
-.tighten-filters > .ui-control {
-  min-block-size: var(--control-height);
 }
 
 /* Toolbar fields share the control height so every bottom edge lines up. */
