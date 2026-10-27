@@ -36,6 +36,13 @@ html[data-shell="phone"] {
   );
 }
 
+/* A short frame (useShortFrame; the same 16rem as the container query in
+   system.css) folds the tab bar into the header, so sheets rest on the Player
+   alone, which is one touch-height row there. */
+html[data-frame-short][data-shell="phone"] {
+  --frame-bottom-chrome: calc(var(--touch-min) + env(safe-area-inset-bottom));
+}
+
 /* Touch frames sit fixed to the viewport, so a page scroll never moves them
    against the fixed sheets (#1077). */
 @media (pointer: coarse) {

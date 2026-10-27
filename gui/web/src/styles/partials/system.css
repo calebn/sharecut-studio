@@ -770,13 +770,49 @@
     display: none;
   }
 
-  .sys-stage-bar--tabs .sys-stage-tab {
-    min-block-size: var(--touch-min);
+  /* The tab bar folds into the header's stage menu, and the Edit rows into
+     its Tools button, so the stage keeps the height. The project title gives
+     way to the stage name; the Project menu keeps it in its name. */
+  .stage-frame-tabs,
+  .phone-edit-bar,
+  .phone-edit .edit-tool-strip {
+    display: none;
   }
 
   .sys-header-right {
     display: none;
   }
+
+  .sys-header-project .sys-header-title {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.sys-header-short {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sys-header-stage-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.sys-header-stage-button,
+.header-tools-button {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
 }
 
 .sys-player--expanded {
