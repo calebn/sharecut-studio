@@ -92,7 +92,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-LEGEND": ["Templates/OverlayLegend"],
   "CMP-TRACK-MIX": ["Templates/TrackMix"],
   "CMP-TURN": ["Templates/TranscriptTurn", "System/ScriptPane"],
-  "CMP-GHOST": ["Templates/GhostWordChips", "System/ScriptPane"],
+  "CMP-GHOST": ["Templates/GhostWordChips"],
   "CMP-EDITBOUNDARY": ["Templates/EditBoundaryMark", "System/Seam"],
   "CMP-REFINE": ["Templates/GuestAttentionBanner"],
   "INS-CLIP": ["Templates/Editor · Inspector · Clip", "System/ScrubField"],

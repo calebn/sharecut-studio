@@ -13,9 +13,12 @@ import {
 import { ActionBar, SelectionCount } from "../../system/ActionBar";
 import { ScriptPane, type ScriptPaneProps } from "../../system/ScriptPane";
 import {
+  CUT,
+  MUTED,
   patchWords,
   SCRIPT_TURNS,
   spanPatch,
+  suggestedMark,
 } from "../../system/scriptFixtures";
 
 const meta: Meta<typeof ScriptPane> = {
@@ -23,7 +26,9 @@ const meta: Meta<typeof ScriptPane> = {
   component: ScriptPane,
   args: {
     turns: SCRIPT_TURNS,
-    onWord: fn(),
+    onCaret: fn(),
+    onSelect: fn(),
+    onSeek: fn(),
     onSeamSelect: fn(),
     onSuggestionSelect: fn(),
     onFind: fn(),
@@ -39,7 +44,7 @@ const meta: Meta<typeof ScriptPane> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Script pane in the Edit stage: the System pane with the Action bar over a selection, at the 400 px split width and on a phone with the dock. The pane is a view; these stories wire only what the composition needs.",
+          "The Script pane in the Edit stage: the System pane with the Action bar over a selection, at the 400 px split width, in Script focus (Shift+T, the pane on its own at the stage width) and on a phone with the dock. The pane is a view; these stories wire only what the composition needs.",
       },
     },
   },
@@ -98,7 +103,7 @@ function Split(args: ScriptPaneProps) {
 
 export const WithActionBar: Story = {
   render: (args) => <Split {...args} />,
-  args: { selection: { start: 12, end: 14 }, playing: 3 },
+  args: { selection: { kind: "words", anchor: 12, head: 14 }, playing: 3 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
@@ -120,11 +125,11 @@ export const CutsAndSuggestions: Story = {
   ),
   args: {
     playing: 22,
-    selectedCut: 46,
+    selection: { kind: "cut", id: "cut-1" },
     turns: patchWords(SCRIPT_TURNS, {
-      ...spanPatch(46, 48, { state: "cut" }),
-      ...spanPatch(31, 33, { state: "suggested" }),
-      ...spanPatch(12, 13, { state: "muted" }),
+      ...spanPatch(46, 48, { mark: CUT }),
+      ...spanPatch(31, 33, { mark: suggestedMark("sugg-1") }),
+      ...spanPatch(12, 13, { mark: MUTED }),
       26: { lowConfidence: true },
       37: { lowConfidence: true },
     }),
@@ -132,10 +137,10 @@ export const CutsAndSuggestions: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: "Cut, 0.9 s removed" }),
+      canvas.getByRole("button", { name: "Cut, 1.1 s removed" }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(
-      canvas.getByRole("button", { name: "? 2 unsure words, go to the next" }),
+      canvas.getByRole("button", { name: "2 unsure words, go to the next" }),
     ).toBeVisible();
   },
 };
@@ -156,10 +161,35 @@ function Dock(args: ScriptPaneProps) {
 
 export const PhoneWithDock: Story = {
   render: (args) => <Dock {...args} />,
-  args: { selection: { start: 12, end: 14 }, playing: 3 },
+  args: { selection: { kind: "words", anchor: 12, head: 14 }, playing: 3 },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", { name: "Cut" }),
     ).toBeVisible();
+  },
+};
+
+export const ScriptFocus: Story = {
+  render: (args) => (
+    <div style={stage("100%")}>
+      <ScriptPane {...args} />
+    </div>
+  ),
+  args: {
+    playing: 8,
+    selection: { kind: "words", anchor: 12, head: 14 },
+    turns: patchWords(SCRIPT_TURNS, {
+      ...spanPatch(46, 48, { mark: CUT }),
+      26: { lowConfidence: true },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByRole("group").map((g) => g.getAttribute("aria-label")),
+    ).toEqual(["Maya, 12:04", "Anneke, 12:19", "Anneke, 12:41", "Maya, 12:47"]);
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "3 words selected: small room can",
+    );
   },
 };

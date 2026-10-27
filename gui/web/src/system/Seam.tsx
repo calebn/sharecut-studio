@@ -27,10 +27,12 @@ export type SeamProps = SeamFormProps & {
   onSelect: () => void;
   /** For a host that moves focus among its marks, as the Script pane does among its words. */
   onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  /** With `onKeyDown`, the roving tab stop: 0 for the one stop, -1 for the rest. Left out, the button is a tab stop of its own. */
+  tabIndex?: number;
 };
 
 export function Seam(props: SeamProps) {
-  const { selected = false, onSelect, onKeyDown } = props;
+  const { selected = false, onSelect, onKeyDown, tabIndex } = props;
   const { open, id, anchor, setAnchor, handlers } =
     useHoverTip<HTMLButtonElement>();
   const wordsId = useId();
@@ -56,6 +58,7 @@ export function Seam(props: SeamProps) {
         aria-label={name}
         aria-pressed={selected}
         aria-describedby={words ? wordsId : undefined}
+        tabIndex={tabIndex}
         onClick={onSelect}
         onKeyDown={onKeyDown}
       >

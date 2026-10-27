@@ -1,5 +1,5 @@
 import type { PersonData } from "./Person";
-import type { ScriptTurn, ScriptWord } from "./scriptPieces";
+import type { ScriptMark, ScriptTurn, ScriptWord } from "./scriptPieces";
 
 const MAYA: PersonData = { name: "Maya Okafor", colorIndex: 0 };
 const ANNEKE: PersonData = { name: "Anneke de Vries", colorIndex: 1 };
@@ -7,8 +7,8 @@ const ANNEKE: PersonData = { name: "Anneke de Vries", colorIndex: 1 };
 function wordsOf(text: string, from: number): ScriptWord[] {
   return text.split(" ").map((word, at) => ({
     index: from + at,
+    key: `episode:${from + at}`,
     text: word,
-    length: 0.3,
   }));
 }
 
@@ -16,6 +16,7 @@ function wordsOf(text: string, from: number): ScriptWord[] {
 export const SCRIPT_TURNS: readonly ScriptTurn[] = [
   {
     id: "t1",
+    speakerId: "maya",
     speaker: MAYA,
     time: "12:04",
     words: wordsOf(
@@ -25,6 +26,7 @@ export const SCRIPT_TURNS: readonly ScriptTurn[] = [
   },
   {
     id: "t2",
+    speakerId: "anneke",
     speaker: ANNEKE,
     time: "12:19",
     pauseBefore: 1.4,
@@ -35,6 +37,7 @@ export const SCRIPT_TURNS: readonly ScriptTurn[] = [
   },
   {
     id: "t3",
+    speakerId: "anneke",
     speaker: ANNEKE,
     time: "12:41",
     pauseBefore: 1.1,
@@ -42,6 +45,7 @@ export const SCRIPT_TURNS: readonly ScriptTurn[] = [
   },
   {
     id: "t4",
+    speakerId: "maya",
     speaker: MAYA,
     time: "12:47",
     pauseBefore: 0.8,
@@ -70,3 +74,19 @@ export function spanPatch(
     Array.from({ length: end - start + 1 }, (_, at) => [start + at, patch]),
   );
 }
+
+/** A cut that took 1.1 s: its three words plus the pauses between them. */
+export const CUT: ScriptMark = { kind: "cut", id: "cut-1", seconds: 1.1 };
+
+export const cutMark = (id: string, seconds: number): ScriptMark => ({
+  kind: "cut",
+  id,
+  seconds,
+});
+
+export const suggestedMark = (id: string): ScriptMark => ({
+  kind: "suggested",
+  id,
+});
+
+export const MUTED: ScriptMark = { kind: "muted" };
