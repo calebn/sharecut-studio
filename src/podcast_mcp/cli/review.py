@@ -261,7 +261,11 @@ def _cli_create_record_share(
     require_sign_in: bool,
     invite: list[str] | None,
     target: str | None,
+    land_first: bool,
 ) -> None:
+    if land_first and session_id:
+        typer.echo("--land-first only applies when minting a new room", err=True)
+        raise typer.Exit(2)
     if with_mcp or general_access != "link" or require_sign_in or invite:
         typer.echo(
             "record links do not support --with-mcp, "
@@ -291,6 +295,7 @@ def _cli_create_record_share(
             public_base_url=base_url,
             expires_at=expires_at,
             target=target,
+            land_first=land_first,
         )
     except RecordStaleLinksError as exc:
         typer.echo(json.dumps(exc.room, indent=2))
@@ -299,6 +304,8 @@ def _cli_create_record_share(
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(room, indent=2))
+    if room.get("warning"):
+        typer.echo(f"\nWarning: {room['warning']}", err=True)
     guest_url = room["guest"]["url"]
     producer_url = room["producer"]["url"]
     typer.echo(f"\nGuest URL: {guest_url}", err=True)
@@ -381,6 +388,14 @@ def review_share_cmd(
             '{"kind":"replace","from_sec":12.5,"to_sec":20,"track_ids":["p_host"]}'
         ),
     ),
+    land_first: bool = typer.Option(
+        False,
+        "--land-first",
+        help=(
+            "record: save the current room's stopped take to the episode, then mint the new "
+            "room. Without it a new room still starts, and says what it left behind"
+        ),
+    ),
 ) -> None:
     """Create a review link (Anyone with the link; login-free by default)."""
     kind_key = (kind or "review").strip().lower()
@@ -396,8 +411,12 @@ def review_share_cmd(
             require_sign_in=require_sign_in,
             invite=invite,
             target=target,
+            land_first=land_first,
         )
         return
+    if land_first:
+        typer.echo("--land-first only applies with --kind record", err=True)
+        raise typer.Exit(2)
     if kind_key != "review":
         typer.echo(f"unknown share kind {kind!r}", err=True)
         raise typer.Exit(2)
