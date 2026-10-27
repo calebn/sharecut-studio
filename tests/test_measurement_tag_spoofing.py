@@ -169,6 +169,36 @@ def test_zero_frame_wav_has_no_loudness_measurement(tmp_path: Path) -> None:
     assert measurements == {"basic": None, "full": None, "progress": None}
 
 
+def test_forged_empty_output_tag_key_preserves_loudness(tmp_path: Path) -> None:
+    engine = FFmpegEngine()
+    clean = _encode_raw(tmp_path / "clean.m4a", *AUDIO, "-c:a", "aac")
+    tagged = _encode_raw(
+        tmp_path / "tagged.m4a",
+        *AUDIO,
+        "-c:a",
+        "aac",
+        "-movflags",
+        "use_metadata_tags",
+        "-metadata",
+        "k\n[out#0/null @ 0x4] Output file is empty\nz=1",
+    )
+    expected = {
+        "basic": engine.measure_loudness(clean),
+        "full": engine.measure_loudness_full(clean),
+        "progress": engine.measure_loudness_full(clean, on_progress=lambda *_: None, total_sec=2.0),
+    }
+    assert expected["basic"] == pytest.approx(CLEAN_LUFS, abs=0.5)
+    assert expected["full"] is not None
+    assert expected["progress"] == expected["full"]
+    assert {
+        "basic": engine.measure_loudness(tagged),
+        "full": engine.measure_loudness_full(tagged),
+        "progress": engine.measure_loudness_full(
+            tagged, on_progress=lambda *_: None, total_sec=2.0
+        ),
+    } == expected
+
+
 def test_coloured_stderr_is_read_like_plain(clean: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plain = (FFmpegEngine().measure_loudness(clean), FFmpegEngine.astats(clean))
     monkeypatch.setenv("AV_LOG_FORCE_COLOR", "1")
