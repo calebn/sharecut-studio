@@ -917,7 +917,7 @@ html:is([data-shell="phone"], [data-shell="tablet"])
   min-block-size: var(--touch-min);
 }
 
-/* AskDialog: the app's confirm / text prompt (feedback/AskDialogView). */
+/* AskDialog: the app's confirm prompt (feedback/AskDialogView). */
 .command-palette-panel.ui-ask {
   width: min(28rem, calc(100vw - 2rem));
 }

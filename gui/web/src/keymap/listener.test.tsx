@@ -6,13 +6,14 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { redoHistory, undoHistory } from "../api";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerFocusedClipHandle } from "../commands/focusedClipHandle";
 import { registerDawCommands } from "../commands/register";
 import { AskDialog } from "../feedback/AskDialog";
-import { askConfirm, askText } from "../feedback/ask";
+import { askConfirm } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
 import { setChrome } from "../test/chrome";
@@ -259,25 +260,20 @@ it("holds every app shortcut while an in-app confirm is open, and hands them bac
 
 it("keeps native typing in a dialog's text field while the app shortcuts are held", async () => {
   const user = userEvent.setup();
+  const field = createRef<HTMLInputElement>();
   render(
     <>
       <KeymapHost />
-      <AskDialog />
+      <Dialog open title="Link audio" onClose={vi.fn()} initialFocusRef={field}>
+        <input ref={field} aria-label="File path" />
+      </Dialog>
     </>,
   );
-  act(() => {
-    void askText({
-      title: "Link audio",
-      label: "File path",
-      submitLabel: "Link",
-      requiredMessage: "Enter a path.",
-    });
-  });
-  const field = await screen.findByRole("textbox", { name: "File path" });
-  await waitFor(() => expect(field).toHaveFocus());
+  const input = await screen.findByRole("textbox", { name: "File path" });
+  await waitFor(() => expect(input).toHaveFocus());
   await user.keyboard("a b{Backspace}{Delete}c");
   await user.keyboard("{Control>}z{/Control}");
-  expect(field).toHaveValue("a c");
+  expect(input).toHaveValue("a c");
   expect(vi.mocked(execute)).not.toHaveBeenCalled();
 });
 

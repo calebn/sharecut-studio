@@ -44,8 +44,7 @@ Product-facing state table: [`ux/pages/brand.md`](../../ux/pages/brand.md) § Mi
 
 ## Composition recipes
 
-Keep editor controls compact. Reading forms (`.home-screen`, `.review-shell`,
-`.record-shell`, `.bootstrap-wizard`) give shared actions a `--touch-min`
+Keep editor controls compact. Reading forms (`.review-shell`, `.record-shell`) give shared actions a `--touch-min`
 minimum height and reading-body text; labels, hints, and errors use
 `--font-size-body`. Dialog close buttons and Share actions/checkbox labels also
 meet `--touch-min`. This is a target-size rule, not a global increase in mixer
