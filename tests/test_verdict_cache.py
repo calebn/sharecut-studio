@@ -173,7 +173,7 @@ def test_every_input_of_the_check_changes_the_key(
     assert key() != joined
     project.clips[1].fade_in_ms = 0
     project.clips[0].fade_in_ms = 10
-    assert key() == joined  # the start of the recording is outside the window
+    assert key() != joined  # a ramp where a clip leaves the window is still assessed (#2365)
     project.clips[0].fade_in_ms = 0
 
     far = project.clips[0].model_copy(
