@@ -33,7 +33,7 @@ export function isTightenPending(edit: PendingEditView): boolean {
 
 /** The tighten class the server grouped the edit into (`kind`), or null for `other`. */
 export function tightenClassOf(edit: PendingEditView): TightenClass | null {
-  return edit.kind === "other" ? null : edit.kind;
+  return edit.kind == null || edit.kind === "other" ? null : edit.kind;
 }
 
 /**

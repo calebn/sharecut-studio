@@ -6,7 +6,7 @@ Guide for building a desktop or web editor on top of Podcast MCP services and MC
 
 - **State:** `episode.project.json` is the source of truth for clips, pending edits, FX chains, and `editorial.edit_log`.
 - **Mutations:** Route all timeline changes through `EditService` / MCP tools or typed document commands (`POST /api/document/command` — never bare domain calls). Each mutation creates history snapshots. On the web client, `api.ts` exposes `submitDocumentCommand`; `services/commandQueue.ts` persists and orders host/guest edits, handles replay and conflicts, and applies successful results only for the active project. `api/documentTransport.ts` posts the command to the host or guest endpoint.
-- **ShareCut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Approve/Reject (incl. Impact bulk + host **Tighten** review of `filler:`/`pause:`/`repetition:`/`restart:` hits with an Intensity preset + Find hits (pipeline `analyze_fillers_pauses` only)), pending nudge, Current/Suggested/A/B audition, applied source MUTE Restore and Open History for cuts, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress/ignore, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), host **Menu → Record room…** (lobby/consent/Start + full-quality recording + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
+- **ShareCut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Approve/Reject (incl. Impact bulk + host **Tighten** review of tighten hits (grouped by the server `kind`; reasons `filler:`/`pause:`/`repetition:`/`restart:`) with an Intensity preset + Find hits (pipeline `analyze_fillers_pauses` only)), pending nudge, Current/Suggested/A/B audition, applied source MUTE Restore and Open History for cuts, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress/ignore, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), host **Menu → Record room…** (lobby/consent/Start + full-quality recording + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
 - **Host MCP (local Streamable HTTP):** `gui/host_mcp.py` mounts the same `MCPServer` as stdio at `http://127.0.0.1:8765/mcp` (official `mcp` SDK). Tools apply to the open episode (`app.state.served_project`). See § Local host MCP.
 - **Remote MCP (share tokens):** `gui/routes/remote_mcp.py` + `services/remote_mcp/` — capability-scoped guest tools over JSON-RPC; mutations still go through `ShareService` / `DocumentSyncService` (no forked domain logic). See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 - **Audio:** Rendered stems and premix live under `artifacts/`; undo restores project JSON only — call `render_preview` or `history_undo(rerender=true)` after undo.
@@ -88,10 +88,10 @@ Every `pending_edits[]` row in the ProjectView carries `kind`, the Review queue 
 | `pause` | `pause` |
 | `repeat` | `repetition` |
 | `false-start` | `restart` |
-| `sound` | `acoustic`, `laugh`, `possible_word`, `backchannel`, `breath`, `mouth_click` |
+| `sound` | `acoustic`, `laugh`, `possible_word` |
 | `other` | `null` (guest suggestions, agent and manual edits) |
 
-`types/project.ts` types the union as `PendingKind` and the full queue vocabulary as `ReviewItemKind` (`PendingKind` plus the client-only `comment` and `check`). Unsure words are not a kind; a later slice sends them as a separate per-edit list.
+`types/project.ts` types the union as `PendingKind`. The Review stage keeps its own `DecisionKind` vocabulary and will need a mapping from `PendingKind` when it is wired. The table rows for `backchannel`, `breath`, `mouth_click` and `playful_phrase` in `cut_policy.py` are policy-only today: no reason code produces them, so they never appear as `sound_kind`. Unsure words are not a kind; a later slice sends them as a separate per-edit list.
 
 ## Generated TypeScript types
 

@@ -508,7 +508,7 @@ def propose_edits(
     ``kind`` (``filler`` / ``pause`` / ``repeat`` / ``false-start`` / ``sound`` / ``other``),
     ``sound_kind`` (the raw kind, e.g. ``laugh``; null for ``other``)
     and ``suggested_action`` (``cut`` / ``shorten`` / ``lower`` / ``leave``) from
-    one table (``edits/cut_safety.py``) and ``audio_check`` (``clean``, or ``held`` with the reason
+    one table (``edits/cut_policy.py``) and ``audio_check`` (``clean``, or ``held`` with the reason
     Approve all would give, found on a scratch copy; absent when the audio could not be read).
     ``skip_counts`` maps ``discourse:{token}`` to kept uses
     and ``backchannel:{phrase}`` to kept acknowledgments (``uh huh``).

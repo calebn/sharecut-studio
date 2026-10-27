@@ -81,6 +81,12 @@ describe("tightenHits", () => {
     );
   });
 
+  it("fails closed when the server sent no kind", () => {
+    const unclassified = edit();
+    delete (unclassified as { kind?: string }).kind;
+    expect(isTightenPending(unclassified)).toBe(false);
+  });
+
   it("groups on the server kind and never reads the reason", () => {
     // A reason that looks like a filler, sent as another kind, follows the kind.
     expect(tightenClassOf(edit({ reason: "filler:um", kind: "pause" }))).toBe(
