@@ -148,6 +148,60 @@ describe("Composer", () => {
   });
 
   describe("anchor chip", () => {
+    it("moves focus to the chip when the clear control turns the anchor into the whole episode", async () => {
+      function Anchored() {
+        const [kind, setKind] = useState<"pinned" | "episode">("pinned");
+        return (
+          <Composer
+            body=""
+            onBodyChange={noop}
+            onSubmit={noop}
+            anchor={kind === "pinned" ? { kind, start: 18 } : { kind }}
+            onAnchor={(intent) => intent === "episode" && setKind("episode")}
+          />
+        );
+      }
+      render(<Anchored />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Make it a whole-episode note" }),
+      );
+      expect(
+        screen.queryByRole("button", { name: "Make it a whole-episode note" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", {
+          name: "Whole-episode note. Pin to the playhead",
+        }),
+      ).toHaveFocus();
+    });
+
+    it("hands focus to the field when posting replaces a focused chip with text", () => {
+      const anchor = { kind: "pinned", start: 18 } as const;
+      const { rerender } = render(
+        <Composer
+          body="hi"
+          onBodyChange={noop}
+          onSubmit={noop}
+          anchor={anchor}
+          onAnchor={noop}
+        />,
+      );
+      screen
+        .getByRole("button", { name: /^Pinned .*Move to the playhead$/ })
+        .focus();
+      rerender(
+        <Composer
+          body="hi"
+          onBodyChange={noop}
+          onSubmit={noop}
+          anchor={anchor}
+          onAnchor={noop}
+          state="posting"
+        />,
+      );
+      expect(field()).toHaveFocus();
+    });
+
     it("shows a following chip as timecode and asks to pin on every keystroke", async () => {
       const onAnchor = vi.fn();
       render(
@@ -274,6 +328,23 @@ describe("Composer", () => {
       expect(screen.queryByText(/^\d+:\d\d$/)).toBeNull();
       expect(screen.queryByText("Whole episode")).toBeNull();
     });
+  });
+
+  it("keeps focus in the field after the arrow posts and the caller clears the body", async () => {
+    function Clearing() {
+      const [body, setBody] = useState("hello");
+      return (
+        <Composer
+          body={body}
+          onBodyChange={setBody}
+          onSubmit={() => setBody("")}
+        />
+      );
+    }
+    render(<Clearing />);
+    await userEvent.click(submit());
+    expect(field()).toHaveValue("");
+    expect(field()).toHaveFocus();
   });
 
   describe("guest name", () => {
