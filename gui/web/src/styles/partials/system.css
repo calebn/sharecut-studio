@@ -755,6 +755,30 @@
   }
 }
 
+/* A frame this short (a phone held sideways at large text) keeps the Player as
+   one touch-height row: Play, the clock and the hear menu. The skip buttons, the
+   cuts, the A and B toggles, Comment and the status chips give way. */
+@container app (max-height: 16rem) {
+  .sys-player {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-player-skip,
+  .sys-player-ab,
+  .sys-player-left > :not(.sys-player-time),
+  .sys-player-right > :not(.sys-player-hear) {
+    display: none;
+  }
+
+  .sys-stage-bar--tabs .sys-stage-tab {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-header-right {
+    display: none;
+  }
+}
+
 .sys-player--expanded {
   display: flex;
   flex-direction: column;

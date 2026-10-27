@@ -84,16 +84,6 @@ html[data-shell="phone"] {
   background: var(--color-bg-canvas);
 }
 
-/* A window this short (a phone held sideways at twice the text size) cannot
-   hold the header, a banner, the Player and the tab bar and still show a
-   stage body; the Player gives way so the stage and the tab bar stay on
-   screen. */
-@container app (max-height: 16rem) {
-  .stage-frame--phone .stage-frame-player {
-    display: none;
-  }
-}
-
 /* The selection Inspector as a column on the inline end of a phone held
    sideways (#1696; BottomSheet placement="column"). The sheet host slots in
    after the body, so the column is a grid cell beside it; the header, banners,
