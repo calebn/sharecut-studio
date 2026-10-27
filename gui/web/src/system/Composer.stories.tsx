@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { ComposerHarness } from "../storybook/ComposerHarness";
-import { viewportStoryParameters } from "../storybook/storyLayout";
+import {
+  columnStoryDecorator,
+  viewportStoryParameters,
+} from "../storybook/storyLayout";
 import { playInCanvas } from "../storybook/storyPlay";
 import { Composer } from "./Composer";
 
@@ -11,13 +14,7 @@ const meta: Meta<typeof ComposerHarness> = {
   render: (args) => <ComposerHarness {...args} />,
   tags: ["autodocs"],
   args: { onSubmit: fn(), onAnchor: fn() },
-  decorators: [
-    (Story) => (
-      <div style={{ padding: "var(--space-5)", maxInlineSize: "30rem" }}>
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: [columnStoryDecorator],
   parameters: {
     ...viewportStoryParameters,
     docs: {

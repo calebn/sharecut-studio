@@ -5,7 +5,10 @@ import {
   OPEN_COMMENT,
   RESOLVED_COMMENT,
 } from "../storybook/commentFixtures";
-import { viewportStoryParameters } from "../storybook/storyLayout";
+import {
+  columnStoryDecorator,
+  viewportStoryParameters,
+} from "../storybook/storyLayout";
 import { playInCanvas } from "../storybook/storyPlay";
 import { CommentCard } from "./CommentCard";
 
@@ -19,13 +22,7 @@ const meta: Meta<typeof CommentCard> = {
     onResolve: fn(),
     onToggleAction: fn(),
   },
-  decorators: [
-    (Story) => (
-      <div style={{ padding: "var(--space-5)", maxInlineSize: "30rem" }}>
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: [columnStoryDecorator],
   parameters: {
     ...viewportStoryParameters,
     docs: {
