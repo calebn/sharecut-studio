@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { ViewSheet } from "./ViewSheet";
@@ -22,7 +23,7 @@ beforeEach(() => {
 });
 
 describe("ViewSheet", () => {
-  it("holds what the old View menu held, as sheet sections", () => {
+  it("has a section for each view control", () => {
     render(<ViewSheet />);
     for (const name of [
       "Layers",
@@ -89,4 +90,37 @@ describe("ViewSheet", () => {
     );
     expect(useDawStore.getState().userZoomed).toBe(false);
   });
+
+  it.each(["edit", "comment", "view"])(
+    "never stores a %s guest's share token when the view changes",
+    async (guestMode) => {
+      const token = "SECRETTOKEN123456";
+      localStorage.clear();
+      sessionStorage.clear();
+      useDawStore
+        .getState()
+        .hydrate(
+          shareProjectKey(token),
+          minimalProject({ tracks: [sampleTrack()] }),
+        );
+      useDawStore.setState({ guestMode });
+      const user = userEvent.setup();
+      render(<ViewSheet />);
+      await user.click(screen.getByRole("button", { name: "Log (dB)" }));
+      await user.click(
+        screen.getByRole("checkbox", { name: /Show waveforms post-fader/ }),
+      );
+      const amp = screen.getByRole("region", { name: "Waveform amplitude" });
+      await user.click(within(amp).getAllByRole("button")[1]);
+      expect(useDawStore.getState().waveformScale).toBe("log");
+      expect(useDawStore.getState().waveformPostFader).toBe(true);
+      for (const store of [localStorage, sessionStorage]) {
+        for (let i = 0; i < store.length; i++) {
+          const key = store.key(i) ?? "";
+          expect(key).not.toContain(token);
+          expect(store.getItem(key)).not.toContain(token);
+        }
+      }
+    },
+  );
 });
