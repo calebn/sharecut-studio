@@ -25,6 +25,7 @@
 
 .stage-host--phone .stage-host-columns {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
 }
 
