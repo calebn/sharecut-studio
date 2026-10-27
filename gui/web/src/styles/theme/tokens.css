@@ -153,14 +153,15 @@
     var(--lane-height)
   );
   /* Where the height allows, the stacked timeline keeps a third lane (a phone
-     held sideways), and the Script pane keeps a toolbar row under it. */
+     held sideways), and the Script pane keeps its toolbar and a few lines of
+     reading under it. */
   --stage-stacked-lanes-want: calc(
     2 *
     var(--ruler-height) +
     3 *
     var(--lane-height)
   );
-  --stage-stacked-script-floor: 3.5rem;
+  --stage-stacked-script-floor: 8rem;
   /* What the Edit stage keeps above an open inspector sheet so the page still
      reads as the page: the app header (a phone's sheet starts below it, so
      bottom-sheet.css zeroes --sheet-header-clearance there), the row the surface switch and the
