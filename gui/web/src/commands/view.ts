@@ -1,14 +1,20 @@
 import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
-import { type ReviewSection, STAGE_IDS, type StageSheet } from "../types/stage";
+import {
+  REVIEW_SECTIONS,
+  type ReviewSection,
+  STAGE_IDS,
+  STAGE_SHEETS,
+  type StageSheet,
+} from "../types/stage";
 import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
 
 const isReviewSection = (v: unknown): v is ReviewSection =>
-  v === "impact" || v === "comments" || v === "tighten";
+  (REVIEW_SECTIONS as readonly unknown[]).includes(v);
 const isStageSheet = (v: unknown): v is StageSheet =>
-  v === "history" || v === "view" || v === "mix";
+  (STAGE_SHEETS as readonly unknown[]).includes(v);
 
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {

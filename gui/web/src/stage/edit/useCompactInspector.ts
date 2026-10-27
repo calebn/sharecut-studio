@@ -18,6 +18,7 @@ import {
   useState,
 } from "react";
 import {
+  matchesMedia,
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "../../hooks/useMediaQueryStore";
@@ -46,9 +47,7 @@ export const SHORT_SCREEN_MQ = "(max-height: 40rem)";
 export const KEEP_CLEAR_PX = 8;
 
 const subscribeShort = mediaQuerySubscription([SHORT_SCREEN_MQ]);
-const readShort = () =>
-  typeof globalThis.matchMedia === "function" &&
-  globalThis.matchMedia(SHORT_SCREEN_MQ).matches;
+const readShort = () => matchesMedia(SHORT_SCREEN_MQ);
 
 export function useShortScreen(): boolean {
   return useMediaQueryStore(subscribeShort, readShort, () => false);

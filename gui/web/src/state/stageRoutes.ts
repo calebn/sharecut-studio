@@ -1,25 +1,18 @@
 import type { PresenceMobileMode, PresenceTab } from "../types/session";
-import type {
-  EditSurface,
-  ReviewSection,
-  StageId,
-  StageRole,
-  StageSheet,
+import {
+  type EditSurface,
+  type ReviewSection,
+  STAGE_IDS,
+  type StageId,
+  type StageRole,
+  type StageSheet,
 } from "../types/stage";
-
-const ALL_STAGES: readonly StageId[] = [
-  "record",
-  "prepare",
-  "edit",
-  "review",
-  "deliver",
-];
 
 /** Stages a person may open: the host all five, a guest only what their link allows. */
 export function stagesForRole(role: StageRole): readonly StageId[] {
   switch (role) {
     case "host":
-      return ALL_STAGES;
+      return STAGE_IDS;
     case "Editor":
       return ["edit", "review"];
     case "Commenter":

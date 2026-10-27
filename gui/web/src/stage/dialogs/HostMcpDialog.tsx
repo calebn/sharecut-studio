@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { copyText } from "../../record";
 import { Button, Dialog, Field, InlineError } from "../../ui";
 import { errorMessage } from "../../utils/apiError";
 import { localHostMcpUrl, mcpClientSnippet } from "./hostMcp";
@@ -14,13 +15,6 @@ type Props = {
   /** Fixed URL for previews; the live dialog derives the local host URL. */
   mcpUrl?: string;
 };
-
-async function copyText(text: string): Promise<void> {
-  if (!navigator.clipboard?.writeText) {
-    throw new Error("Clipboard unavailable");
-  }
-  await navigator.clipboard.writeText(text);
-}
 
 export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
   const [copied, setCopied] = useState<CopiedKey | null>(null);

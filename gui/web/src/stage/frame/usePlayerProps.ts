@@ -18,6 +18,7 @@ import {
   hearModeOf,
   playerChapters,
   playerTicks,
+  sortChapters,
 } from "./playerModel";
 
 const NONE: never[] = [];
@@ -72,9 +73,13 @@ export function usePlayerProps(
 
   const duration = project?.timeline_duration_sec ?? 0;
   const chapterMarkers = project?.chapters ?? NONE;
+  const sortedMarkers = useMemo(
+    () => sortChapters(chapterMarkers),
+    [chapterMarkers],
+  );
   const chapters = useMemo(
-    () => playerChapters(chapterMarkers, duration),
-    [chapterMarkers, duration],
+    () => playerChapters(sortedMarkers, duration),
+    [sortedMarkers, duration],
   );
   const comments = project?.comments;
   const ticks = useMemo(
@@ -117,7 +122,7 @@ export function usePlayerProps(
       : undefined,
     title: project.meta.name,
     chapters,
-    chapter: chapterIndexAt(chapterMarkers, playheadSec),
+    chapter: chapterIndexAt(sortedMarkers, playheadSec),
     ticks,
     playhead: duration > 0 ? playheadSec / duration : 0,
     hearMenu: guest
@@ -142,7 +147,7 @@ export function usePlayerProps(
       runPointerCommand("transport.togglePlay");
     },
     onChapter: (index) => {
-      const target = [...chapterMarkers].sort((a, b) => a.time - b.time)[index];
+      const target = sortedMarkers[index];
       if (target) void seekTransport(target.time);
     },
     onUnfollow: () => runPointerCommand("presence.unfollow"),

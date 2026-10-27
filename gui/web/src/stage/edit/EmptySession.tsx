@@ -1,26 +1,20 @@
 import { useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import {
-  audioFilesFromDrop,
   dismissIngestCoach,
-  fileCountFromDataTransfer,
   isIngestCoachDismissed,
   newTracksDropLabel,
 } from "../../ingest/dropLabels";
-import { ingestFiles } from "../../ingest/ingestFiles";
 import { displayShortcutFor } from "../../keymap/registry";
 import { EmptySessionView } from "./EmptySessionView";
+import type { AudioDrop } from "./useAudioDrop";
 
 export type EmptySessionProps = {
-  over: boolean;
-  fileCount: number;
-  onOverChange: (over: boolean, fileCount?: number) => void;
+  drop: AudioDrop;
 };
 
 export function EmptySession({
-  over,
-  fileCount,
-  onOverChange,
+  drop: { over, fileCount, handlers },
 }: EmptySessionProps) {
   const importShortcut = displayShortcutFor("media.import") ?? null;
   const [coachOpen, setCoachOpen] = useState(() => !isIngestCoachDismissed());
@@ -34,21 +28,7 @@ export function EmptySession({
       }
       importShortcut={importShortcut}
       coachOpen={coachOpen}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "copy";
-        onOverChange(
-          true,
-          Math.max(1, fileCountFromDataTransfer(e.dataTransfer)),
-        );
-      }}
-      onDragLeave={() => onOverChange(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        onOverChange(false);
-        const files = audioFilesFromDrop(e.dataTransfer.files);
-        if (files.length) void ingestFiles(files, { kind: "new" });
-      }}
+      {...handlers}
       onImport={() => runPointerCommand("media.import", {})}
       onDismissCoach={() => {
         dismissIngestCoach();

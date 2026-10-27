@@ -1,4 +1,4 @@
-import { useRecordHostStore } from "../../record";
+import { liveTakeOpen, useRecordHostStore } from "../../record";
 import { useDaw } from "../../state/useDaw";
 import type { StageBadge } from "../../system/StageBar";
 import type { StageId } from "../../system/verbs";
@@ -49,7 +49,5 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
 
 /** A take is on: recording or paused, not the lobby. */
 export function useRecordLive(): boolean {
-  return useRecordHostStore(
-    (s) => s.snapshot?.state === "recording" || s.snapshot?.state === "paused",
-  );
+  return useRecordHostStore((s) => liveTakeOpen(s.snapshot?.state));
 }

@@ -7,6 +7,7 @@ import {
   hearModeOf,
   playerChapters,
   playerTicks,
+  sortChapters,
 } from "./playerModel";
 import { saveIndicatorOf } from "./useSaveIndicator";
 import { stageBadges } from "./useStageBadges";
@@ -101,13 +102,13 @@ describe("player model", () => {
       { time: 30, title: "Second" },
       { time: 0, title: "First" },
     ];
-    const chapters = playerChapters(markers, 60);
+    const chapters = playerChapters(sortChapters(markers), 60);
     expect(chapters.map((c) => [c.title, c.time, c.at])).toEqual([
       ["First", "0:00", 0],
       ["Second", "0:30", 0.5],
     ]);
-    expect(chapterIndexAt(markers, 10)).toBe(0);
-    expect(chapterIndexAt(markers, 45)).toBe(1);
+    expect(chapterIndexAt(sortChapters(markers), 10)).toBe(0);
+    expect(chapterIndexAt(sortChapters(markers), 45)).toBe(1);
     expect(chapterIndexAt([{ time: 5, title: "Late" }], 1)).toBeUndefined();
     expect(playerTicks(chapters, [15], 60)).toEqual([
       { at: 0, kind: "chapter" },

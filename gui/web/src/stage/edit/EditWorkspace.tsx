@@ -1,14 +1,8 @@
-import {
-  memo,
-  type RefCallback,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, type RefCallback, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { isRangeSelection } from "../../edit/rangeSelection";
 import {
+  matchesMedia,
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "../../hooks/useMediaQueryStore";
@@ -34,14 +28,13 @@ import { InspectorSheet } from "./InspectorSheet";
 import { PhoneEditSurfaceView } from "./PhoneEditSurfaceView";
 import { PlusMenu } from "./PlusMenu";
 import { ScriptDivider } from "./ScriptDivider";
+import { useAudioDrop } from "./useAudioDrop";
 import { useScriptSize } from "./useScriptSize";
 import { useSelectionSheet } from "./useSelectionSheet";
 
 const SIDE_BY_SIDE_MQ = "(min-width: 62.5rem)";
 const subscribeSide = mediaQuerySubscription([SIDE_BY_SIDE_MQ]);
-const readSide = () =>
-  typeof globalThis.matchMedia !== "function" ||
-  globalThis.matchMedia(SIDE_BY_SIDE_MQ).matches;
+const readSide = () => matchesMedia(SIDE_BY_SIDE_MQ, true);
 
 export type EditWorkspaceProps = {
   guestShare?: boolean;
@@ -116,12 +109,7 @@ function EditWorkspaceAdapter({
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const loading = project == null;
   const emptySession = !loading && project.tracks.length === 0;
-  const [addDropOver, setAddDropOver] = useState(false);
-  const [addFileCount, setAddFileCount] = useState(1);
-  const onDropOverChange = useCallback((over: boolean, fileCount?: number) => {
-    setAddDropOver(over);
-    if (fileCount != null) setAddFileCount(fileCount);
-  }, []);
+  const drop = useAudioDrop();
 
   const sheetShell = shell === "phone" || shell === "tablet" ? shell : null;
   const phoneLanes = editSurface === "lanes";
@@ -146,15 +134,15 @@ function EditWorkspaceAdapter({
         addRow={
           mayIngest ? (
             <PlusMenu
-              dropOver={addDropOver}
-              fileCount={addFileCount}
-              onDropOverChange={onDropOverChange}
+              dropOver={drop.over}
+              fileCount={drop.fileCount}
+              dropHandlers={drop.handlers}
             />
           ) : null
         }
       />
     ),
-    [phone, mayIngest, addDropOver, addFileCount, onDropOverChange],
+    [phone, mayIngest, drop.over, drop.fileCount, drop.handlers],
   );
 
   const state = loading
@@ -171,11 +159,7 @@ function EditWorkspaceAdapter({
     ) : state === "ingest" ? (
       <>
         {headers}
-        <EmptySession
-          over={addDropOver}
-          fileCount={addFileCount}
-          onOverChange={onDropOverChange}
-        />
+        <EmptySession drop={drop} />
       </>
     ) : (
       <TimelineView fixedPlayhead={phone} headerSlot={headers} />

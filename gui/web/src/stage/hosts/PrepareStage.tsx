@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react";
+import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -8,6 +8,7 @@ import { canIngestMedia } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
 import { EmptySession } from "../edit/EmptySession";
+import { useAudioDrop } from "../edit/useAudioDrop";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 
@@ -40,12 +41,7 @@ function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
   );
   const shell = useViewportClass();
   const scrollRef = useStageScroll("prepare", "body");
-  const [over, setOver] = useState(false);
-  const [fileCount, setFileCount] = useState(1);
-  const onOverChange = useCallback((next: boolean, count?: number) => {
-    setOver(next);
-    if (count != null) setFileCount(count);
-  }, []);
+  const drop = useAudioDrop();
 
   const handoff = prepareHandoff({
     busy: isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob),
@@ -60,13 +56,7 @@ function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
       canIngest={canIngestMedia(projectPath, guestMode, shareCapabilities)}
       importShortcut={displayShortcutFor("media.import") ?? null}
       handoff={handoff}
-      dropTarget={
-        <EmptySession
-          over={over}
-          fileCount={fileCount}
-          onOverChange={onOverChange}
-        />
-      }
+      dropTarget={<EmptySession drop={drop} />}
       pipeline={<PipelinePanel />}
       scrollRef={scrollRef}
       onImport={() => runPointerCommand("media.import", {})}

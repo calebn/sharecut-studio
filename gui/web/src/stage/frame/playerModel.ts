@@ -29,30 +29,32 @@ export function cutsLabel(removedSec: number): string | undefined {
   return removedSec > 0.5 ? `−${formatTimeShort(removedSec)}` : undefined;
 }
 
-export function playerChapters(
+/** Chapters by time. The Player's chapter indexes are positions in this order. */
+export function sortChapters(
   chapters: readonly ChapterMarker[],
+): ChapterMarker[] {
+  return [...chapters].sort((a, b) => a.time - b.time);
+}
+
+/** The Player's chapters for markers already in `sortChapters` order. */
+export function playerChapters(
+  sorted: readonly ChapterMarker[],
   durationSec: number,
 ): PlayerChapter[] {
-  return [...chapters]
-    .sort((a, b) => a.time - b.time)
-    .map((chapter) => ({
-      title: chapter.title,
-      time: formatTimeShort(chapter.time),
-      at: durationSec > 0 ? chapter.time / durationSec : 0,
-    }));
+  return sorted.map((chapter) => ({
+    title: chapter.title,
+    time: formatTimeShort(chapter.time),
+    at: durationSec > 0 ? chapter.time / durationSec : 0,
+  }));
 }
 
 /** The chapter the playhead is in: the last one that has started. */
 export function chapterIndexAt(
-  chapters: readonly ChapterMarker[],
+  sorted: readonly ChapterMarker[],
   playheadSec: number,
 ): number | undefined {
-  const sorted = [...chapters].sort((a, b) => a.time - b.time);
-  let found: number | undefined;
-  sorted.forEach((chapter, index) => {
-    if (chapter.time <= playheadSec) found = index;
-  });
-  return found;
+  const index = sorted.findLastIndex((chapter) => chapter.time <= playheadSec);
+  return index < 0 ? undefined : index;
 }
 
 export function playerTicks(

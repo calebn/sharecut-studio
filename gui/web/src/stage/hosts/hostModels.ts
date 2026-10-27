@@ -1,13 +1,12 @@
 import type { RecordSnapshot } from "../../record";
 import { stagesForRole } from "../../state/stageRoutes";
-import type { ReviewSection, StageId, StageRole } from "../../types/stage";
+import {
+  REVIEW_SECTIONS,
+  type ReviewSection,
+  type StageId,
+  type StageRole,
+} from "../../types/stage";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
-
-const HOST_SECTIONS: readonly ReviewSection[] = [
-  "comments",
-  "impact",
-  "tighten",
-];
 
 /** True when the role's link may open the stage. */
 export function stageAvailable(stage: StageId, role: StageRole): boolean {
@@ -16,7 +15,7 @@ export function stageAvailable(stage: StageId, role: StageRole): boolean {
 
 /** Impact and Tighten act on the project; a guest reviews comments. */
 export function reviewSectionsFor(role: StageRole): readonly ReviewSection[] {
-  return role === "host" ? HOST_SECTIONS : ["comments"];
+  return role === "host" ? REVIEW_SECTIONS : ["comments"];
 }
 
 /** The stored section, or the first one the role has when it names one they cannot see. */

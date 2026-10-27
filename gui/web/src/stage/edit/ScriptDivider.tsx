@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type PointerEvent, useRef } from "react";
+import { remToPx } from "../../utils/remToPx";
 import { SCRIPT_WIDTH_MAX_REM, SCRIPT_WIDTH_MIN_REM } from "./useScriptSize";
 
 export interface ScriptDividerProps {
@@ -10,9 +11,6 @@ export interface ScriptDividerProps {
 
 const STEP_REM = 1;
 const BIG_STEP_REM = 4;
-
-const rootPx = () =>
-  Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
 /**
  * The plain divider between the timeline and the Script pane. Drag it, press
@@ -37,7 +35,7 @@ export function ScriptDivider({
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const start = drag.current;
     if (!start) return;
-    onResize(start.rem - (e.clientX - start.x) / rootPx());
+    onResize(start.rem - (e.clientX - start.x) / remToPx(1));
   };
   const endDrag = (e: PointerEvent<HTMLDivElement>) => {
     drag.current = null;

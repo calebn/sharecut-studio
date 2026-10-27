@@ -1,4 +1,5 @@
 import {
+  matchesMedia,
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "../../hooks/useMediaQueryStore";
@@ -14,9 +15,7 @@ import { SHORT_SCREEN_MQ } from "./useCompactInspector";
 const INSPECTOR_COLUMN_MQ = `${SHORT_SCREEN_MQ} and (pointer: coarse) and (min-width: 40rem)`;
 
 const subscribe = mediaQuerySubscription([INSPECTOR_COLUMN_MQ]);
-const read = () =>
-  typeof globalThis.matchMedia === "function" &&
-  globalThis.matchMedia(INSPECTOR_COLUMN_MQ).matches;
+const read = () => matchesMedia(INSPECTOR_COLUMN_MQ);
 
 /** True where the selection Inspector is a column on the inline end. */
 export function useInspectorColumn(): boolean {

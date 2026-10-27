@@ -8,12 +8,17 @@ export const STAGE_IDS = [
 
 export type StageId = (typeof STAGE_IDS)[number];
 
-export type ReviewSection = "impact" | "comments" | "tighten";
+/** In the order a host sees the Review sections. */
+export const REVIEW_SECTIONS = ["comments", "impact", "tighten"] as const;
+
+export type ReviewSection = (typeof REVIEW_SECTIONS)[number];
 
 /** Phone Edit shows the lanes or the Script, never both. */
 export type EditSurface = "lanes" | "text";
 
-export type StageSheet = "history" | "view" | "mix";
+export const STAGE_SHEETS = ["history", "view", "mix"] as const;
+
+export type StageSheet = (typeof STAGE_SHEETS)[number];
 
 /** What a stage remembers while another stage is up. */
 export type StageView = {

@@ -1,4 +1,4 @@
-import { executePointerCommand } from "../../commands/pointer";
+import { runPointerCommand } from "../../commands/pointer";
 import { useDaw } from "../../state/useDaw";
 import {
   clampZoomPxPerSec,
@@ -8,7 +8,7 @@ import {
 
 export type ZoomAvailability = { canZoomIn: boolean; canZoomOut: boolean };
 
-export function zoomAvailability(
+function zoomAvailability(
   zoomPxPerSec: number,
   sessionSec: number,
 ): ZoomAvailability {
@@ -21,17 +21,12 @@ export function zoomAvailability(
 }
 
 export function useZoomControls() {
-  const canZoomIn = useDaw(
-    (state) =>
-      zoomAvailability(state.zoomPxPerSec, sessionSecOf(state)).canZoomIn,
-  );
-  const canZoomOut = useDaw(
-    (state) =>
-      zoomAvailability(state.zoomPxPerSec, sessionSecOf(state)).canZoomOut,
+  const zoom = useDaw((state) =>
+    zoomAvailability(state.zoomPxPerSec, sessionSecOf(state)),
   );
   return {
-    zoom: { canZoomIn, canZoomOut },
-    onZoomIn: () => void executePointerCommand("view.zoomIn"),
-    onZoomOut: () => void executePointerCommand("view.zoomOut"),
+    zoom,
+    onZoomIn: () => runPointerCommand("view.zoomIn"),
+    onZoomOut: () => runPointerCommand("view.zoomOut"),
   };
 }

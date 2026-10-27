@@ -3,6 +3,7 @@ import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import {
   isRecordTransportVisible,
+  liveTakeOpen,
   RecIndicator,
   useRecordHostStore,
 } from "../../record";
@@ -24,7 +25,7 @@ function RecordStageAdapter({ loadFailure }: RecordStageProps) {
   const dropped = useRecordHostStore((s) => s.dropped);
   const open = useCommand("record.openPanel");
   const shell = useViewportClass();
-  const live = snapshot?.state === "recording" || snapshot?.state === "paused";
+  const live = liveTakeOpen(snapshot?.state);
   return (
     <RecordStageView
       shell={shell}

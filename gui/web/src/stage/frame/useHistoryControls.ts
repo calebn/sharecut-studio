@@ -1,12 +1,8 @@
-import { useSyncExternalStore } from "react";
 import { runHistoryAction } from "../../commands/history";
 import { executePointerCommand } from "../../commands/pointer";
 import { canApplyPass12 } from "../../shareMode";
-import {
-  documentActivityBusy,
-  subscribeDocumentActivity,
-} from "../../state/documentSendOrder";
 import { useDaw } from "../../state/useDaw";
+import { useDocumentBusy } from "../../state/useDocumentBusy";
 
 export type HistoryAvailability = { canUndo: boolean; canRedo: boolean };
 
@@ -20,9 +16,7 @@ export function useHistoryControls() {
       canRedo: state.project?.history.can_redo ?? false,
     }));
   // A save or drain still running: a press waits for it and says so.
-  const saving = useSyncExternalStore(subscribeDocumentActivity, () =>
-    documentActivityBusy(projectPath),
-  );
+  const saving = useDocumentBusy(projectPath);
   const history = canApplyPass12(projectPath, guestMode, shareCapabilities)
     ? { canUndo, canRedo }
     : null;

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { isRangeSelection } from "../../edit/rangeSelection";
 import {
+  matchesMedia,
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "../../hooks/useMediaQueryStore";
@@ -68,9 +69,7 @@ export interface SelectionSheet {
 
 const LANDSCAPE_MQ = "(orientation: landscape)";
 const subscribeLandscape = mediaQuerySubscription([LANDSCAPE_MQ]);
-const readLandscape = () =>
-  typeof globalThis.matchMedia === "function" &&
-  globalThis.matchMedia(LANDSCAPE_MQ).matches;
+const readLandscape = () => matchesMedia(LANDSCAPE_MQ);
 
 /** The selection sheet for `shell`; closed for a shell without one. */
 export function useSelectionSheet(

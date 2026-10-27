@@ -1,14 +1,11 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import {
   selectRecoveryOutcome,
   useOfflineAttention,
 } from "../../services/offlineQueue/offlineAttention";
 import { isShareProjectKey } from "../../shareMode";
-import {
-  documentActivityBusy,
-  subscribeDocumentActivity,
-} from "../../state/documentSendOrder";
 import { useDaw } from "../../state/useDaw";
+import { useDocumentBusy } from "../../state/useDocumentBusy";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { latestSaveOutcome, type SaveState, saveStateOf } from "./saveState";
 
@@ -33,9 +30,7 @@ export function useSaveState(): {
 } {
   const projectPath = useDaw((s) => s.projectPath);
   const guest = isShareProjectKey(projectPath);
-  const busy = useSyncExternalStore(subscribeDocumentActivity, () =>
-    documentActivityBusy(projectPath),
-  );
+  const busy = useDocumentBusy(projectPath);
   const attention = useOfflineAttention(
     guest || !projectPath ? null : projectPath,
   );
