@@ -106,6 +106,12 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/Seam.tsx",
   // The notes composer is one field: Enter sends and Shift+Enter adds a line, and an IME's own Enter (isComposing or keyCode 229) never sends.
   "system/NotesRail.tsx",
+  // A selection grip is a slider: arrows, Home and End move its edge one place on or back, or to the first or last place.
+  "system/SelectionHandles.tsx",
+  // The inline Fix text field commits on Enter and Tab and puts the words back on Escape.
+  "stages/edit/FixTextField.tsx",
+  // The Find bar: Enter and the arrows step through hits, Shift+Enter cuts them all, and Escape closes the bar from any control in it.
+  "stages/edit/FindBar.tsx",
   "commands/governance.test.ts",
 ]);
 
