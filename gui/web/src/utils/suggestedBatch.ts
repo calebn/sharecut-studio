@@ -1,6 +1,6 @@
 import type { HistoryGroup, ProjectView } from "../types/project";
 
-/** The actions a sound can have; the server's `SUGGESTED_ACTIONS` (`edits/sound_actions.py`). */
+/** The actions a sound can have; the server's `SUGGESTED_ACTIONS` (`edits/cut_policy.py`). */
 export const SOUND_ACTIONS = ["cut", "shorten", "lower", "leave"] as const;
 
 export type SoundAction = (typeof SOUND_ACTIONS)[number];

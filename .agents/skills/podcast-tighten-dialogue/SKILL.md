@@ -124,7 +124,8 @@ returns the same hits, under the same ids, each run. An Ask thread
      Preview / Skip / Apply one, or Apply suggested actions (every listed
      sound gets its own suggested action in one undo step), or
    - `list_edit_decisions_tool` / `podcast edit list --pending` plus
-     `play_pending_preview_tool` (Suggested / Current / A/B).
+     `play_pending_preview_tool` (Suggested / Current / A/B). `list_edit_decisions_tool` rows have no `kind`
+     yet (#2430); read `propose_edits` rows for `kind`, or the reason prefix.
    Entries with `review_required: true` need `approve_edits_tool` before render.
 5. Approve **per hit** (`approve_edits_tool` with ids) after the user hears it.
    When the user asks for Studio's Apply suggested actions, call
