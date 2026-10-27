@@ -1684,7 +1684,7 @@
 }
 
 .sys-project--card .sys-pill {
-  block-size: var(--status-chip-height);
+  block-size: var(--pill-height);
 }
 
 .sys-project--card .sys-project-find {

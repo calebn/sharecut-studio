@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**124** capabilities · **108** ShareCut Studio commands · **58** keyed · **187** MCP tools · **17** skills on rows (+ **19** hub skills).
+**129** capabilities · **110** ShareCut Studio commands · **58** keyed · **192** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -94,6 +94,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Create record room | project | `record.createRoom` | — (empty-state action in the Record room panel) | — | `RecordPanel` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
 | Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
 | Start recording | project | `record.start` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
+| Capture room tone | project | `record.roomTone` | — (chords in a later PR) | — | `RecordPanel` | `record_room_tone_tool` | `podcast record room-tone` | `podcast-record-session` | yes | none · none |
+| Set session target | project | `record.setTarget` | — (host CLI/MCP only) | — | — | `record_target_tool` | `podcast record target` | `podcast-record-session` | yes | none · none |
 | Pause recording | project | `record.pause` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_pause_tool` | `podcast record pause` | `podcast-record-session` | yes | none · none |
 | Resume recording | project | `record.resume` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
 | Stop recording | project | `record.stop` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_stop_tool` | `podcast record stop` | `podcast-record-session` | yes | none · none |
@@ -145,6 +147,9 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Label | Effect | MCP | CLI | Skill | Host-only |
 | ----- | ------ | --- | --- | ----- | --------- |
 | Discard recording take | project | `record_discard_take_tool` | `podcast record discard-take` | `podcast-record-session` | yes |
+| List staged sessions | project | `list_session_suggestions_tool` | `podcast review session-suggestions` | `podcast-record-session` | yes |
+| Accept staged session | project | `accept_session_suggestion_tool` | `podcast review accept-session-suggestion` | `podcast-record-session` | yes |
+| Skip staged session | project | `skip_session_suggestion_tool` | `podcast review skip-session-suggestion` | `podcast-record-session` | yes |
 | Episode / track CRUD | project | `episode_create`, `track_set_meta_tool` | `podcast episode` | `podcast-setup` | yes |
 | Transcript layers | project | `transcribe_track`, `get_transcript`, `get_transcript_vocabulary_tool`, `set_transcript_vocabulary_tool`, `export_transcript`, `precorrect_transcript_tool`, +4 | `podcast transcript` | `podcast-transcript-workflow` | yes |
 | Edit decisions / NL cuts | project | `build_edit_context`, `search_transcript_tool`, `cut_time_range_tool`, `cut_text_match_tool`, `cut_utterance_tool`, `cut_words_tool`, +14 | `podcast edit` | `podcast-edit-natural-language` | yes |

@@ -145,6 +145,7 @@
   /* Control heights: one per role so rows line up. */
   --control-height: 2rem;
   --control-height-compact: 1.75rem;
+  --pill-height: 1.5rem;
   /* 44pt touch floor at 16px root; phone/tablet follow chrome via @container */
   --touch-min: 2.75rem;
   --mix-row-height: 3.5rem;

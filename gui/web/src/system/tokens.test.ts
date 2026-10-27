@@ -138,6 +138,7 @@ const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--transport-height", ["3.5rem"]],
   ["--control-height", ["2rem"]],
   ["--control-height-compact", ["1.75rem"]],
+  ["--pill-height", ["1.5rem"]],
   ["--touch-min", ["2.75rem"]],
   ["--mix-row-height", ["3.5rem"]],
   ["--mix-identity-size", ["1.5rem"]],
