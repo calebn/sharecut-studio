@@ -113,7 +113,7 @@ describe("ReadyList", () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
     render(<ReadyList rows={ROWS.failed} onAction={onAction} />);
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("button", { name: /^Try again/ }));
     expect(onAction).toHaveBeenCalledWith("transcribe", "try-again");
     const item = screen.getAllByRole("listitem")[1];
     expect(item).toHaveTextContent("Failed: Transcribe");
@@ -141,12 +141,12 @@ describe("ReadyList", () => {
     const { rerender } = render(
       <ReadyList rows={ROWS.needsModel} onAction={onAction} />,
     );
-    await user.click(screen.getByRole("button", { name: "Download 1.6 GB" }));
+    await user.click(screen.getByRole("button", { name: /^Download 1.6 GB/ }));
     expect(onAction).toHaveBeenCalledWith("transcribe", "download-model");
     rerender(<ReadyList rows={ROWS.approximateTiming} onAction={onAction} />);
     expect(screen.getByText(/Word timing is approximate/)).toBeVisible();
     await user.click(
-      screen.getByRole("button", { name: "Download word timing (360 MB)" }),
+      screen.getByRole("button", { name: /^Download word timing \(360 MB\)/ }),
     );
     expect(onAction).toHaveBeenCalledWith("transcribe", "download-aligner");
   });
@@ -164,7 +164,7 @@ describe("ReadyList", () => {
       <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
     );
     const item = screen.getAllByRole("listitem")[1];
-    screen.getByRole("button", { name: "Try again" }).focus();
+    screen.getByRole("button", { name: /^Try again/ }).focus();
     await user.keyboard("{Enter}");
     rerender(
       <ReadyList rows={settle(ROWS.failed, "running")} onAction={vi.fn()} />,
@@ -178,7 +178,7 @@ describe("ReadyList", () => {
       <ReadyList rows={ROWS.needsModel} onAction={vi.fn()} />,
     );
     const item = screen.getAllByRole("listitem")[1];
-    screen.getByRole("button", { name: "Download 1.6 GB" }).focus();
+    screen.getByRole("button", { name: /^Download 1.6 GB/ }).focus();
     await user.keyboard("{Enter}");
     rerender(
       <ReadyList
@@ -209,7 +209,7 @@ describe("ReadyList", () => {
     const { rerender } = render(
       <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
     );
-    screen.getByRole("button", { name: "Try again" }).focus();
+    screen.getByRole("button", { name: /^Try again/ }).focus();
     const outside = document.createElement("button");
     document.body.append(outside);
     outside.focus();
@@ -270,7 +270,7 @@ describe("ReadyList", () => {
     const { rerender } = render(
       <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
     );
-    screen.getByRole("button", { name: "Try again" }).focus();
+    screen.getByRole("button", { name: /^Try again/ }).focus();
     rerender(
       <ReadyList
         rows={ROWS.failed.filter((row) => row.id !== "transcribe")}
@@ -284,7 +284,7 @@ describe("ReadyList", () => {
     const { rerender } = render(
       <ReadyList rows={ROWS.failed} onAction={vi.fn()} />,
     );
-    screen.getByRole("button", { name: "Try again" }).focus();
+    screen.getByRole("button", { name: /^Try again/ }).focus();
     rerender(<ReadyList rows={[]} onAction={vi.fn()} />);
     expect(document.activeElement).toBe(
       screen.getByRole("list", { name: "Getting ready" }),

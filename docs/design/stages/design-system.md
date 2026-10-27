@@ -433,7 +433,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 **39. Session group**
 - Header: session name (Fix text), Session target chip (locked after landing), stats ("3 people · 2 takes · 14:20"), Status ring. Body: Source cards (and, while recording, Take Status rows).
 - Footer: the Stage hand-off ("Edit Session 2", or "Review pickup"). It is optional: Prepare omits it and draws the one Stage hand-off for the whole stage instead.
-- Prepare order: the DOM is Sources, Getting ready, Help the transcriber, Cleanup, hand-off at every width. At 60 rem and wider the grid columns follow it, so Tab order equals the visual order. On phone only, CSS `order` shows Getting ready (the collapsed summary) first, above Sources; Tab and reading order there still start with Sources, the accepted cost of the one-stop summary.
+- Prepare order: the DOM is Sources, Getting ready, Help the transcriber, Cleanup, hand-off at every width. One order at every width, with no CSS reordering: at 60 rem and wider the grid columns follow it, and below that it is one column in the same order (Getting ready is the collapsed summary below Sources), so Tab, reading and visual order agree.
 - Used: the Prepare Sources column, the Record Takes rail.
 - Replaces: Session summary card, Takes tray grouping (record); the Prepare session grouping (rdp).
 - Story: `System/SessionGroup`.

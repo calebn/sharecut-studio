@@ -30,6 +30,8 @@ type StatusRowProps = {
   progress?: number;
   /** Words for the bar when `detail` is not a sentence of its own ("62 percent"). */
   valueText?: string;
+  /** The bar's accessible name when the title alone would repeat across rows. */
+  barLabel?: string;
   /** At most one action; `name` is the accessible name when the label alone would repeat. */
   action?: {
     label: string;
@@ -54,6 +56,7 @@ export function StatusRow({
   detail,
   progress,
   valueText,
+  barLabel,
   action,
   details,
   density = "list",
@@ -127,7 +130,7 @@ export function StatusRow({
         <div
           className="sys-status-bar"
           role="progressbar"
-          aria-label={title}
+          aria-label={barLabel ?? title}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percentOf(progress)}

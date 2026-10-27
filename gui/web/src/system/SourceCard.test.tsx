@@ -331,6 +331,9 @@ describe("SourceCard", () => {
     const first = await screen.findByRole("menuitem", {
       name: "Replace audio for Sam",
     });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("role", "menuitem"),
+    );
     act(() => first.focus());
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
@@ -348,10 +351,10 @@ describe("SourceCard", () => {
     const item = await screen.findByRole("menuitem", {
       name: "Move up for Sam",
     });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("role", "menuitem"),
+    );
     if (key) {
-      await waitFor(() =>
-        expect(document.activeElement).toHaveAttribute("role", "menuitem"),
-      );
       act(() => item.focus());
       await userEvent.keyboard(key);
     } else {

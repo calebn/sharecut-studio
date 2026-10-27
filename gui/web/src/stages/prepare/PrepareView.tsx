@@ -95,12 +95,11 @@ function dropLabel(count: number | undefined): string {
 }
 
 /**
- * The Prepare stage: Getting ready, Sources, Help the transcriber and
+ * The Prepare stage: Sources, Getting ready, Help the transcriber and
  * Cleanup, then the one hand-off. A stage inside the shell, so a plain div
- * with h2 sections: the shell owns main and the page heading. The DOM order is
- * Sources, Getting ready, Help the transcriber, Cleanup, hand-off, so Tab
- * follows the desktop columns. On a phone Getting ready is shown first with
- * CSS `order`, the one place the reading order differs. One polite status line speaks the phase when it
+ * with h2 sections: the shell owns main and the page heading. The order is the
+ * same at every width, in the DOM and on screen, with no CSS reordering, so Tab
+ * follows what is drawn. One polite status line speaks the phase when it
  * changes, never a progress tick.
  */
 export function PrepareView({

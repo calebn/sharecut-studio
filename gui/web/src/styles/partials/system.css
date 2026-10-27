@@ -2679,10 +2679,6 @@
   min-inline-size: 0;
 }
 
-.sys-prepare-ready {
-  order: -1;
-}
-
 .sys-prepare-sources,
 .sys-prepare-ready,
 .sys-prepare-aside,
@@ -2848,7 +2844,6 @@
 
   .sys-prepare-ready {
     grid-area: ready;
-    order: 0;
   }
 
   .sys-prepare-aside {
@@ -3225,6 +3220,13 @@
 }
 
 @media (pointer: coarse) {
+  .sys-adv-switch::after {
+    content: "";
+    position: absolute;
+    inset-block: calc((var(--touch-min) - 1.25rem) / -2);
+    inset-inline: calc((var(--touch-min) - 2.25rem) / -2);
+  }
+
   .sys-adv-reset {
     inline-size: var(--touch-min);
     block-size: var(--touch-min);
@@ -3253,5 +3255,24 @@
     border-width: 0.25rem;
     border-style: solid;
     border-color: var(--color-accent);
+  }
+
+  .sys-adv-switch {
+    forced-color-adjust: none;
+    border-color: ButtonText;
+    background: Canvas;
+  }
+
+  .sys-adv-switch::before {
+    background: ButtonText;
+  }
+
+  .sys-adv-switch:checked {
+    border-color: Highlight;
+    background: Highlight;
+  }
+
+  .sys-adv-switch:checked::before {
+    background: HighlightText;
   }
 }
