@@ -30,6 +30,7 @@ from podcast_mcp.services.collaboration.tunnel_status import (
     TunnelStatusTracker,
     read_tunnel_status,
 )
+from podcast_mcp.util.process import pid_is_alive
 from test_tunnel_status import ACK, PUBLIC, FakeRelay, Harness, _scripted_connect
 
 NOW = 100_000.0
@@ -242,8 +243,8 @@ def test_the_probe_tells_a_running_process_from_a_finished_one():
     child = subprocess.Popen([sys.executable, "-c", "pass"])
     child.wait()
 
-    assert tunnel_status.pid_is_alive(os.getpid()) is True
-    assert tunnel_status.pid_is_alive(child.pid) is False
+    assert pid_is_alive(os.getpid()) is True
+    assert pid_is_alive(child.pid) is False
 
 
 def test_the_probe_never_signals_a_process_on_windows(monkeypatch: pytest.MonkeyPatch):
@@ -253,7 +254,7 @@ def test_the_probe_never_signals_a_process_on_windows(monkeypatch: pytest.Monkey
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(os, "kill", never)
 
-    assert tunnel_status.pid_is_alive(DEAD_PID) is True
+    assert pid_is_alive(DEAD_PID) is True
 
 
 def test_a_pid_the_probe_cannot_trust_is_treated_as_unknown(tmp_path: Path):

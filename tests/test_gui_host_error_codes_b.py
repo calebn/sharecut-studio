@@ -175,6 +175,10 @@ def test_share_routes_refusals(
     )  # RecordStateError's own code
     FakeShares.exc = ValueError("expires")
     _check(client.post("/api/shares/record", json=body), 400, "record_room_request_invalid")
+    from podcast_mcp.services.record import RecordLandingError
+
+    FakeShares.exc = RecordLandingError("land refused")
+    _check(client.post("/api/shares/record", json=body), 400, "record_land_refused")
     FakeShares.exc = KeyError("tok")
     _check(client.post("/api/shares/record/tok/replace", json=body), 404, "share_not_found")
     FakeShares.exc = RecordStateError("open")

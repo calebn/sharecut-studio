@@ -2251,8 +2251,38 @@
   cursor: pointer;
 }
 
-.sys-picker-option:has(input:checked) {
+.sys-picker-option:has(input:checked),
+.sys-picker-option[data-checked] {
   background: var(--color-accent-subtle);
+}
+
+button.sys-picker-option {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-ui);
+  text-align: start;
+}
+
+button.sys-picker-option[data-checked] {
+  background: var(--color-accent-subtle);
+}
+
+button.sys-picker-option:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sys-picker-mark {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  inline-size: 1rem;
+  color: var(--color-accent-solid);
+}
+
+.sys-picker-add {
+  align-self: flex-start;
 }
 
 .sys-picker-option:has(input:focus-visible) {
@@ -4119,6 +4149,7 @@ button.sys-scope:hover {
 }
 
 .sys-script-body {
+  position: relative;
   flex: 1;
   min-block-size: 0;
   isolation: isolate;
@@ -4346,22 +4377,24 @@ button.sys-script-speaker {
     opacity: 1;
   }
 
+  button.sys-script-speaker,
+  button.sys-script-time {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--touch-min);
+  }
+
   /*
-   * A word is a line tall, so a 44 px region reaches into the lines around
-   * it. It sits behind the text (the body isolates its stacking), so a word
-   * on the next line still takes its own press and the region only claims
-   * the empty space around it.
+   * Running text keeps its line: a word or a suggested run is as tall as the
+   * line (26 or 28 px) and as wide as the word, because a 44 px region would
+   * reach into the lines around it and take their presses. The cut pill is
+   * 18 px in that line and is a real 44 px target by design (design-system
+   * 4.4): its region reaches into the lines above and below, drawn above the
+   * text, and is the one exception.
    */
-  .sys-script-word::after,
-  .sys-script-run::after,
-  .sys-script .sys-seam[data-form="pill"] .sys-seam-hit::after,
-  button.sys-script-speaker::after,
-  button.sys-script-time::after {
-    content: "";
-    position: absolute;
-    z-index: -1;
+  .sys-script .sys-seam[data-form="pill"] .sys-seam-hit::after {
+    z-index: 1;
     inset-block: calc((100% - var(--touch-min)) / 2);
-    inset-inline: min(0rem, calc((100% - var(--touch-min)) / 2));
   }
 }
 
@@ -4394,4 +4427,173 @@ button.sys-script-speaker {
 
 .sys-app-header-host:has(.sys-coach--edge) {
   position: relative;
+}
+
+.sys-script-pill[data-in-selection] .sys-seam-hit {
+  background-image: linear-gradient(
+    var(--color-selection-subtle),
+    var(--color-selection-subtle)
+  );
+}
+
+/* Selection handles (element 13) */
+
+.sys-handle {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  inline-size: 1.5rem;
+  margin-inline-start: calc(0.75rem * -1);
+  cursor: grab;
+  touch-action: none;
+  /* Only the region toward the knob takes presses; the line's own words keep theirs. */
+  pointer-events: none;
+}
+
+.sys-handle::before {
+  content: "";
+  border-inline-start: var(--selection-outline-width) solid var(--color-accent);
+}
+
+.sys-handle::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: auto;
+}
+
+.sys-handle[data-edge="start"]::after {
+  inset-block-end: 100%;
+  block-size: 1.25rem;
+}
+
+.sys-handle[data-edge="end"]::after {
+  inset-block-start: 100%;
+  block-size: 1.25rem;
+}
+
+.sys-handle-knob {
+  position: absolute;
+  pointer-events: auto;
+  inset-inline-start: 50%;
+  box-sizing: border-box;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border: var(--selection-outline-width) solid var(--color-accent);
+  border-radius: var(--radius-xl);
+  background: var(--color-accent);
+  translate: -50% 0;
+}
+
+.sys-handle[data-edge="start"] .sys-handle-knob {
+  inset-block-end: 100%;
+}
+
+.sys-handle[data-edge="end"] .sys-handle-knob {
+  inset-block-start: 100%;
+}
+
+@media (pointer: coarse) {
+  .sys-handle {
+    inline-size: var(--touch-min);
+    margin-inline-start: calc(var(--touch-min) / -2);
+  }
+
+  .sys-handle[data-edge="start"]::after,
+  .sys-handle[data-edge="end"]::after {
+    block-size: var(--touch-min);
+  }
+}
+
+@media (forced-colors: active) {
+  .sys-script-pill[data-in-selection] .sys-seam-hit {
+    outline: 1px solid var(--color-accent);
+  }
+}
+
+/* Fix text, Find bar and speaker rename (Stages/Edit) */
+
+input.sys-edit-fix {
+  box-sizing: content-box;
+  inline-size: calc(var(--sys-fix-chars) * 1ch);
+  min-inline-size: 3rem;
+  max-inline-size: 100%;
+  min-block-size: 0;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-base);
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-field-current);
+  line-height: inherit;
+}
+
+.sys-picker-renaming {
+  cursor: default;
+}
+
+.ui-dialog-root--anchored > .command-palette-panel.sys-speaker-panel {
+  inline-size: 20rem;
+}
+
+.sys-picker-renaming input.sys-edit-fix {
+  flex: 1;
+  inline-size: auto;
+  padding-block: var(--space-1);
+  font-size: var(--font-size-field);
+}
+
+.sys-edit-find {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  padding-inline: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+}
+
+.sys-edit-find-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--touch-min);
+}
+
+.sys-edit-find-field {
+  position: relative;
+  display: flex;
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+}
+
+.sys-edit-find-field input {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.sys-edit-find-field:has(.sys-edit-find-count) input {
+  padding-inline-end: calc(var(--space-5) * 5);
+}
+
+.sys-edit-find-count {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--space-3);
+  display: flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.sys-edit-find-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
 }

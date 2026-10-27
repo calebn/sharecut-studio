@@ -29,8 +29,8 @@ use the same path). Comments land as ordinary `review.comments[]` at
 
 | Tool | When |
 |------|------|
-| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`) |
-| `record_state_tool` | Roster, take clock, `start_blockers`, consent |
+| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`). If the current room has a stopped take not yet landed, the result carries `unlanded_take`, `unlanded_takes`, `unlanded_saving`, `unlanded_stalled`, `land_first_possible` and a `warning` and still mints; pass `land_first` to land it first (adds `landed_first`; every mint that leaves audio the server detected as never finished uploading reports `left_behind` (a count) and `left_behind_message`; refused, nothing minted, while uploads are still saving, after the session was accepted or skipped and something is landable or saving, or if the land leaves a finished recording unsaved) |
+| `record_state_tool` | Roster, take clock, `start_blockers`, consent, `unlanded_take` / `unlanded_takes` / `unlanded_saving` / `unlanded_stalled` / `land_first_possible` (stopped takes not yet landed, how many are still uploading or not started, how many recordings never finished, and whether a land can save something now) |
 | `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
@@ -52,7 +52,7 @@ use the same path). Comments land as ordinary `review.comments[]` at
 **CLI:**
 
 ```bash
-podcast review share --kind record --project episode.project.json   # optional: --target end
+podcast review share --kind record --project episode.project.json   # optional: --target end, --land-first
 podcast record state --project episode.project.json
 podcast record roster --project episode.project.json
 podcast record start --project episode.project.json
@@ -139,9 +139,14 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    If the tunnel drops during REC, guests keep recording on their device ("Host offline —
    still recording locally."). After ≥ 10 s the host return **pauses** the take
    (`pause_reason: host_reconnect`); Resume starts a new segment. Do not mint a
-   second room while REC/PAUSED — Stop first. Land the take before minting a
-   new room: a new room supersedes the old one and kills its links (guest and
-   producer), and landing reads only the active room.
+   second room while REC/PAUSED — Stop first. A new room supersedes
+   the old one and kills its links (guest and producer), and landing reads only the
+   active room, so a stopped take that is not landed would be left behind. The mint
+   warns when the server can tell (`unlanded_take`, `warning`) and still goes ahead; use `--land-first` /
+   `land_first` to land then mint, or start anyway. Land-first refuses (mints
+   nothing) while uploads are still saving, after the session was decided (and something
+   is landable or saving), or if the land leaves a finished recording unsaved; audio the
+   server detected as never finished is left behind with a report.
 
 ## Rules
 

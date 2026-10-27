@@ -311,6 +311,7 @@ describe("stable callback source governance", () => {
         .map(({ source, callback }) => `${source.rel}:${callback}`)
         .sort(),
     ).toEqual([
+      "stages/edit/FixTextField.tsx:finish",
       "timeline/JoinEditor.tsx:place",
       "timeline/TimelineView.tsx:measure",
       "timeline/TimelineView.tsx:onClipBodyEnd",

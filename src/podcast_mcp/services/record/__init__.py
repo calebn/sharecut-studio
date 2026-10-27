@@ -16,6 +16,16 @@ if TYPE_CHECKING:
         release_session_land_lock,
         remove_session_land_lock_file,
     )
+    from podcast_mcp.services.record.preflight import (
+        Unsaved,
+        describe_unsaved_takes,
+        land_first_would_work,
+        left_behind_message,
+        refuse_land_first,
+        unsaved_fields,
+        unsaved_takes,
+        with_unsaved_takes,
+    )
     from podcast_mcp.services.record.reducer import (
         RecordStateError,
         RoomFullError,
@@ -33,6 +43,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.record.state import (
         HOST_PARTICIPANT_ID,
         RecordRole,
+        parse_session_target,
     )
     from podcast_mcp.services.record.upload import (
         CLIPPING_MAX_REGIONS,
@@ -68,17 +79,26 @@ __all__ = [
     "RecordUploadError",
     "RecordUploadService",
     "RoomFullError",
+    "Unsaved",
     "assert_no_open_take",
     "begin_record_session",
+    "describe_unsaved_takes",
     "filter_record_event_for_guest",
     "invalidate_record_session_cache",
+    "land_first_would_work",
+    "left_behind_message",
     "parse_participant_id",
+    "parse_session_target",
     "parse_upload_kind",
     "purge_session_land_rollbacks",
     "record_hub_key",
+    "refuse_land_first",
     "release_session_land_lock",
     "remove_session_land_lock_file",
     "route_record_ws_message",
+    "unsaved_fields",
+    "unsaved_takes",
+    "with_unsaved_takes",
 ]
 
 _MODULE_BY_NAME = {
@@ -104,15 +124,24 @@ _MODULE_BY_NAME = {
     "UPLOAD_KIND_ROOM_TONE": "upload",
     "assert_no_open_take": "service",
     "begin_record_session": "service",
+    "describe_unsaved_takes": "preflight",
     "filter_record_event_for_guest": "service",
     "invalidate_record_session_cache": "service",
     "parse_participant_id": "upload",
+    "parse_session_target": "state",
     "parse_upload_kind": "upload",
     "purge_session_land_rollbacks": "landing",
     "record_hub_key": "service",
     "release_session_land_lock": "landing",
     "remove_session_land_lock_file": "landing",
     "route_record_ws_message": "service",
+    "unsaved_fields": "preflight",
+    "unsaved_takes": "preflight",
+    "Unsaved": "preflight",
+    "land_first_would_work": "preflight",
+    "left_behind_message": "preflight",
+    "refuse_land_first": "preflight",
+    "with_unsaved_takes": "preflight",
 }
 
 

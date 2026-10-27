@@ -30,19 +30,12 @@ from podcast_mcp.models import (
 
 SR, DUR = 16_000, 120
 FADES = [0, 10, 50, 200, 500, 900, 1000]  # a clip fade over 1 s turns the cache off
-# Seeds where the straddler perturbation fails against a key without the straddler terms.
+# Seeds that failed before the straddler key terms and the ramp tolerance (seed 26 is #2383).
 SEEDS = [
     13,
     15,
     21,
-    pytest.param(
-        26,
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="#2383 zero-fade split of a far clip on another track: warm cache adds a "
-            "'voiced edge' flag",
-        ),
-    ),
+    26,
     29,
 ]
 

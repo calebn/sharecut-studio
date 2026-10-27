@@ -1,5 +1,10 @@
 import type { PersonData } from "./Person";
-import type { ScriptMark, ScriptTurn, ScriptWord } from "./scriptPieces";
+import type {
+  ScriptMark,
+  ScriptSpan,
+  ScriptTurn,
+  ScriptWord,
+} from "./scriptPieces";
 
 const MAYA: PersonData = { name: "Maya Okafor", colorIndex: 0 };
 const ANNEKE: PersonData = { name: "Anneke de Vries", colorIndex: 1 };
@@ -90,3 +95,47 @@ export const suggestedMark = (id: string): ScriptMark => ({
 });
 
 export const MUTED: ScriptMark = { kind: "muted" };
+
+/** The words under `span` read as one string, as a Fix text field starts. */
+export function textOfSpan(
+  turns: readonly ScriptTurn[],
+  span: ScriptSpan,
+): string {
+  return turns
+    .flatMap((turn) => turn.words)
+    .filter((word) => word.index >= span.start && word.index <= span.end)
+    .map((word) => word.text)
+    .join(" ");
+}
+
+/**
+ * The turns after Fix text: the words under `span` give way to the words of
+ * `text` (marks and flags dropped, since the host re-measures them), and the
+ * words after shift to keep their indices running.
+ */
+export function replaceSpan(
+  turns: readonly ScriptTurn[],
+  span: ScriptSpan,
+  text: string,
+): ScriptTurn[] {
+  const next = text.split(/\s+/).filter((word) => word !== "");
+  const shift = next.length - (span.end - span.start + 1);
+  const named = (index: number) => `episode:${index}`;
+  return turns.map((turn) => ({
+    ...turn,
+    words: turn.words.flatMap((word): ScriptWord[] => {
+      if (word.index < span.start) return [word];
+      if (word.index > span.end) {
+        const index = word.index + shift;
+        return [{ ...word, index, key: named(index) }];
+      }
+      return word.index === span.start
+        ? next.map((spoken, at) => ({
+            index: span.start + at,
+            key: named(span.start + at),
+            text: spoken,
+          }))
+        : [];
+    }),
+  }));
+}

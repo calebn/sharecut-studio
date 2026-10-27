@@ -27,6 +27,7 @@ from podcast_mcp.services.collaboration.review_shares import (
     revoke_share_for_workspace,
     sidecar_share,
     touch_share_last_used_for_workspace,
+    validate_expires_at,
 )
 from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
 from podcast_mcp.services.collaboration.share_capabilities import (
@@ -466,20 +467,54 @@ class ShareService:
         public_base_url: str | None = None,
         expires_at: str | None = None,
         target: str | dict[str, Any] | None = None,
+        land_first: bool = False,
     ) -> dict[str, Any]:
         """Mint one room: session_id + guest token + producer token.
 
         ``target`` is where the session lands (default: the end of the episode); every
         mint states it, so a remint never inherits the previous room's choice by accident.
+
+        A stopped take of the current room that is not saved yet is reported on the result
+        (``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``unlanded_stalled``,
+        ``land_first_possible``, ``warning``); the mint still goes ahead. These describe what the
+        mint left behind (recomputed after a land-first). ``land_first`` lands the finished
+        recordings first and adds ``landed_first``. Every mint that leaves audio the server detected as never
+        finished uploading behind (it cannot be landed) sets ``left_behind`` (a count) and
+        ``left_behind_message``. It refuses
+        (nothing minted, old links kept) while uploads are still saving, when the room's session was
+        already decided and something is landable or saving, or when the land leaves a finished recording unsaved. A land that already
+        ran stays saved.
         """
         from podcast_mcp.services.record import (
+            RecordLandingError,
+            RecordLandingService,
             assert_no_open_take,
             begin_record_session,
+            describe_unsaved_takes,
             invalidate_record_session_cache,
+            left_behind_message,
+            parse_session_target,
+            refuse_land_first,
+            unsaved_fields,
+            unsaved_takes,
         )
 
         with _record_room_lock:
             assert_no_open_take(self.ws.project)
+            left = unsaved_takes(self.ws.project)
+            landed: dict[str, Any] | None = None
+            if land_first and left.takes:
+                # Bad arguments fail before anything lands.
+                parse_session_target(target)
+                validate_expires_at(expires_at)
+                if why := refuse_land_first(left, after_land=False):
+                    raise RecordLandingError(why)
+                if left.landable:
+                    # Land reloads the workspace; callers hand in a fresh request-scoped one.
+                    landed = RecordLandingService(self.ws).land()
+                    left = unsaved_takes(self.ws.project)
+                    if why := refuse_land_first(left, after_land=True):
+                        raise RecordLandingError(why)
             session_id = uuid.uuid4().hex[:12]
             try:
                 guest = self.create_record_token(
@@ -499,7 +534,19 @@ class ShareService:
             except Exception:
                 self._rollback_room(session_id)
                 raise
-            room = {"session_id": session_id, "guest": guest, "producer": producer}
+            room: dict[str, Any] = {
+                "session_id": session_id,
+                "guest": guest,
+                "producer": producer,
+                **unsaved_fields(left),
+            }
+            if landed is not None:
+                room["landed_first"] = landed
+            if note := left_behind_message(left):
+                room["left_behind"] = left.stalled
+                room["left_behind_message"] = note
+            if left.takes:
+                room["warning"] = describe_unsaved_takes(left)
             attempted: Sequence[str] = []
             try:
                 attempted = self._live_other_record_rooms(session_id)

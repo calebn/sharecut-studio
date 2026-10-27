@@ -9,6 +9,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService, RecordTakeOpenError
 from podcast_mcp.services.record.live_comments import LIVE_COMMENT_ID_PREFIX
+from podcast_mcp.services.record.preflight import with_unsaved_takes
 from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID, parse_session_target
 from podcast_mcp.services.record.track_choice import RecordTrackService
@@ -23,10 +24,12 @@ class RecordControlService:
         self._svc = RecordSessionService(workspace.project, session_id=session_id)
 
     def snapshot(self) -> dict[str, Any]:
-        return self._svc.snapshot()
+        """Host snapshot plus ``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``unlanded_stalled`` and
+        ``land_first_possible`` (the mint preflight: true when a land can save a finished recording)."""
+        return with_unsaved_takes(self.workspace.project, self._svc.snapshot())
 
     def roster(self) -> list[dict[str, Any]]:
-        return list(self.snapshot().get("participants") or [])
+        return list(self._svc.snapshot().get("participants") or [])
 
     def start(self) -> dict[str, Any]:
         return self._host("Start")
@@ -58,7 +61,7 @@ class RecordControlService:
         Landing on upload completion calls ``RecordLandingService.land`` directly, so a
         keeper that arrives during a later take still lands.
         """
-        if self.snapshot().get("state") in ("recording", "paused"):
+        if self._svc.snapshot().get("state") in ("recording", "paused"):
             raise RecordTakeOpenError
         return RecordLandingService(self.workspace).land()
 

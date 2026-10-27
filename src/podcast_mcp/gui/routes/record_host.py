@@ -33,6 +33,7 @@ from podcast_mcp.services.record import (
     RecordUploadService,
     RoomFullError,
     parse_upload_kind,
+    with_unsaved_takes,
 )
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -58,7 +59,9 @@ def get_record_state(
     session_id = RecordSessionService.active_session_id(ws.project)
     if not session_id:
         raise coded_http_error(404, "no active record room", code="record_room_not_found")
-    return RecordSessionService(ws.project, session_id=session_id).snapshot()
+    return with_unsaved_takes(
+        ws.project, RecordSessionService(ws.project, session_id=session_id).snapshot()
+    )
 
 
 @router.post("/api/record/command")

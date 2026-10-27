@@ -34,6 +34,7 @@ from podcast_mcp import settings
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project.io import resolve_project_path
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.process import pid_is_alive
 
 log = logging.getLogger(__name__)
 
@@ -332,6 +333,8 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
         return None
     host = read_studio_host(project_path)
     if host is None:
+        return None
+    if not pid_is_alive(host.pid):
         return None
     resolved = str(resolve_project_path(project_path))
     try:

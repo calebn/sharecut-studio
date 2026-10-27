@@ -178,6 +178,7 @@ export interface RecordRoomCreateRequest {
   path: string;
   expires_at?: string | null;
   target?: Record<string, unknown> | null;
+  land_first?: boolean;
 }
 
 export interface RecordRoomRevokeRequest {

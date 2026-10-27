@@ -167,7 +167,7 @@ def test_a_failed_recording_lookup_is_retried_not_remembered(tmp_path, monkeypat
     assert {h.edit_id for h in holds} <= {"remove"}
 
 
-def _approve_scene(tmp_path):
+def _approve_scene(tmp_path, *, repeat_a_cut=False):
     project = EpisodeProject.create("approve sharing", str(tmp_path))
     project.tracks = [
         Track(
@@ -200,6 +200,12 @@ def _approve_scene(tmp_path):
         )
         for i in (2, 5, 8)
     ]
+    if repeat_a_cut:
+        # The same range twice: a held cut leaves the project untouched, so the second one
+        # asks for exactly the windows the first already measured.
+        project.edit_decisions.append(
+            project.edit_decisions[0].model_copy(update={"id": "cut2_again"})
+        )
     write_wav(tmp_path / "raw/host.wav", room(seconds=12, seed=3, db=-70))
     return ProjectWorkspace.open(save_project(project))
 
@@ -256,10 +262,18 @@ def test_approve_edits_shares_one_dict_per_pass_and_empties_it_at_each_apply(tmp
 
 
 def test_consecutive_holds_reuse_what_the_first_one_measured(tmp_path, monkeypatch):
-    shared = _approve(_approve_scene(tmp_path / "a"), monkeypatch, share=True, hold_after=1)
-    plain = _approve(_approve_scene(tmp_path / "b"), monkeypatch, share=False, hold_after=1)
+    # Distinct cuts never ask for the same window, so the scene repeats one range on purpose.
+    shared = _approve(
+        _approve_scene(tmp_path / "a", repeat_a_cut=True), monkeypatch, share=True, hold_after=1
+    )
+    plain = _approve(
+        _approve_scene(tmp_path / "b", repeat_a_cut=True), monkeypatch, share=False, hold_after=1
+    )
     assert shared[0] == plain[0] == 1
     assert [h.edit_id for h in shared[1]] == [h.edit_id for h in plain[1]]
+    assert "cut2_again" in [h.edit_id for h in shared[1]]
     assert shared[2][0][1] == 0
     assert max(size for _, size in shared[2]) > 0
+    # Sharing measures every distinct window once; without it the repeat is measured again.
+    assert len(shared[3]) == len(set(shared[3]))
     assert len(shared[3]) < len(plain[3])

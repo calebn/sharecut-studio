@@ -71,6 +71,14 @@ def _active_share_id(token: str) -> str | None:
     return str(row["id"]) if row is not None and row.get("id") else None
 
 
+def validate_expires_at(expires_at: str | None) -> None:
+    if expires_at is not None and _parse_iso(expires_at) is None:
+        raise CodedValueError(
+            f"expires_at must be ISO 8601, got {expires_at!r}. Pass an ISO 8601 time such as 2026-12-31T00:00:00Z.",
+            code="expires_at_invalid",
+        )
+
+
 def create_share(
     project: EpisodeProject,
     *,
@@ -92,11 +100,7 @@ def create_share(
         raise CodedValueError(
             f"unknown share kind {kind!r}. Use a supported share kind.", code="share_kind_invalid"
         )
-    if expires_at is not None and _parse_iso(expires_at) is None:
-        raise CodedValueError(
-            f"expires_at must be ISO 8601, got {expires_at!r}. Pass an ISO 8601 time such as 2026-12-31T00:00:00Z.",
-            code="expires_at_invalid",
-        )
+    validate_expires_at(expires_at)
     ga = normalize_general_access(general_access)
     if kind == SHARE_KIND_REVIEW:
         get_version(project, review_version_id)

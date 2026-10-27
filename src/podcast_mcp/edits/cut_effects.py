@@ -200,9 +200,10 @@ def completed_audio_effects(
             previous = envelopes(old[binding]) if binding is not None else []
             for start, end, join, retained, envelope in envelopes(leaf):
                 if not any(
-                    prior_start <= start
-                    and end <= prior_end
-                    and (join, retained, envelope) == (prior_join, prior_retained, prior_envelope)
+                    prior_start <= start + SOURCE_GEOMETRY_TOLERANCE_SEC
+                    and end <= prior_end + SOURCE_GEOMETRY_TOLERANCE_SEC
+                    and (join, retained) == (prior_join, prior_retained)
+                    and _same_envelope(envelope, prior_envelope)
                     for prior_start, prior_end, prior_join, prior_retained, prior_envelope in previous
                 ):
                     append(
@@ -225,6 +226,24 @@ def completed_audio_effects(
             ):
                 append(leaf, start, end, CutJoin.SPLICE, before_leaf=leaf)
     return tuple(effects)
+
+
+def _same_envelope(
+    new: GainRamp | MuteSampleEnvelope | None, prior: GainRamp | MuteSampleEnvelope | None
+) -> bool:
+    """Whether two envelopes are the same, ramp times compared within the geometry tolerance.
+
+    A ripple shifts a downstream ramp by a float subtraction that leaves ~1e-14 of drift, so
+    exact equality would call every unchanged downstream ramp a new effect.
+    """
+    if isinstance(new, GainRamp) and isinstance(prior, GainRamp):
+        return (
+            new.rising == prior.rising
+            and new.curve == prior.curve
+            and abs(new.start - prior.start) <= SOURCE_GEOMETRY_TOLERANCE_SEC
+            and abs(new.end - prior.end) <= SOURCE_GEOMETRY_TOLERANCE_SEC
+        )
+    return new == prior
 
 
 def _same_recording_leaves(old: Sequence[PlacedSource]) -> Callable[[SourceAudio], list[int]]:

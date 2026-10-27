@@ -293,53 +293,374 @@ test("System/ScriptPane header buttons and the Back to playhead pill reach 44 px
   expect(reach.map((r) => r.corners)).toEqual([true, true, true, true]);
 });
 
-test("System/ScriptPane a word, a suggested run and a cut pill reach 44 px under a coarse pointer", async ({
-  browser,
-}) => {
+async function coarsePage(
+  browser: import("@playwright/test").Browser,
+  id: string,
+) {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
     baseURL: "http://127.0.0.1:6010",
   });
   const page = await context.newPage();
+  await page.goto(storyUrl(id, { theme: "light" }));
+  return { context, page };
+}
+
+/** Whether the element at each offset below or above the centre of `target` is `target` itself. */
+function hitsAround(
+  target: import("@playwright/test").Locator,
+  offsets: readonly number[],
+) {
+  return target.evaluate(
+    (el, ys) => {
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      return ys.map(
+        (dy) => document.elementFromPoint(x, cy + dy)?.closest("button") === el,
+      );
+    },
+    [...offsets],
+  );
+}
+
+test("System/ScriptPane a cut pill is hit-testable over 44 px under a coarse pointer, and a tap there selects it", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-scriptpane--with-cuts",
+  );
+  const pill = page.getByRole("button", { name: "Cut, 0.3 s removed" });
+  await expect(pill).toBeVisible();
+  const box = await pill.boundingBox();
+  if (!box) throw new Error("Pill did not render");
+  expect(box.height).toBeLessThan(24);
+  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(await hitsAround(pill, [-21, -18, 0, 18, 21])).toEqual([
+    true,
+    true,
+    true,
+    true,
+    true,
+  ]);
+  expect(await hitsAround(pill, [-26, 26])).toEqual([false, false]);
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.touchscreen.tap(x, y + 18);
+  await expect(pill).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Welcome", exact: true }).tap();
+  await expect(pill).toHaveAttribute("aria-pressed", "false");
+  await page.touchscreen.tap(x, y - 18);
+  await expect(pill).toHaveAttribute("aria-pressed", "true");
+  await context.close();
+});
+
+test("System/ScriptPane a word and a suggested run keep the line they sit on under a coarse pointer", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "stages-edit-scriptpane--cuts-and-suggestions",
+  );
+  const word = page.getByRole("button", { name: "Welcome", exact: true });
+  const run = page.getByRole("button", { name: /^Suggested cut: / });
+  await expect(word).toBeVisible();
+  await expect(run).toBeVisible();
+  expect(await hitsAround(word, [-9, 0, 9])).toEqual([true, true, true]);
+  expect(await hitsAround(run, [-9, 0, 9])).toEqual([true, true, true]);
+  expect(await hitsAround(word, [-30, 30])).toEqual([false, false]);
+  await context.close();
+});
+
+test("System/ScriptPane the speaker's name and the time are 44 px boxes, hit-testable all over, under a coarse pointer", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-scriptpane--turns",
+  );
+  for (const name of ["Anneke de Vries, change speaker", "Play from 12:19"]) {
+    const target = page.getByRole("button", { name });
+    await expect(target).toBeVisible();
+    const reach = await target.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const at = (x: number, y: number) =>
+        document.elementFromPoint(x, y)?.closest("button") === el;
+      return {
+        height: Math.round(r.height),
+        width: Math.round(r.width),
+        corners:
+          at(r.left + 3, r.top + 3) &&
+          at(r.right - 3, r.top + 3) &&
+          at(r.left + 3, r.bottom - 3) &&
+          at(r.right - 3, r.bottom - 3),
+      };
+    });
+    expect([reach.height >= 44, reach.width >= 44, reach.corners]).toEqual([
+      true,
+      true,
+      true,
+    ]);
+  }
+  await context.close();
+});
+
+test("System/ScriptPane the selection grips sit on the ends of the selected words and a drag moves an end by word", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-scriptpane--selection-handles", 1280);
+  const first = page.getByRole("button", { name: "small (selected)" });
+  const last = page.getByRole("button", { name: "can (selected)" });
+  const start = page.locator(".sys-handle[data-edge=start]");
+  const end = page.locator(".sys-handle[data-edge=end]");
+  await expect(start).toBeVisible();
+  const [a, b, startBox, endBox, knob] = await Promise.all([
+    first.boundingBox(),
+    last.boundingBox(),
+    start.boundingBox(),
+    end.boundingBox(),
+    end.locator(".sys-handle-knob").boundingBox(),
+  ]);
+  if (!a || !b || !startBox || !endBox || !knob) {
+    throw new Error("Nothing rendered");
+  }
+  expect(Math.abs(startBox.x + startBox.width / 2 - a.x)).toBeLessThanOrEqual(
+    2,
+  );
+  expect(
+    Math.abs(endBox.x + endBox.width / 2 - (b.x + b.width)),
+  ).toBeLessThanOrEqual(2);
+  expect(Math.abs(startBox.y - a.y)).toBeLessThanOrEqual(3);
+  const target = await page
+    .getByRole("button", { name: "sound", exact: true })
+    .boundingBox();
+  if (!target) throw new Error("No word to drag to");
+  // The grip reports where its caret goes, not the finger, so aim the knob
+  // at the same offset below the caret that it was grabbed at.
+  const grabY = knob.y + knob.height / 2;
+  const caretY = endBox.y + endBox.height / 2;
+  await page.mouse.move(knob.x + knob.width / 2, grabY);
+  await page.mouse.down();
+  await page.mouse.move(
+    target.x + target.width - 2,
+    target.y + target.height / 2 + (grabY - caretY),
+    { steps: 6 },
+  );
+  await page.mouse.up();
+  await expect(page.getByRole("status")).toHaveText(
+    "4 words selected: small room can sound",
+  );
+});
+
+test("System/ScriptPane a grip's region reaches only toward its knob, so the words beside it keep their taps, and a tap in the region lands on the word under it", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "stages-edit-scriptpane--phone-selection-handles",
+  );
+  const end = page.locator(".sys-handle[data-edge=end]");
+  const start = page.locator(".sys-handle[data-edge=start]");
+  await expect(end).toBeVisible();
+  const probe = (edge: "start" | "end") =>
+    page.evaluate((which) => {
+      const grip = document.querySelector<HTMLElement>(
+        `.sys-handle[data-edge=${which}]`,
+      );
+      if (!grip) throw new Error("No grip");
+      const r = grip.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const mid = r.top + r.height / 2;
+      const hit = (px: number, py: number) => {
+        const el = document.elementFromPoint(px, py);
+        return {
+          grip: el?.closest(".sys-handle") === grip,
+          word: el?.closest("button")?.textContent ?? null,
+        };
+      };
+      const toward = which === "end" ? 1 : -1;
+      const edge = which === "end" ? r.bottom : r.top;
+      return {
+        width: Math.round(r.width),
+        onLine: [hit(x - 20, mid), hit(x, mid), hit(x + 20, mid)].map(
+          (h) => h.grip,
+        ),
+        sideWord: hit(x + 20, mid).word,
+        region: [8, 22, 40].map((d) => hit(x, edge + toward * d).grip),
+        wide: [
+          hit(x - 20, edge + toward * 12).grip,
+          hit(x + 20, edge + toward * 12).grip,
+        ],
+        beyond: hit(x, edge + toward * 50).grip,
+        away: hit(x, edge - toward * 12).grip,
+      };
+    }, edge);
+  for (const edge of ["end", "start"] as const) {
+    const reach = await probe(edge);
+    expect(reach.width).toBe(44);
+    expect(reach.onLine).toEqual([false, false, false]);
+    expect(reach.sideWord).not.toBeNull();
+    expect(reach.region).toEqual([true, true, true]);
+    expect(reach.wide).toEqual([true, true]);
+    expect(reach.beyond).toBe(false);
+    expect(reach.away).toBe(false);
+  }
+  const box = await start.boundingBox();
+  if (!box) throw new Error("No start grip");
+  const y = box.y - 12;
+  const { x, under } = await page.evaluate(
+    ([cx, py]) => {
+      const wordAt = (px: number) =>
+        document
+          .elementsFromPoint(px, py)
+          .filter((el) => !el.closest(".sys-handle"))
+          .map((el) => el.closest("button"))
+          .find((el) => el !== null)?.textContent ?? null;
+      for (let dx = -20; dx <= 20; dx += 2) {
+        const found = wordAt(cx + dx);
+        if (found !== null) return { x: cx + dx, under: found };
+      }
+      return { x: cx, under: null };
+    },
+    [box.x + box.width / 2, y],
+  );
+  expect(under).not.toBeNull();
+  await page.touchscreen.tap(x, y);
+  await expect(page.locator(".sys-handle")).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.textContent))
+    .toBe(under);
+  await expect(start).toHaveCount(0);
+  await context.close();
+});
+
+test("System/ScriptPane a real touch anywhere on the end knob, top edge to bottom edge, lands on the grip and a touch drag from its centre moves the end", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "stages-edit-scriptpane--phone-selection-handles",
+  );
+  const knobBox = async () => {
+    await expect(page.locator(".sys-handle[data-edge=end]")).toBeVisible();
+    const box = await page
+      .locator(".sys-handle[data-edge=end] .sys-handle-knob")
+      .boundingBox();
+    if (!box) throw new Error("No knob");
+    return box;
+  };
+  const pressed = async (fraction: number) => {
+    await page.goto(
+      storyUrl("stages-edit-scriptpane--phone-selection-handles", {
+        theme: "light",
+      }),
+    );
+    const knob = await knobBox();
+    await page.evaluate(() => {
+      const log: string[] = [];
+      Object.assign(window, { downs: log });
+      document.addEventListener(
+        "pointerdown",
+        (event) => log.push((event.target as HTMLElement).className),
+        true,
+      );
+    });
+    await page.touchscreen.tap(
+      knob.x + knob.width / 2,
+      knob.y + knob.height * fraction,
+    );
+    return page.evaluate(
+      () => (window as unknown as { downs: string[] }).downs,
+    );
+  };
+  for (const fraction of [0.05, 0.3, 0.5, 0.7, 0.95]) {
+    const downs = await pressed(fraction);
+    expect(downs).toHaveLength(1);
+    expect(downs[0]).toMatch(/sys-handle/);
+  }
   await page.goto(
-    storyUrl("stages-edit-scriptpane--cuts-and-suggestions", {
+    storyUrl("stages-edit-scriptpane--phone-selection-handles", {
       theme: "light",
     }),
   );
-  const targets = {
-    pill: page.getByRole("button", { name: "Cut, 1.1 s removed" }),
-    word: page.getByRole("button", { name: "Welcome", exact: true }),
-    run: page.getByRole("button", { name: /^Suggested cut: / }),
+  const knob = await knobBox();
+  const target = await page
+    .getByRole("button", { name: "sound", exact: true })
+    .boundingBox();
+  if (!target) throw new Error("No word to drag to");
+  const from = { x: knob.x + knob.width / 2, y: knob.y + knob.height / 2 };
+  const grip = await page.locator(".sys-handle[data-edge=end]").boundingBox();
+  if (!grip) throw new Error("No grip");
+  const caretY = grip.y + grip.height / 2;
+  const to = {
+    x: target.x + target.width - 2,
+    y: target.y + target.height / 2 + (from.y - caretY),
   };
-  const reach: Record<string, { width: number; height: number; own: boolean }> =
-    {};
-  for (const [kind, target] of Object.entries(targets)) {
-    await expect(target).toBeVisible();
-    reach[kind] = await target.evaluate((el) => {
-      const region = getComputedStyle(el, "::after");
-      const r = el.getBoundingClientRect();
-      const hit = document.elementFromPoint(
-        r.left + r.width / 2,
-        r.top + r.height / 2,
-      );
-      return {
-        width: Math.round(Number.parseFloat(region.width)),
-        height: Math.round(Number.parseFloat(region.height)),
-        own: hit?.closest("button") === el,
-      };
+  const cdp = await context.newCDPSession(page);
+  const touch = (
+    type: "touchStart" | "touchMove" | "touchEnd",
+    point?: { x: number; y: number },
+  ) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: point ? [{ ...point, id: 1 }] : [],
+    });
+  await touch("touchStart", from);
+  for (let step = 1; step <= 8; step += 1) {
+    await touch("touchMove", {
+      x: from.x + ((to.x - from.x) * step) / 8,
+      y: from.y + ((to.y - from.y) * step) / 8,
     });
   }
+  await touch("touchEnd");
+  await expect(page.getByRole("status")).toHaveText(
+    "4 words selected: small room can sound",
+  );
   await context.close();
-  expect(
-    Object.fromEntries(
-      Object.entries(reach).map(([kind, r]) => [
-        kind,
-        [r.width >= 44, r.height >= 44, r.own],
-      ]),
-    ),
-  ).toEqual({
-    pill: [true, true, true],
-    word: [true, true, true],
-    run: [true, true, true],
-  });
+});
+
+test("System/ScriptPane a tap on the word beside a grip selects nothing the grip took", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "stages-edit-scriptpane--phone-selection-handles",
+  );
+  const end = page.locator(".sys-handle[data-edge=end]");
+  await expect(end).toBeVisible();
+  const box = await end.boundingBox();
+  if (!box) throw new Error("No end grip");
+  const x = box.x + box.width / 2 + 20;
+  const y = box.y + box.height / 2;
+  const word = await page.evaluate(
+    ([px, py]) => document.elementFromPoint(px, py)?.textContent ?? null,
+    [x, y],
+  );
+  expect(word).not.toBeNull();
+  await page.touchscreen.tap(x, y);
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.textContent))
+    .toBe(word);
+  await context.close();
+});
+
+test("System/ScriptPane Up and Down move the caret by line", async ({
+  page,
+}) => {
+  await open(page, "system-scriptpane--reading", 1280);
+  const welcome = page.getByRole("button", { name: "Welcome", exact: true });
+  await welcome.focus();
+  const tops = async () =>
+    page.evaluate(
+      () => document.activeElement?.getBoundingClientRect().top ?? -1,
+    );
+  const first = await tops();
+  await page.keyboard.press("ArrowDown");
+  const second = await tops();
+  expect(second).toBeGreaterThan(first + 20);
+  await page.keyboard.press("ArrowUp");
+  expect(await tops()).toBe(first);
+  await page.keyboard.press("Shift+ArrowDown");
+  await expect(page.getByRole("status")).toHaveText(/^\d\d words selected: /);
 });

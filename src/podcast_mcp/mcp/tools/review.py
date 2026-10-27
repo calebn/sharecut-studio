@@ -218,8 +218,11 @@ def create_record_room_tool(
     public_base_url: str = "http://127.0.0.1:8765",
     expires_at: str | None = None,
     target: str | None = None,
+    land_first: bool = False,
 ) -> str:
     """Mint a recording room: guest + producer /rec/ links; revokes earlier rooms' links (docs/recording-session.md).
+
+    If the current room has a stopped take not saved to the episode, the result says so (``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``unlanded_stalled``, ``land_first_possible``, ``warning``) and the mint still happens. Pass ``land_first`` to save that take first (result adds ``landed_first``; audio that never finished uploading cannot be saved; every mint that leaves audio the server detected as never finished reports ``left_behind`` (a count) and ``left_behind_message``). Land-first mints nothing and keeps the old links when uploads are still saving (wait up to 10 minutes after Stop, or mint without it), when the room's staged session was already accepted or skipped and something is landable or saving, or when the land leaves a take unsaved.
 
     ``target`` is where the session lands: ``end`` (the default), ``start`` (the front of the episode), or an ``insert``/``replace`` JSON object
     that stages the session as a suggestion.
@@ -232,6 +235,7 @@ def create_record_room_tool(
             public_base_url=public_base_url,
             expires_at=expires_at,
             target=target,
+            land_first=land_first,
         )
     )
 

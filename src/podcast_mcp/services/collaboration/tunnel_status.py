@@ -16,7 +16,6 @@ import asyncio
 import hashlib
 import logging
 import os
-import sys
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, replace
@@ -28,6 +27,7 @@ from podcast_mcp.config.defaults import cache_dir
 from podcast_mcp.config.runtime import RelayConfig
 from podcast_mcp.services.collaboration.tunnel_failure import TunnelFailure
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.process import pid_is_alive
 from podcast_mcp.util.redact import redact_secrets
 
 log = logging.getLogger(__name__)
@@ -372,23 +372,6 @@ _RULES: tuple[_Rule, ...] = (
     _Rule(_Kind.LIVE, None, _Age.STALE, TunnelState.OFFLINE, "podcast tunnel stopped responding"),
     _Rule(None, None, None),
 )
-
-
-def pid_is_alive(pid: int) -> bool:
-    """False only when ``pid`` is certainly gone. True when it runs or cannot be told.
-
-    Windows is never probed: ``os.kill`` there terminates the target. A reused pid reads
-    as running; the age rows still catch that tunnel.
-    """
-    if sys.platform == "win32":
-        return True
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except OSError:
-        return True
-    return True
 
 
 def _kind_of(phase: TunnelPhase) -> _Kind:
