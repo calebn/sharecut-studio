@@ -13,6 +13,8 @@ type StartTileProps = {
   variant?: "default" | "primary";
   /** Files being dragged over the tile; worded in the drag-hover line. */
   dragCount?: number;
+  /** Show the shortcut key caps. Off where the keys are not bound (Home). */
+  showKeys?: boolean;
   onActivate: () => void;
 };
 
@@ -29,6 +31,7 @@ export function StartTile({
   disabledReason,
   variant = "default",
   dragCount,
+  showKeys = true,
   onActivate,
 }: StartTileProps) {
   const disabled = state === "disabled";
@@ -62,7 +65,7 @@ export function StartTile({
         <span className="sys-start-title">{title}</span>
         {showNote ? <span className="sys-start-line">{note}</span> : null}
       </span>
-      {size === "phone-bar" || compact ? null : (
+      {size === "phone-bar" || compact || !showKeys ? null : (
         <KeyCaps chords={verbOf(kind).keys.slice(0, 1)} />
       )}
     </button>

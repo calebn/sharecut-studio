@@ -238,9 +238,15 @@ export function HomeView({
         state={dropActive ? "drag-hover" : "rest"}
         variant={empty ? "primary" : "default"}
         dragCount={dropCount}
+        showKeys={false}
         onActivate={onImport}
       />
-      <StartTile kind="record" size={tileSize} onActivate={onRecord} />
+      <StartTile
+        kind="record"
+        size={tileSize}
+        showKeys={false}
+        onActivate={onRecord}
+      />
     </>
   );
 
