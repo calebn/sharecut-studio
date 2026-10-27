@@ -37,7 +37,7 @@ import {
   waitForSegmentsAcked,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
-import { openPanel, openProject, phone, stageTab } from "./stageNav";
+import { goToStage, openPanel, openProject, phone, stageTab } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
 async function enableRoomTonePcmHarness(page: Page): Promise<void> {
@@ -1274,6 +1274,8 @@ test.describe("record lobby", () => {
           await expect(closeRoom).toBeEnabled({ timeout: 60_000 });
           await closeRoom.click();
           await expect(roomDlg).toBeHidden();
+          // The landed take is a track on Edit; Record stays a launcher.
+          await goToStage(host, "edit");
           await expect(
             host.getByRole("button", { name: "Open track details, Ava" }),
           ).toBeVisible();
