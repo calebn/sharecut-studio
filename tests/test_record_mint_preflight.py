@@ -259,7 +259,21 @@ def test_a_take_still_uploading_is_counted_and_land_first_asks_to_wait(
     assert "still saving" in new["warning"]
 
 
-STOP_AT = int(time.time() * 1000)  # a take that just stopped, on the wall clock
+STOP_AT = 0  # set per test by ``_fresh_stop_time``: a take that stopped just now
+
+
+@pytest.fixture(autouse=True)
+def _fresh_stop_time():
+    """Read the wall clock when each test starts, not when the module is imported.
+
+    Under a long xdist run, collection can happen more than ``UPLOAD_GRACE_MS`` before a test
+    runs, which would make every "just stopped" take read as stalled.
+    """
+    global STOP_AT
+    STOP_AT = int(time.time() * 1000)
+    yield
+
+
 GRACE = preflight.UPLOAD_GRACE_MS
 
 
@@ -535,7 +549,9 @@ def test_land_first_refuses_when_the_land_leaves_a_take_unsaved(
     assert ShareService(ws).create_record_room()["unlanded_take"] is True  # start anyway
 
 
-def test_cli_and_mcp_carry_the_warning_and_land_first(minimal_project, sample_wav, tmp_workspace):
+def test_cli_and_mcp_carry_the_warning_and_land_first(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
     ws = _seed(minimal_project, sample_wav)
     _room(ws, ["Ava"])
     runner = CliRunner()
@@ -545,6 +561,7 @@ def test_cli_and_mcp_carry_the_warning_and_land_first(minimal_project, sample_wa
     assert "Warning: 1 stopped take in this room is not saved" in res.output
     assert "Add --land-first" in res.output
     _stopped_room(ws, ["Ava"])
+    _at(monkeypatch, STOP_AT + 1_000)  # the CLI reads the same injected clock
     res = runner.invoke(cli_app, base)
     assert "still saving" in res.output and "Add --land-first" not in res.output
     _room(ws, ["Ava"])
