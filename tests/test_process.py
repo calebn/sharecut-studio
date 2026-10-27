@@ -12,11 +12,31 @@ from podcast_mcp.util.process import (
     detached_children,
     kill_detached_children,
     low_priority,
+    pid_is_alive,
     popen,
     run,
 )
 
 _SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
+
+
+@pytest.mark.parametrize("pid", [0, -1])
+def test_nonpositive_pid_is_unknown_without_signalling(
+    pid: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("nonpositive PID was signalled"))
+    assert pid_is_alive(pid) is True
+
+
+@pytest.mark.parametrize("error", [PermissionError, OSError, OverflowError])
+def test_probe_errors_leave_owner_unknown(
+    error: type[Exception], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(_pid: int, _signal: int) -> None:
+        raise error("cannot determine process state")
+
+    monkeypatch.setattr(os, "kill", fail)
+    assert pid_is_alive(1234) is True
 
 
 def test_run_rejects_non_sequence_argv() -> None:

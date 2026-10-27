@@ -16,6 +16,7 @@ import os
 import shutil
 import signal
 import subprocess  # nosec B404
+import sys
 import threading
 import weakref
 from collections.abc import Iterator, Mapping, Sequence
@@ -38,6 +39,19 @@ _niceness: ContextVar[int] = ContextVar("process_niceness", default=0)
 _detach_lock = threading.RLock()
 _detach_depth = 0
 _detached: weakref.WeakSet[subprocess.Popen[Any]] = weakref.WeakSet()
+
+
+def pid_is_alive(pid: int) -> bool:
+    """Return False only when a positive POSIX PID is certainly gone."""
+    if pid <= 0 or sys.platform == "win32":
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except (OSError, OverflowError):
+        return True
+    return True
 
 
 @contextmanager
