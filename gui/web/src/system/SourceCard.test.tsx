@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -349,6 +349,9 @@ describe("SourceCard", () => {
       name: "Move up for Sam",
     });
     if (key) {
+      await waitFor(() =>
+        expect(document.activeElement).toHaveAttribute("role", "menuitem"),
+      );
       act(() => item.focus());
       await userEvent.keyboard(key);
     } else {
