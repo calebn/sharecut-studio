@@ -13,6 +13,7 @@ import {
 } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import { setTheme } from "./theme";
 import { buildFixture, json, setZoom, TRACK } from "./touchTimeline";
 
@@ -65,9 +66,9 @@ export async function openAt(
     theme,
   );
   await page.setViewportSize(size);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await expect(page.locator(".stage-frame")).toBeVisible();
   if (size.width < 768) await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);
@@ -87,8 +88,8 @@ export async function receipt(info: TestInfo, name: string, value: unknown) {
   });
 }
 
-export const railHistory = (page: Page) =>
-  page.getByRole("group", { name: "Undo and redo" });
+/** The Undo and Redo buttons in the App header, the resting history controls. */
+export const railHistory = (page: Page) => page.locator(".sys-app-header-host");
 export const compactHistory = (page: Page) =>
   page.locator(".bottom-sheet--compact").getByRole("group", {
     name: "Undo and redo",

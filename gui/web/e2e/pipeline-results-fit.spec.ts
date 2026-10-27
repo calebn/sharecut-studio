@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { PipelineJobSnapshot } from "../src/types/pipeline";
 import { expectSurfaceAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
 const job: PipelineJobSnapshot = {
@@ -60,25 +61,11 @@ for (const { cell, theme, reducedMotion } of withAppearance([
         json: { running: false, job, jobs: [job], running_count: 0 },
       }),
     );
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    if (cell.width < 768) {
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "More", exact: true })
-        .click();
-      await page
-        .locator(".mobile-more-list")
-        .getByRole("button", { name: "Pipeline", exact: true })
-        .click();
-    } else {
-      await page
-        .getByLabel("Editor panels")
-        .getByRole("tab", { name: "Pipeline", exact: true })
-        .click();
-    }
+    await openPanel(page, "pipeline");
     const table = page.locator(".pipeline-steps");
     await expect(table).toBeVisible();
     await setTheme(page, theme);

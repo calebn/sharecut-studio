@@ -5,6 +5,7 @@ import {
   waiveRefineGate,
 } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
 const CLIENT_ID = "e2e-edit-boundary-touch";
@@ -14,7 +15,7 @@ test.describe("Transcript edit-boundary touch drag", () => {
     page,
     context,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -42,11 +43,8 @@ test.describe("Transcript edit-boundary touch drag", () => {
       });
       applied += 1;
 
-      const panels = page.getByLabel("Editor panels");
-      await panels
-        .getByRole("tab", { name: "Transcript", exact: true })
-        .click();
-      const annotate = panels.locator(".transcript-annotate-btn");
+      await openPanel(page, "transcript");
+      const annotate = page.locator(".transcript-annotate-btn");
       await expect(annotate).toBeVisible();
       if ((await annotate.getAttribute("aria-pressed")) !== "true") {
         await annotate.click();
@@ -137,7 +135,7 @@ for (const { cell: width, theme } of withAppearance([1440, 360])) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );

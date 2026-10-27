@@ -11,12 +11,12 @@ import {
   goToStage,
   openProjectDialog,
   openProjectMenu,
+  openProject as openStageProject,
   openViewSheet,
   phone,
   type Stage,
   selectTool,
   setAudition,
-  waitForFrame,
 } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
@@ -31,9 +31,7 @@ const STAGES: readonly Stage[] = [
 const player = (page: Page) => page.getByRole("group", { name: "Player" });
 
 async function openProject(page: Page): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await waitForFrame(page);
-  await goToStage(page, "edit");
+  await openStageProject(page, e2eProjectPath);
 }
 
 /** Playback needs a rendered mix; the fixture ships none. */
@@ -135,17 +133,21 @@ test.describe("Stage shell on desktop", () => {
     page,
   }) => {
     await openProject(page);
+    const reviewTab = page
+      .getByRole("tablist", { name: "Stages" })
+      .getByRole("tab", { name: /Review/ });
+    const waiting = async () =>
+      Number(
+        /Review\s*(\d+)/.exec((await reviewTab.textContent()) ?? "")?.[1] ?? 0,
+      );
     await player(page).getByRole("button", { name: "Comment" }).click();
     const review = page.getByRole("main", { name: "Review" });
     await expect(review).toBeVisible();
     await page.getByPlaceholder("Add a comment…").fill("Stage shell comment");
     await page.getByRole("button", { name: "Post comment" }).click();
     await expect(review.getByText("Stage shell comment")).toBeVisible();
-    await expect(
-      page
-        .getByRole("tablist", { name: "Stages" })
-        .getByRole("tab", { name: /Review/ }),
-    ).toContainText(/1/);
+    // The posted comment waits for review, so the tab badge counts it.
+    await expect.poll(waiting).toBeGreaterThan(0);
   });
 
   test("opens Export, Bounce and the Record room from where they live", async ({

@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openProject, phone } from "./stageNav";
 
 interface Clip {
   id: string;
@@ -38,7 +39,7 @@ for (const width of [1280, 390]) {
   }, testInfo) => {
     if (width === 390) await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize({ width: 1280, height: 844 });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -50,9 +51,7 @@ for (const width of [1280, 390]) {
       await expect(lane.locator(".clip-block")).toHaveCount(2);
       if (width === 390) {
         await page.setViewportSize({ width, height: 844 });
-        await page
-          .getByRole("button", { name: "Timeline", exact: true })
-          .click();
+        await phone.showTimeline(page);
       }
       const badge = lane.locator(".edit-mark");
       await badge.click();
@@ -210,10 +209,7 @@ for (const width of [1280, 390]) {
       );
       await verifyPaint();
       await page.reload();
-      if (width === 390)
-        await page
-          .getByRole("button", { name: "Timeline", exact: true })
-          .click();
+      if (width === 390) await phone.showTimeline(page);
       await badge.click();
       await expect(grip).toBeVisible();
       await expect(grip).toBeEnabled();
@@ -265,10 +261,7 @@ for (const width of [1280, 390]) {
           right.join_in_mode,
         ]);
       await page.reload();
-      if (width === 390)
-        await page
-          .getByRole("button", { name: "Timeline", exact: true })
-          .click();
+      if (width === 390) await phone.showTimeline(page);
       await expect(lane.locator(".join-blend")).toBeVisible();
       await badge.click();
       const again = (await grip.boundingBox())!;

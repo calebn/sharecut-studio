@@ -3,7 +3,7 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { withShareableProject } from "./shareableProject";
-import { openPanel } from "./stageNav";
+import { openPanel, openProject } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
 /** The app toast and both its buttons sit inside the viewport and take the pointer. */
@@ -62,7 +62,7 @@ export async function exerciseCommentUndo(
         projectPath,
       );
     }
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const phone = (page.viewportSize()?.width ?? 0) < 720;
     await expect(
       page.locator(`.stage-frame--${phone ? "phone" : "desktop"}`),

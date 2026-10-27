@@ -1,13 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { timelineTestIds } from "../src/timeline/selectors";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 import { parseTimecodeSec } from "./timecode";
 
 test.describe("Arrange chrome", () => {
   test("empty-canvas ruler extends past session while End seeks session", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -54,7 +55,7 @@ test.describe("Arrange chrome", () => {
   });
 
   test("splitter Home does not seek the playhead", async ({ page }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -66,7 +67,7 @@ test.describe("Arrange chrome", () => {
     expect(atEnd).toBeGreaterThan(0);
 
     const splitter = page.getByRole("separator", {
-      name: "Resize editor panels",
+      name: "Resize Script",
     });
     await splitter.focus();
     await page.keyboard.press("Home");

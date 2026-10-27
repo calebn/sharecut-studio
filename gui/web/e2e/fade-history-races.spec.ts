@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 
 test("refuses a fade drafted before the Undo projection arrives, then saves a fresh retry", async ({
   page,
@@ -15,7 +16,7 @@ test("refuses a fade drafted before the Undo projection arrives, then saves a fr
         else socket.send(message);
       });
     });
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const block = page.locator(".lane-row").first().locator(".clip-block");
     await expect(block).toHaveCount(1);
     const id = await block.getAttribute("data-clip-id");

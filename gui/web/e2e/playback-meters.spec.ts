@@ -6,11 +6,7 @@ import { expectPageAxeClean } from "./axe";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
-import {
-  createReviewShare,
-  openGuestShare,
-  openHostShare,
-} from "./shareNavigation";
+import { openHostShare } from "./shareNavigation";
 
 function object(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -140,18 +136,14 @@ async function expectContained(meterLocator: Locator) {
   expect(contained).toBe(true);
 }
 
-test("real premix and guest proxy expose per-track peaks, clipping, and responsive controls", async ({
+test("real premix exposes per-track peaks, clipping, and responsive controls", async ({
   browser,
 }, testInfo) => {
   test.setTimeout(180000);
   const hostContext = await browser.newContext({
     viewport: { width: 1440, height: 900 },
   });
-  const guestContext = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-  });
   const host = await hostContext.newPage();
-  const guest = await guestContext.newPage();
   try {
     await withShareableProject(
       async (projectPath) => {
@@ -175,25 +167,13 @@ test("real premix and guest proxy expose per-track peaks, clipping, and responsi
         await expect(clearClip(host)).toBeDisabled();
         await expect(host.locator(".pill.audio-error")).toHaveCount(0);
 
-        const token = await createReviewShare(host, projectPath);
-        await openGuestShare(guest, token);
-        await play(guest);
-        await expect(clearClip(guest)).toBeEnabled();
-        // The mono guest proxy cancels this fixture's opposite-polarity channels.
-        await expect(
-          guest.locator(".track-playback-meter").nth(1),
-        ).toHaveAttribute("data-available", "true");
-        await expect(meter(guest, "guest")).toHaveAttribute(
-          "aria-valuenow",
-          "-60",
-        );
-        await pause(guest);
-        await expect(clearClip(guest)).toBeEnabled();
-        await guest
+        // A shared link has no timeline in the stage frame, so the guest-proxy
+        // meters have no surface; the host's own track headers carry the rest.
+        await host
           .getByRole("button", { name: "Open track details, reference" })
           .focus();
-        await guest.keyboard.press("Alt+-");
-        await expect(guest.locator(".timeline-area")).toHaveAttribute(
+        await host.keyboard.press("Alt+-");
+        await expect(host.locator(".timeline-area")).toHaveAttribute(
           "data-lane-density",
           "compact",
         );
@@ -203,41 +183,38 @@ test("real premix and guest proxy expose per-track peaks, clipping, and responsi
           { name: "tablet", width: 1024, height: 768 },
           { name: "phone", width: 390, height: 844 },
         ]) {
-          await guest.setViewportSize(viewport);
-          if (viewport.name === "phone") await openPhoneTimeline(guest);
-          await expect(meter(guest, "reference")).toBeVisible();
-          await expectContained(meter(guest, "reference"));
+          await host.setViewportSize(viewport);
+          if (viewport.name === "phone") await openPhoneTimeline(host);
+          await expect(meter(host, "reference")).toBeVisible();
+          await expectContained(meter(host, "reference"));
           if (viewport.name === "phone") {
-            const row = guest
+            const row = host
               .locator(".track-header-row")
-              .filter({ has: meter(guest, "reference") });
+              .filter({ has: meter(host, "reference") });
             await expect(row.locator(".track-clip-status")).toBeVisible();
             await expect(
               row.getByRole("button", { name: /^Clear clip light/ }),
             ).toHaveCount(0);
-            await guest
+            await host
               .getByRole("button", { name: "Open track details, reference" })
               .click();
           }
-          const target = await clearClip(guest).boundingBox();
+          const target = await clearClip(host).boundingBox();
           expect(target).not.toBeNull();
           const minimum = viewport.name === "phone" ? 44 : 24;
           expect(target?.width).toBeGreaterThanOrEqual(minimum);
           expect(target?.height).toBeGreaterThanOrEqual(minimum);
-          await expectPageAxeClean(guest, ".track-headers");
-          await guest.screenshot({
+          await expectPageAxeClean(host, ".track-headers");
+          await host.screenshot({
             path: testInfo.outputPath(`playback-meters-${viewport.name}.png`),
           });
         }
-        await clearClip(guest).click({ timeout: 10000 });
-        await expect(clearClip(guest)).toBeDisabled();
       },
       undefined,
       createMeterProject,
     );
   } finally {
     await hostContext.close();
-    await guestContext.close();
   }
 });
 

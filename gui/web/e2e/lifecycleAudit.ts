@@ -9,6 +9,7 @@ import {
 import { createRelocatedE2eProject } from "./liveProject";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
+import { setLayer } from "./stageNav";
 import { setTheme } from "./theme";
 export type Clip = {
   id: string;
@@ -221,17 +222,25 @@ export async function interrupt(
   if (release) await page.mouse.up();
 }
 export async function layer(page: Page, label: string, checked: boolean) {
-  await page.keyboard.press("Tab");
-  const view = page.getByRole("button", { name: "View", exact: true });
-  if (await view.isVisible()) await view.click();
-  else await page.getByRole("button", { name: "Menu", exact: true }).click();
-  const toggle = page.getByRole("menuitemcheckbox", {
-    name: label,
-    exact: true,
-  });
-  if (checked) await toggle.check();
-  else await toggle.uncheck();
+  await setLayer(page, label, checked);
+}
+/** Toggle a layer while a mouse drag is held: synthetic clicks leave the pointer state alone. */
+export async function layerDuringDrag(
+  page: Page,
+  label: string,
+  checked: boolean,
+) {
+  await page
+    .getByRole("button", { name: "View options" })
+    .dispatchEvent("click");
+  const sheet = page.getByRole("dialog", { name: "View" });
+  const toggle = sheet.getByRole("checkbox", { name: label, exact: true });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.isChecked()) !== checked)
+    await toggle.dispatchEvent("click");
+  await sheet.press("Escape").catch(() => {});
   await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
 }
 export async function record(
   page: Page,

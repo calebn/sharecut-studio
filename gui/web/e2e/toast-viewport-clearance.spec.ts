@@ -2,15 +2,12 @@ import { expect, test } from "@playwright/test";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { withShareableProject } from "./shareableProject";
 
-test("keeps desktop feedback at the status bar after resizing a side composer", async ({
+test("keeps desktop feedback above the Player after resizing a side composer", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await withShareableProject(async (projectPath) => {
     await openSuggestedPendingEdit(page, projectPath);
-    await page
-      .getByRole("button", { name: "Maximize timeline", exact: true })
-      .click();
     const composer = page.locator(".pending-ask-thread .comment-compose");
     await composer.scrollIntoViewIfNeeded();
     const textarea = composer.locator("textarea");
@@ -41,7 +38,9 @@ test("keeps desktop feedback at the status bar after resizing a side composer", 
       .poll(
         async () => {
           const card = await toast.boundingBox();
-          const status = await page.locator(".status-bar").boundingBox();
+          const status = await page
+            .locator(".stage-frame-player")
+            .boundingBox();
           return card && status
             ? Math.abs(card.y + card.height - (status.y - 8))
             : Infinity;

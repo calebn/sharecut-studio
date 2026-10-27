@@ -10,10 +10,10 @@ import {
 import { test } from "./interactionEvidence";
 import { type Command, read, snapshot } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
-import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
+import { armCommentMode, armRange } from "./stageNav";
 import { setTheme } from "./theme";
 
 async function rulerScale(ruler: Locator) {
@@ -111,11 +111,9 @@ for (const terminal of ["cancel", "loss"] as const) {
       await openHostShare(page, projectPath);
       await setTheme(page, "light");
       await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-      await page
-        .getByRole("button", { name: "Toggle comment mode", exact: true })
-        .click();
+      await armCommentMode(page);
       const ruler = page.getByRole("slider", { name: "Comment time" });
-      const hint = page.locator(".comment-time-chip");
+      // Comment mode makes the ruler announce where the comment lands.
       const scale = await rulerScale(ruler);
       const point = async (seconds: number) => {
         const rect = await ruler.boundingBox();
@@ -136,8 +134,10 @@ for (const terminal of ["cancel", "loss"] as const) {
       };
       const initial = await point(2.2);
       await page.mouse.click(initial.x, initial.y);
-      await expect(hint).toHaveText("at 0:02");
-      const originalHint = await hint.textContent();
+      // Placing the anchor hands the draft to Review; come back to the ruler.
+      await armCommentMode(page);
+      await expect(ruler).toHaveAttribute("aria-valuetext", "Comment at 0:02");
+      const originalHint = await ruler.getAttribute("aria-valuetext");
       const before = snapshot(projectPath);
       const observer = rulerCommands(page, projectPath, receipts),
         commands = observer.commands;
@@ -175,7 +175,7 @@ for (const terminal of ["cancel", "loss"] as const) {
         await page.mouse.move(start.x, start.y);
         await page.mouse.down();
         await page.mouse.move(end.x, end.y, { steps: 4 });
-        await expect(hint).toContainText("0:04–0:10");
+        await expect(ruler).toHaveAttribute("aria-valuetext", /0:04–0:10/);
         const observedEvents = await events.evaluate(
           (recorder) => recorder.events,
         );
@@ -212,7 +212,7 @@ for (const terminal of ["cancel", "loss"] as const) {
             terminal,
             pointerId,
             originalHint,
-            currentHint: await hint.textContent(),
+            currentHint: await ruler.getAttribute("aria-valuetext"),
             scale,
             start,
             end,
@@ -228,7 +228,7 @@ for (const terminal of ["cancel", "loss"] as const) {
                 : "synthetic-pointercancel-after-native-owner",
           },
         });
-        await expect(hint).toHaveText(originalHint!);
+        await expect(ruler).toHaveAttribute("aria-valuetext", originalHint!);
         expect(
           await ruler.evaluate(
             (element, id) => element.hasPointerCapture(id),
@@ -237,21 +237,25 @@ for (const terminal of ["cancel", "loss"] as const) {
         ).toBe(false);
         const later = await point(12.2);
         await page.mouse.move(later.x, later.y);
-        await expect(hint).toHaveText(originalHint!);
+        await expect(ruler).toHaveAttribute("aria-valuetext", originalHint!);
         await page.mouse.up();
-        await expect(hint).toHaveText(originalHint!);
+        await expect(ruler).toHaveAttribute("aria-valuetext", originalHint!);
         expect(snapshot(projectPath)).toEqual(before);
         expect(commands).toEqual([]);
         const next = await point(6.2);
         await page.mouse.click(next.x, next.y);
-        await expect(hint).toHaveText("at 0:06");
+        await armCommentMode(page);
+        await expect(ruler).toHaveAttribute(
+          "aria-valuetext",
+          "Comment at 0:06",
+        );
         expect(snapshot(projectPath)).toEqual(before);
         expect(commands).toEqual([]);
         receipts.push({
           checkpoint: "comment-restored-next-gesture",
           observation: {
             originalHint,
-            nextHint: await hint.textContent(),
+            nextHint: await ruler.getAttribute("aria-valuetext"),
             saved: snapshot(projectPath),
             commands,
           },
@@ -437,7 +441,9 @@ function rulerCommands(
         Promise.resolve().then(() => snapshot(projectPath)),
         Promise.resolve().then(() => rangeDomain(projectPath)),
         page.evaluate(() => ({
-          hint: document.querySelector(".comment-time-chip")?.textContent,
+          hint: document
+            .querySelector(".time-ruler")
+            ?.getAttribute("aria-valuetext"),
           range: document.querySelector(".range-summary")?.textContent,
           ruler: document
             .querySelector(".time-ruler")
@@ -542,23 +548,21 @@ for (const kind of ["instant", "span"] as const) {
   }, async ({ page, receipts }) => {
     await withShareableProject(async (projectPath) => {
       await openModes(page, projectPath);
-      await page
-        .getByRole("button", { name: "Toggle comment mode", exact: true })
-        .click();
+      await armCommentMode(page);
       const ruler = page.getByRole("slider", { name: "Comment time" });
-      const hint = page.locator(".comment-time-chip");
+      // Comment mode makes the ruler announce where the comment lands.
       const before = snapshot(projectPath),
         observer = rulerCommands(page, projectPath, receipts);
       try {
         const owner = await anchorDown(page, ruler, 4.2, receipts);
         await page.mouse.move(owner.x + 3, owner.y);
-        await expect(hint).not.toContainText("–");
+        await expect(ruler).not.toHaveAttribute("aria-valuetext", /–/);
         if (kind === "span") {
           await page.mouse.move(owner.x + 5, owner.y);
-          await expect(hint).toContainText("–");
+          await expect(ruler).toHaveAttribute("aria-valuetext", /–/);
           const reversed = await timePoint(ruler, 2.2);
           await page.mouse.move(reversed.x, reversed.y, { steps: 4 });
-          await expect(hint).toContainText("0:02–0:04");
+          await expect(ruler).toHaveAttribute("aria-valuetext", /0:02–0:04/);
         }
         await page.mouse.up();
         expect(snapshot(projectPath)).toEqual(before);
@@ -660,9 +664,7 @@ for (const departure of ["tool", "page"] as const) {
   }, async ({ page, receipts }) => {
     await withShareableProject(async (projectPath) => {
       await openModes(page, projectPath);
-      await page
-        .getByRole("button", { name: "Toggle comment mode", exact: true })
-        .click();
+      await armCommentMode(page);
       const ruler = page.getByRole("slider", { name: "Comment time" });
       const before = snapshot(projectPath),
         observer = rulerCommands(page, projectPath, receipts);
@@ -670,9 +672,7 @@ for (const departure of ["tool", "page"] as const) {
         const owner = await anchorDown(page, ruler, 4.2, receipts),
           end = await timePoint(ruler, 10.2);
         await page.mouse.move(end.x, end.y, { steps: 4 });
-        await expect(page.locator(".comment-time-chip")).toContainText(
-          "0:04–0:10",
-        );
+        await expect(ruler).toHaveAttribute("aria-valuetext", /0:04–0:10/);
         if (departure === "tool") {
           await page.keyboard.press("Escape");
           await expect(
@@ -686,9 +686,7 @@ for (const departure of ["tool", "page"] as const) {
                 owner.id,
               ),
           ).toBe(false);
-          await expect(
-            page.locator(".comment-time-chip", { hasText: "–" }),
-          ).toHaveCount(0);
+          await expect(ruler).toHaveCount(0);
         } else {
           await page.goto("about:blank");
           await expect(page.locator(".time-ruler")).toHaveCount(0);
@@ -699,7 +697,7 @@ for (const departure of ["tool", "page"] as const) {
         expect(observer.commands).toEqual([]);
         if (departure === "page") await openModes(page, projectPath);
         await expect(
-          page.locator(".comment-time-chip", { hasText: "–" }),
+          page.getByRole("slider", { name: "Comment time" }),
         ).toHaveCount(0);
         const nextRuler = page.getByRole("slider", {
           name: "Timeline position",
@@ -804,17 +802,14 @@ test("comment span accounts for held horizontal scroll and reverses without savi
     await openModes(page, projectPath);
     const ordinary = page.getByRole("slider", { name: "Timeline position" });
     const scroll = await zoomForScroll(page, ordinary);
-    await page
-      .getByRole("button", { name: "Toggle comment mode", exact: true })
-      .click();
-    const ruler = page.getByRole("slider", { name: "Comment time" }),
-      hint = page.locator(".comment-time-chip");
+    await armCommentMode(page);
+    const ruler = page.getByRole("slider", { name: "Comment time" });
     const before = snapshot(projectPath),
       observer = rulerCommands(page, projectPath, receipts);
     try {
       const owner = await anchorDown(page, ruler, 2.2, receipts);
       await page.mouse.move(owner.x + 100, owner.y, { steps: 4 });
-      await expect(hint).toContainText("–");
+      await expect(ruler).toHaveAttribute("aria-valuetext", /–/);
       const initialScroll = await scroll.evaluate(
         (element) => element.scrollLeft,
       );
@@ -828,14 +823,18 @@ test("comment span accounts for held horizontal scroll and reverses without savi
       const expectedEnd = (owner.x + 101 - rect!.x) / owner.scale.pxPerSecond;
       const wholeClock = (sec: number) =>
         `${Math.floor(Math.round(sec) / 60)}:${String(Math.round(sec) % 60).padStart(2, "0")}`;
-      await expect(hint).toContainText(`0:02–${wholeClock(expectedEnd)}`);
+      await expect(ruler).toHaveAttribute(
+        "aria-valuetext",
+        new RegExp(`0:02–${wholeClock(expectedEnd)}`),
+      );
       await page.mouse.wheel(-200, 0);
       await expect
         .poll(() => scroll.evaluate((element) => element.scrollLeft))
         .toBe(initialScroll);
       const reversed = await timePoint(ruler, 1.2);
       await page.mouse.move(reversed.x, reversed.y, { steps: 4 });
-      await expect(hint).toContainText("0:01–0:02");
+      await expect(ruler).toHaveAttribute("aria-valuetext", /0:01–0:02/);
+      const hint = await ruler.getAttribute("aria-valuetext");
       await page.mouse.up();
       expect(snapshot(projectPath)).toEqual(before);
       expect(observer.commands).toEqual([]);
@@ -847,7 +846,7 @@ test("comment span accounts for held horizontal scroll and reverses without savi
           scrolled,
           expectedEnd,
           reversed,
-          hint: await hint.textContent(),
+          hint,
           before,
           commands: observer.commands,
         },
@@ -874,7 +873,9 @@ test("phone fixed playhead clock follows native horizontal scroll and exposed ru
     const value = async () => Number(await ruler.getAttribute("aria-valuenow"));
     const clock = async () =>
       Number(
-        (await page.locator(".transport .timecode-current").textContent())!
+        (await page
+          .locator(".stage-frame-player .sys-player-now")
+          .textContent())!
           .split(":")
           .reduce((seconds, part) => seconds * 60 + Number(part), 0),
       );
@@ -1198,10 +1199,7 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
         };
       };
       try {
-        await openTransportMenu(page);
-        await page
-          .getByRole("menuitem", { name: "Select a range", exact: true })
-          .click();
+        await armRange(page);
         const range = page.getByRole("region", { name: "Range actions" });
         await range
           .getByRole("spinbutton", { name: "In", exact: true })

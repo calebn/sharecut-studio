@@ -1,18 +1,13 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { openPhoneMix } from "./phoneMix";
 import { withShareableProject } from "./shareableProject";
+import { goToStage, openProject } from "./stageNav";
 
 async function openMixAfterKeyboardFocus(page: Page) {
-  const nav = page.getByRole("navigation", { name: "Primary" });
-  await nav.getByRole("button", { name: "More", exact: true }).click();
-  const search = page.getByRole("button", {
-    name: "Commands and shortcuts",
-    exact: true,
-  });
-  await search.focus();
-  await expect(search).toBeFocused();
-
+  await goToStage(page, "edit");
   const trigger = page.getByRole("button", { name: "Mix", exact: true });
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
   await trigger.click();
   const mix = page.getByRole("dialog", { name: "Mix", exact: true });
   await expect(mix).toBeVisible();
@@ -49,7 +44,7 @@ async function inFreshPhoneProject(
 ) {
   await page.setViewportSize({ width: 360, height: viewportHeight });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     await check();
   });
 }
@@ -88,21 +83,22 @@ export async function checkPhoneMixFocus(
 
     const reverseTabCommand =
       tabCommand === "Tab" ? "Shift+Tab" : "Alt+Shift+Tab";
-    await page.keyboard.press(reverseTabCommand);
-    await page.keyboard.press(reverseTabCommand);
-    await page.keyboard.press(reverseTabCommand);
-    const nav = page.getByRole("navigation", { name: "Primary" });
-    const text = nav.getByRole("button", { name: "Text", exact: true });
-    await expect(text).toBeFocused();
+    // Close, the two height actions and the sheet's slider, then the tab bar.
+    for (let step = 0; step < 4; step += 1) {
+      await page.keyboard.press(reverseTabCommand);
+    }
+    const tabs = page.getByRole("tablist", { name: "Stages" });
+    const edit = tabs.getByRole("tab", { name: /^Edit\b/ });
+    await expect(edit).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(text).toBeFocused();
+    await expect(edit).toBeFocused();
 
-    await page.keyboard.press(tabCommand);
-    const more = nav.getByRole("button", { name: "More", exact: true });
-    await expect(more).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(more).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    const review = tabs.getByRole("tab", { name: /^Review\b/ });
+    await expect(review).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(edit).toBeFocused();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Mix", exact: true }),

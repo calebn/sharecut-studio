@@ -49,7 +49,7 @@ async function setup(
     await pointerControl(
       page,
       page
-        .getByRole("navigation", { name: "Primary" })
+        .getByRole("group", { name: "Edit surface" })
         .getByRole("button", { name: "Timeline", exact: true }),
       receipts,
     );
@@ -448,7 +448,7 @@ test.describe("independent keyboard envelope root32 phone", () => {
           await rememberInspectorDetent(page, "full");
           await openHostShare(page, projectPath);
           const timeline = page
-            .getByRole("navigation", { name: "Primary" })
+            .getByRole("group", { name: "Edit surface" })
             .getByRole("button", { name: "Timeline", exact: true });
           await nativeTabTo(page, timeline, receipts, tabKey);
           await page.keyboard.press("Enter");

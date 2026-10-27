@@ -16,6 +16,7 @@ import {
   VIEWPORTS,
 } from "./modelsMock";
 import { openDialogFromMenu, openHostProject } from "./overlayReachability";
+import { openPanel, phone } from "./stageNav";
 
 /**
  * The model gate against a mocked `/api/bootstrap/*` and a mocked 409 `model_needed` on the Run
@@ -154,23 +155,7 @@ function progressFrames(id: string, onDone: () => void): Mock["events"] {
 }
 
 async function openPipeline(page: Page): Promise<void> {
-  if ((page.viewportSize()?.width ?? 0) < 720) {
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More", exact: true })
-      .click();
-    const back = page.getByRole("button", { name: "← More", exact: true });
-    if (await back.isVisible()) await back.click();
-    await page
-      .locator(".mobile-more-list")
-      .getByRole("button", { name: "Pipeline", exact: true })
-      .click();
-  } else {
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("tab", { name: "Pipeline", exact: true })
-      .click();
-  }
+  await openPanel(page, "pipeline");
 }
 
 async function pressRun(page: Page) {
@@ -194,7 +179,7 @@ async function mockSpeakerDoctor(page: Page): Promise<void> {
 
 async function openSplitSpeakers(page: Page): Promise<void> {
   if ((page.viewportSize()?.width ?? 0) < 720) {
-    await page.getByRole("button", { name: "Timeline", exact: true }).click();
+    await phone.showTimeline(page);
   }
   await page
     .getByRole("button", { name: /^Open track details/ })
@@ -564,7 +549,7 @@ for (const viewport of VIEWPORTS) {
         await expectSurfaceAxeClean(page, '[role="dialog"]');
       });
 
-      test("Export declined leaves a hint, and Download waits beside the Activity chip", async ({
+      test("Export declined leaves a hint, and Download waits in the banner", async ({
         page,
       }) => {
         await prepare(page, theme, true);

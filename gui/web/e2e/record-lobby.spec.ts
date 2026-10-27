@@ -1,6 +1,5 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
-import AxeBuilder from "@axe-core/playwright";
 import {
   type Browser,
   expect,
@@ -38,6 +37,7 @@ import {
   waitForSegmentsAcked,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
+import { openPanel, openProject, phone, stageTab } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
 async function enableRoomTonePcmHarness(page: Page): Promise<void> {
@@ -164,7 +164,7 @@ test.describe("record lobby", () => {
       const guest = await guestCtx.newPage();
       try {
         await markSharecutE2e(host);
-        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await openProject(host, projectPath, { query: "&e2e=1" });
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
         await markSharecutE2e(guest);
@@ -503,7 +503,7 @@ test.describe("record lobby", () => {
       const guest = await guestCtx.newPage();
       try {
         await markSharecutE2e(host);
-        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await openProject(host, projectPath, { query: "&e2e=1" });
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
         await markSharecutE2e(guest);
@@ -583,7 +583,7 @@ test.describe("record lobby", () => {
             return stream;
           };
         });
-        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await openProject(host, projectPath, { query: "&e2e=1" });
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
         const roomDlg = await openHostRecordRoom(host);
@@ -607,46 +607,28 @@ test.describe("record lobby", () => {
           .getByRole("button", { name: "Close", exact: true })
           .click();
         await expect(roomDlg).toBeHidden();
-        const recChip = host.getByRole("button", {
-          name: "Recording. Open record panel",
-        });
-        await expect(recChip).toBeVisible();
-        await expect(recChip.locator(".record-rec-dot")).toBeVisible();
-        const contrast = await new AxeBuilder({ page: host })
-          .include(".record-rec-chip")
-          .withRules(["color-contrast"])
-          .analyze();
-        expect(contrast.violations).toEqual([]);
-        // The REC dot loops only when motion is allowed.
-        await host.emulateMedia({ reducedMotion: "no-preference" });
-        await expect(recChip.locator(".record-rec-dot")).toHaveCSS(
-          "animation-name",
-          "record-rec-pulse",
-        );
-        await host.emulateMedia({ reducedMotion: "reduce" });
-        await expect(recChip.locator(".record-rec-dot")).toHaveCSS(
-          "animation-name",
-          "none",
-        );
+        // The Stage bar's Record tab turns red while a take is on; the old
+        // transport REC chip (duration, pulse, failure label) has no successor.
+        const recTab = stageTab(host, "record");
+        await expect(recTab).toHaveClass(/sys-stage-tab--live/);
         await host.setViewportSize({ width: 390, height: 844 });
-        await expect(recChip).toBeVisible();
-        await expect(recChip).toContainText(/REC.*\d+:\d\d/);
-        await host.getByRole("button", { name: "Timeline" }).click();
+        await expect(recTab).toHaveClass(/sys-stage-tab--live/);
+        await phone.showTimeline(host);
         for (const width of [390, 320]) {
           await host.setViewportSize({ width, height: 844 });
-          const controls = host.locator("header.transport button");
+          const controls = host.locator(
+            ".stage-frame-header button, .stage-frame-player button",
+          );
           for (const control of await controls.all()) {
             const bounds = await control.boundingBox();
             expect(
               bounds,
-              (await control.getAttribute("aria-label")) ?? "transport control",
+              (await control.getAttribute("aria-label")) ??
+                "header or Player control",
             ).not.toBeNull();
             expect(bounds!.x).toBeGreaterThanOrEqual(0);
             expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
           }
-          const chipBounds = await recChip.boundingBox();
-          expect(chipBounds).not.toBeNull();
-          expect(chipBounds!.x + chipBounds!.width).toBeLessThanOrEqual(width);
         }
 
         await host.evaluate(() => {
@@ -662,14 +644,6 @@ test.describe("record lobby", () => {
           track.dispatchEvent(new Event("ended"));
         });
         await expect(roomDlg).toBeVisible();
-        await expect(
-          host.getByRole("button", {
-            name: "Local capture failed. Open record panel",
-          }),
-        ).toContainText("REC: local capture failed");
-        await expect(
-          host.locator(".record-rec-chip .record-rec-dot"),
-        ).toHaveCount(0);
         await expect(
           roomDlg.getByText(
             "Microphone disconnected. Full-quality recording is paused.",
@@ -710,7 +684,7 @@ test.describe("record lobby", () => {
     await withShareableProject(async (projectPath) => {
       await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
         await markSharecutE2e(host);
-        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await openProject(host, projectPath, { query: "&e2e=1" });
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
         const roomDlg = await openHostRecordRoom(host);
@@ -814,7 +788,7 @@ test.describe("record lobby", () => {
     await withShareableProject(async (projectPath) => {
       await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
         await markSharecutE2e(host);
-        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await openProject(host, projectPath, { query: "&e2e=1" });
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
         const roomDlg = await openHostRecordRoom(host);
@@ -966,7 +940,7 @@ test.describe("record lobby", () => {
             return orig(constraints);
           };
         });
-        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await openProject(host, projectPath, { query: "&e2e=1" });
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         await createRecordRoom(host, projectPath);
 
@@ -1300,10 +1274,7 @@ test.describe("record lobby", () => {
           await expect(
             host.getByRole("button", { name: "Open track details, Ava" }),
           ).toBeVisible();
-          await host
-            .getByRole("region", { name: "Editor panels" })
-            .getByRole("tab", { name: "Comments" })
-            .click();
+          await openPanel(host, "comments");
           await expect(host.getByText("Great answer").first()).toBeVisible();
           await expect(host.getByText("Producer note").first()).toBeVisible();
         },

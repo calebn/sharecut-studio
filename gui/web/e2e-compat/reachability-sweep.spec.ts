@@ -7,6 +7,7 @@ import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { describeReach, type Reach, reachFailures } from "../e2e/reachability";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { openPanel, phone as stagePhone } from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
@@ -18,8 +19,8 @@ test.describe.configure({ timeout: 600_000 });
  * visual viewport once scrolled to, and is not under another element or a
  * scrim. Sizes are layout boxes, so a transition cannot shrink one (#1418).
  *
- * The selection surfaces (sheet, armed range), the shell chrome, Listen and the
- * Transcript and Pipeline panels are swept whole, at every cell. A control inside a
+ * The selection surfaces (sheet, armed range), the shell chrome, Review and the
+ * Script and Prepare stages are swept whole, at every cell. A control inside a
  * closed <details> is not a control until it opens. Transcript words and their
  * timestamps are inline text and wait on the dense-target decision (DENSE).
  */
@@ -100,8 +101,7 @@ const REACHABILITY_CELLS = [...PHONES, ...TABLETS, ...LANDSCAPES];
  * (docs/communication-philosophy.md): their hit area grows invisibly and the
  * selected target is editable from 44 px inspector controls. The track grip
  * has an equivalent control, Move track up and down in the track sheet. The
- * status-bar chips keep the bar one line tall by decision (responsive.css);
- * the tab strip carries the same actions.
+ * tab strip carries the same actions.
  */
 const DENSE = [
   ".fade-corner",
@@ -111,7 +111,6 @@ const DENSE = [
   ".track-headers-well",
   ".track-header-open",
   ".track-reorder-handle",
-  ".status-bar .status-chip",
   // Transcript text: inline words in running text, where a taller hit area would take
   // the neighbouring line's taps (docs/communication-philosophy.md, #1602). The speaker
   // button holds the floor.
@@ -124,8 +123,11 @@ const DENSE = [
 
 const SIZE_EXEMPT = [".comment-marker.pin"];
 
-/** The panels' interiors. */
-const PANELS = [".tab-content", ".mobile-text-mode", ".mobile-more-mode"];
+/** The Script pane, which the Edit stage's own scan leaves to its own sweep. */
+const PANELS = [".edit-script", ".phone-edit-script"];
+
+/** What a stage other than Edit shows between the header and the Player. */
+const STAGE_BODY = ".stage-frame-body";
 
 async function arrive(
   page: Page,
@@ -155,14 +157,14 @@ async function settle(page: Page) {
     .toBe(true);
 }
 
-/** Rows the tool rail's visible controls sit on, by vertical centre. */
+/** Rows the tool strip's visible controls sit on, by vertical centre. */
 function railRows(page: Page) {
   return page.evaluate(
     () =>
       new Set(
         [
           ...document.querySelectorAll<HTMLElement>(
-            ".editing-tool-rail-tools .ui-control",
+            ".edit-tool-strip .ui-control",
           ),
         ]
           .filter((el) => el.offsetParent !== null)
@@ -233,10 +235,10 @@ async function sweepCell(
   });
   const rows = sheet ? await railRows(page) : 1;
   if (rows !== 1) {
-    found["editing rail"] = [
+    found["tool strip"] = [
       {
         failure: "overflows-container",
-        control: `rail wraps onto ${rows} rows (#1347)`,
+        control: `tool strip wraps onto ${rows} rows (#1347)`,
         layout: { width: 0, height: 0 },
         rect: { left: 0, top: 0, right: 0, bottom: 0 },
       },
@@ -280,39 +282,16 @@ async function sweepCell(
   }
 
   if (phone) {
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "Listen" })
-      .click();
-    await expect(page.locator(".mobile-listen")).toBeVisible();
-    found.listen = await reachFailures(page, {
+    await stagePhone.showListen(page);
+    await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
+    found.review = await reachFailures(page, {
       skip: [".bottom-sheet-root"],
       dense: DENSE,
       sizeExempt: SIZE_EXEMPT,
     });
   }
 
-  if (phone) {
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "Text" })
-      .click();
-  } else {
-    const panels = page.getByRole("region", { name: "Editor panels" });
-    if (await panels.isHidden()) {
-      const showPanels = page.getByRole("button", {
-        name: "Show editor panels",
-        exact: true,
-      });
-      await expect(showPanels).toBeVisible();
-      await showPanels.click();
-    }
-    await expect(panels).toBeVisible();
-    await page
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .first()
-      .click();
-  }
+  await stagePhone.showText(page);
   await page.getByRole("button", { name: "Find and replace" }).first().click();
   await expect(page.locator(".transcript-find-replace")).toBeVisible();
   found["transcript panel"] = await reachFailures(page, {
@@ -322,35 +301,22 @@ async function sweepCell(
     sizeExempt: SIZE_EXEMPT,
   });
 
-  if (phone) {
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More" })
-      .click();
-    await page
-      .locator(".mobile-more-item", { hasText: "Pipeline" })
-      .first()
-      .click();
-  } else {
-    await page
-      .getByRole("tab", { name: "Pipeline", exact: true })
-      .first()
-      .click();
-  }
+  await openPanel(page, "pipeline");
   await expect(
     page.locator(".pipeline-vocabulary-field").first(),
   ).toBeVisible();
   await page.getByText("From / Only shortcuts", { exact: true }).click();
   found["pipeline panel"] = await reachFailures(page, {
-    scope: PANELS.join(","),
+    scope: STAGE_BODY,
     skip: [".bottom-sheet-root"],
     dense: DENSE,
     sizeExempt: SIZE_EXEMPT,
   });
 
-  // Phones comment from the Listen dock, swept above. The Comments panel is a tablet
-  // and desktop tab, and its action items and track picks appear once there is text.
+  // Phones comment from the Review stage, swept above. The Comments section's
+  // action items and track picks appear once there is text.
   if (!phone) {
+    await openPanel(page, "comments");
     await page
       .getByRole("button", { name: "Toggle comment mode", exact: true })
       .first()
@@ -360,7 +326,7 @@ async function sweepCell(
     await expect(page.locator(".comment-track-picks")).toBeVisible();
     await settle(page);
     found["comments panel"] = await reachFailures(page, {
-      scope: PANELS.join(","),
+      scope: STAGE_BODY,
       skip: [".bottom-sheet-root"],
       dense: DENSE,
       sizeExempt: SIZE_EXEMPT,
@@ -473,7 +439,7 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
   expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
 });
 
-test("loaded tablet playback stays inline at 200% text", async ({ page }) => {
+test("loaded tablet Player stays reachable at 200% text", async ({ page }) => {
   await arrive(page, {
     name: "tablet 820, 200% text",
     width: 820,
@@ -484,16 +450,10 @@ test("loaded tablet playback stays inline at 200% text", async ({ page }) => {
   const play = await page
     .getByRole("button", { name: "Play", exact: true })
     .boundingBox();
-  const stop = await page
-    .getByRole("button", { name: "Stop playback", exact: true })
-    .boundingBox();
   expect(play).not.toBeNull();
-  expect(stop).not.toBeNull();
-  expect(stop!.y).toBe(play!.y);
-  expect(stop!.x).toBeGreaterThanOrEqual(play!.x + play!.width);
   expect(
     describeReach(
-      await reachFailures(page, { scope: ".transport", dense: DENSE }),
+      await reachFailures(page, { scope: ".stage-frame-player", dense: DENSE }),
     ),
   ).toBe("");
 });
@@ -540,15 +500,10 @@ test("pending-edit and transcript-word sheet bodies keep every control reachable
         await page.evaluate((px) => {
           document.documentElement.style.fontSize = `${px}px`;
         }, cell.rootPx);
-        const primary = page.getByRole("navigation", { name: "Primary" });
         if (selectionScreen === "impact") {
-          await primary.getByRole("button", { name: "More" }).click();
-          const hub = page.locator(".mobile-more-hub");
-          if (await hub.isVisible()) {
-            await hub.getByRole("button", { name: "Impact" }).click();
-          }
+          await stagePhone.showTimeline(page);
         } else {
-          await primary.getByRole("button", { name: "Text" }).click();
+          await stagePhone.showText(page);
         }
         const surface = ".bottom-sheet-body";
         const body = page.locator(surface);
@@ -569,8 +524,7 @@ test("pending-edit and transcript-word sheet bodies keep every control reachable
     await scanSelection("Ask", "impact");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    const primary = page.getByRole("navigation", { name: "Primary" });
-    await primary.getByRole("button", { name: "Text" }).click();
+    await stagePhone.showText(page);
     const word = page
       .locator(".transcript-list [data-transcript-word]")
       .first();

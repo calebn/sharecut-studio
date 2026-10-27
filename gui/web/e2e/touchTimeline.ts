@@ -13,6 +13,7 @@ import { rulerWidthPx } from "./deepZoom";
 import { postDocumentCommand } from "./documentCommand";
 import { layer } from "./lifecycleAudit";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { openProject } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
 /*
@@ -189,7 +190,7 @@ export async function openTimeline(
   theme: Theme,
 ): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
   await layer(page, "Volume envelope", true);

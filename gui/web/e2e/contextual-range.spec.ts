@@ -3,7 +3,6 @@ import path from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createRelocatedE2eProject } from "./liveProject";
-import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -11,6 +10,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { armRange, goToStage, openPanel } from "./stageNav";
 
 function repeatedProject(prefix: string) {
   const copy = createRelocatedE2eProject(prefix);
@@ -43,10 +43,7 @@ function repeatedProject(prefix: string) {
 }
 
 async function selectRange(page: Page) {
-  await openTransportMenu(page);
-  await page
-    .getByRole("menuitem", { name: "Select a range", exact: true })
-    .click();
+  await armRange(page);
   const range = page.getByRole("region", { name: "Range actions" });
   await range.getByRole("spinbutton", { name: "In", exact: true }).fill("11");
   await range.getByRole("spinbutton", { name: "Out", exact: true }).fill("12");
@@ -144,25 +141,23 @@ async function rangeAxe(page: Page) {
   );
 }
 
-test("idle desktop reaches an edit in removed audio through the status chip", async ({
+test("idle desktop reaches an edit in removed audio through Review Impact", async ({
   page,
 }) => {
   await withShareableProject(
     async (projectPath) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
-      await expect(page.locator(".daw-main")).toHaveClass(
-        /inspector-collapsed/,
+      await expect(page.locator(".edit-workspace")).not.toHaveClass(
+        /edit-workspace--inspector/,
       );
-      await page
-        .getByRole("button", {
-          name: "1 edit in removed audio",
-          exact: true,
-        })
-        .click();
+      // The old status chip is gone: Review's Impact lists the edit, and
+      // choosing it opens the Inspector on the Edit stage.
+      await openPanel(page, "impact");
       await page.locator('[data-pending-id="orphan"]').click();
-      await expect(page.locator(".daw-main")).not.toHaveClass(
-        /inspector-collapsed/,
+      await goToStage(page, "edit");
+      await expect(page.locator(".edit-workspace")).toHaveClass(
+        /edit-workspace--inspector/,
       );
       await expect(
         page.getByRole("button", { name: "Reject", exact: true }),
@@ -504,9 +499,8 @@ test("a Commenter suggests a cut for host review and sees the approved cut", asy
         expect(suggestedAudio.headers()["content-type"]).toBe("audio/wav");
         await expectGuestPlayback();
 
-        const panels = page.getByLabel("Editor panels");
-        await panels.getByRole("tab", { name: "Impact" }).click();
-        await panels.locator(`button[data-pending-id="${pending.id}"]`).click();
+        await openPanel(page, "impact");
+        await page.locator(`button[data-pending-id="${pending.id}"]`).click();
         const hostInspector = page.locator(".modifier-inspector");
         await expect(
           hostInspector.getByRole("button", { name: "Approve", exact: true }),
@@ -606,8 +600,8 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      await expect(page.locator(".daw-main")).toHaveClass(
-        /inspector-collapsed/,
+      await expect(page.locator(".edit-workspace")).not.toHaveClass(
+        /edit-workspace--inspector/,
       );
       let range = await selectRange(page);
       await expect(page.locator(".range-overlay")).toHaveCount(1);
@@ -760,10 +754,7 @@ test("host gets a plain reason when a range has no room tone to fill with", asyn
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      await openTransportMenu(page);
-      await page
-        .getByRole("menuitem", { name: "Select a range", exact: true })
-        .click();
+      await armRange(page);
       const range = page.getByRole("region", { name: "Range actions" });
       await range
         .getByRole("spinbutton", { name: "In", exact: true })

@@ -5,12 +5,13 @@ import {
   waiveRefineGate,
 } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 
 test.describe("Applied-edit seam ticks", () => {
   test("ripple deletes project to narrow seam ticks and never widen the scroll range", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );

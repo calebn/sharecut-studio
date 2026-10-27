@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openProject } from "./stageNav";
 import { openTranscriptPanel } from "./transcriptEdit";
 
 test("Shift-click on another speaker starts a range on that track", async ({
   page,
 }, testInfo) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
   await page.getByRole("button", { name: /^Select:/ }).click();
   const words = list.locator("[data-transcript-word][data-track-id]");

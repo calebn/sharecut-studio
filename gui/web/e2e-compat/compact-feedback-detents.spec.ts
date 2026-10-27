@@ -11,6 +11,7 @@ import {
   rememberInspectorDetent,
 } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 import { buildFixture, json, lane, setZoom } from "../e2e/touchTimeline";
 
@@ -96,9 +97,9 @@ for (const {
         });
       }
       await rememberInspectorDetent(page, "half");
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       await buildFixture(page, projectPath, "e2e-feedback-detents");
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       await page.setViewportSize(viewport);
       if (viewport.width < 768) await openPhoneTimeline(page);
       await layer(page, "Volume envelope", true);

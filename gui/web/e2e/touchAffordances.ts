@@ -9,6 +9,7 @@ import {
 } from "./inspectorResponsiveEvidence";
 import { openHostProject } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { openProjectDialog } from "./stageNav";
 import { ownsStudioAxe, type StudioAxeOwnership } from "./studioAxeOwnership";
 import { setTheme, type Theme } from "./theme";
 
@@ -22,8 +23,8 @@ export type TouchSheetViewport = {
 
 type ShellChromeGeometry = {
   shell: string | null;
-  mobileNavBox: Awaited<ReturnType<Locator["boundingBox"]>>;
-  bottomTabsBox: Awaited<ReturnType<Locator["boundingBox"]>>;
+  tabBarBox: Awaited<ReturnType<Locator["boundingBox"]>>;
+  playerBox: Awaited<ReturnType<Locator["boundingBox"]>>;
 };
 
 type SheetGeometry = {
@@ -117,8 +118,8 @@ export async function exerciseTouchSheetAffordances(
   const geometry = async (): Promise<SheetGeometry> => {
     const shellChrome: ShellChromeGeometry = {
       shell: await page.locator("html").getAttribute("data-shell"),
-      mobileNavBox: await optionalBoundingBox(page.locator(".mobile-nav")),
-      bottomTabsBox: await optionalBoundingBox(page.locator(".bottom-tabs")),
+      tabBarBox: await optionalBoundingBox(page.locator(".stage-frame-tabs")),
+      playerBox: await optionalBoundingBox(page.locator(".stage-frame-player")),
     };
     const sheetBox = await sheet.boundingBox();
     const closeBox = await close.boundingBox();
@@ -352,8 +353,7 @@ export async function exerciseTouchSheetAffordances(
   expect(documentCommands).toEqual([]);
   expect(fs.readFileSync(e2eProjectPath, "utf8")).toBe(savedProject);
   if (viewport.width <= 767) {
-    await page.getByRole("button", { name: "More", exact: true }).click();
-    await page.getByRole("button", { name: "Gestures", exact: true }).click();
+    await openProjectDialog(page, "gestures");
     const gestures = page.getByRole("dialog", { name: "Gestures" });
     await expect(gestures).toContainText(
       "Undo: Undo the last action. Optional ShareCut shortcut.",
@@ -372,15 +372,15 @@ async function optionalBoundingBox(locator: Locator) {
 }
 
 function expectExpectedShellChrome(chrome: ShellChromeGeometry): void {
-  if (chrome.shell === "phone") expect(chrome.mobileNavBox).not.toBeNull();
-  if (chrome.shell === "tablet") expect(chrome.bottomTabsBox).not.toBeNull();
+  if (chrome.shell === "phone") expect(chrome.tabBarBox).not.toBeNull();
+  if (chrome.shell !== null) expect(chrome.playerBox).not.toBeNull();
 }
 
 function expectSheetClearsShellChrome(
   sheetBox: NonNullable<SheetGeometry["sheetBox"]>,
   chrome: ShellChromeGeometry,
 ): void {
-  for (const chromeBox of [chrome.mobileNavBox, chrome.bottomTabsBox]) {
+  for (const chromeBox of [chrome.tabBarBox, chrome.playerBox]) {
     if (chromeBox !== null) {
       expect(sheetBox.y + sheetBox.height).toBeLessThanOrEqual(chromeBox.y + 1);
     }

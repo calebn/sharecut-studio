@@ -9,6 +9,7 @@ import {
 } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import { setTheme, type Theme, withAppearance } from "./theme";
 import { lane, projectJson, shot, TRACK, touch } from "./touchTimeline";
 
@@ -39,7 +40,7 @@ test.beforeEach(async ({ page }) => {
   projectPath = fixture.projectPath;
   workspaceDir = fixture.workspaceDir;
   await switchE2eProject(projectPath);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
 });
 
 test.afterEach(async () => {
@@ -108,8 +109,8 @@ async function openAtFit(
   theme: Theme,
 ): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
   await setTheme(page, theme);
   await page

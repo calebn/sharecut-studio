@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openPanel, openProject } from "./stageNav";
 
 /**
  * #1796: the turn that becomes active used to gain an accent bar and a gutter
@@ -78,13 +79,8 @@ for (const viewport of VIEWPORTS) {
         await route.fulfill({ response, json: body });
       },
     );
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page
-      .getByRole(viewport.compact ? "button" : "tab", {
-        name: viewport.compact ? "Text" : "Transcript",
-        exact: true,
-      })
-      .click();
+    await openProject(page, e2eProjectPath);
+    await openPanel(page, "transcript");
     const list = page.locator(".transcript-list");
     await expect(list.locator("[data-transcript-word]")).toHaveCount(
       LANES.length * UTTERANCES_PER_LANE * WORDS_PER_UTTERANCE,

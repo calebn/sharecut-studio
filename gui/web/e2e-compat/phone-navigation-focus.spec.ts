@@ -14,7 +14,7 @@ for (const { cell: rootPx, theme } of withAppearance([16, 32])) {
       reducedMotion: "reduce",
     });
 
-    test("native Tab keeps every Primary navigation indicator inside its clip", async ({
+    test("native Tab keeps every Stage bar indicator inside its clip", async ({
       page,
       browserName,
       receipts,
@@ -35,11 +35,11 @@ for (const { cell: rootPx, theme } of withAppearance([16, 32])) {
             theme,
           );
 
-          const navigation = page.getByRole("navigation", {
-            name: "Primary",
-          });
+          // The Stage bar is one roving tab stop: native Tab reaches it, and
+          // the arrows walk its tabs.
+          const navigation = page.getByRole("tablist", { name: "Stages" });
           await expect(navigation).toBeVisible();
-          const buttons = await navigation.getByRole("button").all();
+          const buttons = await navigation.getByRole("tab").all();
           expect(buttons.length).toBeGreaterThan(0);
           const measured = [];
           const failures: string[] = [];
@@ -54,37 +54,28 @@ for (const { cell: rootPx, theme } of withAppearance([16, 32])) {
             )
             .count();
           const tabKey = browserName === "webkit" ? "Alt+Tab" : "Tab";
-          const seen = new Set<number>();
-          let cycleStartMarked = false;
-
-          for (let step = 0; step <= focusableCount; step++) {
-            await page.keyboard.press(tabKey);
-            if (
-              cycleStartMarked &&
-              (await page
-                .locator('[data-phone-focus-cycle-start="true"]')
-                .evaluate((element) => element === document.activeElement))
-            )
-              break;
-            if (!cycleStartMarked) {
-              await page.evaluate(() =>
-                document.activeElement?.setAttribute(
-                  "data-phone-focus-cycle-start",
-                  "true",
-                ),
-              );
-              cycleStartMarked = true;
-            }
-
-            const index = await navigation
-              .locator("button")
+          const activeIndex = () =>
+            navigation
+              .getByRole("tab")
               .evaluateAll((elements) =>
                 elements.findIndex(
                   (element) => element === document.activeElement,
                 ),
               );
-            if (index < 0 || seen.has(index)) continue;
+          for (let step = 0; step <= focusableCount; step++) {
+            await page.keyboard.press(tabKey);
+            if ((await activeIndex()) >= 0) break;
+          }
+          expect(
+            await activeIndex(),
+            "native Tab reaches the Stage bar",
+          ).toBeGreaterThanOrEqual(0);
+          await page.keyboard.press("Home");
+          await expect.poll(activeIndex).toBe(0);
 
+          const seen = new Set<number>();
+          for (let index = 0; index < buttons.length; index++) {
+            await expect.poll(activeIndex).toBe(index);
             seen.add(index);
             const button = buttons[index]!;
             const label = labels[index]!;
@@ -103,7 +94,8 @@ for (const { cell: rootPx, theme } of withAppearance([16, 32])) {
               !geometry.measured[0]?.full
             )
               failures.push(label);
-            if (seen.size === buttons.length) break;
+            if (index < buttons.length - 1)
+              await page.keyboard.press("ArrowRight");
           }
 
           json(info, "phone-navigation-focus", {

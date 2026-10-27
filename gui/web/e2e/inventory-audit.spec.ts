@@ -10,6 +10,7 @@ import {
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
+import { openPanel, openProject, phone } from "./stageNav";
 import { setTheme } from "./theme";
 import { zoomTimelineIn } from "./timelineZoom";
 
@@ -256,8 +257,8 @@ async function audit(
       };
       page.on("request", listener);
       try {
-        await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-        await expect(page.locator(".daw-shell")).toBeVisible();
+        await openProject(page, projectPath);
+        await expect(page.locator(".stage-frame")).toBeVisible();
         if (profile.width < 720) await openPhoneTimeline(page);
         await setTheme(page, profile.theme);
         await expect(page.locator("html")).toHaveAttribute(
@@ -691,16 +692,8 @@ for (const profile of profiles) {
       page,
     }, info) => {
       await audit(page, info, profile, false, async (projectPath, commands) => {
-        if (profile.width < 720)
-          await page
-            .getByRole("navigation", { name: "Primary" })
-            .getByRole("button", { name: "Text", exact: true })
-            .click();
-        else
-          await page
-            .getByLabel("Editor panels")
-            .getByRole("tab", { name: "Transcript", exact: true })
-            .click();
+        if (profile.width < 720) await phone.showText(page);
+        else await openPanel(page, "transcript");
         await expect(
           page.getByRole("button", { name: /^Correct:/ }),
         ).toBeEnabled();
@@ -710,12 +703,25 @@ for (const profile of profiles) {
         );
         const first = words.nth(0),
           third = words.nth(2);
-        const a = await center(first),
-          b = await center(third);
+        const a = await center(first);
         const before = saved(projectPath);
         await page.mouse.move(a.x, a.y);
         await page.mouse.down();
-        await page.mouse.move(b.x, b.y, { steps: 8 });
+        // Pressing a word opens the Inspector, which can reflow the Script
+        // list, so the drag target is measured once the press has settled.
+        await expect(first).toHaveClass(/selected/);
+        // The Inspector tracks the growing range and can reflow the list, so
+        // the pointer follows the third word until its position holds still.
+        let b = await center(third);
+        await expect
+          .poll(async () => {
+            await page.mouse.move(b.x, b.y, { steps: 8 });
+            const next = await center(third);
+            const settled = next.x === b.x && next.y === b.y;
+            b = next;
+            return settled;
+          })
+          .toBe(true);
         await page.mouse.up();
         await expect(first).toHaveClass(/selected/);
         await expect(words.nth(1)).toHaveClass(/selected/);

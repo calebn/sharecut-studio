@@ -5,6 +5,7 @@ import {
   hit,
   interrupt,
   layer,
+  layerDuringDrag,
   read,
   record,
   runAudit,
@@ -119,7 +120,7 @@ for (const kind of ["chapter", "social"] as const)
           .poll(async () => (await draw(target)).x)
           .not.toBe(origin.x);
         if (terminal === "unmount") {
-          await layer(page, "Markers", false);
+          await layerDuringDrag(page, "Markers", false);
           await page.mouse.move(point.x + 32, point.y);
           await page.mouse.up();
           await layer(page, "Markers", true);

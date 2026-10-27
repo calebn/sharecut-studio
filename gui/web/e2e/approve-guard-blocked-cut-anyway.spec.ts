@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openSuggestedPendingEdit } from "./pendingEdit";
+import { openProject } from "./stageNav";
 
 async function pendingIds(page: Page): Promise<string[]> {
   const response = await page.request.get(
@@ -19,7 +20,7 @@ test("explicit interactive approval sends one command without an override flag",
   page,
 }) => {
   const approvals: Record<string, unknown>[] = [];
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   const before = new Set(await pendingIds(page));
   await openSuggestedPendingEdit(page, e2eProjectPath);
   try {

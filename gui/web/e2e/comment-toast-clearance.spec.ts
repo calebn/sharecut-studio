@@ -77,10 +77,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
 
-          const landscape = phone.name === "landscape";
-          const dock = landscape
-            ? guest.locator(".comments-panel")
-            : guest.getByRole("region", { name: "Add a comment" });
+          const dock = guest.locator(".comments-panel");
           const field = dock.getByRole("textbox", {
             name: "Comment",
             exact: true,
