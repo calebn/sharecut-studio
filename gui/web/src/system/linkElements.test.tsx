@@ -253,6 +253,23 @@ describe("LinkRow", () => {
     expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
   });
 
+  it("offers Refresh mix and no link when a link arrives with no mix", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        noMix={{ onRefresh: () => {} }}
+        onCopy={() => {}}
+      />,
+    );
+    expect(screen.getByText("Make a mix to share")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh mix" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+    expect(screen.queryByText(middleTruncate(LINK))).toBeNull();
+  });
+
   it("cuts the middle of a long link", () => {
     expect(middleTruncate("a".repeat(60))).toBe(
       `${"a".repeat(14)}…${"a".repeat(14)}`,
