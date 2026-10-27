@@ -185,7 +185,7 @@ def validate_record_payload(command_type: str, payload: dict[str, Any]) -> dict[
         raw_target = (payload or {}).get("target")
         if not isinstance(raw_target, dict):
             raise CodedValueError(
-                'target: pass an object such as {"kind": "end"}, {"kind": "insert", ...} '
+                'target: pass an object such as {"kind": "end"}, {"kind": "start"}, {"kind": "insert", ...} '
                 'or {"kind": "replace", ...}',
                 code="invalid_record_request",
             )
