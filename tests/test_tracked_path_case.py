@@ -181,12 +181,31 @@ _VOCAB = [
 ]  # fmt: skip
 
 
-def test_guard_flags_same_files_as_naive_oracle() -> None:
-    for size in (1, 2, 3):
-        for files in itertools.combinations(_VOCAB, size):
+def _assert_matches_oracle(vocab: list[str], max_size: int) -> None:
+    for size in range(1, max_size + 1):
+        for files in itertools.combinations(vocab, size):
+            if any(p in _dirs(q) for p, q in itertools.permutations(files, 2)):
+                continue
             expected = {p for p, q in itertools.permutations(files, 2) if _oracle_collide(p, q)}
             flagged = {p for group in _collisions_among(list(files)) for p in group}
             assert flagged == expected, files
+
+
+_FAMILY_VOCAB = [
+    "a/useThingHandler.ts", "a/useThinghandler.tsx", "a/UserList.tsx", "a/ProductList.tsx",
+    "a/xfoo.ts", "a/yfoo.tsx", "a/abcdefgh1.ts", "a/abcdefgh2.tsx",
+    "a/Foo.txt", "a/FOO.txt", "a/foo.txt", "Docs/x.md", "docs/y.md", "DOCS/z.md",
+    "a/Foo.ts", "a/foo.tsx", "a/FOO.js", "docs", "Docs/a/b/c/d/e.md",
+    "X/a/b/c/d/f.md", "x/a/b/c/d/g.md",
+]  # fmt: skip
+
+
+def test_guard_flags_same_files_as_naive_oracle() -> None:
+    _assert_matches_oracle(_VOCAB, 3)
+
+
+def test_guard_matches_oracle_on_families_and_deep_nesting() -> None:
+    _assert_matches_oracle(_FAMILY_VOCAB, 4)
 
 
 _PLAIN_EXTS = [
