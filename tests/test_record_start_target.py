@@ -487,3 +487,56 @@ def test_opening_a_gap_leaves_the_suggestion_being_accepted_alone() -> None:
         project, 1.0, 1.0, ["g"], defaults=load_defaults(), except_suggestion_id="ss-p"
     )
     assert project.editorial.session_suggestions[0].at_sec == 1.0
+
+
+def test_a_comment_at_the_end_of_the_session_stays_with_its_take(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _episode(ws)
+    room, svc, guest2 = _start_room(ws)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(
+        _cmd(
+            "Comment",
+            pid=guest2,
+            role="guest",
+            payload={
+                "id": "live-end",
+                "take_index": 99,
+                "recording_ms": 99,
+                "pressed_wall_ms": 2_500,
+                "body": "At the end of the clip",
+            },
+        ),
+        now_wall_ms=2_500,
+        capabilities=["join", "monitor", "comment"],
+    )
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    pcm = _tone(2.5, 880.0)
+    RecordUploadService(ws.project).ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest2,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=sha256_hex(pcm),
+        file_sha256=sha256_hex(pcm_wav_header(len(pcm)) + pcm),
+        final=True,
+        expected_parts=1,
+    )
+    _land(ws)
+    ws.reload()
+    placed = {c.id: c.timeline_start for c in ws.project.comments}["live-end"]
+    assert placed == pytest.approx(2.5, abs=0.05)
+
+    _take(ws, room, svc, guest2, 1, 1.5, 660.0)
+    _land(ws)
+    ws.reload()
+    assert {c.id: c.timeline_start for c in ws.project.comments}["live-end"] == pytest.approx(
+        placed
+    )
+    assert {c.id: c.timeline_start for c in ws.project.comments}["early"] == pytest.approx(
+        1.0 + 5.0 + 1.5
+    )
