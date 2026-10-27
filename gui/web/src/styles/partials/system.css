@@ -2988,8 +2988,11 @@ button.sys-picker-option:focus-visible {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-bg-elevated);
+  inline-size: 100%;
   color: inherit;
   font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: 400;
   text-align: start;
   cursor: pointer;
 }
@@ -3014,6 +3017,12 @@ button.sys-picker-option:focus-visible {
   .sys-prepare-chevron {
     transition: transform var(--motion-panel);
   }
+}
+
+.sys-prepare-ready-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .sys-prepare-ready-body[data-open="false"] {
@@ -3113,14 +3122,6 @@ button.sys-picker-option:focus-visible {
 
   .sys-prepare-handoff .sys-keys {
     display: inline-flex;
-  }
-
-  .sys-prepare-summary {
-    display: none;
-  }
-
-  .sys-prepare-ready-body[data-open="false"] {
-    display: block;
   }
 
   .sys-prepare[data-phase="empty"] .sys-prepare-layout {
