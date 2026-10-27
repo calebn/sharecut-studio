@@ -103,6 +103,32 @@ workspace-marker lifecycle must not overlap. See the
 [GUI surface audit](gui-surface-audit.md) for the complete source/render/live
 coverage map and platform limits.
 
+### Stage navigation helpers
+
+Specs reach the app's chrome only through `gui/web/e2e/stageNav.ts`, so a
+chrome change touches one file instead of fifty specs (#2292). Each helper says
+what the spec wants and none of them names the chrome that gets there. They
+drive the stage frame: the Stage bar in the App header (the tab bar on a phone),
+the Project menu, the Edit stage's eye sheet and tool strip, and the Player's
+hear menu and expanded form.
+
+| Helper | Does |
+|--------|------|
+| `goToStage(page, stage)` | Clicks the Stage bar tab for `record`, `prepare`, `edit`, `review` or `deliver`. Browsers keep Mod+1 to Mod+9 for their own tabs, so helpers click rather than press the stage keys |
+| `openProject(page, { stage? })` | Opens a project, waits for the save indicator (when the landing stage is picked), then goes to `edit` unless told otherwise |
+| `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `impact`, `tighten`, `comments` (Review sections) or `pipeline` (Prepare) |
+| `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
+| `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Export, Bounce, Record, palette, gestures), through the menu, header or palette as each lives |
+| `openViewSheet`, `setLayer`, `stepTrackHeight` | The Edit corner's eye sheet (layers, track height) |
+| `selectTool`, `armRange`, `armCommentMode`, `addTrack` | The Edit tool strip and the "+" menu |
+| `setAudition(page, mode)` | The Player hear menu: Full mix, Without mix processing, Original |
+| `expandPlayer`, `collapsePlayer` | The phone Player's expanded form with skip buttons |
+
+Rules for specs: use these helpers instead of `.daw-shell`, `.transport-*`, dock
+tab or More hub selectors (none of them exist any more); wait on a condition
+(`saveStatus`, a dialog role, `aria-pressed`), never a fixed time; and add a
+helper here when a new spec needs chrome that has none.
+
 ### Committed fixtures (Tier A)
 
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (human LibriSpeech audio and corpus text; published MFA-derived word boundaries shifted with complete utterances; no model downloads to regenerate)

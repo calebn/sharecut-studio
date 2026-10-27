@@ -84,7 +84,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Review version** | Frozen mix for guests | `review.versions[]` | Share |
 | **Chapter / social clip** | Markers / short-form candidates | chapters / `social` | Markers layer, Mix/marker CRUD; **Menu › Markers → Add chapter at playhead** (`edit.addChapter`, host only) adds one at the playhead |
 | **History snapshot** | Undoable full editable state | `history/` + project cursor | History panel (host) |
-| **Artifact / premix** | Rendered audio for listen | `artifacts/`, `render` | Transport audition, Listen |
+| **Artifact / premix** | Rendered audio for listen | `artifacts/`, `render` | Player hear menu, Review |
 | **Export** | Deliverables + bounce | `export/`, `export/bounces/` | Ship: Pipeline / `Mod+Shift+E`. Lightweight stems/range: Bounce… / `Mod+Shift+B` |
 | **Share token** | Guest access + capabilities | relay / review routes (pass-through; audio/media may transit, not stored on the relay; object storage stores mix/proxy when configured) | ShareCut Studio guest |
 | **Guest banner** | Labels ShareCut Studio share mode | share bootstrap `guest_mode` | Top of ShareCut Studio guest / phone shell |
@@ -98,7 +98,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Undo waits for the save** | An Undo or Redo pressed while this tab's own edit, send or offline drain is still running | `commands/undoWait.ts` queued move (action, step meant, `waiting` / `fired` / `dropped`) | Toast note, header button description and status line say "Undo ready after save" while it would wait and "Undo runs after save" once pressed; a toast press that a later edit overtook says "Can't undo: the project changed since. Nothing was undone." in place of that toast |
 | **Likely laugh** | A Tighten hit whose sound rises and falls like a laugh. A hint, not a verdict: suggested action Lower when another speaker talks over it, otherwise Leave | `edit_decisions[].reason` `filler:acoustic:likely_laugh` | Tighten row label, inspector subtitle, `propose_edits` summary |
 | **Possible missed word** | A Tighten hit that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. A hint, not a verdict: suggested action Leave, so Apply suggested actions keeps the audio (#1434) | `edit_decisions[].reason` `filler:acoustic:possible_word` | Pending-edit inspector subtitle, timeline overlay title, `propose_edits` summary |
-| **Presence** | Connected viewers/agents | session `clients[]` | Transport avatar stack, ghost cursors, status bar names, phone More → People |
+| **Presence** | Connected viewers/agents | session `clients[]` | Header avatar stack, ghost cursors, phone avatar sheet |
 | **Remote MCP URL** | Agent entry for a share | share row `mcp_url` → `{base}/mcp/{token}/mcp` | External MCP clients only |
 | **Record link** | Studio join URL (shipped) | `/rec/{token}` + share `kind` | Record lobby / room; full-quality recording + mix-minus + landing shipped |
 | **Full-quality recording** | Each recorded participant's lossless WAV, captured on their own device and saved to the project during the session. Status per participant and segment: "Saving to project…", then "Saved to project". "Keeper" is the code and schema name only | guest OPFS / host `raw/` after the file ACK (a "keeper" in code) | Record session; timeline clips after landing; landing verifies each recording before taking the project lock, so edits stay responsive while a large take lands |

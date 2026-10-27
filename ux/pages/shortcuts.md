@@ -132,10 +132,6 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
-| Restore layout | `layout.default` | Desktop or tablet shell (when not typing in an input) |  |
-| Maximize timeline | `layout.timeline` | Desktop or tablet shell (when not typing in an input) |  |
-| Maximize transcript | `layout.text` | Desktop or tablet shell (when not typing in an input) |  |
-| Review layout | `layout.review` | Desktop or tablet shell (when not typing in an input) |  |
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |
@@ -180,8 +176,6 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Add chapter at playhead | `edit.addChapter` | Loaded host project | Args: { atTime?: number } → chapter titled from that time (the touch create menu's held time), else the playhead (AddChapter); turns the Markers layer on. Host only. |
 | Add envelope point | `envelope.addPoint` | Host or shared edit mode | Args: { trackId: string, atTime: number } → visible volume layer required; SetEnvelope with a point at the envelope's current level there; the touch create menu |
 | Add comment | `comment.draftAt` | Host or a link that can comment | Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu |
-| Switch editor tab | `view.setTab` | Project loaded | Args: { tab: DawTab } |
-| Switch phone mode | `view.setMobileMode` | Project loaded | Args: { mode: MobileMode, destination?: MoreDestination } |
 | Change an applied sound | `tighten.reviseSuggested` | tightenPanelOpen | Args: { id: string, action: cut \| shorten \| lower \| leave }: ApplySuggestedActions revise of the latest batch |
 | Go to tighten hit | `tighten.goToHit` | tightenPanelOpen | Args: { id?: string }: seek + select pending |
 

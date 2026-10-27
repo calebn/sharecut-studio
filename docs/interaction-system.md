@@ -255,21 +255,22 @@ There are three overlay primitives.
 
 ## Shells and placement
 
-1. **Three shells, one command set.** `StudioShell` (desktop and tablet) and
-   `MobileShell` (phone) expose the same commands. A shell may hide a command
-   behind a menu or a mode; it never lacks a route to it.
-2. **Phone modes** are Listen, Timeline, Text and More. A tool or control that
-   exists in one mode has a route in the others (the Menu or More hub).
-3. **Bottom zone for doing, top zone for context.** Transport, tool rail,
+1. **One frame, one command set.** `StageFrame` renders the desktop, tablet and
+   phone shells from the same stage hosts and exposes the same commands. A
+   shell may hide a command behind a menu or a sheet; it never lacks a route
+   to it. The palette (`?` or `/`) reaches every command.
+2. **Phone stages** are Record, Prepare, Edit, Review and Deliver, in the
+   bottom tab bar. Edit switches between a Timeline and a Script surface; a
+   tool or control that exists on one has a route on the other (the eye sheet
+   or the Project menu).
+3. **Bottom zone for doing, top zone for context.** The Player bar, the tab bar,
    selection sheet and primary actions sit at the bottom on phone and tablet.
    Instructions for an armed gesture sit in the sheet, not in a card at the top.
-4. **Icon-only controls are consistent across shells.** If the tablet rail
-   labels an action, the phone rail labels it too or both use the icon with a
-   visible label on long press. A touch long press on an icon-only rail control
-   shows its name, and its reason when it is unavailable, in a short transient
-   label above it without activating it (`useRailLabelPeek`, #1878); the label
-   is `aria-hidden` because the control's own name already reaches screen
-   readers.
+4. **Icon-only controls are named.** Every icon-only control in the tool strip
+   and the Player bar has an accessible name and a tooltip, and its reason when
+   it is unavailable. The touch long-press label peek (`useRailLabelPeek`,
+   #1878) went with the tool rail. The long-press on Hear original opens the
+   hear menu instead.
 5. **Panel tabs are a tablist.** `role="tablist"`, `role="tab"`,
    `aria-selected`, arrow-key movement.
 
