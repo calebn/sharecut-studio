@@ -7,7 +7,10 @@ import { storyUrl } from "./storyUrl";
  * unbroken characters, after every collapsed control has been opened. Words
  * the app writes itself (labels, buttons, headings, counts, reasons) are left
  * as they are; names, titles, file names, details and causes come from the
- * person or the files, so those are stretched.
+ * person or the files, so those are stretched, and so are the speaker and
+ * term chips and the text of each "Hear <name>" button. Skipped: buttons other
+ * than Hear, labels, kbd, output, the class-less spans of the target control
+ * and of the On/Off switch text, and the classes listed in APP_COPY.
  */
 
 const PREFIXES = [
@@ -19,10 +22,10 @@ const PREFIXES = [
 const LONG = "Q".repeat(300);
 const APP_COPY = [
   "label",
-  "button",
+  "button:not(.sys-source-hear)",
   "kbd",
   "output",
-  "span:not([class])",
+  "span:not([class]):not(.sys-chip > span)",
   ".sys-prepare-title",
   ".sys-prepare-subtitle",
   ".sys-prepare-label",
@@ -79,7 +82,6 @@ for (const width of [320, 360]) {
     for (const id of ids) {
       await page.goto(storyUrl(id, { theme: "light" }));
       await page.locator("#storybook-root > *").first().waitFor();
-      await page.waitForLoadState("networkidle");
       await page.evaluate(() => document.fonts.ready);
       const wide = await page.evaluate(
         ({ long, copy }) => {

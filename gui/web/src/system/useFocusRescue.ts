@@ -2,6 +2,16 @@ import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 type Anchor = () => HTMLElement | null | undefined;
 
+function triggerOf(target: HTMLElement): HTMLElement | null {
+  const popup = target.closest<HTMLElement>('[role="menu"], [popover]');
+  if (!popup?.id) return null;
+  const owner = target.ownerDocument;
+  for (const el of owner.querySelectorAll<HTMLElement>("[aria-controls]")) {
+    if (el.getAttribute("aria-controls") === popup.id) return el;
+  }
+  return null;
+}
+
 /**
  * Keeps focus from falling to the page when the control that has it is the one
  * a state change removes. While focus is inside `container`, `anchorFor` is
@@ -9,7 +19,8 @@ type Anchor = () => HTMLElement | null | undefined;
  * (it may capture neighbours, since the element is gone when the answer is
  * needed). After a render that removed the focused element, and only if focus
  * fell to the body, focus moves to that place. Focus that went anywhere else is
- * left alone.
+ * left alone. When the focused element sat in a popup menu, its trigger is the
+ * place, so the menu's own return-focus contract is the one that holds.
  */
 export function useFocusRescue(
   container: RefObject<HTMLElement | null>,
@@ -27,7 +38,12 @@ export function useFocusRescue(
         lost.current = null;
         return;
       }
-      lost.current = { target, anchor: resolve.current(target) };
+      const trigger = triggerOf(target);
+      const anchor = resolve.current(target);
+      lost.current = {
+        target,
+        anchor: () => (trigger?.isConnected ? trigger : anchor()),
+      };
     };
     // A browser may report the blur of a removed element while it is still
     // attached, so a blur to nowhere only counts once the render has had its

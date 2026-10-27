@@ -15,6 +15,8 @@ export type SessionGroupProps = {
   target: SessionTarget;
   targetLocked?: boolean;
   onTarget?: (target: SessionTarget) => void;
+  /** Names the session in the target control so two sessions differ. */
+  targetFor?: string;
   status: SessionGroupStatus;
   /** 0 to 1 while running. */
   progress?: number;
@@ -40,6 +42,7 @@ export function SessionGroup({
   target,
   targetLocked,
   onTarget,
+  targetFor,
   status,
   progress = 0,
   children,
@@ -92,6 +95,7 @@ export function SessionGroup({
           target={target}
           locked={targetLocked}
           onTarget={onTarget}
+          session={targetFor}
         />
         {status === "running" ? (
           <span

@@ -292,6 +292,14 @@ export const StepFailed: Story = {
 };
 
 export const TwoSessions: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Two sessions with the same cast. A name that repeats across sessions is a normal repeated cast, so no card says "Another voice is also called Maya."; that hint shows only for two voices with one name in the same session. Control names stay unique ("Hear Maya, voice 1", "Hear Maya, voice 3") and each session\'s target control names its session ("Where this session goes: At the end, Session 2 · 2 Nov").',
+      },
+    },
+  },
   args: {
     sessions: [
       session({ status: "done", sources: NAMED_TAKES.slice(0, 2), takes: 2 }),

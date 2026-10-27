@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -322,6 +322,41 @@ describe("SourceCard", () => {
     expect(
       screen.getByRole("menuitem", { name: "Merge for Sam, voice 2" }),
     ).toBeVisible();
+  });
+
+  it("returns focus to the More button on Escape", async () => {
+    render(<Card name="Sam" onMoveUp={vi.fn()} />);
+    const more = screen.getByRole("button", { name: "More for Sam" });
+    await userEvent.click(more);
+    const first = await screen.findByRole("menuitem", {
+      name: "Replace audio for Sam",
+    });
+    act(() => first.focus());
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(more);
+  });
+
+  it.each([
+    ["with Enter", "{Enter}"],
+    ["with a click", null],
+  ])("returns focus to the More button after a choice %s", async (_, key) => {
+    const onMoveUp = vi.fn();
+    render(<Card name="Sam" onMoveUp={onMoveUp} />);
+    const more = screen.getByRole("button", { name: "More for Sam" });
+    await userEvent.click(more);
+    const item = await screen.findByRole("menuitem", {
+      name: "Move up for Sam",
+    });
+    if (key) {
+      act(() => item.focus());
+      await userEvent.keyboard(key);
+    } else {
+      await userEvent.click(item);
+    }
+    expect(onMoveUp).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(more);
   });
 
   it("caps the speaker name at what the server accepts", () => {
