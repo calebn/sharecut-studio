@@ -3,7 +3,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 /**
  * Stage-level navigation for specs. Every helper here says what the spec wants
  * (open the Comments panel, open the Share dialog) and none of them names the
- * chrome that gets there. It drives the stage frame (#2292): the Stage bar in
+ * chrome that gets there. It drives the stage frame: the Stage bar in
  * the App header (the tab bar on a phone), the Project menu, the Edit stage's
  * eye sheet and tool strip, and the Player's hear menu.
  *
@@ -277,7 +277,7 @@ export async function openProjectMenu(page: Page): Promise<Locator> {
   return menu;
 }
 
-/** The old transport Menu's dialog rows, and where each lives now. */
+/** Dialog rows and the Project menu item that opens each. */
 const MOVED_MENU_ITEMS: Record<string, ProjectDialog> = {
   "Share…": "share",
   "Export deliverables…": "export",
@@ -286,7 +286,7 @@ const MOVED_MENU_ITEMS: Record<string, ProjectDialog> = {
   "Commands and shortcuts": "palette",
 };
 
-/** Rows the old transport Menu carried that now live only in the palette. */
+/** Rows with no menu item; the palette runs them. */
 const PALETTE_ONLY_ITEMS = new Set(["Export diagnostics…"]);
 
 /**
@@ -312,7 +312,7 @@ export async function openProjectMenuItem(
     return;
   }
   const menu = await openProjectMenu(page);
-  // The Project menu names its rows without the old trailing ellipsis.
+  // The Project menu names its rows without the trailing ellipsis.
   const name = item.replace(/…$/, "");
   await menu.getByRole("menuitem", { name, exact: true }).click();
 }
