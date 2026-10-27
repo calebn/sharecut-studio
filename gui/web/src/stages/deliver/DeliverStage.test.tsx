@@ -2273,3 +2273,35 @@ describe("round three of the audit: the listen link through the stage", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("every readiness title is on the page", () => {
+  it.each([
+    ["all clear", CLEAR_FACTS],
+    [
+      "everything open",
+      {
+        ...CLEAR_FACTS,
+        suggestions: { decided: 1, total: 14 },
+        comments: { resolved: 0, total: 3 },
+        unsureWordsLeft: 2,
+        mixUpToDate: false,
+        truePeak: -0.5,
+      },
+    ],
+  ])("%s", (_name, facts) => {
+    const { container } = setup({ facts });
+    const titles = [
+      ...container.querySelectorAll(".dv-readiness .sys-status-title"),
+    ].map((el) => el.textContent);
+    expect(titles).toEqual([
+      "Suggestions decided",
+      "Comments resolved",
+      "Unsure words checked",
+      "Mix up to date",
+      "Loudness",
+      "Peaks under −1.5 dBTP",
+      "Chapters",
+      "Edits saved",
+    ]);
+  });
+});
