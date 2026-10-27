@@ -36,10 +36,16 @@ html[data-shell="phone"] {
   );
 }
 
-/* A short or narrow frame (useShortFrame; the same query as in system.css) folds the tab bar into the header, so sheets rest on the Player
-   alone, which is one touch-height row there. */
+/* A short or narrow frame (useShortFrame; the same query as in system.css)
+   folds the tab bar into the header, so sheets rest on the Player alone, which
+   is one touch-height row there plus the Player's own top hairline (its
+   controls fill the row, so the border adds to the height). */
 html[data-frame-short][data-shell="phone"] {
-  --frame-bottom-chrome: calc(var(--touch-min) + env(safe-area-inset-bottom));
+  --frame-bottom-chrome: calc(
+    var(--touch-min) +
+    1px +
+    env(safe-area-inset-bottom)
+  );
 }
 
 /* Touch frames sit fixed to the viewport, so a page scroll never moves them
