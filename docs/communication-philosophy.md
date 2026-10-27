@@ -397,6 +397,22 @@ the empty state, not a separate discovery task.
   copied", "Record room ended", "Exported 3 files". The toast text
   and the `announceStatus` text are the same string. (Surface 6.)
 
+## Why lines on suggestions
+
+Each suggested edit can carry one plain sentence saying why it is suggested (`edits/why_lines.py`, sent as `pending_edits[].why`). It names what was heard, in words a listener would use, and never a detector, score or reason code. The line is absent, not blank, for guest, agent and manual edits. `{Name}` is the speaker's name; with no name known the line drops it.
+
+| Kind | Line |
+|------|------|
+| Filler word | Filler word; the sentence reads the same without it |
+| Pause | A {gap} s gap; keeps {kept} s |
+| Repeated word | {Name} says “{word}” twice |
+| False start | {Name} restarts the sentence; nobody talks over it |
+| Laugh | Sounds like a laugh, not a word |
+| Possible missed word | Might be a word the transcript missed; listen before cutting |
+| Unclear sound | An unclear sound; listen before deciding |
+
+The false-start line adds "nobody talks over it" only when another speaker is known to be quiet there. Without a name it reads "“{word}” is said twice" and "The sentence restarts".
+
 ## Mobile ergonomics checklist
 
 Apply to every PR that touches `gui/web`. Each item traces to an

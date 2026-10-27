@@ -182,6 +182,7 @@ export function pendingEditView(
     reason: "guest:suggest",
     kind: "other",
     sound_kind: null,
+    why: null,
     source_start: 2,
     source_end: 3,
     source_start_timeline: 2,
