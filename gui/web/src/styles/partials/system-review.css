@@ -278,70 +278,12 @@
   white-space: nowrap;
 }
 
-/* Action bar, inline form */
+/* Action bar, shared controls (the bar itself is in system.css) */
 
 :is(.sys-actions, .sys-prompt, .sys-decision-unsure) .ui-control {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-.sys-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.sys-actions--inline {
-  flex-wrap: wrap;
-  padding: var(--space-4) var(--space-5);
-  border-block-start: 1px solid var(--color-border);
-}
-
-.sys-actions-spacer {
-  flex: 1;
-}
-
-.sys-actions-decide {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-inline-start: auto;
-}
-
-.sys-actions--dock {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: var(--space-3);
-  block-size: var(--action-dock-height);
-  box-sizing: border-box;
-  padding: 0 var(--space-4);
-  border-block-start: 1px solid var(--color-border);
-}
-
-.sys-dock-slot {
-  display: flex;
-  justify-content: center;
-}
-
-.sys-dock-slot--start {
-  justify-content: flex-start;
-}
-
-.sys-dock-slot--end {
-  justify-content: flex-end;
-}
-
-.sys-actions--dock .ui-control {
-  min-block-size: var(--target-dock-button);
-}
-
-.sys-actions--dock .ui-segmented {
-  block-size: var(--target-dock-button);
-}
-
-.sys-actions--dock .sys-ab-note {
-  display: none;
 }
 
 @media (pointer: coarse) {

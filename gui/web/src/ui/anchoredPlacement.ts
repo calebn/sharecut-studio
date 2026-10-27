@@ -25,6 +25,8 @@ export interface PlacementOptions {
   gap: number;
   /** Which anchor edge the panel lines up with before it is clamped. */
   align: "start" | "center" | "end";
+  /** The side tried first. It stands while the panel fits there or that side has more room. */
+  prefer?: "below" | "above";
 }
 
 export interface AnchoredPlacement {
@@ -38,16 +40,17 @@ export interface AnchoredPlacement {
 }
 
 /**
- * Fixed-position box for a panel hung off `anchor`: below it when it fits,
- * flipped above when that side has more room, and clamped so every edge stays
- * `margin` inside `viewport`. A panel taller or wider than the room gets a
- * `maxHeight` / `maxWidth` to scroll or wrap inside.
+ * Fixed-position box for a panel hung off `anchor`: on the preferred side
+ * (below by default) when it fits, flipped when the other side has more room,
+ * and clamped so every edge stays `margin` inside `viewport`. A panel taller
+ * or wider than the room gets a `maxHeight` / `maxWidth` to scroll or wrap
+ * inside.
  */
 export function placeAnchored(
   anchor: AnchorRect,
   panel: PanelSize,
   viewport: PlacementViewport,
-  { margin, gap, align }: PlacementOptions,
+  { margin, gap, align, prefer = "below" }: PlacementOptions,
 ): AnchoredPlacement {
   const minLeft = viewport.left + margin;
   const maxWidth = Math.max(0, viewport.width - 2 * margin);
@@ -66,8 +69,11 @@ export function placeAnchored(
     below: Math.max(0, ceiling - anchor.bottom - gap),
     above: Math.max(0, anchor.top - gap - floor),
   };
+  const other = prefer === "below" ? "above" : "below";
   const side =
-    panel.height <= room.below || room.below >= room.above ? "below" : "above";
+    panel.height <= room[prefer] || room[prefer] >= room[other]
+      ? prefer
+      : other;
   const maxHeight = room[side];
   const height = Math.min(panel.height, maxHeight);
   const top =
