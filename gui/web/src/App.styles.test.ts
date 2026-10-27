@@ -46,7 +46,7 @@ describe("App styles", () => {
     const ui = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
     expect(ui).toMatch(/\.ui-menu-panel\s*\{[^}]*overflow-y:\s*auto/s);
     expect(ui).toMatch(/--menu-available-height/);
-    expect(ui).not.toMatch(/100dvh - var\(--transport-height\)/);
+    expect(ui).not.toMatch(/100dvh - var\(--player-height\)/);
   });
 
   it("keeps badge content on one line", () => {

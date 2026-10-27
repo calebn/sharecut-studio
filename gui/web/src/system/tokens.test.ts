@@ -135,7 +135,13 @@ const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--inspector-width", ["17.5rem"]],
   ["--stage-lane-min", ["22rem"]],
   ["--stage-script-floor", ["12rem"]],
-  ["--transport-height", ["3.5rem"]],
+  [
+    "--sheet-lane-clearance",
+    [
+      "calc( var(--app-header-height) + 2 * (var(--control-height) + 2 * var(--space-1)) + var(--ruler-height) + var(--marker-lane-height) + var(--lane-height) + var(--control-height) + var(--space-3) )",
+    ],
+  ],
+  ["--player-height", ["3.5rem"]],
   ["--control-height", ["2rem"]],
   ["--control-height-compact", ["1.75rem"]],
   ["--pill-height", ["1.5rem"]],
@@ -220,7 +226,6 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--app-header-height": "3rem",
   "--app-header-height-phone": "2.75rem",
   "--alert-slot-height": "2.75rem",
-  "--rail-width": "22.5rem",
   "--script-pane-width": "25rem",
   "--script-pane-width-min": "20rem",
   "--script-pane-width-max": "40rem",
@@ -228,7 +233,6 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--action-bar-height": "2.5rem",
   "--action-bar-height-touch": "2.75rem",
   "--action-dock-height": "4rem",
-  "--record-dock-height": "5rem",
   "--tab-bar-height": "3.5rem",
   "--space-7": "2rem",
   "--space-8": "3rem",
@@ -300,9 +304,29 @@ describe("theme tokens.css", () => {
       Number.parseFloat(current.get(name)?.[0] ?? "NaN");
     const chrome =
       rem("--action-dock-height") +
-      rem("--transport-height") +
+      rem("--player-height") +
       rem("--tab-bar-height");
     expect(chrome * 16).toBe(176);
+  });
+});
+
+describe("--sheet-lane-clearance", () => {
+  const current = declarations("tokens.css");
+
+  it("stays 21rem at the default size, summed from the row tokens", () => {
+    const px = (name: string) => {
+      const value = current.get(name)?.[0] ?? "";
+      return Number.parseFloat(value) * (value.endsWith("rem") ? 16 : 1);
+    };
+    const clearance =
+      px("--app-header-height") +
+      2 * (px("--control-height") + 2 * px("--space-1")) +
+      px("--ruler-height") +
+      px("--marker-lane-height") +
+      px("--lane-height") +
+      px("--control-height") +
+      px("--space-3");
+    expect(clearance).toBe(21 * 16);
   });
 });
 

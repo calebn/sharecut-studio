@@ -108,7 +108,7 @@
 
 .script-divider-grip {
   inline-size: 1px;
-  block-size: 2rem;
+  block-size: var(--control-height);
   background: var(--color-text-secondary);
 }
 
@@ -146,9 +146,9 @@
 .track-headers-chrome > .edit-tool-strip .edit-tool-strip-range,
 .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut {
   padding-inline: var(--space-1);
-  min-inline-size: 1.75rem;
-  min-block-size: 1.75rem;
-  block-size: 1.75rem;
+  min-inline-size: var(--control-height-compact);
+  min-block-size: var(--control-height-compact);
+  block-size: var(--control-height-compact);
 }
 
 /* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */

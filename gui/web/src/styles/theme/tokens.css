@@ -141,7 +141,21 @@
      floor, and the Script pane gives way first, down to its own floor. */
   --stage-lane-min: 22rem;
   --stage-script-floor: 12rem;
-  --transport-height: 3.5rem;
+  /* What the Edit stage keeps above an open inspector sheet so a pin or a clip
+     stays in reach of the next tap: the app header, the surface and tool rows
+     (a control and its padding each), the ruler, the marker lane, one lane
+     with its bleed band row, and the keep-clear gap. */
+  --sheet-lane-clearance: calc(
+    var(--app-header-height) +
+    2 *
+    (var(--control-height) + 2 * var(--space-1)) +
+    var(--ruler-height) +
+    var(--marker-lane-height) +
+    var(--lane-height) +
+    var(--control-height) +
+    var(--space-3)
+  );
+  --player-height: 3.5rem;
   /* Control heights: one per role so rows line up. */
   --control-height: 2rem;
   --control-height-compact: 1.75rem;
@@ -232,7 +246,7 @@
 }
 
 /* Stage layout (design system section 4). Additive: no value above changes.
-   Reuse --transport-height (Player bar), --touch-min, --control-height,
+   Reuse --player-height (Player bar), --touch-min, --control-height,
    --focus-ring-width and the --color-selection roles instead of renaming them.
    Numbers in --space-N are steps, not px/4. */
 :root {
@@ -240,7 +254,6 @@
   --app-header-height: 3rem;
   --app-header-height-phone: 2.75rem;
   --alert-slot-height: 2.75rem;
-  --rail-width: 22.5rem;
   --script-pane-width: 25rem;
   --script-pane-width-min: 20rem;
   --script-pane-width-max: 40rem;
@@ -248,7 +261,6 @@
   --action-bar-height: 2.5rem;
   --action-bar-height-touch: 2.75rem;
   --action-dock-height: 4rem;
-  --record-dock-height: 5rem;
   --tab-bar-height: 3.5rem;
 
   /* Spacing (4.2): 32 and 48 continue the --space-N steps */

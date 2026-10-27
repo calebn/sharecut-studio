@@ -401,14 +401,14 @@ freezes the existing values. All values are rem or a percentage.
 
 | Family | Tokens |
 | ------ | ------ |
-| Regions | `--app-header-height`, `--app-header-height-phone`, `--alert-slot-height`, `--rail-width`, `--script-pane-width` (+ `-min`, `-max`, `-wide`), `--action-bar-height` (+ `-touch`), `--action-dock-height`, `--record-dock-height`, `--tab-bar-height` |
+| Regions | `--app-header-height`, `--app-header-height-phone`, `--alert-slot-height`, `--script-pane-width` (+ `-min`, `-max`, `-wide`), `--action-bar-height` (+ `-touch`), `--action-dock-height`, `--tab-bar-height` |
 | Spacing | `--space-7` (2rem), `--space-8` (3rem), `--content-max-wide`, `--content-max-narrow` |
 | Sheets and widths | `--sheet-peek-min/max`, `--sheet-detent-half/full`, `--sheet-grip-width/height`, `--menu-width`, `--anchored-card-width`, `--side-panel-width`, `--centered-card-width`, `--palette-width` |
 | Targets | `--target-dock-button`, `--target-dock-primary`, `--target-primary-phone/desktop/page`, `--handle-visual-width/height` |
 | Type | `--font-size-card-title`, `--font-size-page-title`, `--font-size-reading-phone` |
 | Selection | `--selection-outline-width`, `--selection-row-edge-width`, `--selection-remote-width` |
 
-The Player bar reuses `--transport-height`, touch targets reuse `--touch-min`,
+The Player bar reuses `--player-height`, touch targets reuse `--touch-min`,
 the desktop icon button reuses `--control-height`, and keyboard focus keeps
 `--focus-ring-width` and `--focus-ring-offset`. The phone Stage tab bar uses
 `--tab-bar-height` (3.5rem); `--mobile-nav-height` was removed with the old

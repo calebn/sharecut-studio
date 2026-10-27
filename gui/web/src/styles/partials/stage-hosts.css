@@ -28,6 +28,8 @@
   align-items: stretch;
 }
 
+/* Preferred column widths: a column shrinks and wraps to its own row, and the
+   wide one takes the room left. */
 .stage-host-section {
   display: flex;
   flex: 0 1 22rem;
@@ -80,7 +82,7 @@
   flex-direction: column;
   gap: var(--space-5);
   inline-size: 100%;
-  max-inline-size: 65rem;
+  max-inline-size: var(--content-max-wide);
 }
 
 .stage-host-list {

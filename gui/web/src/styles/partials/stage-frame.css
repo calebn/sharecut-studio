@@ -23,22 +23,15 @@
    and on a phone the tab bar under it. */
 html {
   --frame-bottom-chrome: calc(
-    var(--transport-height) +
+    var(--player-height) +
     env(safe-area-inset-bottom)
   );
-}
-
-/* What the Edit stage keeps above an open inspector sheet: the header, the
-   surface and tool rows, the ruler, the marker lane and one lane (104) with its
-   bleed band row and the 8 px keep-clear gap. */
-html {
-  --sheet-lane-clearance: 21rem;
 }
 
 html[data-shell="phone"] {
   --frame-bottom-chrome: calc(
     var(--tab-bar-height) +
-    var(--transport-height) +
+    var(--player-height) +
     env(safe-area-inset-bottom)
   );
 }
@@ -83,8 +76,8 @@ html[data-shell="phone"] {
 }
 
 /* The Player and the tab bar each draw their own top hairline inside their
-   56 rem-step height, so the wrappers add none: the two together are exactly
-   the --frame-bottom-chrome the sheets and toasts rest above. */
+   own height, so the wrappers add none: the two together are exactly the
+   --frame-bottom-chrome the sheets and toasts rest above. */
 .stage-frame-player,
 .stage-frame-tabs {
   min-inline-size: 0;
@@ -132,67 +125,8 @@ html[data-shell="phone"] {
   grid-area: tabs;
 }
 
-/* The Player and the tab bar are the bottom chrome on a phone: tabs 56 plus
-   Player 56 stay under the 176 budget. */
+/* The tab bar and the Player together are --frame-bottom-chrome on a phone;
+   the tab bar also clears the home indicator. */
 .stage-frame--phone .stage-frame-tabs {
   padding-block-end: env(safe-area-inset-bottom);
-}
-
-/* The header's people button: faces and a count, one tap target. */
-.avatar-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-inline-size: 0;
-}
-
-.avatar-header-menu {
-  min-inline-size: 0;
-}
-
-.avatar-header-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-block-size: var(--control-height);
-  padding: 0 var(--space-1);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: var(--font-size-small);
-  cursor: pointer;
-}
-
-.avatar-header-trigger:hover {
-  background: var(--color-hover);
-}
-
-.avatar-header-faces {
-  display: inline-flex;
-}
-
-.avatar-header-faces > * + * {
-  margin-inline-start: calc(var(--space-1) * -1);
-}
-
-.avatar-header-phone-count {
-  display: none;
-}
-
-@container sys-app-header (max-width: 40rem) {
-  .avatar-header-faces > :nth-child(n + 2),
-  .avatar-header-extra {
-    display: none;
-  }
-
-  .avatar-header-phone-count {
-    display: inline;
-  }
-
-  .avatar-header-trigger {
-    min-inline-size: var(--touch-min);
-    min-block-size: var(--touch-min);
-  }
 }
