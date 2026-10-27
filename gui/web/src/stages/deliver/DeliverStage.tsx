@@ -42,6 +42,7 @@ import { ExportButton } from "./ExportButton";
 import { ListenLink } from "./ListenLink";
 import { Readiness } from "./Readiness";
 import { useFocusRecovery } from "./useFocusRecovery";
+import { useWriteBack } from "./useWriteBack";
 
 export type DeliverStageProps = {
   facts: ReadinessFacts;
@@ -77,6 +78,12 @@ export type DeliverStageProps = {
   /** Guests get Review only; Deliver shows a Cover instead of controls. */
   guest?: boolean;
   toastMs?: number;
+  /** Each change to the settings, chapters or clips, after the first values. */
+  onSettings?: (settings: EpisodeSettings) => void;
+  onChapters?: (chapters: readonly Chapter[]) => void;
+  onClips?: (clips: readonly Clip[]) => void;
+  /** Without it the Listen link section is not shown. */
+  showLink?: boolean;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel: () => void;
@@ -119,6 +126,10 @@ export function DeliverStage({
   state = "ready",
   guest = false,
   toastMs = 6000,
+  showLink = true,
+  onSettings,
+  onChapters,
+  onClips,
   onFix,
   onExport,
   onCancel,
@@ -137,6 +148,9 @@ export function DeliverStage({
   const [settings, setSettings] = useState(initialSettings);
   const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
   const [clips, setClips] = useState<readonly Clip[]>(initialClips);
+  useWriteBack(settings, onSettings);
+  useWriteBack(chapters, onChapters);
+  useWriteBack(clips, onClips);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -323,7 +337,7 @@ export function DeliverStage({
             )}
           </div>
           <div className="dv-col">
-            {state === "loading" ? (
+            {!showLink ? null : state === "loading" ? (
               <Skeleton layout="list" rows={2} />
             ) : (
               <ListenLink

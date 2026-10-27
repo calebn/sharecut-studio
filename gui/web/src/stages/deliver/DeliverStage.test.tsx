@@ -4837,3 +4837,62 @@ describe("the Listen link reach in the stage", () => {
     expect(screen.queryByText(/Only people on this network/)).toBeNull();
   });
 });
+
+describe("write-back to the host", () => {
+  it("reports nothing until something changes", () => {
+    const onSettings = vi.fn();
+    const onChapters = vi.fn();
+    const onClips = vi.fn();
+    setup({ onSettings, onChapters, onClips });
+    expect(onSettings).not.toHaveBeenCalled();
+    expect(onChapters).not.toHaveBeenCalled();
+    expect(onClips).not.toHaveBeenCalled();
+  });
+
+  it("reports the chapters after one is added at the playhead", async () => {
+    const onChapters = vi.fn();
+    setup({ onChapters, playhead: 724 });
+    await userEvent.click(
+      screen.getByRole("button", { name: /Add at playhead/ }),
+    );
+    expect(onChapters).toHaveBeenCalledOnce();
+    const next = onChapters.mock.calls[0]?.[0] as typeof CHAPTERS;
+    expect(next.map((chapter) => chapter.at)).toEqual(
+      [...CHAPTERS.map((chapter) => chapter.at), 724].sort((a, b) => a - b),
+    );
+  });
+
+  it("reports the chapters after one is removed, and not the clips", async () => {
+    const onChapters = vi.fn();
+    const onClips = vi.fn();
+    setup({ onChapters, onClips });
+    await userEvent.click(
+      screen.getByRole("button", { name: `Remove ${CHAPTERS[1]?.title}` }),
+    );
+    expect(onChapters.mock.calls[0]?.[0]).toEqual(
+      CHAPTERS.filter((chapter) => chapter.id !== CHAPTERS[1]?.id),
+    );
+    expect(onClips).not.toHaveBeenCalled();
+  });
+
+  it("reports the clips after one is approved", async () => {
+    const onClips = vi.fn();
+    setup({ onClips });
+    const approve = screen.getAllByRole("button", { name: /^Approve/ })[0];
+    await userEvent.click(approve as HTMLElement);
+    const next = onClips.mock.calls[0]?.[0] as typeof CLIPS;
+    expect(next.filter((clip) => clip.approved)).toHaveLength(
+      CLIPS.filter((clip) => clip.approved).length + 1,
+    );
+  });
+
+  it("leaves out the Listen link when asked", () => {
+    setup({ showLink: false });
+    expect(screen.queryByText("Listen link")).toBeNull();
+  });
+
+  it("shows the Listen link by default", () => {
+    setup();
+    expect(screen.getByText("Listen link")).toBeInTheDocument();
+  });
+});
