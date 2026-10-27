@@ -130,15 +130,16 @@ _ARCHITECTURE_ALLOWED = {
 def _runtime_imports(source: str, package: str) -> set[str]:
     """Imported modules, inline ones included, minus `if TYPE_CHECKING:` blocks."""
     tree = ast.parse(source)
+    nodes = tuple(ast.walk(tree))
     skipped: set[int] = set()
-    for node in ast.walk(tree):
+    for node in nodes:
         if isinstance(node, ast.If) and (
             (isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING")
             or (isinstance(node.test, ast.Attribute) and node.test.attr == "TYPE_CHECKING")
         ):
             skipped.update(id(child) for stmt in node.body for child in ast.walk(stmt))
     imports: set[str] = set()
-    for node in ast.walk(tree):
+    for node in nodes:
         if id(node) in skipped:
             continue
         if isinstance(node, ast.Import):
