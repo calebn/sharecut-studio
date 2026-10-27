@@ -3337,6 +3337,85 @@ def test_api_transcript_refine_waive_rejects_unauthorized_remote(
     assert response.json() == {"detail": "remote client requires PODCAST_SESSION_TOKEN"}
 
 
+def _refine_client(minimal_project):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
+
+    proj = load_project(minimal_project)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="uncle", start=0.0, end=0.3, confidence=0.6),
+                TranscriptWord(text="sure", start=0.3, end=0.6, confidence=0.95),
+            ],
+        )
+    ]
+    save_project(proj, minimal_project)
+    return TestClient(create_app())
+
+
+def test_api_transcript_refine_status_reads_the_gate(minimal_project) -> None:
+    client = _refine_client(minimal_project)
+    response = client.get("/api/transcript/refine/status", params={"path": str(minimal_project)})
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["status"], body["clear"], body["stale"]) == ("pending", False, False)
+    assert body["low_confidence_words"] == 1
+    assert body["low_confidence_threshold"] == 0.7
+    assert "fingerprint" not in body
+
+
+def test_api_transcript_refine_done_is_idempotent_and_waiver_stays_waived(
+    minimal_project,
+) -> None:
+    import json
+
+    client = _refine_client(minimal_project)
+    path = str(minimal_project)
+    status_path = minimal_project.parent / "artifacts" / "transcript_refine_status.json"
+
+    first = client.post("/api/transcript/refine/done", json={"path": path})
+    assert first.status_code == 200
+    assert (first.json()["status"], first.json()["source"]) == ("done", "user")
+    recorded = json.loads(status_path.read_text(encoding="utf-8"))
+    assert recorded["status"] == "done"
+    assert recorded["source"] == "user"
+
+    second = client.post("/api/transcript/refine/done", json={"path": path, "notes": "again"})
+    assert second.status_code == 200
+    assert second.json()["updated_at"] == first.json()["updated_at"]
+    assert json.loads(status_path.read_text(encoding="utf-8")) == recorded
+
+    reason = "Approved after listening in Review"
+    waived = client.post("/api/transcript/refine/waive", json={"path": path, "reason": reason})
+    assert waived.status_code == 200
+    after = client.get("/api/transcript/refine/status", params={"path": path}).json()
+    assert (after["status"], after["clear"], after["notes"]) == ("waived", True, reason)
+
+
+def test_api_transcript_refine_done_and_status_refuse_guests(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "session-token")
+    monkeypatch.setattr("podcast_mcp.gui.routes.deps.peer_host", lambda _request: "10.0.0.5")
+    client = TestClient(create_app(bind_host="0.0.0.0"))
+    path = str(minimal_project)
+    done = client.post("/api/transcript/refine/done", json={"path": path})
+    status = client.get("/api/transcript/refine/status", params={"path": path})
+    for response in (done, status):
+        assert response.status_code == 403
+        assert response.json() == {"detail": "remote client requires PODCAST_SESSION_TOKEN"}
+    assert not (minimal_project.parent / "artifacts" / "transcript_refine_status.json").exists()
+
+
 def test_api_document_command_refine_gate_has_stable_error_code(
     minimal_project, monkeypatch
 ) -> None:

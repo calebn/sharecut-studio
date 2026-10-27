@@ -7,12 +7,10 @@ from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.review_gate import ReviewGate, ReviewRequiredError
+from podcast_mcp.edits.transcript_correct import UNSURE_WORD_CONFIDENCE
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.hashing import short_digest
-
-# Open words below this confidence count toward the refine brief's low_confidence_open_words.
-REFINE_BRIEF_LOW_CONFIDENCE = 0.5
 
 GATE_HINT = (
     "Transcript refine is required before focus/tighten/NL edits. "
@@ -76,7 +74,7 @@ def build_refine_brief(project: EpisodeProject, defaults: EffectiveConfig) -> di
                 if len(suspect_sample) < 10:
                     suspect_sample.append(transcript_word_record(tr, index))
             conf = getattr(w, "confidence", None)
-            if conf is not None and float(conf) < REFINE_BRIEF_LOW_CONFIDENCE:
+            if conf is not None and float(conf) < UNSURE_WORD_CONFIDENCE:
                 low_conf += 1
 
     combined = project.transcripts_dir() / "combined.json"

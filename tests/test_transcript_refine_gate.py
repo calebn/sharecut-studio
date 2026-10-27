@@ -582,3 +582,65 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(
         1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
     assert REFINE_GATE.load(reopened.project)["status"] == clearance
+
+
+@pytest.mark.refine_gate
+def test_one_unsure_line_for_list_brief_and_status(minimal_project):
+    from podcast_mcp.edits.transcript_correct import UNSURE_WORD_CONFIDENCE, list_low_confidence
+    from podcast_mcp.edits.transcript_refine_status import build_refine_brief
+
+    assert UNSURE_WORD_CONFIDENCE == 0.7
+    proj = load_project(minimal_project)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=0.0, end=0.1, confidence=0.6),
+                TranscriptWord(text="b", start=0.1, end=0.2, confidence=0.69),
+                TranscriptWord(text="c", start=0.2, end=0.3, confidence=0.7),
+                TranscriptWord(text="d", start=0.3, end=0.4),
+            ],
+        )
+    ]
+    save_project(proj, minimal_project)
+    proj = load_project(minimal_project)
+    assert len(list_low_confidence(proj)) == 2
+    assert build_refine_brief(proj, load_defaults())["low_confidence_open_words"] == 2
+    status = TranscriptRefineService(ProjectWorkspace.open(minimal_project)).gate_status()
+    assert status["low_confidence_words"] == 2
+    assert status["low_confidence_threshold"] == 0.7
+
+
+@pytest.mark.refine_gate
+def test_mark_checked_is_idempotent_and_beats_a_waiver(minimal_project):
+    _with_words(minimal_project)
+    svc = TranscriptRefineService(ProjectWorkspace.open(minimal_project))
+    assert svc.gate_status()["status"] == "pending"
+
+    first = svc.mark_checked()
+    assert (first["status"], first["clear"], first["source"]) == ("done", True, "user")
+    again = svc.mark_checked(notes="ignored on repeat")
+    assert again["updated_at"] == first["updated_at"]
+    assert again["notes"] == ""
+
+    svc.waive(reason="Approved after listening in Review", source="user")
+    waived = svc.gate_status()
+    assert (waived["status"], waived["notes"]) == ("waived", "Approved after listening in Review")
+    redone = svc.mark_checked()
+    assert redone["status"] == "done"
+    assert redone["notes"] == ""
+
+
+@pytest.mark.refine_gate
+def test_mark_checked_after_a_text_change_checks_again(minimal_project):
+    _with_words(minimal_project)
+    svc = TranscriptRefineService(ProjectWorkspace.open(minimal_project))
+    first = svc.mark_checked()
+    TranscriptService(ProjectWorkspace.open(minimal_project)).correct_word(
+        "host", 0, "hola", expected_text="hello"
+    )
+    stale = svc.gate_status()
+    assert (stale["status"], stale["stale"]) == ("pending", True)
+    again = svc.mark_checked()
+    assert again["status"] == "done"
+    assert again["updated_at"] != first["updated_at"]

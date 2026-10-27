@@ -12,6 +12,8 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.schemas import (
+    TranscriptRefineDoneRequest,
+    TranscriptRefineStatusView,
     TranscriptRefineWaiveRequest,
     TranscriptReplacementPreviewRequest,
     TranscriptVocabularyPutRequest,
@@ -59,6 +61,34 @@ def transcript_vocabulary_put(
         raise coded_exception_error(409, exc, code="vocabulary_conflict") from exc
     except ValueError as exc:
         raise bad_request_error(exc) from exc
+
+
+@router.get("/api/transcript/refine/status", response_model=TranscriptRefineStatusView)
+def transcript_refine_status(
+    request: Request,
+    path: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Read the transcript-check gate: open, done or waived, plus the unsure-word count."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(path, request)
+    return TranscriptRefineService(ProjectWorkspace.open(project_path)).gate_status()
+
+
+@router.post("/api/transcript/refine/done", response_model=TranscriptRefineStatusView)
+def transcript_refine_done(
+    req: TranscriptRefineDoneRequest,
+    request: Request,
+    token: str | None = None,
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Mark the transcript checked for the host. A repeat while done writes nothing."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(req.path, request)
+    return TranscriptRefineService(ProjectWorkspace.open(project_path)).mark_checked(
+        notes=req.notes, source="user"
+    )
 
 
 @router.post("/api/transcript/refine/waive")

@@ -323,7 +323,9 @@ def set_words_ignored(
     }
 
 
-DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.7
+# The project's single "unsure word" line: a word below this ASR confidence is unsure.
+# list_low_confidence, the refine brief and the refine status count all read it.
+UNSURE_WORD_CONFIDENCE = 0.7
 
 
 def transcript_word_record(transcript: Transcript, index: int) -> dict[str, Any]:
@@ -341,7 +343,7 @@ def transcript_word_record(transcript: Transcript, index: int) -> dict[str, Any]
 
 def list_low_confidence(
     project: EpisodeProject,
-    threshold: float = DEFAULT_LOW_CONFIDENCE_THRESHOLD,
+    threshold: float = UNSURE_WORD_CONFIDENCE,
 ) -> list[dict]:
     out: list[dict] = []
     for tr in project.transcripts:

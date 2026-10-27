@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from podcast_mcp.edits.transcript_correct import (
-    DEFAULT_LOW_CONFIDENCE_THRESHOLD,
+    UNSURE_WORD_CONFIDENCE,
     TranscriptTextChangedError,
     apply_transcript_corrections,
     correct_phrase,
@@ -382,9 +382,7 @@ class TranscriptService(WorkspaceService):
             source_id,
         )
 
-    def low_confidence_words(
-        self, threshold: float = DEFAULT_LOW_CONFIDENCE_THRESHOLD
-    ) -> list[dict]:
+    def low_confidence_words(self, threshold: float = UNSURE_WORD_CONFIDENCE) -> list[dict]:
         return list_low_confidence(self.ws.project, threshold)
 
     def verify_transcript(

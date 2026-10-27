@@ -463,7 +463,7 @@ never flip `ignored` automatically. No `EditDecision`, cut, or `edit_log` record
 created either way, but ignore additionally creates none of the mute-region
 bookkeeping that a `tighten.edit_mode: mute` cut would.
 
-**Low-confidence walkthrough (#634):** it uses the same 0.7 threshold as
+**Low-confidence walkthrough (#634):** it uses the same 0.7 threshold (`UNSURE_WORD_CONFIDENCE`) as
 `low_confidence_words_tool`; ShareCut Studio walks those words Next/Previous
 under Annotate; a corrected word (confidence set to 1.0) leaves the list and
 the walk continues with the nearest flagged word after (Next) or before
@@ -539,6 +539,10 @@ After `precorrect_transcript`, the pipeline step **`require_transcript_refine`**
 3. Apply high-confidence fixes; batch ambiguous items for user
 4. Escalate listen-first spans to **podcast-transcript-audition**
 5. `transcript refine-done` (or user `refine-waive --reason …`)
+
+The host GUI reaches the same gate over HTTP: `POST /api/transcript/refine/done` records refine-done for the human (source `user`) through `TranscriptRefineService.mark_checked`, and `GET /api/transcript/refine/status` reads it back (see [gui-integration.md](gui-integration.md#transcript-check-routes)). A repeat of `done` while the record is still `done` and current changes nothing; a `done` after a waiver replaces it, because checking is the stronger record. "Cut anyway" in Review stays a waiver (`refine/waive`, reason "Approved after listening in Review") and reads back as `waived`, never `done`.
+
+**One unsure-word line.** `UNSURE_WORD_CONFIDENCE` (0.7, `edits/transcript_correct.py`) is the one confidence below which a word is unsure. `low_confidence_words_tool` / `podcast transcript low-confidence`, the refine brief's `low_confidence_open_words` and the status route's `low_confidence_words` all read it, so their counts agree.
 
 Mode (`analysis.transcript_refine.mode` in pipeline.yaml):
 

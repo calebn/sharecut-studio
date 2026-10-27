@@ -272,6 +272,25 @@ export interface TrackView {
   fade_max_ms?: number | null;
 }
 
+export interface TranscriptRefineDoneRequest {
+  path: string;
+  notes?: string | null;
+}
+
+/** The transcript check as the Review stage reads it (host only). */
+export interface TranscriptRefineStatusView {
+  status: "pending" | "done" | "waived";
+  clear: boolean;
+  stale: boolean;
+  mode: "require" | "waive_unattended" | "off";
+  source?: string | null;
+  notes?: string;
+  updated_at?: string | null;
+  hint?: string | null;
+  low_confidence_words: number;
+  low_confidence_threshold: number;
+}
+
 export interface TranscriptRefineWaiveRequest {
   path: string;
   reason: string;
