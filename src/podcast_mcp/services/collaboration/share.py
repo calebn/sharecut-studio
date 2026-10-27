@@ -481,10 +481,8 @@ class ShareService:
             RecordLandingService,
             assert_no_open_take,
             begin_record_session,
-            invalidate_record_session_cache,
-        )
-        from podcast_mcp.services.record.preflight import (
             describe_unlanded_takes,
+            invalidate_record_session_cache,
             unlanded_take_fields,
             unlanded_takes,
         )

@@ -33,8 +33,8 @@ from podcast_mcp.services.record import (
     RecordUploadService,
     RoomFullError,
     parse_upload_kind,
+    with_unlanded_takes,
 )
-from podcast_mcp.services.record.preflight import with_unlanded_takes
 from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
