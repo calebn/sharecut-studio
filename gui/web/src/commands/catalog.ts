@@ -166,6 +166,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hasProject",
     notes:
       "Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor.",
+    breaksFollow: true,
   },
   "project.home": {
     id: "project.home",
@@ -750,6 +751,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     shortLabel: "Find and replace",
     keywords: ["search", "spelling"],
     when: "hostProjectLoaded",
+    breaksFollow: true,
   },
   "transcript.correctIntent": {
     id: "transcript.correctIntent",
