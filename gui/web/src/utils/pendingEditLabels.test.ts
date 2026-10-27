@@ -57,6 +57,18 @@ describe("pendingReasonLabel", () => {
     expect(pendingReasonLabel("filler:um", "pause")).toBe("Long pause (um)");
   });
 
+  it("falls back to the raw reason for a missing or unknown kind", () => {
+    expect(pendingReasonLabel("filler:um", undefined as never)).toBe(
+      "filler:um",
+    );
+    expect(pendingReasonLabel("filler:um", "mystery" as never)).toBe(
+      "filler:um",
+    );
+    expect(pendingReasonLabel("filler:um", "toString" as never)).toBe(
+      "filler:um",
+    );
+  });
+
   it("handles a missing reason", () => {
     expect(pendingReasonLabel(null, "other")).toBe("No reason given");
     expect(pendingReasonLabel(undefined, "other")).toBe("No reason given");
