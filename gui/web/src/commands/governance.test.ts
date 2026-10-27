@@ -65,7 +65,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/ChipInput.tsx",
   // Escape closes the Open other popover from its field and its buttons.
   "stages/home/OpenOther.tsx",
-  // The scrub field: arrows step, Enter commits and Escape reverts, like a spin box.
+  // The time field: arrows step, Enter commits and Escape reverts, like a spin box.
   "system/TimeField.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",
