@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import os
@@ -225,6 +226,31 @@ def test_a_studio_that_goes_silent_after_the_ping_is_lost_not_bypassed(
             argv=["status"],
             project=str(project),
             cwd=str(project),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+
+
+def test_a_dropped_handoff_response_is_uncertain_even_before_start_event(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class DroppedResponse:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> None:
+            raise http.client.RemoteDisconnected("response dropped")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: DroppedResponse())
+    with pytest.raises(HandoffLost, match="may have changed the project"):
+        hand_off(
+            _host(),
+            argv=["comment", "add"],
+            project=str(project),
+            cwd=str(project.parent),
             out=io.StringIO(),
             err=io.StringIO(),
         )
