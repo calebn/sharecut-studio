@@ -78,3 +78,67 @@ describe("edit keys follow the stage", () => {
     },
   );
 });
+
+const TRACK_KEYS = ["Delete", "Backspace", "ArrowUp", "ArrowDown"] as const;
+
+function enabledTrackCommands(key: string): string[] {
+  const ctx = buildCommandContext();
+  return matchKeymapCommands(
+    {
+      key,
+      code: key,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+    },
+    false,
+  )
+    .filter((cmd) => cmd.id.startsWith("track."))
+    .filter((cmd) => evaluateWhen(COMMANDS[cmd.id].when, ctx).ok)
+    .map((cmd) => cmd.id);
+}
+
+describe("track keys follow the stage", () => {
+  beforeEach(() => {
+    useDawStore.getState().hydrate(
+      "/tmp/stage-keys.json",
+      minimalProject({
+        tracks: [
+          sampleTrack({ id: "a" }),
+          sampleTrack({ id: "b" }),
+          sampleTrack({ id: "c" }),
+        ],
+      }),
+    );
+    useDawStore.setState({
+      selection: { kind: "track", trackId: "b" } as never,
+      stage: "edit",
+    });
+  });
+
+  it("runs on Edit", () => {
+    for (const key of TRACK_KEYS) {
+      expect(enabledTrackCommands(key), key).not.toEqual([]);
+    }
+  });
+
+  it.each(["prepare", "review", "deliver", "record"] as StageId[])(
+    "does nothing on %s with a track still selected, and works again back on Edit",
+    (stage) => {
+      const selection = useDawStore.getState().selection;
+      useDawStore.getState().openStage(stage);
+      expect(useDawStore.getState().selection).toBe(selection);
+      expect(buildCommandContext().stage).toBe(stage);
+      for (const key of TRACK_KEYS) {
+        expect(enabledTrackCommands(key), `${key} on ${stage}`).toEqual([]);
+      }
+      useDawStore.getState().openStage("edit");
+      for (const key of TRACK_KEYS) {
+        expect(enabledTrackCommands(key), `${key} back on Edit`).not.toEqual(
+          [],
+        );
+      }
+    },
+  );
+});

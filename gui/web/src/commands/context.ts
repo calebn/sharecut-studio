@@ -156,6 +156,16 @@ function evaluateTrackInspectorSelection(
     : { ok: false, reason: "No track selected in inspector" };
 }
 
+function requireEditStage(
+  ctx: CommandContext,
+  then: ContextPredicateId,
+): { ok: true } | { ok: false; reason: string } {
+  if (ctx.stage !== "edit") {
+    return { ok: false, reason: "Open Edit to change the timeline" };
+  }
+  return evaluateWhen(then, ctx);
+}
+
 export function evaluateWhen(
   when: ContextPredicateId,
   ctx: CommandContext,
@@ -207,6 +217,16 @@ export function evaluateWhen(
         return { ok: false, reason: "Open Edit to change the timeline" };
       }
       return evaluateWhen("canApplyPass12", ctx);
+    case "editStageIngest":
+      return requireEditStage(ctx, "canIngestMedia");
+    case "editStageTrackInspector":
+      return requireEditStage(ctx, "trackInspectorSelected");
+    case "editStageMoveSelectedTrackUp":
+      return requireEditStage(ctx, "canMoveSelectedTrackUp");
+    case "editStageMoveSelectedTrackDown":
+      return requireEditStage(ctx, "canMoveSelectedTrackDown");
+    case "editStageSplitSpeakers":
+      return requireEditStage(ctx, "canSplitSpeakers");
     case "timelineAndStructural":
       if (ctx.stage !== "edit") {
         return { ok: false, reason: "Open Edit to use the timeline" };
