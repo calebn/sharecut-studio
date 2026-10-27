@@ -664,7 +664,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "New track",
     keywords: ["create", "lane"],
-    when: "canIngestMedia",
+    when: "editStageIngest",
     notes: "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
   },
   "track.remove": {
@@ -673,7 +673,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Remove track",
     keywords: ["delete", "lane"],
-    when: "trackInspectorSelected",
+    when: "editStageTrackInspector",
     notes:
       "Backspace/Delete when inspector track selected; confirms then RemoveTrack. Menu/inspector use skipWhen + trackId args.",
   },
@@ -684,7 +684,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Split speakers…",
     variants: ["Review split…"],
     keywords: ["speakers", "one track", "interview", "room mic", "per person"],
-    when: "canSplitSpeakers",
+    when: "editStageSplitSpeakers",
     notes:
       "Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step",
   },
@@ -693,7 +693,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     mutates: true,
     category: "edit",
     label: "Reorder track",
-    when: "canIngestMedia",
+    when: "editStageIngest",
     paletteRunnable: false,
     notes: "Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen",
   },
@@ -702,7 +702,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     mutates: true,
     category: "edit",
     label: "Move track up",
-    when: "canMoveSelectedTrackUp",
+    when: "editStageMoveSelectedTrackUp",
     notes: "ArrowUp: inspector track one lane up",
   },
   "track.moveDown": {
@@ -710,7 +710,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     mutates: true,
     category: "edit",
     label: "Move track down",
-    when: "canMoveSelectedTrackDown",
+    when: "editStageMoveSelectedTrackDown",
     notes: "ArrowDown: inspector track one lane down",
   },
   "media.import": {

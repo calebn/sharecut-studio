@@ -616,7 +616,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "trackInspectorSelected"
+        "editStageTrackInspector"
       ],
       "surfaces": {
         "command": "track.remove",
@@ -642,7 +642,7 @@
       "service": "ShareCut Studio command bus \u2192 services/media (SpeakerService)",
       "industry_standard_key": false,
       "gates": [
-        "canSplitSpeakers"
+        "editStageSplitSpeakers"
       ],
       "surfaces": {
         "command": "track.splitSpeakers",
@@ -672,7 +672,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "canIngestMedia"
+        "editStageIngest"
       ],
       "surfaces": {
         "command": "track.reorder",
@@ -701,7 +701,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canMoveSelectedTrackUp"
+        "editStageMoveSelectedTrackUp"
       ],
       "surfaces": {
         "command": "track.moveUp",
@@ -728,7 +728,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canMoveSelectedTrackDown"
+        "editStageMoveSelectedTrackDown"
       ],
       "surfaces": {
         "command": "track.moveDown",
@@ -2287,7 +2287,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canIngestMedia"
+        "editStageIngest"
       ],
       "surfaces": {
         "command": "track.add",
