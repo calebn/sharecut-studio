@@ -116,17 +116,6 @@
   }
 }
 
-.snap-guide {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 1px dashed var(--color-accent);
-  pointer-events: none;
-  z-index: var(--z-overlay);
-  opacity: 0.85;
-}
-
 .clip-block.fade-dragging {
   outline: 1px solid var(--color-accent-strong);
 }

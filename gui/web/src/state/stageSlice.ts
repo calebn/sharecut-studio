@@ -99,7 +99,9 @@ export const createStageSlice: StateCreator<
         landingSettled: true,
       };
     });
-    if (next !== prev) writeLastStage(get().projectPath, next);
+    if (next !== prev && get().guestMode == null) {
+      writeLastStage(get().projectPath, next);
+    }
   };
 
   return {

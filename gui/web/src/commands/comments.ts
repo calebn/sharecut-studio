@@ -5,7 +5,7 @@ import { buildCommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
-/** Starts a comment on `draft` in the Comments panel (on phone, More › Comments). */
+/** Starts a comment on `draft` in the Comments panel. */
 export function openCommentDraft(draft: CommentDraft): void {
   const state = useDawStore.getState();
   state.setCommentDraft(draft);

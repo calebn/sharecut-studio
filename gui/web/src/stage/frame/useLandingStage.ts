@@ -21,7 +21,7 @@ export function useLandingStage(): void {
       jobBusy:
         isPipelineSlotBusy(s.activityJob) || isPipelineSlotBusy(s.pipelineJob),
       pendingReviewCount: project.edit_impact.pending_review_count,
-      lastStage: readLastStage(s.projectPath),
+      lastStage: s.guestMode == null ? readLastStage(s.projectPath) : null,
     });
     if (next === s.stage) s.markLandingSettled();
     else s.openStage(next);
