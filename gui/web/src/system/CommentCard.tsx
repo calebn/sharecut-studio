@@ -124,8 +124,17 @@ export function CommentCard({
       )}
       {pending?.state === "failed" ? (
         <div className="sys-comment-retry">
-          <Button onClick={() => pending.onRetry()}>Try again</Button>
-          <Button variant="link" onClick={() => pending.onRemove()}>
+          <Button
+            aria-label={`Try again: comment by ${c.author}`}
+            onClick={() => pending.onRetry()}
+          >
+            Try again
+          </Button>
+          <Button
+            variant="link"
+            aria-label={`${REMOVE.label}: comment by ${c.author}`}
+            onClick={() => pending.onRemove()}
+          >
             <SystemIcon name={iconOf("remove")} size={14} />
             {REMOVE.label}
           </Button>
