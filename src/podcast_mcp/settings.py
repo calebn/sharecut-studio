@@ -72,7 +72,16 @@ VARIABLES: tuple[Variable, ...] = (
             "Base for downloaded models, FFmpeg and caches.",
             "~/.cache/podcast_mcp",
         ),
-        ("PODCAST_CONFIG_DIR", "Directory for the OAuth client files.", "~/.config/podcast_mcp"),
+        (
+            "PODCAST_CONFIG_DIR",
+            "Directory for the OAuth client files and the recent episodes list.",
+            "~/.config/podcast_mcp",
+        ),
+        (
+            "PODCAST_WORKSPACE_ROOT",
+            "Folder that holds episodes Home creates when no folder is named.",
+            "~/ShareCut",
+        ),
         ("PODCAST_MCP_PROJECT", "Project path the MCP tools use when none is passed."),
         ("PODCAST_MCP_PIPELINE_DEFAULTS", "Pipeline defaults YAML replacing the shipped one."),
         (
