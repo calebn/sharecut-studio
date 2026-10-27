@@ -185,7 +185,7 @@ def create_record_room_tool(
 ) -> str:
     """Mint a recording room: guest + producer /rec/ links; revokes earlier rooms' links (docs/recording-session.md).
 
-    ``target`` is where the session lands: ``end`` (the default), or an ``insert``/``replace`` JSON object
+    ``target`` is where the session lands: ``end`` (the default), ``start`` (the front of the episode), or an ``insert``/``replace`` JSON object
     that stages the session as a suggestion.
     """
     from podcast_mcp.services.collaboration import ShareService
