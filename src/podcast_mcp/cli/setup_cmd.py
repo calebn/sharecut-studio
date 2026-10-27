@@ -82,6 +82,8 @@ def setup(
                 f"  {spec.id}: {word} ({spec.purpose}, {status['size']}). "
                 f"Fix: {status['bootstrap']}"
             )
+            if hint := status.get("hint"):
+                typer.echo(f"    {hint}")
 
     typer.echo(f"Cache: {cache_dir()}")
     typer.echo(f"Python: {sys.version.split()[0]}")
