@@ -60,7 +60,7 @@ const PENDING_TEXT = {
 const repliesText = (count: number) =>
   count === 1 ? "1 reply" : `${count} replies`;
 
-/** A comment with its replies and action items, restyled on the Review queue row. */
+/** A comment with its replies and action items. */
 export function CommentCard({
   comment: c,
   pending,

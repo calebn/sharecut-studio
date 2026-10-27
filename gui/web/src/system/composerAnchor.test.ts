@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   type AnchorIntent,
-  anchorSpan,
   type ComposerAnchor,
   formatAnchor,
   idleAnchor,
@@ -99,18 +98,6 @@ describe("idleAnchor", () => {
       start: 1000,
       end: 1005,
     });
-  });
-});
-
-describe("anchorSpan", () => {
-  it("gives a span for follow and pinned, and none for a whole-episode note", () => {
-    expect(anchorSpan(follow)).toEqual({ start: 600 });
-    expect(anchorSpan(pinned)).toEqual({ start: 700 });
-    expect(anchorSpan({ kind: "pinned", start: 1, end: 3 })).toEqual({
-      start: 1,
-      end: 3,
-    });
-    expect(anchorSpan(episode)).toBeUndefined();
   });
 });
 

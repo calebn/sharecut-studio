@@ -162,8 +162,6 @@ button.sys-composer-chip {
   }
 }
 
-/* Comment card */
-
 .sys-comment {
   display: flex;
   flex-direction: column;
