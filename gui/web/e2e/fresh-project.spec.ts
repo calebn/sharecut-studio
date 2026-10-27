@@ -6,7 +6,7 @@ import { registerE2eCleanupWorkspace } from "./cleanupManifest";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 import { createEpisodeFromHome, openHome } from "./home";
 import { switchE2eProject } from "./shareableProject";
-import { addTrack, openPanel } from "./stageNav";
+import { addTrack, goToStage, openPanel } from "./stageNav";
 
 test("new project stays fresh without an audio error on desktop and phone", async ({
   page,
@@ -30,6 +30,8 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     await expect(page.getByRole("heading", { name: "Fresh QA" })).toBeVisible();
     await expect(audioError).toHaveCount(0);
 
+    // The Record tile lands on the Record stage; the player lives on Edit.
+    await goToStage(page, "edit");
     const play = page.getByRole("button", { name: "Play", exact: true });
     await expect(play).toBeVisible();
     await openPanel(page, "transcript");
