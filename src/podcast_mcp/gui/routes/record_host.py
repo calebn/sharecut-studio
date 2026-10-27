@@ -206,3 +206,44 @@ def post_host_record_discard_take(
         raise coded_http_error(404, "no active record room", code="record_room_not_found") from exc
     except RecordLandingError as exc:
         raise coded_exception_error(400, exc, code="record_discard_refused") from exc
+
+
+class RecordAssignTrackBody(BaseModel):
+    path: str
+    participant_id: str
+    track: str
+
+
+@router.get("/api/record/tracks")
+def get_host_record_tracks(
+    request: Request,
+    path: str = Query(..., description="Path to episode.project.json"),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Host only: which track each recorded person lands on (never sent to guests)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    try:
+        return RecordControlService(ws).tracks()
+    except FileNotFoundError as exc:
+        raise coded_http_error(404, "no active record room", code="record_room_not_found") from exc
+
+
+@router.post("/api/record/assign-track")
+def post_host_record_assign_track(
+    body: RecordAssignTrackBody,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(body.path, request))
+    try:
+        return RecordControlService(ws).assign_track(body.participant_id, body.track)
+    except FileNotFoundError as exc:
+        raise coded_http_error(404, "no active record room", code="record_room_not_found") from exc
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="unknown_track") from exc
+    except ValueError as exc:
+        raise coded_exception_error(409, exc, code="track_taken") from exc

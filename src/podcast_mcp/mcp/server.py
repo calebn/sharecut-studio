@@ -134,6 +134,7 @@ from podcast_mcp.mcp.tools.play import (  # noqa: E402, F401
     play_transcript_query_tool,
 )
 from podcast_mcp.mcp.tools.record import (  # noqa: E402, F401
+    record_assign_track_tool,
     record_discard_take_tool,
     record_land_tool,
     record_pause_tool,
@@ -143,6 +144,7 @@ from podcast_mcp.mcp.tools.record import (  # noqa: E402, F401
     record_state_tool,
     record_stop_tool,
     record_target_tool,
+    record_tracks_tool,
 )
 from podcast_mcp.mcp.tools.review import (  # noqa: E402, F401
     accept_session_suggestion_tool,

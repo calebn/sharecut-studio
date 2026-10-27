@@ -67,6 +67,16 @@ def record_discard_take_tool(project_path: str, take_index: int) -> str:
     return json.dumps(_ctrl(project_path).discard_take(take_index), indent=2)
 
 
+def record_tracks_tool(project_path: str) -> str:
+    """Show which track each recorded person lands on (matched by name to an existing track, new, or ambiguous), with a plain-words reason. Host only."""
+    return json.dumps(_ctrl(project_path).tracks(), indent=2)
+
+
+def record_assign_track_tool(project_path: str, participant_id: str, track: str) -> str:
+    """Correct a person's track: put their recordings on an existing track id, or pass track="new" for a new one. Allowed until the session is accepted; one undo step when takes are already staged. Refusal codes: unknown_participant, unknown_track, track_taken, session_already_accepted, session_skipped."""
+    return json.dumps(_ctrl(project_path).assign_track(participant_id, track), indent=2)
+
+
 def register(mcp: MCPServer) -> None:
     """Register recording-room tools on the MCP server."""
     mcp.tool()(record_state_tool)
@@ -79,3 +89,5 @@ def register(mcp: MCPServer) -> None:
     mcp.tool()(record_marker_tool)
     mcp.tool()(record_land_tool)
     mcp.tool()(record_discard_take_tool)
+    mcp.tool()(record_tracks_tool)
+    mcp.tool()(record_assign_track_tool)

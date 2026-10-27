@@ -129,3 +129,23 @@ def record_discard_take(
 ) -> None:
     """Delete a terminal take before landing; refused while its recordings are still saving."""
     _invoke(project, lambda ctrl: ctrl.discard_take(take_index))
+
+
+@record_app.command("tracks")
+def record_tracks(project: Path = typer.Option(..., "--project")) -> None:
+    """Show which track each person lands on: matched by name to an existing track, new, or ambiguous."""
+    _invoke(project, lambda ctrl: ctrl.tracks())
+
+
+@record_app.command("assign-track")
+def record_assign_track(
+    project: Path = typer.Option(..., "--project"),
+    participant: str = typer.Option(
+        ..., "--participant", help="Participant id from `record tracks`"
+    ),
+    track: str = typer.Option(
+        ..., "--track", help='An existing track id, or "new" for a new track'
+    ),
+) -> None:
+    """Correct which track a person's recordings land on, until the session is accepted (one undo step)."""
+    _invoke(project, lambda ctrl: ctrl.assign_track(participant, track))

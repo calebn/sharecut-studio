@@ -1798,6 +1798,58 @@
       }
     },
     {
+      "id": "daw.record.listTracks",
+      "label": "Show who lands on which track",
+      "effect": "session",
+      "service": "RecordTrackService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast record tracks",
+        "mcp": [
+          "record_tracks_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "Show which track each person is matched to: existing, new or ambiguous",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.assignTrack",
+      "label": "Move a person to a track",
+      "effect": "project",
+      "service": "RecordTrackService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast record assign-track",
+        "mcp": [
+          "record_assign_track_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "Put a person on a different existing track or a new one before Accept",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.review.listSessionSuggestions",
       "label": "List staged sessions",
       "effect": "project",

@@ -410,6 +410,13 @@ class RecordSessionService:
         raw = self._store.get_snapshot() or self._empty()
         return RecordSnapshot.model_validate(raw)
 
+    def track_choices(self) -> dict[str, str]:
+        """The host's track choice per participant for this session (host-only)."""
+        return self._participants.track_choices(self.session_id)
+
+    def set_track_choice(self, participant_id: str, track_id: str) -> None:
+        self._participants.set_track_choice(self.session_id, participant_id, track_id)
+
     def verify_lease(self, participant_id: str, lease: str, *, token: str) -> bool:
         if participant_id == HOST_PARTICIPANT_ID:
             return False
