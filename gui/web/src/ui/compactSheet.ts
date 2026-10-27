@@ -5,9 +5,11 @@
  * compact one (#1051 round 3) also carries `COMPACT_SHEET_CLASS`.
  */
 import type { Selection } from "../types/project";
+import { tokenHeightPx } from "./tokenHeight";
 
 export const INSPECTOR_SHEET_CLASS = "bottom-sheet--inspector";
 export const COMPACT_SHEET_CLASS = "bottom-sheet--compact";
+export const CHROME_SCROLLS_CLASS = "bottom-sheet--chrome-scrolls";
 
 /**
  * Marks a regular inspector sheet whose target is a lane (a volume envelope):
@@ -25,6 +27,12 @@ export function editedLaneTrack(selection: Selection): string | null {
 
 export function compactSheetPanel(): HTMLElement | null {
   return document.querySelector<HTMLElement>(`.${COMPACT_SHEET_CLASS}`);
+}
+
+export function compactSheetSlot(): HTMLElement | null {
+  return (
+    compactSheetPanel()?.closest<HTMLElement>(".bottom-sheet-root") ?? null
+  );
 }
 
 /** The open inspector sheet, compact or regular, or null when none is open. */
@@ -72,4 +80,58 @@ export function capInspectorSheetForLane(height: number | null): void {
   if (!panel) return;
   if (height === null) panel.style.removeProperty("--sheet-lane-cap");
   else panel.style.setProperty("--sheet-lane-cap", `${Math.round(height)}px`);
+}
+
+function holdsRow(spacePx: number, chromePx: number, rowPx: number): boolean {
+  return !(spacePx > 0) || spacePx - chromePx >= rowPx;
+}
+
+export function halfDetentFits(
+  slotPx: number,
+  chromePx: number,
+  rowPx: number,
+): boolean {
+  return holdsRow(slotPx / 2, chromePx, rowPx);
+}
+
+export function chromePins(
+  slotPx: number,
+  chromePx: number,
+  rowPx: number,
+): boolean {
+  return holdsRow(slotPx, chromePx, rowPx);
+}
+
+export interface CompactSheetFit {
+  halfFits: boolean;
+  pinsChrome: boolean;
+}
+
+/**
+ * The half detent is denied by the one-row header R-short-11 compacts to, not
+ * by a header that wraps at large text, and only in a folded frame.
+ */
+export function measureCompactFit(folded: boolean): CompactSheetFit | null {
+  const panel = compactSheetPanel();
+  const slot = compactSheetSlot();
+  const chrome = panel?.querySelector(".bottom-sheet-chrome");
+  const header = panel?.querySelector(".bottom-sheet-header");
+  const close = header?.querySelector(".dialog-close");
+  if (!panel || !slot || !chrome || !header || !close) return null;
+  const slotPx = slot.getBoundingClientRect().height;
+  const headerPx = header.getBoundingClientRect().height;
+  const chromePx =
+    header.getBoundingClientRect().bottom - chrome.getBoundingClientRect().top;
+  const headerStyle = getComputedStyle(header);
+  const oneRowHeaderPx =
+    Number.parseFloat(headerStyle.paddingTop) +
+    Number.parseFloat(headerStyle.paddingBottom) +
+    close.getBoundingClientRect().height;
+  const rowPx = tokenHeightPx(panel, "--touch-min");
+  return {
+    halfFits:
+      !folded ||
+      halfDetentFits(slotPx, chromePx - headerPx + oneRowHeaderPx, rowPx),
+    pinsChrome: chromePins(slotPx, chromePx, rowPx),
+  };
 }
