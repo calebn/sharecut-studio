@@ -25,6 +25,10 @@
   display: none;
 }
 
+.edit-workspace--side > .edit-timeline-col {
+  min-inline-size: var(--stage-lane-min);
+}
+
 .edit-timeline-main {
   display: flex;
   flex: 1 1 auto;
@@ -43,10 +47,10 @@
 
 .edit-script {
   display: flex;
-  flex: 0 0 var(--script-width);
+  flex: 0 1 var(--script-width);
   flex-direction: column;
   min-block-size: 0;
-  min-inline-size: 0;
+  min-inline-size: var(--stage-script-floor);
   border-inline-start: 1px solid var(--color-border);
   background: var(--color-bg-base);
 }
