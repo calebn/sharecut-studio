@@ -5,14 +5,14 @@
  */
 
 /** One FFmpeg output spec, as `export.formats` stores it. */
-export type ExportFormatSpec = {
+type ExportFormatSpec = {
   ext: string;
   codec?: string;
   bitrate_kbps?: number;
   [key: string]: unknown;
 };
 
-export type ExportFormatChoice = {
+type ExportFormatChoice = {
   /** The file extension: each format writes `<episode>.<ext>`. */
   key: string;
   label: string;
@@ -59,7 +59,7 @@ function asSpec(value: unknown): ExportFormatSpec | null {
   return ext ? { ...rec, ext } : null;
 }
 
-export function formatChoiceLabel(spec: ExportFormatSpec): string {
+function formatChoiceLabel(spec: ExportFormatSpec): string {
   const aac = spec.ext === "m4a" && (spec.codec ?? "aac") === "aac";
   const name = aac ? "M4A (AAC)" : spec.ext.toUpperCase();
   if (typeof spec.bitrate_kbps === "number") {

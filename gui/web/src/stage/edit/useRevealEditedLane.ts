@@ -9,7 +9,7 @@ import { useResizeObserver } from "../../ui/useResizeObserver";
 import { pinnedChromeBottom } from "./useCompactInspector";
 import { laneSelector } from "./useKeepEditedLaneClear";
 
-export function revealLane(trackId: string): void {
+function revealLane(trackId: string): void {
   const lane = document.querySelector(laneSelector(trackId));
   const scroller = lane?.closest<HTMLElement>(".timeline-scroll");
   if (!lane || !scroller) return;

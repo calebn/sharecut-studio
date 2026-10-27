@@ -6,7 +6,7 @@ import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
 import type { HostState, ReadinessRow } from "./hostModels";
 
-export type DeliverAction = {
+type DeliverAction = {
   label: string;
   onClick: () => void;
   /** Why the control cannot run now; it stays visible and explains itself. */

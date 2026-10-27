@@ -5,7 +5,7 @@ import { useDaw } from "../../state/useDaw";
 import { EditToolStripView } from "./EditToolStripView";
 import { ToolModeToggle } from "./ToolModeToggle";
 
-/** The timeline corner's tools: existing commands only, no new behaviour. */
+/** The timeline corner's tools: Select, Blade, Comment, Range and Cut. */
 export function EditToolStrip() {
   const {
     toolMode,

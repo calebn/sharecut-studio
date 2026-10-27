@@ -53,7 +53,7 @@ export function useShortScreen(): boolean {
   return useMediaQueryStore(subscribeShort, readShort, () => false);
 }
 
-export interface CompactInspector {
+interface CompactInspector {
   peek: PeekTarget;
   view: CompactInspectorView;
   stowed: boolean;

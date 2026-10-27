@@ -15,7 +15,7 @@ import {
 } from "../utils/stagePref";
 import type { DawStore } from "./types";
 
-export type StageOpenOptions = {
+type StageOpenOptions = {
   section?: ReviewSection;
   /** Open this sheet on the new stage. */
   sheet?: StageSheet;

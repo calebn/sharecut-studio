@@ -6,8 +6,8 @@ import { STAGE_IDS, type StageId } from "../types/stage";
 import { readLocal, removeLocal, writeLocal } from "./storage";
 
 const LAST_STAGE_PREFIX = "sharecut.lastStage:";
-export const SCRIPT_COLLAPSED_STORAGE_KEY = "sharecut.scriptCollapsed";
-export const SCRIPT_FOCUS_STORAGE_KEY = "sharecut.scriptFocus";
+const SCRIPT_COLLAPSED_STORAGE_KEY = "sharecut.scriptCollapsed";
+const SCRIPT_FOCUS_STORAGE_KEY = "sharecut.scriptFocus";
 
 export function readLastStage(projectPath: string): StageId | null {
   const raw = readLocal(LAST_STAGE_PREFIX + projectPath);
@@ -34,7 +34,7 @@ export const readScriptFocus = () => readFlag(SCRIPT_FOCUS_STORAGE_KEY);
 export const writeScriptFocus = (on: boolean) =>
   writeFlag(SCRIPT_FOCUS_STORAGE_KEY, on);
 
-export const SCRIPT_WIDTH_STORAGE_KEY = "sharecut.scriptWidth";
+const SCRIPT_WIDTH_STORAGE_KEY = "sharecut.scriptWidth";
 
 /** The Script pane's width in rem, or null before the person has dragged it. */
 export function readScriptWidth(): number | null {

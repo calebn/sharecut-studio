@@ -49,7 +49,7 @@ export function prepareHandoff(input: {
   return { label: "Edit", target: "edit", primary: !busy };
 }
 
-export type RecordStatusKind = "idle" | "live" | "paused" | "saving";
+type RecordStatusKind = "idle" | "live" | "paused" | "saving";
 
 export type RecordStatus = {
   kind: RecordStatusKind;
@@ -89,7 +89,7 @@ export function recordStatusOf(snapshot: RecordSnapshot | null): RecordStatus {
   }
 }
 
-export type ReadinessFix =
+type ReadinessFix =
   | { kind: "stage"; stage: StageId; section?: ReviewSection; label: string }
   | { kind: "refreshMix"; label: string };
 

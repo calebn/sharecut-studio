@@ -5,7 +5,7 @@ import type { PipelineJobSnapshot } from "../../types/pipeline";
 import type { StageId } from "../../types/stage";
 import { isPipelineKindJob, isPipelineSlotBusy } from "../../utils/pipeline";
 
-export type StageBadgeInput = {
+type StageBadgeInput = {
   pipelineJob: PipelineJobSnapshot | null;
   activityJob: PipelineJobSnapshot | null;
   /** Pending edits waiting on a decision. */
@@ -19,7 +19,7 @@ export type StageBadgeInput = {
  * after one failed, Review while anything waits on a decision. Record shows
  * live through the Stage bar's `live`; Deliver has no badge yet.
  */
-export function stageBadges(
+function stageBadges(
   input: StageBadgeInput,
 ): Partial<Record<StageId, StageBadge>> {
   const badges: Partial<Record<StageId, StageBadge>> = {};

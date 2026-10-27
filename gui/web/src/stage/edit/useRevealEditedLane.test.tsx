@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stubResizeObserver } from "../../test/resizeObserver";
-import { revealLane, useRevealEditedLane } from "./useRevealEditedLane";
+import { useRevealEditedLane } from "./useRevealEditedLane";
 
 function rect(top: number, bottom: number): DOMRect {
   return { top, bottom, height: bottom - top, left: 0, right: 100 } as DOMRect;
@@ -24,6 +24,11 @@ function mount(laneTop: number, laneBottom: number): HTMLElement {
   return scroller;
 }
 
+/** Mounts the hook for `trackId`, which reveals the lane once. */
+function revealLane(trackId: string) {
+  renderHook(() => useRevealEditedLane(trackId));
+}
+
 beforeEach(() => {
   stubResizeObserver();
 });
@@ -33,7 +38,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("revealLane", () => {
+describe("revealing a lane", () => {
   it("scrolls a lane cut off at the bottom up until it is whole", () => {
     const scroller = mount(230, 301);
     revealLane("host");

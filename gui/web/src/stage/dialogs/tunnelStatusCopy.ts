@@ -3,9 +3,9 @@ import type { TunnelStatus } from "../../types/tunnel";
 export const ONLINE_SHARING_GUIDE_URL =
   "https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md#tunnel-status";
 
-export type TunnelTone = "ok" | "pending" | "problem" | "neutral";
+type TunnelTone = "ok" | "pending" | "problem" | "neutral";
 
-export type TunnelStatusCopy = {
+type TunnelStatusCopy = {
   tone: TunnelTone;
   headline: string;
   /** The next step in plain words, behind a disclosure so the headline stays a consequence. */

@@ -15,8 +15,7 @@ const BIG_STEP_REM = 4;
 /**
  * The plain divider between the timeline and the Script pane. Drag it, press
  * the arrows (1 rem, Shift 4 rem), Home or End (smallest or largest), or Enter
- * or double-click to reset. No text
- * buttons.
+ * or double-click to reset. It has no text buttons.
  */
 export function ScriptDivider({
   widthRem,

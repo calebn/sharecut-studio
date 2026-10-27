@@ -17,7 +17,7 @@ import {
 } from "./attentionLabel";
 
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
-export const ATTENTION_LISTED_CONFLICTS = 5;
+const ATTENTION_LISTED_CONFLICTS = 5;
 
 /** The banner's id, so the save state's "See why" can move focus to it. */
 export const ATTENTION_BANNER_ID = "needs-attention";
@@ -37,7 +37,7 @@ export interface GuestAttentionBannerViewProps {
   onSendNow?: () => void;
   /** Read the saved edits again. Offered when they could not be read. */
   onRetry?: () => void;
-  /** Open the existing History surface for a command that may have applied. */
+  /** Open the History surface for a command that may have applied. */
   onInspectHistory?: () => void;
   /** The host's project, set so a refine-gate refusal can be waived from here. */
   refineWaiverProject?: string;

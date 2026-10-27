@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { loadTunnelStatus } from "../../api/tunnelStatus";
 import type { TunnelStatus } from "../../types/tunnel";
 
-export const TUNNEL_STATUS_POLL_MS = 5000;
+const TUNNEL_STATUS_POLL_MS = 5000;
 
 /** Poll the tunnel status while `enabled`; null until the first answer or when it is unreachable. */
 export function useTunnelStatus(enabled: boolean): TunnelStatus | null {

@@ -1,5 +1,11 @@
+import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { pipelineJobSnapshot } from "../../test/fixtures";
+import { useDawStore } from "../../state/dawStore";
+import {
+  minimalProject,
+  pipelineJobSnapshot,
+  sampleComment,
+} from "../../test/fixtures";
 import {
   auditionOf,
   chapterIndexAt,
@@ -10,7 +16,7 @@ import {
   sortChapters,
 } from "./playerModel";
 import { saveIndicatorOf } from "./useSaveIndicator";
-import { stageBadges } from "./useStageBadges";
+import { useStageBadges } from "./useStageBadges";
 
 const idle = {
   pipelineJob: null,
@@ -18,6 +24,30 @@ const idle = {
   pendingReviewCount: 0,
   openCommentCount: 0,
 };
+
+/** The badges the Stage bar shows for this store state. */
+function stageBadges(input: {
+  pipelineJob: ReturnType<typeof pipelineJobSnapshot> | null;
+  activityJob: ReturnType<typeof pipelineJobSnapshot> | null;
+  pendingReviewCount: number;
+  openCommentCount: number;
+}) {
+  useDawStore.setState({
+    pipelineJob: input.pipelineJob,
+    activityJob: input.activityJob,
+    project: minimalProject({
+      edit_impact: {
+        pending_review_count: input.pendingReviewCount,
+        total_removed_sec: 0,
+        by_track_sec: {},
+      },
+      comments: Array.from({ length: input.openCommentCount }, (_, i) =>
+        sampleComment({ id: `c${i}` }),
+      ),
+    }),
+  });
+  return renderHook(() => useStageBadges()).result.current;
+}
 
 describe("stageBadges", () => {
   it("says nothing when nothing waits", () => {

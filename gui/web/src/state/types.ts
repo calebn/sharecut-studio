@@ -316,11 +316,11 @@ export interface DawState {
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
   /** Current low-confidence walkthrough stop; outlives a TranscriptPanel remount, reset by a project switch (hydrate). */
   transcriptReviewCursor: TranscriptReviewCursor | null;
-  /** `edit.addChapter` (Menu › Markers, MobileShell More) is in flight for the current project; outlives a menu remount, reset by a project switch (hydrate). */
+  /** `edit.addChapter` (plus menu, touch create menu) is in flight for the current project; outlives a menu remount, reset by a project switch (hydrate). */
   chapterAddPending: boolean;
   showCutAwayUtterances: boolean;
   pipelineJob: PipelineJobSnapshot | null;
-  /** Most recent Studio activity (pipeline or agent) for StatusBar chrome. */
+  /** Most recent Studio activity (pipeline or agent) for the stage chrome. */
   activityJob: PipelineJobSnapshot | null;
   activityRunningCount: number;
   isPlaying: boolean;
