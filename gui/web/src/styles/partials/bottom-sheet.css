@@ -609,9 +609,10 @@ html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
    top is `--visual-viewport-top` (the visual viewport's page offset) and the
    height is `--visual-viewport-height`, with no subtraction of the keyboard
    from a layout height iOS already shrank. With Safari's chrome collapsed the
-   band can reach the shell's bottom edge, where the tablet status strip (and
-   the home indicator) paint over it, so the shell publishes `--column-floor`
-   (responsive.css) and the column ends there: the focused field and Close stay
+   band can reach the shell's bottom edge, where the Player (and the
+   home indicator) paint over it, so the shell publishes `--column-floor`
+   (stage-frame.css), less whatever of it the keyboard already covers, and the
+   column ends there: the focused field and Close stay
    clear of the strip. The column leaves the grid flow but its track stays, so
    the timeline does not move. The root rule above assumes a fixed slot, so the
    column has its own. */
@@ -621,7 +622,14 @@ html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
   inset-block: var(--visual-viewport-top, 0) auto;
   block-size: min(
     var(--visual-viewport-height, 100dvh),
-    calc(100% - var(--visual-viewport-top, 0rem) - var(--column-floor, 0rem))
+    calc(
+      100% -
+      var(--visual-viewport-top, 0rem) -
+      (
+        var(--column-floor, 0rem) -
+        min(var(--keyboard-inset, 0rem), var(--column-floor, 0rem))
+      )
+    )
   );
   inset-inline-end: env(safe-area-inset-right);
   inline-size: var(--inspector-column-width);

@@ -101,7 +101,7 @@ html[data-frame-short][data-shell="phone"] {
    after the body, so the column is a grid cell beside it; the header, banners,
    Player and tab bar keep the whole width. */
 .stage-frame:has(.bottom-sheet--column) {
-  --column-floor: env(safe-area-inset-bottom);
+  --column-floor: var(--frame-bottom-chrome);
 
   grid-template-columns: minmax(0, 1fr) var(--inspector-column-width);
   grid-template-areas:
