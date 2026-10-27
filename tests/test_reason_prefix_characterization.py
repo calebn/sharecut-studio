@@ -1,7 +1,7 @@
 """Pins what the server's reason-prefix parsing does today (#2430).
 
-The sites pinned as equivalent to ``review_kind`` may move onto it. The ones pinned as
-divergent read a different prefix set than ``review_kind`` and must keep their own rule.
+The sites pinned as divergent read a different prefix set than ``review_kind`` and keep
+their own rule.
 """
 
 from __future__ import annotations

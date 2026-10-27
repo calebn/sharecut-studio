@@ -344,7 +344,7 @@ def list_edit_decisions_tool(
     review_required: bool | None = None,
     reason_prefix: str | None = None,
 ) -> str:
-    """List pending decisions with their Review kind, label and suggested action; use list_applied_edits_tool for archived approved edits."""
+    """List pending decisions with Review fields; archived edits are in list_applied_edits_tool."""
     ws = ProjectWorkspace.open(project_path)
     edits = EditService(ws).list_decisions(
         applied=applied,
