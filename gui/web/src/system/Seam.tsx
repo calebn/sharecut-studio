@@ -20,6 +20,10 @@ type SeamFormProps =
       removed: string;
       /** The words the cut took out, shown in the tip. */
       words?: string;
+      /** The cut began in an earlier turn. The pill says so instead of repeating the length. */
+      continued?: boolean;
+      /** The cut runs on into the next turn. */
+      continues?: boolean;
     };
 
 export type SeamProps = SeamFormProps & {
@@ -30,6 +34,17 @@ export type SeamProps = SeamFormProps & {
   /** With `onKeyDown`, the roving tab stop: 0 for the one stop, -1 for the rest. Left out, the button is a tab stop of its own. */
   tabIndex?: number;
 };
+
+function pillName(props: Extract<SeamProps, { form: "pill" }>): string {
+  if (props.continued) {
+    return props.continues
+      ? "Cut, continued from the previous turn and on into the next"
+      : "Cut, continued from the previous turn";
+  }
+  return props.continues
+    ? `Cut, ${props.removed} removed, continues in the next turn`
+    : `Cut, ${props.removed} removed`;
+}
 
 export function Seam(props: SeamProps) {
   const { selected = false, onSelect, onKeyDown, tabIndex } = props;
@@ -42,7 +57,7 @@ export function Seam(props: SeamProps) {
     ? props.detail
       ? `${props.label}, ${props.detail}`
       : props.label
-    : `Cut, ${props.removed} removed`;
+    : pillName(props);
   const hasTip = diamond || Boolean(props.words);
   return (
     <span
@@ -67,7 +82,9 @@ export function Seam(props: SeamProps) {
         ) : (
           <>
             <SystemIcon name="scissors" size={12} />
-            <span aria-hidden="true">{props.removed}</span>
+            <span aria-hidden="true">
+              {props.continued ? "continued" : props.removed}
+            </span>
           </>
         )}
       </button>
@@ -87,7 +104,9 @@ export function Seam(props: SeamProps) {
             </>
           ) : (
             <>
-              <span className="sys-tip-title">Cut {props.removed}</span>
+              <span className="sys-tip-title">
+                {props.continued ? "Cut continued" : `Cut ${props.removed}`}
+              </span>
               <span className="sys-tip-detail">{props.words}</span>
             </>
           )}

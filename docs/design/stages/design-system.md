@@ -222,7 +222,9 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **13. Selection handles**
 - Caret handles with 12 px knobs (44 px hit) at both ends of a text selection, adjusting by word.
-- Each handle is a slider over the places the keyboard stops (right or up is one place on, either edge) and is not a tab stop: Shift+arrows (Up and Down by line) extend the selection and Alt+Shift+Left or Right moves its start back or on, so the keyboard does everything a drag does.
+- The handles are pointer-only: hidden from assistive tech, no role, no keys, not a tab stop. The keyboard does everything a drag does from the words, which are already one tab stop: Shift+arrows (Up and Down by line) extend the selection, and Alt+Shift+Left grows it at its start while Alt+Shift+Right shrinks it from its start (spec-edit CMP-WORDRANGE reads "shrinks from the start" for both arrows; Left growing it is what is built). A screen reader announces the selection once a drag is let go, not at every word.
+- A handle's hit region reaches only toward its knob: the start's above its line and the end's below it, 44 px square under a coarse pointer. It covers none of its own line's words. A press that never moves is passed to the button under the point, so a tap beside a handle still lands on that word.
+- Not built yet: dragging the edge past the window edge does not scroll (edge autoscroll), and PageUp and PageDown do not move by a larger step.
 - Used: PNL-TRANSCRIPT, CMP-WORDRANGE, the Decision card excerpt, guest transcript.
 - Story: `System/SelectionHandles`.
 
@@ -231,10 +233,16 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 **14. Script pane**
 - The transcript as a document: a speaker margin (Person 20 px and first name), reading type (4.5), no modes.
   - Click a word to seek.
-  - Drag, Shift-click or double-click to select.
+  - Shift-click selects from the caret. Shift with the arrows and the two handles select too. Dragging across words with a mouse, double-click (word) and long-press are not built yet.
   - Typing on a selection is Fix text.
   - Backspace on a selection is Cut.
   - Esc clears the selection. Left from a turn's first word enters its margin (speaker name, then time; Up and Down walk them, Right returns to the words).
+  - Esc order, innermost first: a Fix text or rename field, then the speaker popover, then the Find bar while focus is in it, then the selection, then Follow. The handles and the margin controls are not Esc stops.
+  - Keys the pane handles are the pane's: it stops them (`preventDefault` and `stopPropagation`) so the window keymap never also nudges the playhead on an arrow, jumps to the start on Home, or takes a second Esc. The list is the arrows, Home and End (alone, with Shift, and Alt+Shift+Left or Right), Enter on a word and Esc over a selection. Every other key and any Ctrl or Cmd chord reaches the keymap. The keymap rows stay as they are; the host must not bind a script-focused when-clause to a key in that list.
+  - The pane has the one polite live region of the script. It says the selection (on release while a handle is dragged), "Selection cleared", and the host's `findStatus`; the Find bar's count is plain text.
+  - A cut that spans two turns is one pill in each: the turn where it begins shows the length, the later ones say "continued".
+  - Fix text over a selection that spans turns is one field, drawn in the first turn, and the later turns show nothing in its place.
+  - The host passes `() => pane.focusFind()` to the Find bar so focus lands on the header's Find button when the bar closes or finishes Cut all or Replace all.
 - Its header holds `text-search` (find), the unsure-words "? 3" chip, the show-cut-text `eye` and the follow pin. Region notices are compact Status rows in that header.
 - Read-only variant for guests and the Decision card excerpt (two sentences of context).
 - Used: PNL-TRANSCRIPT, CMP-TURN, SCR-PHONE-TEXT, SCR-GUEST-COMMENTER transcript, the Decision card excerpt.
@@ -292,7 +300,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 **22. Review queue**
 - A list container.
   - Header: progress ("6 of 14 decided · saves 7.8 s"), filter icons with counts (All, `scissors`, `message-square`, `triangle-alert`), and Find more (`wand-sparkles`).
-  - Groups, each with a bulk primary in its header ("Cut all 11", Shift+Enter).
+  - Groups, each with a bulk primary in its header ("Cut all 11", Shift+Enter; the Find bar's Cut all is Mod+Shift+Enter).
   - Sorts: by kind (default) or chronological.
 - Placements: Review left 360 px; Record right rail (Comments filter, chronological, Composer at the bottom); guest Review left (Comments and Your suggestions); phone Queue sheet.
 - Used: SCR-REVIEW, PNL-IMPACT, PNL-TIGHTEN, PNL-COMMENTS, CMP-REC-LIVECOMMENTS, SCR-GUEST-COMMENTER.
@@ -475,7 +483,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 ### Edit-local (not shared, listed so nobody re-invents them)
 
 - **Target chooser** (POP-CHOOSER). A fan of 44 px object-kind chips on an ambiguous long-press. Story `Stages/Edit/TargetChooser`.
-- **Find bar** (CMP-FINDREPLACE). 44 px under the Script header: field, "3 of 12", ↑/↓, Replace toggle, `Aa`, Cut all (Shift+Enter), Select all. Story `Stages/Edit/FindBar`.
+- **Find bar** (CMP-FINDREPLACE). 44 px under the Script header: field, "3 of 12", ↑/↓, Replace toggle, `Aa`, Cut all (its own button; Mod+Shift+Enter in the field, because Shift+Enter steps back as in every find box), Select all. Matching is the backend's: whole words, edge punctuation ignored, case folded, muted and already-cut words skipped. Replace waits for a replacement with a letter or a number. Story `Stages/Edit/FindBar`.
 
 ### Dropped as redundant
 
@@ -605,7 +613,8 @@ Desktop widths: Menu 280, anchored card 320, side panel 400, centered card 400, 
 | Dock primary and Record button | 64 round |
 | Phone primary (sheet footer, Cover, hand-off) | 48 tall, full width, in the bottom thumb zone |
 | Desktop primary | 36 inline, 40 page-level (Export, Join, hand-off promoted) |
-| Edge handles (trim, suggestion, selection) | 6 × 24 visual, 44 hit on touch |
+| Edge handles (trim, suggestion) | 6 × 24 visual, 44 hit on touch |
+| Selection handles | 12 px knob, 44 wide under touch and 44 tall toward the knob only, so no word on their own line is covered |
 | Words and suggested runs in running text | the line pitch tall (26, phone 28) and as wide as the word. A 44 px square would cross into the lines above and below and take their presses. The cut pill, the speaker name and the turn time in the margin are real 44 px targets |
 
 ### 4.5 Type

@@ -1,5 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
@@ -8,17 +7,16 @@ import {
 } from "./SelectionHandles";
 
 function setup(over: Partial<SelectionHandlesProps> = {}) {
-  const handlers = { onDrag: vi.fn(), onStep: vi.fn() };
+  const handlers = {
+    onDrag: vi.fn(),
+    onGrab: vi.fn(),
+    onRelease: vi.fn(),
+  };
   const view = render(
     <div style={{ position: "relative" }}>
       <SelectionHandles
         start={{ x: 40, y: 10, height: 20 }}
         end={{ x: 200, y: 10, height: 20 }}
-        startAt={13}
-        endAt={15}
-        count={54}
-        startText="before small"
-        endText="after can"
         {...handlers}
         {...over}
       />
@@ -27,73 +25,41 @@ function setup(over: Partial<SelectionHandlesProps> = {}) {
   return {
     ...handlers,
     ...view,
-    start: screen.getByRole("slider", { name: "Selection start" }),
-    end: screen.getByRole("slider", { name: "Selection end" }),
+    start: view.container.querySelector<HTMLElement>(
+      "[data-edge='start']",
+    ) as HTMLElement,
+    end: view.container.querySelector<HTMLElement>(
+      "[data-edge='end']",
+    ) as HTMLElement,
   };
 }
 
 describe("SelectionHandles", () => {
-  it("is two sliders over the places the keyboard stops, off the tab order", async () => {
-    const { start, end, container } = setup();
-    expect(
-      [start, end].map((h) => [
-        h.getAttribute("aria-valuemin"),
-        h.getAttribute("aria-valuenow"),
-        h.getAttribute("aria-valuemax"),
-        h.getAttribute("aria-valuetext"),
-        h.getAttribute("tabindex"),
-        h.getAttribute("data-edge"),
-      ]),
-    ).toEqual([
-      ["1", "13", "54", "before small", "-1", "start"],
-      ["1", "15", "54", "after can", "-1", "end"],
-    ]);
+  it("is two pointer-only grips: hidden from assistive tech, no role, no tab stop, no keys", async () => {
+    const { start, end, container, onDrag } = setup();
+    for (const grip of [start, end]) {
+      expect(grip).toHaveAttribute("aria-hidden", "true");
+      expect(grip).not.toHaveAttribute("role");
+      expect(grip).not.toHaveAttribute("tabindex");
+    }
+    expect(container.querySelector("[role=slider]")).toBeNull();
+    expect(fireEvent.keyDown(start, { key: "ArrowRight" })).toBe(true);
+    expect(onDrag).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
 
-  it("steps an edge with the slider keys, forward and up one on, back and down one back", async () => {
-    const user = userEvent.setup();
-    const { start, end, onStep } = setup();
-    start.focus();
-    await user.keyboard(
-      "{ArrowRight}{ArrowUp}{ArrowLeft}{ArrowDown}{Home}{End}",
-    );
-    end.focus();
-    await user.keyboard("{ArrowRight}{Home}");
-    expect(onStep.mock.calls).toEqual([
-      ["start", 1],
-      ["start", 1],
-      ["start", -1],
-      ["start", -1],
-      ["start", "first"],
-      ["start", "last"],
-      ["end", 1],
-      ["end", "first"],
-    ]);
-  });
-
-  it("leaves other keys and modified arrows to the page", () => {
-    const { start, onStep } = setup();
-    expect(fireEvent.keyDown(start, { key: "a" })).toBe(true);
-    expect(fireEvent.keyDown(start, { key: "ArrowLeft", altKey: true })).toBe(
-      true,
-    );
-    expect(fireEvent.keyDown(start, { key: "ArrowLeft", metaKey: true })).toBe(
-      true,
-    );
-    expect(onStep).not.toHaveBeenCalled();
-    expect(fireEvent.keyDown(start, { key: "ArrowLeft" })).toBe(false);
-  });
-
   it("reports the point under the caret, not the finger, while it is held", () => {
-    const { end, onDrag } = setup();
+    const { end, onDrag, onGrab, onRelease } = setup();
     fireEvent.pointerDown(end, { pointerId: 1, clientX: 10, clientY: 20 });
+    expect(onGrab).toHaveBeenCalledTimes(1);
     fireEvent.pointerMove(end, { pointerId: 1, clientX: 30, clientY: 50 });
     fireEvent.pointerMove(end, { pointerId: 1, clientX: 31, clientY: 51 });
     expect(onDrag.mock.calls).toEqual([
       ["end", { x: 20, y: 30 }],
       ["end", { x: 21, y: 31 }],
     ]);
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 31, clientY: 51 });
+    expect(onRelease).toHaveBeenCalledTimes(1);
   });
 
   it("stops reporting on release or cancel and ignores another pointer or a right button", () => {
@@ -117,5 +83,41 @@ describe("SelectionHandles", () => {
     fireEvent.pointerCancel(start, { pointerId: 4 });
     fireEvent.pointerMove(start, { pointerId: 4, clientX: 9, clientY: 9 });
     expect(onDrag.mock.calls).toEqual([["start", { x: 6, y: 7 }]]);
+  });
+
+  it("passes a tap that never moves to the button under the point", () => {
+    const word = document.createElement("button");
+    const click = vi.spyOn(word, "click");
+    const under = vi.fn(() => [document.body, word]);
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: under,
+    });
+    const { end, onDrag, onRelease } = setup();
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 50, clientY: 60 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 52, clientY: 61 });
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 52, clientY: 61 });
+    expect(under).toHaveBeenCalledWith(52, 61);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(onDrag).not.toHaveBeenCalled();
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    delete (document as { elementsFromPoint?: unknown }).elementsFromPoint;
+  });
+
+  it("does not pass a drag, or a cancelled touch, on to the button under it", () => {
+    const word = document.createElement("button");
+    const click = vi.spyOn(word, "click");
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [word],
+    });
+    const { end } = setup();
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 50, clientY: 60 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 80, clientY: 60 });
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 80, clientY: 60 });
+    fireEvent.pointerDown(end, { pointerId: 2, clientX: 50, clientY: 60 });
+    fireEvent.pointerCancel(end, { pointerId: 2, clientX: 50, clientY: 60 });
+    expect(click).not.toHaveBeenCalled();
+    delete (document as { elementsFromPoint?: unknown }).elementsFromPoint;
   });
 });

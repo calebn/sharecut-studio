@@ -488,6 +488,8 @@ export const EscClears: Story = {
     );
     await userEvent.keyboard("{Escape}");
     await expect(args.onClearSelection).toHaveBeenCalledTimes(1);
-    await expect(canvas.getByRole("status")).toBeEmptyDOMElement();
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Selection cleared",
+    );
   },
 };

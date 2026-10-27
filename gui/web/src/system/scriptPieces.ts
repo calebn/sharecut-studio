@@ -80,6 +80,10 @@ export type ScriptPiece =
       end: number;
       removed: string;
       words: string;
+      /** The cut began in an earlier turn: this pill is its rest and does not repeat the length. */
+      continued?: boolean;
+      /** The cut runs on into a later turn. Only the pill where it begins shows the length. */
+      continues?: boolean;
     }
   | {
       kind: "suggestion";
@@ -171,6 +175,33 @@ export function piecesOf(
     at = mark === undefined ? at + 1 : next;
   }
   return pieces;
+}
+
+/**
+ * One cut that crosses a turn boundary is one piece in each turn it touches.
+ * Marks the later pieces `continued` and the earlier ones `continues`, so the
+ * length the host measured is shown once, on the pill where the cut begins.
+ */
+export function linkCuts(byTurn: ScriptPiece[][]): ScriptPiece[][] {
+  const last = new Map<string, number>();
+  byTurn.forEach((pieces, turn) => {
+    for (const piece of pieces) {
+      if (piece.kind === "cut") last.set(piece.id, turn);
+    }
+  });
+  const seen = new Set<string>();
+  return byTurn.map((pieces, turn) => {
+    const linked = pieces.map((piece): ScriptPiece => {
+      if (piece.kind !== "cut") return piece;
+      const continued = seen.has(piece.id) ? true : undefined;
+      const continues = (last.get(piece.id) ?? turn) > turn ? true : undefined;
+      seen.add(piece.id);
+      return continued || continues
+        ? { ...piece, continued, continues }
+        : piece;
+    });
+    return linked.some((piece, at) => piece !== pieces[at]) ? linked : pieces;
+  });
 }
 
 /**

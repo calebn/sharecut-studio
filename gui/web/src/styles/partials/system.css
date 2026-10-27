@@ -2238,8 +2238,38 @@
   cursor: pointer;
 }
 
-.sys-picker-option:has(input:checked) {
+.sys-picker-option:has(input:checked),
+.sys-picker-option[data-checked] {
   background: var(--color-accent-subtle);
+}
+
+button.sys-picker-option {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-ui);
+  text-align: start;
+}
+
+button.sys-picker-option[data-checked] {
+  background: var(--color-accent-subtle);
+}
+
+button.sys-picker-option:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.sys-picker-mark {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  inline-size: 1rem;
+  color: var(--color-accent-solid);
+}
+
+.sys-picker-add {
+  align-self: flex-start;
 }
 
 .sys-picker-option:has(input:focus-visible) {
@@ -4345,8 +4375,9 @@ button.sys-script-speaker {
    * Running text keeps its line: a word or a suggested run is as tall as the
    * line (26 or 28 px) and as wide as the word, because a 44 px region would
    * reach into the lines around it and take their presses. The cut pill is
-   * 18 px in that line and has few neighbours, so its 44 px region wins over
-   * them: it is drawn above the text.
+   * 18 px in that line and is a real 44 px target by design (design-system
+   * 4.4): its region reaches into the lines above and below, drawn above the
+   * text, and is the one exception.
    */
   .sys-script .sys-seam[data-form="pill"] .sys-seam-hit::after {
     z-index: 1;
@@ -4390,6 +4421,8 @@ button.sys-script-speaker {
   margin-inline-start: calc(0.75rem * -1);
   cursor: grab;
   touch-action: none;
+  /* Only the region toward the knob takes presses; the line's own words keep theirs. */
+  pointer-events: none;
 }
 
 .sys-handle::before {
@@ -4400,12 +4433,23 @@ button.sys-script-speaker {
 .sys-handle::after {
   content: "";
   position: absolute;
-  inset-block: -0.75rem;
   inset-inline: 0;
+  pointer-events: auto;
+}
+
+.sys-handle[data-edge="start"]::after {
+  inset-block-end: 100%;
+  block-size: 1.25rem;
+}
+
+.sys-handle[data-edge="end"]::after {
+  inset-block-start: 100%;
+  block-size: 1.25rem;
 }
 
 .sys-handle-knob {
   position: absolute;
+  pointer-events: auto;
   inset-inline-start: 50%;
   box-sizing: border-box;
   inline-size: 0.75rem;
@@ -4430,8 +4474,9 @@ button.sys-script-speaker {
     margin-inline-start: calc(var(--touch-min) / -2);
   }
 
-  .sys-handle::after {
-    inset-block: -0.875rem;
+  .sys-handle[data-edge="start"]::after,
+  .sys-handle[data-edge="end"]::after {
+    block-size: var(--touch-min);
   }
 }
 
@@ -4461,6 +4506,10 @@ input.sys-edit-fix {
 
 .sys-picker-renaming {
   cursor: default;
+}
+
+.ui-dialog-root--anchored > .command-palette-panel.sys-speaker-panel {
+  inline-size: 20rem;
 }
 
 .sys-picker-renaming input.sys-edit-fix {

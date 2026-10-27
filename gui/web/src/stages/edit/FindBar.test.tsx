@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef } from "react";
+import { createRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { FindBar, type FindBarHandle, type FindBarProps } from "./FindBar";
@@ -28,7 +28,7 @@ const replaceProps = (over = {}) => ({
   text: "space",
   onTextChange: vi.fn(),
   onReplace: vi.fn(),
-  onReplaceAll: vi.fn(),
+  onReplaceAll: vi.fn(() => 3),
   ...over,
 });
 
@@ -39,7 +39,10 @@ describe("FindBar", () => {
       screen.getByRole("search", { name: "Find in transcript" }),
     ).toBeTruthy();
     expect(screen.getByRole("searchbox", { name: "Find" })).toHaveFocus();
-    expect(screen.getByRole("status")).toHaveTextContent("3 of 12");
+    expect(screen.getByText("3 of 12")).toBeVisible();
+    expect(
+      screen.getByRole("searchbox", { name: "Find" }),
+    ).toHaveAccessibleDescription("3 of 12");
     expect(screen.getByRole("button", { name: "Select all 12" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Cut all 12" })).toBeVisible();
     await expectNoA11yViolations(container);
@@ -59,16 +62,27 @@ describe("FindBar", () => {
     expect(handlers.onPrevious).toHaveBeenCalledTimes(2);
   });
 
-  it("cuts and selects all hits, and Shift+Enter is Cut all", async () => {
+  it("steps back on Shift+Enter and cuts all hits on Mod+Shift+Enter or its own button", async () => {
     const user = userEvent.setup();
     const handlers = props();
     render(<FindBar {...handlers} />);
     await user.keyboard("{Shift>}{Enter}{/Shift}");
-    expect(handlers.onCutAll).toHaveBeenCalledTimes(1);
-    expect(handlers.onNext).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Cut all 12" }));
-    await user.click(screen.getByRole("button", { name: "Select all 12" }));
+    expect(handlers.onPrevious).toHaveBeenCalledTimes(1);
+    expect(handlers.onCutAll).not.toHaveBeenCalled();
+    await user.keyboard("{Control>}{Shift>}{Enter}{/Shift}{/Control}");
+    await user.keyboard("{Meta>}{Shift>}{Enter}{/Shift}{/Meta}");
     expect(handlers.onCutAll).toHaveBeenCalledTimes(2);
+    expect(handlers.onNext).not.toHaveBeenCalled();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(handlers.onNext).not.toHaveBeenCalled();
+    const cut = screen.getByRole("button", { name: "Cut all 12" });
+    expect(cut).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+Shift+Enter Meta+Shift+Enter",
+    );
+    await user.click(cut);
+    await user.click(screen.getByRole("button", { name: "Select all 12" }));
+    expect(handlers.onCutAll).toHaveBeenCalledTimes(3);
     expect(handlers.onSelectAll).toHaveBeenCalledTimes(1);
   });
 
@@ -103,15 +117,18 @@ describe("FindBar", () => {
     const user = userEvent.setup();
     const handlers = props({ query: "zzz", count: 0, current: -1 });
     render(<FindBar {...handlers} />);
-    expect(screen.getByRole("status")).toHaveTextContent("No matches");
+    expect(screen.getByText("No matches")).toBeVisible();
     expect(screen.getByRole("button", { name: "Next match" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Previous match" }),
     ).toBeDisabled();
     expect(screen.queryByRole("button", { name: /^Cut all/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Select all/ })).toBeNull();
-    await user.keyboard("{Enter}{ArrowDown}{Shift>}{Enter}{/Shift}");
+    await user.keyboard(
+      "{Enter}{ArrowDown}{Shift>}{Enter}{/Shift}{Control>}{Shift>}{Enter}{/Shift}{/Control}",
+    );
     expect(handlers.onNext).not.toHaveBeenCalled();
+    expect(handlers.onPrevious).not.toHaveBeenCalled();
     expect(handlers.onCutAll).not.toHaveBeenCalled();
   });
 
@@ -144,6 +161,149 @@ describe("FindBar", () => {
     await user.click(screen.getByRole("button", { name: "Replace all" }));
     expect(open.onReplace).toHaveBeenCalledTimes(2);
     expect(open.onReplaceAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads a count with no current hit as a total, not 0 of N", () => {
+    render(<FindBar {...props({ current: -1 })} />);
+    expect(screen.getByText("12 matches")).toBeVisible();
+    expect(screen.queryByText(/^0 of/)).toBeNull();
+  });
+
+  it("draws no live region of its own, because the pane has the one", () => {
+    render(<FindBar {...props({ replace: replaceProps() })} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("points aria-controls at the Replace row only while it exists", () => {
+    const { rerender } = render(
+      <FindBar {...props({ replace: replaceProps({ open: false }) })} />,
+    );
+    const toggle = screen.getByRole("button", { name: "Show replace" });
+    expect(toggle).not.toHaveAttribute("aria-controls");
+    rerender(<FindBar {...props({ replace: replaceProps() })} />);
+    const id = toggle.getAttribute("aria-controls");
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id ?? "")).toContainElement(
+      screen.getByRole("textbox", { name: "Replace with" }),
+    );
+  });
+
+  it("disables Replace and All until the replacement has a letter or a number", async () => {
+    const user = userEvent.setup();
+    const blank = replaceProps({ text: "" });
+    const { rerender } = render(<FindBar {...props({ replace: blank })} />);
+    expect(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Replace all" })).toBeDisabled();
+    await user.click(screen.getByRole("textbox", { name: "Replace with" }));
+    await user.keyboard("{Enter}");
+    expect(blank.onReplace).not.toHaveBeenCalled();
+    rerender(
+      <FindBar {...props({ replace: replaceProps({ text: "..." }) })} />,
+    );
+    expect(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
+    rerender(<FindBar {...props({ replace: replaceProps({ text: "x" }) })} />);
+    expect(screen.getByRole("button", { name: "Replace" })).toBeEnabled();
+  });
+
+  it("limits the fields to maxLength, 500 by default", () => {
+    const { rerender } = render(
+      <FindBar {...props({ replace: replaceProps() })} />,
+    );
+    expect(screen.getByRole("searchbox", { name: "Find" })).toHaveAttribute(
+      "maxlength",
+      "500",
+    );
+    rerender(
+      <FindBar {...props({ replace: replaceProps(), maxLength: 40 })} />,
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Replace with" }),
+    ).toHaveAttribute("maxlength", "40");
+  });
+
+  it("holds every verb and the fields while busy and shows the host's error", async () => {
+    const user = userEvent.setup();
+    const handlers = props({
+      busy: true,
+      error: "The transcript changed. Search again.",
+      replace: replaceProps(),
+    });
+    render(<FindBar {...handlers} />);
+    for (const name of ["Cut all 12", "Replace", "Replace all"]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+    expect(screen.getByRole("searchbox", { name: "Find" })).toHaveAttribute(
+      "readonly",
+    );
+    await user.keyboard("{Control>}{Shift>}{Enter}{/Shift}{/Control}");
+    expect(handlers.onCutAll).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The transcript changed. Search again.",
+    );
+  });
+
+  it("fires a bulk verb once while it is pending, reports a rejection, and hands focus on when it settles", async () => {
+    const user = userEvent.setup();
+    let finish: (count: number) => void = () => undefined;
+    const returnFocus = vi.fn();
+    const replace = replaceProps({
+      onReplaceAll: vi.fn(
+        () => new Promise<number>((resolve) => (finish = resolve)),
+      ),
+    });
+    render(<FindBar {...props({ replace, returnFocus })} />);
+    const all = screen.getByRole("button", { name: "Replace all" });
+    await user.click(all);
+    await user.click(all);
+    expect(replace.onReplaceAll).toHaveBeenCalledTimes(1);
+    expect(all).toBeDisabled();
+    expect(returnFocus).not.toHaveBeenCalled();
+    await act(async () => finish(12));
+    expect(returnFocus).toHaveBeenCalledTimes(1);
+    expect(all).toBeEnabled();
+  });
+
+  it("shows a rejected request's message and keeps the bar open", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onCutAll = vi.fn().mockRejectedValue(new Error("Offline."));
+    render(<FindBar {...props({ onCutAll, onClose })} />);
+    await user.click(screen.getByRole("button", { name: "Cut all 12" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Offline.");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("puts focus in the Find field when a bulk verb leaves nothing to press and the host gave no target", async () => {
+    const user = userEvent.setup();
+    function Host() {
+      const [count, setCount] = useState(2);
+      return (
+        <FindBar
+          {...props({ count, current: count ? 0 : -1 })}
+          onCutAll={() => setCount(0)}
+        />
+      );
+    }
+    render(<Host />);
+    await user.click(screen.getByRole("button", { name: "Cut all 2" }));
+    expect(screen.queryByRole("button", { name: /^Cut all/ })).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByRole("searchbox", { name: "Find" })).toHaveFocus(),
+    );
+  });
+
+  it("returns focus to the host's target on Esc and on Close, after closing", async () => {
+    const user = userEvent.setup();
+    const order: string[] = [];
+    const handlers = props({
+      onClose: vi.fn(() => order.push("close")),
+      returnFocus: vi.fn(() => order.push("focus")),
+    });
+    render(<FindBar {...handlers} />);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Close find" }));
+    expect(order).toEqual(["close", "focus", "close", "focus"]);
   });
 
   it("puts the cursor back in the field on the handle's focus", async () => {

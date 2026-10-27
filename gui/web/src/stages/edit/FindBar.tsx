@@ -1,13 +1,16 @@
 import {
   forwardRef,
   type KeyboardEvent,
+  useEffect,
   useId,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
+  useState,
 } from "react";
 import { SystemIcon } from "../../system/SystemIcon";
-import { findCountText } from "./findMatches";
+import { InlineError } from "../../ui/InlineError";
+import { findCountText, replacementOk } from "./findMatches";
 
 export type FindBarHandle = {
   /** Put the cursor in the Find field and select its text. */
@@ -20,10 +23,14 @@ type FindReplaceProps = {
   onOpenChange: (open: boolean) => void;
   text: string;
   onTextChange: (text: string) => void;
-  /** Replace the current hit. */
-  onReplace: () => void;
-  /** Replace every hit as one undo step. */
-  onReplaceAll: () => void;
+  /** Replace the current hit. A promise keeps the bar busy until it settles. */
+  onReplace: () => void | Promise<void>;
+  /**
+   * Replace every hit as one undo step. Returns how many were replaced, which
+   * the host shows in its undo toast ("Replaced 12 · Undo"). A promise keeps
+   * the bar busy until it settles.
+   */
+  onReplaceAll: () => number | Promise<number>;
 };
 
 export type FindBarProps = {
@@ -38,24 +45,47 @@ export type FindBarProps = {
   onNext: () => void;
   onPrevious: () => void;
   onClose: () => void;
-  /** Cut every hit as one undo step. Left out, the button is not drawn. */
-  onCutAll?: () => void;
+  /** Cut every hit as one undo step. Left out, the button is not drawn. A promise keeps the bar busy until it settles. */
+  onCutAll?: () => void | Promise<void>;
   /** Select every hit. Left out, the button is not drawn. */
   onSelectAll?: () => void;
   /** Left out for a reader who cannot edit: no Replace toggle and no Replace row. */
   replace?: FindReplaceProps;
+  /** The host is working on a request: the fields are read only and the verbs wait. */
+  busy?: boolean;
+  /** Why the last request failed. A rejected `onCutAll`, `onReplace` or `onReplaceAll` shows its message here when this is left out. */
+  error?: string;
+  /** Longest query or replacement, in characters. The legacy panel allowed 500. */
+  maxLength?: number;
+  /**
+   * Where focus goes when the bar closes and after Cut all or Replace all
+   * have settled, because those controls disappear or go disabled. Pass
+   * `() => pane.current?.focusFind()` so it lands on the pane's Find button.
+   * Left out, a settled bulk verb puts focus back in the Find field.
+   */
+  returnFocus?: () => void;
 };
+
+const messageOf = (error: unknown) =>
+  error instanceof Error && error.message
+    ? error.message
+    : "That did not work. Try again.";
 
 /**
  * Find and replace (spec CMP-FINDREPLACE), a bar under the Script header. It is
  * controlled: the host matches the query (see `findMatches`), feeds the hits to
  * the pane's `matches` and `currentMatch`, and scrolls the current one into view.
  *
- * Keys. Enter and Down step to the next hit, Up to the previous one,
- * Shift+Enter cuts all hits, and Esc closes from anywhere in the bar. In the
- * Replace field Enter replaces the current hit. Mod+F is not handled here: the
- * host binds it to open the bar and, when it is already open, to call the
- * handle's `focus()`. The bar takes focus when it mounts.
+ * Keys, in the Find field. Enter and Down step to the next hit, Shift+Enter
+ * and Up to the previous one, Mod+Shift+Enter (Ctrl or Cmd) cuts all hits, and
+ * Esc closes from anywhere in the bar. In the Replace field Enter replaces the
+ * current hit, and only when the replacement has a letter or a number, as the
+ * backend requires. Mod+F is not handled here: the host binds it to open the
+ * bar and, when it is already open, to call the handle's `focus()`. The bar
+ * takes focus when it mounts.
+ *
+ * The count is plain text, not a live region: the pane has the one polite
+ * region, and the host passes it the same text as `findStatus`.
  */
 export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
   {
@@ -71,11 +101,24 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
     onCutAll,
     onSelectAll,
     replace,
+    busy = false,
+    error,
+    maxLength = 500,
+    returnFocus,
   },
   ref,
 ) {
   const field = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const replaceId = useId();
+  const countId = useId();
+  const pending = useRef(false);
+  const [working, setWorking] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [settled, setSettled] = useState<{ n: number; bulk: boolean }>({
+    n: 0,
+    bulk: false,
+  });
   const focus = () => {
     field.current?.focus();
     field.current?.select();
@@ -83,19 +126,74 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
   useImperativeHandle(ref, () => ({ focus }), []);
   useLayoutEffect(focus, []);
 
+  const idle = !busy && !working;
+  const replaceReady = replace !== undefined && replacementOk(replace.text);
+
+  const run = async (action: () => unknown, bulk: boolean) => {
+    if (pending.current) return;
+    pending.current = true;
+    setWorking(true);
+    setFailure(null);
+    try {
+      await action();
+    } catch (reason) {
+      setFailure(messageOf(reason));
+    } finally {
+      pending.current = false;
+      setWorking(false);
+      setSettled((now) => ({ n: now.n + 1, bulk }));
+    }
+  };
+  // The control that had focus may now be gone or disabled, so decide after the host's new props are in.
+  useEffect(() => {
+    if (settled.n === 0) return;
+    if (settled.bulk && returnFocus) {
+      returnFocus();
+      return;
+    }
+    const active = document.activeElement;
+    const lost =
+      !active ||
+      active === document.body ||
+      !root.current?.contains(active) ||
+      (active instanceof HTMLButtonElement && active.disabled);
+    if (lost) focus();
+  }, [settled, returnFocus]);
+
   const hits = count > 0;
+  const closeBar = () => {
+    onClose();
+    returnFocus?.();
+  };
   const close = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape") return false;
     event.preventDefault();
     event.stopPropagation();
-    onClose();
+    closeBar();
     return true;
+  };
+  const cutAll = () => {
+    if (hits && idle && onCutAll) void run(onCutAll, true);
+  };
+  const replaceOne = () => {
+    if (hits && idle && replace && replaceReady)
+      void run(replace.onReplace, false);
+  };
+  const replaceAll = () => {
+    if (hits && idle && replace && replaceReady)
+      void run(replace.onReplaceAll, true);
   };
   const onFindKey = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || close(event)) return;
-    if (event.key === "Enter" && event.shiftKey) {
+    const mod = event.ctrlKey || event.metaKey;
+    if (event.key === "Enter" && mod && event.shiftKey) {
       event.preventDefault();
-      if (hits) onCutAll?.();
+      cutAll();
+    } else if (event.key === "Enter" && mod) {
+      return;
+    } else if (event.key === "Enter" && event.shiftKey) {
+      event.preventDefault();
+      if (hits) onPrevious();
     } else if (event.key === "Enter" || event.key === "ArrowDown") {
       event.preventDefault();
       if (hits) onNext();
@@ -108,7 +206,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
     if (event.nativeEvent.isComposing || close(event)) return;
     if (event.key === "Enter") {
       event.preventDefault();
-      if (hits) replace?.onReplace();
+      replaceOne();
     }
   };
   const onButtonKey = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -117,6 +215,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
 
   return (
     <div
+      ref={root}
       className="sys-edit-find"
       role="search"
       aria-label="Find in transcript"
@@ -130,11 +229,14 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             aria-label="Find"
             autoComplete="off"
             spellCheck={false}
+            maxLength={maxLength}
+            readOnly={!idle}
+            aria-describedby={countId}
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             onKeyDown={onFindKey}
           />
-          <span className="sys-edit-find-count" role="status">
+          <span id={countId} className="sys-edit-find-count">
             {findCountText(query, count, current)}
           </span>
         </div>
@@ -174,7 +276,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             className="sys-icon-btn"
             aria-label="Show replace"
             aria-expanded={replace.open}
-            aria-controls={replaceId}
+            aria-controls={replace.open ? replaceId : undefined}
             onClick={() => replace.onOpenChange(!replace.open)}
             onKeyDown={onButtonKey}
           >
@@ -195,7 +297,9 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
           <button
             type="button"
             className="sys-text-btn sys-edit-find-all"
-            onClick={onCutAll}
+            aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
+            disabled={!idle}
+            onClick={cutAll}
             onKeyDown={onButtonKey}
           >
             <SystemIcon name="scissors" size={14} />
@@ -206,7 +310,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
           type="button"
           className="sys-icon-btn"
           aria-label="Close find"
-          onClick={onClose}
+          onClick={closeBar}
           onKeyDown={onButtonKey}
         >
           <SystemIcon name="x" size={16} />
@@ -220,6 +324,8 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
               aria-label="Replace with"
               autoComplete="off"
               spellCheck
+              maxLength={maxLength}
+              readOnly={!idle}
               value={replace.text}
               onChange={(event) => replace.onTextChange(event.target.value)}
               onKeyDown={onReplaceKey}
@@ -228,8 +334,8 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
           <button
             type="button"
             className="sys-text-btn"
-            disabled={!hits}
-            onClick={replace.onReplace}
+            disabled={!hits || !idle || !replaceReady}
+            onClick={replaceOne}
             onKeyDown={onButtonKey}
           >
             Replace
@@ -238,14 +344,15 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             type="button"
             className="sys-text-btn"
             aria-label="Replace all"
-            disabled={!hits}
-            onClick={replace.onReplaceAll}
+            disabled={!hits || !idle || !replaceReady}
+            onClick={replaceAll}
             onKeyDown={onButtonKey}
           >
             All
           </button>
         </div>
       ) : null}
+      <InlineError message={error ?? failure} />
     </div>
   );
 });

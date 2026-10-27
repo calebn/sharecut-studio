@@ -1,10 +1,6 @@
-import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { useRef } from "react";
-import {
-  type HandleEdge,
-  type HandleStep,
-  handleStep,
-} from "./scriptSelection";
+import type { HandleEdge } from "./scriptSelection";
 
 /** Where a handle's caret sits inside the scrolling text: its left edge, its top and the line's height, in pixels. */
 export type HandlePlace = { x: number; y: number; height: number };
@@ -12,44 +8,50 @@ export type HandlePlace = { x: number; y: number; height: number };
 export type SelectionHandlesProps = {
   start: HandlePlace;
   end: HandlePlace;
-  /** Each edge's place among the `count` places the keyboard stops, counted from 1. */
-  startAt: number;
-  endAt: number;
-  count: number;
-  /** What the edge sits on, for a screen reader: "before small". */
-  startText: string;
-  endText: string;
   /**
    * An edge was dragged. `x` and `y` are the client point of the caret itself,
    * not the finger, so a thumb below the line still points at the line.
    */
   onDrag: (edge: HandleEdge, point: { x: number; y: number }) => void;
-  /** A key moved an edge: one place on or back, or to the first or last. */
-  onStep: (edge: HandleEdge, step: HandleStep) => void;
+  /** A grip was taken, before any move. */
+  onGrab?: () => void;
+  /** The grip was let go or the browser took the touch. */
+  onRelease?: () => void;
 };
 
-type Grab = { pointerId: number; dx: number; dy: number };
+type Grab = {
+  pointerId: number;
+  dx: number;
+  dy: number;
+  fromX: number;
+  fromY: number;
+  moved: boolean;
+};
+
+/** Farther than this and a press is a drag; a finger rolls a few pixels on a tap. */
+const TAP_SLOP = 4;
 
 /**
- * The two grips at the ends of a run of words (design-system element 13). A
- * handle is a slider over the places the keyboard stops: right or up is one
- * place on for either edge, so the start handle shrinks the run and the end
- * handle grows it. Drag reports the point under the caret; the host turns it
- * into a word. The handles are not tab stops, because Shift and Alt+Shift with
- * the arrows do the same from the words.
+ * The two grips at the ends of a run of words (design-system element 13).
+ * They are pointer-only and hidden from assistive tech: the keyboard and a
+ * screen reader move the selection from the words (Shift+arrows grow it,
+ * Alt+Shift+Left or Right moves its start), so a grip is not a widget with
+ * its own keys and not a tab stop.
+ *
+ * Each grip's hit region reaches only toward its knob, the start's above its
+ * line and the end's below, so it covers no word on its own line. A press
+ * that never moves is passed to whatever button lies under the point, so a
+ * tap near a grip still lands on the word beside it. Drag reports the point
+ * under the caret; the host turns it into a word.
  *
  * Render them inside the scrolling, positioned container that holds the text.
  */
 export function SelectionHandles({
   start,
   end,
-  startAt,
-  endAt,
-  count,
-  startText,
-  endText,
   onDrag,
-  onStep,
+  onGrab,
+  onRelease,
 }: SelectionHandlesProps) {
   const grab = useRef<Grab | null>(null);
 
@@ -60,6 +62,9 @@ export function SelectionHandles({
       pointerId: event.pointerId,
       dx: event.clientX - (rect.left + rect.width / 2),
       dy: event.clientY - (rect.top + rect.height / 2),
+      fromX: event.clientX,
+      fromY: event.clientY,
+      moved: false,
     };
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -67,40 +72,42 @@ export function SelectionHandles({
       // A synthetic pointer has nothing to capture.
     }
     event.preventDefault();
+    onGrab?.();
   };
   const onMove = (edge: HandleEdge) => (event: PointerEvent<HTMLElement>) => {
     const held = grab.current;
     if (!held || held.pointerId !== event.pointerId) return;
+    if (
+      !held.moved &&
+      Math.hypot(event.clientX - held.fromX, event.clientY - held.fromY) <=
+        TAP_SLOP
+    ) {
+      return;
+    }
+    held.moved = true;
     onDrag(edge, { x: event.clientX - held.dx, y: event.clientY - held.dy });
   };
-  const onUp = () => {
+  const onUp = (event: PointerEvent<HTMLElement>) => {
+    const held = grab.current;
+    if (!held || held.pointerId !== event.pointerId) return;
     grab.current = null;
-  };
-  const onKey = (edge: HandleEdge) => (event: KeyboardEvent<HTMLElement>) => {
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
-    const step = handleStep(event.key);
-    if (step === null) return;
-    event.preventDefault();
-    onStep(edge, step);
+    onRelease?.();
+    if (held.moved || event.type === "pointercancel") return;
+    const under = event.currentTarget.ownerDocument.elementsFromPoint?.(
+      event.clientX,
+      event.clientY,
+    );
+    const target = under
+      ?.map((el) => el.closest<HTMLElement>("button"))
+      .find((el) => el !== null);
+    target?.click();
   };
 
-  const handle = (
-    edge: HandleEdge,
-    place: HandlePlace,
-    at: number,
-    text: string,
-  ) => (
+  const handle = (edge: HandleEdge, place: HandlePlace) => (
     <div
       className="sys-handle"
       data-edge={edge}
-      role="slider"
-      tabIndex={-1}
-      aria-label={edge === "start" ? "Selection start" : "Selection end"}
-      aria-orientation="horizontal"
-      aria-valuemin={1}
-      aria-valuemax={count}
-      aria-valuenow={at}
-      aria-valuetext={text}
+      aria-hidden="true"
       style={
         {
           insetInlineStart: place.x,
@@ -112,16 +119,15 @@ export function SelectionHandles({
       onPointerMove={onMove(edge)}
       onPointerUp={onUp}
       onPointerCancel={onUp}
-      onKeyDown={onKey(edge)}
     >
-      <span className="sys-handle-knob" aria-hidden="true" />
+      <span className="sys-handle-knob" />
     </div>
   );
 
   return (
     <>
-      {handle("start", start, startAt, startText)}
-      {handle("end", end, endAt, endText)}
+      {handle("start", start)}
+      {handle("end", end)}
     </>
   );
 }

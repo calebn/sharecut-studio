@@ -10,13 +10,9 @@ const meta: Meta<typeof SelectionHandles> = {
   args: {
     start: { x: 112, y: 36, height: 20 },
     end: { x: 262, y: 36, height: 20 },
-    startAt: 13,
-    endAt: 15,
-    count: 54,
-    startText: "before small",
-    endText: "after can",
     onDrag: fn(),
-    onStep: fn(),
+    onGrab: fn(),
+    onRelease: fn(),
   },
   decorators: [
     (Story) => (
@@ -53,7 +49,7 @@ const meta: Meta<typeof SelectionHandles> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The two grips at the ends of a run of words (design-system element 13): a 2 px accent caret with a 12 px knob, the start's above the line and the end's below it. Drag an end to extend or shrink by word. Each grip is a slider over the places the keyboard stops: Right and Up move the edge one place on, Left and Down one back, Home and End to the first and last place. So the start grip shrinks the run when it moves on and the end grip grows it. Under a coarse pointer each grip is 44 px wide and reaches 14 px above and below its line, and a touch moves the caret, not the finger, so a thumb under the line still points at it.\n\nThe grips are not tab stops. Shift with the arrows and Alt+Shift with the arrows do the same from the words, which are already one tab stop. The pane places them at the ends of the selection and turns the point they report into a word (`dragEdge`).\n\n**Motion.** None.",
+          "The two grips at the ends of a run of words (design-system element 13): a 2 px accent caret with a 12 px knob, the start's above the line and the end's below it. Drag an end to extend or shrink by word. A grip is pointer-only: it is hidden from assistive tech and is not a tab stop, because Shift with the arrows and Alt+Shift with the arrows do the same from the words, which are already one tab stop. The pane places the grips at the ends of the selection and turns the point they report into a word (`dragEdge`).\n\nA grip's hit region reaches only toward its knob, the start's above its line and the end's below, 14 px under a coarse pointer on top of the 44 px width. It covers no word on its own line. A press that never moves is passed to the button under the point, so a tap beside a grip still lands on the word. A touch moves the caret, not the finger, so a thumb under the line still points at it.\n\n**Motion.** None.",
       },
     },
   },
@@ -64,22 +60,30 @@ type Story = StoryObj<typeof SelectionHandles>;
 
 export const Pair: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("slider", { name: "Selection start" }),
-    ).toHaveAttribute("aria-valuetext", "before small");
-    await expect(
-      canvas.getByRole("slider", { name: "Selection end" }),
-    ).toHaveAttribute("aria-valuetext", "after can");
+    const grips = canvasElement.querySelectorAll(".sys-handle");
+    await expect(grips).toHaveLength(2);
+    for (const grip of grips) {
+      await expect(grip).toHaveAttribute("aria-hidden", "true");
+      await expect(grip).not.toHaveAttribute("tabindex");
+    }
+    await expect(within(canvasElement).queryByRole("slider")).toBeNull();
   },
 };
 
-export const Stepping: Story = {
+export const Dragging: Story = {
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    canvas.getByRole("slider", { name: "Selection end" }).focus();
-    await userEvent.keyboard("{ArrowRight}{Home}");
-    await expect(args.onStep).toHaveBeenNthCalledWith(1, "end", 1);
-    await expect(args.onStep).toHaveBeenNthCalledWith(2, "end", "first");
+    const knob = canvasElement.querySelector(
+      ".sys-handle[data-edge='end'] .sys-handle-knob",
+    );
+    if (!(knob instanceof HTMLElement)) throw new Error("No end knob");
+    const r = knob.getBoundingClientRect();
+    await userEvent.pointer([
+      { keys: "[MouseLeft>]", target: knob },
+      { coords: { x: r.left + 30, y: r.top + 30 } },
+      { keys: "[/MouseLeft]" },
+    ]);
+    await expect(args.onGrab).toHaveBeenCalledTimes(1);
+    await expect(args.onDrag).toHaveBeenCalled();
+    await expect(args.onRelease).toHaveBeenCalledTimes(1);
   },
 };
