@@ -389,3 +389,66 @@ def test_a_cached_verdict_equals_a_cold_check_when_words_inside_a_clip_gap_chang
     monkeypatch.setattr(sys.modules[__name__], "CUT", cut)
     _cw, cold, cached = _cmp(tmp_path, monkeypatch, _mk(True), lambda p: None, _interior(fn))
     assert cached == cold
+
+
+def _early_clip(fade_out_ms: int) -> Callable[[EpisodeProject], None]:
+    """Splits off a clip ending far before the cut, whose fade is the longest in the project."""
+
+    def mutate(p: EpisodeProject) -> None:
+        head = p.clips[0]
+        early = head.model_copy(
+            update={"id": "c_early", "source_end": 10.0, "fade_out_ms": fade_out_ms}
+        )
+        head.source_start = head.timeline_start = 10.0
+        p.clips = [early, head]
+
+    return mutate
+
+
+def _keys_and_spans(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fades: list[int]
+) -> tuple[list[str | None], list[tuple[float, float]]]:
+    from podcast_mcp.edits import cut_safety
+
+    keys: list[str | None] = []
+    spans: list[tuple[float, float]] = []
+    real_key, real_assess = verdict_cache.verdict_key, cut_safety.assess_held_pause
+
+    def spy_key(*args: Any, **kwargs: Any) -> str | None:
+        keys.append(real_key(*args, **kwargs))
+        return keys[-1]
+
+    def spy_assess(*args: Any, **kwargs: Any) -> Any:
+        held = real_assess(*args, **kwargs)
+        if not isinstance(held, cut_safety.CutRejected):
+            spans.append(held.peer_observation_span)
+        return held
+
+    monkeypatch.setattr(verdict_cache, "verdict_key", spy_key)
+    monkeypatch.setattr(cut_safety, "assess_held_pause", spy_assess)
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    monkeypatch.delenv(verdict_cache.VERIFY_ENV, raising=False)
+    for fade in fades:
+        verdict_cache._STORE.clear()
+        _outcome(_project(tmp_path, sourced=True, mutate=_early_clip(fade)))
+    return keys, spans
+
+
+def test_a_pause_key_moves_with_a_fade_before_the_window_that_widens_its_observation_span(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2433: the span reads the longest fade in the project, even on a clip far before the cut."""
+    keys, spans = _keys_and_spans(tmp_path, monkeypatch, [20, 800])
+    assert len(spans) == 2
+    assert spans[0] != spans[1], "the fade must move the cold observation span"
+    assert keys[0] != keys[1]
+
+
+def test_a_pause_verdict_stays_cached_when_a_far_fade_changes_nothing_the_span_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The word gap is wider than either fade, so the span is the same and the entry still hits."""
+    keys, spans = _keys_and_spans(tmp_path, monkeypatch, [20, 60])
+    assert spans[0] == spans[1]
+    assert keys[0] is not None
+    assert keys[0] == keys[1]
