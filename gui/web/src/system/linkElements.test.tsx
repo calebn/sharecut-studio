@@ -64,6 +64,35 @@ describe("LinkRow", () => {
     expect(group.textContent).toBe("RJ");
   });
 
+  it("shows a single person who opened it", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        openedBy={[{ name: "Rosa" }]}
+        onCopy={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Opened by Rosa" }).textContent,
+    ).toBe("R");
+  });
+
+  it("shows at most three avatars but names everyone", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        openedBy={["Ann", "Bo", "Cy", "Di", "Ed"].map((name) => ({ name }))}
+        onCopy={() => {}}
+      />,
+    );
+    const group = screen.getByRole("img", {
+      name: "Opened by Ann, Bo, Cy, Di, Ed",
+    });
+    expect(group.textContent).toBe("ABC");
+  });
+
   it("copies from the keyboard", async () => {
     const onCopy = vi.fn();
     render(<LinkRow access="viewer" link={LINK} onCopy={onCopy} />);
