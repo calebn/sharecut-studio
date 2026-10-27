@@ -63,6 +63,26 @@ class TranscriptRefineWaiveRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class TranscriptRefineDoneRequest(BaseModel):
+    path: str
+    notes: str | None = None
+
+
+class TranscriptRefineStatusView(BaseModel):
+    """The transcript check as the Review stage reads it (host only)."""
+
+    status: Literal["pending", "done", "waived"]
+    clear: bool
+    stale: bool
+    mode: Literal["require", "waive_unattended", "off"]
+    source: str | None = None
+    notes: str = ""
+    updated_at: str | None = None
+    hint: str | None = None
+    low_confidence_words: int
+    low_confidence_threshold: float
+
+
 class TranscriptVocabularyPutRequest(BaseModel):
     path: str
     terms: list[str] = Field(max_length=VOCABULARY_MAX_ENTRIES)

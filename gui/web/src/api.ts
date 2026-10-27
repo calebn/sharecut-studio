@@ -159,6 +159,10 @@ export type {
   SplitSpeakersRequest,
 } from "./api/speakerSplit";
 export { getSpeakerDoctor, startSplitSpeakersJob } from "./api/speakerSplit";
+export {
+  loadTranscriptCheck,
+  markTranscriptChecked,
+} from "./api/transcriptCheck";
 export type {
   TranscriptReplacementOptions,
   TranscriptReplacementPreview,

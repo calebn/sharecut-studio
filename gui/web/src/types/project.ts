@@ -5,9 +5,16 @@ import type {
   ProjectView as GeneratedProjectView,
   TrackView as GeneratedTrackView,
   RangeInterval,
+  TranscriptRefineStatusView,
 } from "./project.generated";
 
 export type { ClipMuteRegion, RoomToneFill } from "./project.generated";
+
+/** Where the transcript check stands: open (`pending`), `done` or `waived`. */
+export type TranscriptCheckState = TranscriptRefineStatusView["status"];
+
+/** The transcript check the host reads; the server always sends every field. */
+export type TranscriptCheckStatus = Required<TranscriptRefineStatusView>;
 
 export interface OffSpeakerMuteRegion {
   start_s: number;

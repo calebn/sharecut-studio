@@ -88,6 +88,8 @@ Speaker labels in the transcript open a name editor for hosts and shares with th
 
 ## Transcript refine recovery
 
+Two host-only routes sit beside the waiver: `POST /api/transcript/refine/done` (`{path, notes?}`) marks the transcript checked and `GET /api/transcript/refine/status?path=` reads the gate. See [gui-integration.md](gui-integration.md#transcript-check-routes). The web client has `markTranscriptChecked` and `loadTranscriptCheck` (`api/transcriptCheck.ts`); no control calls them yet.
+
 The host-only `POST /api/transcript/refine/waive` endpoint accepts `{path,
 reason}` and records the waiver through `TranscriptRefineService` with source
 `user`. The GUI exposes it only when an approval receives the transcript-refine
