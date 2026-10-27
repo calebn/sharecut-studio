@@ -1659,6 +1659,66 @@ def test_a_replace_target_past_the_timeline_end_is_refused_by_field(
     assert message.startswith("to_sec:") and "10.000s" in message
 
 
+@pytest.mark.parametrize("target", [{"kind": "end"}, {"kind": "insert", "at_sec": 2}])
+@pytest.mark.parametrize("damaged_file", ["project", "history"])
+def test_nonreplace_target_persists_when_saved_project_is_unreadable(
+    minimal_project, sample_wav, tmp_workspace, target, damaged_file
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _join(ws, room)
+    damaged_path = ws.path if damaged_file == "project" else ws.project.history_dir() / "index.json"
+    damaged_path.parent.mkdir(parents=True, exist_ok=True)
+    damaged_path.write_text("{ invalid generated saved state")
+
+    svc.submit(_cmd("SetTarget", payload={"target": target}), now_wall_ms=0)
+    assert (
+        RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"]
+        == target
+    )
+    with pytest.raises(ValueError):
+        svc.submit(
+            _cmd(
+                "SetTarget",
+                payload={
+                    "target": {
+                        "kind": "replace",
+                        "from_sec": 1,
+                        "to_sec": 2,
+                        "track_ids": ["ava"],
+                    }
+                },
+            ),
+            now_wall_ms=0,
+        )
+    assert (
+        RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"]
+        == target
+    )
+
+
+def test_replace_target_uses_saved_identity_while_live_workspace_path_is_temporary(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
+):
+    ws = _seed(minimal_project, sample_wav)
+    _seed_replaceable(ws)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _join(ws, room)
+    ws.project.tracks.append(Track(id="unsaved", label="Unsaved", role=TrackRole.MUSIC))
+    target = {"kind": "replace", "from_sec": 1, "to_sec": 2, "track_ids": ["unsaved"]}
+    monkeypatch.chdir(tmp_path)
+    original_workspace = ws.project.workspace_dir
+    ws.project.workspace_dir = "."
+    try:
+        with pytest.raises(CodedValueError, match="unsaved"):
+            svc.submit(_cmd("SetTarget", payload={"target": target}), now_wall_ms=0)
+    finally:
+        ws.project.workspace_dir = original_workspace
+    assert RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()["target"] == {
+        "kind": "end"
+    }
+
+
 def test_a_replace_target_over_a_track_added_after_connect_is_accepted(
     minimal_project, sample_wav, tmp_workspace
 ):
