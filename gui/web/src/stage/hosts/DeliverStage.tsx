@@ -57,16 +57,14 @@ async function saveClipOp(path: string, op: ClipOp) {
 }
 
 function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
-  const { project, projectPath, guestMode, shareCapabilities, playheadSec } =
-    useDawStore(
-      useShallow((s) => ({
-        project: s.project,
-        projectPath: s.projectPath,
-        guestMode: s.guestMode,
-        shareCapabilities: s.shareCapabilities,
-        playheadSec: s.playheadSec,
-      })),
-    );
+  const { project, projectPath, guestMode, shareCapabilities } = useDawStore(
+    useShallow((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+    })),
+  );
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body");
   const breakdown = useStaleRenderBreakdown(project);
@@ -126,6 +124,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     const base = saved.current?.clips ?? [];
     const ops = clipOps(base, next);
     saved.current = {
+      from: seed,
       chapters: saved.current?.chapters ?? [],
       clips: [...next],
     };
@@ -219,7 +218,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         exportState={NEVER}
         env="app"
         clock={{ time: "", total: "" }}
-        playhead={playheadSec}
+        playhead={() => useDawStore.getState().playheadSec}
         link={{ url: null }}
         pinnedTo="the latest export"
         layout={shell === "phone" ? "phone" : "desktop"}
