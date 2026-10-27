@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { dismissSetupCard, expectHome } from "./home";
 import { switchE2eProject } from "./shareableProject";
 
 test("loading / with a pinned project opens it and never unpins it (#533)", async ({
@@ -17,18 +18,14 @@ test("loading / with a pinned project opens it and never unpins it (#533)", asyn
       closes.push(r.url());
     }
   });
-  await page.addInitScript(() => {
-    window.localStorage.setItem("sharecut.bootstrap.skip", "1");
-  });
+  await dismissSetupCard(page);
   await page.goto("/");
   await expect
     .poll(() => new URL(page.url()).searchParams.get("project"))
     .toBe(served);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.goto("/?home=1");
-  await expect(
-    page.getByRole("button", { name: "New project…" }),
-  ).toBeVisible();
+  await expectHome(page);
   await page.goto("/");
   await expect
     .poll(() => new URL(page.url()).searchParams.get("project"))
