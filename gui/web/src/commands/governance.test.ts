@@ -45,6 +45,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "ui/useDialogModal.ts",
   "ui/useMenuKeyboard.ts",
   "commands/governance.test.ts",
+  "stage/edit/ScriptDivider.test.tsx",
   "record/useRecordLiveComments.ts",
 ]);
 
