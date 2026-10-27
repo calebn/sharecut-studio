@@ -112,6 +112,21 @@ export const MixUpdating: Story = {
     await expect(within(canvasElement).getByText("Updating mix")).toBeVisible();
   },
 };
+export const NoMix: Story = {
+  args: { status: "No mix yet" },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText("No mix yet")).toBeVisible();
+  },
+};
+export const PlayUnavailable: Story = {
+  args: { status: "Import audio to play.", playUnavailable: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Play" }),
+    ).toHaveAccessibleDescription("Import audio to play.");
+  },
+};
 export const AudioError: Story = {
   args: { state: "error" },
   play: async ({ args, canvasElement }) => {

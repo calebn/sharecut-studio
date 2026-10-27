@@ -40,6 +40,13 @@ export type PlayerProps = {
   cuts?: string;
   /** Mix is re-rendering: a ring on Play and a Status pill. */
   state?: "ready" | "loading" | "mix-updating" | "error";
+  /**
+   * The mix's status ("No mix yet", "Mix out of date") or why Play cannot
+   * start ("Import audio to play."), as a visible status line.
+   */
+  status?: string;
+  /** Play cannot start: it is aria-disabled and `status` is its description. */
+  playUnavailable?: boolean;
   hearOriginal?: boolean;
   solo?: string;
   following?: { name: string; colorIndex: number };
@@ -98,7 +105,14 @@ function Skip({
   );
 }
 
-function Play({ playing, state, following, onPlayPause }: PlayerProps) {
+function Play({
+  playing,
+  state,
+  following,
+  playUnavailable,
+  statusId,
+  onPlayPause,
+}: PlayerProps & { statusId: string }) {
   const style = following
     ? ({
         "--sys-follow": presenceColorVar(following.colorIndex),
@@ -118,6 +132,8 @@ function Play({ playing, state, following, onPlayPause }: PlayerProps) {
         size={20}
         onClick={onPlayPause}
         aria-busy={state === "loading" ? true : undefined}
+        aria-disabled={playUnavailable || undefined}
+        aria-describedby={playUnavailable ? statusId : undefined}
       />
       {state === "loading" ? (
         <SystemIcon
@@ -132,7 +148,7 @@ function Play({ playing, state, following, onPlayPause }: PlayerProps) {
 }
 
 /** Back 15 s, Play and forward 15 s: the same trio in the bar and the expanded form. */
-function PlayCluster(props: PlayerProps) {
+function PlayCluster(props: PlayerProps & { statusId: string }) {
   return (
     <>
       <Skip seconds={-SKIP} onSkip={props.onSkip} />
@@ -148,6 +164,21 @@ function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
     <Pill title="Length change from your cuts">
       <span className="sys-mono">{cuts}</span>
     </Pill>
+  ) : null;
+}
+
+/** The status line: the mix's state or why Play cannot start. Names Play's description. */
+function StatusLine({
+  status,
+  id,
+}: Pick<PlayerProps, "status"> & { id: string }) {
+  return status ? (
+    <span id={id} className="sys-player-status">
+      <Pill className="sys-player-pill">
+        <SystemIcon name="triangle-alert" size={12} />
+        <span className="sys-player-pill-text">{status}</span>
+      </Pill>
+    </span>
   ) : null;
 }
 
@@ -347,6 +378,7 @@ function HearOriginal({
 /** The Player in its 56 px bar form and its expanded form. Props only. */
 export function Player(props: PlayerProps) {
   const headingId = useId();
+  const statusId = useId();
   const barToggleRef = useRef<HTMLButtonElement>(null);
   const collapseRef = useRef<HTMLButtonElement>(null);
   const lastForm = useRef(props.form);
@@ -401,7 +433,7 @@ export function Player(props: PlayerProps) {
             <CutsPill cuts={props.cuts} />
           </div>
           <div className="sys-player-center">
-            <PlayCluster {...props} />
+            <PlayCluster {...props} statusId={statusId} />
           </div>
           <div className="sys-player-right">
             {guest ? null : (
@@ -411,7 +443,10 @@ export function Player(props: PlayerProps) {
                 hearMenu={props.hearMenu}
               />
             )}
-            <VerbButton verb="comment" onClick={onComment} />
+            {onComment ? (
+              <VerbButton verb="comment" onClick={onComment} />
+            ) : null}
+            <StatusLine status={props.status} id={statusId} />
             <StatePills {...props} />
           </div>
         </div>
@@ -454,10 +489,11 @@ export function Player(props: PlayerProps) {
         <span className="sys-player-now">{time}</span>
         <span className="sys-player-total">{` / ${total}`}</span>
         <CutsPill cuts={props.cuts} />
+        <StatusLine status={props.status} id={statusId} />
         <StatePills {...props} />
       </p>
       <div className="sys-player-center sys-player-center--large">
-        <PlayCluster {...props} />
+        <PlayCluster {...props} statusId={statusId} />
       </div>
       <div className="sys-player-actions">
         {guest ? null : (
@@ -467,7 +503,7 @@ export function Player(props: PlayerProps) {
             hearMenu={props.hearMenu}
           />
         )}
-        <VerbButton verb="comment" onClick={onComment} />
+        {onComment ? <VerbButton verb="comment" onClick={onComment} /> : null}
       </div>
       {chapters.length > 0 ? (
         <ol className="sys-player-chapters" aria-label="Chapters">

@@ -9,5 +9,5 @@ import { usePlayerProps } from "./usePlayerProps";
 export function PlayerBar() {
   const [form, setForm] = useState<PlayerProps["form"]>("bar");
   const props = usePlayerProps(form, setForm);
-  return props ? <Player {...props} /> : null;
+  return <Player {...props} />;
 }

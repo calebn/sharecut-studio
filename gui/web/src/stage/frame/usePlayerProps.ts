@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useRef } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
+import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { rosterEntry } from "../../presence/roster";
-import { guestHearsMixOnly } from "../../shareMode";
+import { canComment, guestHearsMixOnly } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { transportAvailability } from "../../state/transportAvailability";
 import { useDaw } from "../../state/useDaw";
 import type { PlayerProps } from "../../system/Player";
 import type { AuditionMode } from "../../types/session";
 import { NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
+import { staleMixLabel } from "../../utils/staleRender";
 import { transportTimecode } from "../../utils/time";
 import { skipListen } from "./listenSeek";
 import {
@@ -31,10 +34,13 @@ const NONE: never[] = [];
 export function usePlayerProps(
   form: PlayerProps["form"],
   onFormChange: (form: PlayerProps["form"]) => void,
-): PlayerProps | null {
+): PlayerProps {
   const {
     project,
+    projectPath,
+    shareCapabilities,
     isPlaying,
+    playStartSec,
     audioError,
     auditionMode,
     renderPreviewBusy,
@@ -43,7 +49,10 @@ export function usePlayerProps(
     sessionClients,
   } = useDaw((s) => ({
     project: s.project,
+    projectPath: s.projectPath,
+    shareCapabilities: s.shareCapabilities,
     isPlaying: s.isPlaying,
+    playStartSec: s.playStartSec,
     audioError: s.audioError,
     auditionMode: s.auditionMode,
     renderPreviewBusy: s.renderPreviewBusy,
@@ -71,6 +80,7 @@ export function usePlayerProps(
     [setAudition],
   );
 
+  const breakdown = useStaleRenderBreakdown(project);
   const duration = project?.timeline_duration_sec ?? 0;
   const chapterMarkers = project?.chapters ?? NONE;
   const sortedMarkers = useMemo(
@@ -92,26 +102,46 @@ export function usePlayerProps(
     [chapters, comments, duration],
   );
 
-  if (!project) return null;
   const clock = transportTimecode(playheadSec, duration);
   const guest = guestHearsMixOnly(guestMode);
   const leader = followingClientId
     ? rosterEntry(sessionClients, followingClientId)
     : undefined;
   const hasAudioError = audioError !== null && audioError !== NO_PREVIEW_ERROR;
-  const state: PlayerProps["state"] = hasAudioError
-    ? "error"
-    : renderPreviewBusy
-      ? "mix-updating"
-      : "ready";
+  const state: PlayerProps["state"] = !project
+    ? "loading"
+    : hasAudioError
+      ? "error"
+      : renderPreviewBusy
+        ? "mix-updating"
+        : "ready";
+  // Why Play cannot start, else the mix's state. A missing mix is also what
+  // `NO_PREVIEW_ERROR` reports when Play was pressed with nothing to play, so
+  // it reads "No mix yet" and never as an audio error.
+  const unavailable = transportAvailability({
+    project,
+    isPlaying,
+    playStartSec,
+  }).togglePlay;
+  const mixStatus =
+    audioError === NO_PREVIEW_ERROR
+      ? staleMixLabel({ premixMissing: true })
+      : project && breakdown.stale
+        ? staleMixLabel(breakdown)
+        : undefined;
+  const mayComment = canComment(projectPath, guestMode, shareCapabilities);
 
   return {
     form,
     playing: isPlaying,
     time: clock.current,
     total: clock.total,
-    cuts: cutsLabel(project.edit_impact.total_removed_sec),
+    cuts: project
+      ? cutsLabel(project.edit_impact.total_removed_sec)
+      : undefined,
     state,
+    status: unavailable ?? mixStatus,
+    playUnavailable: unavailable !== undefined,
     hearOriginal: auditionMode === "raw",
     guest,
     following: followingClientId
@@ -120,7 +150,7 @@ export function usePlayerProps(
           colorIndex: leader?.meta?.color_index ?? 0,
         }
       : undefined,
-    title: project.meta.name,
+    title: project?.meta.name,
     chapters,
     chapter: chapterIndexAt(sortedMarkers, playheadSec),
     ticks,
@@ -134,12 +164,14 @@ export function usePlayerProps(
     onPlayPause: () => runPointerCommand("transport.togglePlay"),
     onSkip: (seconds) => skipListen(seconds, duration),
     onHearOriginal: guest ? undefined : onHearOriginal,
-    onComment: () => {
-      runPointerCommand("comment.draftAt", {
-        atTime: useDawStore.getState().playheadSec,
-      });
-      useDawStore.getState().openStage("review", { section: "comments" });
-    },
+    // Only a link that may comment gets the button; the command opens the
+    // draft in Comments itself.
+    onComment: mayComment
+      ? () =>
+          runPointerCommand("comment.draftAt", {
+            atTime: useDawStore.getState().playheadSec,
+          })
+      : undefined,
     onExpand: () => onFormChange("expanded"),
     onCollapse: () => onFormChange("bar"),
     onRetry: () => {

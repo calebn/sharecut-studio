@@ -16,6 +16,44 @@ const chapters = [
 ];
 
 describe("Player", () => {
+  it.each(["bar", "expanded"] as const)(
+    "shows the status line and describes a disabled Play with it in the %s form",
+    (form) => {
+      render(
+        <Player
+          {...base}
+          form={form}
+          status="Import audio to play."
+          playUnavailable
+        />,
+      );
+      const play = screen.getByRole("button", { name: "Play" });
+      expect(play).toHaveAttribute("aria-disabled", "true");
+      expect(play).toHaveAccessibleDescription("Import audio to play.");
+      expect(screen.getByText("Import audio to play.")).toBeVisible();
+    },
+  );
+
+  it("shows a mix status without disabling Play", () => {
+    render(<Player {...base} status="Mix out of date" />);
+    expect(screen.getByText("Mix out of date")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Play" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
+  });
+
+  it.each(["bar", "expanded"] as const)(
+    "leaves Comment out where no handler is given, in the %s form",
+    (form) => {
+      const { rerender } = render(<Player {...base} form={form} />);
+      expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+      rerender(<Player {...base} form={form} onComment={() => undefined} />);
+      expect(
+        screen.getByRole("button", { name: "Comment" }),
+      ).toBeInTheDocument();
+    },
+  );
+
   it("switches A and B as a segmented control", async () => {
     const user = userEvent.setup();
     const onHearOriginal = vi.fn();

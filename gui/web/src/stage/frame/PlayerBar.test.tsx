@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject } from "../../test/fixtures";
+import { minimalProject, sampleTrack } from "../../test/fixtures";
+import { NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
 import { PlayerBar } from "./PlayerBar";
 
 beforeEach(() => {
@@ -13,7 +14,11 @@ beforeEach(() => {
   useDawStore
     .getState()
     .hydrate("/tmp/player-bar/episode.project.json", minimalProject());
-  useDawStore.setState({ auditionMode: "mix", guestMode: null });
+  useDawStore.setState({
+    auditionMode: "mix",
+    guestMode: null,
+    audioError: null,
+  });
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -53,10 +58,13 @@ describe("PlayerBar", () => {
     await waitFor(() => expect(audition()).toBe("fx"));
   });
 
-  it("is empty until a project is open", () => {
+  it("waits on the project: Play says it is loading", () => {
     useDawStore.setState({ project: null });
-    const { container } = render(<PlayerBar />);
-    expect(container).toBeEmptyDOMElement();
+    render(<PlayerBar />);
+    const play = screen.getByRole("button", { name: "Play" });
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    expect(play).toHaveAccessibleDescription("Loading project…");
+    expect(screen.getByText("Loading project…")).toBeVisible();
   });
 
   it("gives a guest the mix only: no A/B and no hear menu", () => {
@@ -64,5 +72,130 @@ describe("PlayerBar", () => {
     render(<PlayerBar />);
     expect(screen.queryByRole("group", { name: "Audition" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Hear options" })).toBeNull();
+  });
+
+  describe("Comment", () => {
+    const comment = () => screen.queryByRole("button", { name: "Comment" });
+
+    it("shows for the host", () => {
+      render(<PlayerBar />);
+      expect(comment()).toBeInTheDocument();
+    });
+
+    it.each([
+      ["edit", ["comment"], true],
+      ["comment", ["comment"], true],
+      ["comment", ["reply"], false],
+      ["edit", [], false],
+      ["view", [], false],
+    ] as const)(
+      "on a %s link with %j: shown is %s",
+      (guestMode, caps, shown) => {
+        useDawStore
+          .getState()
+          .hydrate("share:player-bar-token", minimalProject());
+        useDawStore.setState({
+          guestMode,
+          shareCapabilities: [...caps],
+        });
+        render(<PlayerBar />);
+        expect(comment() !== null).toBe(shown);
+      },
+    );
+
+    it("starts a draft at the playhead and opens Comments", async () => {
+      const user = userEvent.setup();
+      useDawStore.setState({ stage: "edit", playheadSec: 3 });
+      render(<PlayerBar />);
+      await user.click(comment() as HTMLElement);
+      await waitFor(() =>
+        expect(useDawStore.getState().commentDraft).toMatchObject({
+          startSec: 3,
+        }),
+      );
+      expect(useDawStore.getState().stage).toBe("review");
+    });
+  });
+
+  describe("status", () => {
+    it("says No mix yet when Play found no mix to play", () => {
+      useDawStore
+        .getState()
+        .setProject(
+          minimalProject({ tracks: [sampleTrack({ stem_is_fresh: true })] }),
+        );
+      useDawStore.setState({ audioError: NO_PREVIEW_ERROR });
+      render(<PlayerBar />);
+      expect(screen.getByText("No mix yet")).toBeVisible();
+      expect(screen.queryByText("Audio error")).toBeNull();
+    });
+
+    it("says No mix yet for a project whose mix was never rendered", () => {
+      useDawStore.getState().setProject(
+        minimalProject({
+          tracks: [sampleTrack()],
+          render_status: {
+            needs_rerender: false,
+            reconciliation: { stale: false },
+            premix: { exists: false },
+          },
+        }),
+      );
+      render(<PlayerBar />);
+      expect(screen.getByText("No mix yet")).toBeVisible();
+    });
+
+    it("says Mix out of date for an old mix, and nothing for a fresh one", () => {
+      useDawStore.getState().setProject(
+        minimalProject({
+          tracks: [sampleTrack({ stem_is_fresh: true })],
+          render_status: {
+            needs_rerender: true,
+            reconciliation: { stale: false },
+            premix: { exists: true },
+          },
+        }),
+      );
+      const { unmount } = render(<PlayerBar />);
+      expect(screen.getByText("Mix out of date")).toBeVisible();
+      unmount();
+      useDawStore.getState().setProject(
+        minimalProject({
+          tracks: [sampleTrack({ stem_is_fresh: true })],
+          render_status: {
+            needs_rerender: false,
+            reconciliation: { stale: false },
+            premix: { exists: true },
+          },
+        }),
+      );
+      render(<PlayerBar />);
+      expect(screen.queryByText(/Mix out of date|No mix yet/)).toBeNull();
+    });
+
+    it("gives an empty project's Play its reason as a description and a status line", () => {
+      render(<PlayerBar />);
+      const play = screen.getByRole("button", { name: "Play" });
+      expect(play).toHaveAttribute("aria-disabled", "true");
+      expect(play).toHaveAccessibleDescription("Import audio to play.");
+      expect(screen.getByText("Import audio to play.")).toBeVisible();
+    });
+
+    it("leaves Play enabled when the mix is only stale", () => {
+      useDawStore.getState().setProject(
+        minimalProject({
+          tracks: [sampleTrack({ stem_is_fresh: true })],
+          render_status: {
+            needs_rerender: true,
+            reconciliation: { stale: false },
+            premix: { exists: true },
+          },
+        }),
+      );
+      render(<PlayerBar />);
+      expect(screen.getByRole("button", { name: "Play" })).not.toHaveAttribute(
+        "aria-disabled",
+      );
+    });
   });
 });

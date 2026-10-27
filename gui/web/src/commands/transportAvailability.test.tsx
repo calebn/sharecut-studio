@@ -88,12 +88,18 @@ it("keeps loading and empty Space inert, then Space and K control imported track
     fireEvent.keyDown(timeline, { key: " ", code: "Space" });
   });
   expect(useDawStore.getState().isPlaying).toBe(false);
+  expect(
+    screen.getByRole("button", { name: "Play" }),
+  ).toHaveAccessibleDescription("Loading project…");
   act(() => useDawStore.getState().setProject(minimalProject()));
   await act(async () => {
     fireEvent.keyDown(timeline, { key: " ", code: "Space" });
   });
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playStartSec).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Play" }),
+  ).toHaveAccessibleDescription("Import audio to play.");
 
   act(() => {
     useDawStore.getState().setProject(readyProject());
@@ -111,12 +117,18 @@ it("keeps loading and empty Space inert, then Space and K control imported track
   expect(useDawStore.getState().playheadSec).toBe(12);
 });
 
-it("keeps focused Play inert while empty, then activates without editor focus", async () => {
+it("keeps focused Play inert while loading and empty, then activates without editor focus", async () => {
   const user = userEvent.setup();
-  useDawStore.setState({ project: minimalProject(), timelineFocused: false });
+  useDawStore.setState({ project: null, timelineFocused: false });
   render(<TransportHost />);
   const play = screen.getByRole("button", { name: "Play" });
   play.focus();
+  expect(play).toHaveAccessibleDescription("Loading project…");
+  await user.keyboard(" ");
+  expect(useDawStore.getState().isPlaying).toBe(false);
+  act(() => useDawStore.getState().setProject(minimalProject()));
+  expect(play).toHaveFocus();
+  expect(play).toHaveAccessibleDescription("Import audio to play.");
   await user.click(play);
   expect(useDawStore.getState().isPlaying).toBe(false);
   act(() => {
@@ -160,6 +172,9 @@ it("keeps Pause and Stop reachable when the last track disappears during playbac
   await user.click(pause);
   expect(useDawStore.getState().isPlaying).toBe(false);
   expect(useDawStore.getState().playheadSec).toBe(25);
+  expect(
+    screen.getByRole("button", { name: "Play" }),
+  ).toHaveAccessibleDescription("Import audio to play.");
   expect(await execute("transport.togglePlay", {}, { skipWhen: true })).toEqual(
     {
       status: "disabled",
