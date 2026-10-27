@@ -147,7 +147,7 @@ describe("export settings", () => {
         loudness: "podcast",
         part: { mode: "whole" },
       }),
-    ).toBe("Choose a format first.");
+    ).toBe("Choose at least one format.");
   });
 
   it("swaps Export for Reveal or Download only after a current export", () => {
@@ -661,13 +661,37 @@ describe("round three of the audit", () => {
 
   it("blocks Export while the model is missing, before any other reason", () => {
     const needs = { phase: "needs-model", model: "m", size: "1 GB" } as const;
-    expect(exportBlocker(SETTINGS, needs)).toBe(
-      "Needs the transcription model.",
-    );
+    expect(exportBlocker(SETTINGS, needs)).toBe("Needs the m.");
     expect(exportBlocker({ ...SETTINGS, formats: [] }, needs)).toBe(
-      "Needs the transcription model.",
+      "Needs the m.",
     );
     expect(exportBlocker(SETTINGS)).toBeUndefined();
+  });
+
+  it("names the missing model in the reason", () => {
+    expect(
+      exportBlocker(SETTINGS, {
+        phase: "needs-model",
+        model: "speaker model",
+        size: "1 GB",
+      }),
+    ).toBe("Needs the speaker model.");
+  });
+
+  it("waits for host settings, and lets a host with its own formats export none", () => {
+    const none = { ...SETTINGS, formats: [] };
+    expect(exportBlocker(none, undefined, { loading: true })).toBe(
+      "Wait for the settings to load.",
+    );
+    expect(exportBlocker(SETTINGS, undefined, { loading: true })).toBe(
+      "Wait for the settings to load.",
+    );
+    expect(exportBlocker(none, undefined, { wavAlwaysWritten: true })).toBe(
+      undefined,
+    );
+    expect(exportBlocker(none, undefined, { settingsError: "offline" })).toBe(
+      undefined,
+    );
   });
 
   it("keeps Out inside the episode when In is the episode end", () => {

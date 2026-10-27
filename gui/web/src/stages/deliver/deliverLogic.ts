@@ -1,15 +1,19 @@
+import type { ModelGate } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
 import type { StageId } from "../../types/stage";
 
-export type FormatId = "mp3" | "wav" | "flac";
+/** A file extension such as "mp3". The host decides which ones a project offers. */
+export type FormatId = string;
 
-/** Bytes per second of the written file; the server gives exact sizes after export. */
-export const FORMATS: readonly {
+export type FormatOption = {
   id: FormatId;
   label: string;
   bytesPerSecond: number;
-}[] = [
+};
+
+/** Bytes per second of the written file; the server gives exact sizes after export. */
+export const FORMATS: readonly FormatOption[] = [
   { id: "mp3", label: "MP3", bytesPerSecond: 16_000 },
   { id: "wav", label: "WAV", bytesPerSecond: 176_400 },
   { id: "flac", label: "FLAC", bytesPerSecond: 97_000 },
@@ -47,8 +51,12 @@ export function clampPart(
   return { mode: "part", start, end };
 }
 
-export function estimateBytes(format: FormatId, seconds: number): number {
-  const entry = FORMATS.find((f) => f.id === format);
+export function estimateBytes(
+  format: FormatId,
+  seconds: number,
+  formats: readonly FormatOption[] = FORMATS,
+): number {
+  const entry = formats.find((f) => f.id === format);
   return Math.round((entry?.bytesPerSecond ?? 0) * seconds);
 }
 
@@ -187,7 +195,8 @@ export function readinessSummary(rows: readonly ReadinessRow[]): string {
   return `${open} ${open === 1 ? "thing" : "things"} left. You can still export.`;
 }
 
-export type ExportFile = { name: string; bytes: number; format: FormatId };
+/** `bytes` is absent when the job does not report sizes. */
+export type ExportFile = { name: string; bytes?: number; format: FormatId };
 
 /** What an export was asked to write; `range` is null for the whole episode. */
 export type ExportRequest = {
@@ -202,16 +211,31 @@ export type TimeSpan = { start: number; end: number };
 export type ExportState =
   | { phase: "never" }
   | { phase: "needs-model"; model: string; size: string }
-  | { phase: "running"; progress: number; detail: string }
+  | {
+      phase: "running";
+      /** 0 to 1; null when the job reports no total, so the bar is not drawn. */
+      progress: number | null;
+      detail: string;
+      /** Why Cancel is unavailable right now. */
+      cancelReason?: string;
+      cancelError?: string;
+    }
   | {
       phase: "done" | "stale";
       files: readonly ExportFile[];
       when: string;
       exported: ExportRequest;
+      /** Replaces "Last export {when}" when the host has its own words. */
+      summary?: string;
+      /** What the master measured, as a sentence. */
+      measured?: string;
     }
+  /** Cancelled; `files` are the ones written before the cancel reached the job. */
+  | { phase: "cancelled"; files: readonly ExportFile[]; detail: string }
   | { phase: "failed"; cause: string };
 
-export type DeliverEnv = "app" | "browser";
+/** `none`: the host cannot reveal or download files. */
+export type DeliverEnv = "app" | "browser" | "none";
 
 /** Export until a current export exists; then Reveal in the app, Download in a browser. */
 export function primaryAction(
@@ -219,7 +243,8 @@ export function primaryAction(
   env: DeliverEnv,
 ): "export" | "exporting" | "reveal" | "download" {
   if (state.phase === "running") return "exporting";
-  if (state.phase === "done") return env === "app" ? "reveal" : "download";
+  if (state.phase === "done" && env !== "none")
+    return env === "app" ? "reveal" : "download";
   return "export";
 }
 
@@ -333,9 +358,19 @@ export function currentExportState(
 export function exportBlocker(
   settings: EpisodeSettings,
   state?: ExportState,
+  host: Pick<
+    ExportOptions,
+    "wavAlwaysWritten" | "settingsError" | "loading"
+  > = {},
 ): string | undefined {
-  if (state?.phase === "needs-model") return "Needs the transcription model.";
-  if (settings.formats.length === 0) return "Choose a format first.";
+  if (state?.phase === "needs-model") return `Needs the ${state.model}.`;
+  if (host.loading) return "Wait for the settings to load.";
+  if (
+    settings.formats.length === 0 &&
+    !host.wavAlwaysWritten &&
+    !host.settingsError
+  )
+    return "Choose at least one format.";
   if (settings.part.mode === "part" && settings.part.end <= settings.part.start)
     return "Out must come after In.";
   return undefined;
@@ -482,3 +517,29 @@ export function itemNames(titles: readonly string[], noun: string): string[] {
       : name;
   });
 }
+
+/** What a host can switch off or add around the export, for settings its backend cannot honour. */
+export type ExportOptions = {
+  /** The formats the project offers. Default: MP3, WAV and FLAC. */
+  formats?: readonly FormatOption[];
+  /** The mastered WAV is always written, so it is a note, not a choice. */
+  wavAlwaysWritten?: boolean;
+  /** The formats the host has chosen. When they change, the page follows them. */
+  selected?: readonly FormatId[];
+  /** The format list is still loading; Export waits for it. */
+  loading?: boolean;
+  /** Why the format list did not load; the export uses the project's saved formats. */
+  settingsError?: string;
+  /** When set, the loudness target is a sentence instead of a choice. */
+  loudnessNote?: string;
+  /** Without a backend for the target, no Loudness choice. Default true. */
+  loudness?: boolean;
+  /** Without a backend for a part of the episode, no Range control. Default true. */
+  range?: boolean;
+  /** Without a chosen folder, no "Saves to" line. Default true. */
+  folder?: boolean;
+  /** A missing model: the gate's prompt and its download controls. */
+  gate?: ModelGate;
+  /** After a failed or cancelled export. */
+  onExportAgain?: () => void;
+};

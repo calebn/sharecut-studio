@@ -19,6 +19,7 @@ import {
   type DeliverEnv,
   type EpisodeSettings,
   type ExportFile,
+  type ExportOptions,
   type ExportRequest,
   type ExportState,
   exportBlocker,
@@ -84,12 +85,15 @@ export type DeliverStageProps = {
   onClips?: (clips: readonly Clip[]) => void;
   /** Without it the Listen link section is not shown. */
   showLink?: boolean;
+  /** Formats, notes and controls the host's export can honour. */
+  exportOptions?: ExportOptions;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel: () => void;
-  onReveal: (file?: ExportFile) => void;
-  onDownload: (file?: ExportFile) => void;
-  onChangeFolder: () => void;
+  /** Without them the host has no files to reveal or download, and no folder to change. */
+  onReveal?: (file?: ExportFile) => void;
+  onDownload?: (file?: ExportFile) => void;
+  onChangeFolder?: () => void;
   onCopyLink: () => void;
   onRefreshMix: () => void;
   onPlayFrom: (seconds: number) => void;
@@ -127,6 +131,7 @@ export function DeliverStage({
   guest = false,
   toastMs = 6000,
   showLink = true,
+  exportOptions,
   onSettings,
   onChapters,
   onClips,
@@ -146,6 +151,15 @@ export function DeliverStage({
   onRetry,
 }: DeliverStageProps) {
   const [settings, setSettings] = useState(initialSettings);
+  const hostFormats = exportOptions?.selected;
+  const hostKey = hostFormats?.join("\n");
+  const [seenHostKey, setSeenHostKey] = useState(hostKey);
+  if (hostKey !== seenHostKey) {
+    setSeenHostKey(hostKey);
+    if (hostFormats && hostKey !== settings.formats.join("\n")) {
+      setSettings({ ...settings, formats: [...hostFormats] });
+    }
+  }
   const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
   const [clips, setClips] = useState<readonly Clip[]>(initialClips);
   useWriteBack(settings, onSettings);
@@ -161,7 +175,7 @@ export function DeliverStage({
 
   const blocker = loading
     ? "Still loading."
-    : exportBlocker(settings, exportState);
+    : exportBlocker(settings, exportState, exportOptions);
   const pick = validSelection(selection, total);
   const request = exportRequest(settings, clips, chapters);
   const keyRequest = exportRequest(settings, clips, chapters, pick);
@@ -335,6 +349,7 @@ export function DeliverStage({
               onCancel={onCancel}
               onReveal={onReveal}
               onDownload={onDownload}
+              options={exportOptions}
             />
             {phone ? null : (
               <>
@@ -375,8 +390,8 @@ export function DeliverStage({
             action={action}
             blocker={blocker}
             onExport={() => startExport()}
-            onReveal={() => onReveal()}
-            onDownload={() => onDownload()}
+            onReveal={() => onReveal?.()}
+            onDownload={() => onDownload?.()}
           />
         ) : null}
         <Toast
