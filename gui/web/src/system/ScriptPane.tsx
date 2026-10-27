@@ -681,9 +681,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       };
     }, [bodyShown]);
 
-    // A focused stop that went away (a word cut into a pill) hands focus to
-    // the stop that now holds its place. When the Fix text field closes, focus
-    // goes to the first word it covered.
     useLayoutEffect(() => {
       const closedAt = editStart === undefined ? editedAt.current : null;
       editedAt.current = editStart ?? null;
