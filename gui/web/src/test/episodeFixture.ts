@@ -249,6 +249,7 @@ const PENDING = pendingEditView({
   sound_kind: "pause",
   label: "Pause",
   suggested_action: "shorten",
+  why: null,
 });
 
 const COMMENTS = [
@@ -394,23 +395,27 @@ export function tightenHits(): PendingEditView[] {
       kind: "filler",
       sound_kind: "filler",
       label: "Filler",
+      why: "Filler word; the sentence reads the same without it",
     }),
     hit("tighten-pause", MIRA, "pause:long", 49.6, 52, {
       kind: "pause",
       sound_kind: "pause",
       label: "Pause",
       suggested_action: "shorten",
+      why: "A 2.4 s gap; keeps 0.2 s",
     }),
     hit("tighten-repeat", TOMAS, "repetition:the", 94, 94.4, {
       kind: "repeat",
       sound_kind: "repetition",
       label: "Repetition",
+      why: "Tomas says “the” twice",
       review_required: true,
     }),
     hit("tighten-restart", TOMAS, "restart:i", 134, 134.5, {
       kind: "false-start",
       sound_kind: "restart",
       label: "Restart",
+      why: "Tomas restarts the sentence",
       harsh: true,
       listen_one_by_one: true,
       review_required: true,
