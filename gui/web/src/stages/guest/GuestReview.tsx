@@ -1,10 +1,10 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { AppHeader, type HeaderPerson } from "../../system/AppHeader";
 import { Cover } from "../../system/Cover";
 import type { OverviewTick } from "../../system/OverviewStrip";
 import { Player } from "../../system/Player";
 import type { SaveIndicatorProps } from "../../system/SaveIndicator";
-import { ScriptPane } from "../../system/ScriptPane";
+import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
 import { Skeleton } from "../../system/Skeleton";
 import { StageBar } from "../../system/StageBar";
 import type { ScriptTurn } from "../../system/scriptPieces";
@@ -67,6 +67,7 @@ export function GuestReview({
   const [playing, setPlaying] = useState(initialPlaying);
   const [following, setFollowing] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const pane = useRef<ScriptPaneHandle>(null);
   const [hintShown, setHintShown] = useState(firstVisit);
   const [tab, setTab] = useState<StageId>("review");
   const phone = layout === "phone";
@@ -155,6 +156,7 @@ export function GuestReview({
       />
     );
     const composerPart = access !== "viewer" ? composer : null;
+    const word = lastIndexAtOrBefore(wordStarts, playhead);
     const script =
       turns.length === 0 ? (
         <Cover size="region" glyph="inbox" title="Nothing to read yet">
@@ -162,17 +164,21 @@ export function GuestReview({
         </Cover>
       ) : (
         <ScriptPane
+          ref={pane}
           turns={turns}
           layout={layout}
           guest={access === "viewer" ? "viewer" : "commenter"}
-          playing={lastIndexAtOrBefore(wordStarts, playhead)}
+          playing={word}
           following={following}
           onSeek={(word) => seek(wordStarts[word] ?? playhead)}
           onUserScroll={() => {
             setFollowing(false);
             if (phone) setCollapsed(true);
           }}
-          onBackToPlayhead={() => setFollowing(true)}
+          onBackToPlayhead={() => {
+            setFollowing(true);
+            if (word !== undefined) pane.current?.scrollToWord(word, "center");
+          }}
           onFollowChange={setFollowing}
         />
       );

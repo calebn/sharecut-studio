@@ -397,8 +397,21 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-inline-size: 0;
+  white-space: nowrap;
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
+}
+
+.sys-header-sub .sys-mono {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-header-sub .sys-role,
+.sys-header-sub .sys-coach {
+  flex: none;
 }
 
 .sys-header-people {
@@ -4374,6 +4387,7 @@ button.sys-script-speaker {
 }
 
 .sys-coach--edge .sys-coach-tip {
+  white-space: normal;
   inset-inline-start: var(--space-3);
   max-inline-size: calc(100% - var(--space-5));
 }

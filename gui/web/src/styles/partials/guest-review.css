@@ -42,3 +42,8 @@
   min-block-size: 0;
   overflow: hidden;
 }
+
+.gr-body > .sys-cover {
+  flex: 1;
+  min-inline-size: 0;
+}

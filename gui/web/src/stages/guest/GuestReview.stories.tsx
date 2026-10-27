@@ -25,6 +25,16 @@ function Placeholder() {
   );
 }
 
+async function expectCoverFills(canvasElement: HTMLElement, least: number) {
+  const body = canvasElement.querySelector(".gr-body")?.getBoundingClientRect();
+  const cover = canvasElement
+    .querySelector(".sys-cover")
+    ?.getBoundingClientRect();
+  // jsdom has no layout; only a real browser can see the Cover collapse.
+  if (!body || !cover || body.width === 0) return;
+  await expect(cover.width).toBeGreaterThan(body.width * least);
+}
+
 const phone = { viewport: { value: "mobile360", isRotated: false } };
 
 const meta: Meta<typeof GuestReview> = {
@@ -100,6 +110,7 @@ export const Editor: Story = {
     const view = within(canvasElement);
     await userEvent.click(view.getByRole("tab", { name: /Edit/ }));
     await expect(view.getByText("Edit opens here")).toBeInTheDocument();
+    await expectCoverFills(canvasElement, 0.5);
     await userEvent.click(view.getByRole("tab", { name: /Review/ }));
     await expect(
       view.getByRole("group", { name: "Composer slot" }),
@@ -123,6 +134,7 @@ export const Loading: Story = { args: { state: "loading" } };
 export const ErrorState: Story = {
   args: { state: "error" },
   play: playInCanvas(async ({ canvasElement, args }) => {
+    await expectCoverFills(canvasElement, 0.5);
     await userEvent.click(
       within(canvasElement).getByRole("button", { name: "Try again" }),
     );
@@ -151,7 +163,14 @@ function phoneStory(role: "viewer" | "commenter" | "editor"): Story {
 
 export const ViewerPhone: Story = phoneStory("viewer");
 export const CommenterPhone: Story = phoneStory("commenter");
-export const EditorPhone: Story = phoneStory("editor");
+export const EditorPhone: Story = {
+  ...phoneStory("editor"),
+  play: playInCanvas(async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await userEvent.click(view.getByRole("tab", { name: /Edit/ }));
+    await expectCoverFills(canvasElement, 0.5);
+  }),
+};
 
 export const BadLinkPhone: Story = {
   args: { state: "bad-link", layout: "phone" },
