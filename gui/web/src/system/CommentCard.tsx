@@ -124,8 +124,8 @@ export function CommentCard({
       )}
       {pending?.state === "failed" ? (
         <div className="sys-comment-retry">
-          <Button onClick={pending.onRetry}>Try again</Button>
-          <Button variant="link" onClick={pending.onRemove}>
+          <Button onClick={() => pending.onRetry()}>Try again</Button>
+          <Button variant="link" onClick={() => pending.onRemove()}>
             <SystemIcon name={iconOf("remove")} size={14} />
             {REMOVE.label}
           </Button>
@@ -163,7 +163,12 @@ export function CommentCard({
       {reply && settled ? (
         <div className="sys-comment-reply">
           <Composer
-            {...reply}
+            body={reply.body}
+            onBodyChange={reply.onBodyChange}
+            onSubmit={reply.onSubmit}
+            state={reply.state}
+            name={reply.name}
+            inputRef={reply.inputRef}
             compact
             label={`Reply to ${c.author}`}
             placeholder={`Reply to ${c.author}`}
