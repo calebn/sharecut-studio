@@ -14,6 +14,7 @@ import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { THEME_STORAGE_KEY } from "../../hooks/useTheme";
+import { pickAudioFiles } from "../../ingest/ingestFiles";
 import { useRecordHostStore } from "../../record/hostStore";
 import { useDawStore } from "../../state/dawStore";
 import { DawProvider } from "../../state/store";
@@ -43,8 +44,9 @@ import { StageHost } from "./StageHost";
  * unmounted slot or a dropped prop fails here.
  */
 
-vi.mock("../../panels/PipelinePanel", () => ({
-  PipelinePanel: () => <div>pipeline panel</div>,
+vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../ingest/ingestFiles")>()),
+  pickAudioFiles: vi.fn(async () => []),
 }));
 vi.mock("../../panels/ImpactPanel", () => ({
   ImpactPanel: () => <div>impact panel</div>,
@@ -285,12 +287,14 @@ const refreshMixRow: Probe = async (user) => {
 
 const importAudio: Probe = async (user) => {
   mountStage("prepare");
-  await runs("media.import", () => user.click(button(/Add audio/)));
+  vi.mocked(pickAudioFiles).mockClear();
+  await user.click(button(/Import audio/));
+  await waitFor(() => expect(pickAudioFiles).toHaveBeenCalled());
 };
 
 const pipeline: Probe = async () => {
   mountStage("prepare");
-  expect(screen.getByText("pipeline panel")).toBeInTheDocument();
+  expect(button(/Advanced/)).toBeInTheDocument();
 };
 
 const reviewSection =
