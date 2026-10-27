@@ -42,7 +42,7 @@
 
 .edit-workspace--stacked .edit-timeline-col,
 .edit-workspace--stacked .edit-script {
-  flex-basis: 50%;
+  flex: 1 1 50%;
 }
 
 .edit-script {
@@ -60,8 +60,7 @@
   border-block-start: 1px solid var(--color-border);
 }
 
-.edit-workspace--script-focus .edit-script,
-.edit-workspace--stacked .edit-script {
+.edit-workspace--script-focus .edit-script {
   flex: 1 1 0;
 }
 
