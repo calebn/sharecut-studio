@@ -5,20 +5,21 @@ import {
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
 import { playInCanvas } from "../../storybook/storyPlay";
-import { type QueuedComment, saveOf } from "./commentQueue";
+import { SCRIPT_TURNS } from "../../system/scriptFixtures";
 import { GuestReview } from "./GuestReview";
-import {
-  DURATION,
-  PEAKS,
-  PEOPLE,
-  SCRIPT_TURNS,
-  TICKS,
-  WORD_STARTS,
-} from "./guestFixture";
+import { DURATION, PEAKS, PEOPLE, TICKS, WORD_STARTS } from "./guestFixture";
 
 function Placeholder() {
   return (
-    <div className="gr-composer" role="group" aria-label="Composer slot">
+    <div
+      role="group"
+      aria-label="Composer slot"
+      style={{
+        padding: "var(--space-4)",
+        border: "1px dashed var(--color-border)",
+        color: "var(--color-text-secondary)",
+      }}
+    >
       The Review lane&apos;s Composer goes here.
     </div>
   );
@@ -58,7 +59,7 @@ const meta: Meta<typeof GuestReview> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Guest Review: what a link opens. Viewers and commenters get Review alone, with no Stage bar; editors get Edit and Review. The expanded Player sits on top, the Composer under it, then the read-only Script, which follows the playhead until the guest scrolls it away. The Composer's time chip follows the playhead until the first keystroke pins it; pressing the chip moves it to the playhead. On a phone the Player collapses to its bar when the Script scrolls and the Composer docks at the bottom. A dead link shows a Cover, never the server's answer. Presentational: nothing here talks to the server. The Composer is the Review lane's and drops into a slot. The Role chip's one-time hint and the offline queue come in the next slice.\n\n**Motion.** Animations come later: the Player's collapse uses `--motion-panel`, the Script's follow scroll `--motion-state`.",
+          "Guest Review: what a link opens. Viewers and commenters get Review alone, with no Stage bar; editors get Edit and Review. The expanded Player sits on top, the Composer under it, then the read-only Script, which follows the playhead until the guest scrolls it away. The Composer's time chip follows the playhead until the first keystroke pins it; pressing the chip moves it to the playhead. On a phone the Player collapses to its bar when the Script scrolls and the Composer docks at the bottom. A dead link shows a Cover, never the server's answer. Presentational: nothing here talks to the server. The Composer is the Review lane's and drops into a slot. The Role chip explains itself once on a first visit. Offline shows the Save indicator's waiting count; the queue behind it is wired later.\n\n**Motion.** Animations come later: the Player's collapse uses `--motion-panel`, the Script's follow scroll `--motion-state`.",
       },
     },
   },
@@ -158,15 +159,6 @@ export const BadLinkPhone: Story = {
   globals: phone,
 };
 
-const waiting = (status: QueuedComment["status"], count: number) =>
-  Array.from({ length: count }, (_, i) => ({
-    id: String(i),
-    body: "Cut this",
-    at: 735,
-    name: "Guest",
-    status,
-  }));
-
 export const FirstVisitRoleHint: Story = {
   args: { firstVisit: true, onRoleHintSeen: fn() },
   play: playInCanvas(async ({ canvasElement, args }) => {
@@ -187,11 +179,7 @@ export const FirstVisitRoleHintPhone: Story = {
 };
 
 export const Offline: Story = {
-  args: { save: saveOf([], false) },
-};
-
-export const OfflineQueued: Story = {
-  args: { save: saveOf(waiting("queued", 2), false) },
+  args: { save: { state: "offline", waiting: 2 } },
   play: playInCanvas(async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText(/2 waiting/),
@@ -200,5 +188,5 @@ export const OfflineQueued: Story = {
 };
 
 export const Reconnected: Story = {
-  args: { save: { ...saveOf(waiting("sent", 2), true), justSaved: true } },
+  args: { save: { state: "saved", justSaved: true } },
 };

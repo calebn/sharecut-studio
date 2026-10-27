@@ -9,26 +9,13 @@ import { Skeleton } from "../../system/Skeleton";
 import { StageBar } from "../../system/StageBar";
 import type { ScriptTurn } from "../../system/scriptPieces";
 import type { StageId } from "../../system/verbs";
-import { clamp } from "../../utils/math";
+import { clamp, lastIndexAtOrBefore } from "../../utils/math";
 import { formatTimeShort } from "../../utils/time";
-import {
-  canComment,
-  type GuestRole,
-  guestStages,
-  roleHint,
-  wordAtSeconds,
-} from "./guestLogic";
-
-const ROLE_LABEL = {
-  viewer: "Viewer",
-  commenter: "Commenter",
-  editor: "Editor",
-} as const;
+import { type GuestRole, guestStages, ROLE_HINT } from "./guestLogic";
 
 export type GuestReviewProps = {
   access: GuestRole;
   title: string;
-  /** "Rough cut · 25 Oct". */
   version: string;
   people?: readonly HeaderPerson[];
   save?: SaveIndicatorProps;
@@ -44,7 +31,6 @@ export type GuestReviewProps = {
   layout?: "desktop" | "phone";
   /** `bad-link`: the link opens nothing; a Cover, never the server's answer. */
   state?: "ready" | "loading" | "error" | "bad-link";
-  /** What an Editor's Edit tab shows until the Edit stage is wired. */
   edit?: ReactNode;
   /** First visit on this link: the Role chip explains itself once. The app stores that it was seen. */
   firstVisit?: boolean;
@@ -113,10 +99,10 @@ export function GuestReview({
       people={people}
       guest={{
         version,
-        role: ROLE_LABEL[access],
+        role: access,
         compact: phone,
         hint: {
-          text: roleHint(access),
+          text: ROLE_HINT[access],
           shown: hintShown,
           onDismiss: () => {
             setHintShown(false);
@@ -163,12 +149,12 @@ export function GuestReview({
         playhead={playhead / duration}
         onPlayPause={() => setPlaying((now) => !now)}
         onSkip={(seconds) => seek(playhead + seconds)}
-        onComment={canComment(access) ? onComment : undefined}
+        onComment={access !== "viewer" ? onComment : undefined}
         onExpand={() => setCollapsed(false)}
-        onCollapse={() => setCollapsed(true)}
+        onCollapse={phone ? () => setCollapsed(true) : undefined}
       />
     );
-    const composerPart = canComment(access) ? composer : null;
+    const composerPart = access !== "viewer" ? composer : null;
     const script =
       turns.length === 0 ? (
         <Cover size="region" glyph="inbox" title="Nothing to read yet">
@@ -179,7 +165,7 @@ export function GuestReview({
           turns={turns}
           layout={layout}
           guest={access === "viewer" ? "viewer" : "commenter"}
-          playing={wordAtSeconds(wordStarts, playhead)}
+          playing={lastIndexAtOrBefore(wordStarts, playhead)}
           following={following}
           onSeek={(word) => seek(wordStarts[word] ?? playhead)}
           onUserScroll={() => {

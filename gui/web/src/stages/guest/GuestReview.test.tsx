@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { SCRIPT_TURNS } from "../../system/scriptFixtures";
 import { GuestReview, type GuestReviewProps } from "./GuestReview";
-import { DURATION, PEAKS, SCRIPT_TURNS, WORD_STARTS } from "./guestFixture";
+import { DURATION, PEAKS, WORD_STARTS } from "./guestFixture";
 
 function setup(props: Partial<GuestReviewProps> = {}) {
   return render(
@@ -55,6 +56,32 @@ describe("GuestReview", () => {
   });
 });
 
+describe("Comment and collapse controls", () => {
+  it.each([
+    ["viewer", "desktop", false],
+    ["viewer", "phone", false],
+    ["commenter", "desktop", true],
+    ["commenter", "phone", true],
+    ["editor", "desktop", true],
+    ["editor", "phone", true],
+  ] as const)("%s on %s has a Comment button: %s", (access, layout, has) => {
+    setup({ access, layout, onComment: () => {} });
+    expect(!!screen.queryByRole("button", { name: "Comment" })).toBe(has);
+  });
+
+  it("collapses the Player only on a phone", () => {
+    const { unmount } = setup({ layout: "desktop" });
+    expect(
+      screen.queryByRole("button", { name: "Collapse player" }),
+    ).toBeNull();
+    unmount();
+    setup({ layout: "phone" });
+    expect(
+      screen.getByRole("button", { name: "Collapse player" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("Role hint", () => {
   it("shows once on a first visit and tells the app when dismissed", async () => {
     const seen = vi.fn();
@@ -63,6 +90,13 @@ describe("Role hint", () => {
     await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
     expect(screen.queryByRole("note")).toBeNull();
     expect(seen).toHaveBeenCalledOnce();
+  });
+
+  it("keeps keyboard focus after the hint closes", async () => {
+    setup({ firstVisit: true });
+    screen.getByRole("button", { name: "Dismiss hint" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(document.activeElement).not.toBe(document.body);
   });
 
   it("stays quiet on a later visit", () => {

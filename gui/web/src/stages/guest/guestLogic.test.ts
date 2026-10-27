@@ -1,42 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { canComment, guestStages, roleHint, wordAtSeconds } from "./guestLogic";
+import { guestStages, ROLE_HINT } from "./guestLogic";
 
-describe("guestStages and canComment", () => {
+describe("guestStages", () => {
   it.each([
-    ["viewer", null, false],
-    ["commenter", null, true],
-    ["editor", ["edit", "review"], true],
-  ] as const)("%s", (role, stages, comments) => {
+    ["viewer", null],
+    ["commenter", null],
+    ["editor", ["edit", "review"]],
+  ] as const)("%s", (role, stages) => {
     expect(guestStages(role)).toEqual(stages);
-    expect(canComment(role)).toBe(comments);
   });
 });
 
-describe("wordAtSeconds", () => {
-  const starts = [1, 2, 4, 8];
-  it.each([
-    [0.5, undefined],
-    [1, 0],
-    [1.9, 0],
-    [2, 1],
-    [7.99, 2],
-    [8, 3],
-    [100, 3],
-  ])("at %s", (seconds, word) => {
-    expect(wordAtSeconds(starts, seconds)).toBe(word);
-  });
-  it("finds nothing in no words", () => {
-    expect(wordAtSeconds([], 5)).toBeUndefined();
-  });
-});
-
-describe("roleHint", () => {
+describe("ROLE_HINT", () => {
   it.each([
     ["viewer", "listen"],
     ["commenter", "comment and suggest cuts"],
     ["editor", "edit"],
   ] as const)("%s", (role, phrase) => {
-    expect(roleHint(role)).toContain(phrase);
-    expect(roleHint(role)).toContain("The host decides");
+    expect(ROLE_HINT[role]).toContain(phrase);
+    expect(ROLE_HINT[role]).toContain("The host decides");
   });
 });

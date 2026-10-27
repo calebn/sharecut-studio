@@ -1,7 +1,4 @@
 import type { OverviewTick } from "../../system/OverviewStrip";
-import { SCRIPT_TURNS } from "../../system/scriptFixtures";
-
-export { SCRIPT_TURNS };
 
 export const DURATION = 3120;
 
