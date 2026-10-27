@@ -30,7 +30,20 @@ from podcast_mcp.models import (
 SR, DUR = 16_000, 120
 FADES = [0, 10, 50, 200, 500, 900, 1000]  # a clip fade over 1 s turns the cache off
 # Seeds where the straddler perturbation fails against a key without the straddler terms.
-SEEDS = [13, 15, 21, 29]
+SEEDS = [
+    13,
+    15,
+    21,
+    pytest.param(
+        26,
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="#2383 zero-fade split of a far clip on another track: warm cache adds a "
+            "'voiced edge' flag",
+        ),
+    ),
+    29,
+]
 
 
 _um = {"type": EditDecisionType.REMOVE, "reason": "filler:um", "applied": False}
@@ -102,7 +115,7 @@ def _perturbed(project: EpisodeProject, rng: random.Random, kind: str) -> Episod
         clip.fade_in_ms, clip.fade_out_ms = rng.choice(FADES[3:]), rng.choice(FADES[3:])
     elif kind == "split":  # a cut applied far away writes a fade pair
         clip = next(c for c in clips if c.source_start < at < c.source_end)
-        fade = rng.choice(FADES[1:])
+        fade = rng.choice(FADES)
         left = clip.model_copy(update={"source_end": at, "fade_out_ms": fade})
         right = clip.model_copy(
             update={"id": "x", "source_start": at, "timeline_start": at, "fade_in_ms": fade}
