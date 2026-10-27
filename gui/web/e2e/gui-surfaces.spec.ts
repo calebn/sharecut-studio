@@ -77,7 +77,27 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
     test(`keeps all editor panels reachable and named in ${panelTheme}`, async ({
       page,
     }) => {
+      // History opens from a right-click on Undo, which stays disabled until the
+      // project has a step to undo; the comment is that step.
+      await postDocumentCommand(
+        page,
+        `e2e-panels-comment-${viewport.name}`,
+        "AddComment",
+        {
+          body: `Panels reachable ${viewport.name}`,
+          author: "Panels",
+          timeline_start: 1,
+          timeline_end: null,
+          track_ids: [],
+          action_texts: [],
+        },
+      );
       await openProject(page, e2eProjectPath);
+      await expect(
+        page
+          .locator(".sys-header-history")
+          .getByRole("button", { name: /^Undo/ }),
+      ).toBeEnabled();
       await setTheme(page, panelTheme);
       await expect(
         page.locator(`.stage-frame--${viewport.name}`),
@@ -92,6 +112,13 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         await openPanel(page, name);
         await expect(page.locator(selector)).toBeVisible();
         await expectEditorAxeClean(page, selector);
+        if (name === "History") {
+          // History is a sheet over the stage: close it to reach the next panel.
+          await page.keyboard.press("Escape");
+          await expect(
+            page.getByRole("dialog", { name: "History" }),
+          ).toBeHidden();
+        }
       }
       await expect(
         page.getByRole("button", { name: "Run pipeline", exact: true }),
