@@ -87,6 +87,11 @@ describe("tightenHits", () => {
     expect(isTightenPending(unclassified)).toBe(false);
   });
 
+  it("treats an unknown kind string as not a tighten hit", () => {
+    expect(isTightenPending(edit({ kind: "mystery" as never }))).toBe(false);
+    expect(isTightenPending(edit({ kind: "toString" as never }))).toBe(false);
+  });
+
   it("groups on the server kind and never reads the reason", () => {
     // A reason that looks like a filler, sent as another kind, follows the kind.
     expect(tightenClassOf(edit({ reason: "filler:um", kind: "pause" }))).toBe(

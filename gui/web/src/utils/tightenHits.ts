@@ -31,9 +31,22 @@ export function isTightenPending(edit: PendingEditView): boolean {
   return tightenClassOf(edit) !== null;
 }
 
+const TIGHTEN_CLASS_SET: Record<TightenClass, true> = {
+  filler: true,
+  pause: true,
+  repeat: true,
+  "false-start": true,
+  sound: true,
+};
+
+/** True for a kind this client knows; an absent or newer kind from an older or newer host is not. */
+export function isTightenClass(kind: unknown): kind is TightenClass {
+  return typeof kind === "string" && Object.hasOwn(TIGHTEN_CLASS_SET, kind);
+}
+
 /** The tighten class the server grouped the edit into (`kind`), or null for `other`. */
 export function tightenClassOf(edit: PendingEditView): TightenClass | null {
-  return edit.kind == null || edit.kind === "other" ? null : edit.kind;
+  return isTightenClass(edit.kind) ? edit.kind : null;
 }
 
 /**

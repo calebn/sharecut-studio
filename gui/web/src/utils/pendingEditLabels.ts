@@ -3,7 +3,7 @@
 import type { PendingEditView, PendingKind, TrackView } from "../types/project";
 import { knownPendingKind, markerLabel } from "./editMarkerRegistry";
 import { capitalize } from "./format";
-import type { TightenClass } from "./tightenHits";
+import { isTightenClass, type TightenClass } from "./tightenHits";
 import { clockLabel } from "./time";
 
 // Keys mirror src/podcast_mcp/edits/edit_reasons.py; tests/test_edit_reasons.py fails when one is missing.
@@ -76,7 +76,8 @@ export function pendingReasonLabel(
   if (reason.startsWith("nl:utterance:")) {
     return "Agent edit (utterance)";
   }
-  if (kind !== "other") {
+  // An older host or stale snapshot may send no kind or one this client does not know.
+  if (isTightenClass(kind)) {
     return TIGHTEN_REASON_LABELS[kind](reason.slice(reason.indexOf(":") + 1));
   }
   return reason;
