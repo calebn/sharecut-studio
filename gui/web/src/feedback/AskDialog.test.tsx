@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { AskDialog } from "./AskDialog";
-import { askConfirm, askText } from "./ask";
+import { askConfirm } from "./ask";
 
 const REMOVE = {
   title: "Remove the Host track?",
@@ -11,14 +11,6 @@ const REMOVE = {
   keepLabel: "Keep track",
   actionLabel: "Remove track",
   danger: true,
-};
-
-const OPEN = {
-  title: "Open project",
-  label: "Path to episode.project.json",
-  hint: "The file picker is not available here.",
-  submitLabel: "Open project",
-  requiredMessage: "Enter the path to an episode.project.json file.",
 };
 
 describe("AskDialog", () => {
@@ -59,43 +51,5 @@ describe("AskDialog", () => {
     );
     await user.keyboard("{Escape}");
     await expect(answer).resolves.toBe(false);
-  });
-
-  it("wires an empty path's error to the field, then returns the typed path", async () => {
-    const user = userEvent.setup();
-    const { baseElement } = render(<AskDialog />);
-    let answer!: Promise<string | null>;
-    act(() => {
-      answer = askText(OPEN);
-    });
-    const input = screen.getByRole("textbox", {
-      name: "Path to episode.project.json",
-    });
-    await waitFor(() => expect(input).toHaveFocus());
-    expect(input).toHaveAccessibleDescription(
-      "The file picker is not available here.",
-    );
-    await user.click(screen.getByRole("button", { name: "Open project" }));
-    expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(input).toHaveAccessibleDescription(
-      "The file picker is not available here. Enter the path to an episode.project.json file.",
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Enter the path to an episode.project.json file.",
-    );
-    await expectNoA11yViolations(baseElement);
-    await user.type(input, "/tmp/ep/episode.project.json{Enter}");
-    await expect(answer).resolves.toBe("/tmp/ep/episode.project.json");
-  });
-
-  it("returns null on Cancel", async () => {
-    const user = userEvent.setup();
-    render(<AskDialog />);
-    let answer!: Promise<string | null>;
-    act(() => {
-      answer = askText(OPEN);
-    });
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    await expect(answer).resolves.toBeNull();
   });
 });

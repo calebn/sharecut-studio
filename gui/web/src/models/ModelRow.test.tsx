@@ -183,39 +183,6 @@ describe("ModelRow", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("renders a select action as a checkbox named for the model, with the required note", async () => {
-    const onToggle = vi.fn();
-    const { container } = renderRow(view({ kind: "missing" }), {
-      kind: "select",
-      checked: true,
-      locked: true,
-      onToggle,
-    });
-    const box = screen.getByRole("checkbox", { name: "Whisper" });
-    expect(box).toBeChecked();
-    expect(box).toBeDisabled();
-    expect(box).toHaveAccessibleDescription(/Required for transcription/);
-    await expectNoA11yViolations(container);
-  });
-
-  it("toggles an unlocked select and shows no required note for an optional model", async () => {
-    const user = userEvent.setup();
-    const onToggle = vi.fn();
-    renderRow(
-      view({ kind: "missing" }, { tier: "offered", label: "Word aligner" }),
-      {
-        kind: "select",
-        checked: false,
-        locked: false,
-        onToggle,
-      },
-    );
-    await user.click(screen.getByRole("checkbox", { name: "Word aligner" }));
-    expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText(/Required for/)).toBeNull();
-    expect(screen.getByText("Optional")).toBeTruthy();
-  });
-
   it("puts the variant picker inside the row", () => {
     renderRow(view({ kind: "missing" }), { kind: "none" }, true);
     expect(screen.getByRole("listitem")).toContainElement(

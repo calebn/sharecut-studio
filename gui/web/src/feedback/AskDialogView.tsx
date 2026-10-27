@@ -1,27 +1,22 @@
-import { useId, useRef, useState } from "react";
-import { Button, Dialog, Field } from "../ui";
-import type { Answer, ConfirmQuestion, Question, TextQuestion } from "./ask";
+import { useId, useRef } from "react";
+import { Button, Dialog } from "../ui";
+import type { Answer, ConfirmQuestion } from "./ask";
 
 type Props = {
-  question: Question | null;
+  question: ConfirmQuestion | null;
   onAnswer: (answer: Answer) => void;
 };
 
 /**
- * The app's own confirm and text prompt, in place of `window.confirm` and
- * `window.prompt`. Keep (or Cancel) comes first and takes focus; the action
- * comes last. Escape, the scrim and Close all back out. On a phone it is a
+ * The app's own confirm prompt, in place of `window.confirm`. Keep (or Cancel)
+ * comes first and takes focus; the action comes last. Escape, the scrim and Close all back out. On a phone it is a
  * bottom sheet with the actions pinned to the bottom bar.
  */
 export function AskDialogView({ question, onAnswer }: Props) {
   if (!question) {
     return null;
   }
-  return question.kind === "confirm" ? (
-    <ConfirmView question={question} onAnswer={onAnswer} />
-  ) : (
-    <TextView question={question} onAnswer={onAnswer} />
-  );
+  return <ConfirmView question={question} onAnswer={onAnswer} />;
 }
 
 function ConfirmView({
@@ -58,66 +53,6 @@ function ConfirmView({
       <p id={messageId} className="ui-ask-message">
         {question.message}
       </p>
-    </Dialog>
-  );
-}
-
-function TextView({
-  question,
-  onAnswer,
-}: {
-  question: TextQuestion;
-  onAnswer: (answer: Answer) => void;
-}) {
-  const formId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <Dialog
-      open
-      title={question.title}
-      panelClassName="ui-ask"
-      initialFocusRef={inputRef}
-      onClose={() => onAnswer(null)}
-      footer={
-        <div className="ui-ask-actions">
-          <Button onClick={() => onAnswer(null)}>Cancel</Button>
-          <Button variant="primary" type="submit" form={formId}>
-            {question.submitLabel}
-          </Button>
-        </div>
-      }
-    >
-      <form
-        id={formId}
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!value.trim()) {
-            setError(question.requiredMessage);
-            inputRef.current?.focus();
-            return;
-          }
-          onAnswer(value);
-        }}
-      >
-        <Field label={question.label} hint={question.hint} error={error}>
-          {(control) => (
-            <input
-              {...control}
-              ref={inputRef}
-              value={value}
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(event) => {
-                setValue(event.target.value);
-                setError(null);
-              }}
-            />
-          )}
-        </Field>
-      </form>
     </Dialog>
   );
 }
