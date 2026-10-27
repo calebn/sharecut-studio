@@ -7,7 +7,6 @@ import {
 } from "../desktop/useDesktopCloseGuard";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { answerQuestions } from "../test/ask";
 import { clearRegisteredCommands, execute } from "./execute";
 import { PROJECT_CLOSE_TIMEOUT_MS, PROJECT_NEW_RETRY_MS } from "./projectMedia";
 import {
@@ -271,41 +270,25 @@ describe("project.open", () => {
     expect(openMock).not.toHaveBeenCalled();
   });
 
-  it("prompts when the dialog is unavailable", async () => {
+  it("goes to Home's path field when no folder picker exists", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=%2Ftmp%2Fep",
+      assign,
+    });
     pickMock.mockResolvedValue({
       unavailable: true,
       detail: "install zenity",
     });
-    const { asked } = answerQuestions(" /tmp/ep/episode.project.json ");
-    openMock.mockResolvedValue({
-      project_path: "/tmp/ep/episode.project.json",
-      name: "episode",
-    });
     expect((await execute("project.open")).status).toBe("ok");
     await waitFor(() => {
-      expect(openMock).toHaveBeenCalledWith("/tmp/ep/episode.project.json");
+      expect(assign).toHaveBeenCalledOnce();
     });
-    expect(asked).toEqual([
-      {
-        kind: "text",
-        title: "Open project",
-        label: "Path to episode.project.json",
-        hint: "install zenity",
-        submitLabel: "Open project",
-        requiredMessage: "Enter the path to an episode.project.json file.",
-      },
-    ]);
-  });
-
-  it("opens nothing when the path prompt is cancelled", async () => {
-    pickMock.mockResolvedValue({ unavailable: true });
-    answerQuestions(null);
-    expect((await execute("project.open")).status).toBe("ok");
-    await waitFor(() => {
-      expect(pickMock).toHaveBeenCalled();
-    });
-    await Promise.resolve();
+    const home = new URL(String(assign.mock.calls[0]?.[0]));
+    expect(home.searchParams.get("home")).toBe("1");
+    expect(home.searchParams.get("openOther")).toBe("1");
+    expect(home.searchParams.has("project")).toBe(false);
     expect(openMock).not.toHaveBeenCalled();
+    expect(closeMock).not.toHaveBeenCalled();
   });
 
   it("announces open failure", async () => {

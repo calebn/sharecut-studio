@@ -16,6 +16,7 @@ import {
   isModelNeeded,
   type ModelNeeded,
 } from "../../utils/apiError";
+import { takeAutoRun } from "../../utils/openIntent";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
 import type { ModelAsk } from "./prepareMappers";
 
@@ -217,6 +218,13 @@ export function usePrepareRun(input: PrepareRunInput) {
   useEffect(() => {
     if (waiting && !slotBusy && canRun) void start("run");
   }, [waiting, slotBusy, canRun, start]);
+
+  // Audio that Home imported into this new episode starts processing on open,
+  // once, the same as an import made here.
+  useEffect(() => {
+    if (!canRun || !mediaKey || ingestBusy) return;
+    if (takeAutoRun(latest.current.projectPath)) void start("run");
+  }, [canRun, mediaKey, ingestBusy, start]);
 
   // A run that stopped for a model goes on by itself once that model is in.
   const row = need ? (models?.find((m) => m.id === need.id) ?? null) : null;

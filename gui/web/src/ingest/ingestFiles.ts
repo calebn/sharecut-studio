@@ -53,6 +53,20 @@ async function createTrackWithMedia(
   return tid;
 }
 
+/**
+ * Adds each file as a new track of a project the store has not opened yet
+ * (Home's Import). Throws on the first failure so the caller can say so.
+ */
+export async function ingestIntoNewProject(
+  projectPath: string,
+  files: readonly File[],
+): Promise<void> {
+  const taken = new Set<string>();
+  for (const file of files) {
+    await createTrackWithMedia(projectPath, file, taken);
+  }
+}
+
 function focusImportedTrack(trackId: string): void {
   const s = useDawStore.getState();
   s.setSelection({ kind: "track", trackId });
