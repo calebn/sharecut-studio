@@ -19,7 +19,9 @@ from podcast_mcp.models import (
     Clip,
     EditDecision,
     EditDecisionType,
+    EpisodeProject,
     MediaAsset,
+    ProjectMeta,
     Track,
     TrackRole,
     load_project,
@@ -165,3 +167,24 @@ def test_cli_apply_suggested_is_one_undo_step(tmp_path, ten_second_silence_wav) 
     assert _pending(path) == ["join", "nl", "review"]
     assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
     assert _pending(path) == ["join", "nl", "review", "risky", "safe"]
+
+
+def test_studio_view_sends_a_plain_why_line_only_for_tighten_hits(tmp_path) -> None:
+    proj = EpisodeProject(meta=ProjectMeta(name="why", workspace_dir=str(tmp_path)))
+    proj.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Jon")]
+    proj.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    ]
+    proj.edit_decisions = [
+        *(d.model_copy() for d in HITS),
+        _decision("restart", "restart:partial:we", start=6.0),
+    ]
+    rows = map_pending_edits_to_timeline(proj, proj.edit_decisions)
+    assert {r["id"]: r["why"] for r in rows} == {
+        "safe": "Filler word; the sentence reads the same without it",
+        "risky": "Filler word; the sentence reads the same without it",
+        "join": "A 0.8 s gap; keeps 0.5 s",
+        "review": "Jon says “the” twice",
+        "nl": None,
+        "restart": "Jon restarts the sentence; nobody talks over it",
+    }

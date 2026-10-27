@@ -15,6 +15,7 @@ ACOUSTIC_KIND_FLAGS: tuple[str, ...] = (LIKELY_LAUGH_FLAG, POSSIBLE_WORD_FLAG)
 REPETITION_REASON_PREFIX = "repetition:"
 RESTART_REASON_PREFIX = "restart:"
 PAUSE_REASON_PREFIX = "pause:"
+OTHER_SPEAKING_FLAG = "other_speaking"
 
 
 def is_acoustic_filler_reason(reason: str | None) -> bool:
