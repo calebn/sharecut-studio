@@ -112,8 +112,8 @@ button.sys-composer-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 2rem;
-  block-size: 2rem;
+  inline-size: var(--control-height);
+  block-size: var(--control-height);
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -131,9 +131,9 @@ button.sys-composer-chip {
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: 2rem;
-  min-block-size: 2rem;
-  block-size: 2rem;
+  inline-size: var(--control-height);
+  min-block-size: var(--control-height);
+  block-size: var(--control-height);
   padding: 0;
   border-radius: 50%;
   margin-inline-start: auto;

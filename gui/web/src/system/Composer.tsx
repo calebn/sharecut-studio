@@ -1,4 +1,10 @@
-import { type KeyboardEvent, type Ref, useCallback, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type Ref,
+  type RefObject,
+  useCallback,
+  useRef,
+} from "react";
 import { Button, Field } from "../ui";
 import {
   type AnchorIntent,
@@ -166,6 +172,7 @@ export function Composer(props: ComposerProps) {
           <AnchorChip
             anchor={anchor}
             onAnchor={posting ? undefined : onAnchor}
+            focusFallback={bodyRef}
           />
         ) : null}
         <textarea
@@ -189,7 +196,10 @@ export function Composer(props: ComposerProps) {
           aria-label={sendLabel}
           disabledReason={block}
           aria-busy={posting || undefined}
-          onClick={() => onSubmit()}
+          onClick={() => {
+            onSubmit();
+            bodyRef.current?.focus();
+          }}
         >
           {posting ? (
             <SystemIcon name="progress-ring" size={16} />
@@ -243,11 +253,25 @@ function chipView(anchor: ComposerAnchor): {
 function AnchorChip({
   anchor,
   onAnchor,
+  focusFallback,
 }: {
   anchor: ComposerAnchor;
   onAnchor?: (intent: AnchorIntent) => void;
+  /** Takes focus when the chip button unmounts while it holds focus (posting swaps it for text). */
+  focusFallback: RefObject<HTMLElement | null>;
 }) {
   const view = chipView(anchor);
+  const chipRef = useRef<HTMLButtonElement | null>(null);
+  const setChip = useCallback(
+    (node: HTMLButtonElement | null) => {
+      chipRef.current = node;
+      return () => {
+        if (node && node === document.activeElement)
+          focusFallback.current?.focus();
+      };
+    },
+    [focusFallback],
+  );
   const body = (
     <>
       {view.pinned ? <SystemIcon name="pin" size={12} /> : null}
@@ -276,6 +300,7 @@ function AnchorChip({
         className="sys-composer-chip"
         data-pinned={view.pinned || undefined}
         aria-label={view.name}
+        ref={setChip}
         onClick={() => onAnchor("here")}
       >
         {body}
@@ -285,7 +310,10 @@ function AnchorChip({
           type="button"
           className="sys-composer-clear"
           aria-label="Make it a whole-episode note"
-          onClick={() => onAnchor("episode")}
+          onClick={() => {
+            onAnchor("episode");
+            chipRef.current?.focus();
+          }}
         >
           <SystemIcon name="x" size={12} />
         </button>

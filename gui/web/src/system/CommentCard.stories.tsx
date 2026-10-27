@@ -75,7 +75,7 @@ export const Failed: Story = {
   },
   play: playInCanvas(async ({ args, canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Try again" }),
+      within(canvasElement).getByRole("button", { name: /^Try again/ }),
     );
     if (args.pending?.state !== "failed") throw new Error("expected failed");
     await expect(args.pending.onRetry).toHaveBeenCalled();
