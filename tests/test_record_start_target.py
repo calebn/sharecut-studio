@@ -34,12 +34,14 @@ from podcast_mcp.models import (
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import HistoryService, SessionSuggestionService
 from podcast_mcp.services.record.landing import RecordLandingService
+from podcast_mcp.services.record.landing_math import record_source_prefix
 from podcast_mcp.services.record.landing_start import own_extent_s
+from podcast_mcp.services.record.service import RecordSessionService, apply_record_ws_message
 from podcast_mcp.services.record.upload import RecordUploadService, sha256_hex
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.wav import pcm_wav_header
 from test_record_replace_accept import _stage_replace
-from test_record_staging import _cmd, _join, _room_tone_bed, _seed, _suggestion
+from test_record_staging import CAPS, _cmd, _join, _room_tone_bed, _seed, _suggestion
 
 RATE = 48_000
 START = {"kind": "start"}
@@ -159,9 +161,25 @@ def _episode(ws) -> tuple[dict, str]:
     return room, guest
 
 
+def _join_as(ws, room, name: str):
+    """Like ``_join`` for a guest with another name, so a returning-name match does not merge two rooms' guests."""
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    echo, _snap = svc.join(
+        token=room["guest"]["token"], role="guest", display_name=name, client_id=f"rec-{name}",
+        connection_id="c1", capabilities=CAPS, client_seq=1,
+    )  # fmt: skip
+    apply_record_ws_message(
+        svc, {"type": "Record", "command_type": "Consent", "payload": {"accepted": True}, "client_seq": 2},
+        client_id=f"rec-{name}", role="guest", participant_id=echo["participant_id"], seq=2,
+        capabilities=CAPS, connection_id="c1",
+    )  # fmt: skip
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
+    return svc, echo["participant_id"]
+
+
 def _start_room(ws):
     room = ShareService(ws).create_record_room(target=START)
-    svc, guest = _join(ws, room)
+    svc, guest = _join_as(ws, room, "Sam")
     return room, svc, guest
 
 
@@ -653,6 +671,11 @@ def test_accepting_a_pending_insert_after_a_start_lands_is_one_step(
     _land(ws)
     result = SessionSuggestionService(ws).accept(insert_id)
     assert result["at_sec"] == pytest.approx(3.5)
-    [placed] = [c for c in ws.project.clips if c.track_id == iguest]
+    prefix = record_source_prefix(insert_room["session_id"])
+    [placed] = [
+        c
+        for c in ws.project.clips
+        if (c.source_id or "").startswith(prefix) and iguest in c.source_id
+    ]
     assert placed.timeline_start == pytest.approx(3.5)
     assert HistoryService(ws).list_entries().groups[-1].title.startswith("Added Session")
