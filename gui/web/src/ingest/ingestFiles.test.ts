@@ -4,7 +4,7 @@ import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
 import { answerQuestions } from "../test/ask";
 import { minimalProject, sampleTrack } from "../test/fixtures";
-import { ingestFiles } from "./ingestFiles";
+import { ingestFiles, ingestIntoNewProject } from "./ingestFiles";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -162,5 +162,56 @@ describe("ingestFiles", () => {
         /^Replaced Guest/,
       );
     });
+  });
+});
+
+describe("ingestIntoNewProject", () => {
+  const PATH = "/ws/new/episode.project.json";
+  const setMediaMock = vi.mocked(api.setTrackMediaCommand);
+
+  beforeEach(() => {
+    uploadMock.mockReset();
+    addTrackMock.mockReset();
+    setMediaMock.mockReset();
+    addTrackMock.mockResolvedValue({});
+    setMediaMock.mockResolvedValue({});
+    uploadMock.mockImplementation(async (_path, file) => ({
+      complete: true,
+      rel_path: `raw/${file.name}`,
+    }));
+  });
+
+  it("adds one track per file to a project the store has not opened", async () => {
+    useDawStore.setState({ projectPath: "", project: null });
+    const files = [new File(["a"], "Rosa.wav"), new File(["b"], "Maya.wav")];
+    await ingestIntoNewProject(PATH, files);
+    expect(addTrackMock).toHaveBeenCalledWith(PATH, {
+      track_id: "rosa",
+      label: "Rosa",
+    });
+    expect(addTrackMock).toHaveBeenCalledWith(PATH, {
+      track_id: "maya",
+      label: "Maya",
+    });
+    expect(setMediaMock).toHaveBeenCalledWith(PATH, "rosa", "raw/Rosa.wav");
+    expect(setMediaMock).toHaveBeenCalledWith(PATH, "maya", "raw/Maya.wav");
+  });
+
+  it("numbers two files with the same name apart", async () => {
+    await ingestIntoNewProject(PATH, [
+      new File(["a"], "take.wav"),
+      new File(["b"], "take.wav"),
+    ]);
+    expect(addTrackMock.mock.calls.map((c) => c[1]?.track_id)).toEqual([
+      "take",
+      "take_2",
+    ]);
+  });
+
+  it("throws the first failure so Home can say so", async () => {
+    uploadMock.mockRejectedValue(new Error("Disk full."));
+    await expect(
+      ingestIntoNewProject(PATH, [new File(["a"], "a.wav")]),
+    ).rejects.toThrow("Disk full.");
   });
 });
