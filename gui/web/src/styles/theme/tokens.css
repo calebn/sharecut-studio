@@ -141,19 +141,37 @@
      floor, and the Script pane gives way first, down to its own floor. */
   --stage-lane-min: 22rem;
   --stage-script-floor: 12rem;
-  /* What the Edit stage keeps above an open inspector sheet so a pin or a clip
-     stays in reach of the next tap: the app header, the surface and tool rows
-     (a control and its padding each), the ruler, the marker lane, one lane
-     with its bleed band row, and the keep-clear gap. */
-  --sheet-lane-clearance: calc(
-    var(--app-header-height) +
+  /* Edit stacked over the Script: the timeline keeps the ruler, one marker row
+     (the same height as the ruler) and two lanes, so a pin, a clip and its band
+     stay clear of the corner controls over the lanes' foot. */
+  --stage-stacked-lanes-min: calc(
     2 *
-    (var(--control-height) + 2 * var(--space-1)) +
     var(--ruler-height) +
-    var(--marker-lane-height) +
+    2 *
+    var(--lane-height)
+  );
+  /* What the Edit stage keeps above an open inspector sheet so the page still
+     reads as the page: the app header, the row the surface switch and the
+     tools share (a control and its padding), the ruler and the marker lane.
+     Where those two rows stack (a container under 22rem, as at large text),
+     bottom-sheet.css counts the second row too. */
+  --sheet-edit-row: calc(var(--control-height) + 2 * var(--space-1));
+  --sheet-chrome-clearance: calc(
+    var(--app-header-height) +
+    var(--sheet-edit-row) +
+    var(--ruler-height) +
+    var(--marker-lane-height)
+  );
+  /* What a pin or a clip needs on top of that to stay in reach of the next
+     tap: one lane with its bleed band row and the keep-clear gap. */
+  --sheet-lane-extra: calc(
     var(--lane-height) +
     var(--control-height) +
     var(--space-3)
+  );
+  --sheet-lane-clearance: calc(
+    var(--sheet-chrome-clearance) +
+    var(--sheet-lane-extra)
   );
   --player-height: 3.5rem;
   /* Control heights: one per role so rows line up. */

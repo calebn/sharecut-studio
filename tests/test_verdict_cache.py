@@ -173,7 +173,7 @@ def test_every_input_of_the_check_changes_the_key(
     assert key() != joined
     project.clips[1].fade_in_ms = 0
     project.clips[0].fade_in_ms = 10
-    assert key() == joined  # the start of the recording is outside the window
+    assert key() != joined  # a ramp where a clip leaves the window is still assessed (#2365)
     project.clips[0].fade_in_ms = 0
 
     far = project.clips[0].model_copy(
@@ -321,6 +321,20 @@ def test_a_changed_word_near_the_cut_changes_the_key(tmp_path: Path) -> None:
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     project.transcripts[0].words[0].text = "hullo"
     assert verdict_cache.verdict_key(project, edit, **kwargs) != base
+
+
+def test_a_transcript_with_no_words_still_gets_a_verdict_key(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    project.transcripts = [Transcript(track_id="host", words=[])]
+    key = verdict_cache.verdict_key(
+        project,
+        project.edit_decisions[0],
+        defaults=load_defaults(),
+        manual=False,
+        batch=(),
+        span=(5.0, 5.4),
+    )
+    assert key is not None
 
 
 def test_key_parts_name_the_input_that_moved_the_key(tmp_path: Path) -> None:

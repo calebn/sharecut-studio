@@ -1,0 +1,395 @@
+"""No two git-tracked paths may collide on case-insensitive checkouts (macOS/Windows)."""
+
+from __future__ import annotations
+
+import itertools
+import random
+import subprocess
+from collections import defaultdict
+from pathlib import Path, PurePosixPath
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+_IMPORTABLE = {"ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"}
+
+
+def _case_collisions(root: Path) -> list[list[str]]:
+    """Case-only path, directory and importable-module (foo.ts vs Foo.tsx) collisions."""
+    raw = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"], check=True, capture_output=True
+    ).stdout
+    tracked = [p for p in raw.decode("utf-8", errors="surrogateescape").split("\0") if p]
+    return _collisions_among(tracked)
+
+
+def _collisions_among(tracked: list[str]) -> list[list[str]]:
+    by_path: dict[str, set[str]] = defaultdict(set)
+    dir_spellings: dict[str, set[str]] = defaultdict(set)
+    dir_users: dict[str, set[str]] = defaultdict(set)
+    modules: dict[tuple[str, str], dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for path in tracked:
+        pure = PurePosixPath(path)
+        by_path[path.lower()].add(path)
+        for parent in pure.parents[:-1]:
+            dir_spellings[str(parent).lower()].add(str(parent))
+            dir_users[str(parent).lower()].add(path)
+        name = pure.name.lower()
+        ext = name.rsplit(".", 1)[-1] if "." in name else ""
+        if ext in _IMPORTABLE:
+            base = pure.name[: -len(ext) - 1]
+            if base.lower().endswith(".d") and ext == "ts":
+                base = base[:-2]
+            modules[(str(pure.parent).lower(), base.lower())][base].add(path)
+    found: set[tuple[str, ...]] = set()
+    found.update(tuple(sorted(p)) for p in by_path.values() if len(p) > 1)
+    for key, spellings in dir_spellings.items():
+        if len(spellings) > 1:
+            found.add(tuple(sorted(dir_users[key])))
+        if key in by_path:
+            found.add(tuple(sorted(by_path[key] | dir_users[key])))
+    for bases in modules.values():
+        if len(bases) > 1:
+            found.add(tuple(sorted(p for paths in bases.values() for p in paths)))
+    return [list(group) for group in sorted(found)]
+
+
+def test_tracked_paths_do_not_collide_on_case_insensitive_filesystems() -> None:
+    assert _case_collisions(ROOT) == [], (
+        "These tracked paths differ only in case and collide on case-insensitive "
+        "checkouts; rename one of each group (git mv)."
+    )
+
+
+def _index_repo(root: Path, paths: list[str]) -> None:
+    """Make a repo whose index holds `paths` (no working-tree files, so any filesystem works)."""
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    blob = (
+        subprocess.run(
+            ["git", "-C", str(root), "hash-object", "-w", "--stdin"],
+            input=b"x",
+            check=True,
+            capture_output=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    for path in paths:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"100644,{blob},{path}",
+            ],
+            check=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        ([], []),
+        (["a/b.ts", "c.py"], []),
+        (
+            ["src/ReviewQueue.tsx", "src/reviewQueue.ts"],
+            [["src/ReviewQueue.tsx", "src/reviewQueue.ts"]],
+        ),
+        (["foo.ts", "foo.tsx"], []),
+        (["README.md", "readme.txt"], []),
+        (["Foo.TXT", "foo.txt"], [["Foo.TXT", "foo.txt"]]),
+        (["docs/a.md", "Docs/b.md"], [["Docs/b.md", "docs/a.md"]]),
+        (["docs", "Docs/x.md"], [["Docs/x.md", "docs"]]),
+        (["a/Foo.js", "a/foo.jsx"], [["a/Foo.js", "a/foo.jsx"]]),
+        (["a/Foo.mjs", "a/foo.cjs"], [["a/Foo.mjs", "a/foo.cjs"]]),
+        (["a/Foo.mts", "a/foo.cts"], [["a/Foo.mts", "a/foo.cts"]]),
+        (["a/Foo.TSX", "a/foo.ts"], [["a/Foo.TSX", "a/foo.ts"]]),
+        (["a/foo.d.js", "a/Foo.js"], []),
+        (["a/Foo.D.ts", "a/foo.ts"], [["a/Foo.D.ts", "a/foo.ts"]]),
+        (["a/X.ts", "a/x.tsx"], [["a/X.ts", "a/x.tsx"]]),
+        (["a/\udcff.md"], []),
+        (["a/bd.ts", "a/BD.tsx"], [["a/BD.tsx", "a/bd.ts"]]),
+        (["a/ts", "a/Ts.tsx"], []),
+        (
+            ["A/Foo.ts", "a/foo.tsx", "A/z.md"],
+            [["A/Foo.ts", "A/z.md", "a/foo.tsx"], ["A/Foo.ts", "a/foo.tsx"]],
+        ),
+        (["docs", "Docs/sub/x.md"], [["Docs/sub/x.md", "docs"]]),
+        (["A/x/f.md", "a/y/g.md"], [["A/x/f.md", "a/y/g.md"]]),
+        (["a/B/x.md", "a/b/y.md"], [["a/B/x.md", "a/b/y.md"]]),
+        (["a/docs", "a/Docs/x.md"], [["a/Docs/x.md", "a/docs"]]),
+        (["a/b/Foo.ts", "a/b/foo.tsx"], [["a/b/Foo.ts", "a/b/foo.tsx"]]),
+        (["a/b/Foo.TXT", "a/b/foo.txt"], [["a/b/Foo.TXT", "a/b/foo.txt"]]),
+        (["a/b/foo.ts", "a/b/foo.tsx"], []),
+        (["a/b/C/x.md", "a/b/c/y.md"], [["a/b/C/x.md", "a/b/c/y.md"]]),
+        (["a/b/docs", "a/b/Docs/x.md"], [["a/b/Docs/x.md", "a/b/docs"]]),
+        (["a/b/c/Foo.ts", "a/b/c/foo.tsx"], [["a/b/c/Foo.ts", "a/b/c/foo.tsx"]]),
+        (["a/b/c/Foo.TXT", "a/b/c/foo.txt"], [["a/b/c/Foo.TXT", "a/b/c/foo.txt"]]),
+        (["a/b/c/foo.ts", "a/b/c/foo.tsx"], []),
+        (["foo.d.ts", "Foo.ts"], [["Foo.ts", "foo.d.ts"]]),
+        (["docs", "Docs/a/b/c.md"], [["Docs/a/b/c.md", "docs"]]),
+        (["a/reviewQueue.ts", "a/reviewqueue.tsx"], [["a/reviewQueue.ts", "a/reviewqueue.tsx"]]),
+        (["a/fooBar.ts", "a/foobar.tsx"], [["a/fooBar.ts", "a/foobar.tsx"]]),
+        (["a/fooBar.ts", "a/foobaz.ts"], []),
+        (
+            [
+                "a/useThingHandlerListItemRendererFactoryhelpeR.ts",
+                "a/useThingHandlerListItemRendererFactoryhelper.tsx",
+            ],
+            [
+                [
+                    "a/useThingHandlerListItemRendererFactoryhelpeR.ts",
+                    "a/useThingHandlerListItemRendererFactoryhelper.tsx",
+                ]
+            ],
+        ),
+        (
+            [
+                "a/UserListItemRendererFactoryHelperAlpha.tsx",
+                "a/UserListItemRendererFactoryHelperBeta.ts",
+            ],
+            [],
+        ),
+        (["a/UserListItemRenderer.tsx", "a/ProductListItemRenderer.ts"], []),
+        (
+            ["docs", "Docs/a/b/c/d/e/f/g/h/i/j/k/l/m.md"],
+            [["Docs/a/b/c/d/e/f/g/h/i/j/k/l/m.md", "docs"]],
+        ),
+        (
+            ["X/a/b/c/d/e/f/g/h/i/j/k/l/l.md", "x/a/b/c/d/e/f/g/h/i/j/k/l/m.md"],
+            [["X/a/b/c/d/e/f/g/h/i/j/k/l/l.md", "x/a/b/c/d/e/f/g/h/i/j/k/l/m.md"]],
+        ),
+        (["a/foo.ts", "b/Foo.tsx"], []),
+        (["a/Foo.ts", "a/foo.css"], []),
+        (["a/Foo.tsx", "a/foo.css"], []),
+    ],
+)
+def test_case_collisions_scenarios(
+    tmp_path: Path, files: list[str], expected: list[list[str]]
+) -> None:
+    _index_repo(tmp_path, files)
+    assert _case_collisions(tmp_path) == expected
+
+
+def _module_base(path: str) -> tuple[str, str] | None:
+    """(directory, base name) of an importable file, else None; `x.d.ts` counts as `x.ts`."""
+    directory, _, name = path.rpartition("/")
+    for ext in ("ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"):
+        if name.lower().endswith("." + ext) and len(name) > len(ext) + 1:
+            base = name[: -len(ext) - 1]
+            if ext == "ts" and base.lower().endswith(".d"):
+                base = base[:-2]
+            return directory, base
+    return None
+
+
+def _dirs(path: str) -> list[str]:
+    parts = path.split("/")
+    return ["/".join(parts[:i]) for i in range(1, len(parts))]
+
+
+def _oracle_collide(p: str, q: str) -> bool:
+    if p != q and p.lower() == q.lower():
+        return True
+    for x, y in ((p, q), (q, p)):
+        if any(d.lower() == o.lower() and d != o for d in _dirs(x) for o in [*_dirs(y), y]):
+            return True
+    mp, mq = _module_base(p), _module_base(q)
+    return bool(mp and mq and mp[0] == mq[0] and mp[1] != mq[1] and mp[1].lower() == mq[1].lower())
+
+
+_VOCAB = [
+    "a/Foo.ts", "a/foo.tsx", "a/foo.ts", "a/Foo.tsx", "b/Foo.tsx", "A/x.md", "a/x.md",
+    "docs", "Docs/a/b/c.md", "a/foo.css", "a/Foo.TXT", "a/foo.txt", "README.md",
+    "readme.txt", "a/foo.d.ts", "a/Foo.d.ts", "a/Foo.TSX", "a/Foo.D.ts", "a/bd.ts",
+    "a/fooBar.ts", "a/foobar.tsx", "a/fooBaz.ts", "a/foo.d.tsx",
+    "a/foo.md", "a/foo.json", "a/foo.py", "a/BD.tsx", "a/foo.d.js", "a/Foo.js", "a/b/Foo.js", "a/b/foo.jsx",
+]  # fmt: skip
+
+
+def _git_impossible(files: tuple[str, ...] | list[str]) -> bool:
+    return any(p in _dirs(q) for p, q in itertools.permutations(files, 2))
+
+
+def _assert_matches_oracle(vocab: list[str], max_size: int) -> None:
+    for size in range(1, max_size + 1):
+        for files in itertools.combinations(vocab, size):
+            if _git_impossible(files):
+                continue
+            expected = {p for p, q in itertools.permutations(files, 2) if _oracle_collide(p, q)}
+            flagged = {p for group in _collisions_among(list(files)) for p in group}
+            assert flagged == expected, files
+
+
+_FAMILY_VOCAB = [
+    "a/useThingHandler.ts", "a/useThinghandler.tsx", "a/UserList.tsx", "a/ProductList.tsx",
+    "a/xfoo.ts", "a/yfoo.tsx", "a/abcdefgh1.ts", "a/abcdefgh2.tsx",
+    "a/Foo.txt", "a/FOO.txt", "a/foo.txt", "Docs/x.md", "docs/y.md", "DOCS/z.md",
+    "a/Foo.ts", "a/foo.tsx", "a/FOO.js", "docs", "Docs/a/b/c/d/e.md",
+    "X/a/b/c/d/f.md", "x/a/b/c/d/g.md",
+]  # fmt: skip
+
+
+def test_guard_flags_same_files_as_naive_oracle() -> None:
+    _assert_matches_oracle(_VOCAB, 3)
+
+
+def test_guard_matches_oracle_on_families_and_deep_nesting() -> None:
+    _assert_matches_oracle(_FAMILY_VOCAB, 4)
+
+
+_PLAIN_EXTS = [
+    "md",
+    "json",
+    "py",
+    "html",
+    "htm",
+    "mdx",
+    "jsonc",
+    "yaml",
+    "yml",
+    "toml",
+    "svg",
+    "png",
+    "vue",
+    "svelte",
+    "map",
+    "wasm",
+    "node",
+    "d",
+    "sh",
+    "css",
+    "txt",
+    "lock",
+    "cfg",
+]
+
+
+@pytest.mark.parametrize("ext", _PLAIN_EXTS)
+def test_non_importable_extensions_never_form_module_collisions(ext: str) -> None:
+    other = _PLAIN_EXTS[(_PLAIN_EXTS.index(ext) + 1) % len(_PLAIN_EXTS)]
+    assert _collisions_among(["a/Foo.ts", f"a/foo.{ext}"]) == []
+    assert _collisions_among([f"a/Foo.{ext}", "a/foo.tsx"]) == []
+    assert _collisions_among([f"a/Foo.{ext}", f"a/foo.{other}"]) == []
+
+
+def test_only_dot_d_ts_is_a_declaration_form() -> None:
+    assert _collisions_among(["a/foo.d.tsx", "a/Foo.tsx"]) == []
+    assert _collisions_among(["a/Foo.mts", "a/foo.d.mts"]) == []
+
+
+_LONG_VOCAB = [
+    "a/useThingHandlerListItemRendererFactoryhelpeR.ts",
+    "a/useThingHandlerListItemRendererFactoryhelper.tsx",
+    "a/UserListItemRendererFactoryHelperAlpha.tsx",
+    "a/UserListItemRendererFactoryHelperBeta.ts",
+    "a/UserListItemRenderer.tsx",
+    "a/ProductListItemRenderer.ts",
+    "docs",
+    "Docs/a/b/c/d/e/f/g/h/i/j/k/l/m.md",
+    "X/a/b/c/d/e/f/g/h/i/j/k/l/l.md",
+    "x/a/b/c/d/e/f/g/h/i/j/k/l/m.md",
+]
+
+
+def test_guard_matches_oracle_on_long_names_and_deep_directories() -> None:
+    _assert_matches_oracle(_LONG_VOCAB, 4)
+
+
+_RANDOM_EXTS = [
+    "ts",
+    "tsx",
+    "mts",
+    "cts",
+    "js",
+    "jsx",
+    "mjs",
+    "cjs",
+    "d.ts",
+    "md",
+    "txt",
+    "json",
+    "css",
+]
+
+
+def _rand_word(rng: random.Random, low: int, high: int) -> str:
+    return "".join(rng.choice("abcdefgh") for _ in range(rng.randint(low, high)))
+
+
+def _rand_flip(rng: random.Random, text: str) -> str:
+    letters = [i for i, c in enumerate(text) if c.isalpha()]
+    if not letters:
+        return text
+    anchors = [letters[0], letters[-1], letters[len(letters) // 2]]
+    picks = {rng.choice([*anchors, rng.choice(letters)]) for _ in range(rng.choice([1, 1, 2, 3]))}
+    return "".join(c.swapcase() if i in picks else c for i, c in enumerate(text))
+
+
+def _rand_related(rng: random.Random, text: str) -> str:
+    keep = rng.randint(max(1, len(text) // 2), len(text))
+    if rng.random() < 0.5:
+        return text[:keep] + _rand_word(rng, 1, 12)
+    return _rand_word(rng, 1, 12) + text[len(text) - keep :]
+
+
+def _rand_mutate(rng: random.Random, text: str) -> str:
+    return rng.choice(
+        [
+            text,
+            _rand_flip(rng, text),
+            _rand_flip(rng, text),
+            _rand_related(rng, text),
+            _rand_word(rng, 1, 60),
+        ]
+    )
+
+
+def _rand_parts(rng: random.Random) -> tuple[list[str], str, str]:
+    depth = rng.choice([0, 0, 1, 2, 3, rng.randint(0, 14)])
+    dirs = [_rand_word(rng, 1, 30) for _ in range(depth)]
+    return dirs, _rand_word(rng, *rng.choice([(1, 60), (40, 60)])), rng.choice(_RANDOM_EXTS)
+
+
+def _rand_derive(
+    rng: random.Random, parts: tuple[list[str], str, str]
+) -> tuple[list[str], str, str]:
+    dirs, base, ext = list(parts[0]), parts[1], parts[2]
+    if dirs and rng.random() < 0.6:
+        i = rng.randrange(len(dirs))
+        dirs[i] = rng.choice([_rand_flip(rng, dirs[i]), _rand_related(rng, dirs[i])])
+    if rng.random() < 0.15:
+        dirs = [d.swapcase() for d in dirs]
+        base = base.swapcase()
+    base = _rand_mutate(rng, base)
+    if rng.random() < 0.5:
+        ext = rng.choice(_RANDOM_EXTS[:8] if rng.random() < 0.7 else _RANDOM_EXTS)
+    return dirs, base, ext
+
+
+def _rand_tree(rng: random.Random) -> list[str]:
+    parts = [_rand_parts(rng)]
+    for _ in range(rng.randint(1, 5)):
+        source = rng.choice(parts) if rng.random() < 0.7 else _rand_parts(rng)
+        parts.append(_rand_derive(rng, source))
+    rendered = ["/".join([*d, f"{b}.{e}"]) for d, b, e in parts]
+    return list(dict.fromkeys(rendered))
+
+
+def test_guard_matches_oracle_on_random_trees() -> None:
+    rng = random.Random(2380)
+    checked = positives = 0
+    while checked < 1000:
+        files = _rand_tree(rng)
+        if len(files) < 2 or _git_impossible(files):
+            continue
+        expected = {p for p, q in itertools.permutations(files, 2) if _oracle_collide(p, q)}
+        flagged = {p for group in _collisions_among(files) for p in group}
+        assert flagged == expected, files
+        checked += 1
+        positives += bool(expected)
+    assert positives >= checked * 0.25
+    assert checked - positives >= checked * 0.25

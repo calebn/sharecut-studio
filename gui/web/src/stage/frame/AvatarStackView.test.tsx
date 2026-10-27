@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -141,6 +141,8 @@ describe("AvatarStackView", () => {
     await user.keyboard("{Enter}");
     const menu = screen.getByRole("menu", { name: "People" });
     await expectNoA11yViolations(menu);
+    const [first] = within(menu).getAllByRole("menuitem");
+    await waitFor(() => expect(first).toHaveFocus());
     await user.keyboard("{ArrowDown}{Enter}");
     expect(onFollow).toHaveBeenCalledWith("b");
     expect(screen.queryByRole("menu")).toBeNull();
@@ -177,11 +179,38 @@ describe("AvatarStackView", () => {
       />,
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "People here, 4. Follow someone" }),
+      screen.getByRole("button", {
+        name: "People here, 4. Follow someone",
+      }),
     );
     await userEvent.click(screen.getByRole("menuitem", { name: /Ada/ }));
     expect(onFollow).toHaveBeenCalledWith("a");
   });
+
+  it.each([2, 5])(
+    "header trigger name holds the text drawn on it with %i others",
+    async (count) => {
+      const others = ["a", "b", "c", "d", "e"]
+        .slice(0, count)
+        .map((client_id) => sessionClient({ client_id }));
+      const { container } = render(
+        <AvatarStackView
+          variant="header"
+          others={others}
+          names={NAMES}
+          followingClientId={null}
+          onFollow={vi.fn()}
+        />,
+      );
+      // Drawn by CSS, so the accessible name is the only text and cannot disagree with it.
+      expect(
+        screen.getByRole("button", { name: /^People here/ }).textContent,
+      ).toBe("");
+      await expectNoA11yViolations(container, [
+        { id: "label-content-name-mismatch", enabled: true },
+      ]);
+    },
+  );
 
   it("header variant renders nothing when alone", () => {
     const { container } = render(

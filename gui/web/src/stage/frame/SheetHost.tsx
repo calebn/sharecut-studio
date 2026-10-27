@@ -11,6 +11,7 @@ const TITLES: Record<StageSheet, string> = {
   history: "History",
   view: "View",
   mix: "Mix",
+  tools: "Tools",
 };
 
 /**

@@ -18,6 +18,38 @@ export interface PhoneEditSurfaceViewProps {
   bindings?: { lanes?: Ref<HTMLDivElement>; script?: Ref<HTMLElement> };
 }
 
+/** The Timeline and Script toggle; the bar and the Tools sheet both show it. */
+export function EditSurfaceSwitch({
+  surface,
+  onSurfaceChange,
+}: {
+  surface: EditSurface;
+  onSurfaceChange: (surface: EditSurface) => void;
+}) {
+  return (
+    <SegmentedControl label="Edit surface" className="phone-edit-switch">
+      <ToggleButton
+        quiet
+        pressed={surface === "lanes"}
+        title="Timeline"
+        aria-label="Timeline"
+        onClick={() => onSurfaceChange("lanes")}
+      >
+        <Icon name="timeline" />
+      </ToggleButton>
+      <ToggleButton
+        quiet
+        pressed={surface === "text"}
+        title="Script"
+        aria-label="Script"
+        onClick={() => onSurfaceChange("text")}
+      >
+        <Icon name="text" />
+      </ToggleButton>
+    </SegmentedControl>
+  );
+}
+
 /**
  * The phone's Edit: the lanes or the Script, never both, switched at the top
  * of the stage. Selection and playhead live in the store, so they carry across.
@@ -35,26 +67,10 @@ export function PhoneEditSurfaceView({
   return (
     <div className="phone-edit" data-surface={surface}>
       <div className="phone-edit-bar">
-        <SegmentedControl label="Edit surface" className="phone-edit-switch">
-          <ToggleButton
-            quiet
-            pressed={surface === "lanes"}
-            title="Timeline"
-            aria-label="Timeline"
-            onClick={() => onSurfaceChange("lanes")}
-          >
-            <Icon name="timeline" />
-          </ToggleButton>
-          <ToggleButton
-            quiet
-            pressed={surface === "text"}
-            title="Script"
-            aria-label="Script"
-            onClick={() => onSurfaceChange("text")}
-          >
-            <Icon name="text" />
-          </ToggleButton>
-        </SegmentedControl>
+        <EditSurfaceSwitch
+          surface={surface}
+          onSurfaceChange={onSurfaceChange}
+        />
         {onOpenMix ? (
           <Button
             className="phone-edit-mix"

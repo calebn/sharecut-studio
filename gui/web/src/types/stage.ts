@@ -16,7 +16,7 @@ export type ReviewSection = (typeof REVIEW_SECTIONS)[number];
 /** Phone Edit shows the lanes or the Script, never both. */
 export type EditSurface = "lanes" | "text";
 
-export const STAGE_SHEETS = ["history", "view", "mix"] as const;
+export const STAGE_SHEETS = ["history", "view", "mix", "tools"] as const;
 
 export type StageSheet = (typeof STAGE_SHEETS)[number];
 

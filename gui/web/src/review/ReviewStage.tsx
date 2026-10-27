@@ -24,7 +24,7 @@ import {
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
-} from "./reviewQueue";
+} from "./reviewQueueModel";
 
 export type ReviewStageProps = {
   initialItems: readonly ReviewItem[];

@@ -33,7 +33,10 @@ const GUEST_ROLE_LABEL = {
  * Save indicator, Undo and Redo, the Stage bar with its badges, Invite, search
  * and the Project menu. The Stage bar is left out for a link that has one stage.
  */
-export function useHeaderProps(): Omit<AppHeaderProps, "peopleSlot"> {
+export function useHeaderProps(): Omit<
+  AppHeaderProps,
+  "peopleSlot" | "menuPeople"
+> {
   const { title, guestMode } = useDaw((s) => ({
     title: s.project?.meta.name ?? null,
     guestMode: s.guestMode,

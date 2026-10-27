@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
+import type { SideYield } from "./sideFit";
 
 /**
  * Side by side from 1000 px, stacked on a narrower tablet, one surface at a
@@ -17,6 +18,8 @@ export interface EditWorkspaceViewProps {
   /** Shift+T gives the Script the whole stage. */
   scriptFocus: boolean;
   scriptWidthRem: number;
+  /** The pane that gives way because the side layout cannot hold them all. */
+  yields?: SideYield;
   /** Range actions above the lanes, when the selection sheet does not carry them. */
   rangeActions?: ReactNode;
   /** The headers and lanes, or the empty-session drop target. */
@@ -32,6 +35,7 @@ export interface EditWorkspaceViewProps {
   /** Sheets that hang off the workspace (the tablet and phone Inspector). */
   sheet?: ReactNode;
   bindings?: {
+    root?: Ref<HTMLDivElement>;
     timeline?: Ref<HTMLDivElement>;
     divider?: Ref<HTMLDivElement>;
     script?: Ref<HTMLElement>;
@@ -47,6 +51,7 @@ export function EditWorkspaceView({
   scriptHidden,
   scriptFocus,
   scriptWidthRem,
+  yields = null,
   rangeActions,
   timeline,
   corner,
@@ -72,6 +77,7 @@ export function EditWorkspaceView({
   const scriptShown = !scriptHidden || scriptFocus;
   return (
     <div
+      ref={bindings?.root}
       className={[
         "edit-workspace",
         `edit-workspace--${arrangement}`,
@@ -79,6 +85,7 @@ export function EditWorkspaceView({
         scriptFocus ? "edit-workspace--script-focus" : "",
         scriptShown ? "" : "edit-workspace--script-hidden",
         inspector ? "edit-workspace--inspector" : "",
+        yields ? `edit-workspace--yield-${yields}` : "",
       ]
         .filter(Boolean)
         .join(" ")}

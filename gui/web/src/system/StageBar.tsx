@@ -22,7 +22,7 @@ export type StageBarProps = {
   panelId?: string;
 };
 
-function Badge({ badge }: { badge: StageBadge }) {
+export function Badge({ badge }: { badge: StageBadge }) {
   const text = STATUS_TEXT[badge.kind];
   return (
     <span className="sys-stage-badge">

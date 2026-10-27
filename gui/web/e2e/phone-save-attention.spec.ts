@@ -87,11 +87,11 @@ test.describe("phone save attention in a short window at twice the text size", (
     hasTouch: true,
   });
 
-  test("Review keeps a stage body, the banner and the tab bar on screen", async ({
+  test("Review keeps a stage body, the banner and the Stage menu on screen", async ({
     page,
   }) => {
-    // At twice the text size the header, banner, Player and tab bar fill a
-    // 360px window on the Edit stage, so this opens on Review, which has no Player.
+    // At twice the text size this window folds the tab bar into the header's
+    // Stage menu, so the header, banner and mini Player leave the stage a body.
     await openPhone(page, { failed: true, rootPx: 32, stage: "review" });
     const geometry = await page.evaluate(() => {
       const rect = (selector: string) => {
@@ -101,14 +101,18 @@ test.describe("phone save attention in a short window at twice the text size", (
       return {
         body: rect(".stage-frame-body"),
         banner: rect(".stage-frame-banners"),
-        tabs: rect(".stage-frame-tabs"),
+        stageMenu: rect(".sys-header-stage-button"),
         frameScroll: document.querySelector(".stage-frame")?.scrollTop,
         height: window.innerHeight,
       };
     });
     expect(geometry.body?.height ?? 0).toBeGreaterThan(0);
     expect(geometry.banner?.top ?? -1).toBeGreaterThanOrEqual(0);
-    expect(geometry.tabs?.bottom ?? Infinity).toBeLessThanOrEqual(
+    expect(
+      geometry.stageMenu?.height ?? 0,
+      "the Stage menu shows",
+    ).toBeGreaterThan(0);
+    expect(geometry.stageMenu?.bottom ?? Infinity).toBeLessThanOrEqual(
       geometry.height,
     );
     expect(geometry.frameScroll, "the frame does not scroll").toBe(0);
