@@ -3,7 +3,8 @@ import { useResizeObserver } from "../../ui/useResizeObserver";
 
 /**
  * Writes `data-frame-short` on the root while the tab bar is folded into the
- * header (`@container app (max-height: 16rem)` in system.css hides it). Sheets
+ * header (`@container app (max-height: 16rem) or (max-width: 20rem)` in system.css
+ * hides it). Sheets
  * live outside the frame and read the attribute for their bottom offset
  * (stage-frame.css). The tab bar's own size change is the signal, so the
  * threshold stays in the one query. Returns whether the frame is short, for the
