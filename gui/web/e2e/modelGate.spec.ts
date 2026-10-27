@@ -123,23 +123,26 @@ async function mockCachedConfig(page: Page): Promise<void> {
   });
 }
 
-/** Frames served one per connection: the bar moves, then the job ends and the model is installed. */
-function progressFrames(id: string, onDone: () => void): Mock["events"] {
-  let connection = 0;
+/**
+ * The download the stream reports, one stage at a time: 420 MB, then 1.2 GB, then done with the model
+ * installed. Every reconnect repeats the current stage, and only `advance` or `finish` moves to the
+ * next one, so what a case sees never depends on how long its checks take.
+ */
+function progressFrames(id: string, onDone: () => void) {
+  let stage = 0;
   const frame = (job: Job) =>
     `retry: ${GATE_RETRY_MS}\n\ndata: ${JSON.stringify({ job })}\n\n`;
-  return (mock) => {
-    connection += 1;
-    const running = (bytes: number): Job => ({
-      id: "job-1",
-      kind: "bootstrap",
-      components: [id],
-      whisper_model: "large-v3-turbo",
-      status: "running",
-      download: { component: id, bytes, total: 1_600_000_000 },
-    });
-    if (connection === 1) return frame(running(420_000_000));
-    if (connection === 2) return frame(running(1_200_000_000));
+  const running = (bytes: number): Job => ({
+    id: "job-1",
+    kind: "bootstrap",
+    components: [id],
+    whisper_model: "large-v3-turbo",
+    status: "running",
+    download: { component: id, bytes, total: 1_600_000_000 },
+  });
+  const events: Mock["events"] = (mock) => {
+    if (stage === 0) return frame(running(420_000_000));
+    if (stage === 1) return frame(running(1_200_000_000));
     const target = mock.rows.find((r) => r.id === id);
     if (target) target.state = "installed";
     onDone();
@@ -151,6 +154,15 @@ function progressFrames(id: string, onDone: () => void): Mock["events"] {
       whisper_model: "large-v3-turbo",
       status: "ok",
     });
+  };
+  return {
+    events,
+    advance: () => {
+      stage += 1;
+    },
+    finish: () => {
+      stage = 2;
+    },
   };
 }
 
@@ -205,11 +217,10 @@ for (const viewport of VIEWPORTS) {
       }) => {
         await prepare(page, theme, true);
         let downloaded = false;
-        const mock = await mockBootstrap(page, {
-          events: progressFrames("whisper", () => {
-            downloaded = true;
-          }),
+        const progress = progressFrames("whisper", () => {
+          downloaded = true;
         });
+        const mock = await mockBootstrap(page, { events: progress.events });
         await mockCachedConfig(page);
         const run = await mockNeedingRoute(
           page,
@@ -242,7 +253,10 @@ for (const viewport of VIEWPORTS) {
         await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
         await expectSurfaceAxeClean(page, '[role="dialog"]');
         await shot(page, viewport.name, theme, "gate-downloading");
+        progress.advance();
         await expect(bar).toHaveAttribute("aria-valuetext", "1.2 GB of 1.6 GB");
+
+        progress.finish();
 
         await expect(gate).toBeHidden();
         await expect.poll(run.posts).toBe(2);
@@ -407,11 +421,12 @@ for (const viewport of VIEWPORTS) {
           ...r,
           state: r.id === "speaker-ecapa" ? ("installed" as const) : r.state,
         }));
+        const progress = progressFrames("speaker-ecapa", () => {
+          downloaded = true;
+        });
         const mock = await mockBootstrap(page, {
           rows,
-          events: progressFrames("speaker-ecapa", () => {
-            downloaded = true;
-          }),
+          events: progress.events,
         });
         await mockSpeakerDoctor(page);
         const split = await mockNeedingRoute(
@@ -445,6 +460,7 @@ for (const viewport of VIEWPORTS) {
         await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
         await expectSurfaceAxeClean(page, '[role="dialog"]');
         await shot(page, viewport.name, theme, "split-downloading");
+        progress.finish();
         await expect.poll(split.posts).toBe(2);
         expect(mock.runs).toHaveLength(1);
       });
@@ -495,11 +511,10 @@ for (const viewport of VIEWPORTS) {
       }) => {
         await prepare(page, theme, true);
         let downloaded = false;
-        const mock = await mockBootstrap(page, {
-          events: progressFrames("rnnoise", () => {
-            downloaded = true;
-          }),
+        const progress = progressFrames("rnnoise", () => {
+          downloaded = true;
         });
+        const mock = await mockBootstrap(page, { events: progress.events });
         const exports = await mockModelFailingJob(page, {
           kind: "export",
           post: "**/api/export/deliverables",
@@ -543,6 +558,7 @@ for (const viewport of VIEWPORTS) {
         );
         await expectSurfaceAxeClean(page, '[role="dialog"]');
         await shot(page, viewport.name, theme, "export-downloading");
+        progress.finish();
 
         await expect(dialog.getByRole("status")).toContainText(/exported/i);
         expect(exports.posts()).toBe(2);
@@ -612,11 +628,10 @@ for (const viewport of VIEWPORTS) {
       }) => {
         await prepare(page, theme, true);
         let downloaded = false;
-        const mock = await mockBootstrap(page, {
-          events: progressFrames("rnnoise", () => {
-            downloaded = true;
-          }),
+        const progress = progressFrames("rnnoise", () => {
+          downloaded = true;
         });
+        const mock = await mockBootstrap(page, { events: progress.events });
         const renders = await mockModelFailingJob(page, {
           kind: "render_preview",
           post: "**/api/pipeline/render-preview",
@@ -650,6 +665,7 @@ for (const viewport of VIEWPORTS) {
         await expect(
           gate.getByRole("button", { name: "Cancel download" }),
         ).toBeFocused();
+        progress.finish();
         await expect(gate).toBeHidden();
         await expect.poll(renders.posts).toBe(2);
       });
