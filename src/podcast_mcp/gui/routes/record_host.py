@@ -34,6 +34,7 @@ from podcast_mcp.services.record import (
     RoomFullError,
     parse_upload_kind,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
 
@@ -187,7 +188,7 @@ def post_host_record_land(
         raise coded_http_error(404, "no active record room", code="record_room_not_found") from exc
     except RecordTakeOpenError as exc:
         raise coded_http_error(409, str(exc), code=exc.code) from exc
-    except RecordLandingError as exc:
+    except (RecordLandingError, CodedValueError) as exc:
         raise coded_exception_error(400, exc, code="record_landing_refused") from exc
 
 

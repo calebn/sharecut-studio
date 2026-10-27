@@ -24,6 +24,9 @@ from podcast_mcp.models import (
     AutomationPoint,
     ChapterMarker,
     Clip,
+    CutSpeech,
+    CutSpeechTrack,
+    CutSpeechWord,
     EditDecision,
     EditDecisionType,
     InsertAnchor,
@@ -31,6 +34,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import HistoryService, SessionSuggestionService
 from podcast_mcp.services.record.landing import RecordLandingService
@@ -679,3 +683,221 @@ def test_accepting_a_pending_insert_after_a_start_lands_is_one_step(
     ]
     assert placed.timeline_start == pytest.approx(3.5)
     assert HistoryService(ws).list_entries().groups[-1].title.startswith("Added Session")
+
+
+def _speech(at: float) -> CutSpeech:
+    return CutSpeech(
+        spans=[RangeInterval(start=at, end=at + 1.0)],
+        tracks=[
+            CutSpeechTrack(
+                track_id="other",
+                speaker="Other",
+                words=[CutSpeechWord(text="hi", timeline_start=at, timeline_end=at + 0.5)],
+                sound_spans=[RangeInterval(start=at + 0.5, end=at + 1.0)],
+            )
+        ],
+    )
+
+
+def test_a_pending_source_remove_still_approves_after_a_start_lands(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
+
+    ws = _seed(minimal_project, sample_wav)
+    _, guest = _episode(ws)
+    clip = next(c for c in ws.project.clips if c.track_id == guest)
+
+    def add(project) -> None:
+        project.editorial.edit_decisions.extend(
+            [
+                EditDecision(
+                    id="src",
+                    track_id=guest,
+                    type=EditDecisionType.REMOVE,
+                    start=1.0,
+                    end=2.0,
+                    source_id=clip.source_id,
+                    source_timeline_span=RangeInterval(start=1.0, end=2.0),
+                    cut_speech=_speech(1.0),
+                    applied=False,
+                ),
+                EditDecision(
+                    id="tl",
+                    track_id=guest,
+                    type=EditDecisionType.MUTE,
+                    start=1.0,
+                    end=2.0,
+                    timebase="timeline",
+                    cut_speech=_speech(1.0),
+                    applied=False,
+                ),
+            ]
+        )
+
+    ws.mutate("add", "added", add)
+    ws.reload()
+    src = next(e for e in ws.project.editorial.edit_decisions if e.id == "src")
+    assert not isinstance(inspect_source_remove_placement(ws.project, src), CutScopeHold)
+
+    room, svc, guest2 = _start_room(ws)
+    _take(ws, room, svc, guest2, 0, 2.5, 880.0)
+    _land(ws)
+
+    ws.reload()
+    by_id = {e.id: e for e in ws.project.editorial.edit_decisions}
+    src, tl = by_id["src"], by_id["tl"]
+    assert (src.start, src.end) == (1.0, 2.0)  # source clock stays
+    assert (src.source_timeline_span.start, src.source_timeline_span.end) == (3.5, 4.5)
+    placed = inspect_source_remove_placement(ws.project, src)
+    assert not isinstance(placed, CutScopeHold)
+    assert (float(placed[0]), float(placed[1])) == pytest.approx((3.5, 4.5))
+    for decision in (src, tl):
+        speech = decision.cut_speech
+        assert [(r.start, r.end) for r in speech.spans] == [(3.5, 4.5)]
+        [track] = speech.tracks
+        assert (track.words[0].timeline_start, track.words[0].timeline_end) == (3.5, 4.0)
+        assert [(r.start, r.end) for r in track.sound_spans] == [(4.0, 4.5)]
+    assert (tl.start, tl.end) == (3.5, 4.5)
+
+    RecordLandingService(ws).delete_take(0)
+    ws.reload()
+    src = next(e for e in ws.project.editorial.edit_decisions if e.id == "src")
+    assert (src.source_timeline_span.start, src.source_timeline_span.end) == (1.0, 2.0)
+    assert not isinstance(inspect_source_remove_placement(ws.project, src), CutScopeHold)
+
+
+def test_closing_a_gap_clamps_what_straddles_or_sits_inside_it() -> None:
+    project = _gap_project()
+    ids = [t.id for t in project.tracks]
+    add_comment(project, body="s", author="r", timeline_start=6.0, timeline_end=7.5, comment_id="s")
+    add_comment(project, body="in", author="r", timeline_start=5.0, comment_id="in")
+    add_comment(
+        project,
+        body="inspan",
+        author="r",
+        timeline_start=4.5,
+        timeline_end=6.5,
+        comment_id="inspan",
+    )
+    project.timeline.duration_sec = 9.0
+    project.comments[-1] = project.comments[-1].model_copy(
+        update={
+            "timeline_spans": [RangeInterval(start=4.0, end=4.5), RangeInterval(start=6.0, end=8.0)]
+        }
+    )
+    project.editorial.chapters = [
+        ChapterMarker(time=6.0, title="in"),
+        ChapterMarker(time=8.0, title="after"),
+    ]
+    project.editorial.edit_decisions.append(
+        EditDecision(
+            id="p",
+            track_id="g",
+            type=EditDecisionType.MUTE,
+            start=5.5,
+            end=7.2,
+            timebase="timeline",
+            applied=False,
+        )
+    )
+    project.mix.automation_envelopes.append(
+        AutomationEnvelope(
+            track_id="g",
+            points=[
+                AutomationPoint(id="i", time=6.0, value=1.0),
+                AutomationPoint(id="j", time=8.0, value=1.0),
+            ],
+        )
+    )
+    project.clips[0] = project.clips[0].model_copy(update={"source_end": 3.0})
+    project.clips[1] = project.clips[1].model_copy(
+        update={"timeline_start": 9.0, "source_end": 1.0}
+    )
+
+    assert close_session_gap(project, 5.0, 7.0, ids, defaults=load_defaults()) is True
+
+    got = {c.id: (c.timeline_start, c.timeline_end) for c in project.comments}
+    assert got["s"] == (5.0, 5.5)
+    assert got["in"] == (5.0, None)
+    assert got["inspan"] == (4.5, 5.0)
+    assert [(r.start, r.end) for r in project.comments[-1].timeline_spans] == [
+        (4.0, 4.5),
+        (5.0, 6.0),
+    ]
+    assert [c.time for c in project.editorial.chapters] == [5.0, 6.0]
+    [decision] = project.editorial.edit_decisions
+    assert (decision.start, decision.end) == (5.0, 5.2)
+    assert [pt.time for pt in project.mix.automation_envelopes[0].points] == [5.0, 6.0]
+    for c in project.comments:
+        assert c.timeline_end is None or c.timeline_end > c.timeline_start
+
+
+def test_a_discard_with_a_comment_straddling_the_seam_keeps_it_ordered(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _episode(ws)
+    room, svc, guest2 = _start_room(ws)
+    _take(ws, room, svc, guest2, 0, 2.5, 880.0)
+    _land(ws)
+    _take(ws, room, svc, guest2, 1, 1.5, 660.0)
+    _land(ws)
+    extent = own_extent_s(ws.project.clips, room["session_id"])
+    extent_now = max(
+        c.timeline_end for c in ws.project.clips if c.source_id.endswith("-0-" + guest2 + "-0")
+    )
+    assert extent_now < extent
+    ws.mutate(
+        "c",
+        "c",
+        lambda p: add_comment(
+            p,
+            body="straddle",
+            author="r",
+            timeline_start=extent - 0.5,
+            timeline_end=extent + 0.5,
+            comment_id="straddle",
+        ),
+    )
+    RecordLandingService(ws).delete_take(1)
+    ws.reload()
+    comment = next(c for c in ws.project.comments if c.id == "straddle")
+    assert comment.timeline_start == pytest.approx(extent_now)
+    assert comment.timeline_end is None or comment.timeline_end > comment.timeline_start
+
+
+def test_the_host_land_route_returns_a_coded_refusal_for_a_pending_replace(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.routes import record_host
+    from podcast_mcp.gui.server import create_app
+
+    ws = _seed(minimal_project, sample_wav)
+    _, guest1 = _episode(ws)
+    _stage_replace(
+        ws, 2.5, 3.5, {0: [(guest1, 0.0, 1.0)]}, track_ids=[guest1], session_id="b" * 12, number=3
+    )
+    with pytest.raises(CodedValueError) as refused:
+        ws.mutate(
+            "open",
+            "opened",
+            lambda p: open_session_gap(
+                p, 3.0, 1.0, [t.id for t in p.tracks], defaults=load_defaults()
+            ),
+        )
+
+    class Control:
+        def __init__(self, _ws) -> None:
+            pass
+
+        def land(self):
+            raise refused.value
+
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    monkeypatch.setattr(record_host, "RecordControlService", Control)
+    res = TestClient(create_app()).post("/api/record/land", params={"path": str(ws.path)})
+    assert res.status_code == 400, res.text
+    assert res.headers["X-Sharecut-Error-Code"] == "pending_replace_in_the_way"
