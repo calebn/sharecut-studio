@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { HoverTip } from "./HoverTip";
 import { SystemIcon } from "./SystemIcon";
 import { useHoverTip } from "./useHoverTip";
@@ -30,7 +31,9 @@ export function Seam(props: SeamProps) {
   const { selected = false, onSelect } = props;
   const { open, id, anchor, setAnchor, handlers } =
     useHoverTip<HTMLButtonElement>();
+  const wordsId = useId();
   const diamond = props.form === "diamond";
+  const words = props.form === "pill" ? props.words : undefined;
   const name = diamond
     ? props.detail
       ? `${props.label}, ${props.detail}`
@@ -50,7 +53,7 @@ export function Seam(props: SeamProps) {
         className="sys-seam-hit"
         aria-label={name}
         aria-pressed={selected}
-        aria-description={diamond ? undefined : props.words}
+        aria-describedby={words ? wordsId : undefined}
         onClick={onSelect}
       >
         {diamond ? (
@@ -62,6 +65,11 @@ export function Seam(props: SeamProps) {
           </>
         )}
       </button>
+      {words ? (
+        <span id={wordsId} className="sr-only">
+          {words}
+        </span>
+      ) : null}
       {hasTip && open && anchor ? (
         <HoverTip id={id} anchor={anchor}>
           {diamond ? (
