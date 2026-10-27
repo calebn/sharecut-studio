@@ -35,8 +35,8 @@ function StageHostAdapter({
   );
   const shell = useViewportClass();
   const role = stageRoleOf(guestMode);
-  if (!loaded) {
-    // The link's role is known only with the project, so nothing is judged yet.
+  if (!loaded && (guestShare || guestMode != null)) {
+    // A link's role is known only with the project, so nothing is judged yet.
     return (
       <HostBody
         stage={stage}

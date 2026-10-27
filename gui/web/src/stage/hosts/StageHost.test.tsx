@@ -89,6 +89,18 @@ describe("StageHost gating", () => {
     expect(container.querySelector("[aria-busy='true']")).not.toBeNull();
   });
 
+  it("shows loading, not the Cover, when only the route says it is a link", () => {
+    useDawStore.setState({
+      project: null,
+      projectPath: "share:abc",
+      guestMode: null,
+      stage: "edit",
+    });
+    const { container } = mount(true);
+    expect(screen.queryByText("This link can't open that")).toBeNull();
+    expect(container.querySelector("[aria-busy='true']")).not.toBeNull();
+  });
+
   it("sends the Cover's button to the link's first allowed stage", async () => {
     asGuest("deliver", "comment");
     mount(true);
