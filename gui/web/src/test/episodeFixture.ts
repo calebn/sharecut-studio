@@ -395,16 +395,16 @@ export function tightenHits(): PendingEditView[] {
       kind: "filler",
       sound_kind: "filler",
       label: "Filler",
-      why: "Filler word; the sentence reads the same without it",
+      why: "Filler word",
     }),
-    hit("tighten-pause", MIRA, "pause:long", 49.6, 52, {
+    hit("tighten-pause", MIRA, "pause:2.40s", 49.6, 52, {
       kind: "pause",
       sound_kind: "pause",
       label: "Pause",
       suggested_action: "shorten",
-      why: "A 2.4 s gap; keeps 0.2 s",
+      why: "A 2.4 s gap",
     }),
-    hit("tighten-repeat", TOMAS, "repetition:the", 94, 94.4, {
+    hit("tighten-repeat", TOMAS, "repetition:word:the", 94, 94.4, {
       kind: "repeat",
       sound_kind: "repetition",
       label: "Repetition",

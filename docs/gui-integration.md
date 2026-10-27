@@ -95,7 +95,9 @@ Every `pending_edits[]` row in the ProjectView carries `kind`, the Review queue 
 
 ### Pending edit `why`
 
-Every `pending_edits[]` row also carries `why`, one plain sentence saying why the edit is suggested, or `null` when the card should show no line (guest suggestions, agent and manual edits, and any reason code the server cannot read). `edits/why_lines.py::why_line` writes it from the reason code and the evidence recorded on the decision: the speaker is the track's `speaker`, and "nobody talks over it" is added only when the decision records no other speaker in the cut (`peers_speaking`: no `cut_speech`, no `other_speaking` flag, session scope). A pause line reads the gap from the reason and what stays from the cut's length. The mapper builds it per row without touching audio, so the list stays linear in the number of edits. The copy table is in [communication-philosophy.md](communication-philosophy.md#why-lines-on-suggestions). `types/project.ts` types it as `why?: string | null`.
+Every `pending_edits[]` row also carries `why`, one plain sentence saying why the edit is suggested, or `null` when the card should show no line (guest suggestions, agent and manual edits, and any reason code the server cannot read). `edits/tighten_hits.py::why_line` writes it from the reason code alone, plus the track's `speaker` as the name. It states only what the reason records: a pause line is the gap the reason holds (the gap is measured on the timeline, so no retained length is claimed), and no line says whether another speaker talks over the cut, because the decision does not record a clear result. The mapper builds it per row without touching audio, so the list stays linear in the number of edits. The copy table is in [communication-philosophy.md](communication-philosophy.md#why-lines-on-suggestions). `types/project.ts` types it as `why?: string | null`.
+
+Shared-link guests and the remote MCP's `guest_list_pending_edits` receive `pending_edits` rows unchanged, so they get `why` too. The sentence adds nothing a guest cannot already read: the row's `reason` code and the track's speaker name are in the same payload.
 
 ## Generated TypeScript types
 

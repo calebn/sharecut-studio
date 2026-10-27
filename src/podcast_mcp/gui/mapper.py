@@ -10,13 +10,13 @@ from podcast_mcp.edits.tighten_hits import (
     is_harsh_tighten_hit,
     is_listen_one_by_one_hit,
     join_risk_from_decision,
+    why_line,
 )
 from podcast_mcp.edits.timeline_span import (
     map_source_span_fields,
     source_remove_timeline_spans,
     timeline_span_dicts,
 )
-from podcast_mcp.edits.why_lines import peers_speaking, why_line
 from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -144,11 +144,7 @@ def map_pending_edits_to_timeline(
                 "sound_kind": sound_kind(decision.reason),
                 "label": sound_info.label if sound_info else None,
                 "suggested_action": sound_info.action if sound_info else None,
-                "why": why_line(
-                    decision,
-                    speaker_name=speaker_names.get(decision.track_id),
-                    peers_speaking=peers_speaking(decision),
-                ),
+                "why": why_line(decision, speaker_name=speaker_names.get(decision.track_id)),
             }
         )
     return rows
