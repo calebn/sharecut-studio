@@ -391,8 +391,7 @@ html[data-shell="phone"] .bottom-sheet-root {
 }
 
 /* A slot this short (a small phone, or one the keyboard shrank) pads every
-   sheet's header as the strip does, so the form under it keeps its rows
-   (R-short-11). */
+   sheet's header as the strip does, so the form under it keeps its rows. */
 @container sheet-slot (max-height: 28rem) {
   .bottom-sheet-header {
     padding-block: var(--space-1);

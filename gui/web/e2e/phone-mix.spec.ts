@@ -61,12 +61,7 @@ test("phone Mix persists native edits, keeps S private and undoes saved changes"
     await checkNativeMixEdits(page, projectPath);
   });
 });
-/**
- * The stage shell gives a Viewer link the Review stage only, so its Mix has no
- * sheet to open: the sliders the old case found disabled are not there at all.
- * The guarantee that stays is the one the case existed for: a viewer neither
- * changes the saved mix nor gets a way to.
- */
+/** A Viewer link opens Review only, so there is no Mix sheet: it neither changes the saved mix nor gets a way to. */
 test("viewer link has no Mix sheet and cannot override saved mute", async ({
   page,
 }) => {

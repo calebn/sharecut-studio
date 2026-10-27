@@ -35,16 +35,14 @@ import { StageFrame } from "../frame/StageFrame";
 import { StageHost } from "./StageHost";
 
 /**
- * Arena decision 6, and ruling R-int-6: every command that was reachable from
- * the transport Menu, the View menu, the layout presets, the phone More hub or
+ * Every command that was reachable from the transport Menu, the View menu, the layout presets, the phone More hub or
  * the tool rail is still a catalog command the palette lists, or its new home
  * is on screen. A home is rendered, not looked up in the source: the probe
  * mounts the real component, finds the control by its role and name, and
  * where the home runs a command, presses it and sees that command run. So an
  * unmounted slot or a dropped prop fails here.
  *
- * The table is written from architect-sonnet.md section 1.2 (MENU-MAIN). The
- * old sources are deleted, so the table stands alone.
+ * The old sources are deleted, so the table stands alone.
  */
 
 vi.mock("../../panels/PipelinePanel", () => ({
@@ -78,11 +76,8 @@ type Surface =
 
 type Entry = {
   surface: Surface;
-  /** What the person saw. */
   label: string;
-  /** Still a catalog command, listed by the palette. */
   command?: string;
-  /** Its new home, mounted and found by role and name. */
   home?: Probe[];
 };
 
@@ -98,8 +93,6 @@ const component = (surface: Surface, label: string, home: Probe[]): Entry => ({
   label,
   home,
 });
-
-// --- Mounting -------------------------------------------------------------
 
 /** A stale mix with an old premix: Deliver offers Refresh mix. */
 const staleProject = () =>
@@ -180,15 +173,11 @@ async function openProjectMenu(user: User) {
   await user.click(button(/Test Episode/));
 }
 
-// --- Probes ---------------------------------------------------------------
-
-/** The header's palette button. */
 const headerPalette: Probe = async (user) => {
   mountFrame();
   await runs("ui.toggleCommandPalette", () => user.click(button(/Palette/)));
 };
 
-/** The header's Invite button, for the host. */
 const headerInvite: Probe = async (user) => {
   mountFrame();
   await runs("share.manage", () => user.click(button("Invite")));
@@ -378,8 +367,6 @@ const fitTracksHeight: Probe = async (user) => {
   );
 };
 
-// --- The table ------------------------------------------------------------
-
 const REMOVED_SURFACES: Entry[] = [
   // Transport Menu: Timeline tools, Project, Media, Markers, Selection, Help.
   entry("transport Menu", "Select tool", "tool.select"),
@@ -420,7 +407,6 @@ const REMOVED_SURFACES: Entry[] = [
   component("transport Menu", "People and Follow", [peopleSlot]),
   component("transport Menu", "Theme", [themeRow]),
 
-  // View menu.
   component("View menu", "Layers", [viewLayers]),
   entry("View menu", "Waveform zoom in", "view.waveformZoomIn", [
     viewSheetButton("Waveform amplitude", 1, "view.waveformZoomIn"),
@@ -457,7 +443,6 @@ const REMOVED_SURFACES: Entry[] = [
   entry("layout presets", "Text only", "view.scriptFocus"),
   entry("layout presets", "Review layout", "stage.review"),
 
-  // Phone More hub.
   component("More hub", "Command search", [headerPalette]),
   component("More hub", "Mix", [mixSheet]),
   component("More hub", "Comments", [
