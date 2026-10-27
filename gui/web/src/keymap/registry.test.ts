@@ -50,7 +50,7 @@ describe("keymap registry", () => {
     expect(ids).toContain("tool.select");
     expect(ids).toContain("tool.blade");
     expect(ids).toContain("transport.togglePlay");
-    expect(ids).toContain("layout.timeline");
+    expect(ids).toContain("stage.review");
     expect(ids).toContain("history.undo");
   });
 
@@ -82,7 +82,15 @@ describe("keymap registry", () => {
   it("groups by category for cheatsheet consumers", () => {
     const by = keymapByCategory();
     expect(by.tools.map((c) => c.id)).toEqual(["tool.select", "tool.blade"]);
-    expect(by.layout).toHaveLength(4);
+    expect(
+      by.navigation.filter((c) => c.id.startsWith("stage.")).map((c) => c.id),
+    ).toEqual([
+      "stage.record",
+      "stage.prepare",
+      "stage.edit",
+      "stage.review",
+      "stage.deliver",
+    ]);
   });
 
   it("matches V and C case-insensitively", () => {
@@ -104,12 +112,12 @@ describe("keymap registry", () => {
     expect(
       matchKeymapCommand(keyEvent({ key: "1", code: "Digit1", metaKey: true }))
         ?.id,
-    ).toBe("layout.default");
+    ).toBe("stage.record");
     expect(
       matchKeymapCommand(keyEvent({ key: "2", code: "Digit2", ctrlKey: true }))
         ?.id,
-    ).toBe("layout.timeline");
-    expect(formatShortcutKeys(keymapCommandById("layout.text")!)).toBe("Mod+3");
+    ).toBe("stage.prepare");
+    expect(formatShortcutKeys(keymapCommandById("stage.edit")!)).toBe("Mod+3");
   });
 
   it("matches Mod+A / Mod+Shift+A for track targeting", () => {
@@ -503,8 +511,8 @@ describe("remapped shortcuts", () => {
 
 describe("shortcut helpers by command id", () => {
   it("titleWithShortcut omits empty parentheses", () => {
-    expect(titleWithShortcut("Restore layout", "layout.default", true)).toBe(
-      "Restore layout (⌘1)",
+    expect(titleWithShortcut("Go to Record", "stage.record", true)).toBe(
+      "Go to Record (⌘1)",
     );
     expect(titleWithShortcut("Anything", "not.a.command")).toBe("Anything");
   });

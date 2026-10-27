@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { openProject, phone } from "./stageNav";
 
 test.use({ hasTouch: true });
 
@@ -7,8 +8,8 @@ test("rotating a phone with the Inspector open keeps the focused field on screen
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await openProject(page, e2eProjectPath);
+  await phone.showTimeline(page);
   await page.locator(".lane-row .clip-block").first().click();
   await page.getByRole("button", { name: "Expand to half height" }).click();
   const field = page.getByLabel("Fade out ms");

@@ -5,7 +5,6 @@ import { execute } from "../commands/execute";
 import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
-import type { DawTab } from "../state/types";
 import { minimalProject } from "../test/fixtures";
 import { TrackHeader } from "./TrackHeader";
 
@@ -121,7 +120,7 @@ describe("TrackHeader", () => {
     const project = projectWithTrack();
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
-        <div className="daw-shell daw-shell--phone">
+        <div className="stage-frame stage-frame--phone">
           <TrackHeader
             track={project.tracks[0]}
             trackIndex={0}
@@ -136,7 +135,7 @@ describe("TrackHeader", () => {
     });
     expect(details).toHaveAttribute("aria-expanded", "false");
     expect(
-      container.querySelector(".daw-shell--phone .track-header-disclose"),
+      container.querySelector(".stage-frame--phone .track-header-disclose"),
     ).toBeTruthy();
     await user.click(details);
     expect(onSelect).toHaveBeenCalledWith(false);
@@ -327,19 +326,16 @@ describe("TrackHeader", () => {
   const activationKeys: {
     key: string;
     typed: string;
-    activeTab: DawTab;
     blocked: string;
   }[] = [
     {
       key: "Space",
       typed: " ",
-      activeTab: "transcript",
       blocked: "transport.togglePlay",
     },
     {
       key: "Enter",
       typed: "{Enter}",
-      activeTab: "tighten",
       blocked: "tighten.applyHit",
     },
   ];
@@ -350,14 +346,7 @@ describe("TrackHeader", () => {
 
   it.each(activationCases)(
     "$key on $label activates it instead of running $blocked",
-    async ({
-      typed,
-      activeTab,
-      blocked,
-      name,
-      reorderEnabled,
-      expectActivated,
-    }) => {
+    async ({ typed, blocked, name, reorderEnabled, expectActivated }) => {
       const user = userEvent.setup();
       const onSelect = vi.fn();
       vi.mocked(execute).mockClear();
@@ -374,7 +363,7 @@ describe("TrackHeader", () => {
           />
         </DawProvider>,
       );
-      useDawStore.setState({ timelineFocused: true, activeTab });
+      useDawStore.setState({ timelineFocused: true });
       const button = screen.getByRole("button", { name });
       button.focus();
       await user.keyboard(typed);

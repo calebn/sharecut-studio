@@ -431,26 +431,12 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "computes snap ticks from the live playhead and blade hover position",
   },
   {
-    file: "layout/AvatarStack.tsx",
+    file: "stage/frame/AvatarStack.tsx",
     reason: "leaf that reads the presence roster itself",
   },
   {
-    file: "layout/FollowBanner.tsx",
+    file: "stage/frame/FollowBanner.tsx",
     reason: "leaf that reads the presence roster itself",
-  },
-  {
-    file: "layout/ListenPlayhead.tsx",
-    reason: "leaf that reads the live playhead itself",
-  },
-  {
-    file: "layout/PresenceStatus.tsx",
-    reason:
-      "leaf that reads the presence roster itself, isolating StatusBar from presence frames",
-  },
-  {
-    file: "layout/TransportTimecode.tsx",
-    reason:
-      "leaf that reads the live playhead itself, isolating the transport bar from playhead ticks",
   },
   {
     file: "panels/TranscriptPanel.tsx",
@@ -473,9 +459,19 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "publishes the live playhead and scroll position to presence",
   },
   {
+    file: "stage/frame/usePlayerProps.ts",
+    reason:
+      "the Player bar's time readout and overview position follow the live playhead; only the PlayerBar subtree renders it",
+  },
+  {
     file: "state/presenceSlice.ts",
     reason:
       "the presence slice's own actions read the playhead/roster to publish state",
+  },
+  {
+    file: "state/stageSlice.ts",
+    reason:
+      "snapshots the live scroll into the leaving stage inside the switch action, not at render",
   },
   {
     file: "state/storeMath.ts",
@@ -720,8 +716,8 @@ describe("store governance", () => {
   it("flags a hot-field read outside the allowlist", () => {
     const files = [
       { rel: "timeline/TrackLane.tsx", text: "s.playheadSec" },
-      { rel: "layout/TransportTimecode.tsx", text: "s.playheadSec" },
-      { rel: "layout/StatusBar.test.tsx", text: "s.sessionClients" },
+      { rel: "stage/frame/AvatarStack.tsx", text: "s.playheadSec" },
+      { rel: "stage/frame/AvatarStack.test.tsx", text: "s.sessionClients" },
       {
         rel: "timeline/ClipBlock.tsx",
         text: "useDawStore((state) => state.pointerTrackId)",

@@ -1,4 +1,8 @@
 import { useMemo } from "react";
+import {
+  commentAnchorLabel,
+  resolveCommentAnchor,
+} from "../comments/commentAnchor";
 import { useDawStore } from "../state/dawStore";
 import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
 import { beginCommentAnchorSession } from "./commentAnchorSession";
@@ -9,6 +13,7 @@ import { useVisibleChunks } from "./useVisibleChunks";
 type TimeRulerProps = Omit<
   TimeRulerViewProps,
   | "valueSec"
+  | "valueText"
   | "getPlayheadSec"
   | "visibleChunks"
   | "playhead"
@@ -32,6 +37,13 @@ function selectRulerValueSec(s: {
 export function TimeRuler({ hidePlayhead = false, ...props }: TimeRulerProps) {
   const valueSec = useDawStore(selectRulerValueSec);
   const commentMode = useDawStore((state) => state.commentMode);
+  // In comment mode the slider says where the comment lands, a span included,
+  // so the Edit stage shows what the Comments section's time chip shows.
+  const valueText = useDawStore((state) =>
+    state.commentMode
+      ? `Comment at ${commentAnchorLabel(resolveCommentAnchor(state).draft)}`
+      : undefined,
+  );
   const commentGesture = useMemo(
     () => ({
       begin: (onInvalidated: () => void) =>
@@ -51,6 +63,7 @@ export function TimeRuler({ hidePlayhead = false, ...props }: TimeRulerProps) {
       commentMode={commentMode}
       commentGesture={commentGesture}
       valueSec={valueSec}
+      valueText={valueText}
       getPlayheadSec={() => useDawStore.getState().playheadSec}
       visibleChunks={visibleChunks}
       playhead={hidePlayhead ? null : <Playhead height="100%" />}

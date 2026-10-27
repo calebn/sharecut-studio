@@ -18,37 +18,36 @@ it.each<CommentDraft | null>([
     trackIds: ["host"],
     intervals: [{ start: 2, end: 3 }],
   },
-])(
-  "restores the full prior draft without revealing the Comments tab",
-  (prior) => {
-    useDawStore.getState().setCommentDraft(prior);
-    const invalidated = vi.fn();
-    const session = beginCommentAnchorSession(useDawStore, invalidated);
-    session?.preview({ startSec: 4, endSec: 10 });
-    expect(useDawStore.getState().commentDraft).toEqual({
-      startSec: 4,
-      endSec: 10,
-    });
-    expect(invalidated).not.toHaveBeenCalled();
-    useDawStore.getState().setActiveTab("transcript");
-    session?.cancel();
-    session?.preview({ startSec: 12, endSec: null });
-    session?.finish({ startSec: 15, endSec: null });
-    session?.cancel();
-    expect(useDawStore.getState().commentDraft).toBe(prior);
-    expect(useDawStore.getState().activeTab).toBe("transcript");
-  },
-);
+])("restores the full prior draft without leaving Edit", (prior) => {
+  useDawStore.getState().setCommentDraft(prior);
+  const invalidated = vi.fn();
+  const session = beginCommentAnchorSession(useDawStore, invalidated);
+  session?.preview({ startSec: 4, endSec: 10 });
+  expect(useDawStore.getState().commentDraft).toEqual({
+    startSec: 4,
+    endSec: 10,
+  });
+  expect(invalidated).not.toHaveBeenCalled();
+  session?.cancel();
+  session?.preview({ startSec: 12, endSec: null });
+  session?.finish({ startSec: 15, endSec: null });
+  session?.cancel();
+  expect(useDawStore.getState().commentDraft).toBe(prior);
+  expect(useDawStore.getState().stage).toBe("edit");
+});
 
 it("keeps the final draft after completion and ignores later cancellation", () => {
   const session = beginCommentAnchorSession(useDawStore, vi.fn());
   session?.preview({ startSec: 4, endSec: null });
+  expect(useDawStore.getState().stage).toBe("edit");
   session?.finish({ startSec: 4, endSec: 10 });
   session?.cancel();
   expect(useDawStore.getState().commentDraft).toEqual({
     startSec: 4,
     endSec: 10,
   });
+  expect(useDawStore.getState().stage).toBe("review");
+  expect(useDawStore.getState().reviewSection).toBe("comments");
 });
 
 it.each(["draft", "mode", "path", "epoch"] as const)(
@@ -81,8 +80,7 @@ it("cannot begin outside comment mode", () => {
   expect(beginCommentAnchorSession(useDawStore, vi.fn())).toBeNull();
 });
 
-it("discards a preview replaced synchronously by another store subscriber without revealing Comments", () => {
-  useDawStore.getState().setActiveTab("transcript");
+it("discards a preview replaced synchronously by another store subscriber without leaving Edit", () => {
   const replacement = { startSec: 20, endSec: null };
   const detach = useDawStore.subscribe((state) => {
     if (state.commentDraft?.startSec === 4) state.setCommentDraft(replacement);
@@ -93,7 +91,7 @@ it("discards a preview replaced synchronously by another store subscriber withou
     session?.preview({ startSec: 4, endSec: 10 });
     expect(invalidated).toHaveBeenCalledOnce();
     expect(useDawStore.getState().commentDraft).toBe(replacement);
-    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(useDawStore.getState().stage).toBe("edit");
     session?.cancel();
     session?.finish({ startSec: 30, endSec: 40 });
     expect(useDawStore.getState().commentDraft).toBe(replacement);

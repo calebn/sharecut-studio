@@ -116,53 +116,59 @@ async function applyTrackReorder(
     return { status: "disabled", reason: msg };
   }
 }
-export function registerProjectMediaCommands(): void {
-  registerCommand("project.new", () => {
-    if (desktopCloseGuardArmed()) {
-      useDawStore
-        .getState()
-        .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
-      return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
-    }
-    if (projectNewInFlight) {
-      return { status: "ok" };
-    }
-    projectNewInFlight = true;
-    useDawStore.getState().announceStatus("Closing project…");
-    const projectPath = useDawStore.getState().projectPath;
-    void (async () => {
-      try {
-        await withAbortTimeout(
-          PROJECT_CLOSE_TIMEOUT_MS,
-          "Closing the project timed out",
-          closeEpisodeProject,
-        );
-      } catch (e) {
-        // Home would show while host MCP stays pinned; stay and say so.
-        projectNewInFlight = false;
-        useDawStore
-          .getState()
-          .announceStatus(`New project failed: ${errorMessage(e)}`, {
-            tone: "error",
-          });
-        // A timed-out close may still land on the server; re-pin what Studio shows.
-        if (
-          e instanceof DOMException &&
-          e.name === "TimeoutError" &&
-          projectPath &&
-          !isShareProjectKey(projectPath)
-        ) {
-          void openEpisodeProject(projectPath).catch(() => undefined);
-        }
-        return;
-      }
-      window.location.assign(homeUrl(window.location.href));
-      setTimeout(() => {
-        projectNewInFlight = false;
-      }, PROJECT_NEW_RETRY_MS);
-    })();
+function closeProjectAndGoHome(failure: string): ExecuteResult {
+  if (desktopCloseGuardArmed()) {
+    useDawStore
+      .getState()
+      .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
+    return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
+  }
+  if (projectNewInFlight) {
     return { status: "ok" };
-  });
+  }
+  projectNewInFlight = true;
+  useDawStore.getState().announceStatus("Closing project…");
+  const projectPath = useDawStore.getState().projectPath;
+  void (async () => {
+    try {
+      await withAbortTimeout(
+        PROJECT_CLOSE_TIMEOUT_MS,
+        "Closing the project timed out",
+        closeEpisodeProject,
+      );
+    } catch (e) {
+      // Home would show while host MCP stays pinned; stay and say so.
+      projectNewInFlight = false;
+      useDawStore.getState().announceStatus(`${failure}: ${errorMessage(e)}`, {
+        tone: "error",
+      });
+      // A timed-out close may still land on the server; re-pin what Studio shows.
+      if (
+        e instanceof DOMException &&
+        e.name === "TimeoutError" &&
+        projectPath &&
+        !isShareProjectKey(projectPath)
+      ) {
+        void openEpisodeProject(projectPath).catch(() => undefined);
+      }
+      return;
+    }
+    window.location.assign(homeUrl(window.location.href));
+    setTimeout(() => {
+      projectNewInFlight = false;
+    }, PROJECT_NEW_RETRY_MS);
+  })();
+  return { status: "ok" };
+}
+
+export function registerProjectMediaCommands(): void {
+  registerCommand("project.new", () =>
+    closeProjectAndGoHome("New project failed"),
+  );
+
+  registerCommand("project.home", () =>
+    closeProjectAndGoHome("Closing the project failed"),
+  );
 
   registerCommand("project.open", () => {
     if (desktopCloseGuardArmed()) {

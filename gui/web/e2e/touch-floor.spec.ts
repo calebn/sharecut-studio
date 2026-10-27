@@ -1,5 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import {
+  goToStage,
+  openPanel,
+  openProject,
+  openViewSheet,
+  phone,
+  saveStatus,
+} from "./stageNav";
 
 /**
  * The 44 CSS px floor on a coarse pointer (docs/communication-philosophy.md, mobile checklist).
@@ -12,7 +20,6 @@ import { e2eProjectPath } from "./env";
  *   where a taller hit area would take the neighbouring line's taps; the ruler and transport
  *   seek at 44px;
  * - `.track-reorder-handle`: a drag shortcut whose equivalent is the 44px Move up/down buttons;
- * - `.status-chip` on tablet and wider only: the status bar's chips; the phone chips hold the floor.
  */
 const DOCUMENTED_EXCEPTIONS = [
   ".fade-corner",
@@ -25,19 +32,11 @@ const DOCUMENTED_EXCEPTIONS = [
   ".pending-hit",
   ".pending-handle",
 ];
-const TABLET_EXCEPTIONS = [".status-chip"];
 const FLOOR_PX = 44 - 0.5;
 const CONTROLS =
   "button, a[href], [role=button], [role=tab], [role=menuitem], [role=checkbox], [role=menuitemcheckbox], [role=menuitemradio], [role=switch], input, select, textarea, summary";
-const PANEL_TABS = [
-  "Transcript",
-  "Comments",
-  "History",
-  "Impact",
-  "Tighten",
-  "Pipeline",
-] as const;
-const MODES = ["Listen", "Timeline", "Text", "More"] as const;
+const STAGES = ["record", "prepare", "edit", "review", "deliver"] as const;
+const REVIEW_SECTIONS = ["comments", "impact", "tighten"] as const;
 
 /** Visible controls whose touch target is under the floor and not a documented exception. */
 async function undersized(page: Page, exceptions: string) {
@@ -87,62 +86,49 @@ for (const size of SIZES) {
       hasTouch: true,
     });
     const page = await context.newPage();
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await expect(page.locator("[data-save-state]")).toBeVisible();
+    await openProject(page, e2eProjectPath);
+    await expect(saveStatus(page)).toBeVisible();
     expect(
       await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
     ).toBe(true);
-    const exceptions = (
-      size.phone
-        ? DOCUMENTED_EXCEPTIONS
-        : [...DOCUMENTED_EXCEPTIONS, ...TABLET_EXCEPTIONS]
-    ).join(", ");
+    const exceptions = DOCUMENTED_EXCEPTIONS.join(", ");
     const found: string[] = (await undersized(page, exceptions)).map(
       (row) => `[Fresh] ${row}`,
     );
-    const nav = page.getByRole("navigation", { name: "Primary" });
-    if (size.phone) {
-      await expect(nav).toBeVisible();
-      for (const name of MODES) {
-        await nav.getByRole("button", { name, exact: true }).click();
-        found.push(
-          ...(await undersized(page, exceptions)).map(
-            (row) => `[${name}] ${row}`,
-          ),
-        );
-      }
-    } else {
-      const tabs = page.getByRole("tablist", { name: "Panel tabs" });
-      if (await tabs.isHidden()) {
-        const showPanels = page.getByRole("button", {
-          name: "Show editor panels",
-          exact: true,
-        });
-        await expect(showPanels).toBeVisible();
-        await showPanels.click();
-      }
-      await expect(tabs).toBeVisible();
-      for (const name of PANEL_TABS) {
-        await tabs.getByRole("tab", { name, exact: true }).click();
-        found.push(
-          ...(await undersized(page, exceptions)).map(
-            (row) => `[${name}] ${row}`,
-          ),
-        );
-      }
-      // The transport menu holds the overlay layers: its rows hold the floor and the last one
-      // is reachable in a short window.
-      await page.getByRole("button", { name: "Menu", exact: true }).click();
-      const layers = page.locator(".overlay-legend-item");
-      expect(await layers.count()).toBeGreaterThan(0);
+    for (const stage of STAGES) {
+      await goToStage(page, stage);
       found.push(
-        ...(await undersized(page, exceptions)).map((row) => `[Menu] ${row}`),
+        ...(await undersized(page, exceptions)).map(
+          (row) => `[${stage}] ${row}`,
+        ),
       );
-      const last = layers.last();
-      await last.scrollIntoViewIfNeeded();
-      const box = (await last.boundingBox())!;
-      expect(box.y + box.height).toBeLessThanOrEqual(size.height);
     }
+    for (const panel of REVIEW_SECTIONS) {
+      await openPanel(page, panel);
+      found.push(
+        ...(await undersized(page, exceptions)).map(
+          (row) => `[${panel}] ${row}`,
+        ),
+      );
+    }
+    if (size.phone) {
+      await phone.showText(page);
+      found.push(
+        ...(await undersized(page, exceptions)).map((row) => `[Script] ${row}`),
+      );
+    }
+    // The eye sheet holds the overlay layers: its rows hold the floor and the
+    // last one is reachable in a short window.
+    const sheet = await openViewSheet(page);
+    const layers = sheet.locator(".overlay-legend-item");
+    expect(await layers.count()).toBeGreaterThan(0);
+    found.push(
+      ...(await undersized(page, exceptions)).map((row) => `[View] ${row}`),
+    );
+    const last = layers.last();
+    await last.scrollIntoViewIfNeeded();
+    const box = (await last.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(size.height);
     expect(found).toEqual([]);
     await context.close();
   });

@@ -1,17 +1,12 @@
+import type { ShellBreakpoint } from "../state/types";
 import type {
-  MobileMode,
-  MoreDestination,
-  ShellBreakpoint,
-} from "../state/types";
-import type {
-  AuditionMode,
   PresenceCursor,
   PresenceTab,
   PresenceTransport,
-  PresenceUi,
   PresenceViewport,
   SessionClient,
 } from "../types/session";
+import type { StageRole } from "../types/stage";
 import { clampToSession } from "../utils/time";
 import { MIN_VIEWPORT_SPAN_SEC } from "../utils/timelineZoom.generated";
 import { clampZoomPxPerSec } from "../utils/zoom";
@@ -279,6 +274,8 @@ export function setPresenceCursorSink(sink: CursorSink | null): void {
 export type FollowUiCaps = {
   guestShare: boolean;
   breakpoint: ShellBreakpoint;
+  /** What the link opens; a guest without one is taken as an Editor link. */
+  role?: StageRole;
 };
 
 export const HOST_ONLY_TABS: readonly PresenceTab[] = [
@@ -292,7 +289,7 @@ const HOST_ONLY_TAB_SET: ReadonlySet<PresenceTab> = new Set(HOST_ONLY_TABS);
 
 const GUEST_TABS: readonly PresenceTab[] = ["transcript", "comments"];
 
-const KNOWN_TABS: ReadonlySet<string> = new Set([
+export const KNOWN_TABS: ReadonlySet<string> = new Set([
   ...GUEST_TABS,
   ...HOST_ONLY_TABS,
 ]);
@@ -309,85 +306,7 @@ export function tabAvailable(tab: PresenceTab, caps: FollowUiCaps): boolean {
   return !(caps.guestShare && HOST_ONLY_TAB_SET.has(tab));
 }
 
-export function mobileModeForTab(tab: PresenceTab): {
-  mobileMode: MobileMode;
-  moreDestination?: MoreDestination;
-} {
-  if (tab === "transcript") {
-    return { mobileMode: "text" };
-  }
-  return { mobileMode: "more", moreDestination: tab };
-}
-
 export type FollowDegraded = { tab?: PresenceTab; audition?: "fx" | "raw" };
-
-export function planFollowUi(
-  leader: PresenceUi,
-  caps: FollowUiCaps,
-): {
-  apply: {
-    tab?: PresenceTab;
-    mobile?: ReturnType<typeof mobileModeForTab>;
-    audition?: AuditionMode;
-    viewerMute?: Record<string, boolean>;
-    soloTracks?: Record<string, boolean>;
-  };
-  degraded: FollowDegraded;
-} {
-  const apply: {
-    tab?: PresenceTab;
-    mobile?: ReturnType<typeof mobileModeForTab>;
-    audition?: AuditionMode;
-    viewerMute?: Record<string, boolean>;
-    soloTracks?: Record<string, boolean>;
-  } = {};
-  const degraded: FollowDegraded = {};
-  if (leader.tab && KNOWN_TABS.has(leader.tab)) {
-    if (!tabAvailable(leader.tab, caps)) {
-      degraded.tab = leader.tab;
-    } else if (caps.breakpoint === "phone") {
-      apply.mobile = phoneFollowMobile(leader);
-    } else {
-      apply.tab = leader.tab;
-    }
-  } else if (caps.breakpoint === "phone" && leader.mobile_mode) {
-    apply.mobile = phoneFollowMobile(leader);
-  }
-  if (caps.guestShare) {
-    apply.audition = "mix";
-    if (leader.audition && leader.audition !== "mix") {
-      degraded.audition = leader.audition;
-    }
-  } else if (leader.audition) {
-    apply.audition = leader.audition;
-  }
-  if (!caps.guestShare) {
-    if (leader.viewer_mute) {
-      apply.viewerMute = Object.fromEntries(
-        leader.viewer_mute.map((id) => [id, true]),
-      );
-    }
-    if (leader.solo) {
-      apply.soloTracks = Object.fromEntries(
-        leader.solo.map((id) => [id, true]),
-      );
-    }
-  }
-  return { apply, degraded };
-}
-
-function phoneFollowMobile(
-  leader: PresenceUi,
-): ReturnType<typeof mobileModeForTab> {
-  const mode = leader.mobile_mode;
-  if (mode === "listen" || mode === "timeline" || mode === "text") {
-    return { mobileMode: mode };
-  }
-  if (leader.tab) {
-    return mobileModeForTab(leader.tab);
-  }
-  return { mobileMode: mode === "more" ? "more" : "text" };
-}
 
 export function followBannerDetail(
   d: FollowDegraded,

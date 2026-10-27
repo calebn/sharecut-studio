@@ -39,8 +39,8 @@ Each site view has **Copy Markdown** for pasting into Google Docs / Notion. Merm
 
 **Shortcuts page:** regenerated from `KEYMAP_COMMANDS` / `COMMANDS` via `make cheatsheet`. Stale output fails `make test-web` / `make cheatsheet-check` and the `keymap-cheatsheet` pre-commit hook.
 
-For component review, the Storybook catalog includes `Templates/MobileShell`
-and `Templates/StudioShell` at phone, tablet, and desktop sizes in both themes.
+For component review, the Storybook catalog includes `Stages/Edit/Frame`
+and the `Stages/<Stage>/` hosts at phone, tablet, and desktop sizes in both themes.
 These examples use fictional data and bounded regions with representative
 transport controls. Docs previews keep sheets and dialogs inside each example
 and follow the theme toolbar. On narrow pages, scroll a desktop preview

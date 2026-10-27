@@ -3,6 +3,7 @@ import { timelineTestIds } from "../src/timeline/selectors";
 import { postDocumentCommand } from "./documentCommand";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import { zoomTimelineIn } from "./timelineZoom";
 
 const TRACK_COUNT = 20;
@@ -81,7 +82,7 @@ async function readChromeGeometry(page: Page): Promise<ChromeGeometry> {
 }
 
 async function exercisePinnedRuler(page: Page): Promise<void> {
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await expect(page.locator(".timeline-scroll")).toBeVisible();
   await expect(page.locator(".track-header-row")).toHaveCount(TRACK_COUNT);
   await expect(page.locator(".chapter-marker")).toHaveCount(1);
@@ -162,7 +163,7 @@ test.describe("pinned timeline ruler (#409)", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await withShareableProject(async (projectPath) => {
       await setupManyTrackProject(page, projectPath);
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       await exercisePinnedRuler(page);
     });
   });
@@ -173,7 +174,7 @@ test.describe("pinned timeline ruler (#409)", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await withShareableProject(async (projectPath) => {
       await setupManyTrackProject(page, projectPath);
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await openProject(page, projectPath);
       await openPhoneTimeline(page);
       await exercisePinnedRuler(page);
     });

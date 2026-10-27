@@ -133,22 +133,17 @@ const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--join-hit-min", ["calc(2 * var(--clip-inset-top))"]],
   ["--header-width", ["11.25rem"]],
   ["--inspector-width", ["17.5rem"]],
-  ["--transport-height", ["3.5rem"]],
+  ["--stage-lane-min", ["22rem"]],
+  ["--stage-script-floor", ["12rem"]],
+  ["--player-height", ["3.5rem"]],
   ["--control-height", ["2rem"]],
   ["--control-height-compact", ["1.75rem"]],
-  ["--status-chip-height", ["1.5rem"]],
+  ["--pill-height", ["1.5rem"]],
   ["--touch-min", ["2.75rem"]],
-  ["--save-dot-size", ["0.5rem"]],
-  ["--save-dot-stroke", ["0.125rem"]],
-  ["--save-dot-box", ["1.25rem"]],
   ["--mix-row-height", ["3.5rem"]],
   ["--mix-identity-size", ["1.5rem"]],
   ["--mix-volume-width", ["6rem"]],
   ["--mute-waveform-opacity", ["0.5"]],
-  ["--status-height", ["1.75rem"]],
-  ["--tabs-height", ["12.5rem"]],
-  ["--editor-main-min-height", ["7.5rem"]],
-  ["--mobile-nav-height", ["3.25rem"]],
   ["--inspector-column-width", ["clamp(16rem, 32vw, 22rem)"]],
   ["--menu-available-height", ["90dvh"]],
   ["--menu-available-width", ["calc(100dvw - 2 * var(--menu-edge-margin))"]],
@@ -225,7 +220,6 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--app-header-height": "3rem",
   "--app-header-height-phone": "2.75rem",
   "--alert-slot-height": "2.75rem",
-  "--rail-width": "22.5rem",
   "--script-pane-width": "25rem",
   "--script-pane-width-min": "20rem",
   "--script-pane-width-max": "40rem",
@@ -233,7 +227,6 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--action-bar-height": "2.5rem",
   "--action-bar-height-touch": "2.75rem",
   "--action-dock-height": "4rem",
-  "--record-dock-height": "5rem",
   "--tab-bar-height": "3.5rem",
   "--space-7": "2rem",
   "--space-8": "3rem",
@@ -262,6 +255,21 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--font-size-reading-phone": "1.0625rem",
   ...SELECTION_FROM_SPEC,
 };
+
+const SHEET_CLEARANCE_TOKENS = [
+  "--sheet-header-clearance",
+  "--lane-height-touch",
+  "--sheet-edit-row",
+  "--sheet-chrome-clearance",
+  "--sheet-lane-extra",
+  "--sheet-lane-clearance",
+];
+
+const STACKED_EDIT_TOKENS = [
+  "--stage-stacked-lanes-min",
+  "--stage-stacked-lanes-want",
+  "--stage-stacked-script-floor",
+];
 
 describe("theme tokens.css", () => {
   const current = declarations("tokens.css");
@@ -296,8 +304,17 @@ describe("theme tokens.css", () => {
     const known = new Set([
       ...FROZEN.map(([name]) => name),
       ...Object.keys(STAGE_LAYOUT),
+      ...SHEET_CLEARANCE_TOKENS,
+      ...STACKED_EDIT_TOKENS,
     ]);
     expect([...current.keys()].filter((name) => !known.has(name))).toEqual([]);
+  });
+
+  it("keeps a ruler, a marker row and two lanes for the stacked Edit timeline", () => {
+    const value = current.get("--stage-stacked-lanes-min")?.[0] ?? "";
+    expect(value.replace(/\s+/g, " ")).toMatch(
+      /2 \* var\(--ruler-height\) \+ 2 \* var\(--lane-height\)/,
+    );
   });
 
   it("sums the phone chrome budget to 176px at a 16px root", () => {
@@ -305,9 +322,45 @@ describe("theme tokens.css", () => {
       Number.parseFloat(current.get(name)?.[0] ?? "NaN");
     const chrome =
       rem("--action-dock-height") +
-      rem("--transport-height") +
+      rem("--player-height") +
       rem("--tab-bar-height");
     expect(chrome * 16).toBe(176);
+  });
+});
+
+describe("--sheet-lane-clearance", () => {
+  const current = declarations("tokens.css");
+  const px = (name: string) => {
+    const value = current.get(name)?.[0] ?? "";
+    return Number.parseFloat(value) * (value.endsWith("rem") ? 16 : 1);
+  };
+
+  it("is 18.5rem at the default size with the Edit rows shared, summed from the row tokens", () => {
+    const row = px("--control-height") + 2 * px("--space-1");
+    const clearance =
+      px("--app-header-height") +
+      row +
+      px("--ruler-height") +
+      px("--marker-lane-height") +
+      px("--lane-height") +
+      px("--control-height") +
+      px("--space-3");
+    expect(clearance).toBe(18.5 * 16);
+  });
+
+  it("counts the app header unless a phone's sheet starts below it", () => {
+    expect(current.get("--sheet-header-clearance")?.[0]).toBe(
+      "var(--app-header-height)",
+    );
+    expect(current.get("--sheet-chrome-clearance")?.[0]).toMatch(
+      /^calc\(\s*var\(--sheet-header-clearance\)/,
+    );
+  });
+
+  it("builds the clearance from the chrome clearance plus one lane", () => {
+    expect(current.get("--sheet-lane-clearance")?.[0]).toMatch(
+      /var\(--sheet-chrome-clearance\)\s*\+\s*var\(--sheet-lane-extra\)/,
+    );
   });
 });
 

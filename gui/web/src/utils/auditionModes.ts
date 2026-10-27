@@ -7,8 +7,8 @@ export type AuditionModeDef = {
 };
 
 /**
- * Audition mode segmented-control rows (`transport.audition`), shared by
- * `TransportBar`'s desktop/collapsed groups so the labels never drift apart.
+ * Audition mode segmented-control rows (`transport.audition`), so the labels
+ * never drift apart.
  */
 export const AUDITION_MODES: readonly AuditionModeDef[] = [
   {

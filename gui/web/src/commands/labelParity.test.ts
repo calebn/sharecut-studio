@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { capabilityLabel } from "../capabilities/copy";
-import { paletteCommands } from "../layout/commandPaletteRows";
+import { paletteCommands } from "../stage/dialogs/commandPaletteRows";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { SRC_ROOT, sourceFiles } from "../test/sourceFiles";

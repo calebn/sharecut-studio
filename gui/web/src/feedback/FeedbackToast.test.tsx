@@ -909,23 +909,6 @@ describe("FeedbackToast", () => {
 
   it.each([
     [
-      "setMobileMode",
-      (s: ReturnType<typeof useDawStore.getState>) => s.setMobileMode("text"),
-    ],
-    [
-      "setLayoutMode",
-      (s: ReturnType<typeof useDawStore.getState>) => s.setLayoutMode("review"),
-    ],
-    [
-      "setActiveTab",
-      (s: ReturnType<typeof useDawStore.getState>) => s.setActiveTab("history"),
-    ],
-    [
-      "setMoreDestination",
-      (s: ReturnType<typeof useDawStore.getState>) =>
-        s.setMoreDestination("history"),
-    ],
-    [
       "endGestureFeedback",
       (s: ReturnType<typeof useDawStore.getState>) => s.endGestureFeedback(),
     ],

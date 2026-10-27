@@ -87,8 +87,13 @@ const meta: Meta<PreviewProps> = {
   decorators: [
     (Story) => (
       <div
-        className="daw-shell"
-        style={{ width: "22.5rem", maxWidth: "100%", height: "32rem" }}
+        className="stage-frame stage-frame--phone"
+        style={{
+          width: "22.5rem",
+          maxWidth: "100%",
+          height: "32rem",
+          gridTemplateRows: "minmax(0, 1fr)",
+        }}
       >
         <main>
           <h1 className="sr-only">Track mix preview</h1>

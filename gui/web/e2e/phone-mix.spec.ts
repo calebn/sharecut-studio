@@ -8,6 +8,7 @@ import {
 } from "./phoneMix";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
+import { openProject, openProjectDialog } from "./stageNav";
 import { withAppearance } from "./theme";
 
 for (const { cell: viewport, theme } of withAppearance([
@@ -20,8 +21,8 @@ for (const { cell: viewport, theme } of withAppearance([
   }, info) => {
     await page.setViewportSize(viewport);
     await withShareableProject(async (projectPath) => {
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(".daw-shell--phone")).toBeVisible();
+      await openProject(page, projectPath);
+      await expect(page.locator(".stage-frame--phone")).toBeVisible();
       for (let i = 0; i < 8; i++)
         await postDocumentCommand(
           page,
@@ -56,16 +57,17 @@ test("phone Mix persists native edits, keeps S private and undoes saved changes"
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     await checkNativeMixEdits(page, projectPath);
   });
 });
-test("viewer Mix keeps M/S private and cannot override saved mute", async ({
+/** A Viewer link opens Review only, so there is no Mix sheet: it neither changes the saved mix nor gets a way to. */
+test("viewer link has no Mix sheet and cannot override saved mute", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const token = await createReviewShare(page, projectPath);
     const before = await savedMix(page, projectPath);
     await postDocumentCommand(
@@ -75,30 +77,39 @@ test("viewer Mix keeps M/S private and cannot override saved mute", async ({
       { track_id: before[1].id, muted: true },
       projectPath,
     );
-    await page.goto(`/r/${token}`);
-    await expect(page.locator(".daw-shell--phone")).toBeVisible();
-    const mix = await openPhoneMix(page);
     const persisted = await savedMix(page, projectPath);
-    await expect(mix.getByRole("slider").first()).toBeDisabled();
-    await expect(mix.getByRole("slider").first()).toHaveAccessibleDescription(
-      /Only the host and editors can change volume/,
-    );
-    await expect(mix.getByText(/Shared playback uses Full mix/)).toBeVisible();
-    await mix
-      .getByRole("button", { name: `Mute ${before[0].label}`, exact: true })
-      .click();
+    expect(persisted[1].muted).toBe(true);
+
+    const posted: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        /\/document\/command/.test(request.url())
+      )
+        posted.push(request.url());
+    });
+    await page.goto(`/r/${token}`);
+    await expect(page.locator(".stage-frame--phone")).toBeVisible();
+    await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
+    await expect(page.getByRole("tablist", { name: "Stages" })).toHaveCount(0);
     await expect(
-      mix.getByRole("button", { name: `Mute ${before[0].label}`, exact: true }),
-    ).toHaveAttribute("data-mute-state", "listen");
-    await mix
-      .getByRole("button", { name: `Solo ${before[0].label}`, exact: true })
-      .click();
+      page.getByRole("button", { name: "Mix", exact: true }),
+    ).toHaveCount(0);
+
+    // The palette lists Go to Edit, and the link refuses it.
+    await openProjectDialog(page, "palette");
+    const search = page.getByRole("combobox", { name: "Search commands" });
+    await search.fill("Go to Edit");
+    await search.press("Enter");
+    await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
     await expect(
-      mix.getByRole("button", { name: `Mute ${before[1].label}`, exact: true }),
-    ).toHaveAttribute("aria-disabled", "true");
-    await mix
-      .getByRole("button", { name: `Mute ${before[1].label}`, exact: true })
-      .press("Enter");
+      page.getByRole("dialog", { name: "Mix", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Mix", exact: true }),
+    ).toHaveCount(0);
+
+    expect(posted).toEqual([]);
     expect(await savedMix(page, projectPath)).toEqual(persisted);
   });
 });
@@ -108,7 +119,7 @@ test("editor Mix commits saved volume through guest capabilities", async ({
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     const token = await createReviewShare(page, projectPath, "editor");
     const before = await savedMix(page, projectPath);
     await page.goto(`/r/${token}`);
@@ -137,15 +148,15 @@ test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcu
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     await openPhoneMix(page);
-    await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Shift+Tab");
+    for (let step = 0; step < 4; step += 1) {
+      await page.keyboard.press("Shift+Tab");
+    }
     await expect(
       page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "Text", exact: true }),
+        .getByRole("tablist", { name: "Stages" })
+        .getByRole("tab", { name: /^Edit\b/ }),
     ).toBeFocused();
     await expect(
       page.getByRole("dialog", { name: "Mix", exact: true }),

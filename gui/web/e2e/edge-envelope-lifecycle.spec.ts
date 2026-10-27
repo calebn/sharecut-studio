@@ -5,6 +5,7 @@ import {
   draw,
   interrupt,
   layer,
+  layerDuringDrag,
   runAudit,
   snapshot,
 } from "./lifecycleAudit";
@@ -13,6 +14,7 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 for (const family of ["fade", "trim", "envelope"] as const)
@@ -68,7 +70,7 @@ for (const family of ["fade", "trim", "envelope"] as const)
           [],
         );
         if (terminal === "unmount" && family === "envelope") {
-          await layer(page, "Volume envelope", false);
+          await layerDuringDrag(page, "Volume envelope", false);
           await page.mouse.move(point.x + 24, point.y);
           await page.mouse.up();
           await layer(page, "Volume envelope", true);
@@ -79,11 +81,11 @@ for (const family of ["fade", "trim", "envelope"] as const)
             await page.goto(
               `/?project=${encodeURIComponent(other.projectPath)}`,
             );
-            await expect(page.locator(".daw-shell")).toBeVisible();
+            await expect(page.locator(".stage-frame")).toBeVisible();
             await page.mouse.up();
             await switchE2eProject(p);
-            await page.goto(`/?project=${encodeURIComponent(p)}`);
-            await expect(page.locator(".daw-shell")).toBeVisible();
+            await openProject(page, p);
+            await expect(page.locator(".stage-frame")).toBeVisible();
           } finally {
             removeRelocatedE2eProject(other.workspaceDir);
           }

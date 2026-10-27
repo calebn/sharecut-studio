@@ -14,6 +14,7 @@ import {
   suggestOnFirstDialogueTrack,
 } from "../e2e/pendingActionbar";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 
 const CLIENT_ID = "e2e-actionbar-reflow";
 const REFINE_GATE =
@@ -34,8 +35,8 @@ test.afterEach(async () => {
 });
 
 async function openWithSuggestion(page: Page): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await postDocumentCommand(
     page,
     CLIENT_ID,
@@ -44,8 +45,8 @@ async function openWithSuggestion(page: Page): Promise<void> {
     projectPath,
   );
   await suggestOnFirstDialogueTrack(page, projectPath, CLIENT_ID);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   await page
     .locator("[data-pending-id]")
     .last()
@@ -126,38 +127,7 @@ test("pending card: a marker lane that grows while it floats moves the card clea
     .toEqual({ belowChrome: true, clearOfRegion: true });
 });
 
-test("pending card: a bottom panel that grows while it floats moves the card clear of the panel", async ({
-  page,
-}) => {
-  test.setTimeout(40_000);
-  await page.setViewportSize({ width: 1280, height: 600 });
-  await openWithSuggestion(page);
-  await settle(page);
-  const before = await chromeBoxes(page);
-  const bar = page.locator(".pending-actionbar");
-  const bottom = () => bar.evaluate((el) => el.getBoundingClientRect().bottom);
-  const cardBottom = await bottom();
-  expect(cardBottom).toBeLessThanOrEqual(before.panel.top + 0.5);
-
-  const splitter = page.getByRole("separator", {
-    name: "Resize editor panels",
-  });
-  await splitter.focus();
-  await page.keyboard.press("Home");
-  // The panel now reaches above where the card's bottom edge was.
-  await expect
-    .poll(async () => (await chromeBoxes(page)).panel.top)
-    .toBeLessThan(cardBottom - 1);
-
-  await expect
-    .poll(async () => {
-      const { panel } = await chromeBoxes(page);
-      return (await bar.isHidden()) || (await bottom()) <= panel.top + 0.5;
-    })
-    .toBe(true);
-});
-
-test("pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 360", async ({
+test("pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 260", async ({
   page,
 }) => {
   test.setTimeout(60_000);
@@ -182,7 +152,21 @@ test("pending review: the inspector's inline Approve and Reject stay reachable a
     .click();
   await expect(page.getByRole("alert").first()).toBeVisible();
 
+  // Where the card still has room (360 tall) it floats and stays reachable.
   await page.setViewportSize({ width: 1280, height: 360 });
+  await settle(page);
+  const floating = page.locator(".pending-actionbar");
+  await expect(floating).toBeVisible();
+  await expectHitTestable(
+    floating.getByRole("button", { name: "Approve", exact: true }),
+  );
+  await expectHitTestable(
+    floating.getByRole("button", { name: "Reject", exact: true }),
+  );
+
+  // The stage frame has no bottom panel, so the card only loses its room
+  // between the marker lane and the Player at about this height.
+  await page.setViewportSize({ width: 1280, height: 260 });
   await settle(page);
   await expect(page.locator(".pending-actionbar")).toBeHidden();
 
@@ -193,7 +177,7 @@ test("pending review: the inspector's inline Approve and Reject stay reachable a
     await expectHitTestable(button);
   }
   expect(
-    await page.locator(".daw-shell").evaluate((el) => el.scrollTop),
+    await page.locator(".stage-frame").evaluate((el) => el.scrollTop),
     "the shell itself never scrolls",
   ).toBe(0);
 });

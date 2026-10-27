@@ -9,6 +9,7 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
+import { openProject } from "./stageNav";
 import type { Theme } from "./theme";
 import {
   buildFixture as buildTouchFixture,
@@ -165,7 +166,7 @@ test("clusters open the chooser at every size and zoom", async ({
   page,
   context,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page);
   const rows: unknown[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
@@ -204,7 +205,7 @@ test("unambiguous touches never open the chooser", async ({
   page,
   context,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page);
   const rows: {
     viewport: string;
@@ -269,7 +270,7 @@ test("unambiguous touches never open the chooser", async ({
 /** What a pick changes: selection, open join popover, focus. */
 test("each chip picks its own target", async ({ page }, info) => {
   const cdp = await page.context().newCDPSession(page);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page);
   await openTimeline(page, "phone", "dark");
   const results: {
@@ -340,7 +341,7 @@ test("cancel paths close with no change; an early move edits nothing", async ({
 }, info) => {
   const cdp = await page.context().newCDPSession(page);
   const commands = watchCommands(page);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page);
   await openTimeline(page, "phone", "dark");
   await setZoom(page, 0);
@@ -407,7 +408,7 @@ test("resting on a chip grabs its target and keeps dragging", async ({
 }, info) => {
   const cdp = await page.context().newCDPSession(page);
   const commands = watchCommands(page);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page);
   await openTimeline(page, "phone", "dark");
   await setZoom(page, 0);
@@ -475,7 +476,7 @@ test("axe, themes and reduced motion with the chooser open", async ({
       reducedMotion: reduced ? "reduce" : "no-preference",
     });
     const { page, cdp } = await newTouchPage(context);
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     if (!reduced) await buildFixture(page);
     for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
       for (const theme of ["dark", "light"] as const) {

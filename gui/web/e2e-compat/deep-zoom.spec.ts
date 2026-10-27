@@ -16,6 +16,7 @@ import {
 } from "../e2e/liveProject";
 import { scrollToEnd } from "../e2e/scroll";
 import { withShareableProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import { expectPaintedWaveformTile } from "../e2e/waveformHook";
 import { timelineTestIds } from "../src/timeline/selectors";
 import { VIEWPORT_CHUNK_PX } from "../src/utils/timelineViewport";
@@ -97,7 +98,7 @@ test.describe("deep zoom at the content ceiling", () => {
     let stretched!: StretchedProject;
     await withShareableProject(
       async (projectPath) => {
-        await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+        await openProject(page, projectPath);
         await expect(page.getByRole("heading", { level: 1 })).toContainText(
           /aligned dialogue/i,
         );

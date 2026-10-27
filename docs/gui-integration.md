@@ -148,7 +148,7 @@ The viewer, its launch, routes, decisions, timeline layers and frontend internal
 - `GET /r/{token}` and `GET /rec/{token}` for an unknown, revoked, ended or wrong-kind token still return 200 with the app shell (no share hooks; only a fixed title, `noindex` meta and `<base href="/">` are injected, so the body is the same for every dead token). The guest app then shows its invalid-link cover ("Ask the host for a new link."); the `/api/review/{token}/*` and `/api/rec/{token}/*` endpoints keep their coded 4xx JSON.
 - JSON responses (project, waveform status, …) are gzip-compressed when the client accepts encoding (`GZipMiddleware`). Document `/api/host/ws` (and guest dual-plane WS) negotiate permessage-deflate.
 - Guest ShareCut Studio (`share:{token}`) does **not** poll `/api/pipeline/*` — pipeline status is host-only.
-- Guest `daw/project` keeps a zeroed `edit_impact` stub (StatusBar-safe), empties
+- Guest `daw/project` keeps a zeroed `edit_impact` stub (safe for the Stage bar badges), empties
   `social_clips`, and strips transcript `words[]`; guest waveforms are the host's raw-media pyramid tiles (no stems, no PCM).
 - Record lobby (`/rec/{token}`) fetches `GET /api/rec/{token}/bootstrap` then
   connects `WS /api/rec/{token}/ws` (Join / Consent / roster / WebRTC Signal)
@@ -248,7 +248,7 @@ Outside compact mode, the card floats beside the selected timeline region,
 between the sticky ruler and marker lane and the bottom panel. It re-places
 itself on scroll, window resize, and any size change of the region, the card,
 the compact sheet, the marker lane, or the bottom panel, so a comment that
-grows the marker lane or a splitter drag moves it without a scroll. While the
+grows the marker lane or a Script divider drag moves it without a scroll. While the
 tablet's regular inspector sheet is open, the card stays out of the canvas
 (the sheet covers it) and the sheet's own Approve and Reject carry the review.
 The card keeps the same portal host across relocation, preserving recovery

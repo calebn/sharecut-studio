@@ -7,6 +7,7 @@ import {
 } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { openProject, stageTab } from "./stageNav";
 import {
   newTouchPage,
   type Point,
@@ -61,8 +62,8 @@ async function addComments(page: Page): Promise<void> {
 
 async function openTimeline(page: Page, viewport: ViewportName): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
   await expect(page.locator(".comment-marker.pin")).toHaveCount(5);
 }
@@ -90,10 +91,17 @@ async function settledCentre(page: Page, author: string): Promise<Point> {
   return centre(page, author);
 }
 
-const selectedPins = (page: Page) =>
-  page
+// Choosing a pin also opens its comment in Review; the pin's own state is read
+// back on the Edit stage, where the timeline is.
+const selectedPins = async (page: Page) => {
+  // No wait on the tab: the app may be moving to Review as this runs, and the
+  // poll reading it simply tries again.
+  const edit = stageTab(page, "edit");
+  if ((await edit.getAttribute("aria-selected")) !== "true") await edit.click();
+  return page
     .locator(".comment-marker.selected")
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+};
 
 async function tap(
   cdp: Awaited<ReturnType<typeof newTouchPage>>["cdp"],
@@ -195,7 +203,7 @@ test.describe("with a mouse", () => {
     await page.goto("/");
     await addComments(page);
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openProject(page, projectPath);
     await expect(page.locator(".comment-marker.pin")).toHaveCount(5);
     for (const author of [...STACKED, STACKED[0]]) {
       const box = (await pin(page, "Ada").boundingBox())!;

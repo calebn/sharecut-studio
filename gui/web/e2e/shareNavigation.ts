@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { openProject } from "./stageNav";
 
 export const PROXY_MANIFEST_TIMEOUT_MS = 15_000;
 
@@ -18,7 +19,7 @@ export async function openGuestShare(page: Page, token: string): Promise<void> {
     page.goto(`/r/${token}`),
     manifestResponse,
   ]);
-  await expect(page.locator(".daw-shell-guest")).toBeVisible({
+  await expect(page.locator(".stage-frame--guest")).toBeVisible({
     timeout: PROXY_MANIFEST_TIMEOUT_MS,
   });
   expect(response.status()).toBe(200);
@@ -45,8 +46,8 @@ export async function openHostShare(
   page: Page,
   projectPath: string,
 ): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible({
+  await openProject(page, projectPath);
+  await expect(page.locator(".stage-frame")).toBeVisible({
     timeout: PROXY_MANIFEST_TIMEOUT_MS,
   });
   // WebSockets remain open but do not prevent Playwright network idle.

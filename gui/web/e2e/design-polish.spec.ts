@@ -5,6 +5,7 @@ import { e2eProjectPath } from "./env";
 import { settleAnimations } from "./motion";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { playButton } from "./playback";
+import { openProject, openProjectDialog, openProjectMenu } from "./stageNav";
 import { setTheme } from "./theme";
 import { waitForWaveformsSettled } from "./waveformHook";
 
@@ -35,16 +36,15 @@ test("stage follows the theme and motion respects preference", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
 
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
     const colors = await page.evaluate(() => {
       const timeline = document.querySelector(".timeline-area");
-      const transport = document.querySelector(".transport");
-      if (!timeline || !transport) {
-        throw new Error("Studio chrome did not mount");
+      if (!timeline) {
+        throw new Error("Timeline did not mount");
       }
       const control = document.createElement("button");
       control.className = "ui-control";
@@ -65,8 +65,6 @@ test("stage follows the theme and motion respects preference", async ({
       ruler.remove();
       return {
         timeline: getComputedStyle(timeline).backgroundColor,
-        transport: getComputedStyle(transport).backgroundImage,
-        transportHeight: Math.round(transport.getBoundingClientRect().height),
         rulerMotion,
         controlMotion,
         rulerGlow,
@@ -76,8 +74,6 @@ test("stage follows the theme and motion respects preference", async ({
     expect(colors.timeline).toBe(
       theme === "light" ? "rgb(238, 241, 240)" : "rgb(14, 12, 11)",
     );
-    expect(colors.transport).toContain("gradient");
-    expect(colors.transportHeight).toBe(56);
     expect(colors.rulerMotion).toBe("0s");
     expect(colors.controlMotion).toBe("0s");
     expect(colors.rulerGlow).toContain("gradient");
@@ -112,7 +108,7 @@ test("fixed phone playhead uses the stage playhead in each theme", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await openPhoneTimeline(page);
   const playhead = page.locator(
     ".timeline-area--fixed-playhead .playhead--fixed",
@@ -142,7 +138,7 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     if (viewport.width < 768) {
       await openPhoneTimeline(page);
     }
@@ -167,221 +163,13 @@ for (const viewport of [
   });
 }
 
-test("transport zones never overlap across desktop widths", async ({
-  browser,
-  baseURL,
-}) => {
-  const longTitle =
-    "Episode 142: A long conversation about documentary podcasts";
-  for (const hasTouch of [false, true]) {
-    const context = await browser.newContext({ baseURL, hasTouch });
-    try {
-      const page = await context.newPage();
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-      await expect(
-        page.locator(".timeline-scroll .track-headers"),
-      ).toBeVisible();
-      await page.evaluate(() => document.fonts.ready);
-      expect(
-        await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
-      ).toBe(hasTouch);
-      await setTheme(page, "light");
-      const title = page.locator("header.transport h1");
-      const fixtureTitle = (await title.textContent()) ?? "";
-      for (const name of [fixtureTitle, longTitle]) {
-        for (const width of [
-          1100, 1101, 1150, 1200, 1240, 1241, 1272, 1273, 1280, 1360, 1440,
-          1519, 1520, 1521, 1680, 1920,
-        ]) {
-          await page.setViewportSize({ width, height: 900 });
-          await title.evaluate((node, text) => {
-            node.textContent = text;
-          }, name);
-          const transport = page.locator("header.transport");
-          const controls = transport.locator(".transport-edit-controls button");
-          await expect(controls).toHaveCount(width <= 1194 ? 0 : 4);
-          const geometry = await transport.evaluate((header) => {
-            const box = (node: Element) => {
-              const rect = node.getBoundingClientRect();
-              return {
-                left: rect.left,
-                right: rect.right,
-                width: rect.width,
-                height: rect.height,
-              };
-            };
-            const zones = [...header.querySelectorAll(".transport-zone")].map(
-              (zone) => {
-                const children = [...zone.children]
-                  .map(box)
-                  .filter((rect) => rect.width > 0);
-                return {
-                  left: Math.min(...children.map((rect) => rect.left)),
-                  right: Math.max(...children.map((rect) => rect.right)),
-                };
-              },
-            );
-            return {
-              zones,
-              title: box(header.querySelector("h1")!),
-              controls: [
-                ...header.querySelectorAll(".transport-edit-controls button"),
-              ].map(box),
-              scrollWidth: header.scrollWidth,
-              pageWidth: document.documentElement.scrollWidth,
-            };
-          });
-          const label = `${width}px ${hasTouch ? "coarse" : "fine"} "${name}"`;
-          expect(geometry.zones, label).toHaveLength(3);
-          const [start, center, end] = geometry.zones;
-          expect(start.right, `${label} start vs center`).toBeLessThanOrEqual(
-            center.left,
-          );
-          expect(center.right, `${label} center vs end`).toBeLessThanOrEqual(
-            end.left,
-          );
-          expect(end.right, `${label} end vs viewport`).toBeLessThanOrEqual(
-            width,
-          );
-          expect(
-            geometry.scrollWidth,
-            `${label} header overflow`,
-          ).toBeLessThanOrEqual(width);
-          expect(
-            geometry.pageWidth,
-            `${label} page overflow`,
-          ).toBeLessThanOrEqual(width);
-          expect(
-            geometry.title.width,
-            `${label} readable project title`,
-          ).toBeGreaterThanOrEqual(32);
-          for (const control of geometry.controls) {
-            expect(control.width, `${label} control width`).toBe(
-              hasTouch ? 44 : 32,
-            );
-            expect(control.height, `${label} control height`).toBe(
-              hasTouch ? 44 : 32,
-            );
-          }
-          await expect(
-            transport.getByRole("button", { name: "Menu", exact: true }),
-          ).toBeInViewport();
-        }
-      }
-      await page.setViewportSize({ width: 1280, height: 900 });
-      const transport = page.locator("header.transport");
-      await transport
-        .getByRole("button", { name: "Blade tool", exact: true })
-        .click();
-      await transport
-        .getByRole("button", { name: "Menu", exact: true })
-        .click();
-      await expect(
-        page.getByRole("menuitem", { name: "Blade cut", exact: true }),
-      ).toBeVisible();
-      await page.keyboard.press("Escape");
-      for (const width of [
-        1280, 1359, 1360, 1361, 1519, 1520, 1521, 1563, 1564, 1565,
-      ]) {
-        await page.setViewportSize({ width, height: 900 });
-        await expect(title).toBeVisible();
-        expect(
-          (await title.boundingBox())!.width,
-          `${width}px ${hasTouch ? "coarse" : "fine"} Blade readable project title`,
-        ).toBeGreaterThanOrEqual(32);
-        await expect(
-          transport.getByRole("button", { name: "Menu", exact: true }),
-        ).toBeInViewport();
-      }
-      await page.setViewportSize({ width: 1564, height: 900 });
-      await transport
-        .getByRole("button", { name: "Maximize timeline", exact: true })
-        .click();
-      const restore = transport.getByRole("button", {
-        name: "Restore",
-        exact: true,
-      });
-      await expect(restore).toBeInViewport();
-      expect((await title.boundingBox())!.width).toBeGreaterThanOrEqual(32);
-      const intervals = await transport.evaluate((header) =>
-        [...header.querySelectorAll(".transport-zone")].map((zone) => {
-          const children = [...zone.children]
-            .map((child) => child.getBoundingClientRect())
-            .filter((rect) => rect.width > 0 && rect.height > 1);
-          return {
-            left: Math.min(...children.map((rect) => rect.left)),
-            right: Math.max(...children.map((rect) => rect.right)),
-          };
-        }),
-      );
-      for (let index = 1; index < intervals.length; index += 1) {
-        expect(intervals[index - 1].right).toBeLessThanOrEqual(
-          intervals[index].left,
-        );
-      }
-      await restore.click();
-      await expect(
-        transport.getByRole("button", {
-          name: "Maximize timeline",
-          exact: true,
-        }),
-      ).toBeVisible();
-      await expect(
-        transport.getByRole("button", { name: "View", exact: true }),
-      ).toBeVisible();
-    } finally {
-      await context.close();
-    }
-  }
-});
-
-test("timecode total is visually hidden below 97.75rem but stays announced", async ({
-  page,
-}) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
-  const timecode = page.locator("header.transport .timecode");
-  const total = timecode.locator(".timecode-total");
-  await page.setViewportSize({ width: 1563, height: 900 });
-  await expect(total).toContainText("/");
-  await expect(total).toHaveCSS("position", "absolute");
-  expect((await total.boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);
-  await expect(timecode).toHaveAttribute("title", /\//);
-  await page.setViewportSize({ width: 1564, height: 900 });
-  await expect(total).toHaveCSS("position", "static");
-  expect((await total.boundingBox())?.width ?? 0).toBeGreaterThan(1);
-});
-
-test("light transport keeps legible status and stable control hover paint", async ({
+test("light Player keeps a stable play hover paint and track rows lift on hover", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
   await setTheme(page, "light");
-  // Mix out of date (or the async audio-error pill) must be on screen first.
-  await expect(page.locator(".transport .pill.warning").first()).toBeVisible();
-
-  const colors = await page.locator(".transport").evaluate((transport) => {
-    const swatch = document.createElement("span");
-    swatch.style.color = "var(--color-transport-top)";
-    transport.appendChild(swatch);
-    const top = getComputedStyle(swatch).color;
-    swatch.remove();
-    const fresh = document.createElement("span");
-    fresh.className = "pill ok";
-    transport.appendChild(fresh);
-    const ok = getComputedStyle(fresh).color;
-    fresh.remove();
-    const pill = transport.querySelector(".pill.warning");
-    if (!pill) {
-      throw new Error("warning pill vanished");
-    }
-    const warning = getComputedStyle(pill).color;
-    return { top, ok, warning };
-  });
-  expect(contrastRatio(colors.ok, colors.top)).toBeGreaterThanOrEqual(4.5);
-  expect(contrastRatio(colors.warning, colors.top)).toBeGreaterThanOrEqual(4.5);
 
   const play = playButton(page);
   const playPaint = (element: typeof play) =>
@@ -398,22 +186,6 @@ test("light transport keeps legible status and stable control hover paint", asyn
   await play.hover();
   expect(await playPaint(play)).toEqual(playRest);
 
-  // Unselected strip segments lift to the transport control fill on hover,
-  // never the light-pane sunken wash.
-  const controlFill = await page.locator(".transport").evaluate((transport) => {
-    const swatch = document.createElement("span");
-    swatch.style.backgroundColor = "var(--color-transport-control)";
-    transport.appendChild(swatch);
-    const fill = getComputedStyle(swatch).backgroundColor;
-    swatch.remove();
-    return fill;
-  });
-  const fx = page
-    .getByRole("group", { name: "Audition mode" })
-    .getByRole("button", { name: "Edited stems", exact: true });
-  await fx.hover();
-  await expect(fx).toHaveCSS("background-color", controlFill);
-
   const row = page.locator(".track-header-row").first();
   const rowRest = await row.evaluate(
     (node) => getComputedStyle(node).backgroundColor,
@@ -425,18 +197,75 @@ test("light transport keeps legible status and stable control hover paint", asyn
   expect(rowHover).not.toBe(rowRest);
 });
 
-test("compact light transport keeps Comment readable", async ({ page }) => {
+test("Player zones never overlap across widths", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openProject(page, e2eProjectPath);
+  await expect(page.getByRole("group", { name: "Player" })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  for (const width of [320, 360, 390, 600, 900, 1100, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const zones = await page.evaluate(() =>
+      [".sys-player-left", ".sys-player-center", ".sys-player-right"].map(
+        (selector) => {
+          const box = document
+            .querySelector(`[role="group"][aria-label="Player"] ${selector}`)
+            ?.getBoundingClientRect();
+          return { selector, left: box?.left ?? 0, right: box?.right ?? 0 };
+        },
+      ),
+    );
+    const [left, center, right] = zones;
+    expect(left.right, `left meets center at ${width}px`).toBeLessThanOrEqual(
+      center.left + 0.5,
+    );
+    expect(
+      center.right,
+      `center meets right at ${width}px`,
+    ).toBeLessThanOrEqual(right.left + 0.5);
+    expect(
+      right.right,
+      `right fits the window at ${width}px`,
+    ).toBeLessThanOrEqual(width + 0.5);
+  }
+});
+
+test("Player timecode total is visually hidden in a narrow Player but stays announced", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openProject(page, e2eProjectPath);
+  const player = page.getByRole("group", { name: "Player" });
+  const total = player.locator(".sys-player-total");
+  await expect(total).toBeVisible();
+  expect((await total.boundingBox())?.width ?? 0).toBeGreaterThan(1);
+  const clock = player.locator(".sys-player-time");
+  const name = await clock.getAttribute("aria-label");
+  expect(name).toMatch(/\d+:\d+(\.\d+)? \/ \d+:\d+/);
+
+  await page.setViewportSize({ width: 360, height: 900 });
+  await expect(total).toBeHidden();
+  await expect(clock).toHaveAttribute("aria-label", name ?? "");
+});
+
+test("compact light Player keeps Comment readable", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 800 });
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  const comment = page.locator(
-    ".transport-primary-actions > .comment-mode-btn",
-  );
+  await openProject(page, e2eProjectPath);
+  const comment = page
+    .getByRole("group", { name: "Player" })
+    .getByRole("button", { name: "Comment", exact: true });
   await expect(comment).toBeVisible();
   // Measure against the button's own fill (the control paint), not the strip.
+  // The Player's Comment is a quiet button: it sits on the bar, so the fill is
+  // the first painted background from the button up.
   const colors = await comment.evaluate((button) => {
-    const style = getComputedStyle(button);
-    return { fill: style.backgroundColor, ink: style.color };
+    let fill = "rgba(0, 0, 0, 0)";
+    for (let el: Element | null = button; el; el = el.parentElement) {
+      fill = getComputedStyle(el).backgroundColor;
+      if (fill !== "rgba(0, 0, 0, 0)") break;
+    }
+    return { fill, ink: getComputedStyle(button).color };
   });
   expect(colors.fill).not.toBe("rgba(0, 0, 0, 0)");
   expect(contrastRatio(colors.ink, colors.fill)).toBeGreaterThanOrEqual(4.5);
@@ -445,22 +274,28 @@ test("compact light transport keeps Comment readable", async ({ page }) => {
 test("Share dialog floats on the overlay rung over a dark scrim", async ({
   page,
 }) => {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await page
     .getByRole("button", { name: "Open track details, reference" })
     .focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".inspector")).toBeVisible();
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await page.getByRole("menuitem", { name: /Share/ }).click();
+  // Share lives on Deliver, which hides the Inspector: read its raised
+  // surface in each theme first.
+  const raisedBy: Record<string, string> = {};
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    raisedBy[theme] = await page
+      .locator(".inspector")
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+  }
+  await openProjectDialog(page, "share");
   const dialog = page.getByRole("dialog", { name: "Share" });
   await expect(dialog).toBeVisible();
 
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
-    const raised = await page
-      .locator(".inspector")
-      .evaluate((element) => getComputedStyle(element).backgroundColor);
+    const raised = raisedBy[theme]!;
     const panel = await dialog
       .locator(".command-palette-panel")
       .evaluate((element) => {
@@ -489,7 +324,7 @@ test("primary buttons keep their fill on hover in both themes", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
   await page.evaluate(() => {
     const button = document.createElement("button");
@@ -523,89 +358,12 @@ test("primary buttons keep their fill on hover in both themes", async ({
   }
 });
 
-test("every text on the fixed-dark transport reads in both themes", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
-  for (const theme of ["light", "dark"] as const) {
-    await setTheme(page, theme);
-    const samples = await page.locator(".transport").evaluate((transport) => {
-      const parse = (value: string) => {
-        const m = value.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
-        const srgb = value.startsWith("color(srgb");
-        const [r, g, b] = srgb ? m.slice(0, 3).map((c) => c * 255) : m;
-        const a = (srgb ? m[3] : m[3]) ?? 1;
-        return {
-          r,
-          g,
-          b,
-          a: value.includes("/") || value.startsWith("rgba") ? a : 1,
-        };
-      };
-      const swatch = document.createElement("span");
-      swatch.style.color = "var(--color-transport-top)";
-      transport.appendChild(swatch);
-      const strip = parse(getComputedStyle(swatch).color);
-      swatch.remove();
-      // Composite each ancestor fill (outermost first) over the strip.
-      const backdrop = (el: Element) => {
-        const chain: Element[] = [];
-        for (
-          let e: Element | null = el;
-          e && e !== transport;
-          e = e.parentElement
-        ) {
-          chain.unshift(e);
-        }
-        let base = strip;
-        for (const e of chain) {
-          const fill = parse(getComputedStyle(e).backgroundColor);
-          if (fill.a > 0) {
-            base = {
-              r: fill.r * fill.a + base.r * (1 - fill.a),
-              g: fill.g * fill.a + base.g * (1 - fill.a),
-              b: fill.b * fill.a + base.b * (1 - fill.a),
-              a: 1,
-            };
-          }
-        }
-        return `rgb(${base.r}, ${base.g}, ${base.b})`;
-      };
-      const out: { text: string; ink: string; back: string }[] = [];
-      const walker = document.createTreeWalker(transport, NodeFilter.SHOW_TEXT);
-      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-        const el = n.parentElement;
-        const text = n.textContent?.trim();
-        if (!el || !text) continue;
-        const style = getComputedStyle(el);
-        if (
-          style.visibility === "hidden" ||
-          el.closest("[aria-hidden='true'] .sr-only, .sr-only, .ui-menu-panel")
-        )
-          continue;
-        if (!el.getClientRects().length) continue;
-        out.push({ text, ink: style.color, back: backdrop(el) });
-      }
-      return out;
-    });
-    expect(samples.length, theme).toBeGreaterThan(3);
-    for (const { text, ink, back } of samples) {
-      expect(
-        contrastRatio(ink, back),
-        `${theme}: "${text}" ${ink} on ${back}`,
-      ).toBeGreaterThanOrEqual(4.5);
-    }
-  }
-});
-
 test("stage edges dim the lane floor at both ends, never a clip (#387)", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(
     page
       .getByTestId(timelineTestIds.lane)
@@ -681,10 +439,9 @@ test("stage edges dim the lane floor at both ends, never a clip (#387)", async (
 test("menu rows press in place; standalone controls sink (#389)", async ({
   page,
 }) => {
-  // The compact transport, where Menu is a labelled button.
   await page.setViewportSize({ width: 800, height: 844 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await openProject(page, e2eProjectPath);
   await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
   const transformWhilePressed = async (control: Locator) => {
     // Menu rows can sit below the panel's scroll fold.
@@ -706,17 +463,14 @@ test("menu rows press in place; standalone controls sink (#389)", async ({
     return transform;
   };
 
-  const trigger = page.getByRole("button", { name: "Menu", exact: true });
+  // A standalone control: the Project menu button is a System header button
+  // and does not sink, so the timeline's zoom control stands in.
+  const trigger = page.getByRole("button", { name: "Zoom in" });
   expect(await transformWhilePressed(trigger)).not.toBe("none");
 
-  const menu = page.getByRole("menu", { name: "Transport menu" });
-  for (const role of ["menuitemcheckbox", "menuitemradio"] as const) {
-    if (!(await menu.isVisible())) {
-      await trigger.click();
-    }
-    await settleAnimations(menu);
-    expect(await transformWhilePressed(menu.getByRole(role).first())).toBe(
-      "none",
-    );
-  }
+  const menu = await openProjectMenu(page);
+  await settleAnimations(menu);
+  expect(
+    await transformWhilePressed(menu.getByRole("menuitemradio").first()),
+  ).toBe("none");
 });

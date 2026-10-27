@@ -40,7 +40,7 @@ test.describe("record links", () => {
           await expect(
             pageA.getByRole("heading", { name: "Join the recording" }),
           ).toBeVisible();
-          await expect(pageA.locator(".daw-shell")).toHaveCount(0);
+          await expect(pageA.locator(".stage-frame")).toHaveCount(0);
 
           await pageB.goto(`/rec/${producer}`);
           await expect(
@@ -49,7 +49,7 @@ test.describe("record links", () => {
           await expect(
             pageB.getByRole("heading", { name: "Not recorded", exact: true }),
           ).toBeVisible();
-          await expect(pageB.locator(".daw-shell")).toHaveCount(0);
+          await expect(pageB.locator(".stage-frame")).toHaveCount(0);
           expect(
             await pageB.evaluate(
               () =>

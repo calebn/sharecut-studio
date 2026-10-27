@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { openProject, phone } from "./stageNav";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -11,7 +12,7 @@ test.describe("Transcript inline word edit", () => {
   test("focused word F2 edits and native Enter seeks without opening an editor", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     const list = await openTranscriptPanel(page);
     const word = list.getByRole("button", { name: "my", exact: true }).first();
     await word.focus();
@@ -25,7 +26,7 @@ test.describe("Transcript inline word edit", () => {
     await page.keyboard.press("Enter");
     await expect(input).toHaveCount(0);
     await expect(word).toBeFocused();
-    await expect(page.locator(".timecode-current")).toHaveText(
+    await expect(page.locator(".sys-player-now")).toHaveText(
       /^00:02\.(379|380)$/,
     );
     const correct = page.getByRole("button", {
@@ -52,7 +53,7 @@ test.describe("Transcript inline word edit", () => {
   test("double-click, type, Enter commits one undoable step; Mod+Z restores", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
@@ -109,8 +110,8 @@ test.describe("Phone word correction", () => {
   test("Corrected text and Apply fit in the initial sheet", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page.getByRole("button", { name: "Text", exact: true }).click();
+    await openProject(page, e2eProjectPath);
+    await phone.showText(page);
     const list = page.locator(".transcript-list");
     const word = list.getByRole("button", { name: "my", exact: true }).first();
     await word.scrollIntoViewIfNeeded();

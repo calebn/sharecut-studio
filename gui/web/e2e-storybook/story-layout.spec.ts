@@ -152,45 +152,5 @@ for (const width of [1440, 360]) {
         await expect(docs.getByRole("dialog")).toHaveCount(0);
       });
     }
-
-    for (const [family, story, shell] of [
-      ["templates-studioshell", "desktop-inspector", "desktop"],
-      ["templates-mobileshell", "phone-360", "phone"],
-    ]) {
-      test(`${family} keeps its viewport and document state in Docs at ${width} in ${theme}`, async ({
-        page,
-      }) => {
-        await page.setViewportSize({ width, height: 740 });
-        await page.emulateMedia({
-          colorScheme: theme === "light" ? "light" : "dark",
-          reducedMotion: "reduce",
-        });
-        await page.goto(
-          storyUrl(`${family}--docs`, { theme, viewMode: "docs" }),
-        );
-        const docs = page;
-        const selector = `#story--${family}--${story} iframe`;
-        const iframe = docs.locator(selector);
-        await expect(iframe).toBeAttached();
-        await iframe.scrollIntoViewIfNeeded();
-        const frame = docs.frameLocator(selector);
-        await expect(frame.locator(".daw-shell")).toBeVisible();
-        await expect(frame.locator("html")).toHaveAttribute(
-          "data-shell",
-          shell,
-        );
-        await expectInside(frame.locator(".daw-shell"), "viewport");
-        await expect(docs.locator("html")).not.toHaveAttribute("data-shell");
-        await expect(docs.locator("html")).not.toHaveAttribute("data-layout");
-        if (width === 360) {
-          const scroll = docs
-            .locator(`#story--${family}--${story}`)
-            .locator("xpath=ancestor::*[contains(@class, 'docs-story')]");
-          expect(
-            await scroll.evaluate((el) => el.scrollWidth > el.clientWidth),
-          ).toBe(true);
-        }
-      });
-    }
   }
 }

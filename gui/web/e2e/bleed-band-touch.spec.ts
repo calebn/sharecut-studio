@@ -10,6 +10,7 @@ import {
 } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { stageTab } from "./stageNav";
 import { type Point, touch, watchCommands } from "./touchTimeline";
 
 const CLIENT_ID = "e2e-bleed-band-touch";
@@ -326,6 +327,17 @@ for (const viewport of VIEWPORTS) {
     await touch(cdp, "touchStart", [centre(await boxOf(comment))]);
     await touch(cdp, "touchEnd");
     await expect(chooserItems(page)).toHaveCount(0);
-    await expect(pin(page)).toHaveAttribute("data-hit-selected", "true");
+    // Choosing a comment also opens it in Review: read the pin back on Edit.
+    await expect
+      .poll(async () => {
+        const edit = stageTab(page, "edit");
+        if ((await edit.getAttribute("aria-selected")) !== "true") {
+          await edit.click();
+        }
+        return pin(page)
+          .getAttribute("data-hit-selected", { timeout: 1000 })
+          .catch(() => null);
+      })
+      .toBe("true");
   });
 }

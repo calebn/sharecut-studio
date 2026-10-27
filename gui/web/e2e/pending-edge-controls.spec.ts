@@ -8,6 +8,7 @@ import {
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
+import { selectTool, stepTrackHeight } from "./stageNav";
 
 const CLIENT_ID = "e2e-pending-edge-controls";
 const MIN_COARSE_HANDLE_LANE_HEIGHT = 88;
@@ -97,11 +98,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     attempt < 4 && (await currentLaneHeight()) < MIN_COARSE_HANDLE_LANE_HEIGHT;
     attempt += 1
   ) {
-    await page.getByRole("button", { name: "Menu" }).click();
-    await page
-      .getByRole("menu", { name: "Transport menu" })
-      .getByRole("menuitem", { name: "Track height +" })
-      .click();
+    await stepTrackHeight(page, "increase");
   }
   expect(await currentLaneHeight()).toBeGreaterThanOrEqual(
     MIN_COARSE_HANDLE_LANE_HEIGHT,
@@ -444,7 +441,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });
   await expect(page.locator(".pending-actionbar")).toHaveCount(0);
-  await page.getByRole("button", { name: "Blade tool" }).click();
+  await selectTool(page, "blade");
   await page
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });
@@ -457,7 +454,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await reselectHit.press("Enter");
 
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect(page.locator(".daw-shell--desktop")).toBeVisible();
+  await expect(page.locator(".stage-frame--desktop")).toBeVisible();
   await expect(actionbar).toBeVisible();
   const resizedActionBox = await actionbar.boundingBox();
   expect(resizedActionBox).toBeTruthy();

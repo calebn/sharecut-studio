@@ -71,7 +71,8 @@ describe("usePresencePublisher", () => {
   it("still publishes ui while following", () => {
     useDawStore.setState({
       followingClientId: "host",
-      activeTab: "comments",
+      stage: "review",
+      reviewSection: "comments",
       auditionMode: "fx",
       viewerMute: { host: true, guest: false },
       soloTracks: { guest: true },
@@ -113,12 +114,12 @@ describe("usePresencePublisher", () => {
     ).toBe(true);
   });
 
-  it("maps a touch desktop tab to a phone mode that followers apply", () => {
+  it("maps a touch desktop stage to a phone mode that followers apply", () => {
     useDawStore.setState({
       followingClientId: null,
       pointerKind: "coarse",
-      activeTab: "transcript",
-      mobileMode: "listen",
+      stage: "edit",
+      editSurface: "text",
       shellBreakpoint: "desktop",
     });
     const sent: Record<string, unknown>[] = [];
@@ -126,13 +127,14 @@ describe("usePresencePublisher", () => {
       usePresencePublisher((frame) => sent.push(frame), "Guest"),
     );
     const ui = lastUi(sent);
+    expect(ui.tab).toBe("transcript");
     expect(ui.mobile_mode).toBe("text");
 
     useDawStore.setState({
       shellBreakpoint: "phone",
       followingClientId: "leader",
-      activeTab: "comments",
-      mobileMode: "listen",
+      stage: "review",
+      editSurface: "lanes",
       sessionClients: sessionRoster([
         {
           client_id: "leader",
@@ -143,42 +145,45 @@ describe("usePresencePublisher", () => {
       ]),
     });
     renderHook(() => useFollowUi());
-    expect(useDawStore.getState().mobileMode).toBe("text");
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(useDawStore.getState().editSurface).toBe("text");
   });
 
-  it.each(["listen", "timeline"] as const)(
-    "keeps phone %s mode for a mouse leader and follower",
-    (mode) => {
+  it.each([
+    ["review", "listen"],
+    ["edit", "timeline"],
+    ["prepare", "more"],
+  ] as const)(
+    "publishes the %s stage as phone mode %s for a mouse leader",
+    (stage, mode) => {
       useDawStore.setState({
         followingClientId: null,
         pointerKind: "fine",
-        mobileMode: mode,
+        stage,
+        editSurface: "lanes",
         shellBreakpoint: "phone",
       });
       const sent: Record<string, unknown>[] = [];
       renderHook(() =>
         usePresencePublisher((frame) => sent.push(frame), "Guest"),
       );
-      const ui = lastUi(sent);
-      expect(ui.mobile_mode).toBe(mode);
-
-      useDawStore.setState({
-        followingClientId: "leader",
-        activeTab: "comments",
-        mobileMode: "text",
-        sessionClients: sessionRoster([
-          {
-            client_id: "leader",
-            role: "viewer",
-            last_seen_ns: Date.now() * 1e6,
-            meta: { ui },
-          },
-        ]),
-      });
-      renderHook(() => useFollowUi());
-      expect(useDawStore.getState().mobileMode).toBe(mode);
+      expect(lastUi(sent).mobile_mode).toBe(mode);
     },
   );
+
+  it("sends no phone mode from a mouse desktop", () => {
+    useDawStore.setState({
+      followingClientId: null,
+      pointerKind: "fine",
+      stage: "edit",
+      shellBreakpoint: "desktop",
+    });
+    const sent: Record<string, unknown>[] = [];
+    renderHook(() =>
+      usePresencePublisher((frame) => sent.push(frame), "Guest"),
+    );
+    expect(lastUi(sent).mobile_mode).toBeNull();
+  });
 
   it("publishes store changes without re-rendering its host", async () => {
     useDawStore.setState({
@@ -186,7 +191,7 @@ describe("usePresencePublisher", () => {
       isPlaying: false,
       playheadSec: 0,
       selection: null,
-      activeTab: "transcript",
+      stage: "edit",
     });
     const sent: Record<string, unknown>[] = [];
     let renders = 0;
@@ -199,7 +204,7 @@ describe("usePresencePublisher", () => {
       useDawStore.setState({ isPlaying: true, playheadSec: 4 });
       useDawStore.setState({ playheadSec: 5 });
       useDawStore.setState({ scrollLeft: 120 });
-      useDawStore.setState({ activeTab: "comments" });
+      useDawStore.setState({ stage: "review", reviewSection: "comments" });
     });
     expect(renders).toBe(rendersAfterMount);
     await act(async () => {

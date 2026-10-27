@@ -3,6 +3,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "../e2e/axe";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { openPanel } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme, withAppearance } from "../e2e/theme";
 
@@ -20,21 +21,13 @@ async function openPipeline(
   await page.evaluate((size) => {
     document.documentElement.style.fontSize = `${size}px`;
   }, rootPx);
-  if (width <= 767) {
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More" })
-      .click();
-    await page.locator(".mobile-more-item", { hasText: "Pipeline" }).click();
-  } else {
-    await page
-      .getByRole("tab", { name: "Pipeline", exact: true })
-      .first()
-      .click();
-  }
+  await openPanel(page, "pipeline");
   await expect(
     page.locator(".pipeline-vocabulary-field input").first(),
   ).toBeEnabled();
+  // The step list renders after the toolbar; the page's height is settled once
+  // its last step is there.
+  await expect(page.locator(".pipeline-step-select").last()).toBeVisible();
 }
 
 async function hitPoint(target: Locator) {
@@ -84,15 +77,9 @@ async function expectHit(target: Locator) {
   return (await hitPoint(target)).position;
 }
 
-async function growPanel(page: Page) {
-  await page
-    .getByRole("separator", { name: "Resize editor panels" })
-    .press("Home");
-}
-
 for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
   test.describe(`Root text ${rootPx}px`, () => {
-    test("Pipeline native targets stay clear in the original short panel", async ({
+    test("Pipeline native targets stay clear in the Pipeline panel", async ({
       page,
       browserName,
     }, testInfo) => {
@@ -152,9 +139,6 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
           contentType: "image/png",
           path: shortPanelScreenshotPath,
         });
-        await page
-          .getByRole("separator", { name: "Resize editor panels" })
-          .press("Home");
         await summary.focus();
         await expectHit(summary);
         await summary.press("Enter");
@@ -176,8 +160,9 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         });
         await openPipeline(page, projectPath, 1440, 800, rootPx);
         await setTheme(page, theme);
-        await growPanel(page);
         const panel = page.locator(".pipeline-panel");
+        // The Prepare host is the page that scrolls; the panel sits inside it.
+        const scroller = page.locator(".stage-host--prepare");
         const summary = panel.locator(".pipeline-advanced-shortcuts summary");
         const term = panel.locator(".pipeline-vocabulary-field input").first();
         await term.fill("retained draft");
@@ -185,8 +170,14 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         const only = panel.getByRole("combobox", { name: "Only step" });
         await only.selectOption({ index: 1 });
         await only.focus();
+        // Focus reveals the select with a margin below it; Chrome keeps that
+        // offset when a resize clamps and releases the range. Start from the
+        // end of the page, the one position both anchors name.
+        await scroller.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
         await expectHit(only);
-        const initialScroll = await panel.evaluate((element) => ({
+        const initialScroll = await scroller.evaluate((element) => ({
           clientHeight: element.clientHeight,
           scrollHeight: element.scrollHeight,
           scrollRange: element.scrollHeight - element.clientHeight,
@@ -204,14 +195,14 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         }));
         const chosen = await only.inputValue();
         for (const height of [1600, 800]) {
-          const beforeResize = await panel.evaluate((element) => ({
+          const beforeResize = await scroller.evaluate((element) => ({
             clientHeight: element.clientHeight,
             scrollHeight: element.scrollHeight,
             scrollRange: element.scrollHeight - element.clientHeight,
             scrollTop: element.scrollTop,
           }));
           await page.setViewportSize({ width: 1440, height });
-          const afterResize = await panel.evaluate((element) => {
+          const afterResize = await scroller.evaluate((element) => {
             const target = element.querySelector(
               ".pipeline-advanced-shortcuts label:last-child select",
             );
@@ -321,7 +312,6 @@ test("Pipeline keeps an oversized native control targetable", async ({
 }) => {
   await withShareableProject(async (projectPath) => {
     await openPipeline(page, projectPath, 1440, 1200, 16);
-    await growPanel(page);
     const panel = page.locator(".pipeline-panel");
     const term = panel.locator(".pipeline-vocabulary-field input").first();
     const panelHeight = await panel.evaluate((element) => element.clientHeight);
@@ -357,7 +347,6 @@ for (const { cell, theme, reducedMotion } of withAppearance([
         );
         await setTheme(page, theme);
         const panel = page.locator(".pipeline-panel");
-        if (cell.width > 767) await growPanel(page);
         await expect(panel).toHaveCSS("overflow-y", "auto");
         const summary = panel.locator(".pipeline-advanced-shortcuts summary");
         await summary.click();

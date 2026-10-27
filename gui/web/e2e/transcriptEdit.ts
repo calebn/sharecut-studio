@@ -4,13 +4,11 @@ import {
   type Page,
   type Request,
 } from "@playwright/test";
+import { openPanel } from "./stageNav";
 
 /** Open the Transcript tab and wait until words hydrate; returns `.transcript-list`. */
 export async function openTranscriptPanel(page: Page): Promise<Locator> {
-  await page
-    .getByLabel("Editor panels")
-    .getByRole("tab", { name: "Transcript", exact: true })
-    .click();
+  await openPanel(page, "transcript");
   // Words hydrated ⇔ the Correct toggle carries its capability tooltip, not the loading label.
   await expect(page.getByRole("button", { name: /^Correct:/ })).toBeEnabled();
   return page.locator(".transcript-list");

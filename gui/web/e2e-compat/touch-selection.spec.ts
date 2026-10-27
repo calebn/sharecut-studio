@@ -5,6 +5,7 @@ import {
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { openProject } from "../e2e/stageNav";
 import {
   buildFixture,
   json,
@@ -46,7 +47,7 @@ test("timeline text takes no selection or callout", async ({
   page,
   browserName,
 }, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openProject(page, projectPath);
   await buildFixture(page, projectPath, "e2e-touch-select");
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {

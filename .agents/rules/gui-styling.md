@@ -43,7 +43,7 @@ A focused field under 16px makes iOS Safari zoom the page. Field rules (`input`,
 
 Lint **theme** properties (color, type, space, radius). Do **not** force `width` / `height` / `min-*` / `max-*` / `flex-basis` / `inline-size` / `block-size` onto `--space-*`. Those are element geometry: `%`, `auto`, `min-content`, `max-content`, `fit-content`, `100dvh`, `minmax()`, and one-off rem sizes are fine.
 
-Promote a size to a **layout token** only when the same chrome dimension is reused (`--header-width`, `--inspector-width`, `--transport-height`, `--lane-height`). A single control’s `min-height: 1.5rem` tap target does not need a new token.
+Promote a size to a **layout token** only when the same chrome dimension is reused (`--header-width`, `--inspector-width`, `--player-height`, `--lane-height`). A single control’s `min-height: 1.5rem` tap target does not need a new token.
 
 Other values lint should not swallow:
 
