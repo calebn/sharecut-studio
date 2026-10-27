@@ -6,6 +6,7 @@ const fits: FrameFitSizes = {
   headerHeight: 60,
   playerHeight: 80,
   tabsHeight: 56,
+  rowsHeight: 0,
   lanesMin: 200,
   laneHeight: 84,
   laneAreaHeight: 0,
@@ -20,6 +21,15 @@ describe("frameFolds", () => {
 
   it("folds one pixel below the total", () => {
     expect(frameFolds({ ...fits, frameHeight: 395 })).toBe(true);
+  });
+
+  it("counts the Edit rows a fold takes away", () => {
+    expect(frameFolds({ ...fits, frameHeight: 396, rowsHeight: 47 })).toBe(
+      true,
+    );
+    expect(frameFolds({ ...fits, frameHeight: 443, rowsHeight: 47 })).toBe(
+      false,
+    );
   });
 
   it("folds sooner as the header wraps taller", () => {

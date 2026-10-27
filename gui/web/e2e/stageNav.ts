@@ -367,6 +367,8 @@ export async function openViewSheet(page: Page): Promise<Locator> {
   await phone.showTimeline(page);
   const sheet = page.getByRole("dialog", { name: "View" });
   if (await sheet.isVisible()) return sheet;
+  // A folded frame moves the corner (zoom, the eye) into the Tools sheet.
+  await openToolsIfFolded(page);
   await page.getByRole("button", { name: "View options" }).click();
   await expect(sheet).toBeVisible();
   return sheet;
