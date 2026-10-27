@@ -3738,3 +3738,282 @@ button.sys-scope:hover {
     --sys-readout-lift: 3rem;
   }
 }
+
+/* Hover tip for timeline marks */
+
+.sys-tip {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: var(--z-timeline-popover);
+  display: flex;
+  flex-direction: column;
+  max-inline-size: min(20rem, calc(100dvw - 2 * var(--space-3)));
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-floating);
+  color: var(--color-text-on-overlay);
+  font-size: var(--font-size-small);
+  overflow-wrap: anywhere;
+}
+
+.sys-tip::before {
+  content: "";
+  position: absolute;
+  inset-block: calc(-1 * var(--space-3));
+  inset-inline: 0;
+}
+
+.sys-tip-title {
+  font-weight: 600;
+}
+
+.sys-tip-detail {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Seam (element 20) */
+
+.sys-seam {
+  --sys-seam-color: var(--color-mark-cut);
+  --sys-seam-fill: color-mix(in srgb, var(--sys-seam-color) 14%, transparent);
+  --sys-seam-fill-hover: color-mix(
+    in srgb,
+    var(--sys-seam-color) 26%,
+    transparent
+  );
+
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.sys-seam[data-kind="split"] {
+  --sys-seam-color: var(--color-mark-split);
+}
+
+.sys-seam-hit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sys-seam[data-form="diamond"] .sys-seam-hit {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+
+.sys-seam-diamond {
+  box-sizing: border-box;
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border: 1px solid var(--sys-seam-color);
+  background: var(--sys-seam-color);
+  rotate: 45deg;
+}
+
+.sys-seam[data-kind="split"] .sys-seam-diamond {
+  background: transparent;
+}
+
+.sys-seam-hit:hover .sys-seam-diamond {
+  scale: 1.3;
+}
+
+.sys-seam-hit[aria-pressed="true"] .sys-seam-diamond {
+  outline: var(--selection-outline-width) solid var(--color-accent);
+  outline-offset: var(--space-0);
+}
+
+.sys-seam[data-form="pill"] .sys-seam-hit {
+  gap: var(--space-1);
+  block-size: 1.125rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--sys-seam-color);
+  border-radius: var(--radius-xl);
+  background: var(--sys-seam-fill);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.sys-seam[data-form="pill"] .sys-seam-hit:hover {
+  background: var(--sys-seam-fill-hover);
+}
+
+.sys-seam[data-form="pill"] .sys-seam-hit[aria-pressed="true"] {
+  outline: var(--selection-outline-width) solid var(--color-accent);
+  outline-offset: var(--space-0);
+}
+
+.sys-seam[data-form="pill"] svg {
+  color: var(--sys-seam-color);
+}
+
+/* Marker (element 18) */
+
+.sys-marker {
+  --sys-marker-color: var(--color-marker);
+  --sys-marker-fill: color-mix(
+    in srgb,
+    var(--sys-marker-color) 30%,
+    var(--color-bg-raised)
+  );
+  --sys-marker-hatch: repeating-linear-gradient(
+    -45deg,
+    var(--sys-marker-color) 0 var(--space-0),
+    transparent var(--space-0) var(--space-3)
+  );
+
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--sys-marker-at) * 100%);
+  display: flex;
+  min-inline-size: 0;
+  max-inline-size: calc((1 - var(--sys-marker-at)) * 100%);
+}
+
+.sys-marker[data-span] {
+  inline-size: calc((var(--sys-marker-to) - var(--sys-marker-at)) * 100%);
+}
+
+.sys-marker[data-kind="comment"] {
+  --sys-marker-color: var(--color-comment-marker);
+
+  min-inline-size: 1rem;
+}
+
+.sys-marker[data-kind="clip"] {
+  --sys-marker-color: var(--color-social-marker);
+}
+
+.sys-marker-hit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sys-marker[data-kind="clip"] .sys-marker-hit,
+.sys-marker[data-kind="comment"][data-span] .sys-marker-hit {
+  inline-size: 100%;
+}
+
+.sys-marker-hit[aria-pressed="true"] {
+  outline: var(--selection-outline-width) solid var(--color-accent);
+  outline-offset: var(--space-0);
+}
+
+.sys-marker[data-kind="chapter"] svg {
+  flex: none;
+  color: var(--sys-marker-color);
+}
+
+.sys-marker-title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-marker-bubble {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: var(--space-0) solid var(--sys-marker-color);
+  border-radius: var(--radius-md);
+  border-end-start-radius: 0;
+  background: var(--sys-marker-fill);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-micro);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sys-marker-bar {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline: 0;
+  block-size: 0.1875rem;
+  translate: 0 -50%;
+  background: var(--sys-marker-color);
+}
+
+.sys-marker-bracket {
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 0.375rem;
+  block-size: 1rem;
+  border: var(--space-0) solid var(--sys-marker-color);
+  border-inline-end: 0;
+}
+
+.sys-marker-bracket--end {
+  border-inline-start: 0;
+  border-inline-end: var(--space-0) solid var(--sys-marker-color);
+}
+
+.sys-marker-line {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: var(--space-0);
+  background: var(--sys-marker-color);
+}
+
+.sys-marker[data-proposed] .sys-marker-line {
+  block-size: 0.5rem;
+  background: var(--sys-marker-hatch);
+}
+
+.sys-marker[data-kind="stack"] .sys-marker-hit {
+  align-self: center;
+  block-size: 1.125rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-raised);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+@media (pointer: coarse) {
+  .sys-seam[data-form="diamond"] .sys-seam-hit {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+  }
+
+  .sys-seam[data-form="pill"] .sys-seam-hit::after,
+  .sys-marker-hit::after {
+    content: "";
+    position: absolute;
+    inset-block: calc((100% - var(--touch-min)) / 2);
+    inset-inline: min(0rem, calc((100% - var(--touch-min)) / 2));
+  }
+}
