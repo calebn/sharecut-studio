@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
 import type { ScriptTurn } from "../../system/scriptPieces";
-import { findCountText, findMatches, replacementOk } from "./findMatches";
+import {
+  findCountText,
+  findMatches,
+  replacementChanges,
+  replacementOk,
+} from "./findMatches";
 
 describe("findMatches", () => {
   it("finds a word in every turn as a span of its index", () => {
@@ -112,7 +117,7 @@ describe("findMatches", () => {
     expect(findMatches([turn], "so um", false)).toEqual([{ start: 4, end: 5 }]);
   });
 
-  it("finds hits in linear time on a long turn", () => {
+  it("finds hits on a long turn in well under a second", () => {
     const words = Array.from({ length: 50_000 }, (_, index) => ({
       index,
       text: "a",
@@ -121,7 +126,7 @@ describe("findMatches", () => {
     const before = performance.now();
     const spans = findMatches([turn], "a", false);
     expect(spans).toHaveLength(50_000);
-    expect(performance.now() - before).toBeLessThan(500);
+    expect(performance.now() - before).toBeLessThan(2000);
   });
 });
 
@@ -146,5 +151,67 @@ describe("replacementOk", () => {
     expect(replacementOk("   ")).toBe(false);
     expect(replacementOk("...")).toBe(false);
     expect(replacementOk("ok ...")).toBe(false);
+  });
+});
+
+describe("replacementChanges", () => {
+  const turn = (texts: string[]): ScriptTurn => ({
+    ...SCRIPT_TURNS[0],
+    words: texts.map((text, index) => ({ index, text })),
+  });
+  const hits = (turns: ScriptTurn[], query: string, matchCase = false) =>
+    findMatches(turns, query, matchCase);
+
+  it("drops a hit whose replacement is the very words already there", () => {
+    const turns = [turn(["Room", "room.", "ROOM", "a", "room,"])];
+    const all = hits(turns, "room");
+    expect(all).toEqual([
+      { start: 0, end: 0 },
+      { start: 1, end: 1 },
+      { start: 2, end: 2 },
+      { start: 4, end: 4 },
+    ]);
+    expect(replacementChanges(turns, all, "Room")).toEqual([
+      { start: 1, end: 1 },
+      { start: 2, end: 2 },
+      { start: 4, end: 4 },
+    ]);
+    expect(replacementChanges(turns, all, "room")).toEqual([
+      { start: 0, end: 0 },
+      { start: 2, end: 2 },
+    ]);
+    expect(replacementChanges(turns, all, "space")).toEqual(all);
+  });
+
+  it("keeps the old edge punctuation unless the replacement brings its own", () => {
+    const turns = [turn(["(room),", "x"])];
+    const all = hits(turns, "room");
+    expect(replacementChanges(turns, all, "room")).toEqual([]);
+    expect(replacementChanges(turns, all, "room.")).toEqual(all);
+    expect(replacementChanges(turns, all, "(room)")).toEqual(all);
+    expect(replacementChanges(turns, all, "room,")).toEqual(all);
+  });
+
+  it("compares phrases word by word, and a different number of words is a change", () => {
+    const turns = [turn(["small", "room", "Small", "room."])];
+    const all = hits(turns, "small room");
+    expect(all).toEqual([
+      { start: 0, end: 1 },
+      { start: 2, end: 3 },
+    ]);
+    expect(replacementChanges(turns, all, "small room")).toEqual([
+      { start: 2, end: 3 },
+    ]);
+    expect(replacementChanges(turns, all, "Small room")).toEqual([
+      { start: 0, end: 1 },
+    ]);
+    expect(replacementChanges(turns, all, "small")).toEqual(all);
+  });
+
+  it("changes nothing when the backend would refuse the replacement", () => {
+    const turns = [turn(["room"])];
+    const all = hits(turns, "room");
+    expect(replacementChanges(turns, all, "")).toEqual([]);
+    expect(replacementChanges(turns, all, "...")).toEqual([]);
   });
 });

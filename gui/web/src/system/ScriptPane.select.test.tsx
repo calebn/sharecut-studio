@@ -407,6 +407,21 @@ describe("ScriptPane selection handles", () => {
     expect(onSelect.mock.calls).toEqual([[words(12, 22)], [words(6, 14)]]);
   });
 
+  it("keeps announcing the selection when the grips go away in the middle of a drag", () => {
+    layoutInGrid();
+    const { container, rerender } = render(
+      <ScriptPane {...props({ selection: words(12, 14) })} />,
+    );
+    const end = grips(container).end;
+    if (!end) throw new Error("No grip");
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 0, clientY: 0 });
+    rerender(<ScriptPane {...props({ selection: null })} />);
+    expect(container.querySelectorAll(".sys-handle")).toHaveLength(0);
+    expect(screen.getByRole("status")).toHaveTextContent("Selection cleared");
+    rerender(<ScriptPane {...props({ selection: words(3, 4) })} />);
+    expect(screen.getByRole("status")).toHaveTextContent(/^2 words selected/);
+  });
+
   it("measures the places once while a grip is dragged, not once per move", () => {
     layoutInGrid();
     const { container } = render(

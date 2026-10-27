@@ -126,6 +126,25 @@ describe("SpeakerPopover", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("sends one move for a double Enter while the host works, then allows another after a refusal", async () => {
+    const user = userEvent.setup();
+    let answer: (reason: string | undefined) => void = () => undefined;
+    const { onPick, onClose } = setup();
+    onPick.mockImplementationOnce(
+      () => new Promise<string | undefined>((resolve) => (answer = resolve)),
+    );
+    await opened();
+    await user.keyboard("{ArrowDown}{Enter}{Enter}");
+    expect(onPick.mock.calls).toEqual([["joss"]]);
+    await act(async () => answer("Offline."));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Offline.");
+    expect(onClose).not.toHaveBeenCalled();
+    onPick.mockReturnValue(undefined);
+    await user.keyboard("{Enter}");
+    expect(onPick.mock.calls).toEqual([["joss"], ["joss"]]);
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
   it("closes on Esc and puts focus back on the margin name", async () => {
     const user = userEvent.setup();
     const { onClose } = setup();

@@ -87,7 +87,8 @@ describe("SelectionHandles", () => {
 
   it("passes a tap that never moves to the button under the point", () => {
     const word = document.createElement("button");
-    const click = vi.spyOn(word, "click");
+    const clicks: MouseEvent[] = [];
+    word.addEventListener("click", (event) => clicks.push(event));
     const under = vi.fn(() => [document.body, word]);
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
@@ -98,15 +99,56 @@ describe("SelectionHandles", () => {
     fireEvent.pointerMove(end, { pointerId: 1, clientX: 52, clientY: 61 });
     fireEvent.pointerUp(end, { pointerId: 1, clientX: 52, clientY: 61 });
     expect(under).toHaveBeenCalledWith(52, 61);
-    expect(click).toHaveBeenCalledTimes(1);
+    expect(clicks).toHaveLength(1);
+    expect(clicks[0].shiftKey).toBe(false);
     expect(onDrag).not.toHaveBeenCalled();
     expect(onRelease).toHaveBeenCalledTimes(1);
     delete (document as { elementsFromPoint?: unknown }).elementsFromPoint;
   });
 
+  it("replays the press's modifier keys on the tap it passes on, so a Shift-tap still extends", () => {
+    const word = document.createElement("button");
+    const clicks: MouseEvent[] = [];
+    word.addEventListener("click", (event) => clicks.push(event));
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [word],
+    });
+    const { start } = setup();
+    fireEvent.pointerDown(start, { pointerId: 1, clientX: 50, clientY: 60 });
+    fireEvent.pointerUp(start, {
+      pointerId: 1,
+      clientX: 50,
+      clientY: 60,
+      shiftKey: true,
+      altKey: true,
+    });
+    expect(
+      clicks.map(({ shiftKey, altKey, ctrlKey, metaKey }) => [
+        shiftKey,
+        altKey,
+        ctrlKey,
+        metaKey,
+      ]),
+    ).toEqual([[true, true, false, false]]);
+    delete (document as { elementsFromPoint?: unknown }).elementsFromPoint;
+  });
+
+  it("ends the drag when the pointer capture is lost, once, and stops reporting", () => {
+    const { end, onDrag, onRelease } = setup();
+    fireEvent.pointerDown(end, { pointerId: 1, clientX: 10, clientY: 20 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 30, clientY: 50 });
+    fireEvent.lostPointerCapture(end, { pointerId: 1 });
+    fireEvent.pointerMove(end, { pointerId: 1, clientX: 60, clientY: 80 });
+    fireEvent.pointerUp(end, { pointerId: 1, clientX: 60, clientY: 80 });
+    expect(onDrag).toHaveBeenCalledTimes(1);
+    expect(onRelease).toHaveBeenCalledTimes(1);
+  });
+
   it("does not pass a drag, or a cancelled touch, on to the button under it", () => {
     const word = document.createElement("button");
     const click = vi.spyOn(word, "click");
+    word.addEventListener("click", click);
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
       value: () => [word],

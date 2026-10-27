@@ -116,11 +116,18 @@ export function SpeakerPopover({
     }
     return undefined;
   };
+  const picking = useRef(false);
   const pick = async (id: string) => {
+    if (picking.current) return;
+    picking.current = true;
     setError(null);
-    const reason = id === currentId ? undefined : await settle(onPick(id));
-    if (reason) setError(reason);
-    else onClose();
+    try {
+      const reason = id === currentId ? undefined : await settle(onPick(id));
+      if (reason) setError(reason);
+      else onClose();
+    } finally {
+      picking.current = false;
+    }
   };
   const addSpeaker = async (name: string) => {
     const reason = await settle(onAddSpeaker?.(name));

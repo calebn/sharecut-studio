@@ -15,7 +15,7 @@ import {
 } from "../../system/scriptFixtures";
 import type { ScriptTurn } from "../../system/scriptPieces";
 import { FindBar, type FindBarHandle } from "./FindBar";
-import { findCountText, findMatches } from "./findMatches";
+import { findCountText, findMatches, replacementChanges } from "./findMatches";
 import { scriptFrame, useLiveScript } from "./scriptDemo";
 
 type SurfaceProps = {
@@ -98,9 +98,10 @@ function Surface({
     setQuery("");
   };
   const replaceAll = () => {
-    const count = matches.length;
+    const changed = replacementChanges(turns, matches, replaceText);
+    const count = changed.length;
     setTurns((now) =>
-      [...matches]
+      [...changed]
         .reverse()
         .reduce((all, m) => replaceSpan(all, m, replaceText), [...now]),
     );
@@ -274,6 +275,27 @@ export const GuestCannotReplace: Story = {
     await expect(
       canvas.getByRole("button", { name: "Select all 2" }),
     ).toBeVisible();
+  },
+};
+
+export const CutAllThenType: Story = {
+  render,
+  args: { query: "the" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: /^Cut all/ }));
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Find in transcript" }),
+      ).toHaveFocus(),
+    );
+    const field = canvas.getByRole("searchbox", { name: "Find" });
+    await userEvent.click(field);
+    await userEvent.keyboard("room");
+    await expect(field).toHaveValue("room");
+    await expect(field).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await expect(canvas.queryByRole("searchbox", { name: "Find" })).toBeNull();
   },
 };
 
