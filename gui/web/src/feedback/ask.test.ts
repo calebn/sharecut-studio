@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerQuestion, askConfirm, askText, useAskStore } from "./ask";
+import { answerQuestion, askConfirm, useAskStore } from "./ask";
 
 const REMOVE = {
   title: "Remove the Host track?",
@@ -29,22 +29,6 @@ describe("ask", () => {
     const kept = askConfirm(REMOVE);
     answerQuestion(openId(), null);
     await expect(kept).resolves.toBe(false);
-  });
-
-  it("trims typed text and treats blank or cancel as null", async () => {
-    const text = {
-      title: "Open project",
-      label: "Path",
-      submitLabel: "Open project",
-      requiredMessage: "Enter a path.",
-    };
-    const typed = askText(text);
-    answerQuestion(openId(), "  /tmp/ep.json ");
-    await expect(typed).resolves.toBe("/tmp/ep.json");
-
-    const blank = askText(text);
-    answerQuestion(openId(), "   ");
-    await expect(blank).resolves.toBeNull();
   });
 
   it("cancels an open question when a newer one opens, and ignores stale answers", async () => {

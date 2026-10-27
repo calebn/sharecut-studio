@@ -91,34 +91,3 @@ export const BlockedByAnotherDownload: Story = {
     action: { ...download, blockedReason: "Another download is running" },
   },
 };
-
-export const SelectRequired: Story = {
-  args: {
-    model: model({ kind: "missing" }),
-    action: {
-      kind: "select",
-      checked: true,
-      locked: true,
-      onToggle: () => undefined,
-    },
-  },
-};
-
-export const SelectOffered: Story = {
-  args: {
-    model: model(
-      { kind: "missing" },
-      {
-        tier: "offered",
-        label: "Speaker model",
-        purpose: "speaker recognition and split",
-      },
-    ),
-    action: {
-      kind: "select",
-      checked: false,
-      locked: false,
-      onToggle: () => undefined,
-    },
-  },
-};
