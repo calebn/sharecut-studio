@@ -27,7 +27,9 @@ type FixTextFieldProps = {
   label: string;
   /**
    * The field is done. `text` is the new words, or null when nothing should
-   * change: Esc, an empty field, or the same words. `original` is the words
+   * change: Esc, leaving an empty field, or the same words. An empty field
+   * at Enter or Tab stays open with "Text cannot be empty." (as the legacy
+   * editor did), unless `validate` speaks for it. `original` is the words
    * the field opened with, which the host sends as the expected text so the
    * backend can refuse a stale correction. A null `text` always closes.
    */
@@ -103,6 +105,10 @@ export function FixTextField({
     const invalid = validate?.(text);
     if (invalid) {
       setError(invalid);
+      return;
+    }
+    if (text === "" && !validate && via !== "blur") {
+      setError("Text cannot be empty.");
       return;
     }
     if (text === "" || text === original) {

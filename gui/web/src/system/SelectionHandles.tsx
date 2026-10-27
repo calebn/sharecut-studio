@@ -15,7 +15,7 @@ export type SelectionHandlesProps = {
   onDrag: (edge: HandleEdge, point: { x: number; y: number }) => void;
   /** A grip was taken, before any move. */
   onGrab?: () => void;
-  /** The grip was let go or the browser took the touch. */
+  /** The grip was let go, the browser took the touch, or it lost its pointer capture. */
   onRelease?: () => void;
 };
 
@@ -26,6 +26,21 @@ type Grab = {
   fromX: number;
   fromY: number;
   moved: boolean;
+};
+
+/**
+ * Chrome snaps a touch to the nearest element that answers to a click, and a
+ * word button does while a div with only pointer handlers does not, so the
+ * upper part of the knob would grab the word beside it. A click listener on the
+ * grip itself, which React's delegated handlers do not provide, makes the grip
+ * a candidate too. It also keeps the click the browser synthesises after a tap
+ * from reaching anything under the grip.
+ */
+const swallowClick = (grip: HTMLElement | null) => {
+  if (!grip) return;
+  const stop = (event: Event) => event.preventDefault();
+  grip.addEventListener("click", stop);
+  return () => grip.removeEventListener("click", stop);
 };
 
 /** Farther than this and a press is a drag; a finger rolls a few pixels on a tap. */
@@ -41,7 +56,8 @@ const TAP_SLOP = 4;
  * Each grip's hit region reaches only toward its knob, the start's above its
  * line and the end's below, so it covers no word on its own line. A press
  * that never moves is passed to whatever button lies under the point, so a
- * tap near a grip still lands on the word beside it. Drag reports the point
+ * tap near a grip still lands on the word beside it, with the press's Shift,
+ * Ctrl, Alt and Meta keys replayed so a Shift-tap there still extends. Drag reports the point
  * under the caret; the host turns it into a word.
  *
  * Render them inside the scrolling, positioned container that holds the text.
@@ -100,11 +116,31 @@ export function SelectionHandles({
     const target = under
       ?.map((el) => el.closest<HTMLElement>("button"))
       .find((el) => el !== null);
-    target?.click();
+    if (!target) return;
+    const { shiftKey, ctrlKey, altKey, metaKey } = event;
+    target.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        shiftKey,
+        ctrlKey,
+        altKey,
+        metaKey,
+      }),
+    );
+  };
+  const onLost = (event: PointerEvent<HTMLElement>) => {
+    const held = grab.current;
+    if (!held || held.pointerId !== event.pointerId) return;
+    grab.current = null;
+    onRelease?.();
   };
 
   const handle = (edge: HandleEdge, place: HandlePlace) => (
     <div
+      ref={swallowClick}
       className="sys-handle"
       data-edge={edge}
       aria-hidden="true"
@@ -119,6 +155,7 @@ export function SelectionHandles({
       onPointerMove={onMove(edge)}
       onPointerUp={onUp}
       onPointerCancel={onUp}
+      onLostPointerCapture={onLost}
     >
       <span className="sys-handle-knob" />
     </div>

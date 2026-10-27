@@ -16,6 +16,13 @@ function matchKey(text: string, caseSensitive: boolean): string {
   return caseSensitive ? bare : bare.toUpperCase().toLowerCase();
 }
 
+const edges = (text: string): [string, string, string] => {
+  const before = /^\p{P}*/u.exec(text)?.[0] ?? "";
+  const after =
+    before.length === text.length ? "" : (/\p{P}*$/u.exec(text)?.[0] ?? "");
+  return [before, text.slice(before.length, text.length - after.length), after];
+};
+
 /** A muted word is skipped by the backend; a cut word is already cut. Neither can be found, and a phrase cannot run across one. */
 const unfindable = (word: ScriptWord) =>
   word.mark?.kind === "muted" || word.mark?.kind === "cut";
@@ -26,8 +33,12 @@ const unfindable = (word: ScriptWord) =>
  * whitespace and each token is matched against a whole word, so "an" does not
  * match "banana" and "room." matches "room". A phrase can match across words
  * but never across turns, and hits do not overlap. Muted and cut words, shown
- * or not, are skipped, so Cut all never cuts a cut again. Linear in the words
- * of each turn.
+ * or not, are skipped, so Cut all never cuts a cut again. The cost is the words
+ * of each turn (a query of k tokens costs at most k comparisons per word).
+ *
+ * Parity gap for W2, recorded in design-system.md: the backend matches over a
+ * transcript's whole word list, so a phrase that ends one turn and starts the
+ * next is replaced there but is neither highlighted nor counted here.
  */
 export function findMatches(
   turns: readonly ScriptTurn[],
@@ -84,4 +95,53 @@ export function replacementOk(text: string): boolean {
   return (
     tokens.length > 0 && tokens.every((token) => /[\p{L}\p{N}]/u.test(token))
   );
+}
+
+/**
+ * The hits a Replace all would change. The backend drops a hit whose new words
+ * are the words already there, so "Room" replaced by "room" with Match case on
+ * is no change, and the host should count and replace only what this returns.
+ * New words keep the old edge punctuation unless they bring their own, as the
+ * backend does. A replacement the backend refuses (`replacementOk`) changes
+ * nothing.
+ */
+export function replacementChanges(
+  turns: readonly ScriptTurn[],
+  hits: readonly ScriptSpan[],
+  replacement: string,
+): ScriptSpan[] {
+  if (!replacementOk(replacement)) return [];
+  const next = replacement.split(/\s+/).filter((token) => token !== "");
+  const words = new Map<number, ScriptWord>();
+  for (const turn of turns) {
+    for (const word of turn.words) words.set(word.index, word);
+  }
+  return hits.filter((hit) => {
+    const old = Array.from(
+      { length: hit.end - hit.start + 1 },
+      (_, at) => words.get(hit.start + at)?.text ?? "",
+    );
+    const parts = old.map(edges);
+    const made =
+      old.length === next.length
+        ? next.map((token, at) => {
+            const [before, , after] = edges(token);
+            return (
+              (before ? "" : parts[at][0]) + token + (after ? "" : parts[at][2])
+            );
+          })
+        : next.map((token, at) => {
+            const [before, , after] = edges(token);
+            return (
+              (at === 0 && !before ? parts[0][0] : "") +
+              token +
+              (at === next.length - 1 && !after
+                ? parts[parts.length - 1][2]
+                : "")
+            );
+          });
+    return (
+      made.length !== old.length || made.some((text, at) => text !== old[at])
+    );
+  });
 }

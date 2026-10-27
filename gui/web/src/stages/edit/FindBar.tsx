@@ -84,6 +84,10 @@ const messageOf = (error: unknown) =>
  * bar and, when it is already open, to call the handle's `focus()`. The bar
  * takes focus when it mounts.
  *
+ * The host owns the backend side: it runs the replace preview and sends its
+ * `preview_token` with Replace all, shows the preview's skipped-word count, and
+ * counts only `replacementChanges`. The bar has no props for these.
+ *
  * The count is plain text, not a live region: the pane has the one polite
  * region, and the host passes it the same text as `findStatus`.
  */
@@ -119,6 +123,10 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
     n: 0,
     bulk: false,
   });
+  const returnFocusRef = useRef(returnFocus);
+  useLayoutEffect(() => {
+    returnFocusRef.current = returnFocus;
+  });
   const focus = () => {
     field.current?.focus();
     field.current?.select();
@@ -145,10 +153,11 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
     }
   };
   // The control that had focus may now be gone or disabled, so decide after the host's new props are in.
+  // Once per settle: the host passes returnFocus as a new arrow on every render, and re-running on that would pull focus out of the Find field while the person types.
   useEffect(() => {
     if (settled.n === 0) return;
-    if (settled.bulk && returnFocus) {
-      returnFocus();
+    if (settled.bulk && returnFocusRef.current) {
+      returnFocusRef.current();
       return;
     }
     const active = document.activeElement;
@@ -158,12 +167,12 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
       !root.current?.contains(active) ||
       (active instanceof HTMLButtonElement && active.disabled);
     if (lost) focus();
-  }, [settled, returnFocus]);
+  }, [settled]);
 
   const hits = count > 0;
   const closeBar = () => {
     onClose();
-    returnFocus?.();
+    returnFocusRef.current?.();
   };
   const close = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape") return false;

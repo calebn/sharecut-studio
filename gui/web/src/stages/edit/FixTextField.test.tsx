@@ -87,8 +87,27 @@ describe("FixTextField", () => {
     expect(same.onDone.mock.calls).toEqual([[null, "enter", "small room"]]);
     same.unmount();
     const empty = setup();
-    await user.keyboard("{Backspace}{Enter}");
-    expect(empty.onDone.mock.calls).toEqual([[null, "enter", "small room"]]);
+    await user.keyboard("{Backspace}");
+    await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+    expect(empty.onDone.mock.calls).toEqual([[null, "blur", "small room"]]);
+  });
+
+  it("refuses an empty field at Enter and Tab with the reason, and stays open", async () => {
+    const user = userEvent.setup();
+    const { onDone } = setup();
+    const field = screen.getByRole("textbox");
+    await user.clear(field);
+    await user.keyboard("{Enter}");
+    expect(onDone).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Text cannot be empty.",
+    );
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveFocus();
+    await user.keyboard("{Tab}");
+    expect(onDone).not.toHaveBeenCalled();
+    await user.keyboard("ok{Enter}");
+    expect(onDone.mock.calls).toEqual([["ok", "enter", "small room"]]);
   });
 
   it("waits while an input method is composing", () => {

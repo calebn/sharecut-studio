@@ -809,6 +809,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
 
     const handlesShown =
       handles && onSelect !== undefined && span !== null && bodyShown;
+    // The grips can go while one is held (the selection is lost), and then no release comes.
+    useEffect(() => {
+      if (!handlesShown) setDragging(false);
+    }, [handlesShown]);
     const startStop = span ? stopContaining(stops, span.start) : undefined;
     const endStop = span ? stopContaining(stops, span.end) : undefined;
     const startAt = startStop?.start;

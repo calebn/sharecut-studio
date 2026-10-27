@@ -535,6 +535,91 @@ test("System/ScriptPane a grip's region reaches only toward its knob, so the wor
   await context.close();
 });
 
+test("System/ScriptPane a real touch anywhere on the end knob, top edge to bottom edge, lands on the grip and a touch drag from its centre moves the end", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "stages-edit-scriptpane--phone-selection-handles",
+  );
+  const knobBox = async () => {
+    await expect(page.locator(".sys-handle[data-edge=end]")).toBeVisible();
+    const box = await page
+      .locator(".sys-handle[data-edge=end] .sys-handle-knob")
+      .boundingBox();
+    if (!box) throw new Error("No knob");
+    return box;
+  };
+  const pressed = async (fraction: number) => {
+    await page.goto(
+      storyUrl("stages-edit-scriptpane--phone-selection-handles", {
+        theme: "light",
+      }),
+    );
+    const knob = await knobBox();
+    await page.evaluate(() => {
+      const log: string[] = [];
+      Object.assign(window, { downs: log });
+      document.addEventListener(
+        "pointerdown",
+        (event) => log.push((event.target as HTMLElement).className),
+        true,
+      );
+    });
+    await page.touchscreen.tap(
+      knob.x + knob.width / 2,
+      knob.y + knob.height * fraction,
+    );
+    return page.evaluate(
+      () => (window as unknown as { downs: string[] }).downs,
+    );
+  };
+  for (const fraction of [0.05, 0.3, 0.5, 0.7, 0.95]) {
+    const downs = await pressed(fraction);
+    expect(downs).toHaveLength(1);
+    expect(downs[0]).toMatch(/sys-handle/);
+  }
+  await page.goto(
+    storyUrl("stages-edit-scriptpane--phone-selection-handles", {
+      theme: "light",
+    }),
+  );
+  const knob = await knobBox();
+  const target = await page
+    .getByRole("button", { name: "sound", exact: true })
+    .boundingBox();
+  if (!target) throw new Error("No word to drag to");
+  const from = { x: knob.x + knob.width / 2, y: knob.y + knob.height / 2 };
+  const grip = await page.locator(".sys-handle[data-edge=end]").boundingBox();
+  if (!grip) throw new Error("No grip");
+  const caretY = grip.y + grip.height / 2;
+  const to = {
+    x: target.x + target.width - 2,
+    y: target.y + target.height / 2 + (from.y - caretY),
+  };
+  const cdp = await context.newCDPSession(page);
+  const touch = (
+    type: "touchStart" | "touchMove" | "touchEnd",
+    point?: { x: number; y: number },
+  ) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: point ? [{ ...point, id: 1 }] : [],
+    });
+  await touch("touchStart", from);
+  for (let step = 1; step <= 8; step += 1) {
+    await touch("touchMove", {
+      x: from.x + ((to.x - from.x) * step) / 8,
+      y: from.y + ((to.y - from.y) * step) / 8,
+    });
+  }
+  await touch("touchEnd");
+  await expect(page.getByRole("status")).toHaveText(
+    "4 words selected: small room can sound",
+  );
+  await context.close();
+});
+
 test("System/ScriptPane a tap on the word beside a grip selects nothing the grip took", async ({
   browser,
 }) => {

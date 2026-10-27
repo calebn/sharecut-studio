@@ -306,6 +306,35 @@ describe("FindBar", () => {
     expect(order).toEqual(["close", "focus", "close", "focus"]);
   });
 
+  it("keeps focus in the Find field while typing after a bulk verb, though the host passes a new returnFocus on every render", async () => {
+    const user = userEvent.setup();
+    const target = document.createElement("button");
+    document.body.append(target);
+    const returned = vi.fn(() => target.focus());
+    function Host() {
+      const [query, setQuery] = useState("the");
+      return (
+        <FindBar
+          {...props({ query, count: query ? 4 : 0, current: query ? 0 : -1 })}
+          onQueryChange={setQuery}
+          onCutAll={() => setQuery("")}
+          returnFocus={() => returned()}
+        />
+      );
+    }
+    render(<Host />);
+    await user.click(screen.getByRole("button", { name: "Cut all 4" }));
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(returned).toHaveBeenCalledTimes(1);
+    const field = screen.getByRole("searchbox", { name: "Find" });
+    await user.click(field);
+    await user.keyboard("room");
+    expect(field).toHaveValue("room");
+    expect(field).toHaveFocus();
+    expect(returned).toHaveBeenCalledTimes(1);
+    target.remove();
+  });
+
   it("puts the cursor back in the field on the handle's focus", async () => {
     const user = userEvent.setup();
     const handle = createRef<FindBarHandle>();
