@@ -127,7 +127,7 @@ test("pending card: a marker lane that grows while it floats moves the card clea
     .toEqual({ belowChrome: true, clearOfRegion: true });
 });
 
-test("pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 360", async ({
+test("pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 260", async ({
   page,
 }) => {
   test.setTimeout(60_000);
@@ -152,7 +152,9 @@ test("pending review: the inspector's inline Approve and Reject stay reachable a
     .click();
   await expect(page.getByRole("alert").first()).toBeVisible();
 
-  await page.setViewportSize({ width: 1280, height: 360 });
+  // The stage frame has no bottom panel, so the card only loses its room
+  // between the marker lane and the Player at about this height.
+  await page.setViewportSize({ width: 1280, height: 260 });
   await settle(page);
   await expect(page.locator(".pending-actionbar")).toBeHidden();
 
