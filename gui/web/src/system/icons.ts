@@ -35,6 +35,7 @@ import {
   OctagonAlert,
   PanelRight,
   Pause,
+  Pin,
   Play,
   Plug,
   Plus,
@@ -72,6 +73,7 @@ import {
 export const LUCIDE_ICONS = {
   play: Play,
   pause: Pause,
+  pin: Pin,
   ear: Ear,
   "shield-check": ShieldCheck,
   "fold-horizontal": FoldHorizontal,

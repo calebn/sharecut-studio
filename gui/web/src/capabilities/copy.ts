@@ -308,6 +308,14 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Hear staged session",
     tooltip: "Hear a staged recorded session before and after it is placed",
   },
+  "daw.review.listSessionTakes": {
+    label: "List staged session takes",
+    tooltip: "List the takes of a staged recorded session",
+  },
+  "daw.review.selectSessionTake": {
+    label: "Choose staged session take",
+    tooltip: "Choose which take of a staged recorded session is placed",
+  },
   "daw.review.skipSessionSuggestion": {
     label: "Skip staged session",
     tooltip: "Skip a staged recorded session",

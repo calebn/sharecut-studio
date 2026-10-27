@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**129** capabilities · **107** ShareCut Studio commands · **55** keyed · **195** MCP tools · **17** skills on rows (+ **19** hub skills).
+**131** capabilities · **107** ShareCut Studio commands · **55** keyed · **197** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -149,6 +149,8 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | List staged sessions | project | `list_session_suggestions_tool` | `podcast review session-suggestions` | `podcast-record-session` | yes |
 | Accept staged session | project | `accept_session_suggestion_tool` | `podcast review accept-session-suggestion` | `podcast-record-session` | yes |
 | Hear staged session | session | `hear_session_suggestion_tool` | `podcast review preview-session-suggestion` | `podcast-record-session` | yes |
+| List staged session takes | project | `list_session_takes_tool` | `podcast review session-takes` | `podcast-record-session` | yes |
+| Choose staged session take | project | `select_session_take_tool` | `podcast review select-session-take` | `podcast-record-session` | yes |
 | Skip staged session | project | `skip_session_suggestion_tool` | `podcast review skip-session-suggestion` | `podcast-record-session` | yes |
 | Episode / track CRUD | project | `episode_create`, `track_set_meta_tool` | `podcast episode` | `podcast-setup` | yes |
 | Transcript layers | project | `transcribe_track`, `get_transcript`, `get_transcript_vocabulary_tool`, `set_transcript_vocabulary_tool`, `export_transcript`, `precorrect_transcript_tool`, +4 | `podcast transcript` | `podcast-transcript-workflow` | yes |

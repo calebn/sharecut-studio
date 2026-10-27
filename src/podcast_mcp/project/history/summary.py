@@ -49,6 +49,8 @@ def format_history_group_title(
         )
     if operation == "skip_session_suggestion" and params.get("session_number"):
         return f"Skipped Session {int(params['session_number'])}"
+    if operation == "select_session_take" and params.get("session_number"):
+        return f"Chose take {params.get('take_index')} for Session {int(params['session_number'])}"
     if operation == "accept_session_suggestion" and params.get("session_number"):
         return f"Added Session {int(params['session_number'])}"
     if operation == "remap_session_track" and params.get("title"):

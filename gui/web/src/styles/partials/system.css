@@ -4025,3 +4025,346 @@ button.sys-scope:hover {
     inset-inline: min(0rem, calc((100% - var(--touch-min)) / 2));
   }
 }
+
+/* Script pane (element 14) */
+
+.sys-script {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  block-size: 100%;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+.sys-script-header {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  box-sizing: border-box;
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.sys-script-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0);
+}
+
+.sys-script-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sys-script-tool:hover {
+  background: var(--color-hover);
+  color: var(--color-text-primary);
+}
+
+.sys-script-tool[aria-pressed="true"] {
+  background: var(--color-accent-subtle);
+  color: var(--color-text-primary);
+}
+
+.sys-script-unsure {
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-warning-underline);
+  border-radius: var(--radius-xl);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.sys-script-guest {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-script-notice {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-inline-size: 0;
+}
+
+.sys-script-body {
+  flex: 1;
+  min-block-size: 0;
+  isolation: isolate;
+  padding: var(--space-5) var(--space-6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: var(--font-size-review);
+  line-height: 1.625;
+}
+
+.sys-script[data-layout="phone"] .sys-script-body {
+  padding-inline: var(--space-4);
+  font-size: var(--font-size-reading-phone);
+  line-height: 1.65;
+}
+
+.sys-script-turn {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  max-inline-size: calc(5.5rem + 68ch);
+  margin-block-end: var(--space-5);
+}
+
+.sys-script-margin {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  padding-inline-end: var(--space-3);
+  padding-block-start: var(--space-0);
+  font-size: var(--font-size-small);
+  line-height: 1.2;
+}
+
+.sys-script-speaker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.sys-script-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--sys-person-color);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.sys-script-speaker,
+button.sys-script-time {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+button.sys-script-speaker {
+  color: inherit;
+}
+
+.sys-script-time {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+}
+
+.sys-script-turn:hover .sys-script-time,
+.sys-script-turn:focus-within .sys-script-time {
+  opacity: 1;
+}
+
+.sys-script-text {
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.sys-script-word,
+.sys-script-run {
+  position: relative;
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: text;
+}
+
+.sys-script-run {
+  cursor: pointer;
+}
+
+.sys-script-gap[data-selected],
+.sys-script-word[data-selected],
+.sys-script-run[data-selected] {
+  background: var(--color-selection-subtle);
+}
+
+.sys-script-word[data-playing],
+.sys-script-run[data-playing] {
+  box-shadow: inset 0 -0.125rem 0 var(--color-accent);
+}
+
+.sys-script-word[data-found] {
+  background: var(--color-warning-subtle);
+}
+
+.sys-script-word[data-found="current"] {
+  outline: var(--selection-outline-width) solid var(--color-warning-underline);
+  outline-offset: calc(var(--space-0) * -0.5);
+}
+
+.sys-script-word[data-selected][data-found] {
+  background: var(--color-selection-subtle);
+}
+
+.sys-script-word[data-unsure] {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-warning-underline);
+  text-decoration-thickness: var(--focus-ring-width);
+  text-underline-offset: 0.2em;
+}
+
+.sys-script-word[data-state="cut"] {
+  text-decoration-line: line-through;
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-mark-cut);
+  text-decoration-thickness: var(--focus-ring-width);
+}
+
+.sys-script-word[data-state="muted"] {
+  color: var(--color-text-secondary);
+}
+
+.sys-script-word[data-restored] {
+  background: var(--color-success-subtle);
+}
+
+.sys-script-muted > svg {
+  margin-inline-end: var(--space-1);
+  color: var(--color-text-secondary);
+  vertical-align: middle;
+}
+
+.sys-script-pill {
+  display: inline;
+}
+
+.sys-script-editor {
+  display: inline-block;
+  max-inline-size: 100%;
+}
+
+.sys-script-caret {
+  position: relative;
+  display: inline-block;
+  inline-size: 0;
+  block-size: 1.25em;
+  vertical-align: text-bottom;
+}
+
+.sys-script-caret::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-0) * -0.5);
+  border-inline-start: var(--focus-ring-width) solid var(--sys-person-color);
+}
+
+.sys-script-caret[data-own]::before {
+  border-inline-start-color: var(--color-accent);
+}
+
+.sys-script-notyet {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-script-back {
+  position: absolute;
+  inset-block-end: var(--space-5);
+  inset-inline-start: 50%;
+  z-index: var(--z-local-chrome);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 2rem;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-floating);
+  color: var(--color-text-on-overlay);
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  translate: -50% 0;
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .sys-script-tool {
+    min-inline-size: var(--touch-min);
+    block-size: var(--touch-min);
+  }
+
+  .sys-script-back {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-script-time {
+    opacity: 1;
+  }
+
+  /*
+   * A word is a line tall, so a 44 px region reaches into the lines around
+   * it. It sits behind the text (the body isolates its stacking), so a word
+   * on the next line still takes its own press and the region only claims
+   * the empty space around it.
+   */
+  .sys-script-word::after,
+  .sys-script-run::after,
+  .sys-script .sys-seam[data-form="pill"] .sys-seam-hit::after,
+  button.sys-script-speaker::after,
+  button.sys-script-time::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset-block: calc((100% - var(--touch-min)) / 2);
+    inset-inline: min(0rem, calc((100% - var(--touch-min)) / 2));
+  }
+}
+
+@media (forced-colors: active) {
+  .sys-script-gap[data-selected],
+  .sys-script-word[data-selected],
+  .sys-script-run[data-selected] {
+    outline: 1px solid var(--color-accent);
+  }
+
+  .sys-script-word[data-playing] {
+    text-decoration-line: underline;
+    text-decoration-thickness: var(--focus-ring-width);
+  }
+
+  .sys-script-word[data-restored] {
+    outline: 1px dashed var(--color-accent);
+  }
+}

@@ -30,7 +30,7 @@ class _NotCached(Exception):
 
 
 # Bump when accepting a session, or the way a window is mixed, changes what a cached window plays.
-SESSION_PREVIEW_REV = 1
+SESSION_PREVIEW_REV = 2
 # The shortest window a preview renders, as in a pending preview.
 _MIN_WINDOW_SEC = 0.05
 
@@ -158,7 +158,9 @@ class _PlaySession(_PlayPending):
             take: int | None = None
             files: list[Any] = []
         else:
-            staged = row.model_dump(mode="json")
+            # The pick (selected_take) is not read: the chosen take is passed in and in the
+            # key, so a pick of the take already previewed stays a cache hit.
+            staged = row.model_dump(mode="json", exclude={"selected_take"})
             take = take_index
             files = self._staged_files_key(row)
         return _digest(

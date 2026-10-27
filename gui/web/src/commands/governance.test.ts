@@ -94,6 +94,10 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/Palette.tsx",
   // The scrub field is a spinbutton: arrows, Home, End, Enter and F2 edit its own value and stop there.
   "system/ScrubField.tsx",
+  // The script pane's words, cut pills and suggested runs are one tab stop: arrows, Home and End move among them, Shift extends the selection, and Enter selects a word. Space is left alone for Play/Pause.
+  "system/ScriptPane.tsx",
+  // The seam's button hands its keys and a roving tab index to the host that moves focus among marks; the script pane does so for its cut pills, which join the pane's one tab stop.
+  "system/Seam.tsx",
   "commands/governance.test.ts",
 ]);
 
