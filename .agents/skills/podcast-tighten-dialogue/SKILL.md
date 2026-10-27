@@ -108,7 +108,7 @@ podcast propose-edits --project episode.project.json --json
 ```
 
 MCP `propose_edits` returns `{operation, edits, skip_counts, summary}`
-(`operation` is `propose_edits`; not a bare array). Each edit also has a `label` ("Laugh", "Filler word") and a `suggested_action` (cut / shorten / lower / leave) from one table in `edits/cut_policy.py`; it is a suggestion, not an applied change. CLI `propose-edits --json`
+(`operation` is `propose_edits`; not a bare array). Each edit also has a `label` ("Laugh", "Filler word"), a `kind` (filler / pause / repeat / false-start / sound / other), the raw `sound_kind` (for example `laugh`) and a `suggested_action` (cut / shorten / lower / leave) from one table in `edits/cut_policy.py`; it is a suggestion, not an applied change. CLI `propose-edits --json`
 prints the same payload (`TightenProposal.to_payload()`); without `--json` it
 prints the summary text only. Report `skip_counts`
 (`discourse:like`, …) as “N discourse uses kept”, `backchannel:uh huh` as “N
@@ -120,7 +120,7 @@ returns the same hits, under the same ids, each run. An Ask thread
 (`edit_decision_id`) on a hit stays attached across re-runs.
 
 4. Review each pending decision listen-first:
-   - Sharecut Studio **Tighten** tab (host): search/filter filler (incl. `filler:acoustic`), pause, repetition, and restart hits,
+   - Sharecut Studio **Tighten** tab (host): search/filter filler, pause, repetition, restart and sound (acoustic) hits by the server `kind`,
      Preview / Skip / Apply one, or Apply suggested actions (every listed
      sound gets its own suggested action in one undo step), or
    - `list_edit_decisions_tool` / `podcast edit list --pending` plus
