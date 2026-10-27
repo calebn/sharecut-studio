@@ -10,7 +10,7 @@ const meta: Meta<typeof ComposerHarness> = {
   component: Composer as never,
   render: (args) => <ComposerHarness {...args} />,
   tags: ["autodocs"],
-  args: { onSubmit: fn(), onPinTime: fn(), onUnpinTime: fn() },
+  args: { onSubmit: fn(), onAnchor: fn() },
   decorators: [
     (Story) => (
       <div style={{ padding: "var(--space-5)", maxInlineSize: "30rem" }}>
@@ -24,7 +24,7 @@ const meta: Meta<typeof ComposerHarness> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Review comment field in its states, restyled from the old comment compose. The time chip leads and pins on the first keystroke; Cmd or Ctrl+Enter posts.\n\n**Motion.** Animations come later.",
+          "The Review comment field in its states, restyled from the old comment compose. The anchor chip leads and pins on the first keystroke; Enter posts and Shift+Enter adds a line.\n\n**Motion.** Animations come later.",
       },
     },
   },
@@ -39,19 +39,19 @@ export const Empty: Story = {
     await expect(canvas.getByRole("button", { name: "Post" })).toBeDisabled();
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Comment" }),
-      "Lose the cough{Control>}{Enter}{/Control}",
+      "Lose the cough{Enter}",
     );
     await expect(args.onSubmit).toHaveBeenCalledOnce();
   }),
 };
 
 export const Anchored: Story = {
-  args: { time: { seconds: 702.3, pinned: false } },
+  args: { anchor: { kind: "follow", seconds: 724 } },
 };
 
 export const Posting: Story = {
   args: {
-    time: { seconds: 702.3, pinned: true },
+    anchor: { kind: "pinned", start: 724 },
     start: "Lose the cough",
     state: "posting",
   },
@@ -59,7 +59,7 @@ export const Posting: Story = {
 
 export const Offline: Story = {
   args: {
-    time: { seconds: 702.3, pinned: true },
+    anchor: { kind: "pinned", start: 724 },
     start: "Lose the cough",
     state: "offline",
   },
@@ -67,13 +67,21 @@ export const Offline: Story = {
 
 export const GuestFirstPost: Story = {
   args: {
-    time: { seconds: 702.3, pinned: false },
-    name: { value: "", onChange: fn(), required: true },
+    anchor: { kind: "follow", seconds: 724 },
+    name: { value: "", onChange: fn() },
   },
 };
 
+export const Selection: Story = {
+  args: { anchor: { kind: "pinned", start: 724, end: 729 } },
+};
+
+export const WholeEpisode: Story = {
+  args: { anchor: { kind: "episode" } },
+};
+
 export const Phone: Story = {
-  args: { compact: true, time: { seconds: 702.3, pinned: false } },
+  args: { compact: true, anchor: { kind: "follow", seconds: 724 } },
   decorators: [
     (Story) => (
       <PhoneFrame>

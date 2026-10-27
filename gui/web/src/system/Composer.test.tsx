@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { createRef, useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { stubMatchMedia } from "../test/matchMedia";
 import { Composer, type ComposerProps } from "./Composer";
 import { composerBlock } from "./composerBlock";
 
@@ -21,6 +22,11 @@ function Harness(props: Partial<ComposerProps> & { start?: string }) {
 
 const field = () => screen.getByRole("textbox", { name: "Comment" });
 const submit = (name = "Post") => screen.getByRole("button", { name });
+const noop = () => undefined;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("Composer", () => {
   it("keeps Post off until the body has text, and says why", async () => {
@@ -33,96 +39,279 @@ describe("Composer", () => {
     expect(submit()).toBeEnabled();
   });
 
-  it("posts on Ctrl+Enter and on Cmd+Enter, and not on a bare Enter", async () => {
-    const onSubmit = vi.fn();
-    const user = userEvent.setup();
-    render(<Harness start="Hi" onSubmit={onSubmit} />);
-    await user.click(field());
-    await user.keyboard("{Enter}");
-    expect(onSubmit).not.toHaveBeenCalled();
-    await user.keyboard("{Control>}{Enter}{/Control}");
-    await user.keyboard("{Meta>}{Enter}{/Meta}");
-    expect(onSubmit).toHaveBeenCalledTimes(2);
+  describe("keys on a fine pointer", () => {
+    it("posts on Enter and adds no line", async () => {
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness start="Hi" onSubmit={onSubmit} />);
+      await user.click(field());
+      await user.keyboard("{Enter}");
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(field()).toHaveValue("Hi");
+    });
+
+    it("adds a line on Shift+Enter and does not post", async () => {
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness start="Hi" onSubmit={onSubmit} />);
+      await user.click(field());
+      await user.keyboard("{Shift>}{Enter}{/Shift}");
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(field()).toHaveValue("Hi\n");
+    });
+
+    it("posts on Ctrl+Enter and on Cmd+Enter", async () => {
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness start="Hi" onSubmit={onSubmit} />);
+      await user.click(field());
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      await user.keyboard("{Meta>}{Enter}{/Meta}");
+      expect(onSubmit).toHaveBeenCalledTimes(2);
+    });
+
+    it("does nothing on Enter while the body is empty, and inserts no line", async () => {
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness onSubmit={onSubmit} />);
+      await user.click(field());
+      await user.keyboard("{Enter}");
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(field()).toHaveValue("");
+    });
+
+    it("does not post when Enter confirms an IME composition", () => {
+      const onSubmit = vi.fn();
+      render(<Harness start="にほん" onSubmit={onSubmit} />);
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+        isComposing: true,
+      });
+      field().dispatchEvent(event);
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it("advertises Enter and the send hint", () => {
+      render(<Harness />);
+      expect(field()).toHaveAttribute("aria-keyshortcuts", "Enter");
+      expect(field()).toHaveAttribute("enterkeyhint", "send");
+    });
   });
 
-  it("does not post on Ctrl+Enter while the body is empty", async () => {
-    const onSubmit = vi.fn();
-    const user = userEvent.setup();
-    render(<Harness onSubmit={onSubmit} />);
-    await user.click(field());
-    await user.keyboard("{Control>}{Enter}{/Control}");
-    expect(onSubmit).not.toHaveBeenCalled();
+  describe("keys on a coarse pointer", () => {
+    it("makes Return a new line and posts from the arrow", async () => {
+      stubMatchMedia(true);
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness start="Hi" onSubmit={onSubmit} />);
+      await user.click(field());
+      await user.keyboard("{Enter}");
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(field()).toHaveValue("Hi\n");
+      await user.click(submit());
+      expect(onSubmit).toHaveBeenCalledOnce();
+    });
+
+    it("still posts on Ctrl+Enter from a hardware keyboard", async () => {
+      stubMatchMedia(true);
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness start="Hi" onSubmit={onSubmit} />);
+      await user.click(field());
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      expect(onSubmit).toHaveBeenCalledOnce();
+    });
+
+    it("hints Return as a new line and omits the Enter shortcut", () => {
+      stubMatchMedia(true);
+      render(<Harness />);
+      expect(field()).toHaveAttribute("enterkeyhint", "enter");
+      expect(field()).not.toHaveAttribute("aria-keyshortcuts");
+    });
   });
 
-  it("shows the time chip in seconds and pins on the first keystroke", async () => {
-    const onPinTime = vi.fn();
-    render(
-      <Harness
-        time={{ seconds: 18.64, pinned: false }}
-        onPinTime={onPinTime}
-      />,
-    );
-    expect(screen.getByText("18.6 s")).toBeVisible();
-    expect(screen.getByText("Follows the playhead")).toBeInTheDocument();
-    await userEvent.type(field(), "ab");
-    expect(onPinTime).toHaveBeenCalledTimes(2);
+  describe("anchor chip", () => {
+    it("shows a following chip as timecode and asks to pin on every keystroke", async () => {
+      const onAnchor = vi.fn();
+      render(
+        <Harness
+          anchor={{ kind: "follow", seconds: 1116.4 }}
+          onAnchor={onAnchor}
+        />,
+      );
+      expect(
+        screen.getByRole("button", {
+          name: "Comment at 18:36, follows the playhead. Pin it here",
+        }),
+      ).toBeVisible();
+      await userEvent.type(field(), "ab");
+      expect(onAnchor.mock.calls).toEqual([["pin"], ["pin"]]);
+    });
+
+    it("does not ask to pin an anchor that is already pinned or whole-episode", async () => {
+      const onAnchor = vi.fn();
+      const { rerender } = render(
+        <Composer
+          body=""
+          onBodyChange={noop}
+          onSubmit={noop}
+          anchor={{ kind: "pinned", start: 18 }}
+          onAnchor={onAnchor}
+        />,
+      );
+      await userEvent.type(field(), "a");
+      rerender(
+        <Composer
+          body=""
+          onBodyChange={noop}
+          onSubmit={noop}
+          anchor={{ kind: "episode" }}
+          onAnchor={onAnchor}
+        />,
+      );
+      await userEvent.type(field(), "a");
+      expect(onAnchor).not.toHaveBeenCalled();
+    });
+
+    it("re-anchors from a pinned chip, naming a range", async () => {
+      const onAnchor = vi.fn();
+      render(
+        <Harness
+          anchor={{ kind: "pinned", start: 1116, end: 1121 }}
+          onAnchor={onAnchor}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: "Pinned 18:36 to 18:41. Move to the playhead",
+        }),
+      );
+      expect(onAnchor).toHaveBeenLastCalledWith("here");
+    });
+
+    it("clears to a whole-episode note, and the episode chip pins again", async () => {
+      const onAnchor = vi.fn();
+      const { rerender } = render(
+        <Composer
+          body=""
+          onBodyChange={noop}
+          onSubmit={noop}
+          anchor={{ kind: "pinned", start: 1116 }}
+          onAnchor={onAnchor}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Make it a whole-episode note" }),
+      );
+      expect(onAnchor).toHaveBeenLastCalledWith("episode");
+      rerender(
+        <Composer
+          body=""
+          onBodyChange={noop}
+          onSubmit={noop}
+          anchor={{ kind: "episode" }}
+          onAnchor={onAnchor}
+        />,
+      );
+      expect(screen.getByText("Whole episode")).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Make it a whole-episode note" }),
+      ).toBeNull();
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: "Whole-episode note. Pin to the playhead",
+        }),
+      );
+      expect(onAnchor).toHaveBeenLastCalledWith("here");
+    });
+
+    it("is static text with no clear control when there is no onAnchor", () => {
+      render(<Harness anchor={{ kind: "pinned", start: 1116 }} />);
+      expect(screen.getByText("18:36")).toBeVisible();
+      expect(screen.getByText("Pinned")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Pinned|whole/i }),
+      ).toBeNull();
+    });
+
+    it("is static text while posting", () => {
+      render(
+        <Harness
+          start="x"
+          state="posting"
+          anchor={{ kind: "pinned", start: 1116 }}
+          onAnchor={noop}
+        />,
+      );
+      expect(
+        screen.queryByRole("button", { name: /Move to the playhead/ }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Make it a whole-episode note" }),
+      ).toBeNull();
+      expect(screen.getByText("18:36")).toBeVisible();
+    });
+
+    it("has no chip when there is no anchor", () => {
+      render(<Harness />);
+      expect(screen.queryByText(/^\d+:\d\d$/)).toBeNull();
+      expect(screen.queryByText("Whole episode")).toBeNull();
+    });
   });
 
-  it("does not ask to pin a time that is already pinned", async () => {
-    const onPinTime = vi.fn();
-    render(
-      <Harness time={{ seconds: 18, pinned: true }} onPinTime={onPinTime} />,
-    );
-    await userEvent.type(field(), "a");
-    expect(onPinTime).not.toHaveBeenCalled();
+  describe("guest name", () => {
+    it("posts with a blank name", async () => {
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Harness
+          start="Nice"
+          onSubmit={onSubmit}
+          name={{ value: "", onChange: noop }}
+        />,
+      );
+      expect(submit()).toBeEnabled();
+      await user.click(submit());
+      expect(onSubmit).toHaveBeenCalledOnce();
+    });
+
+    it("takes a name, with the spec placeholder", async () => {
+      const onChange = vi.fn();
+      render(<Harness start="Nice" name={{ value: "", onChange }} />);
+      const input = screen.getByRole("textbox", { name: "Your name" });
+      expect(input).toHaveAttribute(
+        "placeholder",
+        "Name, so the host knows who said it",
+      );
+      expect(input).toHaveAttribute("autocomplete", "name");
+      await userEvent.type(input, "R");
+      expect(onChange).toHaveBeenCalledWith("R");
+    });
+
+    it("moves to the comment on Enter without posting, and posts on Ctrl+Enter", async () => {
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Harness
+          start="Nice"
+          onSubmit={onSubmit}
+          name={{ value: "Rosa", onChange: noop }}
+        />,
+      );
+      await user.click(screen.getByRole("textbox", { name: "Your name" }));
+      await user.keyboard("{Enter}");
+      expect(field()).toHaveFocus();
+      expect(onSubmit).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("textbox", { name: "Your name" }));
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      expect(onSubmit).toHaveBeenCalledOnce();
+    });
   });
 
-  it("unpins when the pinned chip is clicked", async () => {
-    const onUnpinTime = vi.fn();
-    render(
-      <Harness
-        time={{ seconds: 18, pinned: true }}
-        onUnpinTime={onUnpinTime}
-      />,
-    );
-    await userEvent.click(
-      screen.getByRole("button", {
-        name: "Pinned at 18.0 s. Follow the playhead",
-      }),
-    );
-    expect(onUnpinTime).toHaveBeenCalledOnce();
-  });
-
-  it("has no chip for an unanchored comment", () => {
-    render(<Harness />);
-    expect(screen.queryByText(/ s$/)).toBeNull();
-  });
-
-  it("asks a guest for a name before posting", async () => {
-    const onChange = vi.fn();
-    render(
-      <Harness start="Nice" name={{ value: "", onChange, required: true }} />,
-    );
-    expect(submit()).toBeDisabled();
-    expect(submit()).toHaveAttribute("title", "Add your name to post.");
-    await userEvent.type(
-      screen.getByRole("textbox", { name: "Your name" }),
-      "R",
-    );
-    expect(onChange).toHaveBeenCalledWith("R");
-  });
-
-  it("posts a named guest comment once the name is there", () => {
-    render(
-      <Harness
-        start="Nice"
-        name={{ value: "Rosa", onChange: () => undefined, required: true }}
-      />,
-    );
-    expect(submit()).toBeEnabled();
-  });
-
-  it("queues offline: label and a glyph, still postable", () => {
+  it("queues offline: a named arrow and a glyph, still postable", () => {
     render(<Harness start="Later" state="offline" />);
     const button = submit("Queue comment");
     expect(button).toBeEnabled();
@@ -136,59 +325,71 @@ describe("Composer", () => {
     expect(field()).toHaveAttribute("readonly");
   });
 
-  it("is read-only with the reason in view", () => {
-    render(
-      <Harness
-        start="x"
-        disabledReason="Viewers can read comments, not write them."
-      />,
-    );
-    expect(field()).toHaveAttribute("readonly");
-    expect(submit()).toBeDisabled();
-    expect(field()).toHaveAccessibleDescription(
-      "Viewers can read comments, not write them.",
-    );
+  it("puts the arrow inside the field and never fills it with the accent", () => {
+    render(<Harness start="x" />);
+    expect(submit().closest(".sys-composer-field")).not.toBeNull();
+    expect(submit()).not.toHaveClass("primary");
   });
 
-  it("takes a custom label and placeholder, and focuses on request", () => {
-    const focus = { autoFocus: true };
+  it("takes a custom field name, labels and placeholder", () => {
     render(
-      <Harness submitLabel="Reply" placeholder="Reply…" start="a" {...focus} />,
+      <Harness
+        label="Reply to Rosa"
+        submitLabel="Reply"
+        placeholder="Reply…"
+        start="a"
+      />,
     );
+    expect(
+      screen.getByRole("textbox", { name: "Reply to Rosa" }),
+    ).toHaveAttribute("placeholder", "Reply…");
     expect(submit("Reply")).toBeEnabled();
-    expect(field()).toHaveAttribute("placeholder", "Reply…");
+  });
+
+  it("hands the field to inputRef so the caller can focus it", () => {
+    const ref = createRef<HTMLTextAreaElement>();
+    render(<Harness inputRef={ref} />);
+    expect(ref.current).toBe(field());
+    ref.current?.focus();
     expect(field()).toHaveFocus();
   });
 
   it("explains each block in one order", () => {
-    const base = { body: "x" } as const;
-    expect(composerBlock({ ...base, disabledReason: "Viewer" })).toBe("Viewer");
-    expect(composerBlock({ ...base, state: "posting" })).toBe(
+    expect(composerBlock({ body: "x", state: "posting" })).toBe(
       "Wait for the current action to finish.",
     );
-    expect(
-      composerBlock({
-        body: "",
-        name: { value: "", onChange: () => undefined, required: true },
-      }),
-    ).toBe("Add your name to post.");
+    expect(composerBlock({ body: " ", state: "posting" })).toBe(
+      "Wait for the current action to finish.",
+    );
     expect(composerBlock({ body: " " })).toBe("Write a comment to post.");
-    expect(composerBlock(base)).toBeUndefined();
+    expect(composerBlock({ body: "x" })).toBeUndefined();
+    expect(composerBlock({ body: "x", state: "offline" })).toBeUndefined();
+  });
+
+  it("renders no live region: the shell announces", () => {
+    const { container } = render(
+      <>
+        <Harness
+          start="x"
+          state="offline"
+          anchor={{ kind: "follow", seconds: 3 }}
+          onAnchor={noop}
+        />
+        <Harness start="x" state="posting" />
+      </>,
+    );
+    expect(
+      container.querySelector('[aria-live], [role="status"], [role="alert"]'),
+    ).toBeNull();
   });
 
   it("has no axe violations in any state", async () => {
     const { container } = render(
       <>
-        <Harness
-          time={{ seconds: 3, pinned: true }}
-          onUnpinTime={() => undefined}
-        />
-        <Harness
-          compact
-          state="offline"
-          name={{ value: "", onChange: () => undefined, required: true }}
-        />
-        <Harness disabledReason="Viewers cannot comment." />
+        <Harness anchor={{ kind: "pinned", start: 3 }} onAnchor={noop} />
+        <Harness anchor={{ kind: "episode" }} onAnchor={noop} />
+        <Harness compact state="offline" name={{ value: "", onChange: noop }} />
+        <Harness start="x" state="posting" />
       </>,
     );
     await expectNoA11yViolations(container);
