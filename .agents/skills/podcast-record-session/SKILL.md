@@ -29,8 +29,8 @@ use the same path). Comments land as ordinary `review.comments[]` at
 
 | Tool | When |
 |------|------|
-| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`) |
-| `record_state_tool` | Roster, take clock, `start_blockers`, consent |
+| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`). If the current room has a stopped take not yet landed, the result carries `unlanded_take`, `unlanded_takes` and a `warning` and still mints; pass `land_first` to land it first |
+| `record_state_tool` | Roster, take clock, `start_blockers`, consent, `unlanded_take` / `unlanded_takes` (stopped takes not yet landed) |
 | `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
@@ -52,7 +52,7 @@ use the same path). Comments land as ordinary `review.comments[]` at
 **CLI:**
 
 ```bash
-podcast review share --kind record --project episode.project.json   # optional: --target end
+podcast review share --kind record --project episode.project.json   # optional: --target end, --land-first
 podcast record state --project episode.project.json
 podcast record roster --project episode.project.json
 podcast record start --project episode.project.json

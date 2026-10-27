@@ -134,7 +134,19 @@ fails `participant_active` after the remint. Re-invite (`--session-id`) only min
 active room. **Land before minting**: landing reads only the active room, so a
 stopped, not-yet-landed take in the old room is orphaned once a new room is
 minted and its guests lose upload resume on the old link. The mint guard blocks
-only `recording` / `paused`.
+only `recording` / `paused`; an unsaved stopped take warns instead, and the mint
+stays allowed ("start anyway"). The host snapshot (`podcast record state`,
+`record_state_tool`, `GET /api/record/state`) carries `unlanded_take` and
+`unlanded_takes`: the number of stopped, not-discarded takes of the current room
+with full-quality recordings still to land (0 for a staged session already
+accepted or skipped). Every mint (`podcast review share --kind record`,
+`create_record_room_tool`, `POST /api/shares/record`) returns the same two fields
+for the room it replaced, and a plain `warning` ("1 stopped take is not saved to
+the episode yet, and a new room leaves it behind...") when takes were left
+behind. `--land-first` (CLI), `land_first` (MCP tool and route body) lands the
+current room first, then mints; the result adds `landed_first` (the land result)
+and reports 0 left. A land refusal stops the mint and leaves the old links alive
+(route: 400 `record_land_refused`). `land_first` with nothing to save just mints.
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 (live notes — **same create path as review comments**, kind-scoped ACL: guests
