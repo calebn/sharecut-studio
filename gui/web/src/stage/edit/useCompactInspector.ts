@@ -27,11 +27,15 @@ import { useDaw } from "../../state/useDaw";
 import type { Selection } from "../../types/project";
 import type { BottomSheet } from "../../ui/BottomSheet";
 import {
+  CHROME_SCROLLS_CLASS,
   COMPACT_SHEET_CLASS,
+  type CompactSheetFit,
   compactSheetPanel,
+  compactSheetSlot,
   INSPECTOR_SHEET_CLASS,
   inspectorSheetPanel,
   inspectorSheetTop,
+  measureCompactFit,
 } from "../../ui/compactSheet";
 import { DRAWER_MOTION_ATTR } from "../../ui/useDrawerSwipe";
 import { useResizeObserver } from "../../ui/useResizeObserver";
@@ -40,6 +44,9 @@ import {
   type CompactInspectorView,
 } from "../../utils/compactInspectorPref";
 import { CompactHistoryControls } from "../frame/HistoryControls";
+import { isFrameFolded } from "../frame/useShortFrame";
+
+const FULL_ONLY_VIEWS: readonly CompactInspectorView[] = ["peek", "full"];
 
 /** A phone held sideways: the same short-screen line the sheets use. */
 export const SHORT_SCREEN_MQ = "(max-height: 40rem)";
@@ -56,6 +63,8 @@ export function useShortScreen(): boolean {
 interface CompactInspector {
   peek: PeekTarget;
   view: CompactInspectorView;
+  detents: readonly CompactInspectorView[];
+  pinsChrome: boolean;
   stowed: boolean;
   setView: (view: CompactInspectorView) => void;
 }
@@ -168,6 +177,29 @@ export function useCompactInspector(
   const locate = peek?.locate ?? null;
 
   const active = locate != null && !stowed;
+  const [fit, setFit] = useState<CompactSheetFit>({
+    halfFits: true,
+    pinsChrome: true,
+  });
+  useResizeObserver(
+    [
+      () => (peek ? compactSheetSlot() : null),
+      () =>
+        peek
+          ? compactSheetPanel()?.querySelector(".bottom-sheet-header")
+          : null,
+    ],
+    () => {
+      const next = measureCompactFit(isFrameFolded());
+      if (next) {
+        setFit((now) =>
+          now.halfFits === next.halfFits && now.pinsChrome === next.pinsChrome
+            ? now
+            : next,
+        );
+      }
+    },
+  );
   // `view` re-runs it: the strip and the sheet cover different depths.
   useLayoutEffect(() => {
     if (active && locate && view) keepTargetClear(locate);
@@ -185,7 +217,17 @@ export function useCompactInspector(
     return clearClearance;
   }, [locate]);
 
-  return peek ? { peek, view, stowed, setView } : null;
+  const shown = view === "half" && !fit.halfFits ? "full" : view;
+  return peek
+    ? {
+        peek,
+        view: shown,
+        detents: fit.halfFits ? COMPACT_INSPECTOR_VIEWS : FULL_ONLY_VIEWS,
+        pinsChrome: fit.pinsChrome,
+        stowed,
+        setView,
+      }
+    : null;
 }
 
 /** `BottomSheet` props that make the inspector sheet the compact one. */
@@ -212,12 +254,12 @@ export function compactSheetProps(
     compactHeaderActions: createElement(CompactHistoryControls),
     compactResizeIcons: true,
     drawer: {
-      detents: COMPACT_INSPECTOR_VIEWS,
+      detents: compact.detents,
       detent: compact.view,
       onDetentChange: compact.setView,
       label: "Inspector height",
     },
     stowed: compact.stowed,
-    className: `${INSPECTOR_SHEET_CLASS} ${COMPACT_SHEET_CLASS}`,
+    className: `${INSPECTOR_SHEET_CLASS} ${COMPACT_SHEET_CLASS}${compact.pinsChrome ? "" : ` ${CHROME_SCROLLS_CLASS}`}`,
   };
 }

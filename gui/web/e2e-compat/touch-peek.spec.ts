@@ -827,8 +827,10 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
       const card = page.locator(".pending-actionbar");
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
       const compact = page.locator(".bottom-sheet--compact");
+      const expandTo =
+        size === "landscape-636" && rootFont === 32 ? "full" : "half";
       await expect(
-        compact.getByRole("button", { name: "Expand to half height" }),
+        compact.getByRole("button", { name: `Expand to ${expandTo} height` }),
       ).toBeVisible();
       await expect(
         compact.getByRole("button", { name: "Close" }),
@@ -897,7 +899,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
     });
   }
   const compact = page.locator(".bottom-sheet--compact");
-  await compact.getByRole("button", { name: "Expand to half height" }).click();
+  await compact.getByRole("button", { name: "Expand to full height" }).click();
   await expect(
     compact.getByRole("button", { name: "Collapse to strip" }),
   ).toBeVisible();
@@ -1084,11 +1086,15 @@ async function expandAtRootFont(
   }, rootPx);
   await page.waitForTimeout(300);
   const rows: Record<string, unknown>[] = [];
-  for (const [detent, button] of [
-    ["half", "Expand to half height"],
-    ["full", "Expand to full height"],
-  ] as const) {
-    await tapBox(page, finger, page.getByRole("button", { name: button }));
+  const fullOnly = rootPx === 32;
+  for (const detent of fullOnly
+    ? (["full"] as const)
+    : (["half", "full"] as const)) {
+    await tapBox(
+      page,
+      finger,
+      page.getByRole("button", { name: `Expand to ${detent} height` }),
+    );
     await expect(sheet(page)).toHaveClass(
       new RegExp(`bottom-sheet--${detent}`),
     );
