@@ -305,6 +305,11 @@
   box-shadow: none;
 }
 
+/* The tabs are flush with the screen edges, so the ring sits inside them. */
+.sys-stage-bar--tabs .sys-stage-tab:focus-visible {
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
 .sys-stage-bar--tabs .sys-stage-tab[aria-selected="true"] {
   background: transparent;
   color: var(--color-accent-fg);
