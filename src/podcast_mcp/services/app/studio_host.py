@@ -260,7 +260,8 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
         raise StudioBadReply(host)
     if instance != host.instance:
         return None
-    if body.get("protocol") != HANDOFF_PROTOCOL:
+    protocol = body.get("protocol")
+    if type(protocol) is not int or protocol != HANDOFF_PROTOCOL:
         raise StudioBadReply(host)
     serves = body.get("serves")
     if not isinstance(serves, bool):
