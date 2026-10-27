@@ -13,7 +13,7 @@ import { StageFrame } from "../frame/StageFrame";
 import { StageHost, type StageHostProps } from "./StageHost";
 
 const meta: Meta<StageHostProps> = {
-  title: "Stages/Prepare/Prepare",
+  title: "Stages/Prepare/Host",
   component: StageHost,
   beforeEach: episodeBeforeEach,
   render: ({ guestShare, loadFailure }) => (
