@@ -1,20 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
+import { openHome } from "./home";
 
 test.describe("reading surfaces", () => {
-  test("HomeScreen without a project is axe-clean including contrast", async ({
+  test("Home without a project is axe-clean including contrast", async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      window.localStorage.setItem("sharecut.bootstrap.skip", "1");
-    });
-    await page.goto("/?home=1");
-    await expect(
-      page.getByRole("heading", { name: /^ShareCut Studio$/ }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "New project…" }),
-    ).toBeVisible();
+    await openHome(page);
     await expectReadingSurfaceAxeClean(page);
   });
 });
