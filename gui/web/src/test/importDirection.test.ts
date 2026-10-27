@@ -176,9 +176,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
   ],
   "utils -> api": ["utils/tightenIntensity.ts -> api (type)"],
   "utils -> services": ["utils/waveformViewPref.ts -> waveform/types (type)"],
-  "utils -> commands/edit": [
-    "utils/speakerSplit.ts -> edit/rangeSelection (static)",
-  ],
+  "utils -> commands/edit": [],
   "utils -> views": [
     "utils/pendingReviewPass.ts -> feedback/ask (type)",
     "utils/tightenHits.ts -> feedback/ask (type)",
@@ -278,7 +276,7 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "utils -> document": 1,
   "utils -> api": 1,
   "utils -> services": 1,
-  "utils -> commands/edit": 1,
+  "utils -> commands/edit": 0,
   "utils -> views": 3,
   "state -> document": 3,
   "state -> api": 1,
@@ -298,7 +296,7 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "commands/edit -> views": 14,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 62;
+const ALLOWLIST_SIZE = 61;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

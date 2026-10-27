@@ -3442,16 +3442,15 @@ button.sys-picker-option:focus-visible {
 /* Touch targets (design system 4.4): list and alert rows are 48 tall, so their
    buttons are 44 at every width; the rest of Prepare follows. */
 :is(
-    .sys-status--list,
-    .sys-status--alert,
-    .sys-source .sys-status--inline,
-    .sys-ready-actions,
-    .sys-prepare-head,
-    .sys-adv-bar,
-    .sys-adv-row,
-    .sys-vocab-again
-  )
-  .ui-control {
+  .sys-status--list,
+  .sys-status--alert,
+  .sys-source .sys-status--inline,
+  .sys-ready-actions,
+  .sys-prepare-head,
+  .sys-adv-bar,
+  .sys-adv-row,
+  .sys-vocab-again
+) .ui-control {
   min-block-size: var(--touch-min);
   min-inline-size: var(--touch-min);
 }
