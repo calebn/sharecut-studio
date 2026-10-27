@@ -32,9 +32,12 @@ test.describe("Chrome-first bootstrap", () => {
     });
 
     const play = page.getByRole("button", { name: "Play", exact: true });
-    // The Player mounts with the project, so nothing plays while it loads.
+    // The Player renders while the project loads, but its Play is disabled
+    // with the reason, so nothing can play until the project arrives.
     await expect(page.getByRole("tablist", { name: "Stages" })).toBeVisible();
-    await expect(play).toHaveCount(0);
+    await expect(play).toBeVisible();
+    await expect(play).toBeDisabled();
+    await expect(play).toHaveAccessibleDescription("Loading project…");
     await expect(page.getByLabel("Loading timeline")).toBeVisible();
     await expect(page.getByText(/Drop audio files/)).toHaveCount(0);
     await expectPageAxeClean(page);
@@ -44,6 +47,7 @@ test.describe("Chrome-first bootstrap", () => {
       /aligned dialogue/i,
     );
     await expect(play).toBeVisible();
+    await expect(play).toBeEnabled();
     await expect.poll(() => phases.includes("detail")).toBe(true);
     await expectPageAxeClean(page);
 
