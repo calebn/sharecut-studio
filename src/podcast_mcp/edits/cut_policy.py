@@ -228,7 +228,7 @@ class ReviewFields(TypedDict):
 
 
 def review_fields(reason: str | None) -> ReviewFields:
-    """The four Review fields for a reason code. ``label`` and ``suggested_action`` are None exactly when ``sound_kind`` is."""
+    """The four Review fields for a reason."""
     kind = sound_kind(reason)
     label, action = _LABEL_ACTION_BY_SOUND[kind] if kind is not None else (None, None)
     return {
