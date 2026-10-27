@@ -13,14 +13,13 @@ import {
   writeScriptCollapsed,
   writeScriptFocus,
 } from "../utils/stagePref";
+import { stageRoleOf, stagesForRole } from "./stageRoutes";
 import type { DawStore } from "./types";
 
 type StageOpenOptions = {
   section?: ReviewSection;
   /** Open this sheet on the new stage. */
   sheet?: StageSheet;
-  /** Leave the open sheet up across the switch. */
-  keepSheet?: boolean;
 };
 
 export interface StageSliceState {
@@ -50,9 +49,11 @@ export interface StageSliceState {
 }
 
 /** Stage state tied to one project; `hydrate` clears it when the project path changes. */
-export function stageProjectInitial() {
+export function stageProjectInitial(guestMode: string | null = null) {
   return {
-    stage: "edit" as StageId,
+    stage: (guestMode == null
+      ? "edit"
+      : stagesForRole(stageRoleOf(guestMode))[0]) as StageId,
     stageViews: {} as Partial<Record<StageId, StageView>>,
     openSheet: null as StageSheet | null,
     landingSettled: false,
@@ -68,7 +69,7 @@ export const createStageSlice: StateCreator<
   const openStage = (next: StageId, options: StageOpenOptions = {}) => {
     const prev = get().stage;
     set((s) => {
-      const sheet = options.sheet ?? (options.keepSheet ? s.openSheet : null);
+      const sheet = options.sheet ?? null;
       const section = options.section ?? s.reviewSection;
       if (next === prev) {
         return { reviewSection: section, openSheet: sheet };

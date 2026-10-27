@@ -286,7 +286,7 @@ export const createProjectSlice: StateCreator<
             ...presenceProjectInitial(),
             ...transportProjectInitial(),
             ...uiProjectInitial(),
-            ...stageProjectInitial(),
+            ...stageProjectInitial(guestMode),
             ...NO_SELECTION,
             chrome: {
               ...get().chrome,
