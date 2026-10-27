@@ -178,7 +178,7 @@ def test_share_routes_refusals(
     from podcast_mcp.services.record import RecordLandingError
 
     FakeShares.exc = RecordLandingError("land refused")
-    _check(client.post("/api/shares/record", json=body), 400, "record_landing_refused")
+    _check(client.post("/api/shares/record", json=body), 400, "record_land_refused")
     FakeShares.exc = KeyError("tok")
     _check(client.post("/api/shares/record/tok/replace", json=body), 404, "share_not_found")
     FakeShares.exc = RecordStateError("open")
