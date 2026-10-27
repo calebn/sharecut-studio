@@ -49,10 +49,10 @@ def open_start_gap(
     after = max(
         (float(item["timeline_s"]) + float(item["duration_s"]) for item in items), default=before
     )
+    if after - before <= SPAN_EPS_S:
+        return []
     prefix = record_source_prefix(session_id)
     others = any(not (c.source_id or "").startswith(prefix) for c in project.clips)
-    if after - before <= SPAN_EPS_S or not others:
-        return []
     track_ids = [track.id for track in project.tracks]
     open_session_gap(
         project,
@@ -62,7 +62,7 @@ def open_start_gap(
         defaults=defaults,
         keep_comment_ids=keep_comment_ids,
     )
-    return track_ids
+    return track_ids if others else []
 
 
 def close_start_tail(
