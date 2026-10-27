@@ -56,7 +56,7 @@ def project(tmp_workspace: Path) -> Path:
 
 
 def _host(instance: str = "a1", host: str = "127.0.0.1", port: int = 8765) -> StudioHost:
-    return StudioHost(instance, 1234, host, port, "tok", "0.1.1")
+    return StudioHost(instance, os.getpid(), host, port, "tok", "0.1.1")
 
 
 def test_a_withdrawal_removes_only_its_own_runs_announcement(project: Path) -> None:
@@ -112,6 +112,27 @@ def test_a_reaped_studio_process_is_absent_without_pinging(
         if child.poll() is None:
             child.kill()
         child.wait()
+
+
+@pytest.mark.parametrize("pid", [0, -1, 1234])
+def test_unknown_studio_owner_keeps_timeout_protection(
+    project: Path, monkeypatch: pytest.MonkeyPatch, pid: int
+) -> None:
+    announce_studio_host(project, StudioHost("a1", pid, "127.0.0.1", 8765, "tok", "0.1.1"))
+    seen: list[int] = []
+
+    def uncertain(_pid: int, _signal: int) -> None:
+        seen.append(_pid)
+        raise PermissionError("owner cannot be probed")
+
+    def timeout(_host: StudioHost, _project: str) -> tuple[int, object]:
+        raise TimeoutError
+
+    monkeypatch.setattr(os, "kill", uncertain)
+    monkeypatch.setattr(studio_host_module, "_ping", timeout)
+    with pytest.raises(StudioUnresponsive):
+        locate_studio(project)
+    assert seen == ([pid] if pid > 0 and sys.platform != "win32" else [])
 
 
 def test_only_settings_the_caller_set_must_match_and_values_stay_local() -> None:

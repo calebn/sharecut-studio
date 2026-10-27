@@ -31,7 +31,7 @@ from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.util.process import run
+from podcast_mcp.util.process import pid_is_alive, run
 
 SPOOL_LIMIT_BYTES = 6 << 30
 _BYTES_PER_SAMPLE = 4
@@ -68,18 +68,6 @@ _OWNER = re.compile(r"sharecut-decoded-(\d+)-")
 _ORPHAN_AGE_SEC = 3600
 
 
-def _owner_gone(pid: int) -> bool:
-    if os.name == "nt":
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return True
-    except PermissionError:
-        return False
-    return False
-
-
 def _sweep_orphans() -> None:
     """Remove spool directories whose process is gone, and unowned ones an hour old."""
     for directory in Path(tempfile.gettempdir()).glob("sharecut-decoded-*"):
@@ -91,7 +79,8 @@ def _sweep_orphans() -> None:
         if owner:
             pid = int(owner[1])
             orphaned = pid != os.getpid() and (
-                _owner_gone(pid) or (os.name == "nt" and age > _ORPHAN_AGE_SEC)
+                (os.name != "nt" and not pid_is_alive(pid))
+                or (os.name == "nt" and age > _ORPHAN_AGE_SEC)
             )
         else:
             orphaned = age > _ORPHAN_AGE_SEC

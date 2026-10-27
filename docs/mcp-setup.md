@@ -12,9 +12,12 @@ Both modes are local. They do not require an API key or account. The GUI MCP
 endpoint binds to loopback only; do not expose it through a tunnel or a public
 network interface.
 
-When stdio discovers an announced Studio, each loopback ping has five seconds to
-complete its network exchange. Receiving part of a reply does not restart that
-time. A timeout is retried once. If both attempts time out,
+Discovery skips the loopback ping and runs locally when an announced positive
+PID is confirmed gone on POSIX. Windows, nonpositive PIDs, and uncertain process
+checks retain the protective ping. When stdio discovers an announced Studio,
+each loopback ping has five seconds to complete its network exchange. Receiving
+part of a reply does not restart that time. A timeout is retried once. If both
+attempts time out,
 the tool stops with an error instead of running locally, since Studio may still
 be serving the project. A refused connection before the deadline is treated as
 a stale announcement and allows local execution. The CLI uses the same discovery
