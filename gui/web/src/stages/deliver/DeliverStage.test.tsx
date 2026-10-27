@@ -4351,3 +4351,114 @@ describe("round six of the audit", () => {
     );
   });
 });
+
+describe("round seven of the audit", () => {
+  it.each([
+    ["Time of The old mill", "125", "2:05.0"],
+    ["Time of The old mill", "999.9", "16:39.9"],
+    ["Time of The old mill", "3000", "50:00.0"],
+  ])("commits %s typed as %s", async (label, typed, shown) => {
+    setup();
+    const input = screen.getByRole("textbox", { name: label });
+    await userEvent.clear(input);
+    await userEvent.type(input, `${typed}{Enter}`);
+    expect(screen.getByRole("textbox", { name: label })).toHaveValue(shown);
+  });
+
+  it("commits three-digit seconds in the In and Out fields", async () => {
+    setup();
+    await userEvent.click(screen.getByRole("button", { name: "Part…" }));
+    const start = screen.getByRole("textbox", { name: "In" });
+    await userEvent.clear(start);
+    await userEvent.type(start, "125{Enter}");
+    const out = screen.getByRole("textbox", { name: "Out" });
+    await userEvent.clear(out);
+    await userEvent.type(out, "300{Enter}");
+    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("2:05.0");
+    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("5:00.0");
+  });
+
+  it("commits three-digit seconds in a clip's In and Out fields", async () => {
+    setup();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Nobody asked the river" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    const out = screen.getByRole("textbox", { name: /^Out of / });
+    await userEvent.clear(out);
+    await userEvent.type(out, "700{Enter}");
+    const start = screen.getByRole("textbox", { name: /^In of / });
+    await userEvent.clear(start);
+    await userEvent.type(start, "125{Enter}");
+    expect(screen.getByRole("textbox", { name: /^In of / })).toHaveValue(
+      "2:05.0",
+    );
+    expect(screen.getByRole("textbox", { name: /^Out of / })).toHaveValue(
+      "11:40.0",
+    );
+  });
+
+  it("keeps a 60-character chapter title intact, keystroke by keystroke", async () => {
+    setup();
+    const title =
+      "A chapter title that runs on well past any short limit, 60 ch";
+    expect(title).toHaveLength(61);
+    const text = title.slice(0, 60);
+    const input = screen.getByRole("textbox", {
+      name: "Title of The old mill",
+    });
+    await userEvent.clear(input);
+    await userEvent.type(input, text);
+    expect(input).toHaveValue(text);
+  });
+
+  it.each([
+    ["ready", {}],
+    ["loading", { state: "loading" }],
+    ["error", { state: "error" }],
+    ["ready with nothing in it", { initialChapters: [], initialClips: [] }],
+    [
+      "loading with nothing in it",
+      { state: "loading", initialChapters: [], initialClips: [] },
+    ],
+  ] as const)("shows a guest only the cover while %s", (_name, extra) => {
+    for (const layout of ["desktop", "phone"] as const) {
+      const { container, unmount } = setup({
+        ...(extra as Partial<DeliverStageProps>),
+        guest: true,
+        layout,
+      });
+      expect(screen.getByText("Only the host can deliver")).toBeInTheDocument();
+      expect(
+        screen.getByText("You can listen and comment in Review."),
+      ).toBeInTheDocument();
+      for (const section of [
+        "Episode file",
+        "Chapters",
+        "Clips",
+        "Listen link",
+      ])
+        expect(screen.queryByRole("heading", { name: section })).toBeNull();
+      expect(screen.queryAllByRole("button")).toHaveLength(0);
+      expect(container.querySelector(".dv-page, .dv-foot")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("names chapter Play buttons by the same disambiguated names", () => {
+    setup({
+      initialChapters: [
+        { id: "a", at: 1, title: "Intro" },
+        { id: "b", at: 2, title: "Intro " },
+        { id: "c", at: 3, title: "   " },
+        { id: "d", at: 4, title: "" },
+      ],
+    });
+    for (const name of ["Intro 1", "Intro 2", "chapter 3", "chapter 4"])
+      expect(
+        screen.getByRole("button", { name: `Play from ${name}` }),
+      ).toBeInTheDocument();
+  });
+});
