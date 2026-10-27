@@ -21,13 +21,15 @@ export function clamp(value: number, { min, max }: ScrubBounds): number {
 }
 
 export function roundTo(value: number, decimals: number): number {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor || 0;
+  const scaled = value * 10 ** decimals;
+  if (!Number.isFinite(scaled)) return value;
+  return Math.round(scaled) / 10 ** decimals || 0;
 }
 
 export function placesOf(step: number): number {
-  const [, fraction = ""] = String(step).split(".");
-  return fraction.length;
+  const [mantissa = "", exponent = "0"] = String(step).split("e");
+  const fraction = mantissa.split(".")[1] ?? "";
+  return Math.max(0, fraction.length - Number(exponent));
 }
 
 export function formatScrub(value: number, decimals: number): string {
@@ -37,9 +39,11 @@ export function formatScrub(value: number, decimals: number): string {
 export function parseScrub(text: string, unit?: string): number | null {
   let body = text.trim();
   if (unit && body.endsWith(unit)) body = body.slice(0, -unit.length).trim();
+  if (/,\d{3}(\D|$)/.test(body)) return null;
   body = body.replace(MINUS, "-").replace(",", ".");
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(body)) return null;
-  return Number(body);
+  const parsed = Number(body);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function inBounds(value: number, bounds: ScrubBounds): boolean {

@@ -254,6 +254,10 @@ const SURFACE_GESTURES: Record<string, string> = {
     "a suggestion's edge handles move a control inside one Decision card, not a timeline target; they preview the range and the card saves on decision",
   "system/RecordButton.tsx":
     "the Record button: a 600 ms press-and-hold stops a live take, and Enter or Space asks first; it is not a timeline target",
+  "system/ScrubField.tsx":
+    "the scrub field: a horizontal drag previews a number and saves one value on release; it is an inspector field, not a timeline target",
+  "system/useHoverTip.ts":
+    "a hover tip opens for a mouse or pen and never for a touch; it starts no gesture",
   "system/useSwipeDecision.ts":
     "the Review card and queue row swipe: right is the verb, left is Keep, up is Later (the Swipe right and Swipe left rows in verbs.ts), 80 px to commit",
   "presence/usePresenceCursorSource.ts":
@@ -271,6 +275,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
   "keymap/registry.ts": "the keymap rows that bind the arrows",
   "system/SuggestionWaveform.tsx":
     "a focused suggestion handle moves its edge with the arrows, 0.05 s and 0.5 s with Shift, like a slider",
+  "system/ScrubField.tsx":
+    "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",
   "ui/useMenuKeyboard.ts": "arrows step through the items of an open menu",
 };

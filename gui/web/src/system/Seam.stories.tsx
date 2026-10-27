@@ -114,10 +114,10 @@ export const SeamKinds: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: "Cut at 4:10.2" }),
+      canvas.getByRole("button", { name: /^Cut at 4:10\.2/ }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: "Split at 12:04.3" }),
+      canvas.getByRole("button", { name: /^Split at 12:04\.3/ }),
     ).toBeVisible();
   },
 };
@@ -126,7 +126,7 @@ export const Selected: Story = {
   render: () => <Lane marks={kinds} />,
   play: async ({ canvasElement }) => {
     const split = within(canvasElement).getByRole("button", {
-      name: "Split at 12:04.3",
+      name: /^Split at 12:04\.3/,
     });
     await userEvent.click(split);
     await expect(split).toHaveAttribute("aria-pressed", "true");
@@ -137,7 +137,7 @@ export const Hover: Story = {
   render: () => <Lane marks={kinds} />,
   play: async ({ canvasElement }) => {
     await userEvent.hover(
-      within(canvasElement).getByRole("button", { name: "Cut at 4:10.2" }),
+      within(canvasElement).getByRole("button", { name: /^Cut at 4:10\.2/ }),
     );
     await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
       "2.4 s removed",

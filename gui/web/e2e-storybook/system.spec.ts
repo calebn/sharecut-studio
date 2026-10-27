@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -178,4 +178,56 @@ test("System/Player follow pill X has a 44 px hit area at 360", async ({
     [20, 0],
   );
   expect(reach).toBe(true);
+});
+
+test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({
+  page,
+}) => {
+  await open(page, "system-marker--range-under-chapter", 1280);
+  const range = page.getByRole("button", { name: /^Comment by Maya/ });
+  const chapter = page.getByRole("button", { name: /^Chapter Intro/ });
+  await expect(range).toBeVisible();
+  const box = await range.boundingBox();
+  const chapterBox = await chapter.boundingBox();
+  if (!box || !chapterBox) throw new Error("Markers did not render");
+  const x = box.x + box.width * 0.65;
+  expect(x).toBeGreaterThan(chapterBox.x + chapterBox.width);
+  const hit = await page.evaluate(
+    ([px, py]) =>
+      document.elementFromPoint(px, py)?.closest("button")?.ariaLabel ?? null,
+    [x, box.y + box.height / 2],
+  );
+  expect(hit).toMatch(/^Comment by Maya/);
+  await page.mouse.move(x, box.y + box.height / 2);
+  await expect(page.getByRole("tooltip")).not.toContainText("Intro");
+});
+
+test("System/Seam a coarse text pill leaves the lines around it to the text", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: "http://127.0.0.1:6010",
+  });
+  const page = await context.newPage();
+  await page.goto(storyUrl("system-seam--text-pill", { theme: "light" }));
+  const pill = page.getByRole("button", { name: "Cut, 2.4 s removed" });
+  await expect(pill).toBeVisible();
+  const box = await pill.boundingBox();
+  if (!box) throw new Error("Pill did not render");
+  const hits = await page.evaluate(
+    ([x, top, bottom, middle]) => {
+      const at = (y: number) =>
+        document.elementFromPoint(x, y)?.closest("button") !== null;
+      return { above: at(top), below: at(bottom), pill: at(middle) };
+    },
+    [
+      box.x + box.width / 2,
+      box.y - 10,
+      box.y + box.height + 10,
+      box.y + box.height / 2,
+    ],
+  );
+  await context.close();
+  expect(hits).toEqual({ above: false, below: false, pill: true });
 });

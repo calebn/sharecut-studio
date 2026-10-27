@@ -49,6 +49,7 @@ export type ScrubFieldProps = ScrubRange & {
 };
 
 type Drag = {
+  pointerId: number;
   originX: number;
   lastX: number;
   start: number | null;
@@ -81,11 +82,26 @@ export function ScrubField({
   const drag = useRef<Drag | null>(null);
   const draftRef = useRef<string | null>(null);
   const refocus = useRef(false);
+  const latestCancel = useRef(onCancel);
+  const [rejected, setRejected] = useState(false);
   const [draft, setDraftState] = useState<string | null>(null);
   const setDraft = (next: string | null) => {
     draftRef.current = next;
+    if (next === null) setRejected(false);
     setDraftState(next);
   };
+
+  useEffect(() => {
+    latestCancel.current = onCancel;
+  });
+
+  useEffect(
+    () => () => {
+      if (drag.current?.active) latestCancel.current?.();
+      drag.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (draft === null && refocus.current) {
@@ -111,9 +127,10 @@ export function ScrubField({
   };
 
   const onPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
-    if (readOnly || event.button !== 0) return;
+    if (readOnly || event.button !== 0 || drag.current) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     drag.current = {
+      pointerId: event.pointerId,
       originX: event.clientX,
       lastX: event.clientX,
       start: value,
@@ -125,7 +142,7 @@ export function ScrubField({
 
   const onPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
     const gesture = drag.current;
-    if (!gesture) return;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
     if (!gesture.active) {
       if (!isHandleDrag(gesture.originX, event.clientX)) return;
       gesture.active = true;
@@ -144,22 +161,28 @@ export function ScrubField({
     onPreview?.(next);
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (event: PointerEvent<HTMLSpanElement>) => {
     const gesture = drag.current;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
     drag.current = null;
-    if (!gesture) return;
     if (!gesture.active) {
       setDraft(value === null ? "" : formatScrub(value, decimals));
       return;
     }
-    if (gesture.current === gesture.start) onCancel?.();
+    if (gesture.current === roundTo(gesture.start ?? base, decimals))
+      onCancel?.();
     else onCommit(gesture.current);
+  };
+
+  const commitStep = (next: number) => {
+    if (next !== value) onCommit(next);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
     if (event.key === "Escape") {
       if (drag.current?.active) {
         event.preventDefault();
+        event.stopPropagation();
         cancelDrag();
       }
       return;
@@ -173,15 +196,19 @@ export function ScrubField({
           : null;
     if (direction !== null) {
       event.preventDefault();
-      onCommit(steppedValue(base, direction, step, event, decimals, bounds));
+      event.stopPropagation();
+      commitStep(steppedValue(base, direction, step, event, decimals, bounds));
     } else if (event.key === "Home" && min !== undefined) {
       event.preventDefault();
-      onCommit(min);
+      event.stopPropagation();
+      commitStep(min);
     } else if (event.key === "End" && max !== undefined) {
       event.preventDefault();
-      onCommit(max);
+      event.stopPropagation();
+      commitStep(max);
     } else if (event.key === "Enter" || event.key === "F2") {
       event.preventDefault();
+      event.stopPropagation();
       setDraft(value === null ? "" : formatScrub(value, decimals));
     }
   };
@@ -191,7 +218,10 @@ export function ScrubField({
     if (text === null) return;
     const parsed = parseScrub(text, unit);
     const valid = parsed !== null && inBounds(parsed, bounds);
-    if (how === "enter" && !valid) return;
+    if (how === "enter" && !valid) {
+      setRejected(true);
+      return;
+    }
     refocus.current = how !== "blur";
     setDraft(null);
     if (how === "escape" || parsed === null || !valid) return;
@@ -245,6 +275,7 @@ export function ScrubField({
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={cancelDrag}
+            onLostPointerCapture={cancelDrag}
             onKeyDown={onKeyDown}
           >
             {variant === "level" ? (
@@ -267,7 +298,10 @@ export function ScrubField({
               draft={draft}
               invalid={message !== undefined}
               describedBy={message ? errorId : undefined}
-              onChange={setDraft}
+              onChange={(text) => {
+                setRejected(false);
+                setDraft(text);
+              }}
               onKeyDown={onInputKeyDown}
               onBlur={() => finishEdit("blur")}
             />
@@ -284,7 +318,11 @@ export function ScrubField({
         ) : null}
       </span>
       {message ? (
-        <span id={errorId} className="sys-scrub-error" role="alert">
+        <span
+          id={errorId}
+          className="sys-scrub-error"
+          role={error || rejected ? "alert" : undefined}
+        >
           {message}
         </span>
       ) : null}

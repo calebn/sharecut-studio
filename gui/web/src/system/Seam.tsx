@@ -31,7 +31,11 @@ export function Seam(props: SeamProps) {
   const { open, id, anchor, setAnchor, handlers } =
     useHoverTip<HTMLButtonElement>();
   const diamond = props.form === "diamond";
-  const name = diamond ? props.label : `Cut, ${props.removed} removed`;
+  const name = diamond
+    ? props.detail
+      ? `${props.label}, ${props.detail}`
+      : props.label
+    : `Cut, ${props.removed} removed`;
   const hasTip = diamond || Boolean(props.words);
   return (
     <span
@@ -46,7 +50,7 @@ export function Seam(props: SeamProps) {
         className="sys-seam-hit"
         aria-label={name}
         aria-pressed={selected}
-        aria-describedby={hasTip && open ? id : undefined}
+        aria-description={diamond ? undefined : props.words}
         onClick={onSelect}
       >
         {diamond ? (
