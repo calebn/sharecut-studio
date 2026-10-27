@@ -172,6 +172,40 @@ def test_a_returning_guest_lands_on_their_session_1_track_with_cuts_intact(
     assert starts[1] > starts[0]
 
 
+def test_session_2_lands_at_the_end_with_session_1_cuts_intact(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.edits.ripple import ripple_remove_clips, ripple_track_ids
+
+    ws = _seed(minimal_project, sample_wav)
+    _room(ws, ["Ava"], land=True)
+    ws.mutate(
+        "cut",
+        "cut",
+        lambda p: ripple_remove_clips(
+            p, [(0.1, 0.3)], ripple_track_ids(p), defaults=ws.effective_config()
+        ),
+    )
+    ws.reload()
+    [ava_track] = [t for t, label in _tracks(ws).items() if label == "Ava"]
+    before = [
+        (c.id, c.source_start, c.source_end, c.timeline_start)
+        for c in ws.project.clips
+        if c.track_id == ava_track
+    ]
+    end_s = max(c.timeline_start + (c.source_end - c.source_start) for c in ws.project.clips)
+    _room(ws, ["ava"], land=True)
+    ws.reload()
+    after = [
+        (c.id, c.source_start, c.source_end, c.timeline_start)
+        for c in ws.project.clips
+        if c.track_id == ava_track
+    ]
+    assert len(after) == len(before) + 1 and all(row in after for row in before)
+    new = [row for row in after if row not in before]
+    assert new[0][3] >= end_s - 1e-6  # Session 2 starts at the end of Session 1
+
+
 def test_a_new_person_gets_a_new_track(minimal_project, sample_wav, tmp_workspace):
     ws = _seed(minimal_project, sample_wav)
     _room(ws, ["Ava"], land=True)
