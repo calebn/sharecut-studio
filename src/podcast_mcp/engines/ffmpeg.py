@@ -2042,6 +2042,8 @@ class FFmpegEngine:
                 if callback_failed:
                     raise
                 return None
+        if decoded_no_frames(text):
+            return None
         text = ebur128_summary_text(text)
         i_m = re.search(r"\bI:\s*(-?\d+\.?\d*)\s*LUFS", text)
         tp_m = re.search(r"Peak:\s*(-?\d+\.?\d*)\s*dBFS", text)
@@ -2364,7 +2366,9 @@ class FFmpegEngine:
             "-",
         ]
         r = run(cmd, capture_output=True)
-        text = ebur128_summary_text(r.stderr) if r.returncode == 0 else ""
+        if r.returncode != 0 or decoded_no_frames(r.stderr):
+            return None
+        text = ebur128_summary_text(r.stderr)
         m = re.search(r"I:\s*(-?\d+\.?\d*)\s*LUFS", text)
         if m:
             return float(m.group(1))
