@@ -31,6 +31,12 @@ from podcast_mcp.gui.routes.handoff import set_served_project
 from podcast_mcp.project.io import require_episode_project_file
 from podcast_mcp.project.merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.app.recent_projects import (
+    default_workspace_dir,
+    forget_recent,
+    recent_project_cards,
+    record_recent,
+)
 from podcast_mcp.services.document import HistoryService, PlayService
 from podcast_mcp.services.session_sync import is_loopback_host
 
@@ -40,7 +46,8 @@ _PICK_LOCK = threading.Lock()
 
 
 class CreateProjectBody(BaseModel):
-    workspace_dir: str
+    # Blank: the server picks <workspace root>/<name>, numbered when taken (Home's tiles).
+    workspace_dir: str = ""
     name: str = "episode"
 
 
@@ -60,6 +67,7 @@ def pin_served_if_allowed(request: Request, project_path: Path) -> None:
     served = project_path.resolve()
     if request.app.state.served_project != served:
         set_served_project(request.app, served)
+        record_recent(served)
 
 
 def _unpin_served_if_allowed(request: Request) -> None:
@@ -99,11 +107,14 @@ def create_project(
         raise coded_http_error(
             403, "project create not allowed from this client", code="project_create_not_allowed"
         )
+    name = body.name.strip() or "episode"
+    workspace_dir = body.workspace_dir.strip() or str(default_workspace_dir(name))
     try:
-        ws = ProjectWorkspace.create(body.workspace_dir, name=body.name.strip() or "episode")
+        ws = ProjectWorkspace.create(workspace_dir, name=name)
     except Exception as exc:
         raise coded_exception_error(400, exc, code="project_create_failed") from exc
     pin_served_if_allowed(request, ws.path)
+    record_recent(ws.path)
     return {"project_path": str(ws.path), "name": ws.project.name}
 
 
@@ -160,6 +171,7 @@ def open_project_path(
         )
     ws = _open_validated(body.path)
     pin_served_if_allowed(request, ws.path)
+    record_recent(ws.path)
     return {"project_path": str(ws.path), "name": ws.project.name}
 
 
@@ -177,6 +189,42 @@ def close_project_path(
         )
     _unpin_served_if_allowed(request)
     return {"ok": True}
+
+
+@router.get("/api/projects/recent")
+def list_recent_projects(
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> JSONResponse:
+    """The last opened episodes on this machine as Home cards (host / loopback only)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    if not _peer_may_switch_project(request):
+        raise coded_http_error(
+            403,
+            "recent projects not available from this client",
+            code="project_recent_not_allowed",
+        )
+    cards = recent_project_cards(getattr(request.app.state, "jobs", None))
+    return JSONResponse({"projects": cards}, headers={"Cache-Control": "no-store"})
+
+
+@router.delete("/api/projects/recent")
+def forget_recent_project(
+    request: Request,
+    path: str = Query(..., description="Path of the entry to drop from the list"),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, bool]:
+    """Remove one entry from the recent list; the project itself is never touched."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    if not _peer_may_switch_project(request):
+        raise coded_http_error(
+            403,
+            "recent projects not available from this client",
+            code="project_recent_not_allowed",
+        )
+    return {"removed": forget_recent(path)}
 
 
 @router.get("/api/health")
