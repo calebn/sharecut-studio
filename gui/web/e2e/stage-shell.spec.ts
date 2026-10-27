@@ -182,6 +182,44 @@ test.describe("Stage shell on desktop", () => {
   });
 });
 
+for (const width of [1024, 1440]) {
+  test.describe(`Blade cut button at ${width}`, () => {
+    test.use({ viewport: { width, height: 900 } });
+
+    test("takes a real click and adds a clip", async ({ page }) => {
+      await openProject(page);
+      const pathParam = encodeURIComponent(e2eProjectPath);
+      const clipCount = async () => {
+        const res = await page.request.get(
+          `/api/project?path=${pathParam}&phase=full`,
+        );
+        const body = (await res.json()) as {
+          clips: { tracks: Record<string, unknown[]> };
+        };
+        return Object.values(body.clips.tracks).reduce(
+          (sum, clips) => sum + clips.length,
+          0,
+        );
+      };
+      const before = await clipCount();
+      await page.getByRole("slider", { name: "Timeline position" }).focus();
+      await page.keyboard.press("ArrowRight");
+      await selectTool(page, "blade");
+      const cut = page
+        .getByRole("group", { name: "Editing tools" })
+        .getByRole("button", { name: "Blade cut", exact: true });
+      await expect(cut).toBeVisible();
+      // No force: Playwright fails the click if anything covers the button.
+      await cut.click({ timeout: 5000 });
+      const confirm = page.getByRole("dialog", { name: /^Cut at/ });
+      if (await confirm.isVisible().catch(() => false)) {
+        await confirm.getByRole("button", { name: "Cut", exact: true }).click();
+      }
+      await expect.poll(clipCount).toBeGreaterThan(before);
+    });
+  });
+}
+
 test.describe("Stage shell on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
