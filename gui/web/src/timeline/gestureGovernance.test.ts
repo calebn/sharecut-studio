@@ -252,6 +252,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "a step's seconds setting is a native range input beside its value; it is a setting, not a timeline target",
   "system/SuggestionWaveform.tsx":
     "a suggestion's edge handles move a control inside one Decision card, not a timeline target; they preview the range and the card saves on decision",
+  "stages/deliver/ClipTrimWave.tsx":
+    "a clip's In and Out handles move a control inside one Deliver clip card, not a timeline target; they edit the clip's range and snap to words",
   "system/RecordButton.tsx":
     "the Record button: a 600 ms press-and-hold stops a live take, and Enter or Space asks first; it is not a timeline target",
   "system/ScrubField.tsx":
@@ -277,6 +279,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
   "keymap/registry.ts": "the keymap rows that bind the arrows",
   "system/SuggestionWaveform.tsx":
     "a focused suggestion handle moves its edge with the arrows, 0.05 s and 0.5 s with Shift, like a slider",
+  "stages/deliver/ClipTrimWave.tsx":
+    "a focused clip trim handle moves by one word with the arrows, ten with Shift, 10 ms with Alt, like a slider",
   "system/ScrubField.tsx":
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "system/scriptSelection.ts":

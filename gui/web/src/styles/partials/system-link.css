@@ -56,6 +56,20 @@
   font-size: var(--font-size-small);
 }
 
+.sys-link-reach {
+  display: flex;
+  flex-basis: 100%;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-link-reach svg {
+  flex: none;
+  margin-block-start: 0.15em;
+}
+
 .sys-link-opened {
   display: inline-flex;
 }
