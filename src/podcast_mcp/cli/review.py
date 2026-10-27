@@ -394,7 +394,7 @@ def review_share_cmd(
         "--land-first",
         help=(
             "record: save the current room's stopped take to the episode, then mint the new "
-            "room. Without it a new room still starts, and says what it left behind"
+            "room. Without it a new room still starts, and warns when it knows of unsaved takes"
         ),
     ),
 ) -> None:

@@ -29,8 +29,8 @@ class Unsaved:
     """Stopped takes of the active room whose recordings are not on the episode.
 
     ``takes``: every take with something unsaved. ``landable``: takes with a finished
-    recording a land can save. ``saving``: takes with a guest upload still within the grace
-    window. ``stalled``: guest recordings that never finished (a partial upload gone quiet,
+    recording a land can save. ``saving``: takes with an upload still within the grace
+    window. ``stalled``: recordings that never finished (a partial upload gone quiet,
     a removed guest's partial upload, or nothing arriving after the grace window); a land
     cannot save them. ``closed``: the room's staged session was already accepted or skipped,
     so landing refuses its newer takes.
