@@ -6,9 +6,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { CloseButton } from "../ui";
 import type { SystemIconName } from "./icons";
 import {
+  detentHeight,
   dragHeight,
   INSPECTOR_DETENTS,
   type InspectorBounds,
@@ -73,6 +75,8 @@ const DETENT_TEXT: Record<InspectorDetent, string> = {
   full: "Full height",
 };
 
+const TOUCH_TAP_SLOP_PX = 8;
+
 function Name({ name, onRename }: Pick<InspectorBase, "name" | "onRename">) {
   const [draft, setDraft] = useState<string | null>(null);
   if (!onRename) return <>{name}</>;
@@ -91,6 +95,7 @@ function Name({ name, onRename }: Pick<InspectorBase, "name" | "onRename">) {
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => finish(true)}
       onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         if (event.key === "Enter") {
           event.preventDefault();
           finish(true);
@@ -250,6 +255,8 @@ function Phone({
   const [dragging, setDragging] = useState<number | null>(null);
   const grab = useGrab<"grip">({
     axis: "y",
+    slop: (_grip, event) =>
+      event.pointerType === "mouse" ? HANDLE_DRAG_MIN_PX : TOUCH_TAP_SLOP_PX,
     canGrab: () => true,
     onStart: () => {
       const el = sheet.current;
@@ -280,6 +287,7 @@ function Phone({
         gesture.height,
         riseVelocity(samples.current, performance.now()),
         gesture.container,
+        gesture.start <= detentHeight("dock", gesture.container),
       );
       if (next === "dismiss") onDismiss();
       else if (next !== detent) onDetentChange(next);
