@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { formatBytes, ModelGateHint, ModelGatePanel } from "../../models";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
@@ -64,6 +64,15 @@ export function EpisodeFile({
   onDownload,
 }: Props) {
   const wavNote = useId();
+  const gatePanel = useRef<HTMLDivElement>(null);
+  const askPhase =
+    exportState.phase === "needs-model" ? options.gate?.prompt?.phase : null;
+  useEffect(() => {
+    if (!askPhase) return;
+    const first = gatePanel.current?.querySelector("button");
+    first?.scrollIntoView?.({ block: "center" });
+    first?.focus();
+  }, [askPhase]);
   if (state === "loading") {
     return (
       <DeliverSection title="Episode file">
@@ -243,7 +252,9 @@ export function EpisodeFile({
       ) : null}
 
       {exportState.phase === "needs-model" && options.gate ? (
-        <ModelGatePanel gate={options.gate} />
+        <div ref={gatePanel}>
+          <ModelGatePanel gate={options.gate} />
+        </div>
       ) : null}
       {exportState.phase === "needs-model" && !options.gate ? (
         <StatusRow

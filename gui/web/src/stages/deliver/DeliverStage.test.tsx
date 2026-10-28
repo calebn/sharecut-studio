@@ -5093,7 +5093,7 @@ describe("host export options", () => {
     expect(all.onExport).not.toHaveBeenCalled();
   });
 
-  it("shows the model prompt in place of the model row, and its decline hint after a failure", async () => {
+  const missingModelGate = () => {
     const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
     const accept = vi.fn();
     const gate: ModelGate = {
@@ -5114,6 +5114,11 @@ describe("host export options", () => {
       openModels: vi.fn(),
       reset: vi.fn(),
     };
+    return { view, accept, gate };
+  };
+
+  it("shows the model prompt in place of the model row, and its decline hint after a failure", async () => {
+    const { view, accept, gate } = missingModelGate();
     const { unmount } = setup({
       exportState: {
         phase: "needs-model",
@@ -5141,6 +5146,19 @@ describe("host export options", () => {
       },
     });
     expect(screen.getByText(/Export will ask again/)).toBeInTheDocument();
+  });
+
+  it("moves focus to the model prompt's Download when it appears", () => {
+    const { gate } = missingModelGate();
+    setup({
+      exportState: {
+        phase: "needs-model",
+        model: "Speaker model",
+        size: "25 MB",
+      },
+      exportOptions: { gate },
+    });
+    expect(screen.getByRole("button", { name: "Download" })).toHaveFocus();
   });
 
   it("swaps the loudness choice for the host's sentence", () => {
