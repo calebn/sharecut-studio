@@ -159,9 +159,14 @@ export async function waitForLanding(page: Page): Promise<void> {
 /**
  * A window too short or too narrow for the Edit rows folds the surface switch
  * and the tool strip behind the header's Tools button. Open its sheet when it
- * is there; the controls it holds are then visible. Returns whether it opened.
+ * is there; the controls it holds are then visible. A `control` already on the
+ * screen needs no sheet. Returns whether it opened.
  */
-export async function openToolsIfFolded(page: Page): Promise<boolean> {
+export async function openToolsIfFolded(
+  page: Page,
+  control?: Locator,
+): Promise<boolean> {
+  if (control && (await control.isVisible())) return false;
   const button = page.getByRole("button", { name: "Tools", exact: true });
   if (!(await button.isVisible())) return false;
   const sheet = page.getByRole("dialog", { name: "Tools" });
@@ -176,7 +181,7 @@ export async function openToolsIfFolded(page: Page): Promise<boolean> {
 export async function closeTools(page: Page): Promise<void> {
   const sheet = page.getByRole("dialog", { name: "Tools" });
   if (await sheet.isVisible()) {
-    await sheet.getByRole("button", { name: "Close" }).click();
+    await sheet.getByRole("button", { name: "Close", exact: true }).click();
     await expect(sheet).toBeHidden();
   }
 }
@@ -423,12 +428,12 @@ export async function selectTool(
   tool: "select" | "blade",
 ): Promise<void> {
   await goToStage(page, "edit");
-  const folded = await openToolsIfFolded(page);
   const strip = page.getByRole("group", { name: "Editing tools" });
   const button = strip.getByRole("button", {
     name: tool === "select" ? "Select tool" : "Blade tool",
     exact: true,
   });
+  const folded = await openToolsIfFolded(page, button);
   await button.click();
   await expect(button).toHaveAttribute("aria-pressed", "true");
   if (folded) await closeTools(page);
@@ -444,11 +449,10 @@ export async function addTrack(page: Page): Promise<void> {
 /** Arm range selection from the Edit tool strip; the Range actions form opens. */
 export async function armRange(page: Page): Promise<void> {
   await goToStage(page, "edit");
-  // Folded, the Range actions open over the Tools sheet and leave it be.
-  await openToolsIfFolded(page);
   const button = page
     .getByRole("group", { name: "Editing tools" })
     .getByRole("button", { name: "Select range", exact: true });
+  await openToolsIfFolded(page, button);
   await button.click();
   await expect(
     page.getByRole("region", { name: "Range actions" }),
@@ -474,10 +478,10 @@ export async function setAudition(page: Page, mode: Audition): Promise<void> {
  */
 export async function armCommentMode(page: Page): Promise<void> {
   await goToStage(page, "edit");
-  const folded = await openToolsIfFolded(page);
   const toggle = page
     .getByRole("group", { name: "Editing tools" })
     .getByRole("button", { name: "Toggle comment mode", exact: true });
+  const folded = await openToolsIfFolded(page, toggle);
   if ((await toggle.getAttribute("aria-pressed")) !== "true") {
     await toggle.click();
   }
