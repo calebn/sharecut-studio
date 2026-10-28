@@ -153,7 +153,7 @@ describe("README rule: prefer useProjectMutation", () => {
     "inspector/views/EnvelopeWorkspace.tsx",
     "panels/PipelinePanel.tsx",
     "panels/TranscriptVocabularyEditor.tsx",
-    "stage/dialogs/ShareDialog.tsx",
+    "stage/hosts/shareFlow.ts",
   ];
   const ALLOWLIST_SIZE = 10;
 
