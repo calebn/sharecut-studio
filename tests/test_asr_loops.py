@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import zlib
 from unittest.mock import MagicMock
 
 import pytest
@@ -49,7 +50,7 @@ def _speech(count: int, start: float, step: float) -> list[TranscriptWord]:
     return _words([f"word{i}" for i in range(count)], start, step)
 
 
-def test_mac_tail_loop_dropped_and_real_words_kept() -> None:
+def test_tail_loop_dropped_and_real_words_kept() -> None:
     real = _speech(20, 294.0, 0.3)
     loop = _words(LOOP_TEXT[:221], 299.84, 0.12 / 221)
     report = drop_looped_words([*real, *loop])
@@ -183,6 +184,62 @@ def test_empty_single_and_zero_duration_words() -> None:
 
 
 def test_zlib_ratio_matches_the_whisper_formula() -> None:
+    text = "abc " * 40
+    data = text.encode()
+    assert zlib_ratio(text) == len(data) / len(zlib.compress(data))
     assert zlib_ratio("") == 0.0
-    assert zlib_ratio(" ".join(LOOP_TEXT)) > 10
-    assert zlib_ratio(" ".join(VARIED)) < 1.5
+
+
+def test_looped_segments_count_windows_not_distinct_ratios() -> None:
+    words = [*_words(["a"] * 3, 0.0, 2.0), *_words(["b"] * 3, 10.0, 2.0)]
+    assert drop_looped_words(words, [3.0] * 6).looped_segments == 2
+    assert drop_looped_words(words, [3.0] * 3 + [3.5] * 3).looped_segments == 2
+    assert drop_looped_words(words[:3], [3.0] * 3).looped_segments == 1
+
+
+def test_a_real_word_between_two_loop_runs_is_kept() -> None:
+    first = _words(LOOP_TEXT[:20], 10.0, 0.03)
+    stop = _words(["stop"], 10.8, 0.0)
+    second = _words(LOOP_TEXT[:20], 11.0, 0.03)
+    report = drop_looped_words([*first, *stop, *second])
+    assert report.kept == stop
+    assert report.dropped == [*first, *second]
+
+
+def test_a_real_word_after_a_loop_run_is_kept_and_a_short_second_run_is_not_dense() -> None:
+    first = _words(LOOP_TEXT[:20], 10.0, 0.05)
+    stop = _words(["stop"], 11.2, 0.0)
+    tail = _words(LOOP_TEXT[:10], 11.3, 0.05)
+    report = drop_looped_words([*first, *stop, *tail])
+    assert report.dropped == first
+    assert report.kept == [*stop, *tail]
+    assert report.dense_words == 0
+
+
+def test_a_real_word_just_before_a_loop_run_goes_with_it() -> None:
+    yes = _words(["yes"], 9.95, 0.0)
+    loop = _words(LOOP_TEXT[:20], 10.0, 0.05)
+    report = drop_looped_words([*yes, *loop])
+    assert report.dropped == [*yes, *loop]
+
+
+def test_clean_words_beside_a_squeezed_loop_survive() -> None:
+    clean = _speech(25, 0.0, 0.4)
+    loop = _words(LOOP_TEXT[:40], 10.0, 0.05)
+    report = drop_looped_words([*clean, *loop])
+    assert report.kept == clean
+    assert report.dropped == loop
+
+
+def test_a_real_word_that_starts_inside_a_squeezed_run_goes_with_it() -> None:
+    inside = _words(["real"], 10.4, 0.0)
+    loop = _words(LOOP_TEXT[:40], 10.0, 0.05)
+    report = drop_looped_words([*loop, *inside])
+    assert report.kept == []
+
+
+def test_window_ratio_also_drops_a_dense_run_of_ordinary_words() -> None:
+    cluster = _words([f"word{i}" for i in range(18)], 5.0, 0.05)
+    assert zlib_ratio(" ".join(w.text for w in cluster)) < 2.4
+    assert drop_looped_words(cluster, [2.5] * 18).dropped == cluster
+    assert drop_looped_words(cluster).dropped == []
