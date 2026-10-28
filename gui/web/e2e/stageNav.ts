@@ -521,10 +521,19 @@ export async function inspectSelection(page: Page): Promise<void> {
   const inspect = page
     .getByRole("group", { name: /^(Selection|Edit) actions$/ })
     .getByRole("button", { name: "Inspect", exact: true });
-  const folded = await openToolsIfFolded(page, inspect);
-  await inspect.click();
-  if (folded)
-    await expect(page.getByRole("dialog", { name: "Tools" })).toBeHidden();
+  // The frame can fold or unfold the dock a few frames after the selection
+  // lands (WebKit, short landscape), so look again until the click goes through.
+  await expect(async () => {
+    const folded = await openToolsIfFolded(page, inspect);
+    try {
+      await inspect.click({ timeout: 2000 });
+    } catch (error) {
+      await closeTools(page);
+      throw error;
+    }
+    if (folded)
+      await expect(page.getByRole("dialog", { name: "Tools" })).toBeHidden();
+  }).toPass({ timeout: 20_000 });
 }
 
 /** Inspect by its key, for a selection whose bar a pending card covers. */
