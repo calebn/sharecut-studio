@@ -11,103 +11,71 @@ import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
-import { rulerStep, rulerTicks, timeAtX, xAtTime } from "./rulerMath";
+import type { MarkerAttrs } from "./Marker";
+import { round3, rulerStep, rulerTicks, timeAtX, xAtTime } from "./rulerMath";
 import type { TimeRange } from "./seconds";
 import { type GrabMove, type GrabPointer, useGrab } from "./useGrab";
 
 export type RulerEdge = "start" | "end";
 type RulerGrip = "scrub" | RulerEdge;
 
-/** `data-*` attributes (a hit target, a presence anchor) the host wants on the ruler's elements. */
-export type RulerAttrs = Readonly<Record<string, string>>;
-
-/** A recording session drawn as a band on the ruler; the host names it ("S2"). */
 export type RulerSession = TimeRange & { label: string };
 
-export type RulerPointer = GrabPointer;
-
-export type RulerDrag = GrabMove & {
-  /** Where the edge would sit under the pointer, in seconds, held to the episode. */
+type RulerDrag = GrabMove & {
+  /** Where the edge would sit under the pointer, held to the episode. */
   seconds: number;
 };
 
-export type RulerNudge = {
-  /** The key is auto-repeating: the same press, held. */
-  repeat: boolean;
-};
+type RulerNudge = { repeat: boolean };
 
 export type RulerProps = {
-  /** Seconds at the ruler's left edge. */
   start: number;
   pxPerSecond: number;
-  /** The ruler's width in px. The lane host that sizes the lanes passes the same three numbers to the marker lane. */
+  /** In px. The marker lane takes the same `start`, `pxPerSecond` and `width`. */
   width: number;
-  /** The episode's length in seconds. Seeks and edges stop here. */
   duration: number;
-  /** Where the playhead is, in seconds. */
   playhead: number;
-  /** The current selection: a 4 px band along the bottom with a handle at each end. */
   selection?: TimeRange;
-  /** Recording sessions, drawn as alternating bands behind the ticks. */
+  /** Drawn as alternating bands behind the ticks. */
   sessions?: readonly RulerSession[];
   /** A guest seeks and scrubs but sees no selection handles. */
   readOnly?: boolean;
-  /** The selection handles are 44 px; a coarse pointer does this by itself. */
+  /** 44 px selection handles; a coarse pointer does this by itself. */
   touch?: boolean;
-  /** Names the slider. */
   label?: string;
-  /** Attributes for the ruler's root, such as a presence anchor. */
-  anchorProps?: RulerAttrs;
+  anchorProps?: MarkerAttrs;
   /** Attributes for the body (`scrub`) and for each selection handle, such as `data-hit-*`. */
-  hitProps?: Partial<Record<RulerGrip, RulerAttrs>>;
-  /** A click, or Left, Right, Home or End on the ruler: move the playhead to `seconds`. */
+  hitProps?: Partial<Record<RulerGrip, MarkerAttrs>>;
   onSeek: (seconds: number) => void;
-  /** A double-click: fit the episode in the window. */
+  /** A double-click. */
   onFit?: () => void;
-  /**
-   * First movement of a drag on the ruler body, never on a tap. Return
-   * `false` to refuse it.
-   */
-  onScrubStart?: (
-    seconds: number,
-    pointer: RulerPointer,
-  ) => boolean | undefined;
-  /** The pointer's time while a scrub goes on. */
-  onScrub?: (seconds: number, pointer: RulerPointer) => void;
-  /**
-   * `committed` is false when Escape, a window blur, the browser, a lost
-   * capture or the ruler leaving the page ended it: the host puts the
-   * playhead back.
-   */
+  /** First movement of a scrub, never a tap. Return `false` to refuse it. */
+  onScrubStart?: (seconds: number, pointer: GrabPointer) => boolean | undefined;
+  onScrub?: (seconds: number, pointer: GrabPointer) => void;
+  /** `committed` is false when Escape, a blur, the browser, a lost capture or unmounting ended it: the host restores the playhead. */
   onScrubEnd?: (committed: boolean) => void;
-  /** First movement of a drag on a selection handle. Return `false` to refuse it. */
+  /** Return `false` to refuse the drag. */
   onSelectionDragStart?: (
     edge: RulerEdge,
-    pointer: RulerPointer,
+    pointer: GrabPointer,
   ) => boolean | undefined;
   onSelectionDrag?: (edge: RulerEdge, drag: RulerDrag) => void;
   onSelectionDragEnd?: (edge: RulerEdge, committed: boolean) => void;
-  /**
-   * Left or Right on a focused selection handle: move the edge `seconds`
-   * earlier (negative) or later. 10 ms, Shift 100 ms. A held key calls this
-   * again with `repeat` set.
-   */
+  /** 10 ms per press, Shift 100 ms; a held key calls again with `repeat` set. */
   onSelectionNudge?: (
     edge: RulerEdge,
     seconds: number,
     nudge: RulerNudge,
   ) => void;
-  /** The arrow was released, or focus left the handle: close the undo step. */
+  /** The arrow was released or focus left: close the undo step. */
   onSelectionNudgeEnd?: (edge: RulerEdge) => void;
 };
 
-/** The shortest a selection handle lets the selection get, in seconds. */
 export const RULER_MIN_SELECTION = 0.01;
 const SELECTION_NUDGE = 0.01;
 const SELECTION_NUDGE_BIG = 0.1;
-/** Shift with Left or Right on the ruler moves the playhead this many ticks. */
 const SEEK_BIG_TICKS = 10;
-/** The playhead's triangle is 10 px wide; a half-visible one still shows. */
+/** The playhead's triangle is 10 px wide, so a half-visible one still shows. */
 const PLAYHEAD_BLEED_PX = 6;
 
 const EDGES: readonly RulerEdge[] = ["start", "end"];
@@ -117,7 +85,6 @@ const EDGE_NAMES: Record<RulerEdge, string> = {
 };
 
 const px = (value: number) => `${value}px`;
-const round3 = (value: number) => Number(value.toFixed(3));
 
 export const Ruler = memo(function Ruler({
   start,
@@ -289,8 +256,6 @@ export const Ruler = memo(function Ruler({
     }
   };
 
-  const bodyHandlers = grab.handlers("scrub");
-
   const handle = (edge: RulerEdge) => {
     if (!selection) return null;
     const at = selection[edge];
@@ -422,7 +387,7 @@ export const Ruler = memo(function Ruler({
         onClick={click}
         onDoubleClick={onFit ? () => onFit() : undefined}
         onKeyDown={bodyKey}
-        {...bodyHandlers}
+        {...grab.handlers("scrub")}
       />
       {editable ? EDGES.map(handle) : null}
     </div>

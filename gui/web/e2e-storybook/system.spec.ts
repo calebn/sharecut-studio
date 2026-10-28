@@ -1209,7 +1209,6 @@ test("System/TrackHeader the phone select button is a 44 px target and a coarse 
   }
 });
 
-/** Two animation frames: whatever a pointer or key set in motion has been drawn. */
 function frames(page: import("@playwright/test").Page) {
   return page.evaluate(
     () =>
