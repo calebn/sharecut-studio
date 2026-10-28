@@ -73,6 +73,27 @@ describe("createPeerLevelTap", () => {
     tap.dispose();
   });
 
+  it("disposes every node even when the source was already disconnected", () => {
+    const ctx = fakeContext(new Map());
+    const source = ctx.createMediaStreamSource({ id: "a" });
+    source.disconnect = vi.fn((target?: unknown) => {
+      if (target) throw new DOMException("not connected", "InvalidAccessError");
+    });
+    const splitters: { disconnect: ReturnType<typeof vi.fn> }[] = [];
+    const makeSplitter = ctx.createChannelSplitter;
+    ctx.createChannelSplitter = (() => {
+      const node = makeSplitter();
+      splitters.push(node as never);
+      return node;
+    }) as never;
+    const tap = createPeerLevelTap(
+      ctx as never,
+      source as never,
+    ) as PeerLevelTap;
+    expect(() => tap.dispose()).not.toThrow();
+    expect(splitters[0].disconnect).toHaveBeenCalled();
+  });
+
   it("returns null when the context cannot build an analyser", () => {
     const ctx = fakeContext(new Map());
     ctx.createAnalyser = () => {
