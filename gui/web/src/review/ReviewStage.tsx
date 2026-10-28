@@ -1,15 +1,19 @@
-import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import {
+  type Ref,
+  useCallback,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { AuditionSide } from "../system/auditionWindow";
 import { DecisionCard } from "../system/DecisionCard";
 import { KIND_META } from "../system/decisionKinds";
-import type { SystemIconName } from "../system/icons";
-import { Player } from "../system/Player";
 import { Sheet } from "../system/Sheet";
 import { SystemIcon } from "../system/SystemIcon";
 import type { TimeRange } from "../system/seconds";
-import { iconOf } from "../system/verbDisplay";
-import { Button, Toast, type ToastState } from "../ui";
-import { planDecision, stepUndecided, undoDecisions } from "./advance";
+import { Button } from "../ui";
+import { stepUndecided } from "./advance";
 import { ContextStrip } from "./ContextStrip";
 import {
   type BulkProgress,
@@ -20,35 +24,43 @@ import { stageActionFor } from "./reviewKeys";
 import {
   fullOrder,
   groupQueue,
-  isCut,
+  holdsGateKind,
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
 } from "./reviewQueueModel";
 
+export type ReviewIntent = {
+  ids: readonly string[];
+  result: ReviewResult;
+  /** Cut anyway. The host records the waiver, then decides. */
+  waive?: { note?: string };
+};
+
 export type ReviewStageProps = {
-  initialItems: readonly ReviewItem[];
+  /** The stage root. The host hands it to announceStatus as returnFocus. */
+  ref?: Ref<HTMLDivElement>;
+  /** Merged open and decided items. */
+  items: readonly ReviewItem[];
   content: (item: ReviewItem) => ReviewContent;
+  selectedId: string | null;
+  filter: ReviewFilter;
+  looksRight: ReadonlySet<string>;
+  onSelect: (id: string | null) => void;
+  onFilter: (filter: ReviewFilter) => void;
+  onLooksRight: (id: string) => void;
+  onDecide: (intent: ReviewIntent) => void;
   /** Episode length in seconds. */
   duration: number;
-  /** Playhead and episode length as the Player shows them. */
-  clock: { time: string; total: string };
   peaks?: readonly number[];
-  initialSelectedId?: string;
-  initialFilter?: ReviewFilter;
   /** A guest reads and comments; nothing here decides. */
   guest?: boolean;
   layout?: "desktop" | "phone";
   state?: "ready" | "loading" | "error";
   job?: { title: string; progress: number };
   bulkRunning?: BulkProgress;
-  /** Cut anyway counts as checking. The prompt shows once per session. */
-  gateConfirmed?: boolean;
-  /** Undo toast lifetime in ms. */
-  toastMs?: number;
   onOpenInEdit?: (id: string) => void;
   onComment?: (id: string) => void;
-  onWaive?: (note?: string) => void;
   onFindMore?: () => void;
   onHandOff?: () => void;
   onRetry?: () => void;
@@ -63,95 +75,67 @@ const openOf = (items: readonly ReviewItem[], kind: ReviewItem["kind"]) =>
   items.filter((item) => item.kind === kind && !item.result);
 
 export function ReviewStage({
-  initialItems,
+  ref,
+  items,
   content,
+  selectedId,
+  filter,
+  looksRight,
+  onSelect,
+  onFilter,
+  onLooksRight,
+  onDecide,
   duration,
-  clock,
   peaks,
-  initialSelectedId,
-  initialFilter = "all",
   guest = false,
   layout = "desktop",
   state = "ready",
   job,
   bulkRunning,
-  gateConfirmed = false,
-  toastMs = 6000,
   onOpenInEdit,
   onComment,
-  onWaive,
   onFindMore,
   onHandOff,
   onRetry,
 }: ReviewStageProps) {
-  const [items, setItems] = useState<ReviewItem[]>([...initialItems]);
-  const [filter, setFilter] = useState<ReviewFilter>(initialFilter);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initialSelectedId ?? stepUndecided(initialItems, null, "forward", filter),
-  );
   const [side, setSide] = useState<AuditionSide>("B");
-  const [resolved, setResolved] = useState<ReadonlySet<string>>(new Set());
   const [ranges, setRanges] = useState<Record<string, TimeRange>>({});
-  const [confirmed, setConfirmed] = useState(gateConfirmed);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [toast, setToast] = useState<
-    (ToastState & { icon: SystemIconName }) | null
-  >(null);
-  const [undo, setUndo] = useState<(() => void) | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState(selectedId);
+  const root = useRef<HTMLDivElement | null>(null);
   const engaged = useRef(false);
+  const setRoot = useCallback(
+    (el: HTMLDivElement | null) => {
+      root.current = el;
+      if (typeof ref === "function") ref(el);
+      else if (ref) ref.current = el;
+    },
+    [ref],
+  );
+
+  if (seen !== selectedId) {
+    setSeen(selectedId);
+    setSide("B");
+    setPending(null);
+  }
 
   const phone = layout === "phone";
   const selected = items.find((item) => item.id === selectedId) ?? null;
-  const gate = !confirmed && openOf(items, "check").some((i) => i.transcript);
+  const gate = openOf(items, "check").some((i) => i.transcript);
   const holdsGate = (ids: readonly string[]) =>
     gate &&
     ids.some((id) => {
       const item = items.find((i) => i.id === id);
-      return item !== undefined && isCut(item);
+      return item !== undefined && holdsGateKind(item);
     });
 
   const pendingKind = pending
     ? items.find((i) => i.id === pending.ids[0])?.kind
     : undefined;
 
-  const select = (id: string | null) => {
-    setSelectedId(id);
-    setPending(null);
-    setSide("B");
-  };
   const step = (direction: "forward" | "backward") =>
-    select(stepUndecided(items, selectedId, direction, filter));
-
-  const apply = (
-    ids: readonly string[],
-    result: ReviewResult,
-    waive = false,
-  ) => {
-    const plan = planDecision(items, ids, result, { filter, waive });
-    setItems(plan.items);
-    select(plan.selectedId);
-    const first = items.find((i) => i.id === ids[0]);
-    setToast({
-      id: Date.now(),
-      message: plan.message,
-      icon: iconOf(
-        result === "kept" || !first ? "keep" : KIND_META[first.kind].verb,
-      ),
-    });
-    setUndo(() => () => {
-      setItems((current) => undoDecisions(current, plan.decidedIds).items);
-      setResolved((current) => {
-        const next = new Set(current);
-        for (const id of plan.decidedIds) next.delete(id);
-        return next;
-      });
-      select(plan.decidedIds[0] ?? null);
-      setToast(null);
-    });
-  };
+    onSelect(stepUndecided(items, selectedId, direction, filter));
 
   const cuttable = (id: string) => {
     const item = items.find((i) => i.id === id);
@@ -159,26 +143,26 @@ export function ReviewStage({
       item !== undefined &&
       !item.result &&
       !item.blocked &&
-      !(item.unsure && !resolved.has(id))
+      !(item.unsure && !looksRight.has(id))
     );
   };
 
   const verb = (id: string) => {
     if (guest || !cuttable(id)) return;
     if (holdsGate([id])) setPending({ ids: [id] });
-    else apply([id], "applied");
+    else onDecide({ ids: [id], result: "applied" });
   };
 
   const keep = (id: string) => {
     const item = items.find((i) => i.id === id);
-    if (item && !item.result && !guest) apply([id], "kept");
+    if (item && !item.result && !guest) onDecide({ ids: [id], result: "kept" });
   };
 
   const bulk = (all: readonly string[] | undefined) => {
     const ids = all?.filter(cuttable) ?? [];
     if (guest || bulkRunning || !ids.length) return;
     if (holdsGate(ids)) setPending({ ids });
-    else apply(ids, "applied");
+    else onDecide({ ids, result: "applied" });
   };
   const applyGroup = () =>
     bulk(
@@ -189,14 +173,12 @@ export function ReviewStage({
   const confirmAnyway = (note?: string) => {
     const ids = pending?.ids.filter(cuttable) ?? [];
     if (guest || bulkRunning || !ids.length) return;
-    setConfirmed(true);
-    onWaive?.(note);
-    apply(ids, "applied", true);
+    onDecide({ ids, result: "applied", waive: { note } });
   };
 
   const checkWords = () => {
     const target = openOf(items, "unsure-word")[0] ?? openOf(items, "check")[0];
-    select(target?.id ?? selectedId);
+    onSelect(target?.id ?? selectedId);
   };
 
   const handleKey = useEffectEvent((event: KeyboardEvent) => {
@@ -235,11 +217,16 @@ export function ReviewStage({
         engaged.current = false;
       }
     };
+    const outside = (event: PointerEvent) => {
+      if (!el?.contains(event.target as Node)) engaged.current = false;
+    };
     el?.addEventListener("focusin", enter);
     el?.addEventListener("focusout", leave);
+    document.addEventListener("pointerdown", outside);
     return () => {
       el?.removeEventListener("focusin", enter);
       el?.removeEventListener("focusout", leave);
+      document.removeEventListener("pointerdown", outside);
     };
   }, []);
 
@@ -251,38 +238,37 @@ export function ReviewStage({
 
   const body = selected ? content(selected) : null;
   const range = selected ? ranges[selected.id] : undefined;
-  const wave = body?.card.waveform
-    ? { ...body.card.waveform, ...range }
-    : undefined;
+  const base = body?.card.waveform;
+  const wave = base ? { ...base, ...range } : undefined;
   const adjust = (next: TimeRange) => {
-    if (!selected || !wave) return;
-    const id = selected.id;
-    const origin = initialItems.find((i) => i.id === id);
-    const first = origin ? content(origin).card.waveform : undefined;
-    if (!origin || !first) return;
-    const saved = Math.max(
-      0,
-      origin.savedSeconds + (next.end - next.start) - (first.end - first.start),
-    );
-    setRanges((current) => ({ ...current, [id]: next }));
-    setItems((current) =>
-      current.map((i) => (i.id === id ? { ...i, savedSeconds: saved } : i)),
-    );
+    if (selected && wave) {
+      const id = selected.id;
+      setRanges((current) => ({ ...current, [id]: next }));
+    }
   };
+  const savedSeconds =
+    selected && base && wave
+      ? Math.max(
+          0,
+          selected.savedSeconds +
+            (wave.end - wave.start) -
+            (base.end - base.start),
+        )
+      : 0;
   const card = body?.card ?? EMPTY_CARD;
   const unsure =
     body?.card.unsure && selected
       ? {
           ...body.card.unsure,
-          resolved: resolved.has(selected.id),
+          resolved: looksRight.has(selected.id),
           onFix: () => {
             if (guest || selected.result) return;
-            setResolved(new Set(resolved).add(selected.id));
+            onLooksRight(selected.id);
             if (selected.kind === "unsure-word")
-              apply([selected.id], "applied");
+              onDecide({ ids: [selected.id], result: "applied" });
           },
           onLooksRight: () => {
-            if (!guest) setResolved(new Set(resolved).add(selected.id));
+            if (!guest) onLooksRight(selected.id);
           },
         }
       : undefined;
@@ -301,21 +287,24 @@ export function ReviewStage({
       bulkRunning={bulkRunning}
       guest={guest}
       state={state}
-      onFilter={setFilter}
+      onFilter={onFilter}
       onSelect={(id) => {
-        select(id);
+        onSelect(id);
         setSheetOpen(false);
       }}
       onVerb={verb}
       onKeep={keep}
-      onBulk={(group) => bulk(group.bulk?.ids)}
+      onBulk={(group) => {
+        bulk(group.bulk?.ids);
+        setSheetOpen(false);
+      }}
       onFindMore={onFindMore}
       onRetry={onRetry}
     />
   );
 
   return (
-    <div ref={root} className="rv-stage" data-layout={layout} tabIndex={-1}>
+    <div ref={setRoot} className="rv-stage" data-layout={layout} tabIndex={-1}>
       <div className="rv-main">
         {phone ? (
           <div className="rv-phone-top">
@@ -337,11 +326,7 @@ export function ReviewStage({
             {...card}
             why={selected?.blocked ? BLOCKED_WHY : card.why}
             waveform={wave && { ...wave, onAdjust: adjust }}
-            savedSeconds={
-              selected && selected.savedSeconds > 0 && wave
-                ? selected.savedSeconds
-                : undefined
-            }
+            savedSeconds={savedSeconds > 0 ? savedSeconds : undefined}
             audition={wave ? { side, onSide: setSide } : undefined}
             unsure={unsure}
             prompt={
@@ -376,22 +361,6 @@ export function ReviewStage({
           duration={duration}
           selectedId={selectedId}
           peaks={peaks}
-        />
-        <Toast
-          className="sys-toast-dock"
-          toast={toast}
-          timeoutMs={toastMs}
-          icon={toast ? <SystemIcon name={toast.icon} size={16} /> : undefined}
-          onUndo={undo ?? undefined}
-          onDismiss={() => setToast(null)}
-        />
-        <Player
-          form="bar"
-          guest={guest}
-          playing={playing}
-          time={clock.time}
-          total={clock.total}
-          onPlayPause={() => setPlaying(!playing)}
         />
       </div>
       {phone ? (

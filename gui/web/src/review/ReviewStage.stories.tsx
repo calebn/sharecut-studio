@@ -8,34 +8,38 @@ import {
   within,
 } from "storybook/test";
 import { reviewContent } from "../storybook/reviewContent";
-import { QUEUE_ITEMS, QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
+import {
+  EXTRA_KIND_ITEMS,
+  QUEUE_CHECKED,
+  QUEUE_ITEMS,
+  QUEUE_WITHOUT_CHECKS,
+} from "../storybook/reviewFixtures";
+import { ReviewStageHarness } from "../storybook/reviewHarness";
 import {
   isolatedStoryParameters,
   viewportStoryParameters,
 } from "../storybook/storyLayout";
 import { playInCanvas } from "../storybook/storyPlay";
-import { ReviewStage } from "./ReviewStage";
 
 const PEAKS = Array.from(
   { length: 160 },
   (_, i) => 0.2 + 0.6 * Math.abs(Math.sin(i * 0.37)),
 );
 
-const meta: Meta<typeof ReviewStage> = {
+const meta: Meta<typeof ReviewStageHarness> = {
   title: "Stages/Review/Review",
-  component: ReviewStage,
+  component: ReviewStageHarness,
   tags: ["autodocs"],
   args: {
     initialItems: QUEUE_WITHOUT_CHECKS,
     content: reviewContent,
     duration: 3120,
-    clock: { time: "12:04", total: "52:10" },
     peaks: PEAKS,
     initialSelectedId: "f1",
     toastMs: 600_000,
     onOpenInEdit: fn(),
     onComment: fn(),
-    onWaive: fn(),
+    onDecide: fn(),
     onFindMore: fn(),
     onHandOff: fn(),
     onRetry: fn(),
@@ -60,7 +64,7 @@ const meta: Meta<typeof ReviewStage> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof ReviewStage>;
+type Story = StoryObj<typeof ReviewStageHarness>;
 
 const progress = (canvas: HTMLElement) =>
   within(canvas).getByText(/of \d+ decided/).textContent;
@@ -152,7 +156,7 @@ export const CutAnywayPrompt: Story = {
     await userEvent.click(
       await view.findByRole("button", { name: "Cut anyway" }),
     );
-    await expect(args.onWaive).toHaveBeenCalledTimes(1);
+    await expect(args.onDecide).toHaveBeenCalledTimes(1);
     await expect(
       await view.findByRole("button", { name: "Undo" }),
     ).toBeInTheDocument();
@@ -160,7 +164,7 @@ export const CutAnywayPrompt: Story = {
 };
 
 export const TranscriptChecked: Story = {
-  args: { initialItems: QUEUE_ITEMS, gateConfirmed: true },
+  args: { initialItems: QUEUE_CHECKED },
   play: playInCanvas(async ({ canvasElement }) => {
     await press(canvasElement, "{Enter}");
     await expect(
@@ -170,6 +174,25 @@ export const TranscriptChecked: Story = {
       within(canvasElement).queryByRole("button", { name: "Cut anyway" }),
     ).toBeNull();
   }),
+};
+
+export const NewKinds: Story = {
+  args: {
+    initialItems: [...QUEUE_ITEMS, ...EXTRA_KIND_ITEMS],
+    initialSelectedId: "r1",
+  },
+};
+
+export const FalseStart: Story = {
+  args: { initialItems: EXTRA_KIND_ITEMS, initialSelectedId: "k1" },
+};
+
+export const OtherSuggestion: Story = {
+  args: { initialItems: EXTRA_KIND_ITEMS, initialSelectedId: "g1" },
+};
+
+export const Unplaced: Story = {
+  args: { initialItems: EXTRA_KIND_ITEMS, initialSelectedId: "g2" },
 };
 
 export const Guest: Story = {
