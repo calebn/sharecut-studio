@@ -128,7 +128,12 @@ function SetupBody({
           action={{ label: "Check again", onAction: onRetry }}
         />
         <p className="sys-setup-line">
-          <a href={TOOLS_GUIDE} target="_blank" rel="noreferrer">
+          <a
+            className="sys-text-btn"
+            href={TOOLS_GUIDE}
+            target="_blank"
+            rel="noreferrer"
+          >
             Setup guide for the audio tools
           </a>
         </p>

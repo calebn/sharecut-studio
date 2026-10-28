@@ -128,6 +128,25 @@ describe("HomeView", () => {
     );
   });
 
+  it("shows the working line beside the Recent heading and marks the card opening", () => {
+    setup({ working: "Opening…", busyId: RECENTS[0].id });
+    const head = screen.getByRole("heading", { name: "Recent" }).parentElement;
+    expect(head).toContainElement(screen.getByText("Opening…"));
+    expect(screen.getByText("Opening…")).toHaveRole("status");
+    const busy = screen
+      .getAllByRole("button")
+      .filter((card) => card.getAttribute("aria-busy") === "true");
+    expect(busy).toHaveLength(1);
+    expect(busy[0]).toHaveAccessibleName(new RegExp(`^${RECENTS[0].name}`));
+  });
+
+  it("styles the audio tools guide link as a sys- text button", () => {
+    setup({ setup: { state: "tools-missing", sizeLabel: "" } });
+    expect(
+      screen.getByRole("link", { name: "Setup guide for the audio tools" }),
+    ).toHaveClass("sys-text-btn");
+  });
+
   it("stays quiet when nothing is dragged", () => {
     setup();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();

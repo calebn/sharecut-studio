@@ -199,6 +199,10 @@ describe("HomeScreen", () => {
     render(<HomeScreen />);
     await user.click(await screen.findByRole("button", { name: /Rosa/ }));
     expect(await screen.findByText("Opening…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Rosa/ })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
     await user.click(screen.getByRole("button", { name: /^Record/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Finish the current step first.",
@@ -207,6 +211,9 @@ describe("HomeScreen", () => {
     release({ project_path: EP, name: "rosa" });
     await waitFor(() => expect(assign).toHaveBeenCalled());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Rosa/ })).not.toHaveAttribute(
+      "aria-busy",
+    );
   });
 
   it("blocks every switch while a recording is armed", async () => {
