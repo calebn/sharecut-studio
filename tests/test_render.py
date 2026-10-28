@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import AppliedEditRecord, EditDecision, EpisodeProject
 from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
 from podcast_mcp.util.progress import (
     RecordingProgress,
@@ -169,3 +172,45 @@ def test_rerender_preview_missing_premix_keeps_reconciliation(tmp_path):
 
     assert info["ok"] is False
     assert info["reconciliation"] == {"status_updates": 2, "stale": False}
+
+
+@pytest.mark.parametrize("rerender", [False, True])
+@pytest.mark.parametrize("premix_exists", [False, True])
+@pytest.mark.parametrize(
+    ("applied_count", "decision_flags"),
+    [(0, []), (2, []), (0, [False, True]), (2, [False, True])],
+    ids=["empty", "archived", "decisions-only", "archived-and-decisions"],
+)
+def test_preview_edit_count_reports_current_applied_records(
+    tmp_path, rerender, premix_exists, applied_count, decision_flags
+):
+    proj = EpisodeProject.create("t", str(tmp_path))
+    proj.ensure_dirs()
+    proj.editorial.edit_log = [
+        AppliedEditRecord(
+            id=f"applied-{i}",
+            applied_at="2026-10-28T00:00:00Z",
+            operation="ripple_delete",
+        )
+        for i in range(applied_count)
+    ]
+    proj.edit_decisions = [
+        EditDecision(id=f"decision-{i}", track_id="host", start=0, end=1, applied=flag)
+        for i, flag in enumerate(decision_flags)
+    ]
+    premix = proj.artifacts_dir() / "premix.wav"
+    if premix_exists:
+        premix.write_bytes(b"x")
+
+    with (
+        patch("podcast_mcp.services.pipeline.preview.PipelineRunner"),
+        patch("podcast_mcp.services.pipeline.preview.maybe_auto_reconcile", return_value={}),
+    ):
+        if rerender:
+            info = rerender_preview(proj, defaults=load_defaults())
+        else:
+            info = json.loads(render_preview_result(proj, rerender=False, defaults=load_defaults()))
+
+    assert info["edit_count"] == applied_count
+    assert info["ok"] is premix_exists
+    assert info["path"] == (str(premix) if premix_exists else None)
