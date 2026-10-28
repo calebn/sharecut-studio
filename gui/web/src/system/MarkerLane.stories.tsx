@@ -353,7 +353,7 @@ export const DoubleClickToAdd: Story = {
     const box = lane.getBoundingClientRect();
     const target = lane.querySelector(".sys-markers-track");
     if (!(target instanceof HTMLElement)) throw new Error("No track");
-    fireEvent.dblClick(target, {
+    await fireEvent.dblClick(target, {
       clientX: box.left + 60 * 6 - 10,
       clientY: box.top + 12,
     });
