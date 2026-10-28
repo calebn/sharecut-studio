@@ -44,12 +44,12 @@ type PresenceSlice = Pick<
 >;
 
 function remoteSelectionPatch(
-  state: Pick<DawStore, "selection">,
+  state: Pick<DawStore, "selection" | "inspectorKey">,
   wire: ReturnType<typeof wireSelectionPatch>,
   revision: number,
 ) {
   return {
-    ...selectionPatch(state.selection, wire.selection),
+    ...selectionPatch(state.selection, wire.selection, state.inspectorKey),
     pendingWireSelection: wire.pendingWireSelection,
     remoteSelectionRevision: revision + 1,
   };
@@ -136,7 +136,7 @@ export const createPresenceSlice: StateCreator<
   remoteSelectionRevision: 0,
   adoptRemoteSelection: (selection, pendingWireSelection = null) =>
     set((s) => ({
-      ...selectionPatch(s.selection, selection),
+      ...selectionPatch(s.selection, selection, s.inspectorKey),
       pendingWireSelection,
       remoteSelectionRevision: s.remoteSelectionRevision + 1,
     })),

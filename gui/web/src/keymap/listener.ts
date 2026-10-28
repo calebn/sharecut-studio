@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
+import { useDawStore } from "../state/dawStore";
 import { keymapHandoff, overlayOpen } from "../ui/modalGate";
 import {
   argsFromKeyEvent,
@@ -26,7 +27,18 @@ import { isButtonActivation, isTypingTarget } from "./typing";
  */
 export function useDawKeymapListener(): void {
   useEffect(() => {
+    // Shift+Space was handled on keydown: its keyup must not click the button.
+    let hearHeld = false;
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== " " || !hearHeld) return;
+      hearHeld = false;
+      e.preventDefault();
+    };
     const onKey = (e: KeyboardEvent) => {
+      // An IME composition owns its keys until it commits.
+      if (e.isComposing || e.keyCode === 229) {
+        return;
+      }
       if (e.key === "Escape" && overlayOpen()) {
         return;
       }
@@ -55,6 +67,7 @@ export function useDawKeymapListener(): void {
             continue;
           }
           e.preventDefault();
+          if (e.key === " " && e.shiftKey) hearHeld = true;
           if (ignoresKeyRepeat(e, cmd)) {
             return;
           }
@@ -65,11 +78,24 @@ export function useDawKeymapListener(): void {
           if (result.status === "disabled" && cmd.id.startsWith("tighten.")) {
             continue;
           }
+          // A refused edit says why, in plain words, not by doing nothing.
+          if (
+            result.status === "disabled" &&
+            (def.mutates || def.announcesRefusal)
+          ) {
+            useDawStore
+              .getState()
+              .announceStatus(result.reason, { tone: "error" });
+          }
           return;
         }
       })();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+    };
   }, []);
 }

@@ -84,12 +84,12 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Go to end",
   },
   "daw.edit.bladeCut": {
-    label: "Blade cut",
-    tooltip: "Blade cut at the playhead, or Alt-click at the pointer",
+    label: "Split at playhead",
+    tooltip: "Split at the playhead, or Alt-click at the pointer",
   },
   "daw.edit.delete": {
-    label: "Delete clip",
-    tooltip: "Delete clip",
+    label: "Cut selection",
+    tooltip: "Cut the selection",
   },
   "daw.track.remove": {
     label: "Remove track",
