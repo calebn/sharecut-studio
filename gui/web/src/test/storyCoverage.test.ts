@@ -158,7 +158,6 @@ const COVERED: Record<string, string[]> = {
   "CMP-REC-LIVECOMMENTS": ["Templates/LiveComments"],
   "CMP-REC-UPLOAD": ["Templates/UploadStatus"],
   "CMP-REC-CLIPPING": ["Templates/TakeClippingReport"],
-  "CMP-REC-HOSTROSTER": ["Templates/HostUploadRoster"],
   "EMPTY-STATES": ["Atoms/EmptyState"],
   "CMP-INLINE-ERROR": ["Atoms/InlineError"],
   "DLG-HELP": ["Templates/HelpDialog"],
@@ -176,7 +175,7 @@ const COVERED: Record<string, string[]> = {
   "SCR-HOME-NEW": ["Templates/Home"],
   "SCR-HOME-OPEN": ["Templates/Home", "Stages/Home/OpenOther"],
   "SCR-HOME-ERROR": ["Templates/Home", "Stages/Home/OpenOther"],
-  "DLG-RECORD": ["Templates/Record · Host panel"],
+  "DLG-RECORD": ["Stages/Record/Host"],
   "DLG-MODELS": ["Templates/Models dialog"],
   "DLG-MODEL-GATE": ["Templates/Model gate"],
   "POP-WORD-EDIT": [
@@ -230,8 +229,6 @@ const COVERED: Record<string, string[]> = {
   "BAN-GUEST-ROLE": ["Stages/Edit/Frame"],
   "BAN-GUEST-VERSION": ["Templates/GuestVersionNotice"],
   "SCR-REC-ACCESS-ENDED": ["Templates/AccessEnded"],
-  "CMP-REC-STOP": ["Templates/StopTakeControl"],
-  "CHIP-REC-TRANSPORT": ["Templates/RecordTransportChip"],
   "BAN-LOADFAIL": ["Templates/LoadFailureBanner"],
   "MENU-VIEW": ["Templates/OverlayLegend"],
   "CMP-TIMELINE": ["Templates/TimelineRange", "Templates/Timeline"],
@@ -273,7 +270,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(139);
+    expect(INVENTORY_IDS).toHaveLength(136);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });

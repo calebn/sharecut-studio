@@ -1,10 +1,10 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
+import { RecordStage } from "../stage/hosts/RecordStage";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { HostRoomProvider } from "./hostRoomContext";
 import { useRecordHostStore } from "./hostStore";
-import { RecordPanel } from "./RecordPanel";
 import { useHostRoom } from "./useHostRoom";
 
 const send = vi.fn();
@@ -131,12 +131,12 @@ describe("useHostRoom", () => {
     expect(useRecordHostStore.getState().transportError).toBeNull();
   });
 
-  it("lets RecordPanel read the provided room without hydrating itself", async () => {
+  it("lets the Record stage read the provided room without hydrating itself", async () => {
     const Harness = () => {
       const room = useHostRoom({}, { hydrate: false });
       return (
         <HostRoomProvider value={room}>
-          <RecordPanel />
+          <RecordStage />
         </HostRoomProvider>
       );
     };

@@ -26,6 +26,12 @@ vi.mock("../../panels/CommentsPanel", () => ({
     <div>{guestShare ? "guest comments panel" : "comments panel"}</div>
   ),
 }));
+vi.mock("../../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api")>()),
+  loadHostRecordState: vi.fn(
+    async () => useRecordHostStore.getState().snapshot,
+  ),
+}));
 vi.mock("../edit/EditWorkspace", () => ({
   EditWorkspace: () => <div>edit workspace</div>,
 }));
@@ -71,7 +77,7 @@ describe("StageHost gating", () => {
       expect(screen.getByText("This link can't open that")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
       expect(
-        screen.queryByRole("button", { name: /Open the room/ }),
+        screen.queryByRole("group", { name: "Recording controls" }),
       ).toBeNull();
       expect(screen.queryByText("pipeline panel")).toBeNull();
     },
@@ -120,7 +126,7 @@ describe("StageHost gating", () => {
 
   it("opens every stage for the host", () => {
     for (const [stage, text] of [
-      ["record", "No take yet"],
+      ["record", "Looking for a record room…"],
       ["prepare", "Getting ready"],
       ["edit", "edit workspace"],
       ["review", "comments panel"],
@@ -299,16 +305,15 @@ describe("Deliver host", () => {
 });
 
 describe("Record host", () => {
-  it("opens the room dialog and leaves it mounted elsewhere", async () => {
+  it("looks for the room, then offers to create one", async () => {
     asHost("record");
     mount();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Open the room" }),
-    );
-    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(true);
+    expect(
+      await screen.findByRole("button", { name: "Create record room" }),
+    ).toBeInTheDocument();
   });
 
-  it("shows the live take and how to get back to it", () => {
+  it("mounts the Room view inside the shell for an open room", () => {
     asHost("record");
     useRecordHostStore.setState({
       snapshot: {
@@ -321,9 +326,10 @@ describe("Record host", () => {
       },
     });
     mount();
-    expect(screen.getByText("Recording")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.queryByRole("main")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Back to the room" }),
+      screen.getByRole("group", { name: "Recording controls" }),
     ).toBeInTheDocument();
   });
 });

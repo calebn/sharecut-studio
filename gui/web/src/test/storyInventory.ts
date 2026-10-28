@@ -1,5 +1,5 @@
 /**
- * The 139 non-interaction surface IDs in the UI inventory
+ * The 136 non-interaction surface IDs in the UI inventory
  * (the #2279 surface inventory, derived from `gui/web/src`; the source document
  * is `docs/design/stages/inventory.md`). A new surface gets its ID here and a
  * row in the coverage manifest.
@@ -11,7 +11,6 @@ export const INVENTORY_IDS: readonly string[] = [
   "BAN-GUEST-VERSION",
   "BAN-HOME-SCREEN-HINT",
   "BAN-LOADFAIL",
-  "CHIP-REC-TRANSPORT",
   "CMP-CLIP",
   "CMP-DESKTOP-GUARD",
   "CMP-EDITBOUNDARY",
@@ -27,13 +26,11 @@ export const INVENTORY_IDS: readonly string[] = [
   "CMP-REC-CLIPPING",
   "CMP-REC-CONSENT",
   "CMP-REC-DEVICE",
-  "CMP-REC-HOSTROSTER",
   "CMP-REC-INDICATOR",
   "CMP-REC-LIVECOMMENTS",
   "CMP-REC-NOTICES",
   "CMP-REC-ROOMTONE",
   "CMP-REC-ROSTER",
-  "CMP-REC-STOP",
   "CMP-REC-UPLOAD",
   "CMP-REFINE",
   "CMP-RULER",

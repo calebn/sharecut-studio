@@ -49,6 +49,16 @@ export function useRecordLiveComments(opts: {
     post(MARKER_BODY);
   }, [post]);
 
+  const postNote = useCallback(
+    (text: string) => {
+      const body = text.trim();
+      if (body) {
+        post(body);
+      }
+    },
+    [post],
+  );
+
   const submitNote = useCallback(() => {
     const body = note.trim();
     if (!body) {
@@ -116,6 +126,7 @@ export function useRecordLiveComments(opts: {
     note,
     setNote,
     postMarker,
+    postNote,
     submitNote,
     comments: snapshot?.comments ?? [],
   };

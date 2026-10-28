@@ -363,7 +363,6 @@ describe("command governance", () => {
       "export.bounce",
       "export.deliverables",
       "share.manage",
-      "record.openPanel",
       "record.createRoom",
       "record.copyGuestLink",
       "edit.addChapter",

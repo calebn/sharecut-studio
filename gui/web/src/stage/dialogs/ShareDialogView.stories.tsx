@@ -91,9 +91,9 @@ function ShareDialogPreview({
             setRows((prev) => prev.filter((r) => r.session_id !== sessionId));
             args.onEndRoom(sessionId);
           }}
-          onOpenRoomPanel={() => {
+          onOpenRecordStage={() => {
             close();
-            args.onOpenRoomPanel();
+            args.onOpenRecordStage();
           }}
         />
       )}
@@ -128,7 +128,7 @@ const meta: Meta<typeof ShareDialogView> = {
     onCopy: fn(),
     onRevoke: fn(),
     onEndRoom: fn(),
-    onOpenRoomPanel: fn(),
+    onOpenRecordStage: fn(),
   },
   argTypes: { open: { control: false } },
   render: (args, context) => (
@@ -193,9 +193,9 @@ export const RecordRoom: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Open room panel" }),
+      within(dialog).getByRole("button", { name: "Open Record stage" }),
     );
-    await expect(args.onOpenRoomPanel).toHaveBeenCalledOnce();
+    await expect(args.onOpenRecordStage).toHaveBeenCalledOnce();
     await waitFor(() =>
       expect(within(document.body).queryByRole("dialog")).toBeNull(),
     );

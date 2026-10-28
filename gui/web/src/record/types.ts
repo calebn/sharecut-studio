@@ -279,7 +279,7 @@ export function resolveCaptureHealth(
  * What a REC surface shows for a resolved capture problem: the label to use
  * and whether the no-audio notice is due. `suppressSilent` drops a silent
  * result (for example while mic loss is already shown), so Room and
- * RecordPanel gate the no-audio alert the same way.
+ * the Record stage gate the no-audio alert the same way.
  */
 export function captureAttention(
   state: RecordRoomState | undefined,

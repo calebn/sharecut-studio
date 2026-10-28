@@ -484,7 +484,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     noRepeat: true,
     when: "hasProject",
     collision:
-      "M mutes the targeted track; while the record panel is open, M drops a marker instead",
+      "M mutes the targeted track; on the Record stage, M drops a marker instead",
   },
   {
     id: "record.marker",
@@ -492,11 +492,11 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Record marker",
     keys: ["M"],
     bareKey: true,
-    when: "recordPanelOpen",
+    when: "recordStageActive",
     notes:
-      "M: live marker while the record panel is open; with the panel closed, M still mutes the targeted track",
+      "M: live marker on the Record stage; on any other stage, M still mutes the targeted track",
     collision:
-      "M drops a marker only while the record panel is open; otherwise M mutes the targeted track",
+      "M drops a marker only on the Record stage; otherwise M mutes the targeted track",
   },
   {
     id: "track.soloToggle",

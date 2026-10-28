@@ -29,7 +29,7 @@ describe("PlusMenu", () => {
       expect.stringContaining("Import audio"),
       expect.stringContaining("New track"),
       expect.stringContaining("Add chapter at playhead"),
-      expect.stringContaining("Record room"),
+      expect.stringContaining("Go to Record"),
     ]);
   });
 
@@ -37,7 +37,7 @@ describe("PlusMenu", () => {
     ["track.add", /New track/],
     ["media.import", /Import audio/],
     ["edit.addChapter", /Add chapter at playhead/],
-    ["record.openPanel", /Record room/],
+    ["stage.record", /Go to Record/],
   ])("%s runs from its row and closes the menu", async (id, name) => {
     const handler = vi.fn(() => ({ status: "ok" as const }));
     registerCommand(id, handler);

@@ -62,7 +62,7 @@ function baseProps(): Parameters<typeof ShareDialogView>[0] {
     onRevoke: vi.fn(),
     onEndRoom: vi.fn(),
     onReplaceRecordInvite: vi.fn(),
-    onOpenRoomPanel: vi.fn(),
+    onOpenRecordStage: vi.fn(),
   };
 }
 
@@ -309,8 +309,8 @@ describe("ShareDialogView", () => {
       guestRow.url,
     );
 
-    await user.click(screen.getByRole("button", { name: "Open room panel" }));
-    expect(props.onOpenRoomPanel).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "Open Record stage" }));
+    expect(props.onOpenRecordStage).toHaveBeenCalledOnce();
   });
 
   it("confirms Stop sharing in place, naming the link and the consequence; axe-clean", async () => {
@@ -389,7 +389,7 @@ describe("ShareDialogView", () => {
     expect(endRoom.closest(".share-dialog-link")).toBeNull();
     expect(
       [...(endRoom.parentElement?.children ?? [])].map((b) => b.textContent),
-    ).toEqual(["Open room panel", "End room"]);
+    ).toEqual(["Open Record stage", "End room"]);
 
     await user.click(endRoom);
     const confirm = screen.getByRole("group", {

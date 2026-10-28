@@ -2,14 +2,12 @@ import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "./api";
 import { DawApp } from "./dawApp";
-import { RecordPanel } from "./record/RecordPanel";
 import { useDawStore } from "./state/dawStore";
 
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
   loadHostRecordState: vi.fn(async () => null),
 }));
-vi.mock("./record/RecordPanel", () => ({ RecordPanel: vi.fn(() => null) }));
 vi.mock("./TransportEngine", () => ({
   TransportEngine: () => null,
   FollowEngine: () => null,
@@ -78,21 +76,20 @@ describe("DawApp host room", () => {
   beforeEach(() => {
     vi.mocked(loadHostRecordState).mockClear();
     useDawStore.setState({ projectPath: "/p" });
-    useDawStore.getState().setRecordPanelOpen(false);
+    useDawStore.setState({ stage: "edit" });
   });
 
-  it("provides the room to RecordPanel and fetches only once the panel opens", async () => {
+  it("fetches the room only once the Record stage is active", async () => {
     render(<DawApp />);
     await act(async () => undefined);
-    expect(RecordPanel).toHaveBeenCalled();
     expect(loadHostRecordState).not.toHaveBeenCalled();
-    act(() => useDawStore.getState().setRecordPanelOpen(true));
+    act(() => useDawStore.setState({ stage: "record" }));
     await act(async () => undefined);
     expect(loadHostRecordState).toHaveBeenCalledTimes(1);
   });
 
-  it("never fetches for a guest share, even with the panel open", async () => {
-    useDawStore.getState().setRecordPanelOpen(true);
+  it("never fetches for a guest share, even on the Record stage", async () => {
+    useDawStore.setState({ stage: "record" });
     render(<DawApp guestShare />);
     await act(async () => undefined);
     expect(loadHostRecordState).not.toHaveBeenCalled();
