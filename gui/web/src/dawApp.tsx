@@ -162,6 +162,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     send: (payload) => sendRecordHostCommand("Signal", payload),
   });
 
+  const recordPanelOpen = useDaw((s) => s.chrome.recordPanelOpen);
   const hostRoom = useHostRoom(
     {
       recordingLocally: hostKeeper.recordingLocally,
@@ -179,7 +180,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       onCheckMic: hostKeeper.checkMic,
       micCheckFailed: hostKeeper.micCheckFailed,
     },
-    { hydrate: syncEnabled },
+    { hydrate: syncEnabled && recordPanelOpen },
   );
 
   useEffect(() => {

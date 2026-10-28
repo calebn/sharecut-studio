@@ -1,8 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
+import { HostRoomProvider } from "./hostRoomContext";
 import { useRecordHostStore } from "./hostStore";
+import { RecordPanel } from "./RecordPanel";
 import { useHostRoom } from "./useHostRoom";
 
 const send = vi.fn();
@@ -67,6 +69,20 @@ describe("useHostRoom", () => {
     expect(loadHostRecordState).not.toHaveBeenCalled();
   });
 
+  it("fetches once when hydration turns on", async () => {
+    const { rerender } = renderHook(
+      ({ on }) => useHostRoom({}, { hydrate: on }),
+      { initialProps: { on: false } },
+    );
+    await act(async () => undefined);
+    expect(loadHostRecordState).not.toHaveBeenCalled();
+    rerender({ on: true });
+    await waitFor(() => expect(loadHostRecordState).toHaveBeenCalledTimes(1));
+    rerender({ on: true });
+    await act(async () => undefined);
+    expect(loadHostRecordState).toHaveBeenCalledTimes(1);
+  });
+
   it("applies a found snapshot and rechecks on demand", async () => {
     const snap = recordSnapshot({
       state: "lobby",
@@ -113,5 +129,19 @@ describe("useHostRoom", () => {
     const { unmount } = renderHook(() => useHostRoom());
     unmount();
     expect(useRecordHostStore.getState().transportError).toBeNull();
+  });
+
+  it("lets RecordPanel read the provided room without hydrating itself", async () => {
+    const Harness = () => {
+      const room = useHostRoom({}, { hydrate: false });
+      return (
+        <HostRoomProvider value={room}>
+          <RecordPanel />
+        </HostRoomProvider>
+      );
+    };
+    render(<Harness />);
+    await act(async () => undefined);
+    expect(loadHostRecordState).not.toHaveBeenCalled();
   });
 });

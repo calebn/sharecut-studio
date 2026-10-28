@@ -7,15 +7,18 @@ export function noteItems(snapshot: RecordSnapshot | null): NoteItem[] {
   if (!snapshot) {
     return [];
   }
-  const colors = new Map(
-    snapshot.participants.map((person, index) => [person.display_name, index]),
+  const byId = new Map(
+    snapshot.participants.map((person, index) => [
+      person.participant_id,
+      { name: person.display_name, colorIndex: index },
+    ]),
   );
   return (snapshot.comments ?? []).map((comment) => {
     const marker = comment.body === MARKER_BODY;
     const item: NoteItem = {
       id: comment.id,
       kind: marker ? "marker" : "note",
-      author: { name: comment.author, colorIndex: colors.get(comment.author) },
+      author: byId.get(comment.author) ?? { name: comment.author },
       time: clockText(comment.recording_ms / 1000),
     };
     if (!marker) {
