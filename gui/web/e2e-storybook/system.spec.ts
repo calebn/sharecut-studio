@@ -1208,3 +1208,755 @@ test("System/TrackHeader the phone select button is a 44 px target and a coarse 
     await context.close();
   }
 });
+
+/** Two animation frames: whatever a pointer or key set in motion has been drawn. */
+function frames(page: import("@playwright/test").Page) {
+  return page.evaluate(
+    () =>
+      new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+      ),
+  );
+}
+
+/** A one-finger swipe by real touch events; `end` false leaves the finger down. */
+async function swipe(
+  cdp: import("@playwright/test").CDPSession,
+  from: { x: number; y: number },
+  by: { dx: number; dy: number },
+  steps = 12,
+) {
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [from],
+  });
+  for (let step = 1; step <= steps; step++) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        {
+          x: from.x + (by.dx * step) / steps,
+          y: from.y + (by.dy * step) / steps,
+        },
+      ],
+    });
+  }
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+}
+
+const rulerValue = (page: import("@playwright/test").Page) =>
+  page
+    .getByRole("slider", { name: "Timeline position" })
+    .getAttribute("aria-valuenow")
+    .then(Number);
+
+test("System/Ruler is 24 px tall with 11 px mono labels 64 px apart, a 2 px playhead with a 10 px triangle and a 4 px band with 12 px handles", async ({
+  page,
+}) => {
+  await open(page, "system-ruler--with-selection", 1280);
+  const ruler = page.locator(".sys-ruler");
+  await expect(ruler).toBeVisible();
+  expect((await ruler.boundingBox())?.height).toBe(24);
+  const ticks = await page.locator(".sys-ruler-tick").evaluateAll((els) =>
+    els.map((el) => {
+      const style = getComputedStyle(el);
+      return {
+        left: el.getBoundingClientRect().left,
+        size: style.fontSize,
+        mono: style.fontFamily.toLowerCase().includes("mono"),
+      };
+    }),
+  );
+  expect(ticks.length).toBeGreaterThan(4);
+  for (const tick of ticks) {
+    expect(tick.size).toBe("11px");
+    expect(tick.mono).toBe(true);
+  }
+  for (let i = 1; i < ticks.length; i++) {
+    expect(
+      (ticks[i]?.left ?? 0) - (ticks[i - 1]?.left ?? 0),
+    ).toBeGreaterThanOrEqual(64);
+  }
+  const look = await page.evaluate(() => {
+    const box = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (!el) throw new Error(selector);
+      return el.getBoundingClientRect();
+    };
+    const triangle = getComputedStyle(
+      document.querySelector(".sys-ruler-playhead") as Element,
+      "::before",
+    );
+    return {
+      playhead: box(".sys-ruler-playhead").width,
+      triangle:
+        Number.parseFloat(triangle.borderLeftWidth) +
+        Number.parseFloat(triangle.borderRightWidth),
+      band: box(".sys-ruler-selection").height,
+      bandBottom: box(".sys-ruler-selection").bottom - box(".sys-ruler").bottom,
+      handle: box(".sys-ruler-handle[data-edge=start]").width,
+      grip: box(".sys-ruler-handle[data-edge=start] .sys-ruler-grip").width,
+    };
+  });
+  expect(look).toEqual({
+    playhead: 2,
+    triangle: 10,
+    band: 4,
+    bandBottom: 0,
+    handle: 12,
+    grip: 12,
+  });
+});
+
+test("System/Ruler a click seeks, a drag scrubs, and Escape puts the playhead back", async ({
+  page,
+}) => {
+  await open(page, "system-ruler--zoomed", 1280);
+  const ruler = page.getByRole("slider", { name: "Timeline position" });
+  const box = await ruler.boundingBox();
+  if (!box) throw new Error("Ruler did not render");
+  const y = box.y + box.height / 2;
+  expect(await rulerValue(page)).toBe(608.5);
+  await page.mouse.click(box.x + 120, y);
+  expect(await rulerValue(page)).toBe(607);
+  await page.mouse.move(box.x + 60, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 120, y, { steps: 6 });
+  await page.mouse.move(box.x + 240, y, { steps: 6 });
+  expect(await rulerValue(page)).toBe(610);
+  await expect(page.locator(".sys-ruler")).toHaveAttribute(
+    "data-scrubbing",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sys-ruler")).not.toHaveAttribute(
+    "data-scrubbing",
+    /.*/,
+  );
+  expect(await rulerValue(page)).toBe(607);
+  await page.mouse.up();
+  await frames(page);
+  expect(await rulerValue(page)).toBe(607);
+  await page.mouse.move(box.x + 60, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 180, y, { steps: 8 });
+  await page.mouse.up();
+  expect(await rulerValue(page)).toBe(608.5);
+});
+
+test("System/Ruler selection handles resize the selection with a mouse and Escape puts it back", async ({
+  page,
+}) => {
+  await open(page, "system-ruler--with-selection", 1280);
+  const end = page.getByRole("slider", { name: "Selection end" });
+  const start = page.getByRole("slider", { name: "Selection start" });
+  const box = await end.boundingBox();
+  if (!box) throw new Error("Handle did not render");
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 20, y, { steps: 5 });
+  await page.mouse.move(x + 60, y, { steps: 5 });
+  await expect(end).toHaveAttribute("aria-valuenow", "617");
+  await expect(end).toHaveAttribute("data-dragging", "true");
+  await page.keyboard.press("Escape");
+  await expect(end).toHaveAttribute("aria-valuenow", "614");
+  await page.mouse.up();
+  await expect(end).toHaveAttribute("aria-valuenow", "614");
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 400, y, { steps: 10 });
+  await page.mouse.up();
+  await expect(end).toHaveAttribute("aria-valuenow", "608.01");
+  await expect(start).toHaveAttribute("aria-valuenow", "608");
+});
+
+test("System/Ruler keys move the playhead, walk to the handles and nudge them, and the app keymap hears none of them", async ({
+  page,
+}) => {
+  await open(page, "system-ruler--with-selection", 1280);
+  await page.evaluate(() => {
+    const heard: string[] = [];
+    Object.assign(window, { heard });
+    window.addEventListener("keydown", (event) => heard.push(event.key));
+  });
+  await page.getByRole("slider", { name: "Timeline position" }).focus();
+  await page.keyboard.press("ArrowRight");
+  expect(await rulerValue(page)).toBe(611);
+  await page.keyboard.press("Shift+ArrowLeft");
+  expect(await rulerValue(page)).toBe(561);
+  await page.keyboard.press("Alt+ArrowRight");
+  const start = page.getByRole("slider", { name: "Selection start" });
+  await expect(start).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(start).toHaveAttribute("aria-valuenow", "608.01");
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(start).toHaveAttribute("aria-valuenow", "608.11");
+  await page.keyboard.press("Tab");
+  const heard = await page.evaluate(
+    () => (window as unknown as { heard: string[] }).heard,
+  );
+  expect(heard.filter((key) => key.startsWith("Arrow"))).toEqual([]);
+  expect(heard).toContain("Tab");
+});
+
+test("System/Ruler under a coarse pointer has 44 px handles that stay on the ruler, and a real swipe scrubs while a tap seeks", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, "system-ruler--phone");
+  const cdp = await context.newCDPSession(page);
+  const body = page.getByRole("slider", { name: "Timeline position" });
+  await expect(body).toBeVisible();
+  const ruler = await page.locator(".sys-ruler").boundingBox();
+  const bar = await body.boundingBox();
+  if (!ruler || !bar) throw new Error("Ruler did not render");
+  expect(ruler.height).toBe(24);
+  expect(await body.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
+    "pan-y",
+  );
+  expect(
+    await page
+      .locator(".sys-ruler-handle")
+      .first()
+      .evaluate((el) => getComputedStyle(el).touchAction),
+  ).toBe("none");
+  const handles = await page.locator(".sys-ruler-handle").evaluateAll((els) =>
+    els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return [r.width, r.height, r.top, r.bottom];
+    }),
+  );
+  expect(handles).toEqual([
+    [44, 24, ruler.y, ruler.y + 24],
+    [44, 24, ruler.y, ruler.y + 24],
+  ]);
+  const y = bar.y + 12;
+  const before = await rulerValue(page);
+  await swipe(cdp, { x: bar.x + 40, y }, { dx: 150, dy: 0 });
+  await frames(page);
+  const swiped = await rulerValue(page);
+  expect(swiped).toBeCloseTo(600 + (190 - 0) / 24, 1);
+  expect(swiped).not.toBe(before);
+  await swipe(cdp, { x: bar.x + 330, y: y - 6 }, { dx: 4, dy: 60 });
+  await frames(page);
+  expect(await rulerValue(page)).toBeCloseTo(swiped, 5);
+  const after = await body.boundingBox();
+  if (!after) throw new Error("Ruler left the page");
+  const tapY = after.y + 12;
+  await page.touchscreen.tap(after.x + 300, tapY);
+  await expect.poll(() => rulerValue(page)).toBeCloseTo(600 + 300 / 24, 1);
+  const start = await page
+    .locator(".sys-ruler-handle[data-edge=start]")
+    .boundingBox();
+  if (!start) throw new Error("No handle");
+  await page.touchscreen.tap(start.x + 3, tapY);
+  await expect
+    .poll(() => rulerValue(page))
+    .toBeCloseTo(600 + (start.x + 3 - after.x) / 24, 1);
+  await context.close();
+});
+
+test("System/Ruler under a coarse pointer a touch drag on a handle resizes the selection, and nothing of it reaches the row below", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, "system-ruler--phone");
+  const cdp = await context.newCDPSession(page);
+  const end = page.getByRole("slider", { name: "Selection end" });
+  const box = await end.boundingBox();
+  if (!box) throw new Error("Handle did not render");
+  expect(await end.getAttribute("aria-valuenow")).toBe("610");
+  const rows = await page.evaluate(
+    ([x, top, bottom]) => {
+      const at = (y: number) => {
+        const el = document.elementFromPoint(x as number, y as number);
+        return el?.closest(
+          ".sys-ruler-handle, .sys-ruler-body, .sys-markers-track",
+        )?.className;
+      };
+      return {
+        above: at((top as number) - 1),
+        inside: at((top as number) + 12),
+        below: at(bottom as number),
+      };
+    },
+    [box.x + box.width / 2, box.y, box.y + box.height],
+  );
+  await swipe(
+    cdp,
+    { x: box.x + box.width / 2, y: box.y + 12 },
+    { dx: 48, dy: 0 },
+  );
+  await frames(page);
+  await expect(end).toHaveAttribute("aria-valuenow", "612");
+  expect(rows.inside).toContain("sys-ruler-handle");
+  expect(rows.below).toContain("sys-markers-track");
+  expect(rows.above ?? "").not.toContain("sys-ruler-handle");
+  await context.close();
+});
+
+test("System/Ruler sits directly above the marker lane and each keeps its own pixels", async ({
+  page,
+}) => {
+  await open(page, "system-ruler--above-markers", 1280);
+  const ruler = await page.locator(".sys-ruler").boundingBox();
+  const lane = await page.locator(".sys-markers").boundingBox();
+  const lanes = await page.getByTestId("lanes-below").boundingBox();
+  if (!ruler || !lane || !lanes) throw new Error("Stack did not render");
+  expect(lane.y).toBe(ruler.y + ruler.height);
+  expect(lanes.y).toBe(lane.y + lane.height);
+  expect(lane.height).toBe(24);
+  const joke = await page
+    .getByRole("button", { name: /^Clip idea Best joke/ })
+    .boundingBox();
+  if (!joke) throw new Error("No bracket");
+  const x = joke.x + joke.width / 2;
+  const owners = await page.evaluate(
+    ([px, a, b, c, d]) =>
+      [a, b, c, d].map((y) => {
+        const el = document.elementFromPoint(px as number, y as number);
+        const owner = el?.closest(
+          ".sys-ruler, .sys-markers, [data-testid=lanes-below]",
+        );
+        return owner?.matches("[data-testid=lanes-below]")
+          ? "lanes-below"
+          : owner?.className.split(" ")[0];
+      }),
+    [x, ruler.y + 23, lane.y, lane.y + 23, lanes.y],
+  );
+  expect(owners).toEqual([
+    "sys-ruler",
+    "sys-markers",
+    "sys-markers",
+    "lanes-below",
+  ]);
+});
+
+test("System/Ruler draws its playhead, band and handles in system colors under forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(storyUrl("system-ruler--with-selection", { theme: "light" }));
+  await expect(page.locator(".sys-ruler-playhead")).toBeVisible();
+  const colors = await page.evaluate(() => {
+    const color = (selector: string, property: "backgroundColor") => {
+      const el = document.querySelector(selector);
+      if (!el) throw new Error(selector);
+      return getComputedStyle(el)[property];
+    };
+    const probe = document.createElement("div");
+    probe.style.forcedColorAdjust = "none";
+    probe.style.backgroundColor = "Highlight";
+    document.body.append(probe);
+    const highlight = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return {
+      highlight,
+      playhead: color(".sys-ruler-playhead", "backgroundColor"),
+      band: color(".sys-ruler-selection", "backgroundColor"),
+      grip: color(".sys-ruler-grip", "backgroundColor"),
+      well: color(".sys-ruler", "backgroundColor"),
+    };
+  });
+  expect(colors.playhead).toBe(colors.highlight);
+  expect(colors.band).toBe(colors.highlight);
+  expect(colors.grip).toBe(colors.highlight);
+  expect(colors.playhead).not.toBe(colors.well);
+});
+
+test("System/MarkerLane is one 24 px lane with a 12 px flag, a 16 px pin, a 3 px span bar and a 2 px bracket line", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--all-kinds", 1280);
+  const lane = page.locator(".sys-markers");
+  await expect(lane).toBeVisible();
+  expect((await lane.boundingBox())?.height).toBe(24);
+  const size = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return [Math.round(r.width), Math.round(r.height)];
+      });
+  expect(await size(".sys-marker[data-kind=chapter] svg")).toEqual([12, 12]);
+  expect(await size(".sys-marker-bubble")).toEqual([16, 16]);
+  expect((await size(".sys-marker-bar"))[1]).toBe(3);
+  expect((await size(".sys-marker-line"))[1]).toBe(2);
+  const buttons = await page
+    .locator(".sys-marker-hit")
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+  expect(buttons).toEqual([24, 24, 24, 24, 24, 24]);
+});
+
+test("System/MarkerLane a chapter's title is cut off at the next marker, and a mouse hover names the time", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--all-kinds", 1280);
+  const open1 = page.getByRole("button", { name: /^Chapter Cold open/ });
+  const maya = page.getByRole("button", { name: /^Comment by Maya/ });
+  const a = await open1.boundingBox();
+  const b = await maya.boundingBox();
+  if (!a || !b) throw new Error("Markers did not render");
+  expect(a.x + a.width).toBeLessThanOrEqual(b.x + 0.5);
+  await maya.hover();
+  await expect(page.getByRole("tooltip")).toContainText("0:09.0");
+});
+
+test("System/MarkerLane under a coarse pointer a marker's touch area is 44 px wide and exactly the lane tall, and never reaches the ruler, the lanes or a neighbour", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-markerlane--touch-targets",
+  );
+  const lane = await page.locator(".sys-markers").boundingBox();
+  const pin = page.getByRole("button", { name: /^Comment by Maya/ });
+  const box = await pin.boundingBox();
+  if (!lane || !box) throw new Error("Lane did not render");
+  const cx = box.x + box.width / 2;
+  const probe = (x: number, y: number) =>
+    page.evaluate(
+      ([px, py]) => {
+        const el = document.elementFromPoint(px as number, py as number);
+        return (
+          el?.closest("button")?.getAttribute("aria-label") ??
+          (el?.closest(".sys-ruler") ? "ruler" : null) ??
+          (el?.closest("[data-testid=lanes-below]") ? "lanes" : null) ??
+          el?.className ??
+          null
+        );
+      },
+      [x, y],
+    );
+  const middle = lane.y + 12;
+  expect(await probe(cx, middle)).toMatch(/^Comment by Maya/);
+  for (const dx of [-21, 21]) {
+    expect(await probe(cx + dx, middle)).toMatch(/^Comment by Maya/);
+    expect(await probe(cx + dx, lane.y + 1)).toMatch(/^Comment by Maya/);
+    expect(await probe(cx + dx, lane.y + 23)).toMatch(/^Comment by Maya/);
+  }
+  for (const dx of [-23, 23]) {
+    expect(await probe(cx + dx, middle)).not.toMatch(/Maya/);
+  }
+  expect(await probe(cx, lane.y - 1)).toBe("ruler");
+  expect(await probe(cx, lane.y + 24)).toBe("lanes");
+  await context.close();
+});
+
+test("System/MarkerLane under a coarse pointer a neighbour's touch area stops at half the gap, so two never overlap", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-markerlane--phone",
+  );
+  const lane = await page.locator(".sys-markers").boundingBox();
+  if (!lane) throw new Error("Lane did not render");
+  const y = lane.y + 12;
+  const owners = await page.evaluate(
+    ([top, left, width]) => {
+      const out: (string | null)[] = [];
+      for (
+        let x = (left as number) + 1;
+        x < (left as number) + (width as number);
+        x += 1
+      ) {
+        const el = document.elementFromPoint(x, top as number);
+        out.push(el?.closest("button")?.getAttribute("aria-label") ?? null);
+      }
+      return out;
+    },
+    [y, lane.x, lane.width],
+  );
+  const runs = owners.reduce<string[]>((all, name) => {
+    if (name && all.at(-1) !== name) all.push(name);
+    return all;
+  }, []);
+  expect(runs).toEqual([
+    "Chapter Cold open, 0:01.0",
+    "Comment by Maya, 0:09.0",
+    "Comment by Anneke, 0:14.0 to 0:19.5",
+    "Chapter Interview, 0:24.0",
+    "Clip idea Best joke, approved, 0:30.0 to 0:42.0",
+    "Clip idea Tight intro, proposed, 0:46.0 to 0:55.0",
+  ]);
+  await context.close();
+});
+
+test("System/MarkerLane a selected bracket's touch edges stay inside it and a real touch lands on them", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-markerlane--phone",
+  );
+  const joke = await page
+    .getByRole("button", { name: /^Clip idea Best joke/ })
+    .boundingBox();
+  if (!joke) throw new Error("Bracket did not render");
+  const jokeMarker = page.locator(".sys-marker", {
+    has: page.getByRole("button", { name: /^Clip idea Best joke/ }),
+  });
+  const edges = await jokeMarker
+    .locator(".sys-marker-edge")
+    .evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return [
+          el.getAttribute("data-edge"),
+          r.left,
+          r.right,
+          r.width,
+          r.height,
+        ];
+      }),
+    );
+  expect(edges.map(([name, , , , h]) => [name, h])).toEqual([
+    ["start", 24],
+    ["end", 24],
+  ]);
+  for (const [, left, right] of edges) {
+    expect(Number(left)).toBeGreaterThanOrEqual(Math.floor(joke.x));
+    expect(Number(right)).toBeLessThanOrEqual(Math.ceil(joke.x + joke.width));
+  }
+  const hits = await page.evaluate(
+    ([x0, x1, y]) =>
+      [x0, x1].map((x) =>
+        document
+          .elementFromPoint(x as number, y as number)
+          ?.closest("[data-edge]")
+          ?.getAttribute("data-edge"),
+      ),
+    [joke.x + 6, joke.x + joke.width - 6, joke.y + 12],
+  );
+  expect(hits).toEqual(["start", "end"]);
+  const centre = await page.evaluate(
+    ([x, y]) =>
+      document
+        .elementFromPoint(x as number, y as number)
+        ?.closest("button")
+        ?.getAttribute("aria-label"),
+    [joke.x + joke.width / 2, joke.y + 12],
+  );
+  expect(centre).toMatch(/^Clip idea Best joke/);
+  await context.close();
+});
+
+test("System/MarkerLane only a selected marker moves under one finger, and a tap selects", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-markerlane--phone",
+  );
+  const cdp = await context.newCDPSession(page);
+  const intro = page.getByRole("button", { name: /^Clip idea Tight intro/ });
+  const joke = page.getByRole("button", { name: /^Clip idea Best joke/ });
+  const name = (loc: import("@playwright/test").Locator) =>
+    loc.getAttribute("aria-label");
+  expect(await intro.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
+    "auto",
+  );
+  expect(await joke.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
+    "none",
+  );
+  const first = await name(intro);
+  const box = await intro.boundingBox();
+  if (!box) throw new Error("Bracket did not render");
+  await swipe(
+    cdp,
+    { x: box.x + box.width / 2, y: box.y + 12 },
+    { dx: 30, dy: 0 },
+  );
+  await frames(page);
+  expect(await name(intro)).toBe(first);
+  await expect(page.locator(".sys-readout")).toHaveCount(0);
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + 12);
+  await expect(intro).toHaveAttribute("aria-pressed", "true");
+  const jokeBox = await joke.boundingBox();
+  if (!jokeBox) throw new Error("Bracket did not render");
+  await page.touchscreen.tap(jokeBox.x + jokeBox.width / 2, jokeBox.y + 12);
+  await expect(joke).toHaveAttribute("aria-pressed", "true");
+  const before = await name(joke);
+  await swipe(
+    cdp,
+    { x: jokeBox.x + jokeBox.width / 2, y: jokeBox.y + 12 },
+    { dx: -48, dy: 0 },
+  );
+  await frames(page);
+  expect(before).toMatch(/0:30\.0 to 0:42\.0/);
+  expect(await name(joke)).toMatch(/0:22\.0 to 0:34\.0/);
+  await context.close();
+});
+
+test("System/MarkerLane a mouse drag moves a chapter with a readout chip above the pointer, and Escape puts it back", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--dragging", 1280);
+  const chapter = page.getByRole("button", { name: /^Chapter Interview/ });
+  const box = await chapter.boundingBox();
+  if (!box) throw new Error("Chapter did not render");
+  const x = box.x + 6;
+  const y = box.y + 12;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 30, y, { steps: 5 });
+  await page.mouse.move(x + 60, y, { steps: 5 });
+  const chip = page.locator(".sys-readout");
+  await expect(chip).toBeVisible();
+  await expect(chip).toContainText("+10.00 s");
+  await expect(chip).toContainText("0:34.00");
+  const chipBox = await chip.boundingBox();
+  if (!chipBox) throw new Error("No chip");
+  expect(chipBox.y + chipBox.height).toBeLessThanOrEqual(box.y - 8);
+  expect(
+    Math.abs(chipBox.x + chipBox.width / 2 - (x + 60)),
+  ).toBeLessThanOrEqual(2);
+  await expect(chapter).toHaveAttribute("aria-label", /0:34\.0$/);
+  await page.keyboard.press("Escape");
+  await expect(chip).toHaveCount(0);
+  await expect(chapter).toHaveAttribute("aria-label", /0:24\.0$/);
+  await page.mouse.up();
+  await frames(page);
+  await expect(chapter).toHaveAttribute("aria-label", /0:24\.0$/);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 24, y, { steps: 8 });
+  await page.mouse.up();
+  await expect(chapter).toHaveAttribute("aria-label", /0:28\.0$/);
+  await expect(chip).toHaveCount(0);
+});
+
+test("System/MarkerLane a double-click on the empty lane adds a chapter and opens its name, and one on a marker does not", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--all-kinds", 1280);
+  const lane = await page.locator(".sys-markers").boundingBox();
+  if (!lane) throw new Error("Lane did not render");
+  const chapter = await page
+    .getByRole("button", { name: /^Chapter Interview/ })
+    .boundingBox();
+  if (!chapter) throw new Error("Chapter did not render");
+  await page.mouse.dblclick(chapter.x + 4, chapter.y + 12);
+  await expect(page.getByRole("textbox", { name: "Chapter name" })).toHaveCount(
+    0,
+  );
+  await page.mouse.dblclick(lane.x + 130, lane.y + 12);
+  const field = page.getByRole("textbox", { name: "Chapter name" });
+  await expect(field).toBeFocused();
+  await page.keyboard.type("Q and A");
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("button", { name: /^Chapter Q and A, 0:21\.7/ }),
+  ).toBeVisible();
+  await expect(field).toHaveCount(0);
+});
+
+test("System/MarkerLane the keyboard walks the markers, selects, and nudges a chapter, and the keymap hears no nudge", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--all-kinds", 1280);
+  await page.evaluate(() => {
+    const heard: string[] = [];
+    Object.assign(window, { heard });
+    window.addEventListener("keydown", (event) => heard.push(event.key));
+  });
+  const chapter = page.getByRole("button", { name: /^Chapter Interview/ });
+  await page.getByRole("button", { name: /^Chapter Cold open/ }).focus();
+  for (let n = 0; n < 3; n++) await page.keyboard.press("Tab");
+  await expect(chapter).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(chapter).toHaveAttribute("aria-label", /0:24\.0$/);
+  await page.keyboard.press("Enter");
+  await expect(chapter).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowRight");
+  await expect(chapter).toHaveAttribute("aria-label", /0:24\.1$/);
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(chapter).toHaveAttribute("aria-label", /0:25\.1$/);
+  await page.keyboard.press("ArrowLeft");
+  await expect(chapter).toHaveAttribute("aria-label", /0:25\.0$/);
+  const heard = await page.evaluate(
+    () => (window as unknown as { heard: string[] }).heard,
+  );
+  expect(heard.filter((key) => key === "ArrowLeft")).toEqual([]);
+  expect(heard.filter((key) => key === "ArrowRight")).toEqual(["ArrowRight"]);
+});
+
+test("System/MarkerLane overlapping markers fold into a +N chip that opens a list, and Escape closes it", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--dense", 1280);
+  const chips = page.getByRole("button", { name: /more markers?$/ });
+  const chip = chips.first();
+  await expect(chip).toBeVisible();
+  await expect(chip).toHaveText(/^\+\d+$/);
+  await chip.click();
+  const rows = page.getByRole("menuitem");
+  expect(await rows.count()).toBeGreaterThan(0);
+  await page.keyboard.press("Escape");
+  await expect(rows).toHaveCount(0);
+  await chip.click();
+  await rows.first().click();
+  await expect(rows).toHaveCount(0);
+  const lane = await page.locator(".sys-markers").boundingBox();
+  const hits = await page.locator(".sys-marker-hit").evaluateAll((els) =>
+    els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return [r.left, r.right];
+    }),
+  );
+  if (!lane) throw new Error("Lane did not render");
+  const sorted = [...hits].sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0));
+  for (let i = 1; i < sorted.length; i++) {
+    expect(sorted[i]?.[0] ?? 0).toBeGreaterThanOrEqual(
+      (sorted[i - 1]?.[1] ?? 0) - 1,
+    );
+  }
+});
+
+test("System/MarkerLane draws a selected marker with an outline and its handles in system colors under forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(storyUrl("system-markerlane--selected", { theme: "light" }));
+  const joke = page.getByRole("button", { name: /^Clip idea Best joke/ });
+  await expect(joke).toBeVisible();
+  expect(await joke.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe(
+    "solid",
+  );
+  const colors = await page.evaluate(() => {
+    const grip = document.querySelector(".sys-marker-grip");
+    if (!grip) throw new Error("No grip");
+    const probe = document.createElement("div");
+    probe.style.forcedColorAdjust = "none";
+    probe.style.backgroundColor = "Highlight";
+    document.body.append(probe);
+    const highlight = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return [getComputedStyle(grip).backgroundColor, highlight];
+  });
+  expect(colors[0]).toBe(colors[1]);
+});
+
+test("System/MarkerLane and System/Ruler fit a 360 px phone without scrolling sideways", async ({
+  page,
+}) => {
+  for (const id of ["system-markerlane--phone", "system-ruler--phone"]) {
+    await open(page, id, 360);
+    await expect(page.locator(".sys-ruler")).toBeVisible();
+    const fit = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      view: document.documentElement.clientWidth,
+      ruler: document.querySelector(".sys-ruler")?.getBoundingClientRect()
+        .right,
+    }));
+    expect(fit.scroll).toBeLessThanOrEqual(fit.view);
+    expect(fit.ruler).toBeLessThanOrEqual(fit.view);
+  }
+});
