@@ -311,6 +311,10 @@ describe("stable callback source governance", () => {
         .map(({ source, callback }) => `${source.rel}:${callback}`)
         .sort(),
     ).toEqual([
+      "stage/hosts/useReviewQueue.ts:onDecide",
+      "stage/hosts/useReviewQueue.ts:onHear",
+      "stage/hosts/useReviewQueue.ts:onOpenInEdit",
+      "stage/hosts/useReviewQueue.ts:refreshStatus",
       "stages/edit/FixTextField.tsx:finish",
       "system/Clip.tsx:abort",
       "system/Clip.tsx:endNudge",
