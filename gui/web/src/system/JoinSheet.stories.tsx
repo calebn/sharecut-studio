@@ -254,9 +254,7 @@ export const GuestPhone: Story = {
     const dialog = await sheet();
     await expect(dialog.getByText("Add your name first")).toBeVisible();
     await userEvent.type(dialog.getByLabelText("Your name"), "Jon");
-    await waitFor(() => expect(rowState("name")).toBe("done"), {
-      timeout: 5000,
-    });
+    await waitFor(() => expect(rowState("name")).toBe("done"));
     await expect(dialog.getByText("Allow your microphone first")).toBeVisible();
   },
 };
