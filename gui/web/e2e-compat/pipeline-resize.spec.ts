@@ -149,7 +149,9 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
           await page.evaluate(
             () =>
               new Promise<void>((done) =>
-                requestAnimationFrame(() => requestAnimationFrame(() => done())),
+                requestAnimationFrame(() =>
+                  requestAnimationFrame(() => done()),
+                ),
               ),
           );
           probes.afterFrames = await probe();
@@ -257,5 +259,6 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
           await expectPageAxeClean(page, ".pipeline-panel");
         }
       });
+    });
   });
 }
