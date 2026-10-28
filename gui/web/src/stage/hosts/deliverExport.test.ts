@@ -99,7 +99,11 @@ describe("format sizes", () => {
 describe("exportOptionsOf", () => {
   it("offers the project's formats and the loudness sentence, and hides what has no backend", () => {
     expect(exportOptionsOf(flowOf())).toEqual({
-      formats: expect.any(Array),
+      formats: [
+        { id: "mp3", label: "MP3 · 192 kbps", bytesPerSecond: 24_000 },
+        { id: "m4a", label: "M4A (AAC) · 128 kbps", bytesPerSecond: 16_000 },
+        { id: "flac", label: "FLAC · lossless", bytesPerSecond: 97_000 },
+      ],
       wavAlwaysWritten: true,
       selected: ["mp3"],
       loading: false,
@@ -228,7 +232,7 @@ describe("exportStateOf", () => {
         { name: "ep.wav", format: "wav" },
         { name: "ep.MP3", format: "mp3" },
       ],
-      when: expect.stringMatching(/^at \d{1,2}:\d{2} (AM|PM)$/),
+      when: expect.stringMatching(/^at \d{1,2}:\d{2}[\s\u202f](AM|PM)$/),
       exported: REQUEST,
       summary: "Exported 2 files to export/",
       measured: "Measured −16.1 LUFS, true peak −1.6 dBTP.",
