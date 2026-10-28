@@ -276,6 +276,56 @@ describe("projectFromDocumentSnapshot", () => {
     expect(next?.meta.hydration?.transcript_words).toBe(true);
   });
 
+  it("keeps transcript_words false across repeated shells with no utterances", () => {
+    const shell = () =>
+      minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: false, history_groups: false },
+        },
+        transcript: { utterances: [] },
+      });
+    const first = projectFromDocumentSnapshot(shell(), { project: shell() });
+    expect(first?.meta.hydration?.transcript_words).toBe(false);
+    const second = projectFromDocumentSnapshot(first ?? shell(), {
+      project: shell(),
+    });
+    expect(second?.meta.hydration?.transcript_words).toBe(false);
+  });
+
+  it("reports transcript_words true when every incoming utterance carries words", () => {
+    const utterance = {
+      track_id: "host",
+      speaker: "Host",
+      start: 0,
+      end: 0.4,
+      text: "hello",
+      timeline_start: 0,
+      timeline_end: 0.4,
+      mappable: true,
+      words: [
+        {
+          text: "hello",
+          start: 0,
+          end: 0.4,
+          timeline_start: 0,
+          timeline_end: 0.4,
+        },
+      ],
+    };
+    const full = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: { utterances: [utterance] },
+    });
+    const next = projectFromDocumentSnapshot(full, { project: full });
+    expect(next?.meta.hydration?.transcript_words).toBe(true);
+  });
+
   it("does not overlay chips when shell utterance text disagrees", () => {
     const prev = minimalProject({
       meta: {
