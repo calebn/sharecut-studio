@@ -36,7 +36,7 @@ const FLOOR_PX = 44 - 0.5;
 const CONTROLS =
   "button, a[href], [role=button], [role=tab], [role=menuitem], [role=checkbox], [role=menuitemcheckbox], [role=menuitemradio], [role=switch], input, select, textarea, summary";
 const STAGES = ["record", "prepare", "edit", "review", "deliver"] as const;
-const REVIEW_SECTIONS = ["comments", "impact", "tighten"] as const;
+const REVIEW_SECTIONS = ["queue", "comments", "tighten"] as const;
 
 /** Visible controls whose touch target is under the floor and not a documented exception. */
 async function undersized(page: Page, exceptions: string) {

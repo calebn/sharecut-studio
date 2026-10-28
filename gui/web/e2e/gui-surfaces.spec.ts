@@ -19,7 +19,7 @@ const VIEWPORTS = [
   { name: "phone", width: 360, height: 800 },
 ] as const;
 
-type PanelName = "Comments" | "History" | "Impact" | "Tighten" | "Pipeline";
+type PanelName = "Comments" | "History" | "Queue" | "Tighten" | "Pipeline";
 
 async function expectEditorAxeClean(
   page: Page,
@@ -103,7 +103,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
       for (const [name, selector] of [
         ["Comments", ".comments-panel"],
         ["History", ".history-panel"],
-        ["Impact", ".impact-panel"],
+        ["Queue", ".rv-stage"],
         ["Tighten", ".tighten-panel"],
         ["Pipeline", ".sys-prepare"],
       ] as const) {
