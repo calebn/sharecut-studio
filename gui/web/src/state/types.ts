@@ -232,6 +232,7 @@ export interface FeedbackToast {
   baseHead: HistoryEntryId | null;
   /** Undo for a change History does not record. */
   reverse: ReverseAction | null;
+  onUndone?: () => void;
   /** Where focus goes when its Undo or Dismiss closes the toast; the panel the change was made in. */
   returnFocus: (() => HTMLElement | null) | null;
   /** Says what a gesture is doing; it clears when the gesture ends or the mode changes. */
@@ -243,6 +244,8 @@ export interface AnnounceOptions {
   undo?: HistoryEntryId | null;
   /** Offer Undo for a change History does not record. */
   reverse?: ReverseAction;
+  /** Runs only after Undo moved the History head, not on a refusal or failure. */
+  onUndone?: () => void;
   returnFocus?: () => HTMLElement | null;
   /** `error` names a failure and its next step; internals are replaced before it is shown. */
   tone?: ToastTone;

@@ -19,6 +19,7 @@ import { SystemIcon } from "./SystemIcon";
 import { formatSeconds, type TimeRange } from "./seconds";
 import { useSwipeDecision } from "./useSwipeDecision";
 import { iconOf } from "./verbDisplay";
+import type { VerbId } from "./verbs";
 
 export type DecisionCardState = "ready" | "loading" | "error" | "empty";
 
@@ -33,7 +34,11 @@ export type DecisionCardProps = {
   excerpt?: ReactNode;
   /** With `audition`, which plays the change it frames. */
   waveform?: Omit<SuggestionWaveformProps, "icon" | "readOnly">;
+  change?: TimeRange;
   why?: string;
+  verb?: VerbId;
+  /** Why the primary cannot be used; it is also off by swipe. */
+  verbDisabledReason?: string;
   /** Seconds the change saves. Derive it from the waveform range so it follows a dragged handle. */
   savedSeconds?: number;
   audition?: {
@@ -159,6 +164,8 @@ export function DecisionCard(props: DecisionCardProps) {
     excerpt,
     waveform,
     why,
+    verb,
+    verbDisabledReason,
     savedSeconds,
     audition,
     unsure,
@@ -181,8 +188,9 @@ export function DecisionCard(props: DecisionCardProps) {
   const phone = layout === "phone";
   const holdVerb =
     unsure !== undefined && kind !== "unsure-word" && !unsure.resolved;
+  const verbHeld = holdVerb || verbDisabledReason !== undefined;
   const swipe = useSwipeDecision(
-    { verb: holdVerb ? undefined : onVerb, keep: onKeep, next: onLater },
+    { verb: verbHeld ? undefined : onVerb, keep: onKeep, next: onLater },
     { disabled: !phone || readOnly || state !== "ready" },
   );
 
@@ -219,11 +227,11 @@ export function DecisionCard(props: DecisionCardProps) {
 
   const change: TimeRange | null = waveform
     ? { start: waveform.start, end: waveform.end }
-    : null;
-  const drag = swipe.drag?.intent === "verb" && holdVerb ? null : swipe.drag;
+    : (props.change ?? null);
+  const drag = swipe.drag?.intent === "verb" && verbHeld ? null : swipe.drag;
   const revealIcon =
     drag?.intent === "verb"
-      ? iconOf(meta.verb)
+      ? iconOf(verb ?? meta.verb)
       : drag?.intent === "keep"
         ? iconOf("keep")
         : iconOf("later");
@@ -339,10 +347,10 @@ export function DecisionCard(props: DecisionCardProps) {
       {prompt && !readOnly ? <ActionPrompt {...prompt} /> : null}
       <ActionBarInline
         form={phone ? "dock" : "inline"}
-        verb={meta.verb}
-        verbLabel={meta.verbLabel}
+        verb={verb ?? meta.verb}
+        verbLabel={verb && verb !== meta.verb ? undefined : meta.verbLabel}
         verbDisabledReason={
-          holdVerb ? "Check the unsure word first." : undefined
+          holdVerb ? "Check the unsure word first." : verbDisabledReason
         }
         readOnly={readOnly}
         canEdit={canEdit}

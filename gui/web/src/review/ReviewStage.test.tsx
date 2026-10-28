@@ -138,15 +138,15 @@ describe("ReviewStage", () => {
     expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
   });
 
-  it("does not ask again after Cut anyway is undone", async () => {
+  it("asks again when Undo brings the transcript check back", async () => {
     const onDecide = vi.fn();
     const { press } = setup({ initialItems: QUEUE_ITEMS, onDecide });
     press("Enter");
     await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     press("Enter");
-    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
-    expect(onDecide).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+    expect(onDecide).toHaveBeenCalledTimes(1);
   });
 
   it("words the prompt for the group's verb, not the selection's, when its header is clicked", async () => {
@@ -174,7 +174,13 @@ describe("ReviewStage", () => {
     const items: ReviewItem[] = QUEUE_WITHOUT_CHECKS.map((i) =>
       i.id === "f1" ? { ...i, blocked: true } : i,
     );
-    const { decided, press } = setup({ initialItems: items });
+    const { decided, press } = setup({
+      initialItems: items,
+      content: (item) => {
+        const body = reviewContent(item);
+        return { ...body, card: { ...body.card, why: undefined } };
+      },
+    });
     const before = decided();
     press("Enter");
     expect(decided()).toBe(before);
@@ -405,5 +411,173 @@ describe("ReviewStage", () => {
     expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
     view.rerender(<ReviewStage {...props} selectedId="f2" />);
     expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+  });
+});
+
+describe("ReviewStage host seams", () => {
+  const withoutWave =
+    (change?: { start: number; end: number }) => (item: ReviewItem) => {
+      const body = reviewContent(item);
+      return {
+        ...body,
+        card: { ...body.card, waveform: undefined, change },
+      };
+    };
+
+  it("reports A and B from the buttons and the keys", async () => {
+    const onHear = vi.fn();
+    const { press } = setup({
+      onHear,
+      content: withoutWave({ start: 10, end: 11 }),
+    });
+    expect(screen.queryAllByRole("slider")).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "A" }));
+    expect(onHear).toHaveBeenLastCalledWith("f1", "A");
+    await userEvent.click(screen.getByRole("button", { name: "B" }));
+    expect(onHear).toHaveBeenLastCalledWith("f1", "B");
+    press("a");
+    expect(onHear).toHaveBeenLastCalledWith("f1", "A");
+    press("b");
+    expect(onHear).toHaveBeenLastCalledWith("f1", "B");
+  });
+
+  it("offers no A/B without a waveform or a change", () => {
+    setup({ content: withoutWave() });
+    expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+  });
+
+  it("takes the primary verb from the item's suggested action", () => {
+    const onDecide = vi.fn();
+    const items: ReviewItem[] = [
+      { id: "s1", kind: "sound", at: 5, savedSeconds: 0, suggested: "leave" },
+      {
+        id: "g1",
+        kind: "suggestion",
+        at: 9,
+        savedSeconds: 1,
+        suggested: "shorten",
+      },
+    ];
+    const { press } = setup({
+      initialItems: items,
+      initialSelectedId: "s1",
+      onDecide,
+    });
+    expect(screen.getAllByRole("button", { name: /^Keep/ })).toHaveLength(1);
+    press("Enter");
+    expect(onDecide).toHaveBeenLastCalledWith({ ids: ["s1"], result: "kept" });
+    press("ArrowDown");
+    expect(screen.getByRole("button", { name: /^Shorten/ })).toBeVisible();
+  });
+
+  const stageProps = (items: readonly ReviewItem[]) => ({
+    items,
+    content: reviewContent,
+    duration: 3000,
+    filter: "all" as const,
+    looksRight: new Set<string>(),
+    selectedId: "f1",
+    onSelect: vi.fn(),
+    onFilter: vi.fn(),
+    onLooksRight: vi.fn(),
+    onDecide: vi.fn(),
+  });
+  const press = (view: { container: HTMLElement }, key: string) =>
+    fireEvent.keyDown(view.container.querySelector(".rv-stage") as Element, {
+      key,
+    });
+
+  it("asks again when a transcript check comes back after Cut anyway", async () => {
+    const view = render(<ReviewStage {...stageProps(QUEUE_ITEMS)} />);
+    press(view, "Enter");
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    view.rerender(<ReviewStage {...stageProps(QUEUE_CHECKED)} />);
+    press(view, "Enter");
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+    view.rerender(<ReviewStage {...stageProps(QUEUE_ITEMS)} />);
+    press(view, "Enter");
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+  });
+
+  it("closes the prompt when a refresh closes the check", () => {
+    const view = render(<ReviewStage {...stageProps(QUEUE_ITEMS)} />);
+    press(view, "Enter");
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+    view.rerender(
+      <ReviewStage {...stageProps(QUEUE_ITEMS.filter((i) => i.id !== "c1"))} />,
+    );
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+  });
+
+  it("shows the item's own reason on a blocked item", () => {
+    const items: ReviewItem[] = QUEUE_WITHOUT_CHECKS.map((i) =>
+      i.id === "f1" ? { ...i, blocked: true } : i,
+    );
+    setup({
+      initialItems: items,
+      content: (item) => {
+        const body = reviewContent(item);
+        return item.id === "f1"
+          ? {
+              ...body,
+              card: { ...body.card, why: "Needs a closer look in Edit" },
+            }
+          : body;
+      },
+    });
+    expect(screen.getByText("Needs a closer look in Edit")).toBeVisible();
+    expect(
+      screen.queryByText("The server will not apply this yet."),
+    ).toBeNull();
+  });
+
+  it("opens no gate for a Lower and writes no waiver", () => {
+    const onDecide = vi.fn();
+    const items: ReviewItem[] = [
+      { id: "c1", kind: "check", at: 0, savedSeconds: 0, transcript: true },
+      { id: "s1", kind: "sound", at: 5, savedSeconds: 0, suggested: "lower" },
+    ];
+    const { press } = setup({
+      initialItems: items,
+      initialSelectedId: "s1",
+      onDecide,
+    });
+    press("Enter");
+    expect(screen.queryByRole("button", { name: "Lower anyway" })).toBeNull();
+    expect(onDecide).toHaveBeenCalledWith({ ids: ["s1"], result: "applied" });
+  });
+
+  it("offers no Keep on the transcript check and keeps the gate for the next cut", async () => {
+    const onDecide = vi.fn();
+    const { press } = setup({
+      initialItems: QUEUE_ITEMS,
+      initialSelectedId: "c1",
+      onDecide,
+    });
+    expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
+    press("x");
+    expect(onDecide).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+  });
+
+  it("asks again after a Cut anyway whose decision failed", async () => {
+    const props = stageProps(QUEUE_ITEMS);
+    props.onDecide = vi.fn(async () => false);
+    const view = render(<ReviewStage {...props} />);
+    press(view, "Enter");
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    press(view, "Enter");
+    expect(
+      await screen.findByRole("button", { name: "Cut anyway" }),
+    ).toBeVisible();
+  });
+
+  it("disables the primary of a blocked item", () => {
+    const items = QUEUE_WITHOUT_CHECKS.map((i) =>
+      i.id === "f1" ? { ...i, blocked: true } : i,
+    );
+    setup({ initialItems: items });
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 });

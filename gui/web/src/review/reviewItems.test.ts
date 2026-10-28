@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { pendingEditView } from "../test/fixtures";
-import type { PendingKind } from "../types/project";
+import type { PendingKind, TranscriptCheckStatus } from "../types/project";
 import {
+  CHECK_ID,
+  checkEntryOf,
   decisionKindOf,
   editIdOf,
   reviewEntriesOf,
@@ -105,7 +107,11 @@ describe("reviewEntriesOf", () => {
       time: "0:02",
       value: "1.0 s",
     });
-    expect(entry?.content.card).toEqual({ title: "Long pause", time: "0:02" });
+    expect(entry?.content.card).toEqual({
+      title: "Long pause",
+      time: "0:02",
+      change: { start: 2, end: 3 },
+    });
     expect(
       reviewEntriesOf([pendingEditView({ label: null })])[0]?.content.card
         .title,
@@ -147,5 +153,76 @@ describe("reviewEntriesOf on odd payloads", () => {
     const item = itemOf({ suggested_action: "mute" as never });
     expect(item.suggested).toBe("leave");
     expect(item.savedSeconds).toBe(0);
+  });
+});
+
+describe("card content from the edit", () => {
+  const cardOf = (over: Parameters<typeof pendingEditView>[0]) =>
+    reviewEntriesOf([pendingEditView(over)])[0]?.content.card;
+
+  it("frames the change by the timeline range and never sets a waveform", () => {
+    const card = cardOf({ timeline_start: 4, timeline_end: 6.5 });
+    expect(card?.change).toEqual({ start: 4, end: 6.5 });
+    expect(card?.waveform).toBeUndefined();
+  });
+
+  it.each([
+    { timeline_start: null },
+    { timeline_end: null },
+    { timeline_end: Number.NaN },
+  ])("has no change for %o", (over) => {
+    expect(cardOf(over as never)?.change).toBeUndefined();
+  });
+
+  it("carries why when the edit has one", () => {
+    expect(cardOf({ why: "Jon restarts." })?.why).toBe("Jon restarts.");
+    expect(cardOf({ why: null })).not.toHaveProperty("why");
+  });
+});
+
+describe("checkEntryOf", () => {
+  const status = (
+    over: Partial<TranscriptCheckStatus>,
+  ): TranscriptCheckStatus => ({
+    status: "pending",
+    clear: false,
+    stale: false,
+    mode: "require",
+    source: null,
+    notes: "",
+    updated_at: null,
+    hint: null,
+    low_confidence_words: 3,
+    low_confidence_threshold: 0.5,
+    ...over,
+  });
+
+  it.each([
+    { clear: true },
+    { status: "done" as const },
+    { status: "waived" as const },
+  ])("is null for %o", (over) => {
+    expect(checkEntryOf(status(over))).toBeNull();
+  });
+
+  it("is the transcript check, first in its group, with no edit id", () => {
+    const entry = checkEntryOf(status({}));
+    expect(entry?.item).toEqual({
+      id: CHECK_ID,
+      kind: "check",
+      at: Number.NEGATIVE_INFINITY,
+      savedSeconds: 0,
+      transcript: true,
+    });
+    expect(editIdOf(CHECK_ID)).toBeNull();
+    expect(entry?.content.check?.detail).toBe(
+      "3 words the transcript is unsure of.",
+    );
+  });
+
+  it("prefers the server hint", () => {
+    expect(
+      checkEntryOf(status({ hint: "Check the names." }))?.content.check?.detail,
+    ).toBe("Check the names.");
   });
 });

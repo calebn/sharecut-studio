@@ -765,6 +765,54 @@ describe("FeedbackToast", () => {
     await expectNoA11yViolations(document.body);
   });
 
+  it("runs onUndone only after Undo moved the head", async () => {
+    const onUndone = vi.fn();
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Cut 2", {
+        undo: entry("host-reorder"),
+        onUndone,
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(undoHistory).toHaveBeenCalled();
+    expect(onUndone).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not run onUndone when the head moved past the entry", async () => {
+    vi.mocked(undoHistory).mockRejectedValueOnce(
+      new ApiError("Did not undo", "history_stale", 409),
+    );
+    const onUndone = vi.fn();
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Cut 2", {
+        undo: entry("host-reorder"),
+        onUndone,
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onUndone).not.toHaveBeenCalled();
+  });
+
+  it("does not run onUndone when Undo throws", async () => {
+    vi.mocked(undoHistory).mockRejectedValueOnce(new Error("offline"));
+    const onUndone = vi.fn();
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Cut 2", {
+        undo: entry("host-reorder"),
+        onUndone,
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(useDawStore.getState().statusAnnouncement).toMatch(/Undo failed/);
+    expect(onUndone).not.toHaveBeenCalled();
+  });
+
   it("speaks a quiet status without replacing the toast", () => {
     render(<FeedbackToast />);
     act(() => {

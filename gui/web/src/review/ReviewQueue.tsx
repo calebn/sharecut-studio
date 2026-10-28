@@ -38,6 +38,7 @@ export type ReviewContent = {
     | "waveform"
     | "why"
     | "comment"
+    | "change"
   > & { unsure?: { word: string; guess: string } };
 };
 
@@ -275,7 +276,9 @@ export function ReviewQueue({
                   selected={selected}
                   onSelect={() => onSelect(item.id)}
                   onVerb={
-                    guest || running ? undefined : () => onVerb?.(item.id)
+                    guest || running || item.blocked
+                      ? undefined
+                      : () => onVerb?.(item.id)
                   }
                   onKeep={
                     guest || running ? undefined : () => onKeep?.(item.id)
