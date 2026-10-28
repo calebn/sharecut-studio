@@ -326,14 +326,16 @@ export function SourceCard({
             >
               <Named label="Replace audio" who={who} />
             </MenuItem>
-            <MenuItem
-              onSelect={() => {
-                setMenuOpen(false);
-                onMerge?.();
-              }}
-            >
-              <Named label="Merge" who={who} />
-            </MenuItem>
+            {onMerge ? (
+              <MenuItem
+                onSelect={() => {
+                  setMenuOpen(false);
+                  onMerge();
+                }}
+              >
+                <Named label="Merge" who={who} />
+              </MenuItem>
+            ) : null}
             {onMoveUp ? (
               <MenuItem
                 onSelect={() => {
