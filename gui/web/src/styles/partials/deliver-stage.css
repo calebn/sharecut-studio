@@ -141,6 +141,10 @@
   color: var(--color-text-secondary);
 }
 
+.dv-chapter-form {
+  display: contents;
+}
+
 .dv-chapter-title,
 .dv-clip-title {
   flex: 1;

@@ -143,7 +143,6 @@ describe("deliverFacts", () => {
       comments: { resolved: 1, total: 3 },
       unsureWordsLeft: 4,
       mixUpToDate: false,
-      loudness: "podcast",
       chapters: 3,
       editsSaved: 61.5,
     });

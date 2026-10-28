@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   addChapter,
@@ -28,6 +28,12 @@ import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
+import {
+  type DeliverPage,
+  patchDeliverDraft,
+  sendDeliverEdit,
+  useDeliverDraft,
+} from "./deliverDraft";
 import {
   type ChapterOp,
   type ClipOp,
@@ -80,69 +86,73 @@ function playFrom(seconds: number) {
   void seekTransport(seconds);
 }
 
-function DeliverStageForProject({ loadFailure }: DeliverStageProps) {
+function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const { project, projectPath } = useDawStore(
     useShallow((s) => ({ project: s.project, projectPath: s.projectPath })),
   );
   const shell = useViewportClass();
-  const scrollRef = useStageScroll("deliver", "body");
+  const scrollRef = useStageScroll("deliver", "body", ".dv-page");
   const breakdown = useStaleRenderBreakdown(project);
   const bounceCmd = useCommand("export.bounce");
   const shareCmd = useCommand("share.manage");
   const offline = useOfflineAttention(projectPath);
   const state = hostStateOf(project, loadFailure);
 
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const [pending, setPending] = useState(0);
-  const [unsaved, setUnsaved] = useState(false);
-  const [reseed, setReseed] = useState<{ epoch: number; clips: Clip[] }>({
-    epoch: 0,
-    clips: [],
-  });
-  const seedKey = `${state === "ready"}|${reseed.epoch}`;
-  const seed = () => ({
-    key: seedKey,
-    chapters: chaptersOf(project?.chapters ?? []),
-    clips: withPageFields(clipsOf(project?.social_clips ?? []), reseed.clips),
-  });
-  const [page, setPage] = useState(seed);
-  if (page.key !== seedKey) setPage(seed());
-
+  const draft = useDeliverDraft(projectPath);
+  const seedKey = `${state === "ready"}|${draft.reseed.epoch}`;
   const docChapters = project?.chapters;
   const docClips = project?.social_clips;
+  const carried = draft.reseed.clips;
+  const seed = useMemo(
+    () => ({
+      key: seedKey,
+      chapters: chaptersOf(docChapters ?? []),
+      clips: withPageFields(clipsOf(docClips ?? []), carried),
+    }),
+    [seedKey, docChapters, docClips, carried],
+  );
+  const page = draft.page?.key === seedKey ? draft.page : seed;
   const settling =
-    pending > 0 || unsaved || offline.pending > 0 || offline.settling;
+    draft.pending > 0 ||
+    draft.unsaved ||
+    !offline.loaded ||
+    offline.pending > 0 ||
+    offline.settling;
+
   useEffect(() => {
-    if (settling || state !== "ready") return;
+    if (!projectPath || state !== "ready" || draft.page?.key === seedKey)
+      return;
+    patchDeliverDraft(projectPath, () => ({ page: seed }));
+  }, [projectPath, state, draft.page, seedKey, seed]);
+  useEffect(() => {
+    if (!projectPath || settling || state !== "ready") return;
     if (
       !sameChapters(page.chapters, chaptersOf(docChapters ?? [])) ||
       !sameClipBounds(page.clips, clipsOf(docClips ?? []))
     ) {
-      setReseed((r) => ({ epoch: r.epoch + 1, clips: page.clips }));
+      patchDeliverDraft(projectPath, (d) => ({
+        reseed: { epoch: d.reseed.epoch + 1, clips: page.clips },
+      }));
     }
-  }, [page, docChapters, docClips, settling, state]);
+  }, [projectPath, page, docChapters, docClips, settling, state]);
 
-  const send = (work: (path: string) => Promise<void>) => {
-    if (!projectPath) return;
-    setPending((n) => n + 1);
-    queue.current = queue.current
-      .then(() => work(projectPath))
-      .catch(() => setUnsaved(true))
-      .finally(() => setPending((n) => n - 1));
+  const commit = (patch: Partial<Pick<DeliverPage, "chapters" | "clips">>) => {
+    if (projectPath)
+      patchDeliverDraft(projectPath, () => ({ page: { ...page, ...patch } }));
   };
-  const commit = (patch: Partial<Pick<typeof page, "chapters" | "clips">>) =>
-    setPage((now) => ({ ...now, ...patch }));
   const onChapters = (next: readonly Chapter[]) => {
+    if (!projectPath) return;
     const ops = chapterOps(page.chapters, next);
     commit({ chapters: [...next] });
-    send(async (path) => {
+    sendDeliverEdit(projectPath, async (path) => {
       for (const op of ops) await saveChapterOp(path, op);
     });
   };
   const onClips = (next: readonly Clip[]) => {
+    if (!projectPath) return;
     const ops = clipOps(page.clips, next);
     commit({ clips: [...next] });
-    send(async (path) => {
+    sendDeliverEdit(projectPath, async (path) => {
       for (const op of ops) await saveClipOp(path, op);
     });
   };
@@ -179,85 +189,84 @@ function DeliverStageForProject({ loadFailure }: DeliverStageProps) {
     if (clip) playFrom(clip.start);
   };
   return (
-    <div className="stage-host-deliver">
-      {unsaved ? (
-        <div className="stage-host-status" role="alert">
-          <StatusRow
-            density="alert"
-            state="failed"
-            title="Could not save your changes"
-            detail="They are still on this page, but not in the project."
-            action={{
-              label: "Show the saved version",
-              onAction: () => setUnsaved(false),
-            }}
-          />
-        </div>
-      ) : offline.pending > 0 ? (
-        <div className="stage-host-status" role="status">
-          <StatusRow
-            density="alert"
-            state="queued"
-            title="Not saved yet"
-            detail={`${offline.pending} waiting to send. Kept on this device.`}
-          />
-        </div>
-      ) : null}
-      <DeliverStageBody
-        key={page.key}
-        facts={facts}
-        total={project.timeline_duration_sec}
-        initialSettings={SETTINGS}
-        initialChapters={page.chapters}
-        initialClips={page.clips}
-        exportState={NEVER}
-        env="app"
-        getPlayheadSec={() => useDawStore.getState().playheadSec}
-        layout={shell === "phone" ? "phone" : "desktop"}
-        showLink={false}
-        showPlayer={false}
-        showSettings={false}
-        onChapters={onChapters}
-        onClips={onClips}
-        onFix={(stage, target) => runFix(fixRoute(stage, target))}
-        onExport={() => runPointerCommand("export.deliverables")}
-        onCopyLink={() => runPointerCommand("share.manage")}
-        onRefreshMix={() => runPointerCommand("render.refreshMix")}
-        onPlayFrom={playFrom}
-        onPlayClip={playClip}
-        onFindClips={() => runPointerCommand("stage.edit")}
-        onOpenClipInEdit={(id) => {
-          playClip(id);
-          runPointerCommand("stage.edit");
-        }}
-      />
-      <div className="stage-host-actions">
-        <Button
-          disabledReason={bounceCmd.whenReason}
-          onClick={() => runPointerCommand("export.bounce")}
-        >
-          Bounce…
-        </Button>
-        <Slot id={FEATURE_SHARE_UI_MENU}>
+    <HostBody
+      stage="deliver"
+      shell={shell}
+      state={state}
+      failure={loadFailure}
+      scrollRef={scrollRef}
+    >
+      <div className="stage-host-deliver">
+        {draft.unsaved ? (
+          <div className="stage-host-status" role="alert">
+            <StatusRow
+              density="alert"
+              state="failed"
+              title="Could not save your changes"
+              detail="They are still on this page, but not in the project."
+              action={{
+                label: "Show the saved version",
+                onAction: () =>
+                  projectPath &&
+                  patchDeliverDraft(projectPath, () => ({ unsaved: false })),
+              }}
+            />
+          </div>
+        ) : offline.pending > 0 ? (
+          <div className="stage-host-status" role="status">
+            <StatusRow
+              density="alert"
+              state="queued"
+              title="Not saved yet"
+              detail={`${offline.pending} waiting to send. Kept on this device.`}
+            />
+          </div>
+        ) : null}
+        <DeliverStageBody
+          key={page.key}
+          facts={facts}
+          total={project.timeline_duration_sec}
+          initialSettings={SETTINGS}
+          initialChapters={page.chapters}
+          initialClips={page.clips}
+          exportState={NEVER}
+          env="app"
+          getPlayheadSec={() => useDawStore.getState().playheadSec}
+          layout={shell === "phone" ? "phone" : "desktop"}
+          showLink={false}
+          showPlayer={false}
+          showSettings={false}
+          clipUndo={false}
+          onChapters={onChapters}
+          onClips={onClips}
+          onFix={(stage, target) => runFix(fixRoute(stage, target))}
+          onExport={() => runPointerCommand("export.deliverables")}
+          onPlayFrom={playFrom}
+          onPlayClip={playClip}
+          onFindClips={() => runPointerCommand("stage.edit")}
+          onOpenClipInEdit={(id) => {
+            playClip(id);
+            runPointerCommand("stage.edit");
+          }}
+        />
+        <div className="stage-host-actions">
           <Button
-            disabledReason={shareCmd.whenReason}
-            onClick={() => runPointerCommand("share.manage")}
+            disabledReason={bounceCmd.whenReason}
+            onClick={() => runPointerCommand("export.bounce")}
           >
-            Share a listen link
+            Bounce…
           </Button>
-        </Slot>
+          <Slot id={FEATURE_SHARE_UI_MENU}>
+            <Button
+              disabledReason={shareCmd.whenReason}
+              onClick={() => runPointerCommand("share.manage")}
+            >
+              Share a listen link
+            </Button>
+          </Slot>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
-  const projectPath = useDawStore((s) => s.projectPath);
-  return (
-    <DeliverStageForProject
-      key={projectPath ?? "none"}
-      loadFailure={loadFailure}
-    />
+    </HostBody>
   );
 }
 

@@ -6,12 +6,10 @@ import type {
 import type { ChapterMarker, SocialClipView } from "../../types/project";
 import type { StageId } from "../../types/stage";
 
-/** The stage's chapters from the project's. */
 export function chaptersOf(markers: readonly ChapterMarker[]): Chapter[] {
   return markers.map((m, i) => ({ id: `ch-${i}`, at: m.time, title: m.title }));
 }
 
-/** The stage's clips from the project's social clips. */
 export function clipsOf(clips: readonly SocialClipView[]): Clip[] {
   return clips.map((c) => ({
     id: c.id,
@@ -33,7 +31,6 @@ export type ChapterOp =
     }
   | { kind: "delete"; at: number; title: string };
 
-/** Document commands that turn the chapters the project holds into the ones on the page. */
 export function chapterOps(
   base: readonly Chapter[],
   next: readonly Chapter[],
@@ -63,7 +60,6 @@ export type ClipOp =
   | { kind: "trim"; id: string; start: number; end: number }
   | { kind: "delete"; id: string };
 
-/** Document commands that turn the clips the project holds into the ones on the page. */
 export function clipOps(
   base: readonly Clip[],
   next: readonly Clip[],
@@ -90,7 +86,6 @@ export type DeliverFactsInput = {
   removedSeconds: number;
 };
 
-/** The readiness facts the project can state. */
 export function deliverFacts(input: DeliverFactsInput): ReadinessFacts {
   return {
     suggestions: {
@@ -103,7 +98,6 @@ export function deliverFacts(input: DeliverFactsInput): ReadinessFacts {
     },
     unsureWordsLeft: input.unsureWordsLeft,
     mixUpToDate: input.mixUpToDate,
-    loudness: "podcast",
     chapters: input.chapterCount,
     editsSaved: input.removedSeconds,
   };
@@ -113,7 +107,6 @@ export type FixRoute =
   | { kind: "refreshMix" }
   | { kind: "stage"; stage: StageId; section?: "impact" | "comments" };
 
-/** Where a readiness row's fix goes. */
 export function fixRoute(stage: StageId, target?: string): FixRoute {
   if (target === "mix") return { kind: "refreshMix" };
   if (stage === "review") {
@@ -125,7 +118,6 @@ export function fixRoute(stage: StageId, target?: string): FixRoute {
   return { kind: "stage", stage };
 }
 
-/** Whether two chapter lists hold the same times and titles in the same order. */
 export function sameChapters(a: readonly Chapter[], b: readonly Chapter[]) {
   return (
     a.length === b.length &&
@@ -133,7 +125,6 @@ export function sameChapters(a: readonly Chapter[], b: readonly Chapter[]) {
   );
 }
 
-/** Whether two clip lists hold the same clips with the same bounds. */
 export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
   return (
     a.length === b.length &&
@@ -144,7 +135,6 @@ export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
   );
 }
 
-/** The project's clips with the title and approval the page holds for the same clip. */
 export function withPageFields(
   clips: readonly Clip[],
   page: readonly Clip[],

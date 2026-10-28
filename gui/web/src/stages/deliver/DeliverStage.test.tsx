@@ -350,9 +350,9 @@ describe("stale after an export", () => {
   it("goes stale when a chapter is retitled, retimed, added or removed", async () => {
     setup({ exportState: DONE });
     const stale = () => screen.queryByText("Edited since export") !== null;
-    await userEvent.type(chapterTitle("The old mill"), "!");
+    await userEvent.type(chapterTitle("The old mill"), "!{Enter}");
     expect(stale()).toBe(true);
-    await userEvent.type(chapterTitle("The old mill!"), "{Backspace}");
+    await userEvent.type(chapterTitle("The old mill!"), "{Backspace}{Enter}");
     expect(stale()).toBe(false);
 
     const time = screen.getByRole("textbox", { name: "Time of The old mill" });
@@ -4893,7 +4893,45 @@ describe("write-back to the host", () => {
   });
 });
 
+describe("a chapter title", () => {
+  it("is reported once, when Enter or leaving the field commits it", async () => {
+    const onChapters = vi.fn();
+    setup({ onChapters });
+    const title = screen.getByRole("textbox", {
+      name: "Title of The old mill",
+    });
+    await userEvent.type(title, " now");
+    expect(onChapters).not.toHaveBeenCalled();
+    await userEvent.tab();
+    expect(onChapters).toHaveBeenCalledOnce();
+    expect(onChapters.mock.calls[0]?.[0][1].title).toBe("The old mill now");
+  });
+});
+
+describe("a clip removed in a host that cannot restore it", () => {
+  it("offers no Undo", async () => {
+    setup({ clipUndo: false });
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Nobody asked the river" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove" }),
+    );
+    expect(
+      screen.getByText("Removed Nobody asked the river"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+});
+
 describe("the parts a host may leave out", () => {
+  it("leaves out the Loudness row without a loudness", () => {
+    setup({ facts: { ...CLEAR_FACTS, loudness: undefined } });
+    expect(
+      screen.queryByText("Loudness", { selector: ".sys-status-title" }),
+    ).toBeNull();
+  });
+
   it("leaves out the Listen link", () => {
     setup({ showLink: false });
     expect(screen.queryByText("Listen link")).toBeNull();

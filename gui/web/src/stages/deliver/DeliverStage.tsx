@@ -87,6 +87,8 @@ export type DeliverStageProps = {
   showPlayer?: boolean;
   /** False when the host does not pass the format, loudness and range choices to Export. */
   showSettings?: boolean;
+  /** False when the host cannot put a removed clip back into the project. */
+  clipUndo?: boolean;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel?: () => void;
@@ -94,8 +96,8 @@ export type DeliverStageProps = {
   onDownload?: (file?: ExportFile) => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
-  onCopyLink: () => void;
-  onRefreshMix: () => void;
+  onCopyLink?: () => void;
+  onRefreshMix?: () => void;
   onPlayFrom: (seconds: number) => void;
   onPlayClip: (id: string) => void;
   onFindClips: () => void;
@@ -136,6 +138,7 @@ export function DeliverStage({
   showLink = true,
   showPlayer = true,
   showSettings = true,
+  clipUndo = true,
   onChapters,
   onClips,
   onFix,
@@ -243,12 +246,16 @@ export function DeliverStage({
   }
 
   const rows = readinessRows(facts);
-  const notify = (message: string, onUndo: () => void) => {
+  const notify = (message: string, onUndo?: () => void) => {
     setToast({ id: Date.now(), message });
-    setUndo(() => () => {
-      onUndo();
-      setToast(null);
-    });
+    setUndo(
+      onUndo
+        ? () => () => {
+            onUndo();
+            setToast(null);
+          }
+        : null,
+    );
   };
   const removeChapterWithUndo = (id: string) => {
     const gone = chapters.find((c) => c.id === id);
@@ -263,8 +270,11 @@ export function DeliverStage({
     const gone = clips[index];
     if (!gone) return;
     setClips((now) => removeClip(now, id));
-    notify(`Removed ${gone.title}`, () =>
-      setClips((now) => restoreClip(now, gone, index)),
+    notify(
+      `Removed ${gone.title}`,
+      clipUndo
+        ? () => setClips((now) => restoreClip(now, gone, index))
+        : undefined,
     );
   };
   const sharedState = loading ? "loading" : "ready";
@@ -358,11 +368,13 @@ export function DeliverStage({
                 copyState={link.copyState}
                 openedBy={link.openedBy}
                 reach={link.reach}
-                noMix={link.noMix ? { onRefresh: onRefreshMix } : undefined}
+                noMix={
+                  link.noMix ? { onRefresh: () => onRefreshMix?.() } : undefined
+                }
                 share={phone}
                 compact={phone}
                 highlight={shownState.phase === "done"}
-                onCopy={onCopyLink}
+                onCopy={() => onCopyLink?.()}
               />
             )}
           </div>

@@ -46,7 +46,7 @@ function Live(props: DeliverStageProps) {
         setExportState(exportedState(request));
       }}
       onCopyLink={() => {
-        props.onCopyLink();
+        props.onCopyLink?.();
         setUrl(LINK);
         setCopy("copied");
       }}

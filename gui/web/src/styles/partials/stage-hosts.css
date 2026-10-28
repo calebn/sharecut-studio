@@ -126,10 +126,16 @@
   overflow-y: auto;
 }
 
+.stage-host--deliver {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .stage-host-deliver {
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
-  block-size: 100%;
   min-block-size: 0;
 }
 

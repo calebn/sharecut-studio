@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Skeleton } from "../../system/Skeleton";
 import { SystemIcon } from "../../system/SystemIcon";
 import { TimeField } from "../../system/TimeField";
@@ -23,6 +24,43 @@ type Props = {
   onRemove: (id: string) => void;
   onAdd: () => void;
 };
+
+function ChapterTitle({
+  label,
+  title,
+  onCommit,
+}: {
+  label: string;
+  title: string;
+  onCommit: (title: string) => void;
+}) {
+  const [text, setText] = useState(title);
+  const [seen, setSeen] = useState(title);
+  if (title !== seen) {
+    setSeen(title);
+    setText(title);
+  }
+  const commit = () => {
+    if (text !== title) onCommit(text);
+  };
+  return (
+    <form
+      className="dv-chapter-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        commit();
+      }}
+    >
+      <input
+        className="dv-chapter-title"
+        aria-label={label}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+      />
+    </form>
+  );
+}
 
 /** In Edit they stay markers you can move. */
 export function ChaptersList({
@@ -75,13 +113,10 @@ export function ChaptersList({
                   parse={parseClock}
                   onChange={(at) => onRetime(chapter.id, at)}
                 />
-                <input
-                  className="dv-chapter-title"
-                  aria-label={`Title of ${names[index]}`}
-                  value={chapter.title}
-                  onChange={(event) =>
-                    onRetitle(chapter.id, event.target.value)
-                  }
+                <ChapterTitle
+                  label={`Title of ${names[index]}`}
+                  title={chapter.title}
+                  onCommit={(title) => onRetitle(chapter.id, title)}
                 />
                 <VerbButton
                   verb="play"
