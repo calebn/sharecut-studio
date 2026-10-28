@@ -200,6 +200,31 @@ const RECORD_CLOSED: Story = {
 export const InviteClosed: Story = { ...RECORD_CLOSED };
 export const InviteClosedPhone: Story = { ...RECORD_CLOSED };
 
+export const InviteClosedWithLocalRecording: Story = {
+  args: {
+    glyph: "door-open",
+    title: "Invite link closed",
+    children:
+      "Maya closed this invite link. Your recording is safe on this device. Save it and send it to Maya, or ask for a new link.",
+    primary: { label: "Save my recording", onClick: fn() },
+    secondary: { label: "Try saving again", onClick: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "Invite link closed" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Save my recording" }),
+    );
+    await expect(args.primary?.onClick).toHaveBeenCalledTimes(1);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Try saving again" }),
+    );
+    await expect(args.secondary?.onClick).toHaveBeenCalledTimes(1);
+  },
+};
+
 const RECORD_FULL: Story = {
   args: {
     glyph: "user",

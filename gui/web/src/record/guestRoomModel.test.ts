@@ -461,7 +461,55 @@ describe("guestCovers", () => {
   it("covers a closed invite", () => {
     expect(
       guestCovers({ ...coverSource, accessEnded: true, inviteClosed: true }),
-    ).toMatchObject({ title: "Invite link closed" });
+    ).toMatchObject({
+      title: "Invite link closed",
+      children: "The host closed this invite link. Ask for a new link.",
+      primary: undefined,
+      secondary: undefined,
+    });
+  });
+
+  it("keeps Save and Recover on a closed invite while a local take is unsent", () => {
+    const download = vi.fn();
+    const recover = vi.fn();
+    const closed = {
+      ...coverSource,
+      accessEnded: true,
+      inviteClosed: true,
+      host: "Hana",
+    };
+    const cover = guestCovers({
+      ...closed,
+      keeperActions: { ...actions, busy: true, download, recover },
+    });
+    expect(cover).toMatchObject({
+      title: "Invite link closed",
+      children:
+        "Hana closed this invite link. Your recording is safe on this device. Save it and send it to Hana, or ask for a new link.",
+      primary: { label: "Save my recording", busy: true },
+      secondary: { label: "Try saving again" },
+    });
+    cover?.primary?.onClick();
+    cover?.secondary?.onClick();
+    expect(download).toHaveBeenCalledOnce();
+    expect(recover).toHaveBeenCalledOnce();
+    expect(
+      guestCovers({
+        ...closed,
+        captureSettled: false,
+        keeperActions: { ...actions, download, recover },
+      }),
+    ).toMatchObject({
+      children: "Hana closed this invite link. Ask for a new link.",
+      primary: undefined,
+      secondary: undefined,
+    });
+    expect(
+      guestCovers({ ...closed, keeperActions: { ...actions, recover } }),
+    ).toMatchObject({
+      primary: undefined,
+      secondary: { label: "Try saving again" },
+    });
   });
 
   it("covers ended access, with local recording actions once settled", () => {

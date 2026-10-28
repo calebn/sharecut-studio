@@ -711,6 +711,46 @@ describe("GuestRoomApp", () => {
       expect(puts).toEqual([]);
     });
 
+    it("keeps Save and Recover on the closed-invite cover for an unsent local take", async () => {
+      const puts = stubUploadFetch();
+      const sink = new MemorySink();
+      const wavPath = await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_g",
+      });
+      await renderStoppedRoom(sink);
+      await screen.findByRole(
+        "button",
+        { name: "Finish saving" },
+        { timeout: 4000 },
+      );
+      sockets[0]?.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Error",
+          code: "invite_closed",
+        }),
+      });
+      expect(
+        await screen.findByRole("heading", { name: "Invite link closed" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/safe on this device/)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Save my recording" }),
+      ).toBeEnabled();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Try saving again" }),
+      );
+      expect(
+        await screen.findByText(/Recovered 1 partial segment/),
+      ).toBeInTheDocument();
+      expect(
+        parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))?.complete,
+      ).toBe(true);
+      expect(puts).toEqual([]);
+    });
+
     it("keeps a failed recovery out of the storage error channel", async () => {
       stubUploadFetch();
       const sink = new MemorySink();
@@ -841,6 +881,12 @@ describe("GuestRoomApp", () => {
     expect(
       screen.getByText(/closed this invite link\. Ask for a new link\./),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save my recording" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Try saving again" }),
+    ).toBeNull();
     await expectNoA11yViolations(container);
   });
 

@@ -114,6 +114,39 @@ describe("GuestCovers", () => {
       await expectNoA11yViolations(container);
     });
 
+    it("keeps Save and Recover when the invite link closes", async () => {
+      const download = vi.fn();
+      const recover = vi.fn();
+      const { container } = show({
+        ...take,
+        accessEnded: true,
+        inviteClosed: true,
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: "Recovered 1 partial segment.",
+          download,
+          recover,
+        },
+      });
+      expect(
+        screen.getByRole("heading", { name: "Invite link closed" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/safe on this device/)).toBeInTheDocument();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Save my recording" }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Try saving again" }),
+      );
+      expect(download).toHaveBeenCalledOnce();
+      expect(recover).toHaveBeenCalledOnce();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Recovered 1 partial segment.",
+      );
+      await expectNoA11yViolations(container);
+    });
+
     it("holds the primary while an action runs and says how it went", () => {
       show({
         ...take,
@@ -148,6 +181,30 @@ describe("GuestCovers", () => {
         "Recovered 1 partial segment.",
       );
     });
+  });
+
+  it("offers no recording actions on a closed invite with nothing local", () => {
+    show({ accessEnded: true, inviteClosed: true });
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(
+      screen.getByText("Hana closed this invite link. Ask for a new link."),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no recording actions on a closed invite before the first take", () => {
+    show({
+      accessEnded: true,
+      inviteClosed: true,
+      keeperActions: {
+        busy: false,
+        error: null,
+        notice: null,
+        download: vi.fn(),
+        recover: vi.fn(),
+      },
+      snapshot: recordSnapshot({ participants: [host], take_index: -1 }),
+    });
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
   it("offers no recording actions before the first take", () => {
