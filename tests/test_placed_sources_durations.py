@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -176,22 +177,51 @@ def _chain(rng: random.Random, length: int) -> Audio:
 @pytest.mark.parametrize("curve", ["tri", "qsin"])
 def test_placed_sources_match_the_remeasuring_oracle_exactly(curve: str) -> None:
     rng = random.Random(2359)
-    compared = 0
     for case in range(400):
         tree = _tree(rng, rng.randint(1, 6), [0])
         assert placed_sources(tree, crossfade_curve=curve) == oracle_placed_sources(
             tree, crossfade_curve=curve
         ), case
-        compared += 1
     for length in (1, 7, 40):
         tree = _chain(rng, length)
         assert placed_sources(tree, crossfade_curve=curve) == oracle_placed_sources(
             tree, crossfade_curve=curve
         )
-    assert compared == 400
+
+
+def _shared_trees() -> list[Audio]:
+    rng = random.Random(11)
+    shared = _leaf(rng, 1)
+    inner = SequenceAudio(shared, (_leaf(rng, 2),))
+    both = CrossfadeAudio(shared, shared, 0.0)
+    return [
+        SequenceAudio(shared, (shared, inner)),
+        MixAudio(At(0.25, shared), (At(0.5, inner), At(1.0, inner))),
+        CrossfadeAudio(inner, inner, 0.1),
+        both,
+        SequenceAudio(both, (MaskAudio(both, 0.0, ()), MixAudio(At(0.1, both), ()))),
+    ]
+
+
+@pytest.mark.parametrize("curve", ["tri", "qsin"])
+def test_placed_sources_match_the_oracle_with_shared_nodes(curve: str) -> None:
+    for tree in _shared_trees():
+        assert placed_sources(tree, crossfade_curve=curve) == oracle_placed_sources(
+            tree, crossfade_curve=curve
+        )
+
+
+def test_public_duration_is_bit_identical_on_every_node() -> None:
+    rng = random.Random(404)
+    trees = [_tree(rng, rng.randint(1, 6), [0]) for _ in range(100)]
+    trees += [_chain(rng, 30), *_shared_trees()]
+    for tree in trees:
+        for node in postorder(tree):
+            assert audio_module.duration(node).hex() == duration(node).hex()
 
 
 def test_placed_sources_floats_are_bit_identical() -> None:
+    # Dataclass == cannot tell -0.0 from 0.0 or compare NaN; hex() can.
     rng = random.Random(77)
     for _ in range(200):
         tree = _tree(rng, 6, [0])
@@ -212,20 +242,17 @@ def test_placed_sources_floats_are_bit_identical() -> None:
         ]
 
 
-def test_placed_sources_measures_each_subtree_once() -> None:
+def test_placed_sources_measures_each_subtree_once(monkeypatch: pytest.MonkeyPatch) -> None:
     tree = _chain(random.Random(5), 60)
     steps = 0
     real = audio_module.postorder
 
-    def counting(node: Audio):
+    def counting(node: Audio) -> Iterator[Audio]:
         nonlocal steps
         for item in real(node):
             steps += 1
             yield item
 
-    audio_module.postorder = counting
-    try:
-        placed_sources(tree, crossfade_curve="tri")
-    finally:
-        audio_module.postorder = real
-    assert steps <= 2 * sum(1 for _ in real(tree))
+    monkeypatch.setattr(audio_module, "postorder", counting)
+    placed_sources(tree, crossfade_curve="tri")
+    assert steps == sum(1 for _ in real(tree))
