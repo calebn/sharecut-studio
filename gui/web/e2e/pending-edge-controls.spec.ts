@@ -8,7 +8,7 @@ import {
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import { selectTool, stepTrackHeight } from "./stageNav";
+import { altClickSplit, stepTrackHeight } from "./stageNav";
 
 const CLIENT_ID = "e2e-pending-edge-controls";
 const MIN_COARSE_HANDLE_LANE_HEIGHT = 88;
@@ -441,10 +441,10 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });
   await expect(page.locator(".pending-actionbar")).toHaveCount(0);
-  await selectTool(page, "blade");
-  await page
-    .getByRole("slider", { name: "Timeline position" })
-    .click({ position: { x: 300, y: 12 } });
+  await altClickSplit(page, page.locator(".lane-seek").first(), {
+    x: 300,
+    y: 12,
+  });
   const bladeConfirmation = page.getByRole("dialog", { name: /^Cut at / });
   await expect(bladeConfirmation).toBeVisible();
   await bladeConfirmation.getByRole("button", { name: "Don't cut" }).click();
