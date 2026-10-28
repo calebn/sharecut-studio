@@ -110,10 +110,16 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
               failLabel: "Export failed",
               resultCopy: exportResultCopy,
               signal: scope.signal,
-              onStart: (job) =>
+              onStart: (job) => {
+                const head = useDawStore.getState().project?.history.head_id;
+                if (head !== undefined)
+                  setRequest((r) =>
+                    r && r.edits !== undefined ? { ...r, edits: head } : r,
+                  );
                 setRun((r) =>
                   r.kind === "running" ? { ...r, jobId: job.id } : r,
-                ),
+                );
+              },
             });
           } catch (err) {
             if (

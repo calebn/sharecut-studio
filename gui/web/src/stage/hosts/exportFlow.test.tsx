@@ -16,6 +16,7 @@ import {
   registryRows,
   renderWithModels,
 } from "../../test/renderWithModels";
+import type { HistoryEntryId } from "../../types/project";
 import { ExportFlowProvider } from "./exportFlow";
 import { type ExportFlow, useExportFlow } from "./exportFlowContext";
 
@@ -185,6 +186,27 @@ describe("the export flow over the server's routes", () => {
     expect(server.exportRequests).toEqual([
       { path: EXPORT_PATH, formats: null },
     ]);
+  });
+
+  it("covers the history head the export started from, not the one at the click", async () => {
+    const answer = deferred();
+    server.holdStart = answer.promise;
+    mount();
+    await loaded();
+    act(() => flow.start(["mp3"], { ...REQUEST, edits: "before" }));
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (project)
+        useDawStore.setState({
+          project: {
+            ...project,
+            history: { ...project.history, head_id: "after" as HistoryEntryId },
+          },
+        });
+    });
+    answer.resolve();
+    await running();
+    expect(flow.request?.edits).toBe("after");
   });
 
   it("does not cancel before the server has answered the start", async () => {
