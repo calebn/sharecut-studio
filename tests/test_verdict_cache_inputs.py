@@ -19,6 +19,7 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.models import (
+    AppliedEditRecord,
     Clip,
     EditDecision,
     EditDecisionType,
@@ -543,3 +544,206 @@ def test_only_a_pause_key_carries_an_observation_span(tmp_path: Path) -> None:
         parts[reason] = found["pause_span"]
     assert parts["noise"] == verdict_cache._digest(None)
     assert parts["pause:0.19s"] != parts["noise"]
+
+
+TILE = (40.9, 43.3)  # between the words either side of the pause, which sit at 41.0 and 43.0
+
+
+# The edit log (#2439): a pause check reads its pad records.
+def _legacy_pad_in_log(p: EpisodeProject) -> None:
+    p.editorial.edit_log.append(
+        AppliedEditRecord(id="far", applied_at="2026-01-01", operation="insert_room_tone_pad")
+    )
+
+
+def _pad(p: EpisodeProject, lo: float, hi: float, **extra: Any) -> None:
+    sample = {"track_id": "host", "source_id": None, "source_start": lo, "source_end": hi}
+    sample.update(extra)
+    _pad_record(p, [sample])
+
+
+def _pad_record(p: EpisodeProject, samples: Any) -> None:
+    p.editorial.edit_log.append(
+        AppliedEditRecord(
+            id="pad",
+            applied_at="2026-01-01",
+            operation="insert_room_tone_pad",
+            params={"pad_samples": samples},
+        )
+    )
+
+
+def _tile_the_pause(p: EpisodeProject) -> None:
+    """The pause is its own clip, so a pad whose samples span it makes it a copy."""
+    lo, hi = TILE
+    p.clips = [
+        Clip(
+            id="a", track_id="host", source_id=None, source_start=0, source_end=lo, timeline_start=0
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_id=None,
+            source_start=lo,
+            source_end=hi,
+            timeline_start=lo,
+        ),
+        Clip(
+            id="c",
+            track_id="host",
+            source_id=None,
+            source_start=hi,
+            source_end=DUR,
+            timeline_start=hi,
+        ),
+    ]
+
+
+def _pad_over_pause(p: EpisodeProject) -> None:
+    _tile_the_pause(p)
+    _pad(p, *TILE)
+
+
+def test_a_cached_pause_verdict_equals_a_cold_check_after_a_legacy_pad_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before, cold, cached = _compare(tmp_path, monkeypatch, True, _nothing, _legacy_pad_in_log)
+    assert before != cold, "cold verdict must move"
+    assert cached == cold
+
+
+def test_a_cached_pause_verdict_equals_a_cold_check_after_a_pad_over_the_pause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before, cold, cached = _compare(tmp_path, monkeypatch, False, _tile_the_pause, _pad_over_pause)
+    assert before != cold, "cold verdict must move"
+    assert cached == cold
+
+
+def _key_of(tmp_path: Path, mutate: Callable[[EpisodeProject], None]) -> str | None:
+    project = _project(tmp_path, sourced=True, mutate=mutate)
+    edit = project.edit_decisions[0]
+    return verdict_cache.verdict_key(
+        project,
+        edit,
+        defaults=load_defaults(),
+        manual=False,
+        batch=[],
+        span=(edit.start, edit.end),
+    )
+
+
+def _ordinary_cut(p: EpisodeProject) -> None:
+    p.editorial.edit_log.append(
+        AppliedEditRecord(id="cut", applied_at="2026-01-02", operation="remove", params={"x": 1})
+    )
+
+
+def _far_pad(p: EpisodeProject) -> None:
+    _pad(p, 1.0, 2.0)
+
+
+def _far_pad_moved(p: EpisodeProject) -> None:
+    _pad(p, 1.0, 3.0)
+
+
+@pytest.mark.parametrize(
+    "unrelated", [_ordinary_cut, _far_pad, _far_pad_moved], ids=["cut", "far_pad", "far_pad_moved"]
+)
+def test_unrelated_edit_log_records_leave_the_pause_key_alone(
+    tmp_path: Path, unrelated: Callable[[EpisodeProject], None]
+) -> None:
+    assert _key_of(tmp_path, _nothing) is not None
+    assert _key_of(tmp_path, _nothing) == _key_of(tmp_path, unrelated)
+
+
+def _far_pad_unresolved(p: EpisodeProject) -> None:
+    _pad(p, 1.0, 2.0, track_id="nobody")
+
+
+def _pad_moved(p: EpisodeProject) -> None:
+    _tile_the_pause(p)
+    _pad(p, TILE[0], TILE[1] + 0.1)
+
+
+def _pad_other_track(p: EpisodeProject) -> None:
+    _tile_the_pause(p)
+    _pad(p, *TILE, track_id="other")
+
+
+def _pad_malformed(p: EpisodeProject) -> None:
+    _tile_the_pause(p)
+    _pad(p, *TILE, source_id=7)
+
+
+def _pad_samples_not_a_list(p: EpisodeProject) -> None:
+    _tile_the_pause(p)
+    _pad_record(p, "oops")
+
+
+def _pad_sample_not_a_dict(p: EpisodeProject) -> None:
+    _tile_the_pause(p)
+    _pad_record(p, ["oops"])
+
+
+def _gap_pad_without_samples(p: EpisodeProject) -> None:
+    p.editorial.edit_log.append(
+        AppliedEditRecord(
+            id="gap", applied_at="x", operation="remove", params={"replace_gap_sec": 0.5}
+        )
+    )
+
+
+def _muted_gap_without_samples(p: EpisodeProject) -> None:
+    p.editorial.edit_log.append(
+        AppliedEditRecord(
+            id="gap",
+            applied_at="x",
+            operation="remove",
+            params={"replace_gap_sec": 0.5, "mute": True},
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("base", "changed"),
+    [
+        pytest.param(_tile_the_pause, _pad_over_pause, id="pad_over_pause_added"),
+        pytest.param(_pad_over_pause, _pad_moved, id="source_range"),
+        pytest.param(_pad_over_pause, _pad_other_track, id="sample_track"),
+        pytest.param(_pad_over_pause, _pad_malformed, id="sample_shape"),
+        pytest.param(_tile_the_pause, _pad_samples_not_a_list, id="samples_not_a_list"),
+        pytest.param(_tile_the_pause, _pad_sample_not_a_dict, id="sample_not_a_dict"),
+        pytest.param(_far_pad, _far_pad_unresolved, id="far_pad_unresolved_recording"),
+        pytest.param(_nothing, _legacy_pad_in_log, id="pad_without_samples"),
+        pytest.param(_nothing, _gap_pad_without_samples, id="gap_purpose_without_samples"),
+        pytest.param(_gap_pad_without_samples, _muted_gap_without_samples, id="mute_flag"),
+    ],
+)
+def test_each_pad_field_the_pause_check_reads_moves_the_key(
+    tmp_path: Path,
+    base: Callable[[EpisodeProject], None],
+    changed: Callable[[EpisodeProject], None],
+) -> None:
+    assert _key_of(tmp_path, base) != _key_of(tmp_path, changed)
+
+
+def test_a_pause_verdict_is_reused_after_an_unrelated_log_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    monkeypatch.delenv(verdict_cache.VERIFY_ENV, raising=False)
+    verdict_cache._STORE.clear()
+    hits: list[bool] = []
+    lookup = verdict_cache.lookup
+
+    def spy(key: str | None) -> Any:
+        found = lookup(key)
+        hits.append(found is not None)
+        return found
+
+    monkeypatch.setattr(verdict_cache, "lookup", spy)
+    _outcome(_project(tmp_path, sourced=True, mutate=_nothing))
+    assert hits == [False]
+    _outcome(_project(tmp_path, sourced=True, mutate=_far_pad))
+    assert hits == [False, True]

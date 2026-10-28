@@ -43,6 +43,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.config.defaults import EffectiveConfig
     from podcast_mcp.edits.timeline_ops import LaneUnavailable
+    from podcast_mcp.models import AppliedEditRecord
 
 
 SOURCE_GEOMETRY_TOLERANCE_SEC = 1e-6
@@ -303,6 +304,18 @@ def _inside_known_pad(clip: Clip, pads: Sequence[tuple[float, float]]) -> bool:
     )
 
 
+def is_pad_record(record: AppliedEditRecord) -> bool:
+    """Whether an edit-log record put a room-tone pad on the timeline."""
+    gap = record.params.get("replace_gap_sec")
+    return record.operation in {"fill_with_room_tone", "insert_room_tone_pad"} or (
+        isinstance(gap, (int, float))
+        and not isinstance(gap, bool)
+        and math.isfinite(gap)
+        and gap > 0
+        and record.params.get("mute") is not True
+    )
+
+
 def original_pause_support(
     project: EpisodeProject,
     track_id: str,
@@ -366,14 +379,7 @@ def original_pause_support(
                 continue
     known_pads: list[tuple[float, float]] = []
     for record in project.editorial.edit_log:
-        gap = record.params.get("replace_gap_sec")
-        pad_purpose = record.operation in {"fill_with_room_tone", "insert_room_tone_pad"} or (
-            isinstance(gap, (int, float))
-            and not isinstance(gap, bool)
-            and math.isfinite(gap)
-            and gap > 0
-            and record.params.get("mute") is not True
-        )
+        pad_purpose = is_pad_record(record)
         if "pad_samples" not in record.params:
             if pad_purpose:
                 return CutRejected("source_geometry")
