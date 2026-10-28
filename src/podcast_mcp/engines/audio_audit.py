@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import logging
 import math
 import tempfile
@@ -75,6 +76,7 @@ _LOG = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
+    from podcast_mcp.engines.windowed_rms import TimelineWindow
 
 _RMS_SAMPLE_RATE = 8000
 # The transcript gate's overreach check judges a word only where its ungated audio is
@@ -264,10 +266,14 @@ class TrackRmsCache:
 
     @cached_property
     def profile(self) -> LevelProfile:
-        """The track's level profile: its recording's, else measured from these samples."""
+        """The track's level profile: the one it was given (its recording's, or a batch's base profile), else measured from these samples."""
         if self.recording_profile is not None:
             return self.recording_profile
         return track_profile(self.samples, int(self.sample_rate))
+
+    def with_profile(self, profile: LevelProfile) -> TrackRmsCache:
+        """The same samples reporting ``profile``; this cache, which a build may share, is left as it is."""
+        return dataclasses.replace(self, recording_profile=profile)
 
     @cached_property
     def speech_profile(self) -> LevelProfile:
@@ -551,6 +557,7 @@ def build_track_rms_caches(
     track_ids: Collection[str] | None = None,
     private_copy: bool = False,
     unprocessed: bool = False,
+    window: TimelineWindow | None = None,
     defaults: EffectiveConfig,
 ) -> TrackRmsCacheSet:
     """One decoded cache per dialogue track, from its fresh stem, else its raw clips.
@@ -558,6 +565,10 @@ def build_track_rms_caches(
     ``unprocessed`` reads a track that has an effects chain from its clips with the chain
     left out, never from the stem: a compressor's threshold is an absolute dBFS level, so
     the processed audio does not move with the recording's gain (#1495).
+
+    With ``window`` (and ``unprocessed``), such a track whose tree the evaluator takes is
+    built over that stretch only, as a ``WindowedTrackRmsCache`` that reports the profile
+    ``window`` names for it (#2357). A track the window cannot serve is built whole.
     """
     from podcast_mcp.engines import track_evidence
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
@@ -567,10 +578,16 @@ def build_track_rms_caches(
     raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
     timeline = SessionTimeline(project)
     wanted = list(dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids))
+    chained = [tid for tid in wanted if unprocessed and has_active_chain(project, tid)]
+    windowed = (
+        _windowed_caches(project, chained, window, defaults, private_copy)
+        if window is not None
+        else {}
+    )
     readers = (
         track_evidence.rms_readers(
             project,
-            [tid for tid in wanted if _has_active_chain(project, tid)],
+            [tid for tid in chained if tid not in windowed],
             defaults,
             private=private_copy,
         )
@@ -579,6 +596,9 @@ def build_track_rms_caches(
     )
     for tid in wanted:
         track = project.track_by_id(tid)
+        if tid in windowed:
+            caches[tid] = windowed[tid]
+            continue
         if tid in readers and track is not None:
             try:
                 caches[tid] = readers[tid]()
@@ -632,13 +652,46 @@ def build_track_rms_caches(
     return TrackRmsCacheSet(caches=caches)
 
 
+def _windowed_caches(
+    project: EpisodeProject,
+    track_ids: Collection[str],
+    window: TimelineWindow,
+    defaults: EffectiveConfig,
+    private_copy: bool,
+) -> dict[str, TrackRmsCache]:
+    """The windowed cache of each track in ``track_ids`` that a window can serve."""
+    from podcast_mcp.engines import track_evidence
+
+    found: dict[str, TrackRmsCache] = {}
+    for tid in track_ids:
+        if tid not in window.profiles:
+            continue
+        try:
+            cache = track_evidence.rms_window(
+                project,
+                tid,
+                defaults,
+                window.start_sec,
+                window.end_sec,
+                profile=window.profiles[tid],
+                private=private_copy,
+            )
+        except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
+            # The whole-track path raises or falls back for this track as it always has.
+            _LOG.info("no window for track %s: %s", tid, exc)
+            continue
+        if cache is not None:
+            found[tid] = cache
+    return found
+
+
 def _snapshot(project: EpisodeProject) -> EpisodeProject:
     from podcast_mcp.util.project_state import snapshot_project
 
     return snapshot_project(project)
 
 
-def _has_active_chain(project: EpisodeProject, track_id: str) -> bool:
+def has_active_chain(project: EpisodeProject, track_id: str) -> bool:
     """Whether the track has a processing chain with an effect that is not bypassed."""
     return any(
         not fx.bypass

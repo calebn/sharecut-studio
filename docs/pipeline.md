@@ -579,7 +579,7 @@ The track's speech level, the ceiling a trim removes a sound whole under, is rea
 blocks once for the whole track, so every pause classifies a sound alike.
 The track's level profile (`LevelProfile`, #1195, #1443), and with it the voice floor, is measured once per audio
 file revision (`engines/level_profile.file_level_profile`) and kept in memory; a caller with no decoded track (approving a
-cut, a natural-language edit) reads the same profile through `track_level_profile`.
+cut, a natural-language edit) reads the same profile through `track_level_profile`. An approval batch reads the profile of each track from its first timeline build, before the batch's cuts, for every check of the batch.
 The full cleanup report passes one processed-stem cache set through its
 subanalyses, and the project join sweep shares source decode and calibration
 per track while checking each join with a bounded high-rate window.
@@ -647,13 +647,22 @@ cut only ripples what follows it (a pause is the exception only through its span
 such a clip enters the key only if it moves an end of that span). The cheap,
 timeline-dependent part always runs again: the placement, the written cut, and the room-tone
 pads, which must equal what the entry recorded or the full check runs. A check that read an
-unreadable file is never stored. A batch applied from the end backward builds its timeline loudness
+unreadable file is never stored. A batch applied from the end backward builds its timeline audio
 once and carries it while each next cut lies beyond that same reach of every applied cut
-(`CarriedTimelineRms`). `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
+(`CarriedTimelineRms`); a cut within reach builds the audio again from the project as the earlier
+cuts left it (#2357): a track with an effects chain whose tree the evaluator takes is evaluated
+only over the cut's reach (`WindowedTrackRmsCache`, which holds those samples bit for bit and
+raises `WindowMiss` for any read outside them, on which the check is made again on whole
+tracks), and every other track is built whole. Either way every check of the batch reads each
+track's level profile as it stood before the batch's cuts (the batch-base profile,
+`BatchBase`), so a verdict does not depend on which other cuts of the batch were applied first.
+The same holds for the idle warm and for the auto-apply of tighten removes. The key carries a
+`semantics` constant (`verdict_cache.SEMANTICS`) naming that definition, so an entry made under
+another one is never reused. The key does not hash the base profile itself: a cut applied far from a check moves it by hundredths of a dB. `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
 hit and fails if it differs; the approve and cut tests pass in that mode except nine that count
 checks (named in `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
 `tests/test_verdict_cache_downstream.py` and `tests/test_verdict_cache_fuzz.py` (a fixed-seed
-cached-versus-cold comparison over random timelines), which set the flags themselves.
+cached-versus-cold comparison over random timelines, both reading the batch-base profile), which set the flags themselves.
 
 ### Which fingerprint answers which question
 

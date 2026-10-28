@@ -1,4 +1,4 @@
-"""A cached verdict equals a cold check across random multi-track timelines and edits (#2365)."""
+"""A cached verdict equals a cold check across random multi-track timelines and edits (#2365), both reading the batch-base profile (#2357)."""
 
 from __future__ import annotations
 
