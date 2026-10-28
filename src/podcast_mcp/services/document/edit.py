@@ -62,7 +62,7 @@ from podcast_mcp.edits.timeline_ops import (
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.edits.transcript_search import TranscriptMatch
-from podcast_mcp.edits.unsure_words import hold_unsure_cuts
+from podcast_mcp.edits.unsure_words import NothingLeftToApply, hold_unsure_cuts
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import CutIntent, EditDecision, EditMode
 from podcast_mcp.models.episode import ExactRangeTarget
@@ -395,6 +395,8 @@ class EditService(CutMutatingService):
             nonlocal ids
             if unsure_out is not None:  # a save since the check above can add an unsure word
                 ids = hold_unsure_cuts(p, ids, line, unsure_out)
+                if not ids:
+                    raise NothingLeftToApply
             selected = [e for e in p.edit_decisions if e.id in ids]
             if not selected or any(e.exact_range is None for e in selected):
                 self._require_refine_clear()
@@ -435,6 +437,8 @@ class EditService(CutMutatingService):
                     params={"ids": ids},
                     on_failure=on_failure,
                 )
+        except NothingLeftToApply:
+            return 0
         except UnconfirmedCutSpeech as asked:
             if restored:
                 return asked.confirmation
