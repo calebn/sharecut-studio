@@ -17,7 +17,11 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import {
+  inspectSelection,
+  inspectSelectionByKey,
+  openProject,
+} from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import {
@@ -178,6 +182,7 @@ test("a held nudge repeats, saves once, and one Undo restores it", async ({
     finger,
     await centerOf(page, `${lane} [data-hit-id="env-c"]`),
   );
+  await inspectSelection(page);
   const commands = watchCommands(page);
   const values: string[] = [];
   await hold(
@@ -228,6 +233,7 @@ test("a held nudge stops at a soft boundary with a cue; a fresh press goes past"
     finger,
     await centerOf(page, `${lane} [data-hit-id="env-near"]`),
   );
+  await inspectSelection(page);
   const later = page.getByRole("button", {
     name: "Envelope point 0.1 s later",
   });
@@ -260,6 +266,7 @@ test("a held nudge stops at a soft boundary with a cue; a fresh press goes past"
     finger,
     await centerOf(page, `${lane} [data-pending-id="${pending.id}"]`),
   );
+  await inspectSelectionByKey(page);
   const earlier = page.getByRole("button", {
     name: "Pending remove start 0.1 s earlier",
   });
@@ -299,6 +306,7 @@ async function pendingAndEnvelopeStrips(
       ["pending", `${lane} [data-pending-id] >> nth=0`],
     ] as const) {
       await tap(page, finger, await centerOf(page, selector));
+      await inspectSelection(page);
       await expect(page.locator(".nudge-row").first()).toBeVisible();
       save(
         info,

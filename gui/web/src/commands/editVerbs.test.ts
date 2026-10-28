@@ -47,6 +47,7 @@ function host(selection: unknown, extra: Record<string, unknown> = {}) {
     projectPath: "/tmp/episode",
     guestMode: null,
     shareCapabilities: null,
+    stage: "edit",
     selection: selection as never,
     inspectorKey: null,
     rangeScopeTrackIds: null,
@@ -75,33 +76,36 @@ describe("splitPlan", () => {
 
   it("cuts a range or words at both edges, on the tracks it covers", () => {
     const f = facts(EDIT_SELECTIONS.rangeOnAllTracks);
-    expect(
-      splitPlan(f, EDIT_SELECTIONS.rangeOnAllTracks, project, 9, null),
-    ).toEqual({ atTime: 1, extraAtTimes: [2], trackIds: [MIRA, JONAS] });
+    expect(splitPlan(f, EDIT_SELECTIONS.rangeOnAllTracks, project, 9)).toEqual({
+      atTime: 1,
+      extraAtTimes: [2],
+      trackIds: [MIRA, JONAS],
+    });
   });
 
-  it("lets the scope chip narrow the tracks", () => {
+  it("uses the tracks the selection covers, whatever unconfirmed ticks say", () => {
+    useDawStore.setState({ rangeScopeTrackIds: [MIRA] });
     const f = facts(EDIT_SELECTIONS.rangeOnAllTracks);
     expect(
-      splitPlan(f, EDIT_SELECTIONS.rangeOnAllTracks, project, 9, [MIRA]),
-    ).toMatchObject({ trackIds: [MIRA] });
+      splitPlan(f, EDIT_SELECTIONS.rangeOnAllTracks, project, 9),
+    ).toMatchObject({ trackIds: [MIRA, JONAS] });
   });
 
   it("splits a clip at the playhead only when it is inside the clip", () => {
     const f = facts(EDIT_SELECTIONS.clip);
-    expect(splitPlan(f, EDIT_SELECTIONS.clip, project, 2, null)).toEqual({
+    expect(splitPlan(f, EDIT_SELECTIONS.clip, project, 2)).toEqual({
       atTime: 2,
       extraAtTimes: [],
       trackIds: [MIRA],
     });
-    expect(splitPlan(f, EDIT_SELECTIONS.clip, project, 8, null)).toBe(
+    expect(splitPlan(f, EDIT_SELECTIONS.clip, project, 8)).toBe(
       "Move the playhead onto the clip to split it",
     );
   });
 
   it("splits at the playhead with nothing selected", () => {
     const f = facts(null);
-    expect(splitPlan(f, null, project, 5, null)).toEqual({
+    expect(splitPlan(f, null, project, 5)).toEqual({
       atTime: 5,
       extraAtTimes: [],
     });
@@ -355,6 +359,36 @@ describe("verbs that call other commands", () => {
       "range.mute",
       "track.muteToggle",
     ]);
+  });
+
+  it("mutes the targeted track, not the Edit selection, outside the Edit stage", async () => {
+    const calls: string[] = [];
+    for (const id of ["range.mute", "track.muteToggle"])
+      registerCommand(id, () => {
+        calls.push(id);
+        return { status: "ok" };
+      });
+    host(EDIT_SELECTIONS.rangeOnAllTracks, { stage: "review" });
+    await runMute();
+    host(EDIT_SELECTIONS.clip, { stage: "review" });
+    await runMute();
+    expect(calls).toEqual(["track.muteToggle", "track.muteToggle"]);
+    expect(runRangeAction).not.toHaveBeenCalled();
+  });
+
+  it("sends an Editor's word mute through the range mute, not the host-only ignore", async () => {
+    const calls: string[] = [];
+    for (const id of ["transcript.ignoreWords", "range.mute"])
+      registerCommand(id, () => {
+        calls.push(id);
+        return { status: "ok" };
+      });
+    host(EDIT_SELECTIONS.liveWords, {
+      projectPath: "share:tok",
+      guestMode: "edit",
+    });
+    await runMute();
+    expect(calls).toEqual(["range.mute"]);
   });
 
   it("mutes one clip's span and asks for one clip when several are held", async () => {

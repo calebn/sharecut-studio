@@ -8,7 +8,16 @@ export function InspectorColumn() {
     <>
       <CloseButton
         className="edit-inspector-close"
-        onClick={() => setInspectorOpen(false)}
+        onClick={() => {
+          setInspectorOpen(false);
+          requestAnimationFrame(() =>
+            document
+              .querySelector<HTMLElement>(
+                '.sys-actions button[aria-label="Inspect"]',
+              )
+              ?.focus(),
+          );
+        }}
       />
       <Inspector />
     </>

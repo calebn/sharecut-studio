@@ -169,8 +169,13 @@ describe("TrackHeader", () => {
     vi.useRealTimers();
   });
 
-  it("marks the open control expanded when the row is selected", () => {
+  it("marks the open control expanded only while the Inspector is open on its track", () => {
     const project = projectWithTrack();
+    const trackId = project.tracks[0].id;
+    useDawStore.setState({
+      selection: { kind: "track", trackId, ids: [trackId] } as never,
+      inspectorKey: null,
+    });
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
         <TrackHeader
@@ -181,9 +186,14 @@ describe("TrackHeader", () => {
         />
       </DawProvider>,
     );
-    expect(
-      screen.getByRole("button", { name: /Open track details, Guest/i }),
-    ).toHaveAttribute("aria-expanded", "true");
+    const details = screen.getByRole("button", {
+      name: /Open track details, Guest/i,
+    });
+    expect(details).toHaveAttribute("aria-expanded", "false");
+    act(() => useDawStore.setState({ inspectorKey: `track:${trackId}` }));
+    expect(details).toHaveAttribute("aria-expanded", "true");
+    act(() => useDawStore.setState({ inspectorKey: null }));
+    expect(details).toHaveAttribute("aria-expanded", "false");
   });
 
   it("uses the lane color for the track identity bar", () => {

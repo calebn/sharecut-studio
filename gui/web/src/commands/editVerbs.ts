@@ -292,11 +292,10 @@ export function splitPlan(
   selection: Selection,
   project: ProjectView,
   playheadSec: number,
-  scope: readonly string[] | null,
 ): { atTime: number; extraAtTimes: number[]; trackIds?: string[] } | string {
   if (facts.kind === "words" || facts.kind === "range") {
     if (!facts.span) return "This selection has no place on the timeline";
-    const trackIds = [...(scope ?? facts.span.trackIds)];
+    const trackIds = [...facts.span.trackIds];
     const edges = [facts.span.start, facts.span.end];
     return {
       atTime: edges[0]!,
@@ -326,13 +325,7 @@ export function splitPlan(
 async function split(facts: EditFacts): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   if (!s.project) return disabled("No project loaded");
-  const plan = splitPlan(
-    facts,
-    s.selection,
-    s.project,
-    s.playheadSec,
-    s.rangeScopeTrackIds,
-  );
+  const plan = splitPlan(facts, s.selection, s.project, s.playheadSec);
   if (typeof plan === "string") return disabled(plan);
   return executePointerCommand("edit.bladeCut", plan);
 }
@@ -382,9 +375,14 @@ function singleClipTarget(project: ProjectView, selection: Selection) {
 
 export async function runMute(): Promise<ExecuteResult> {
   const s = useDawStore.getState();
+  if (s.stage !== "edit") return executePointerCommand("track.muteToggle");
   switch (s.selection?.kind) {
     case "transcriptRange":
-      return executePointerCommand("transcript.ignoreWords");
+      return executePointerCommand(
+        canManageProjects(s.projectPath)
+          ? "transcript.ignoreWords"
+          : "range.mute",
+      );
     case "range":
       return executePointerCommand("range.mute");
     case "clip": {

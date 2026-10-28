@@ -3,7 +3,7 @@ import { openPanel, openProject } from "./stageNav";
 
 /**
  * Suggest a 0–2 s cut on the first dialogue track through the document plane
- * and open its pending edit in the inspector.
+ * and open its pending edit in the inspector (selecting it, then Inspect).
  *
  * The GUI has no one-click "suggest a cut here" control (#532), so the helper
  * sends the `SuggestPendingEdit` command an agent or share guest would send.
