@@ -736,7 +736,7 @@ the encoder's clip regions, the post-take report and the timeline flags.
 meter. Nothing is added to the record wire (`services/record/signal.py`,
 `hostWire.ts`, `useRecordSync` are unchanged), and remote-participant meters are
 out of scope. Surfaces: the device check (**Level**), the guest room (**Your mic
-level**) and the host Record room panel. `FullRoom` never calls `getUserMedia`,
+level**) and the host Record stage. `FullRoom` never calls `getUserMedia`,
 so it has no meter. Producers have no meter and no clip LED.
 
 **Two signal paths.**
@@ -982,7 +982,7 @@ module load, and one animation-frame scheduler across concurrent mic meters.
 Each mic keeps its own worklet node, peak hold, and clip latch; the context
 closes when the last meter leaves. The keeper capture graph remains separate
 because it owns its sample rate and recording lifetime. Each person sees only
-**their own** input meter (device check, guest room, host Record room panel):
+**their own** input meter (device check, guest room, host Record stage):
 a peak meter with a latching clip LED and headroom guidance. It measures
 **sample peak only**; ShareCut does not detect inter-sample (true) peaks (#174).
 Safari has no `permissions.query({name:"microphone"})`; Chromium can
@@ -1059,7 +1059,7 @@ link) stops minting new participant identities for that room. `Join` without a
 valid lease gets `invite_closed`. The server then closes that socket with 4403, the close code every client already treats as terminal; the browser keeps the "Invite link closed" screen because the Error frame arrives first. The token keeps working for every participant
 it already minted who still holds a valid lease: reconnect, reload, heartbeat,
 signal, upload and keeper recovery. New people need a fresh link for the same
-role the removed participant joined through. The host Record panel calls out
+role the removed participant joined through. The host Record stage calls out
 removals and its **Copy links…** action opens Share. The room list marks the
 closed guest or producer invite, disables copying that old link, and offers
 **Replace guest invite** or **Replace producer invite**. Replacement is bound
@@ -1161,7 +1161,7 @@ stateDiagram-v2
 | Full room | "This room is full (4 recorded / 2 producers)." |
 | Declined | "You declined recording. You can wait in the lobby, or the host can invite you as a producer (listen only)." |
 
-### Host Record room panel
+### Host Record stage
 
 The host panel offers only actions that can succeed and says why the rest
 cannot. Every button runs the same `record.*` command as the palette.
@@ -1239,7 +1239,7 @@ non-terminal code (for example the heartbeat's `join_first` after
 On the host, every failed `record.start` / `pause` / `resume` / `stop` /
 `land` command (from the keyboard, command palette or the panel buttons, which
 run the same commands) is announced, stored in
-`useRecordHostStore.transportError`, and shown in the Record room panel, which
+`useRecordHostStore.transportError`, and shown on the Record stage, which
 opens so the error is visible rather than only announced. When the panel is already open the failure is
 only shown there, inside its polite live region, and not also announced, so
 screen readers hear it once. Over the Share
@@ -1250,9 +1250,8 @@ including **Copy links…**) or the project changes.
 If the host record WebSocket drops after it has connected, while a take is
 recording or paused (`useRecordHostStore.dropped`; not before the first
 connect or after an intentional teardown; a replaced socket's late close after
-a project switch is ignored), the transport chip reads
-"REC (reconnecting)" with no live dot, its aria-label becomes "Record room
-reconnecting. Open record panel", and the Record room panel shows "Lost
+a project switch is ignored), the Record stage status reads
+"Reconnecting…" and shows "Lost
 connection to the record room. Reconnecting…". Capture-health labels (failed,
 waiting for microphone, no audio) still take precedence on the chip. Pending live comments queue with
 idempotency keys and upsert on reconnect.
@@ -1672,7 +1671,7 @@ Shipped in `feat/recording-lobby-consent`:
 - [x] Guest/producer `WS /api/rec/{token}/ws`; host record plane on `/api/host/ws`.
 - [x] Host `GET /api/record/state` + `POST /api/record/command`; CLI/MCP twins.
 - [x] Lobby / DeviceCheck / ConsentGate / Room / FullRoom / Declined.
-- [x] Host Record panel, transport REC chip, Share **Open Record stage**.
+- [x] Host Record stage, Stage bar live badge, Share **Open Record stage**.
 - [x] Relay bridges `WS /api/rec/{token}/ws`.
 - [x] Docs / UX pack / skill `podcast-record-session`.
 - [x] Do **not** add keeper capture, mix-minus, or upload in this PR.
@@ -1699,7 +1698,7 @@ Shipped in `feat/recording-monitor-mixminus`:
 - [x] Mesh `RTCPeerConnection` per peer; producer recvonly / no `getUserMedia`.
 - [x] Mute stops the send track and ramps that remote off the speaker bus; keeper still writes zeros.
 - [x] Pause/Resume does not rebuild the monitor graph. Host-offline still ends live tracks.
-- [x] `build.monitor: true`; Room/Record panel "Hearing the room."
+- [x] `build.monitor: true`; Room/Record stage "Hearing the room."
 - [x] Do **not** add chunk upload, timeline landing, or live comments in this PR.
 
 ## Shipped: recording upload + resume
@@ -1731,7 +1730,7 @@ Shipped in `feat/recording-landing`:
 Shipped in `feat/recording-producer-live-comments`:
 
 - [x] Everyone in the room can add a timeline comment during REC or PAUSED (same `comment` cap). Host does not need `comment` on the default join/monitor cap list.
-- [x] `M` posts `body` `"Marker"` (guest RecordApp window listener; host DAW listener exception while the record panel is open — not a second DAW window listener). Typed notes use the same Comment command.
+- [x] `M` posts `body` `"Marker"` (guest RecordApp window listener; host DAW listener exception while the Record stage is active — not a second DAW window listener). Typed notes use the same Comment command.
 - [x] Client idempotency `id`; host rewrites `recording_ms` from `pressed_wall_ms` + `pauses[]` / `session_start`; PAUSED comments land at the pause point.
 - [x] Visibility is host-enforced: host + producer see all; a guest sees only their own (WS Echo/Snapshot/Applied).
 - [x] Stored in `record_live_comments` in `sync.db`; snapshot attaches unlanded rows. Landing uses `add_comment` under `ProjectWorkspace.mutate()` at `take_offset_s + recording_ms/1000` (no lead/title/metadata; `take_offset_s` includes the session origin).
@@ -1761,8 +1760,8 @@ for coverage and platform limits.
 ### Live take monitoring on the timeline
 
 Keep the timeline open while recording: a labeled provisional band and a separate
-recording needle show the current take, even with the Record room panel closed or
-no saved tracks. Pause freezes the band and labels it PAUSED; Stop removes it
+recording needle show the current take, even off the Record stage or
+with no saved tracks. Pause freezes the band and labels it PAUSED; Stop removes it
 immediately. Land then creates the real clips through the existing document refresh.
 The band represents the aggregate take clock, not participant media or a waveform.
 

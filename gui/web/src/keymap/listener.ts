@@ -16,7 +16,7 @@ import { isButtonActivation, isTypingTarget } from "./typing";
  * see commands/governance.test.ts allowlist. One gate decides what runs while
  * an overlay is open (`keymapHandoff` in `ui/modalGate`): an open menu holds
  * every key; an open modal dialog holds every app shortcut but the ones it
- * hands on (M for a marker in the Record room), so nothing runs behind an
+ * hands on (M for a marker on the Record stage), so nothing runs behind an
  * in-app confirm. Native keys inside the dialog (typing in its field, Tab,
  * Enter on its buttons) are left to the browser.
  *

@@ -63,6 +63,20 @@ describe("useHostRoom", () => {
     expect(loadHostRecordState).toHaveBeenCalledWith("/p");
   });
 
+  it("forgets the room lookup when the project changes", async () => {
+    vi.mocked(loadHostRecordState).mockResolvedValueOnce(
+      recordSnapshot({ state: "lobby", participants: [host] }),
+    );
+    const { result } = renderHook(() => useHostRoom());
+    await waitFor(() => expect(result.current.roomLookup).toBe("found"));
+    vi.mocked(loadHostRecordState).mockReturnValue(
+      new Promise(() => undefined),
+    );
+    act(() => useDawStore.setState({ projectPath: "/q" }));
+    expect(result.current.roomLookup).toBe("checking");
+    expect(result.current.doneNotice).toBeNull();
+  });
+
   it("does not hydrate when disabled", async () => {
     renderHook(() => useHostRoom({}, { hydrate: false }));
     await act(async () => undefined);

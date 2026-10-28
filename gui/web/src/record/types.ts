@@ -242,21 +242,10 @@ export const REC_CAPTURE_LABEL = {
   silent: "REC: no audio",
 } as const satisfies Record<NonNullable<CaptureHealth>, string>;
 
-/** Transport chip aria-label per capture problem while recording. */
-export const REC_CHIP_CAPTURE_LABEL = {
-  failed: "Local capture failed. Open record panel",
-  pending: "Waiting for microphone. Open record panel",
-  silent: "No audio reaching the recorder. Open record panel",
-} as const satisfies Record<NonNullable<CaptureHealth>, string>;
-
 /** Appended to the REC label while the host record socket is down. */
 export const REC_OFFLINE_SUFFIX = "(reconnecting)";
 
-/** Transport chip aria-label while the host record socket is down mid-take. */
-export const REC_CHIP_OFFLINE_LABEL =
-  "Record room reconnecting. Open record panel";
-
-/** Record panel notice while the host record socket is down mid-take. */
+/** Record stage notice while the host record socket is down mid-take. */
 export const RECORD_ROOM_RECONNECTING_COPY =
   "Lost connection to the record room. Reconnecting…";
 

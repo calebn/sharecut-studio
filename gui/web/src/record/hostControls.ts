@@ -19,18 +19,10 @@ export const TAKE_CONTROL = {
 export const STOP_CONFIRM_COPY =
   "Stop this take? Recording ends for everyone in the room.";
 
-/** Fixes the host can apply from the panel; the Record stage maps each to its action. */
-export type StartFix = "retryStorage";
-
-export const START_FIX_LABEL = {
-  retryStorage: "Retry storage check",
-} as const satisfies Record<StartFix, string>;
-
-/** A host Start blocker with its words and, when the host can fix it, the fix. */
+/** A host Start blocker with its words. */
 export type StartBlockerItem = {
   key: string;
   text: string;
-  fix?: StartFix;
 };
 
 export type LocalStartReadiness = {
@@ -59,11 +51,7 @@ export function startBlockerItems(
           },
   );
   if (local.storageError) {
-    items.push({
-      key: "storage",
-      text: local.storageError,
-      fix: "retryStorage",
-    });
+    items.push({ key: "storage", text: local.storageError });
   } else if (!local.storageReady) {
     items.push({ key: "storage", text: LOCAL_KEEPER_PENDING_COPY });
   }

@@ -1031,6 +1031,60 @@ describe("Record stage takes", () => {
       { sec: 105 },
       { skipWhen: true },
     );
+    const ids = exec.mock.calls.map((call) => (call as unknown[])[0]);
+    expect(ids.indexOf("stage.edit")).toBeGreaterThanOrEqual(0);
+    expect(ids.indexOf("stage.edit")).toBeLessThan(
+      ids.indexOf("transport.seek"),
+    );
+  });
+
+  it("retries a failed past take through the project-wide land command", async () => {
+    uploadStatus.mockResolvedValue({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_g",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: true,
+          land_failed: true,
+        },
+      ],
+    });
+    act(() => {
+      setRoom({
+        state: "recording",
+        take_index: 1,
+        participants: [hostPerson(), avaGuest()],
+        takes: [
+          {
+            take_index: 0,
+            session_start_wall_ms: 1000,
+            session_start_iso: "t",
+            stopped_wall_ms: 61_000,
+            pauses: [],
+            consented_participant_ids: ["p_host", "p_g"],
+          },
+          {
+            take_index: 1,
+            session_start_wall_ms: 70_000,
+            session_start_iso: "t",
+            stopped_wall_ms: null,
+            pauses: [],
+            consented_participant_ids: ["p_host", "p_g"],
+          },
+        ],
+      });
+    });
+    mount();
+    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /^Take 1/, expanded: false }),
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: /^Retry Ava/ }),
+    );
+    expect(exec).toHaveBeenCalledWith("record.land", {}, { skipWhen: true });
   });
 });
 

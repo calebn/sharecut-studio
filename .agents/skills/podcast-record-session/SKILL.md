@@ -80,8 +80,7 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    Minting ends the previous room: its links show the dead-link cover.
    Send the **guest** `/rec/` URL to talent and the **producer** URL only to the
    silent listener.
-2. Open the host **Record room** panel (Menu → Record room…, or Share →
-   **Open room panel**). The host browser will ask for a mic; that dry tap is
+2. Open the **Record** stage in the Stage bar (or Share → **Open Record stage**). The host browser will ask for a mic; that dry tap is
    the host's full-quality recording (`p_host`).
 3. Guests enter a name, check headphones, click **Allow microphone**, preview
    the mic, optionally record 3 s of room tone (or Skip), then **Accept**
