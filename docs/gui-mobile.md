@@ -271,17 +271,14 @@ reaches Clear clip light. The Add track row, the Listen **Open all** link, the
 track sheet's Label, Speaker and Role fields and Select range's In and Out
 fields and track checkboxes, and the More tab's overlay toggle rows, all hold the 44px floor (`e2e/touch-floor.spec.ts` sweeps phone, tablet and landscape and names the dense-target exceptions); a native `select` takes it
 as `block-size` because WebKit ignores `min-block-size` on one. Transcript
-**Find and replace** and Pipeline **Add term** rows wrap their controls on a
-coarse pointer so landscape panels do not overflow (#1433). The Pipeline panel's
-selects, its From / Only shortcuts summary and the sheet back buttons hold the
-floor too (#1445). Pipeline uses one panel scroller at every size. Its toolbar
-scrolls with the content at every height. The original pinned-on-tall behavior is
-removed to avoid an overlay and scroll-owner switches during resize. Controls
+**Find and replace** rows wrap their controls on a
+coarse pointer so landscape panels do not overflow (#1433). The sheet back buttons
+hold the floor too (#1445). Controls
 keep their DOM, form and disclosure state. On touch, in a window under 40rem tall
 (`@container app`, so large text counts), the Transcript panel scrolls as a whole
 with the list keeping at least 16rem, so its chrome does not cover the rows beneath
 it. `e2e-compat/reachability-sweep.spec.ts` sweeps
-both panels whole at every cell. The envelope-point select, the effect Bypass toggles and the comment composer's
+the Transcript panel and the Prepare stage whole at every cell. The envelope-point select, the effect Bypass toggles and the comment composer's
 fields and track picks hold the floor too, and the same sweep measures them (a seeded
 track for the first two, the Comments panel on tablet and desktop, and Listen on a phone,
 for the last).

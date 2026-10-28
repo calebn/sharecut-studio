@@ -46,31 +46,12 @@ queued delivery into a server success or add another job or save queue.
 
 ## Editor pipeline geometry
 
-The editor's determinate pipeline bar keeps its 0.5rem height (8 px at the
-default 16 px root) when the Pipeline pane is short and its contents overflow. Ordinary motion uses the existing fill
-width transition; reduced motion removes that transition. The consumer replay
-regression checks visible geometry and terminal fill without injecting styles.
-See [editor responsiveness profiling](testing-e2e.md#large-project-browser-profile-opt-in)
-for the separate real-job and controlled-replay measurements.
-
-The `progress-real` profiling command defaults to the passive native-progress
-observer. It records genuine POST, native SSE
-network receipt, browser status inputs, DOM mutation batches and sampled layout.
-It does not replay producer history, force an initial zero, or require artificial
-dwell for a fast job. The superseded three-state measurement implementation is removed; its historical
-reports and frozen budgets remain separate from this protocol and performance
-acceptance. See
-[profiling instructions](testing-e2e.md#large-project-browser-profile-opt-in).
-
-The retained normal/reduced native observations completed real Compress/Balance
-and captured 0/50/100 DOM states, but all sampled bars were outside their panel's
-clip. Keeping an 8 px bar prevents flex collapse; it does not make offscreen
-content visible. Native network receipt, status inputs, DOM mutation and sampled
-layout are separate evidence channels, not render commits or compositor paints.
-The observer's overhead and natural producer sent cadence remain unmeasured.
-These findings do not justify a fill-width rewrite, artificial job dwell, or a
-new three-visible-state requirement. The original replay and real-job outcomes
-remain separate in the [retained findings](testing-e2e.md#retained-responsiveness-findings-879).
+The Prepare stage shows a running pipeline as the Transcribe row in its Getting
+ready list, not as a progress bar. `prepare-progress.spec.ts` checks that the
+row stays in view without horizontal overflow at a short desktop and a phone
+size, in both motion modes. The Pipeline panel bar and the profile scenes that
+measured it were removed; their reports stay in the
+[retained findings](testing-e2e.md#retained-responsiveness-findings-879).
 
 ## API
 
