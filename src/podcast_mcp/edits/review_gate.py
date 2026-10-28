@@ -29,6 +29,21 @@ ReviewStatus = Literal["pending", "done", "waived"]
 ReviewMode = Literal["require", "waive_unattended", "off"]
 ReviewSource = Literal["agent", "user", "cli", "mcp", "unattended", "align", "precorrect"]
 
+GATE_TEXT_MAX_CHARS = 2000
+"""Longest gate ``notes`` or waiver ``reason`` a caller may record, in characters."""
+
+
+def check_gate_text_length(text: str | None, *, subject: str) -> None:
+    """Refuse ``text`` over :data:`GATE_TEXT_MAX_CHARS`; ``subject`` reads "The notes are"."""
+    length = len(text or "")
+    if length > GATE_TEXT_MAX_CHARS:
+        raise CodedValueError(
+            f"{subject} too long: {length} characters, and the limit is "
+            f"{GATE_TEXT_MAX_CHARS}. Shorten the text and try again.",
+            code="gate_text_too_long",
+        )
+
+
 _MODES: tuple[ReviewMode, ...] = ("require", "waive_unattended", "off")
 _CLEARING: tuple[ReviewStatus, ...] = ("done", "waived")
 

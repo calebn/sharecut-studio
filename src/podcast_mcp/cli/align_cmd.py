@@ -32,7 +32,7 @@ def align_brief_cmd(
 @align_app.command("done")
 def align_done_cmd(
     project: Path = typer.Option(..., "--project"),
-    notes: str | None = typer.Option(None, "--notes"),
+    notes: str | None = typer.Option(None, "--notes", help="Short note, up to 2000 characters."),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     result = AlignAcceptService(ws).mark_done(notes=notes, source="cli")
@@ -42,7 +42,7 @@ def align_done_cmd(
 @align_app.command("waive")
 def align_waive_cmd(
     project: Path = typer.Option(..., "--project"),
-    reason: str = typer.Option(..., "--reason"),
+    reason: str = typer.Option(..., "--reason", help="Why, up to 2000 characters."),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     result = AlignAcceptService(ws).waive(reason=reason, source="cli")
