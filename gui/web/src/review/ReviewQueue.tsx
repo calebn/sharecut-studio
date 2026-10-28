@@ -38,6 +38,7 @@ export type ReviewContent = {
     | "waveform"
     | "why"
     | "comment"
+    | "change"
   > & { unsure?: { word: string; guess: string } };
 };
 

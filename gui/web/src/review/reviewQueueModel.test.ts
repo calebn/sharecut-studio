@@ -10,6 +10,7 @@ import {
   progressLine,
   type ReviewItem,
   resultText,
+  verbOf,
 } from "./reviewQueueModel";
 
 const item = (over: Partial<ReviewItem>): ReviewItem => ({
@@ -135,5 +136,35 @@ describe("decisionMessage", () => {
       "Cut 2 · saves 1.4 s",
     );
     expect(decisionMessage(QUEUE_ITEMS, ["f1", "f2"], "kept")).toBe("Kept 2");
+  });
+});
+
+describe("verbOf", () => {
+  it.each([
+    [{ kind: "filler" }, "cut"],
+    [{ kind: "pause" }, "shorten"],
+    [{ kind: "sound" }, "lower"],
+    [{ kind: "check" }, "approve"],
+    [{ kind: "suggestion", suggested: "shorten" }, "shorten"],
+    [{ kind: "sound", suggested: "cut" }, "cut"],
+    [{ kind: "sound", suggested: "lower" }, "lower"],
+    [{ kind: "sound", suggested: "leave" }, "keep"],
+    [{ kind: "filler", suggested: undefined }, "cut"],
+  ] as const)("gives %o the %s verb", (over, verb) => {
+    expect(verbOf(item({ ...over }))).toBe(verb);
+  });
+
+  it("words the result and the bulk message from it", () => {
+    const shorten = item({ id: "s", kind: "suggestion", suggested: "shorten" });
+    expect(resultText({ ...shorten, result: "applied" })).toBe("Shorten 0.5 s");
+    expect(decisionMessage([shorten], ["s"], "applied")).toBe("Shorten 0.5 s");
+  });
+
+  it("keeps lower items out of group verbs", () => {
+    const bulk = groupQueue([
+      item({ id: "a", kind: "sound", suggested: "cut" }),
+      item({ id: "b", kind: "sound", suggested: "lower" }),
+    ])[0]?.bulk;
+    expect(bulk?.ids).toEqual(["a"]);
   });
 });

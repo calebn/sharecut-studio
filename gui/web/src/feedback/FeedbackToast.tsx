@@ -197,7 +197,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     }
   }, [toast, undoEntry]);
 
-  const undo = async (message: string, expectedHeadId: HistoryEntryId) => {
+  const undo = async (
+    message: string,
+    expectedHeadId: HistoryEntryId,
+    onUndone: (() => void) | undefined,
+  ) => {
     setUndoing(true);
     try {
       const result = await executePointerCommand("history.undo", {
@@ -205,6 +209,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       });
       if (result.status === "ok") {
         useDawStore.getState().announceStatus(`Undone: ${message}`);
+        onUndone?.();
       }
     } catch (e) {
       useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
@@ -247,7 +252,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const reversal = toast?.reverse ?? null;
   const onUndo =
     toast && undoEntry
-      ? () => void undo(toast.message, undoEntry)
+      ? () => void undo(toast.message, undoEntry, toast.onUndone)
       : reversal
         ? () => void reverse(reversal, toast?.returnFocus ?? null)
         : undefined;

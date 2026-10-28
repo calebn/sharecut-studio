@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef } from "react";
 import { type DecisionPlan, planDecision, stepUndecided } from "./advance";
 import type { ReviewContent } from "./ReviewQueue";
 import type { ReviewIntent } from "./ReviewStage";
@@ -99,14 +99,14 @@ export function reviewSession(
         : { ...s, decided, selectedId: a.plan.selectedId };
     }
     case "revert": {
-      const hit = a.ids.filter((id) => s.decided.has(id));
+      const hit = a.ids.filter((id) => s.decided.get(id)?.left === false);
       if (hit.length === 0) return s;
       const decided = new Map(s.decided);
       for (const id of hit) decided.delete(id);
       return {
         ...s,
         decided,
-        selectedId: hit.find((id) => !s.decided.get(id)?.left) ?? s.selectedId,
+        selectedId: hit[0],
         looksRight: without(s.looksRight, hit),
       };
     }
@@ -136,6 +136,10 @@ export function useReviewSession(
     } satisfies ReviewSession;
   });
   useEffect(() => dispatch({ type: "observed", open }), [open, s.decided]);
+  const claimed = useRef<Set<string>>(new Set());
+  useLayoutEffect(() => {
+    claimed.current = new Set(s.decided.keys());
+  }, [s.decided]);
 
   const merged = useMemo(() => mergeOpen(open, s.decided), [open, s.decided]);
   const items = useMemo(() => merged.map((e) => e.item), [merged]);
@@ -160,10 +164,13 @@ export function useReviewSession(
         filter: s.filter,
         waive: !!waive,
       });
-      const fresh = plan.decidedIds.some((id) =>
-        items.some((i) => i.id === id && !i.result),
+      const fresh = plan.decidedIds.some(
+        (id) =>
+          !claimed.current.has(id) &&
+          items.some((i) => i.id === id && !i.result),
       );
       if (!fresh) return null;
+      for (const id of plan.decidedIds) claimed.current.add(id);
       dispatch({ type: "decided", plan, snapshot: merged });
       return plan;
     },

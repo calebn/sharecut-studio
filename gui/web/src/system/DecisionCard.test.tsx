@@ -336,3 +336,51 @@ describe("DecisionCard", () => {
     );
   });
 });
+
+describe("DecisionCard without a waveform", () => {
+  it("plays the A/B from change", async () => {
+    const onHear = vi.fn();
+    render(
+      <DecisionCard
+        {...base()}
+        waveform={undefined}
+        change={{ start: 10, end: 11 }}
+        audition={{ side: "B", onSide: vi.fn(), onHear }}
+      />,
+    );
+    expect(screen.queryAllByRole("slider")).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "A" }));
+    expect(onHear).toHaveBeenCalledWith("A", [{ start: 7, end: 14 }]);
+  });
+
+  it("shows no A/B without a change", () => {
+    render(<DecisionCard {...base()} waveform={undefined} />);
+    expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+  });
+});
+
+describe("DecisionCard verb", () => {
+  it("replaces the kind's primary and drops the duplicate Keep", async () => {
+    const onVerb = vi.fn();
+    render(
+      <DecisionCard {...base()} kind="sound" verb="keep" onVerb={onVerb} />,
+    );
+    const keeps = screen.getAllByRole("button", { name: /^Keep/ });
+    expect(keeps).toHaveLength(1);
+    await userEvent.click(keeps[0] as HTMLElement);
+    expect(onVerb).toHaveBeenCalledTimes(1);
+  });
+
+  it("labels the override, not the kind's own label", () => {
+    render(
+      <DecisionCard
+        {...base()}
+        kind="unsure-word"
+        unsure={undefined}
+        verb="cut"
+      />,
+    );
+    expect(screen.getByRole("button", { name: /^Cut/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
+  });
+});
