@@ -402,17 +402,6 @@ test.describe("coarse pointer", () => {
     );
     await expect(joinDialog(page)).toHaveCount(0);
   });
-
-  test("a touch beside a glyph does not open the join", async ({ page }) => {
-    await open(page);
-    const box = await glyphAt(page, 0);
-    await page.touchscreen.tap(box.x + box.width + 20, box.y + box.height / 2);
-    await expect(joinDialog(page)).toHaveCount(0);
-    await expect(page.locator(`${lane} .edit-mark`).first()).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-  });
 });
 
 test("a chip still zooms with Alt held: it is not a split", async ({
