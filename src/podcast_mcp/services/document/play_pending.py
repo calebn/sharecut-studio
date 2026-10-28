@@ -25,13 +25,18 @@ from podcast_mcp.edits.pending_preview import (
 )
 from podcast_mcp.engines.effect_filters import ADAPTIVE_EFFECTS
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.play_audit import stem_is_fresh
+from podcast_mcp.engines.play_audit import (
+    master_source_hash,
+    premix_is_stale,
+    premix_path,
+    stem_is_fresh,
+)
 from podcast_mcp.engines.room_tone import (
     record_room_tone_pool,
     room_tone_bed_digest,
     room_tone_pool_digest,
 )
-from podcast_mcp.engines.timeline_render import render_track_segment
+from podcast_mcp.engines.timeline_render import render_track_segment, timeline_duration_sec
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.batch_scope import batch_scope
@@ -57,6 +62,9 @@ PENDING_WARMUP_SEC = 15.0
 # arnndn history: a window within this many seconds of the start renders from 0 and is exact.
 PENDING_HISTORY_SEC = 600.0
 LEAD_IN_GRID_SEC = 0.64
+# Seconds rendered past the window and dropped on such a track: noise reduction flushes its last
+# frame differently at the end of a render than mid-stem.
+PENDING_TAIL_SEC = 0.5
 
 # The pad range the GUI routes validate against, from the one place the service validates it.
 PENDING_PREVIEW_PAD_DEFAULT_SEC = DEFAULT_PAD_SEC
@@ -133,10 +141,11 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
     ) -> PlayResult:
         """Current / Suggested / A/B full mix around a pending edit.
 
-        Each side mixes its window from per-track segment renders at the headroom trim the
-        premix gets for the current mix (``mix_trim_db``): Current from the project as it
-        is, Suggested after approving the edit on a snapshot, so it is what approving ships.
-        Neither reads ``premix.wav``.
+        Current is the window of ``premix.wav`` while the premix is what the mix plays now.
+        Otherwise, and for Suggested, each side mixes its window from per-track segment
+        renders at the headroom trim the premix gets for the current mix (``mix_trim_db``):
+        Current from the project as it is, Suggested after approving the edit on a snapshot,
+        so it is what approving ships.
 
         The window is the edit plus ``pad_sec`` on each side (0 to 10 s, clamped to the
         timeline's ends). The result's ``start_sec`` / ``end_sec`` are where the played
@@ -298,6 +307,13 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                     sides[mode] = "failed"
         return {"trim_db": trim, "sides": sides}
 
+    def _fresh_premix(self) -> Path | None:
+        """``premix.wav`` when it is what the mix plays now, so the Current side is cut from it."""
+        path = premix_path(self.project)
+        if path.is_file() and not premix_is_stale(self.project, self._defaults):
+            return path
+        return None
+
     def _stem_window_tracks(self, project: EpisodeProject) -> list[str]:
         """Adaptive-effect tracks whose whole-episode stem is fresh, so a window is cut from it."""
         return sorted(
@@ -316,8 +332,11 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 "window": [window.play_start, window.play_end],
                 "pad_sec": window.pad_sec,
                 # Bump when a side renders differently for the same inputs.
-                "render_rev": 4,
-                # Adaptive tracks are cut from a fresh whole-episode stem on the Current side.
+                "render_rev": 5,
+                # The Current side is cut from a fresh premix, else adaptive tracks from fresh stems.
+                "premix": master_source_hash(self.project)
+                if side == "current" and self._fresh_premix() is not None
+                else None,
                 "stem_windows": self._stem_window_tracks(self.project) if side == "current" else [],
                 "edit": edit.model_dump(mode="json"),
                 "mix": self._mix_key(),
@@ -369,6 +388,16 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
             play_end = apply_for_suggested(project, window, defaults=self._defaults)
         else:
             project, play_end = self.project, window.play_end
+            premix = self._fresh_premix()
+            if premix is not None:
+                render_atomic(
+                    out,
+                    lambda temporary: FFmpegEngine().extract_segment(
+                        premix, temporary, window.play_start, play_end
+                    ),
+                )
+                self._mark_play_cache_used(out)
+                return out
         stems = frozenset(self._stem_window_tracks(project)) if side == "current" else frozenset()
         trim = self.mix_trim_db(lock_timeout=lock_timeout)
         self._render_mix_window(
@@ -396,23 +425,29 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 segment = Path(directory) / f"{track.id}.wav"
                 if track.id in stems:
                     # The premix is built from this stem: cut the window from it, so a stateful
-                    # filter (noise reduction, compressor) sounds exactly as it does there.
+                    # filter (noise reduction, compressor) sounds exactly as it does there. The
+                    # stem is rendered before the staging gain, which the mix applies.
                     FFmpegEngine().extract_segment(
                         stem_path(project, track.id), segment, start, end
                     )
-                    segments.append((segment, track.fader_db))
+                    segments.append((segment, track.output_gain_db))
                     continue
-                lead_start = _lead_in_start(project, track.id, start)
-                warm = start - lead_start
-                if warm > 0:
+                if _warmup_sec(project, track.id) > 0:
                     # Adaptive filters (loudnorm, noise reduction, dynamics) depend on the audio
-                    # before the window: render lead-in and drop it, so the window sounds as it
-                    # does inside the whole-episode stem.
+                    # around the window: render lead-in and a tail and drop them, so the window
+                    # sounds as it does inside the whole-episode stem.
+                    lead_start = _lead_in_start(project, track.id, start)
+                    tail_end = min(end + PENDING_TAIL_SEC, max(end, timeline_duration_sec(project)))
                     lead = Path(directory) / f"{track.id}.lead.wav"
-                    render_track_segment(project, track.id, start - warm, end, lead, self._defaults)
-                    FFmpegEngine().extract_segment(lead, segment, warm, warm + (end - start))
+                    render_track_segment(
+                        project, track.id, lead_start, tail_end, lead, self._defaults
+                    )
+                    FFmpegEngine().extract_segment(
+                        lead, segment, start - lead_start, end - lead_start
+                    )
                 else:
                     render_track_segment(project, track.id, start, end, segment, self._defaults)
+                # A window render carries the staging gain; the fader is the mix's.
                 segments.append((segment, track.fader_db))
             if segments:
                 render_atomic(

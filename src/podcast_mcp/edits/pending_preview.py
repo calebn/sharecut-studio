@@ -146,8 +146,10 @@ def preview_window_for_edit(
         suggest_reason = None if mappable else SUGGEST_REASON_STALE_RANGE
     else:
         suggest_reason = _suggest_reason(type_val, mappable)
-    play_start = max(0.0, tl_start - pad_sec)
-    play_end = tl_end + pad_sec
+    # Whole milliseconds: a whole number of samples at any common rate, which every reader of
+    # the timeline (ffmpeg -ss, atrim, the premix) maps to the same first sample.
+    play_start = max(0.0, math.floor((tl_start - pad_sec) * 1000 + 1e-6) / 1000)
+    play_end = math.ceil((tl_end + pad_sec) * 1000 - 1e-6) / 1000
     # Past the last audio there is nothing to play; the window ends with the timeline.
     timeline_end = timeline_duration_sec(project)
     if timeline_end > 0:
