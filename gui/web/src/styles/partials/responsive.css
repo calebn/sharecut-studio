@@ -61,8 +61,9 @@
      ruler with the sheet beneath it instead of the rows taking the room the
      form needs. They scroll with the lanes and are one scroll up (#1694). */
   html:is([data-shell="tablet"], [data-shell="phone"]):has(
-    .bottom-sheet--lane-band
-  ) :is(.marker-lane, .track-headers-chrome) {
+      .bottom-sheet--lane-band
+    )
+    :is(.marker-lane, .track-headers-chrome) {
     position: relative;
     inset-block-start: auto;
     z-index: var(--z-content);
@@ -78,8 +79,9 @@
   /* The ruler's corner above the track names stays pinned, in no extra
      height, so a lane scrolled up behind the ruler does not show through. */
   html:is([data-shell="tablet"], [data-shell="phone"]):has(
-    .bottom-sheet--lane-band
-  ) .track-headers::before {
+      .bottom-sheet--lane-band
+    )
+    .track-headers::before {
     content: "";
     position: sticky;
     inset-block-start: 0;
