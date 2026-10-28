@@ -7,14 +7,10 @@ const ICONS = {
   play: true,
   pause: true,
   stop: true,
-  select: true,
-  blade: true,
-  comment: true,
   fit: true,
   menu: true,
   layers: true,
   close: true,
-  cutAtPlayhead: true,
   agent: true,
   listen: true,
   timeline: true,
@@ -52,7 +48,7 @@ const meta: Meta<typeof Icon> = {
 export default meta;
 type Story = StoryObj<typeof Icon>;
 
-export const Default: Story = { args: { name: "blade", title: "Blade" } };
+export const Default: Story = { args: { name: "fit", title: "Fit" } };
 
 export const AllIcons: Story = {
   render: () => (
