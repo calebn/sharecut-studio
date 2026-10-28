@@ -15,6 +15,7 @@ def revise_suggested_actions(
     apply: Callable[..., dict[str, Any]],
     overrides: dict[str, str],
     application_intent: CutIntent,
+    skip_unsure: bool = False,
 ) -> dict[str, Any]:
     """Re-apply the latest Apply suggested actions batch with ``overrides`` on top."""
     from podcast_mcp.project.history.manager import HistoryManager
@@ -50,6 +51,7 @@ def revise_suggested_actions(
                 sorted(requested),
                 overrides={**requested, **overrides},
                 application_intent=application_intent,
+                skip_unsure=skip_unsure,
             )
         except BaseException:
             history.goto(tip)

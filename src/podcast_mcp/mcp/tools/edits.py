@@ -443,6 +443,12 @@ def apply_suggested_actions_tool(
     to before the latest batch (which must still be the latest edit) and applies it again
     with that change, as one undo step. Otherwise it refuses with
     ``no_suggested_batch_to_revise``.
+
+    Applying all pending sounds, or several ``ids``, is a bulk apply: a ``cut`` or ``shorten``
+    over a word the transcript is unsure about (below ``analysis.unsure_word_confidence``, 0.7
+    as shipped) stays pending and is named in ``held`` and in ``held_unsure``; when every cut is
+    held nothing is saved. Check those words (``low_confidence_words_tool``), then apply that
+    one cut by passing its single id in ``ids``; ``override_audio_checks`` does not apply to it.
     """
     return to_json(
         submit_host_command_result(
@@ -453,6 +459,7 @@ def apply_suggested_actions_tool(
                 "overrides": overrides or {},
                 "revise": revise,
                 "override_audio_checks": override_audio_checks,
+                "skip_unsure": not revise and (ids is None or len(set(ids)) > 1),
             },
             client_id="mcp:host",
         )

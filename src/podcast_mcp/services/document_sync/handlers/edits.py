@@ -60,6 +60,7 @@ def apply_suggested_actions(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str
         overrides=dict(p.get("overrides") or {}),
         revise=p.get("revise") is True,
         application_intent=p["_boundary_intent"],
+        skip_unsure=p.get("skip_unsure") is True,
     )
 
 
