@@ -301,7 +301,10 @@ for (const width of [1024, 1440]) {
       await expect(guide).toBeVisible();
       const paint = await guide.evaluate((el) => {
         const style = getComputedStyle(el);
-        return { background: style.backgroundColor, ring: style.boxShadow };
+        return {
+          width: Number.parseFloat(style.borderLeftWidth),
+          color: style.borderLeftColor,
+        };
       });
       const canvas = await page.evaluate(() => {
         const probe = document.createElement("div");
@@ -311,8 +314,8 @@ for (const width of [1024, 1440]) {
         probe.remove();
         return color;
       });
-      expect(paint.background).not.toBe(canvas);
-      expect(paint.ring).not.toBe("none");
+      expect(paint.width).toBeGreaterThan(0);
+      expect(paint.color).not.toBe(canvas);
       await page.keyboard.up("Alt");
     });
 
