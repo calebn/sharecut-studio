@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { openHostProject } from "./overlayReachability";
+import { inspectSelection, inspectSelectionByKey } from "./stageNav";
 import { openTranscriptPanel } from "./transcriptEdit";
 
 test.use({ hasTouch: true });
@@ -18,6 +19,7 @@ for (const tablet of TABLETS) {
     await openHostProject(page);
     await page.locator(".lane-row .clip-block").first().click();
     await expect(page.locator(".clip-block.selected").first()).toBeVisible();
+    await inspectSelection(page);
     await expect(page.locator(".bottom-sheet")).toBeVisible();
   });
 
@@ -31,6 +33,7 @@ for (const tablet of TABLETS) {
     const word = list.locator("[data-transcript-word][data-track-id]").nth(3);
     await word.click();
     await expect(list.locator(".utterance-word.selected")).toHaveCount(1);
+    await inspectSelectionByKey(page);
     await expect(page.locator(".bottom-sheet")).toBeVisible();
   });
 }
@@ -63,9 +66,10 @@ for (const ipad of IPADS) {
       type: "touchEnd",
       touchPoints: [],
     });
+    await expect(page.locator(".clip-block.selected").first()).toBeVisible();
+    await inspectSelection(page);
     const sheet = page.locator(".bottom-sheet");
     await expect(sheet).toBeVisible();
-    await expect(page.locator(".clip-block.selected").first()).toBeVisible();
     await expect(sheet).toHaveClass(/bottom-sheet--compact/);
     await expect
       .poll(async () => {

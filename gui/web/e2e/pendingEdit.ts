@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openPanel, openProject } from "./stageNav";
+import { inspectSelectionByKey, openPanel, openProject } from "./stageNav";
 
 /**
  * Suggest a 0–2 s cut on the first dialogue track through the document plane
@@ -54,6 +54,7 @@ export async function openSuggestedPendingEdit(
   // time) is an equivalent edit whichever earlier spec left it behind.
   await panels.locator(".sys-queue-main").first().click();
   await panels.getByRole("button", { name: "Open in Edit" }).click();
+  await inspectSelectionByKey(page);
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
