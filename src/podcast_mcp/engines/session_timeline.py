@@ -509,6 +509,19 @@ def same_source_timeline_overlaps(
     )
 
 
+def _clips_by_id(clips: list[Clip]) -> dict[str, list[Clip]]:
+    """Group clips by id so membership tests compare only clips that can be equal."""
+    grouped: dict[str, list[Clip]] = {}
+    for clip in clips:
+        grouped.setdefault(clip.id, []).append(clip)
+    return grouped
+
+
+def _has_equal_clip(grouped: dict[str, list[Clip]], clip: Clip) -> bool:
+    """Whether `clip` equals any grouped clip, exactly as `clip in clips` would."""
+    return any(other is clip or other == clip for other in grouped.get(clip.id, ()))
+
+
 class SessionTimeline:
     """Bidirectional mapping between source media time and session timeline time.
 
@@ -720,16 +733,20 @@ class SessionTimeline:
             track.media.path if track.media and track.media.path else f"track:{track_id}",
         )
         placement_cursor = timeline_start
-        recording_clips = self._recording_clips(track_id)
+        recording_clips = _clips_by_id(self._recording_clips(track_id))
         for clip in sorted(
-            (c for c in self._project.clips if c.track_id == track_id or c in recording_clips),
+            (
+                c
+                for c in self._project.clips
+                if c.track_id == track_id or _has_equal_clip(recording_clips, c)
+            ),
             key=lambda c: c.timeline_start,
         ):
             lo = max(timeline_start, clip.timeline_start)
             hi = min(timeline_cursor, clip.timeline_end)
             if hi <= lo + _EPS:
                 continue
-            if clip not in recording_clips:
+            if not _has_equal_clip(recording_clips, clip):
                 return None
             if clip.source_id and _clip_source_path(self._project, clip) is None:
                 return None
