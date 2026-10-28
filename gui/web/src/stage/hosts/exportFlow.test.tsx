@@ -2,6 +2,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExportRequest } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
+import { deferred } from "../../test/deferred";
 import {
   EXPORT_FINISHED,
   EXPORT_MODEL_NEEDED,
@@ -189,7 +190,7 @@ describe("the export flow over the server's routes", () => {
   });
 
   it("does not cancel before the server has answered the start", async () => {
-    const answer = Promise.withResolvers<void>();
+    const answer = deferred();
     server.holdStart = answer.promise;
     mount();
     await loaded();

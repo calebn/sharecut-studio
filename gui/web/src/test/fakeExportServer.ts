@@ -63,7 +63,9 @@ class FakeEventSource {
   onmessage: ((ev: MessageEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   readyState = 1;
-  constructor(readonly url: string) {
+  url: string;
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.all.push(this);
   }
   close() {
