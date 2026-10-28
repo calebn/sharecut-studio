@@ -112,6 +112,20 @@ def test_run_gui_server_without_listen_file(monkeypatch: pytest.MonkeyPatch) -> 
     assert "fd" not in seen
 
 
+def test_run_gui_server_records_the_address_the_socket_is_bound_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    monkeypatch.delenv(LISTEN_FILE_ENV, raising=False)
+    monkeypatch.delenv(EPHEMERAL_ENV, raising=False)
+    _patch_uvicorn_server(monkeypatch, {})
+    app = SimpleNamespace(state=SimpleNamespace())
+    run_gui_server(app, host="127.0.0.1", port=0, log_level="warning")
+    assert app.state.listen_host == "127.0.0.1"
+    assert app.state.listen_port > 0
+
+
 def test_exclusive_listen_second_bind_fails() -> None:
     sock = exclusive_listen_socket("127.0.0.1", 0)
     try:
