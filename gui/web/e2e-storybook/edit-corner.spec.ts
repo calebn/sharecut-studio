@@ -1,5 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import { storyUrl } from "./storyUrl";
+
+// Pixel 5 emulation gives the coarse pointer that `--touch-min` is gated on.
+test.use({ ...devices["Pixel 5"] });
 
 /**
  * The touch range-arm toggle lives in the Edit corner (#2294). jsdom has no
@@ -8,7 +11,6 @@ import { storyUrl } from "./storyUrl";
 test("Stages/Edit/Corner range toggle is a 44px target on a phone", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 360, height: 640 });
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.goto(
     storyUrl("stages-edit-corner--touch-with-range", { theme: "light" }),
