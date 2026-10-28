@@ -171,6 +171,7 @@ export function usePrepareModel(): PrepareModel {
     ingestBusy,
     transcribed: sourceCount > 0 && untranscribed.length === 0,
     starting: run.starting,
+    waiting: run.waiting,
     job,
     pendingSuggestions: project?.edit_impact.pending_review_count ?? 0,
     model: run.model,
@@ -181,6 +182,7 @@ export function usePrepareModel(): PrepareModel {
     sources: sourceCount,
     ingestBusy,
     checking: run.starting && job === null,
+    waiting: run.waiting,
     rows,
   });
   const target = prepareHandoff({

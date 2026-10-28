@@ -115,6 +115,8 @@ export function usePrepareRun(input: PrepareRunInput) {
   const { models, busy: slotTaken, download } = useModels();
   const [starting, setStarting] = useState(false);
   const [need, setNeed] = useState<ModelNeeded | null>(null);
+  /** A run was refused because another job holds the pipeline slot. */
+  const [waiting, setWaiting] = useState(false);
   const [keepFixes, setKeepFixes] = useState<KeepFixes | null>(null);
   const [wantRetime, setWantRetime] = useState(false);
   const latest = useRef(input);
@@ -122,6 +124,22 @@ export function usePrepareRun(input: PrepareRunInput) {
   const startingRef = useRef(false);
   /** Set once the model was seen missing after the ask, so a stale row never loops the run. */
   const sawMissing = useRef(false);
+
+  /**
+   * The slot is taken, so nothing started. A plain run waits and goes on when
+   * the slot frees (the row shows it); other modes say so, so none is silent.
+   */
+  const busyRefused = useCallback((mode: RunMode) => {
+    if (mode === "run") {
+      setWaiting(true);
+      return;
+    }
+    useDawStore
+      .getState()
+      .announceStatus("Another job is running. Try again when it finishes.", {
+        tone: "error",
+      });
+  }, []);
 
   const start = useCallback(
     async (mode: RunMode, overwriteEdited = false, fromStep?: string) => {
@@ -131,6 +149,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         isPipelineSlotBusy(store.pipelineJob) ||
         isPipelineSlotBusy(store.activityJob)
       ) {
+        busyRefused(mode);
         return;
       }
       startingRef.current = true;
@@ -153,12 +172,15 @@ export function usePrepareRun(input: PrepareRunInput) {
           throw error;
         }
         setNeed(null);
+        setWaiting(false);
         if (useDawStore.getState().projectPath === latest.current.projectPath) {
           useDawStore.getState().setPipelineJob(job);
         }
       } catch (error) {
         const code = (error as { code?: string | null }).code;
-        if (code !== BUSY_CODE) {
+        if (code === BUSY_CODE) {
+          busyRefused(mode);
+        } else {
           useDawStore
             .getState()
             .announceStatus(`Could not start: ${errorMessage(error)}`, {
@@ -170,7 +192,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         setStarting(false);
       }
     },
-    [],
+    [busyRefused],
   );
 
   // Import is done when the busy flag drops with different audio on the
@@ -186,6 +208,15 @@ export function usePrepareRun(input: PrepareRunInput) {
     }
     wasBusy.current = ingestBusy;
   }, [ingestBusy, mediaKey, canRun, start]);
+
+  // A run refused for a busy slot goes on once the slot frees.
+  const slotBusy = useDawStore(
+    (s) =>
+      isPipelineSlotBusy(s.pipelineJob) || isPipelineSlotBusy(s.activityJob),
+  );
+  useEffect(() => {
+    if (waiting && !slotBusy && canRun) void start("run");
+  }, [waiting, slotBusy, canRun, start]);
 
   // A run that stopped for a model goes on by itself once that model is in.
   const row = need ? (models?.find((m) => m.id === need.id) ?? null) : null;
@@ -241,6 +272,7 @@ export function usePrepareRun(input: PrepareRunInput) {
 
   return {
     starting,
+    waiting,
     model: ask,
     keepFixes,
     /** Word timing is missing; null when the model is in or unknown. */

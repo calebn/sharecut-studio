@@ -254,6 +254,8 @@ export type ReadyInput = {
   transcribed: boolean;
   /** A run is being started (auto-run waiting on the slot, or the POST in flight). */
   starting: boolean;
+  /** A run was refused because another job holds the pipeline slot. */
+  waiting?: boolean;
   job: PipelineJobSnapshot | null;
   pendingSuggestions: number;
   model: ModelAsk | null;
@@ -404,6 +406,14 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
         text: "Transcribing again would change words you fixed by hand. Keep them, or replace them with the new transcript.",
       },
     });
+  } else if (input.waiting && !live) {
+    rows.push({
+      id: "transcribe",
+      state: "needs-you",
+      title: ROW_TITLE.transcribe,
+      detail: "Waiting for the other job to finish. It starts by itself.",
+      action: { label: "Run", run: "try-again" },
+    });
   } else if (transcribe?.state === "failed") {
     rows.push(failedRow("transcribe", transcribe.error ?? ""));
   } else if (transcribe?.state === "running") {
@@ -506,6 +516,8 @@ export type PhaseInput = {
   ingestBusy: boolean;
   /** Sources whose audio is still being measured. */
   checking: boolean;
+  /** The run was refused for a busy slot. */
+  waiting?: boolean;
   rows: readonly ReadyRowData[];
 };
 
@@ -535,6 +547,8 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   ) {
     return { phase: "needs-model" };
   }
+  // Refused for a busy slot: nothing runs until the slot frees or Run is tapped.
+  if (input.waiting) return { phase: "waiting" };
   // A row that waits on the person (word timing to download, hand fixes to
   // keep) is not work in progress: nothing runs, so the hand-off is not held.
   if (
