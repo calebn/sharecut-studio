@@ -170,6 +170,16 @@ describe("editHeadOf", () => {
       }),
     ).toBe("a");
   });
+  it("counts the state before a mix rebuild as the edit head", () => {
+    expect(
+      editHeadOf({
+        head_id: "p2",
+        groups: [
+          { before_id: "p1", after_id: "p2", operation: "render_preview" },
+        ],
+      }),
+    ).toBe("p1");
+  });
   it("stops at the head, so an undone edit is not counted", () => {
     expect(
       editHeadOf({

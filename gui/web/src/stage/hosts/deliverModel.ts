@@ -146,15 +146,25 @@ export function editHeadOf(history: {
 }): string {
   let latest: string | null = null;
   for (const group of history.groups) {
-    const ids =
+    const entries =
       group.id !== undefined
-        ? [group.id]
-        : [group.before_id, group.after_id].filter(
-            (id): id is string => id !== undefined,
-          );
-    for (const id of ids) {
-      if (group.operation !== "render_preview") latest = id;
-      if (id === history.head_id) return latest ?? history.head_id;
+        ? [{ id: group.id, edit: group.operation !== "render_preview" }]
+        : [
+            ...(group.before_id === undefined
+              ? []
+              : [{ id: group.before_id, edit: true }]),
+            ...(group.after_id === undefined
+              ? []
+              : [
+                  {
+                    id: group.after_id,
+                    edit: group.operation !== "render_preview",
+                  },
+                ]),
+          ];
+    for (const entry of entries) {
+      if (entry.edit) latest = entry.id;
+      if (entry.id === history.head_id) return latest ?? history.head_id;
     }
   }
   return history.head_id;
