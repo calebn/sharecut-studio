@@ -13,6 +13,7 @@ import socketserver
 import struct
 import sys
 import threading
+import time
 from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -735,7 +736,7 @@ def test_ping_classifies_transport_error_after_deadline_as_timeout(
 
     monkeypatch.setattr(studio_host_module, "_PingConnection", Connection)
     monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
-    monkeypatch.setattr(studio_host_module.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(time, "monotonic", lambda: clock["now"])
     with pytest.raises(TimeoutError):
         studio_host_module._ping(_host(), "/project")
 
@@ -771,7 +772,7 @@ def test_ping_rejects_success_after_deadline(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(studio_host_module, "_PingConnection", Connection)
     monkeypatch.setattr(studio_host_module, "PING_TIMEOUT_SEC", 0.5)
-    monkeypatch.setattr(studio_host_module.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(time, "monotonic", lambda: clock["now"])
     with pytest.raises(TimeoutError):
         studio_host_module._ping(_host(), "/project")
     assert response.closed
@@ -940,9 +941,7 @@ def _dial_localhost(
             return None
 
     monkeypatch.setattr(studio_host_module, "_DeadlineSocket", FakeSocket)
-    conn = studio_host_module._PingConnection(
-        "localhost", 1, deadline=studio_host_module.time.monotonic() + 30
-    )
+    conn = studio_host_module._PingConnection("localhost", 1, deadline=time.monotonic() + 30)
     conn._dial(("localhost", 1), 1.0, None)
 
 
@@ -1030,3 +1029,67 @@ def test_a_refused_ping_is_still_an_absent_studio(
 
     monkeypatch.setattr(studio_host_module, "_ping", refused)
     assert locate_studio(project) is None
+
+
+def _scripted_pings(
+    monkeypatch: pytest.MonkeyPatch, outcomes: list[Callable[[], tuple[int, object]]]
+) -> list[int]:
+    pings: list[int] = []
+
+    def ping(_host: StudioHost, _project: str) -> tuple[int, object]:
+        pings.append(1)
+        return outcomes[len(pings) - 1]()
+
+    monkeypatch.setattr(studio_host_module, "_ping", ping)
+    return pings
+
+
+def _raises(make_error: Callable[[], BaseException]) -> Callable[[], tuple[int, object]]:
+    def fail() -> tuple[int, object]:
+        raise make_error()
+
+    return fail
+
+
+@pytest.mark.parametrize(
+    "second",
+    [
+        pytest.param(lambda: ConnectionRefusedError(errno.ECONNREFUSED, ""), id="refused"),
+        pytest.param(lambda: ConnectionResetError(errno.ECONNRESET, ""), id="reset"),
+        pytest.param(lambda: http.client.RemoteDisconnected("closed"), id="remote-disconnected"),
+        pytest.param(lambda: http.client.BadStatusLine("x"), id="bad-status-line"),
+        pytest.param(lambda: ValueError("bad"), id="value-error"),
+    ],
+)
+def test_a_timed_out_first_ping_is_not_masked_by_a_failed_retry(
+    project: Path, monkeypatch: pytest.MonkeyPatch, second: Callable[[], BaseException]
+) -> None:
+    announce_studio_host(project, _host())
+    pings = _scripted_pings(
+        monkeypatch, [_raises(lambda: TimeoutError("timed out")), _raises(second)]
+    )
+    with pytest.raises(StudioUnresponsive):
+        locate_studio(project)
+    assert len(pings) == 2
+
+
+def test_a_timed_out_first_ping_yields_to_a_clean_retry(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    announce_studio_host(project, _host())
+    reply = {"instance": _host().instance, "protocol": 1, "serves": True}
+    _scripted_pings(monkeypatch, [_raises(lambda: TimeoutError("timed out")), lambda: (200, reply)])
+    found = locate_studio(project)
+    assert found is not None
+    assert found.instance == _host().instance
+
+
+def test_a_refused_first_ping_is_not_retried(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    announce_studio_host(project, _host())
+    pings = _scripted_pings(
+        monkeypatch, [_raises(lambda: ConnectionRefusedError(errno.ECONNREFUSED, ""))]
+    )
+    assert locate_studio(project) is None
+    assert len(pings) == 1
