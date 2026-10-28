@@ -8,6 +8,7 @@ result can only have come from Studio. A project no Studio serves still runs her
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import errno
 import json
 import os
@@ -15,6 +16,7 @@ import socket
 import threading
 import time
 from collections.abc import Callable, Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +103,209 @@ def _wrapped() -> _Direct:
     server = _Direct()
     install_studio_handoff(server)
     return server
+
+
+@contextlib.contextmanager
+def _deadline_peer(
+    project: Path,
+    *,
+    stalled: bool = True,
+    trickle: bool = False,
+    session_id: bool = False,
+) -> Iterator[tuple[list[str], threading.Event, threading.Event]]:
+    methods: list[str] = []
+    initialized = threading.Event()
+    stop = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *_args: Any) -> None:
+            return None
+
+        def reply(self, body: dict[str, Any]) -> None:
+            data = json.dumps(body).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def stream(self) -> None:
+            self.close_connection = True
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            if session_id:
+                self.send_header("Mcp-Session-Id", "deadline-session")
+            self.end_headers()
+            initialized.set()
+            while not stop.wait(0.02):
+                if trickle:
+                    try:
+                        self.wfile.write(b": keepalive\n\n")
+                        self.wfile.flush()
+                    except OSError:
+                        return
+
+        def do_GET(self) -> None:
+            if self.path == "/mcp":
+                self.send_error(405)
+                return
+            self.reply({"instance": "deadline", "protocol": 1, "serves": True, "mcp": True})
+
+        def do_DELETE(self) -> None:
+            methods.append("DELETE")
+            self.stream()
+
+        def do_POST(self) -> None:
+            request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            method = request["method"]
+            methods.append(method)
+            if method == "initialize":
+                if stalled:
+                    self.stream()
+                    return
+                result = {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "serverInfo": {"name": "deadline-peer", "version": "1"},
+                }
+            elif method == "notifications/initialized":
+                self.send_response(202)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            elif method == "tools/call":
+                token = request["params"].get("_meta", {}).get("progressToken")
+                if token is not None:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.end_headers()
+                    for step in range(7):
+                        notification = {
+                            "jsonrpc": "2.0",
+                            "method": "notifications/progress",
+                            "params": {"progressToken": token, "progress": step, "total": 7},
+                        }
+                        self.wfile.write(f"data: {json.dumps(notification)}\n\n".encode())
+                        self.wfile.flush()
+                        if stop.wait(0.1):
+                            return
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request["id"],
+                        "result": {"content": [{"type": "text", "text": "finished"}]},
+                    }
+                    self.wfile.write(f"data: {json.dumps(response)}\n\n".encode())
+                    self.wfile.flush()
+                    return
+                if stop.wait(0.7):
+                    return
+                result = {"content": [{"type": "text", "text": "finished"}]}
+            else:
+                result = {"tools": []}
+            self.reply({"jsonrpc": "2.0", "id": request["id"], "result": result})
+
+    peer = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    peer.daemon_threads = True
+    thread = threading.Thread(target=peer.serve_forever, daemon=True)
+    thread.start()
+    announce_studio_host(
+        project,
+        StudioHost("deadline", os.getpid(), "127.0.0.1", peer.server_port, "test", "1"),
+    )
+    try:
+        yield methods, initialized, stop
+    finally:
+        stop.set()
+        peer.shutdown()
+        peer.server_close()
+        thread.join(3)
+
+
+@pytest.mark.parametrize("trickle,session_id", [(False, False), (True, False), (True, True)])
+def test_stalled_initialization_stops_without_sending_or_replaying(
+    minimal_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    trickle: bool,
+    session_id: bool,
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    monkeypatch.setattr(handoff, "INITIALIZE_TIMEOUT_SEC", 0.5, raising=False)
+    direct = _wrapped()
+    with _deadline_peer(minimal_project, trickle=trickle, session_id=session_id) as (
+        methods,
+        _,
+        stop,
+    ):
+
+        async def call() -> Any:
+            task = asyncio.create_task(
+                direct.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+            )
+            done, _ = await asyncio.wait({task}, timeout=2)
+            if not done:
+                stop.set()
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await asyncio.wait_for(task, 1)
+            assert done, "Studio initialization did not stop before the watchdog"
+            return task.result()
+
+        result = asyncio.run(call())
+    assert result.is_error
+    assert "Nothing was run" in result.content[0].text
+    assert "tools/call" not in methods
+    assert direct.calls == []
+
+
+def test_initialization_caller_cancellation_propagates_without_replay(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    monkeypatch.setattr(handoff, "INITIALIZE_TIMEOUT_SEC", 0.5, raising=False)
+    direct = _wrapped()
+    with _deadline_peer(minimal_project, trickle=True) as (methods, initialized, _):
+
+        async def cancel() -> None:
+            call = asyncio.create_task(
+                direct.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+            )
+            assert await asyncio.to_thread(initialized.wait, 1)
+            call.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(call, 2)
+
+        asyncio.run(cancel())
+    assert "tools/call" not in methods
+    assert direct.calls == []
+
+
+@pytest.mark.parametrize("progress", [False, True])
+def test_initialized_tool_can_outlast_the_initialization_deadline(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch, progress: bool
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    monkeypatch.setattr(handoff, "INITIALIZE_TIMEOUT_SEC", 0.5, raising=False)
+    direct = _wrapped()
+    context = _Context() if progress else None
+    with _deadline_peer(minimal_project, stalled=False) as (methods, _, _):
+        result = asyncio.run(
+            direct.call_tool(
+                "list_clips_tool",
+                {"project_path": str(minimal_project)},
+                context,
+            )
+        )
+    assert not result.is_error
+    assert result.content[0].text == "finished"
+    assert methods.count("tools/call") == 1
+    assert direct.calls == []
+    if context is not None:
+        assert [report[0] for report in context.reports] == list(range(7))
 
 
 def test_tool_call_runs_in_the_studio_serving_the_project(studio: Path) -> None:
