@@ -82,21 +82,14 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     notes: "F2: focused word in Navigate mode",
   },
   {
-    id: "presence.unfollow",
-    category: "presence",
-    label: "Stop following",
-    keys: ["Escape"],
-    bareKey: true,
-    when: "following",
-  },
-  {
     id: "transport.togglePlay",
     category: "transport",
     label: "Play / pause",
     keys: [" ", "Space"],
     bareKey: true,
+    requireShift: false,
     when: "editorFocused",
-    notes: "When timeline or transcript is focused",
+    notes: "When timeline or transcript is focused; Shift+Space is Hear",
   },
   {
     id: "transport.stop",
@@ -105,7 +98,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["K"],
     bareKey: true,
     when: "always",
-    collision: "K alone stops playback; Mod+K is Blade cut",
+    collision: "K alone stops playback; Mod+K splits at the playhead",
   },
   {
     id: "edit.clearSelection",
@@ -114,7 +107,17 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Escape"],
     bareKey: true,
     when: "hasInspectorSelection",
-    notes: "Also clears track targeting",
+    notes:
+      "Closes the Inspector first, then clears the selection and track targeting",
+  },
+  {
+    id: "presence.unfollow",
+    category: "presence",
+    label: "Stop following",
+    keys: ["Escape"],
+    bareKey: true,
+    when: "following",
+    notes: "After the selection: Esc clears what is selected, then stops following",
   },
   {
     id: "stage.record",
@@ -384,7 +387,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "edit.delete",
     category: "edit",
-    label: "Delete clip",
+    label: "Cut selection",
     keys: ["Backspace", "Delete"],
     bareKey: true,
     when: "editStageStructural",
@@ -403,14 +406,14 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "edit.bladeCut",
     category: "edit",
-    label: "Blade cut",
+    label: "Split at playhead",
     keys: ["K"],
     bareKey: false,
     requireMod: true,
     requireShift: false,
     when: "editStageStructural",
-    notes: "Mod+K: cut at playhead",
-    collision: "Mod+K cuts; K alone stops playback",
+    notes: "Mod+K: split at the playhead",
+    collision: "Mod+K splits; K alone stops playback",
   },
   {
     id: "track.selectAll",
@@ -435,15 +438,15 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     notes: "Mod+Shift+A: Logic-style; empty targeting",
   },
   {
-    id: "track.muteToggle",
+    id: "edit.mute",
     category: "edit",
-    label: "Toggle track mute",
+    label: "Mute",
     keys: ["M"],
     bareKey: true,
     noRepeat: true,
     when: "hasProject",
     collision:
-      "M mutes the targeted track; on the Record stage, M drops a marker instead",
+      "M mutes what is selected (words, a range, a clip), else the targeted track; on the Record stage, M drops a marker instead",
   },
   {
     id: "record.marker",
@@ -453,9 +456,9 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     when: "recordStageActive",
     notes:
-      "M: live marker on the Record stage; on any other stage, M still mutes the targeted track",
+      "M: live marker on the Record stage; on any other stage, M still mutes",
     collision:
-      "M drops a marker only on the Record stage; otherwise M mutes the targeted track",
+      "M drops a marker only on the Record stage; otherwise M mutes",
   },
   {
     id: "track.soloToggle",
@@ -463,8 +466,106 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Toggle track solo",
     keys: ["S"],
     bareKey: true,
+    requireShift: true,
     noRepeat: true,
     when: "hasProject",
+    notes: "Shift+S: S is Split",
+  },
+  {
+    id: "edit.split",
+    category: "edit",
+    label: "Split",
+    keys: ["S"],
+    bareKey: true,
+    requireShift: false,
+    noRepeat: true,
+    when: "editStageStructural",
+    notes:
+      "S: split at the playhead, or at both edges of the selected words or range, as one undo step",
+    collision: "S splits; Shift+S solos the targeted track; Mod+K splits at the playhead",
+  },
+  {
+    id: "edit.hear",
+    category: "edit",
+    label: "Hear",
+    keys: ["Space", " "],
+    bareKey: true,
+    requireShift: true,
+    noRepeat: true,
+    when: "editStage",
+    notes: "Shift+Space: hear the selection",
+  },
+  {
+    id: "edit.hearBefore",
+    category: "edit",
+    label: "Hear before",
+    keys: ["A"],
+    bareKey: true,
+    noRepeat: true,
+    when: "editStage",
+    notes: "A: the suggestion as it is now",
+  },
+  {
+    id: "edit.hearAfter",
+    category: "edit",
+    label: "Hear after",
+    keys: ["B"],
+    bareKey: true,
+    noRepeat: true,
+    when: "editStage",
+    notes: "B: the suggestion applied",
+  },
+  {
+    id: "edit.keep",
+    category: "edit",
+    label: "Keep",
+    keys: ["X"],
+    bareKey: true,
+    noRepeat: true,
+    when: "editStage",
+    notes: "X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard",
+  },
+  {
+    id: "edit.inspect",
+    category: "edit",
+    label: "Inspect",
+    keys: ["I"],
+    bareKey: true,
+    noRepeat: true,
+    when: "editStage",
+    notes: "I: open or close the Inspector for the selection; Mod+I is Import",
+  },
+  {
+    id: "edit.more",
+    category: "edit",
+    label: "More",
+    keys: ["."],
+    bareKey: true,
+    noRepeat: true,
+    when: "editStage",
+    notes: ".: open the Action bar's More menu",
+  },
+  {
+    id: "comment.draftAt",
+    category: "review",
+    label: "Add comment",
+    keys: ["C"],
+    bareKey: true,
+    requireShift: false,
+    noRepeat: true,
+    when: "canComment",
+    notes: "C: comment on the selection, else at the playhead; Mod+C is Copy",
+  },
+  {
+    id: "edit.addChapter",
+    category: "edit",
+    label: "Add chapter at playhead",
+    keys: ["C"],
+    bareKey: true,
+    requireShift: true,
+    noRepeat: true,
+    when: "hostProjectLoaded",
+    notes: "Shift+C: add a chapter at the playhead",
   },
   {
     id: "view.zoomIn",
@@ -660,8 +761,8 @@ export type SharedKeyOrder = {
 export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
   {
     key: "Escape",
-    order: ["presence.unfollow", "edit.clearSelection"],
-    why: "the narrowest mode ends first: stop following, then clear the selection",
+    order: ["edit.clearSelection", "presence.unfollow"],
+    why: "the innermost thing ends first (design-system element 14): the Inspector, then the selection, then Follow; with nothing selected the first row's when-clause fails and Esc stops following",
   },
   {
     key: "ArrowLeft",
@@ -693,8 +794,8 @@ export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
   },
   {
     key: "M",
-    order: ["record.marker", "track.muteToggle"],
-    why: "while the Record stage is active M drops a marker; its when-clause fails otherwise and M mutes the targeted track",
+    order: ["record.marker", "edit.mute"],
+    why: "while the Record stage is active M drops a marker; its when-clause fails otherwise and M mutes",
   },
 ];
 
@@ -706,7 +807,7 @@ function shortcutParts(cmd: KeymapCommand): string[] {
   // A remap replaces the key only; Mod/Shift still apply (see effectiveKeys).
   const primary = getKeymapOverride(cmd.id)?.[0] ?? cmd.keys[0] ?? "";
   if (primary === " " || primary === "Space") {
-    return ["Space"];
+    return cmd.requireShift ? ["Shift", "Space"] : ["Space"];
   }
   const parts: string[] = [];
   if (cmd.requireMod) {

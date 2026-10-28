@@ -2,6 +2,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
   type RefObject,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -42,7 +43,9 @@ export type ActionBarProps = {
   /** After the verbs where a guest has no primary. */
   readonly trailing?: ReactNode;
   readonly ariaLabel?: string;
-  readonly onVerb: (id: BarId) => void;
+  /** A value that opens the More menu when it changes (the `.` key). */
+  readonly moreRequest?: number;
+  readonly onVerb: (id: BarId, arg?: string) => void;
 };
 
 type Look = "floating" | "dock" | "inline";
@@ -159,12 +162,20 @@ function MoreMenu({
   look,
   rows,
   onVerb,
+  request,
 }: {
   look: Look;
   rows: readonly BarItem[];
   onVerb: ActionBarProps["onVerb"];
+  request?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const seen = useRef(request);
+  useEffect(() => {
+    if (request === seen.current) return;
+    seen.current = request;
+    setOpen(true);
+  }, [request]);
   return (
     <Menu
       open={open}
@@ -179,10 +190,11 @@ function MoreMenu({
         const glyph = barDisplay(row.id).icon;
         return (
           <MenuItem
-            key={row.id}
+            key={row.arg ? `${row.id}:${row.arg}` : row.id}
+            disabledReason={row.disabledReason}
             onSelect={() => {
               setOpen(false);
-              onVerb(row.id);
+              onVerb(row.id, row.arg);
             }}
           >
             {glyph ? <SystemIcon name={glyph} size={16} /> : null}
@@ -199,11 +211,13 @@ function Items({
   items,
   more,
   onVerb,
+  moreRequest,
 }: {
   look: Look;
   items: readonly BarItem[];
   more: readonly BarItem[];
   onVerb: ActionBarProps["onVerb"];
+  moreRequest?: number;
 }) {
   return slotsOf(items).map((slot) => {
     const [first, second] = slot as [BarItem, BarItem | undefined];
@@ -226,7 +240,13 @@ function Items({
         </span>
       );
     return first.id === "more" ? (
-      <MoreMenu key={first.id} look={look} rows={more} onVerb={onVerb} />
+      <MoreMenu
+        key={first.id}
+        look={look}
+        rows={more}
+        onVerb={onVerb}
+        request={moreRequest}
+      />
     ) : (
       <LookButton
         key={first.id}
@@ -251,6 +271,7 @@ function Inline({
   trailing,
   ariaLabel,
   onVerb,
+  moreRequest,
 }: FormProps) {
   return (
     <div
@@ -262,7 +283,13 @@ function Inline({
       {center}
       {items.length > 0 || primary ? (
         <span className="sys-actions-decide">
-          <Items look="inline" items={items} more={more} onVerb={onVerb} />
+          <Items
+            look="inline"
+            items={items}
+            more={more}
+            onVerb={onVerb}
+            moreRequest={moreRequest}
+          />
           {primary ? (
             <PrimaryButton look="inline" item={primary} onVerb={onVerb} />
           ) : null}
@@ -284,6 +311,7 @@ function Dock({
   trailing,
   ariaLabel,
   onVerb,
+  moreRequest,
 }: FormProps) {
   const grip = items.some((item) => item.id === "inspect");
   const folded = foldDock(items, more, primary !== undefined);
@@ -305,7 +333,12 @@ function Dock({
         {leading}
         <Items look="dock" items={folded.items} more={[]} onVerb={onVerb} />
         {folded.more.length > 0 ? (
-          <MoreMenu look="dock" rows={folded.more} onVerb={onVerb} />
+          <MoreMenu
+            look="dock"
+            rows={folded.more}
+            onVerb={onVerb}
+            request={moreRequest}
+          />
         ) : null}
       </div>
       {center ? <div className="sys-dock-slot">{center}</div> : null}
@@ -327,6 +360,7 @@ function Floating({
   primary,
   ariaLabel,
   onVerb,
+  moreRequest,
 }: FormProps & {
   placement: Extract<ActionBarPlacement, { form: "floating" }>;
 }) {
@@ -349,7 +383,13 @@ function Floating({
       aria-label={ariaLabel}
     >
       {leading}
-      <Items look="floating" items={items} more={more} onVerb={onVerb} />
+      <Items
+        look="floating"
+        items={items}
+        more={more}
+        onVerb={onVerb}
+        moreRequest={moreRequest}
+      />
       {primary ? (
         <PrimaryButton look="floating" item={primary} onVerb={onVerb} />
       ) : null}

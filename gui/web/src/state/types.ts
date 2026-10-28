@@ -292,6 +292,16 @@ export interface DawState {
   /** The tracks ticked for a range not yet formed; null follows the selection. */
   rangeScopeTrackIds: readonly string[] | null;
   rangeBusy: boolean;
+  /**
+   * The selection the Inspector was opened for (`inspectKeyOf`), or null. It
+   * is open only while the selection still has that key, so Inspect (I, the
+   * verb, a double-click) opens it and a new selection, Esc or Close shuts it.
+   */
+  inspectorKey: string | null;
+  setInspectorOpen: (open: boolean) => void;
+  /** Bumped by `edit.more` (.) so the Action bar opens its More menu. */
+  moreRequest: number;
+  requestMore: () => void;
   setRangeArmed: (armed: boolean) => void;
   setRangeScopeTrackIds: (trackIds: readonly string[] | null) => void;
   setRangeBusy: (busy: boolean) => void;

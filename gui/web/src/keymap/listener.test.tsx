@@ -302,7 +302,7 @@ it("lets through only the shortcuts the open modal hands on: M drops a marker", 
     ),
   );
   expect(vi.mocked(execute)).not.toHaveBeenCalledWith(
-    "track.muteToggle",
+    "edit.mute",
     expect.anything(),
     expect.anything(),
   );
@@ -455,7 +455,7 @@ it("drops a marker on M on the Record stage and mutes the track on any other sta
   useDawStore.setState({ stage: "record" });
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["record.marker"]);
   useDawStore.setState({ stage: "edit" });
-  expect(await pressOnCanvas("m", "KeyM")).toEqual(["track.muteToggle"]);
+  expect(await pressOnCanvas("m", "KeyM")).toEqual(["edit.mute"]);
 });
 
 async function pressModZ(shiftKey: boolean) {
