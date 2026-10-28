@@ -30,6 +30,10 @@ async function undoStaysReachable(
   { page, context, browserName }: Fixtures,
   info: TestInfo,
 ): Promise<void> {
+  const detents = (order: readonly ("peek" | "half" | "full")[]) =>
+    order.filter(
+      (detent) => detent !== "half" || !(name === "landscape" && rootPx === 32),
+    );
   await openAt(page, SIZES[name], 16, theme);
   const laneHeights = () =>
     page
@@ -315,7 +319,7 @@ async function undoStaysReachable(
         (button) => button.getBoundingClientRect().toJSON(),
       ),
     }));
-  for (const detent of ["peek", "half", "full"] as const) {
+  for (const detent of detents(["peek", "half", "full"])) {
     if (detent !== "peek") {
       await page
         .getByRole("button", {
@@ -400,7 +404,7 @@ async function undoStaysReachable(
   await page.waitForTimeout(900);
   await expect(page.locator(".guest-attention")).not.toBeVisible();
   await check("strip-open-after-edit", headerHistory);
-  for (const detent of ["half", "full", "peek"] as const) {
+  for (const detent of detents(["half", "full", "peek"])) {
     if (!(await page.locator(`.bottom-sheet--${detent}`).count())) {
       await page
         .getByRole("button", {

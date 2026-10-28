@@ -234,11 +234,12 @@ async function sweepCell(
     sizeExempt: SIZE_EXEMPT,
   });
   const rows = sheet ? await railRows(page) : 1;
-  // A narrow or short window folds the strip behind the header's Tools button.
+  // A narrow or short phone folds the strip behind the header's Tools button;
+  // a tablet keeps it in the headers' corner.
   const folded = await page
     .getByRole("button", { name: "Tools", exact: true })
     .isVisible();
-  if (rows !== (folded ? 0 : 1)) {
+  if (rows !== (folded && phone ? 0 : 1)) {
     found["tool strip"] = [
       {
         failure: "overflows-container",
