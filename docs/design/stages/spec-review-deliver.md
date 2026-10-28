@@ -494,7 +494,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### Readiness check
 
-- **Today:** none. The export dialog doesn't warn about pending edits or stale mix (desktop F11).
+- **Today:** none. The export (then a dialog) didn't warn about pending edits or stale mix (desktop F11).
 - **Fate:** new.
 - **Spec:** a list of Check rows, 48 px each, in two columns on desktop (one on phone): "Suggestions decided 14 of 14", "Comments resolved 2 of 3", "Unsure words checked 0 left", "Mix up to date", "Loudness −16.0 LUFS" (after export: measured; before: target with "will be checked"), "Peaks under −1.5 dBTP", "Chapters 5", "Edits saved 23.6 s" (the same number as Review). Each open row has a fix button that opens the right stage with the item selected ("Resolve" opens Review on that comment). The section title is a sentence that summarizes: "Ready to export" or "2 things left. You can still export." Nothing here blocks Export.
 - **Shared elements used:** Readiness check list, Check row.
@@ -507,6 +507,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Spec:** a row of format toggles as chips (MP3 on, WAV on, FLAC off), each with its size estimate; "Captions and transcript" always written and regenerated with every export (fixes stale SRT and Markdown); loudness segmented (Podcast −16 / Broadcast −23 / Streaming −14) mirrors Prepare's setting (one setting, two places). "Saves to Field Notes/export" with a "Change" text button. MP3 includes chapters when chapters exist (verify before stating as shipped; ui-philosophy §5). Export runs as a Job row inside the section ("Mastering · Writing MP3 · 60%", cancel); the user can leave the page. Done: file list with name, size, and per-file Reveal / Download icons; one primary "Reveal" or "Download all".
 - **Shared elements used:** Job row, chip toggles, segmented control, Model need row.
 - **Story to build:** `Stages/Deliver/EpisodeFile` stories `Settings`, `Exporting`, `Exported`, `ExportedPhone`, `NeedsModel`, `Failed`.
+- **Shipped (#2451):** the host runs the real export job from this section and the dialog is gone. The format chips come from the Pipeline config (WAV always written as a note, MP3, M4A, FLAC), loudness is the sentence "Mastered to X LUFS, peaks under Y dBTP. Change the target in the Pipeline tab." in place of the segmented choice, and Range, "Saves to", Reveal and Download are hidden because nothing in the project backs them. Progress, Cancel with its reasons, the late-cancel list, Try again, the model prompt and the measured loudness are all in the section; the flow lives in `DawApp`, so leaving Deliver does not stop it.
 
 ### DLG-BOUNCE · Bounce (+ READY)
 
