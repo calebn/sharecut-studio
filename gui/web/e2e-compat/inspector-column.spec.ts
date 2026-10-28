@@ -8,7 +8,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { closeTools, openProject, openToolsIfFolded } from "../e2e/stageNav";
 import {
   buildFixture,
   type CaseFixtures,
@@ -69,9 +69,11 @@ async function open(page: Page, view: Layout, envelope: boolean) {
   await expect(page.locator(`.stage-frame--${view.shell}`)).toBeVisible();
   if (view.shell === "phone") await openPhoneTimeline(page);
   await expect(page.locator(".lane-row").first()).toBeVisible();
+  await openToolsIfFolded(page);
   await expect(
     page.getByRole("group", { name: "Editing tools" }),
   ).toBeVisible();
+  await closeTools(page);
   if (envelope) {
     await layer(page, "Volume envelope", true);
     await expect(
