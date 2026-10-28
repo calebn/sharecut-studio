@@ -369,6 +369,88 @@ def test_a_stalled_partial_upload_stops_blocking_and_is_reported(
     assert len(new["landed_first"]["clips"]) == 1 and new["left_behind"] == 1
 
 
+@pytest.mark.parametrize("future_part", [False, True], ids=["old-part", "future-part"])
+def test_a_partial_upload_gets_the_full_grace_window_after_stop(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, future_part
+):
+    import os
+
+    started = STOP_AT - 15 * 60 * 1_000
+    wall = started - 1_000
+    monkeypatch.setattr(time, "time_ns", lambda: wall * 1_000_000)
+    monkeypatch.setattr(time, "time", lambda: wall / 1_000)
+    ws = _seed(minimal_project, sample_wav)
+    old = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=old["session_id"])
+    ava = _join_guest(svc, old, "Ava", 0)
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}))
+    wall = started
+    svc.submit(_cmd("Start"))
+    _partial(ws, old, ava)
+    part = next(tmp_workspace.rglob("0.part"))
+    part_ms = STOP_AT + 86_400_000 if future_part else started
+    os.utime(part, (part_ms / 1_000, part_ms / 1_000))
+    wall = STOP_AT
+    svc.submit(_cmd("Stop"))
+
+    for elapsed in (1_000, GRACE):
+        _at(monkeypatch, STOP_AT + elapsed)
+        snap = RecordControlService(ws).snapshot()
+        assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (
+            1,
+            1,
+            0,
+        )
+        assert snap["land_first_possible"] is False
+        with pytest.raises(RecordLandingError, match="still saving"):
+            ShareService(ws).create_record_room(land_first=True)
+        assert lookup_share(old["guest"]["token"], kind="record")
+        assert lookup_share(old["producer"]["token"], kind="record")
+        assert RecordSessionService.active_session_id(ws.project) == old["session_id"]
+
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+
+
+def test_a_later_partial_chunk_extends_saving_beyond_the_stop_grace_window(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import os
+
+    wall = STOP_AT - 4_000
+    monkeypatch.setattr(time, "time_ns", lambda: wall * 1_000_000)
+    monkeypatch.setattr(time, "time", lambda: wall / 1_000)
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], _ = _stopped_room(ws, ["Ava"])
+    wall = STOP_AT
+    _partial(ws, old, ava)
+    part = next(tmp_workspace.rglob("0.part"))
+    os.utime(part, (wall / 1_000, wall / 1_000))
+    wall = ((STOP_AT + GRACE // 2) // 1_000) * 1_000
+    pcm = bytes(48_000)
+    RecordUploadService(ws.project).ingest_part(
+        session_id=old["session_id"],
+        take_index=0,
+        participant_id=ava,
+        segment_index=0,
+        part_seq=1,
+        data=pcm,
+        digest=sha256_hex(pcm),
+        final=False,
+    )
+    part = next(tmp_workspace.rglob("1.part"))
+    os.utime(part, (wall / 1_000, wall / 1_000))
+
+    for now in (STOP_AT + GRACE + 1, wall + GRACE):
+        _at(monkeypatch, now)
+        snap = RecordControlService(ws).snapshot()
+        assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    _at(monkeypatch, wall + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+
+
 def test_stalled_audio_only_means_nothing_to_land_and_the_mint_just_reports_it(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
