@@ -11,6 +11,9 @@ import { useDawStore } from "../state/dawStore";
 import { formatIngestDuration } from "../utils/time";
 import { replaceAudioQuestion, trackHasMedia } from "./dropLabels";
 
+/** Imports under way: busy ends when the last one settles, not the first. */
+let imports = 0;
+
 export type IngestTarget = { kind: "track"; id: string } | { kind: "new" };
 
 function stemLabel(filename: string): string {
@@ -101,6 +104,7 @@ export async function ingestFiles(
       return;
     }
   }
+  imports += 1;
   s.setIngestBusy(true);
   s.announceStatus(`Importing ${list.length} file(s)…`);
   let focusId: string | null = null;
@@ -139,7 +143,8 @@ export async function ingestFiles(
       // The failure above is already announced.
     }
   } finally {
-    s.setIngestBusy(false);
+    imports -= 1;
+    if (imports === 0) s.setIngestBusy(false);
   }
 }
 
