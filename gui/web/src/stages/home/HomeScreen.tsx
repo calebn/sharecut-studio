@@ -121,6 +121,18 @@ export function HomeScreen() {
     return () => controller.abort();
   }, [reload]);
 
+  useEffect(() => {
+    const restored = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      busy.current = false;
+      setWorking(undefined);
+      setBusyId(undefined);
+      setReload((n) => n + 1);
+    };
+    window.addEventListener("pageshow", restored);
+    return () => window.removeEventListener("pageshow", restored);
+  }, []);
+
   /** One action at a time, and none while a recording would be left behind. */
   const guarded = useCallback(
     async (

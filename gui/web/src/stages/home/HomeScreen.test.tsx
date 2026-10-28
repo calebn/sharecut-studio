@@ -1,4 +1,5 @@
 import {
+  act,
   render as rtlRender,
   screen,
   waitFor,
@@ -430,6 +431,37 @@ describe("HomeScreen", () => {
       await user.click(record);
       expect(create).toHaveBeenCalledOnce();
       expect(assign).toHaveBeenCalledOnce();
+    });
+
+    it("frees Home when the browser restores it from the back-forward cache", async () => {
+      const user = userEvent.setup();
+      open.mockResolvedValue({ project_path: EP, name: "rosa" });
+      create.mockResolvedValue({ project_path: EP, name: "x" });
+      render(<HomeScreen />);
+      const card = await screen.findByRole("button", { name: /Rosa/ });
+      await user.click(card);
+      await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+      expect(card).toHaveAttribute("aria-busy", "true");
+      expect(screen.getByText("Opening…")).toBeInTheDocument();
+
+      act(() => {
+        window.dispatchEvent(new PageTransitionEvent("pageshow"));
+      });
+      expect(card).toHaveAttribute("aria-busy", "true");
+      expect(screen.getByText("Opening…")).toBeInTheDocument();
+      expect(list).toHaveBeenCalledOnce();
+
+      act(() => {
+        window.dispatchEvent(
+          new PageTransitionEvent("pageshow", { persisted: true }),
+        );
+      });
+      await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+      expect(card).not.toHaveAttribute("aria-busy");
+      expect(screen.queryByText("Opening…")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /^Record/ }));
+      await waitFor(() => expect(create).toHaveBeenCalledOnce());
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
     it("lets Record run again after a failed start", async () => {
