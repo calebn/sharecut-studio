@@ -320,10 +320,11 @@ def _assert_every_check_reads_the_profile_before_the_batch(
     assert after["host"] != before["host"]
 
 
+@pytest.mark.parametrize("chained", [("host", "guest"), ("host",), ()])
 def test_approve_reads_every_check_on_the_profile_before_the_batch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, chained: tuple[str, ...]
 ) -> None:
-    project = _project(tmp_path)
+    project = _project(tmp_path, chained=chained)
     before = _profile_of_whole_track(project)
     seen = _record_profiles(monkeypatch)
 
