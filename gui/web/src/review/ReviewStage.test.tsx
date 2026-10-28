@@ -2,19 +2,25 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { reviewContent } from "../storybook/reviewContent";
-import { QUEUE_ITEMS, QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
-import { ReviewStage, type ReviewStageProps } from "./ReviewStage";
+import {
+  EXTRA_KIND_ITEMS,
+  QUEUE_CHECKED,
+  QUEUE_ITEMS,
+  QUEUE_WITHOUT_CHECKS,
+} from "../storybook/reviewFixtures";
+import {
+  ReviewStageHarness,
+  type ReviewStageHarnessProps,
+} from "../storybook/reviewHarness";
+import { ReviewStage } from "./ReviewStage";
 import type { ReviewItem } from "./reviewQueueModel";
 
-const CLOCK = { time: "12:04", total: "52:10" };
-
-function setup(props: Partial<ReviewStageProps> = {}) {
+function setup(props: Partial<ReviewStageHarnessProps> = {}) {
   const view = render(
-    <ReviewStage
+    <ReviewStageHarness
       initialItems={QUEUE_WITHOUT_CHECKS}
       content={reviewContent}
       duration={3000}
-      clock={CLOCK}
       initialSelectedId="f1"
       {...props}
     />,
@@ -92,12 +98,13 @@ describe("ReviewStage", () => {
   });
 
   it("holds cuts behind the check until Cut anyway", async () => {
-    const onWaive = vi.fn();
-    const { press } = setup({ initialItems: QUEUE_ITEMS, onWaive });
+    const onDecide = vi.fn();
+    const { press } = setup({ initialItems: QUEUE_ITEMS, onDecide });
     press("Enter");
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    expect(onWaive).toHaveBeenCalledTimes(1);
+    expect(onDecide).toHaveBeenCalledTimes(1);
+    expect(onDecide.mock.calls[0]?.[0].waive).toBeDefined();
     expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 
@@ -264,9 +271,8 @@ describe("ReviewStage", () => {
 
   it("rolls back an unsure word's check when Undo reverts it", async () => {
     const { press } = setup({
-      initialItems: QUEUE_ITEMS,
+      initialItems: QUEUE_CHECKED,
       initialSelectedId: "f3",
-      gateConfirmed: true,
     });
     await userEvent.click(screen.getByRole("button", { name: "Looks right" }));
     press("Enter");
@@ -283,5 +289,80 @@ describe("ReviewStage", () => {
     const before = decided();
     fireEvent.keyDown(field, { key: "Enter" });
     expect(decided()).toBe(before);
+  });
+
+  it.each([
+    ["r1", "repeat"],
+    ["k1", "false start"],
+    ["g1", "suggestion"],
+  ])("holds a %s (%s) behind the open check until Cut anyway", async (id) => {
+    const { press } = setup({
+      initialItems: [...QUEUE_ITEMS, ...EXTRA_KIND_ITEMS],
+      initialSelectedId: id,
+    });
+    press("Enter");
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+  });
+
+  it("gives repeats and false starts a group verb but other suggestions none", () => {
+    setup({
+      initialItems: EXTRA_KIND_ITEMS,
+      initialSelectedId: "r1",
+    });
+    expect(screen.getAllByRole("button", { name: /^Cut all 1/ })).toHaveLength(
+      2,
+    );
+    expect(screen.getByText("Other suggestions")).toBeInTheDocument();
+  });
+
+  it("lets an unplaced suggestion be decided by id", () => {
+    const { decided, press } = setup({
+      initialItems: EXTRA_KIND_ITEMS,
+      initialSelectedId: "g2",
+    });
+    const before = decided();
+    press("Enter");
+    expect(decided()).not.toBe(before);
+  });
+
+  it("closes the phone queue sheet after a bulk", async () => {
+    setup({ layout: "phone" });
+    await userEvent.click(screen.getByRole("button", { name: /^\d+ of \d+$/ }));
+    expect(screen.getAllByLabelText("Review queue")[0]).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Cut all/ }));
+    expect(screen.queryAllByLabelText("Review queue")).toHaveLength(0);
+    expect(screen.getByText(/^Cut \d · saves/)).toBeInTheDocument();
+  });
+
+  it("stops taking focus back once a pointer lands outside the stage", () => {
+    const { stage, press } = setup();
+    stage.focus();
+    stage.blur();
+    fireEvent.pointerDown(document.body);
+    press("ArrowDown");
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("clears the prompt and the audition side when selection changes from outside", () => {
+    const props = {
+      items: QUEUE_ITEMS,
+      content: reviewContent,
+      duration: 3000,
+      filter: "all" as const,
+      looksRight: new Set<string>(),
+      onSelect: vi.fn(),
+      onFilter: vi.fn(),
+      onLooksRight: vi.fn(),
+      onDecide: vi.fn(),
+    };
+    const view = render(<ReviewStage {...props} selectedId="f1" />);
+    const stage = view.container.querySelector(".rv-stage") as HTMLElement;
+    fireEvent.keyDown(stage, { key: "Enter" });
+    expect(props.onDecide).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+    view.rerender(<ReviewStage {...props} selectedId="f2" />);
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
   });
 });
