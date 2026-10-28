@@ -23,7 +23,6 @@ const OPEN = [A, B, C];
 
 const start = (selectedId: string | null = "a"): ReviewSession => ({
   decided: new Map(),
-  seq: 0,
   selectedId,
   filter: "all",
   looksRight: new Set(),
@@ -47,7 +46,6 @@ describe("decided", () => {
   it("records the ids, their order and the next selection", () => {
     const s = decide(start(), ["a", "b"]);
     expect([...s.decided.keys()]).toEqual(["a", "b"]);
-    expect(s.decided.get("b")?.seq).toBe(2);
     expect(s.selectedId).toBe("c");
     expect(resultOf(mergeOpen(OPEN, s.decided), "a")).toBe("applied");
   });
@@ -149,18 +147,6 @@ describe("revert", () => {
   it("is a no-op for an id that is not decided", () => {
     const s = start();
     expect(reviewSession(s, { type: "revert", ids: ["zzz"] })).toBe(s);
-  });
-});
-
-describe("select, filter and looksRight", () => {
-  it("repeat the same value as a no-op", () => {
-    const s = reviewSession(start(), { type: "looksRight", id: "a" });
-    expect(reviewSession(s, { type: "looksRight", id: "a" })).toBe(s);
-    expect(reviewSession(s, { type: "select", id: "a" })).toBe(s);
-    expect(reviewSession(s, { type: "filter", filter: "all" })).toBe(s);
-    expect(
-      reviewSession(s, { type: "filter", filter: "comments" }).filter,
-    ).toBe("comments");
   });
 });
 

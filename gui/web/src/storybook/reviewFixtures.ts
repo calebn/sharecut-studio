@@ -71,7 +71,6 @@ export const QUEUE_WITHOUT_CHECKS = QUEUE_ITEMS.filter(
   (item) => item.kind !== "check" && item.kind !== "unsure-word",
 );
 
-/** One of each kind the server maps in, apart from the main queue so its counts stay put. */
 export const EXTRA_KIND_ITEMS: readonly ReviewItem[] = [
   { id: "r1", kind: "repeat", at: 800, savedSeconds: 0.6 },
   { id: "k1", kind: "false-start", at: 1900, savedSeconds: 0.9 },
@@ -84,7 +83,6 @@ export const EXTRA_KIND_ITEMS: readonly ReviewItem[] = [
   },
 ];
 
-/** The main queue with the refine check already settled. */
 export const QUEUE_CHECKED = QUEUE_ITEMS.map((item) =>
   item.kind === "check" ? { ...item, result: "applied" as const } : item,
 );

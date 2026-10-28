@@ -19,7 +19,6 @@ const KIND_OF: Record<PendingKind, DecisionKind> = {
   other: "suggestion",
 };
 
-/** The one place a wire kind is read. Missing, unknown or a prototype key gives "suggestion". */
 export function decisionKindOf(kind: unknown): DecisionKind {
   return typeof kind === "string" && Object.hasOwn(KIND_OF, kind)
     ? KIND_OF[kind as PendingKind]
@@ -30,7 +29,6 @@ const PREFIX = "edit:";
 
 export const reviewIdOf = (editId: string) => `${PREFIX}${editId}`;
 
-/** The only place the prefix is stripped. Callers never slice. */
 export const editIdOf = (reviewId: string): string | null =>
   reviewId.startsWith(PREFIX) ? reviewId.slice(PREFIX.length) : null;
 
@@ -64,7 +62,6 @@ function entryOf(edit: PendingEditView): ReviewEntry {
   };
 }
 
-/** Listed iff !applied && review_required (same predicate as reviewPassOf). */
 export const reviewEntriesOf = (
   pending: readonly PendingEditView[],
 ): ReviewEntry[] =>
