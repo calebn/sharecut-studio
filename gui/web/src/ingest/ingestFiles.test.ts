@@ -97,6 +97,30 @@ describe("ingestFiles", () => {
     expect(s.ingestBusy).toBe(false);
   });
 
+  it("stays busy until the last of two overlapping imports settles", async () => {
+    addTrackMock.mockResolvedValue({});
+    let release: () => void = () => undefined;
+    uploadMock.mockImplementationOnce(
+      () =>
+        new Promise(
+          (resolve) =>
+            (release = () =>
+              resolve({ complete: true, rel_path: "media/a.wav" })),
+        ),
+    );
+    uploadMock.mockResolvedValueOnce({
+      complete: true,
+      rel_path: "media/b.wav",
+    });
+    refreshMock.mockResolvedValue(minimalProject());
+    const slow = ingestFiles([new File(["a"], "a.wav")], { kind: "new" });
+    await ingestFiles([new File(["b"], "b.wav")], { kind: "new" });
+    expect(useDawStore.getState().ingestBusy).toBe(true);
+    release();
+    await slow;
+    expect(useDawStore.getState().ingestBusy).toBe(false);
+  });
+
   describe("onto a track that already has audio", () => {
     const file = new File(["RIFF...."], "take2.wav", { type: "audio/wav" });
 
