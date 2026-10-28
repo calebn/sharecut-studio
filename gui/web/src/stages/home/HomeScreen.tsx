@@ -55,8 +55,9 @@ const NOT_AN_EPISODE_CODES = new Set([
   "project_file_missing",
 ]);
 
-function navigateToProject(path: string): void {
+function navigateToProject(path: string): true {
   window.location.assign(projectUrl(window.location.href, path));
+  return true;
 }
 
 /** Plain words with a fix for a failed open; the server's own text never shows. */
@@ -123,7 +124,7 @@ export function HomeScreen() {
   /** One action at a time, and none while a recording would be left behind. */
   const guarded = useCallback(
     async (
-      run: () => Promise<void>,
+      run: () => Promise<boolean | undefined>,
       onError: (error: unknown) => void,
       label?: string,
       cardId?: string,
@@ -140,14 +141,17 @@ export function HomeScreen() {
       setNotice(undefined);
       setWorking(label);
       setBusyId(cardId);
+      let leaving = false;
       try {
-        await run();
+        leaving = (await run()) === true;
       } catch (error: unknown) {
         onError(error);
       } finally {
-        busy.current = false;
-        setWorking(undefined);
-        setBusyId(undefined);
+        if (!leaving) {
+          busy.current = false;
+          setWorking(undefined);
+          setBusyId(undefined);
+        }
         setNotice((now) => (now === BUSY ? undefined : now));
       }
     },
@@ -166,7 +170,7 @@ export function HomeScreen() {
           const out = await openEpisodeProject(target);
           await forgetReplaced(replaces, out.project_path);
           if (stage) writeOpenIntent(out.project_path, { stage });
-          navigateToProject(out.project_path);
+          return navigateToProject(out.project_path);
         },
         (error) => {
           const message = openFailure(error);
@@ -187,8 +191,7 @@ export function HomeScreen() {
           if ("project_path" in picked) {
             const out = await openEpisodeProject(picked.project_path);
             await forgetReplaced(replaces, out.project_path);
-            navigateToProject(out.project_path);
-            return;
+            return navigateToProject(out.project_path);
           }
           if ("unavailable" in picked && picked.unavailable) {
             if (replaces) setNotice(NO_PICKER);
@@ -197,6 +200,7 @@ export function HomeScreen() {
             return;
           }
           if (picked.detail) setNotice(picked.detail);
+          return undefined;
         },
         (error) => setNotice(openFailure(error)),
         OPENING,
@@ -214,7 +218,7 @@ export function HomeScreen() {
       }
       return guarded(
         async () => {
-          if (files.length === 0) return;
+          if (files.length === 0) return undefined;
           const created = await createEpisodeProject(
             "",
             episodeNameFromFiles(files, new Date()),
@@ -226,13 +230,13 @@ export function HomeScreen() {
             setNotice(
               `${errorMessage(error)} The episode was started: open it from Recent.`,
             );
-            return;
+            return undefined;
           }
           writeOpenIntent(created.project_path, {
             stage: "prepare",
             autoRun: true,
           });
-          navigateToProject(created.project_path);
+          return navigateToProject(created.project_path);
         },
         () => setNotice(NOT_STARTED),
         importingLine(files.length),
@@ -263,7 +267,7 @@ export function HomeScreen() {
           untitledEpisodeName(new Date()),
         );
         writeOpenIntent(created.project_path, { stage: "record" });
-        navigateToProject(created.project_path);
+        return navigateToProject(created.project_path);
       },
       () => setNotice(NOT_STARTED),
       STARTING,

@@ -211,8 +211,9 @@ describe("HomeScreen", () => {
     release({ project_path: EP, name: "rosa" });
     await waitFor(() => expect(assign).toHaveBeenCalled());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Rosa/ })).not.toHaveAttribute(
+    expect(screen.getByRole("button", { name: /Rosa/ })).toHaveAttribute(
       "aria-busy",
+      "true",
     );
   });
 
@@ -417,6 +418,31 @@ describe("HomeScreen", () => {
       expect(await screen.findByText("Starting an episode…")).toBeVisible();
       release({ project_path: EP, name: "x" });
       await waitFor(() => expect(assign).toHaveBeenCalled());
+    });
+
+    it("ignores a second Record while the page is leaving", async () => {
+      const user = userEvent.setup();
+      create.mockResolvedValue({ project_path: EP, name: "x" });
+      render(<HomeScreen />);
+      const record = await screen.findByRole("button", { name: /^Record/ });
+      await user.click(record);
+      await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+      await user.click(record);
+      expect(create).toHaveBeenCalledOnce();
+      expect(assign).toHaveBeenCalledOnce();
+    });
+
+    it("lets Record run again after a failed start", async () => {
+      const user = userEvent.setup();
+      create.mockRejectedValueOnce(new Error("nope"));
+      create.mockResolvedValue({ project_path: EP, name: "x" });
+      render(<HomeScreen />);
+      const record = await screen.findByRole("button", { name: /^Record/ });
+      await user.click(record);
+      await screen.findByRole("alert");
+      await user.click(record);
+      await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+      expect(create).toHaveBeenCalledTimes(2);
     });
 
     it("a cancelled Import keeps a visible error", async () => {
