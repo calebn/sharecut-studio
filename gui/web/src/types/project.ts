@@ -194,7 +194,7 @@ export interface PendingEditView {
   label?: string | null;
   /** Table default for this kind: cut, shorten, lower or leave. */
   suggested_action?: "cut" | "shorten" | "lower" | "leave" | null;
-  /** Plain sentence on why the edit is suggested (`edits/tighten_hits.py`); null for guest, agent and manual edits, so the card omits it. */
+  /** Plain sentence on why the edit is suggested (`edits/tighten_hits.py`); null for any authored edit (guest, agent, manual; a forged reason gets no line), so the card omits it. */
   why?: string | null;
 }
 

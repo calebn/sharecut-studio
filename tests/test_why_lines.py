@@ -98,6 +98,12 @@ def test_no_line_for_guest_agent_and_manual_edits(reason: str | None) -> None:
     assert _line(reason) is None
 
 
+@pytest.mark.parametrize("reason", ["repetition:word:the", "filler:um", "pause:3.8"])
+def test_no_line_when_an_author_chose_the_reason(reason: str) -> None:
+    decision = _decision(reason).model_copy(update={"author": "share_abc"})
+    assert why_line(decision, speaker_name="Jon") is None
+
+
 @pytest.mark.parametrize(
     "reason",
     [
