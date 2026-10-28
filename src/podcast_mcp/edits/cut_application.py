@@ -602,8 +602,8 @@ def _base_profile_stamp(
 
     Every batch (approve, the idle warm, the auto-apply) asks its own ``BatchBase``; a check
     with no batch is a batch of one, whose base is ``project`` itself. The stamp reads the
-    project and file stats and builds no audio; it tolerates what a key tolerates, and with no
-    key the check runs in full.
+    project and file stats (and, for a gated lane, a cached ffprobe stream count) and decodes no
+    audio; it tolerates what a key tolerates, and with no key the check runs in full.
     """
     base = timeline.base if timeline is not None else BatchBase(project)
     try:

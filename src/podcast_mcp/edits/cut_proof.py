@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
@@ -9,6 +10,7 @@ from podcast_mcp.engines.audio_audit import (
     build_track_rms_caches,
     has_active_chain,
 )
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.play_audit import (
     read_stem_hash,
@@ -16,6 +18,7 @@ from podcast_mcp.engines.play_audit import (
     stem_path,
     track_render_hash,
 )
+from podcast_mcp.engines.timeline_render import _source_audio_path
 from podcast_mcp.engines.windowed_rms import TimelineWindow
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import frozen
@@ -55,6 +58,24 @@ def shared_source_audio_caches(project: EpisodeProject) -> dict[str, TrackAudioC
     )
 
 
+def _fill_revisions(project: EpisodeProject, track_id: str) -> list[tuple[str, str]]:
+    """Path and file revision of each room-tone bed that a mute fill of the track's clips reads."""
+    track = project.track_by_id(track_id)
+    found: dict[str, str] = {}
+    for clip in clips_for_track(project, track_id):
+        for region in clip.mute_regions:
+            if region.fill is None or track is None:
+                continue
+            try:
+                path = _source_audio_path(
+                    project, track, region.fill.source_id, owner=f"clip {clip.id} fill"
+                )
+                found[str(path)] = repr(file_revision(path))
+            except (OSError, ValueError) as exc:  # a missing bed is itself part of the state
+                found[f"{clip.id}:{region.fill.source_id}"] = type(exc).__name__
+    return sorted(found.items())
+
+
 class BatchBase:
     """The level profile of each dialogue track before a batch's cuts (#2357), read by every check.
 
@@ -89,19 +110,26 @@ class BatchBase:
     def stamp(self, *, defaults: EffectiveConfig) -> str:
         """A digest of what determines each track's base profile, for the verdict key.
 
-        It decodes and builds no audio. A track's timeline samples, and so its profile, are a
-        function of its clips (placement, fades, joins, mute regions, ignored words), the recording
-        files they read (path and revision), its volume envelope, effects chain and gate, and, when
-        its stem is fresh, the stem file. ``track_render_hash`` fingerprints the first group, as it
-        does for the stem's freshness, and the stem's file revision and hash sidecar cover the
-        rest. Equal digests are equal inputs, so equal profiles; a change to any input, such as a
-        mute on the track, changes the digest. It covers more than the profile reads (gain,
-        chain parameters), which can cost a hit and never a wrong one. The measuring code is
-        versioned by ``verdict_cache.SEMANTICS``.
+        It decodes and builds no audio, and starts no process. A track's timeline samples, and so
+        its profile, are a function of its clips (placement, fades, joins, mute regions, ignored
+        words), every file they read, its volume envelope, effects chain and gate, the render's
+        crossfade curve, and, when its stem is fresh, the stem file. ``track_render_hash``
+        fingerprints the clips, the recordings (path and file revision), the envelope, chain and
+        gate (with the gate fill's file stamp). The stamp adds what that hash leaves out: the
+        file revision of each room-tone bed a mute fill reads (the hash carries only its source
+        id), the crossfade curve, and the stem's file revision and hash sidecar. For a gated lane
+        the hash reads the cached ffprobe stream count of the recording. Equal digests are equal
+        inputs, so equal profiles, at the stat-based file identity the stem freshness check
+        uses (device, inode, size, mtime). A change to any input, such as a mute on the track,
+        changes the digest. It covers more than the profile reads (gain, chain parameters),
+        which can cost a hit and never a wrong one. The measuring code is versioned by
+        ``verdict_cache.SEMANTICS``. It is computed once, at the batch's first check and before
+        anything is applied.
         """
         if self._stamp is not None:
             return self._stamp
-        parts = []
+        curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
+        parts: list[Any] = [curve]
         for tid in sorted(dialogue_track_ids(self._start)):
             stem = stem_path(self._start, tid)
             try:
@@ -114,6 +142,7 @@ class BatchBase:
                     track_render_hash(self._start, tid, defaults=defaults),
                     revision,
                     read_stem_hash(self._start, tid),
+                    _fill_revisions(self._start, tid),
                 )
             )
         self._stamp = short_digest(repr(parts))

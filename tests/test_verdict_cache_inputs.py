@@ -500,35 +500,24 @@ def test_a_pause_key_moves_when_a_clip_outside_the_window_moves_the_far_word(
     assert keys[0] != keys[1]
 
 
-def test_a_pause_verdict_stays_cached_when_a_far_fade_changes_nothing_the_span_reads(
+def test_a_far_fade_that_the_span_does_not_read_still_moves_the_key_through_the_base_profile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """130 and 400 ms both pass the 120 ms floor and differ, yet the word gap bounds the span.
 
-    The base-profile stamp is held fixed here: a fade on any clip changes the track's samples, so
-    it changes the stamp by design (it is a digest of the track's inputs, not of what the span reads).
+    A fade on any clip changes the track's samples, so the base-profile stamp, a digest of the
+    track's inputs, changes with it: the key misses (never a wrong hit). Without the stamp the
+    two keys are equal, so the span is what the rest of the key reads.
     """
-    monkeypatch.setattr(cut_proof.BatchBase, "stamp", lambda self, *, defaults: "fixed")
     variants = [_early_clip(130), _early_clip(400)]
     keys, spans = _keys_and_spans(tmp_path, monkeypatch, variants)
     assert spans[0] == spans[1]
-    assert keys[0] is not None
+    assert keys[0] is not None and keys[1] is not None
+    assert keys[0] != keys[1]
+
+    monkeypatch.setattr(cut_proof.BatchBase, "stamp", lambda self, *, defaults: "fixed")
+    keys, _ = _keys_and_spans(tmp_path, monkeypatch, variants)
     assert keys[0] == keys[1]
-    # And the entry the first approval stored is served to the second.
-    verdict_cache._STORE.clear()
-    keys, _ = _keys_and_spans(tmp_path, monkeypatch, variants, clear=False)
-    assert verdict_cache.lookup(keys[1]) is not None
-    hits: list[bool] = []
-    real = verdict_cache.lookup
-
-    def spy(key: str | None) -> Any:
-        found = real(key)
-        hits.extend([True] if found else [])
-        return found
-
-    monkeypatch.setattr(verdict_cache, "lookup", spy)
-    _outcome(_project(tmp_path, sourced=True, mutate=variants[1]))
-    assert hits
 
 
 def test_only_a_pause_key_carries_an_observation_span(tmp_path: Path) -> None:

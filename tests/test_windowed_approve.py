@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
-import math
+import os
 import wave
 from pathlib import Path
 
@@ -17,10 +17,12 @@ from podcast_mcp.edits.cut_application import apply_prefix_edits, approve_edits,
 from podcast_mcp.engines import track_evidence
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
 from podcast_mcp.engines.level_profile import LevelProfile
+from podcast_mcp.engines.mute_regions import add_source_mute
 from podcast_mcp.engines.play_audit import stem_path, write_stem_hash
 from podcast_mcp.engines.windowed_rms import WindowedTrackRmsCache
 from podcast_mcp.models import (
     Clip,
+    ClipMuteRegion,
     CutIntent,
     EditDecision,
     EditDecisionType,
@@ -585,19 +587,22 @@ def test_the_verdict_key_differs_with_the_base_profile(tmp_path: Path) -> None:
     assert parts is not None and "base_profile" in parts
 
 
-def _stamp(project: EpisodeProject) -> str:
-    return cut_proof.BatchBase(project).stamp(defaults=load_defaults())
+def _stamp(project: EpisodeProject, defaults: dict | None = None) -> str:
+    return cut_proof.BatchBase(project).stamp(defaults=defaults or load_defaults())
 
 
-def test_the_stamp_builds_and_decodes_no_audio(
+def test_the_stamp_decodes_and_builds_no_audio_and_starts_no_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.engines import audio_audit, ungated_audio
+    import subprocess
+
+    from podcast_mcp.engines import audio_audit, level_profile, ungated_audio
 
     project = _project(tmp_path)
+    expected = _stamp(project)
 
     def refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("the stamp built or decoded audio")
+        raise AssertionError("the stamp built or decoded audio, or started a process")
 
     for module, name in (
         (cut_proof, "build_track_rms_caches"),
@@ -607,18 +612,44 @@ def test_the_stamp_builds_and_decodes_no_audio(
         (track_evidence, "rms_readers"),
         (ungated_audio, "load_mono_full"),
         (ungated_audio, "raw_samples_on_timeline"),
+        (level_profile, "load_mono_full"),
+        (level_profile, "file_level_profile"),
+        (subprocess, "run"),
+        (subprocess, "Popen"),
     ):
         monkeypatch.setattr(module, name, refuse)
 
-    assert _stamp(project) == _stamp(project.model_copy(deep=True))  # same content, same stamp
+    assert _stamp(project) == expected
 
 
-def test_a_mute_on_any_dialogue_track_shifts_the_stamp(
-    tmp_path: Path,
-) -> None:
-    from podcast_mcp.engines.mute_regions import add_source_mute
-    from podcast_mcp.models import ClipMuteRegion
+def test_the_stamp_is_stable_across_two_builds_of_the_same_inputs(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    assert _stamp(project) == _stamp(project) == _stamp(project.model_copy(deep=True))
 
+
+def _with_a_bed(project: EpisodeProject, bed: Path) -> None:
+    """A mute on the host's last clip whose room-tone fill reads the recorded bed ``bed``."""
+    from podcast_mcp.models import ClipMuteRegion, RoomToneFill, SourceRecording
+
+    project.sources.append(SourceRecording(id="bed", path=str(bed), duration_sec=3.0))
+    clip = next(c for c in project.clips if c.track_id == "host" and c.source_start == 80.0)
+    add_source_mute(
+        clip,
+        ClipMuteRegion(
+            start_s=85.0, end_s=86.0, fill=RoomToneFill(start_s=0.0, end_s=1.0, source_id="bed")
+        ),
+    )
+
+
+def _rewrite(path: Path, seed: int) -> None:
+    """Other bytes at the path, as a replaced file: a new file with a later mtime."""
+    path.unlink()
+    _write(path, seed, [])
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+
+
+def test_a_mute_on_any_dialogue_track_shifts_the_stamp(tmp_path: Path) -> None:
     project = _project(tmp_path)
     before = _stamp(project)
 
@@ -633,20 +664,66 @@ def test_a_mute_on_any_dialogue_track_shifts_the_stamp(
     assert _stamp(muted("host")) != _stamp(muted("guest"))
 
 
-def test_one_track_with_other_contents_in_the_same_place_differs(tmp_path: Path) -> None:
-    """Same ids, same clips, same path: only the recording's file differs."""
+def test_the_bed_a_mute_fill_reads_is_part_of_the_stamp(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    bed = tmp_path / "raw" / "bed.wav"
+    _write(bed, 7, [])
+    _with_a_bed(project, bed)
+    before = _stamp(project)
+    assert _stamp(project) == before
+
+    _rewrite(bed, 8)  # the same source id, other bytes
+    assert _stamp(project) != before
+
+
+def test_the_source_a_mute_fill_names_is_part_of_the_stamp(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    for seed, name in ((7, "bed.wav"), (8, "other.wav")):
+        _write(tmp_path / "raw" / name, seed, [])
+    _with_a_bed(project, tmp_path / "raw" / "bed.wav")
+    before = _stamp(project)
+
+    from podcast_mcp.models import SourceRecording
+
+    project.sources = [
+        SourceRecording(id="bed", path=str(tmp_path / "raw" / "other.wav"), duration_sec=3.0)
+    ]
+    assert _stamp(project) != before
+
+
+def test_the_crossfade_curve_is_part_of_the_stamp(tmp_path: Path) -> None:
+    import copy
+
+    project = _project(tmp_path)
+    defaults = load_defaults()
+    other = copy.deepcopy(defaults)
+    other["render"]["crossfade_curve"] = "qsin"
+    assert defaults["render"].get("crossfade_curve", "tri") != "qsin"
+
+    assert _stamp(project, other) != _stamp(project, defaults)
+
+
+def test_a_volume_envelope_is_part_of_the_stamp(tmp_path: Path) -> None:
+    from podcast_mcp.models import AutomationEnvelope, AutomationPoint
+
     project = _project(tmp_path)
     before = _stamp(project)
-    raw = tmp_path / "raw" / "host.wav"
-    raw.unlink()
-    _write(raw, 99, [31.0, 50.0])
+    project.automation_envelopes = [
+        AutomationEnvelope(
+            track_id="host",
+            points=[
+                AutomationPoint(id="a", time=0.0, value=1.0),
+                AutomationPoint(id="b", time=5.0, value=0.5),
+            ],
+        )
+    ]
 
     assert _stamp(project) != before
 
 
-@pytest.mark.parametrize("field", ["room_db", "speech_db", "loud_db"])
-def test_a_one_ulp_change_of_a_base_profile_is_still_a_different_profile(field: str) -> None:
-    """The stamp no longer measures; profiles still differ bit for bit, as adopt relies on."""
-    profile = LevelProfile(room_db=-60.0, speech_db=-20.0, loud_db=-12.0)
-    nudged = dataclasses.replace(profile, **{field: math.nextafter(getattr(profile, field), 0.0)})
-    assert nudged != profile
+def test_a_replaced_recording_is_part_of_the_stamp(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    before = _stamp(project)
+    _rewrite(tmp_path / "raw" / "host.wav", 99)  # same ids, clips and path; other bytes
+
+    assert _stamp(project) != before
