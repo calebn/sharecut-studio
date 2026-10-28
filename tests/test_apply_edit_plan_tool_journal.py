@@ -197,8 +197,9 @@ def test_a_non_numeric_value_is_invalid_payload(episode, entry, field):
         _entry(2, 3, review_required="maybe"),
         _entry(float("nan"), 3),
         _entry(2, float("inf")),
+        _entry(2, 3, crossfade_ms=float("inf")),
     ],
-    ids=["applied-none", "reason-none", "track-none", "bad-bool", "nan", "inf"],
+    ids=["applied-none", "reason-none", "track-none", "bad-bool", "nan", "inf", "crossfade-inf"],
 )
 def test_other_malformed_entries_are_invalid_payload(episode, entry):
     _refused(episode, [entry])
