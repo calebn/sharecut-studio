@@ -361,7 +361,7 @@ class _PreparedClip:
 
 @dataclass
 class _Component:
-    start: float
+    start: float  # frames on a track grid, else seconds
     audio: Audio
     end: float
 
@@ -374,8 +374,24 @@ class _PlacedTrack:
 
 
 def _place_clips(
-    prepared: list[_PreparedClip], *, window_length: float | None = None
+    prepared: list[_PreparedClip],
+    *,
+    window_length: float | None = None,
+    rate: int | None = None,
 ) -> _PlacedTrack:
+    """Lay the prepared clips out in components and mix them.
+
+    With ``rate`` (a track grid) every position and length below is a whole number of
+    frames, so the microsecond residual of ``duration()`` cannot accumulate in the frontier
+    and move a later component one sample (#2456). Without it they are float seconds.
+    """
+    scale = rate or 1
+    tolerance = JOIN_GAP_TOLERANCE_SEC * scale
+    join_epsilon = 0.0 if rate else 1e-9
+
+    def units(seconds: float) -> float:
+        return float(round(seconds * scale)) if rate else seconds
+
     components: list[_Component] = []
     ends: list[tuple[float, int]] = []
     previous_component: int | None = None
@@ -388,19 +404,19 @@ def _place_clips(
             previous_component = None
             continue
         body = content.body
-        body_duration = duration(body)
+        body_duration = units(duration(body))
         if item.borrow_in > 0 and previous_component is not None:
             left = components[previous_component]
             overlap = 2 * item.borrow_in
             left.audio = CrossfadeAudio(left.audio, body, overlap)
-            left.end += body_duration - overlap
+            left.end += body_duration - units(overlap)
         else:
-            start = max(0.0, content.timeline_start - clock_shift)
-            if abs(start - frontier) <= JOIN_GAP_TOLERANCE_SEC:
+            start = max(0.0, units(content.timeline_start) - clock_shift)
+            if abs(start - frontier) <= tolerance:
                 start = frontier
             if (
                 previous_component is not None
-                and abs(start - components[previous_component].end) < 1e-9
+                and abs(start - components[previous_component].end) <= join_epsilon
             ):
                 left = components[previous_component]
                 left.audio = SequenceAudio(left.audio, (body,))
@@ -413,16 +429,18 @@ def _place_clips(
         while ends and -ends[0][0] != components[ends[0][1]].end:
             heappop(ends)
         frontier = -ends[0][0]
-        authored_frontier = max(authored_frontier, content.timeline_end)
+        authored_frontier = max(authored_frontier, units(content.timeline_end))
         clock_shift = authored_frontier - frontier
     if not components:
         raise CodedValueError(
             "no clips to render. Add a clip to the track first.", code="missing_argument"
         )
-    ats = [At(component.start, component.audio) for component in components]
+    ats = [At(component.start / scale, component.audio) for component in components]
     return _PlacedTrack(
         MixAudio(ats[0], tuple(ats[1:])),
-        RequestedExtent(window_length - clock_shift) if window_length is not None else None,
+        RequestedExtent((units(window_length) - clock_shift) / scale)
+        if window_length is not None
+        else None,
         tuple((item.clip.id, item.content.body) for item in prepared if item.content is not None),
     )
 
@@ -580,7 +598,7 @@ def placed_track_audio(
         window_length = (
             (grid.frame(window[1]) - origin_frame) / grid.rate if grid else window[1] - window[0]
         )
-    return _place_clips(prepared, window_length=window_length)
+    return _place_clips(prepared, window_length=window_length, rate=grid.rate if grid else None)
 
 
 def _render_placed_track(
