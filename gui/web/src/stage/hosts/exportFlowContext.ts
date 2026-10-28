@@ -27,7 +27,6 @@ export type ExportFlow = {
   settings: ExportSettings | null;
   settingsError: string | null;
   loading: boolean;
-  /** Counts the settings loads that have finished, whether or not they worked. */
   loadedGeneration: number;
   selected: readonly string[];
   setSelected: (keys: readonly string[]) => void;
@@ -36,7 +35,6 @@ export type ExportFlow = {
   start: (keys: readonly string[], request: ExportRequest) => void;
   cancel: () => void;
   again: () => void;
-  /** Starts a settings load and returns its number, to compare with `loadedGeneration`. */
   reload: () => number;
 };
 

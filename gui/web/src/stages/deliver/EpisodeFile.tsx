@@ -69,7 +69,6 @@ export function EpisodeFile({
   const running = exportState.phase === "running";
   const wasRunning = useRef(running);
   useEffect(() => {
-    // Only the phone dock hides the section while the export starts.
     if (dock && running && !wasRunning.current)
       runningBlock.current?.scrollIntoView?.({ block: "center" });
     wasRunning.current = running;

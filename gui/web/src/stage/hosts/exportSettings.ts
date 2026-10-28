@@ -162,7 +162,6 @@ export function masterMeasured(
   return typeof peak === "number" ? { lufs, truePeak: peak } : { lufs };
 }
 
-/** What the master measured, from the job's `result.master` (`master_qc.json`). */
 export function masterMeasuredCopy(master: unknown): string | null {
   const measured = masterMeasured(master);
   if (!measured) {

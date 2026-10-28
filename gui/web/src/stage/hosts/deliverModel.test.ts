@@ -201,7 +201,6 @@ describe("editHeadOf", () => {
     label: string;
     operation: string | null;
   };
-  // The server pairs a "before X" entry with the "after X" entry that follows.
   function groupsOf(entries: FixtureEntry[]) {
     const groups: {
       id?: string;

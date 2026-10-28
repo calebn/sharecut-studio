@@ -701,7 +701,6 @@ describe("round three of the audit", () => {
       undefined,
     );
     expect(exportBlocker(none)).toBe("Choose a format first.");
-    // Known formats stay required when only a later reload failed.
     expect(
       exportBlocker(none, undefined, {
         settingsError: "offline",

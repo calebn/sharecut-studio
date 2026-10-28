@@ -139,12 +139,6 @@ export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
   );
 }
 
-/**
- * The latest history entry at or below the head that is not an automatic mix
- * rebuild, matching `ProjectHistory.edit_head_id` on the server (both are pinned
- * by `tests/fixtures/edit_head/cases.json`). `undefined` when the projection
- * carries no groups for a history that is not empty, so the edit head is not known.
- */
 export function editHeadOf(history: {
   head_id: string;
   groups: readonly Pick<

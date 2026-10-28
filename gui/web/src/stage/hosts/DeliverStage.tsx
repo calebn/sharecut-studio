@@ -144,8 +144,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     offline.pending > 0 ||
     offline.settling;
 
-  // The settings this visit asked for; a command-started export waits for them
-  // rather than starting with the formats an earlier visit loaded.
   const wantedSettings = useRef<number | null>(null);
   useEffect(() => {
     wantedSettings.current = reloadExportSettings();
@@ -163,12 +161,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     [chosenFormats],
   );
   const edits = project ? editHeadOf(project.history) : undefined;
+  const exportOptions = exportOptionsOf(exportFlow);
   const formatsBlocker =
     exportFlow.loading || exportFlow.settings === null
       ? undefined
       : exportBlocker(episodeSettings, undefined, {
           wavAlwaysWritten: exportFlow.settings.wav,
-          formats: exportOptionsOf(exportFlow).formats,
+          formats: exportOptions.formats,
         });
   const guardedStart = useCallback(
     (keys: readonly string[], request: ExportRequest) => {
@@ -338,7 +337,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           initialClips={page.clips}
           exportState={exportStateOf(exportFlow, nowSec)}
           exportOptions={{
-            ...exportOptionsOf(exportFlow),
+            ...exportOptions,
             blockedReason: exportBlockedReason,
             edits,
             onFormats: exportFlow.setSelected,

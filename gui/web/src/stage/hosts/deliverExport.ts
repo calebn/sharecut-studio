@@ -91,7 +91,6 @@ export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
     case "idle":
       return { phase: "never" };
     case "running": {
-      // The server's step count can run one past its total at the end.
       const units = pipelineUnitsLabel(
         job && job.current != null && job.total != null
           ? { current: Math.min(job.current, job.total), total: job.total }

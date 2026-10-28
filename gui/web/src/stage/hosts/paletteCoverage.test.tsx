@@ -276,8 +276,6 @@ const deliverButton =
     await runs(id, () => user.click(button(name)));
   };
 
-// Only this probe talks to the export endpoints; the Prepare probes read their
-// own pipeline config and must not get the export fake's.
 const exportButton: Probe = async (user) => {
   const exportServer = fakeExportServer();
   mountStage("deliver");
