@@ -97,7 +97,11 @@ class MediaSeek:
         )
 
     def sample_time(self, frame: int, sample_rate: int) -> float:
-        """Source time whose ``first_sample`` is ``frame``: the exact inverse for rates under 1 MHz.
+        """Source time whose ``first_sample`` is ``frame``: the exact inverse up to 192 kHz.
+
+        ``first_sample`` truncates its time to whole microseconds, which is under half a sample
+        only up to the 192 kHz grid cap (``_MAX_GRID_RATE`` in ``timeline_render``); above that
+        a round trip can land one sample off.
 
         Rounding start and end times to samples separately drifts a piece's length by up to
         a sample. A time from here keeps ``first_sample(end) - first_sample(start)`` equal to
