@@ -10,7 +10,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { armRange, goToStage, openPanel } from "./stageNav";
+import { armRange, goToStage, inspectSelection, openPanel } from "./stageNav";
 
 function repeatedProject(prefix: string) {
   const copy = createRelocatedE2eProject(prefix);
@@ -51,7 +51,8 @@ async function selectRange(page: Page) {
   await range
     .getByRole("button", { name: "Select range", exact: true })
     .click();
-  await expect(range).toContainText("11.00–12.00 s");
+  await expect(page.locator(".range-overlay")).toHaveCount(1);
+  await expect(actionBar(page)).toBeVisible();
   return range;
 }
 
@@ -82,6 +83,15 @@ function geometry(projectPath: string) {
   );
 }
 
+/** The Action bar, floating on desktop and tablet, docked on a phone. */
+const actionBar = (page: Page) =>
+  page.getByRole("group", { name: /^(Selection|Edit) actions$/ });
+
+async function chooseMore(page: Page, name: string) {
+  await actionBar(page).getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}
+
 async function undo(page: Page) {
   await page.locator(".timeline-scroll").click({ position: { x: 5, y: 5 } });
   await page.keyboard.press("Control+z");
@@ -102,7 +112,7 @@ async function slowHostDocument(page: Page, delayMs: number) {
 
 async function rangeAxe(page: Page) {
   const result = await new AxeBuilder({ page })
-    .include(".range-actions")
+    .include(".sys-actions--floating, .sys-actions--dock")
     .analyze();
   expect(result.violations, JSON.stringify(result.violations, null, 2)).toEqual(
     [],
@@ -120,10 +130,14 @@ test("idle desktop reaches an edit in removed audio through Review Impact", asyn
         /edit-workspace--inspector/,
       );
       // The old status chip is gone: Review's Impact lists the edit, and
-      // choosing it opens the Inspector on the Edit stage.
+      // choosing it selects it on the Edit stage. Inspect opens the Inspector.
       await openPanel(page, "impact");
       await page.locator('[data-pending-id="orphan"]').click();
       await goToStage(page, "edit");
+      await expect(page.locator(".edit-workspace")).not.toHaveClass(
+        /edit-workspace--inspector/,
+      );
+      await inspectSelection(page);
       await expect(page.locator(".edit-workspace")).toHaveClass(
         /edit-workspace--inspector/,
       );
@@ -172,10 +186,15 @@ test("editor guest cuts a range and one host Undo restores every occurrence", as
         await openGuestShare(guest, token);
         const range = await selectRange(guest);
         await expect(
-          range.getByRole("button", { name: "Suggest cut", exact: true }),
+          actionBar(guest).getByRole("button", {
+            name: "Suggest cut",
+            exact: true,
+          }),
         ).toHaveCount(0);
         await rangeAxe(guest);
-        await range.getByRole("button", { name: "Cut", exact: true }).click();
+        await actionBar(guest)
+          .getByRole("button", { name: "Cut", exact: true })
+          .click();
         await expect
           .poll(() =>
             geometry(projectPath)
@@ -231,7 +250,9 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
           path: path.join(process.env.RANGE_SCREENSHOTS, "desktop-range.png"),
           fullPage: true,
         });
-      await range.getByRole("button", { name: "Cut", exact: true }).click();
+      await actionBar(page)
+        .getByRole("button", { name: "Cut", exact: true })
+        .click();
       await expect.poll(() => geometry(projectPath).length).toBe(4);
       expect(
         geometry(projectPath).find(
@@ -241,7 +262,7 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
       await undo(page);
       await expect.poll(() => geometry(projectPath)).toEqual(before);
       range = await selectRange(page);
-      await range.getByRole("button", { name: "Mute", exact: true }).click();
+      await chooseMore(page, "Mute");
       await expect
         .poll(
           () =>
@@ -305,9 +326,7 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
           });
         }
         await expect(
-          phone
-            .getByRole("region", { name: "Range fields" })
-            .getByRole("button", { name: "Cut", exact: true }),
+          actionBar(phone).getByRole("button", { name: "Cut", exact: true }),
         ).toBeVisible();
         await rangeAxe(phone);
         expect(geometry(projectPath)).toEqual(before);
@@ -388,11 +407,9 @@ test("host gets a plain reason when a range has no room tone to fill with", asyn
       await range
         .getByRole("button", { name: "Select range", exact: true })
         .click();
-      await expect(range).toContainText("5.50–7.50 s");
+      await expect(page.locator(".range-overlay")).toHaveCount(1);
       await rangeAxe(page);
-      await range
-        .getByRole("button", { name: "Fill room tone", exact: true })
-        .click();
+      await chooseMore(page, "Fill room tone");
       await expect(
         page
           .getByText("No usable room tone on this track to fill with")
@@ -435,10 +452,14 @@ test.describe("a phone with a touch screen", () => {
         await range
           .getByRole("button", { name: "Select range", exact: true })
           .click();
+        // No gap, no row: Fill room tone is offered only where there is one.
+        await actionBar(page).getByRole("button", { name: "More" }).click();
         await expect(
-          range.getByRole("button", { name: "Fill room tone", exact: true }),
-        ).toBeDisabled();
-        await expect(range).toContainText("No gap between clips in this range");
+          page.getByRole("menuitem", { name: "Fill room tone", exact: true }),
+        ).toHaveCount(0);
+        await expect(
+          page.getByRole("menuitem", { name: "Mute", exact: true }),
+        ).toBeVisible();
         await rangeAxe(page);
       },
       undefined,
