@@ -177,8 +177,8 @@ Storybook supplies `PlayheadNeedle` at a fixed position instead.
 `Templates/AppliedEditOverlay` renders the shipped applied-edit ticks in a
 production timeline lane. Fictional prop records cover visible and selected
 edits, densely spaced short cuts, and filtered and empty 360px lanes. The
-ticks remain decorative and non-interactive; selection belongs to the live
-Impact panel. The story does not mount the DAW store or alter edit behavior.
+ticks remain decorative and non-interactive; the Applied edits list that selected them
+left with the Impact panel (#2293). The story does not mount the DAW store or alter edit behavior.
 `Templates/StaleInvalidationOverlay` renders the same diagnostic bands used in
 the live track lane. Fictional regional, overlapping, short, clipped, filtered,
 and empty states show how render invalidations appear at desktop and 360px

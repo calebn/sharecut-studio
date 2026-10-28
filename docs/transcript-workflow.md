@@ -55,7 +55,7 @@ audibility flags, so they never stale a refine decision (see
 [§ What stales a refine decision](#what-stales-a-refine-decision)).
 
 In the host GUI, an approval blocked by this gate offers a **Waive with
-reason** recovery form (in the inspector, Impact panel, timeline action, or, for a replayed approval, the Needs attention banner). The waiver is recorded as a user decision; it does not
+reason** recovery form (in the inspector, the Review Queue's Cut anyway prompt, timeline action, or, for a replayed approval, the Needs attention banner). The waiver is recorded as a user decision; it does not
 retry or automatically approve the edit. Review the transcript, enter a
 non-empty reason, then retry approval intentionally.
 
