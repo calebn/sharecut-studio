@@ -403,11 +403,8 @@ test.describe("coarse pointer", () => {
     await expect(joinDialog(page)).toHaveCount(0);
   });
 
-  test("a touch beside a glyph in blade mode cuts, not opens the join", async ({
-    page,
-  }) => {
+  test("a touch beside a glyph does not open the join", async ({ page }) => {
     await open(page);
-    await page.getByRole("button", { name: "Blade tool", exact: true }).click();
     const box = await glyphAt(page, 0);
     await page.touchscreen.tap(box.x + box.width + 20, box.y + box.height / 2);
     await expect(joinDialog(page)).toHaveCount(0);
@@ -418,12 +415,13 @@ test.describe("coarse pointer", () => {
   });
 });
 
-test("a chip still zooms in blade mode", async ({ page }) => {
+test("a chip still zooms with Alt held: it is not a split", async ({
+  page,
+}) => {
   await fiveJoins(page);
   await openFit(page, "desktop", "dark");
-  await page.getByRole("button", { name: "Blade tool", exact: true }).click();
   const before = await rulerWidthPx(page);
-  await page.locator(`${lane} .edit-chip`).click();
+  await page.locator(`${lane} .edit-chip`).click({ modifiers: ["Alt"] });
   await expect(page.locator(`${lane} .edit-chip`)).toHaveCount(0);
   expect(await rulerWidthPx(page)).toBeGreaterThan(before);
   await expect(page.getByRole("dialog", { name: /^Cut at / })).toHaveCount(0);
