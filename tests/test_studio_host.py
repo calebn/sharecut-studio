@@ -926,6 +926,70 @@ def test_an_os_level_ping_timeout_is_a_wedged_studio(
     assert len(pings) == 2
 
 
+def _dial_localhost(
+    monkeypatch: pytest.MonkeyPatch, errors: dict[str, Callable[[], OSError]]
+) -> None:
+    class FakeSocket:
+        def __init__(self, _family: int, *, deadline: float) -> None:
+            pass
+
+        def connect(self, address: tuple[str, int]) -> None:
+            raise errors[address[0]]()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_DeadlineSocket", FakeSocket)
+    conn = studio_host_module._PingConnection(
+        "localhost", 1, deadline=studio_host_module.time.monotonic() + 30
+    )
+    conn._dial(("localhost", 1), 1.0, None)
+
+
+@pytest.mark.parametrize("make_error", _OS_TIMEOUTS)
+def test_a_timed_out_loopback_attempt_is_not_masked_by_a_later_refusal(
+    monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], OSError]
+) -> None:
+    with pytest.raises(OSError) as raised:
+        _dial_localhost(
+            monkeypatch,
+            {
+                "::1": make_error,
+                "127.0.0.1": lambda: ConnectionRefusedError(errno.ECONNREFUSED, ""),
+            },
+        )
+    assert studio_host_module._is_timeout(raised.value)
+
+
+def test_all_loopback_attempts_refused_is_still_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(ConnectionRefusedError) as raised:
+        _dial_localhost(
+            monkeypatch,
+            {
+                "::1": lambda: ConnectionRefusedError(errno.ECONNREFUSED, ""),
+                "127.0.0.1": lambda: ConnectionRefusedError(errno.ECONNREFUSED, ""),
+            },
+        )
+    assert not studio_host_module._is_timeout(raised.value)
+
+
+def _winsock_reset() -> OSError:
+    exc = OSError(10054, "An existing connection was forcibly closed by the remote host")
+    exc.winerror = 10054  # type: ignore[attr-defined]
+    return exc
+
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        pytest.param(lambda: ConnectionResetError(errno.ECONNRESET, "reset"), id="errno-104"),
+        pytest.param(_winsock_reset, id="winerror-10054"),
+    ],
+)
+def test_a_connection_reset_is_not_a_timeout(make_error: Callable[[], OSError]) -> None:
+    assert not studio_host_module._is_timeout(make_error())
+
+
 @pytest.mark.parametrize("make_error", _OS_TIMEOUTS)
 def test_an_os_level_run_request_timeout_is_lost_not_bypassed(
     project: Path, monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], OSError]
