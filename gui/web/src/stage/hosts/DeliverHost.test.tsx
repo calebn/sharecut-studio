@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const wire = vi.hoisted(() => ({
   post: vi.fn(),
@@ -54,11 +54,21 @@ import { registerDawCommands } from "../../commands/register";
 import { requestHostDrain } from "../../services/offlineQueue/drainOfflineQueue";
 import { useDawStore } from "../../state/dawStore";
 import { commandLocks } from "../../test/commandLocks";
+import { fakeExportServer } from "../../test/fakeExportServer";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
-import { DeliverStage } from "./DeliverStage";
+import { DeliverStage as HostDeliverStage } from "./DeliverStage";
+import { ExportFlowProvider } from "./exportFlow";
+
+function DeliverStage() {
+  return (
+    <ExportFlowProvider>
+      <HostDeliverStage />
+    </ExportFlowProvider>
+  );
+}
 
 let runs = 0;
 let PATH = "";
@@ -167,7 +177,12 @@ const setProject = (project: ReturnType<typeof projectAt>) =>
 const removeMiddle = () =>
   userEvent.click(screen.getByRole("button", { name: "Remove Middle" }));
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 beforeEach(() => {
+  fakeExportServer();
   runs += 1;
   PATH = `/tmp/deliver-host/${runs}/episode.project.json`;
   OTHER = `/tmp/deliver-host/${runs}/other.project.json`;
@@ -688,12 +703,10 @@ describe("Deliver host when the stage is left and opened again", () => {
     network.mode = "down";
     const first = render(<DeliverStage />);
     await removeMiddle();
-    await screen.findByRole("status");
+    await screen.findByText("Not saved yet");
     first.unmount();
     render(<DeliverStage />);
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Not saved yet",
-    );
+    expect(await screen.findByText("Not saved yet")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove Middle" })).toBeNull();
   });
 
@@ -738,6 +751,28 @@ describe("Deliver host when the stage is left and opened again", () => {
     first.unmount();
     expect(useDawStore.getState().stageViews.deliver?.panelScroll.body).toBe(
       240,
+    );
+  });
+});
+
+describe("Deliver host export while a save is in flight", () => {
+  it("holds Export with the reason until the save lands", async () => {
+    let finish: () => void = () => {};
+    wire.post.mockImplementationOnce(
+      (_path: string, body) =>
+        new Promise((resolve) => (finish = () => resolve(answer(body)))),
+    );
+    render(<DeliverStage />);
+    await removeMiddle();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    const held = screen.getAllByRole("button", { name: "Export" })[0];
+    expect(held).toBeDisabled();
+    expect(held).toHaveAttribute("title", "Saving your changes first.");
+    await act(async () => finish());
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "Export" })[0],
+      ).toBeEnabled(),
     );
   });
 });

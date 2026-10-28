@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ModelGate } from "../../models";
+import { registryModels } from "../../test/modelsStory";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
@@ -2945,7 +2947,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.ExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: guest": {
           "buttons": [],
@@ -3268,7 +3270,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetExportNeeds the transcription model.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: with a link": {
           "buttons": [
@@ -3750,7 +3752,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.Listen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExport0:00 / 52:001515AB",
         },
         "phone: guest": {
           "buttons": [],
@@ -3778,7 +3780,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Clips",
           ],
           "rows": [],
-          "text": "Episode fileChaptersClipsExport0:00 / 52:001515AB",
+          "text": "Episode fileChaptersClipsExportStill loading.0:00 / 52:001515AB",
         },
         "phone: no mix": {
           "buttons": [
@@ -4074,7 +4076,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExportNeeds the transcription model.0:00 / 52:001515AB",
         },
         "phone: with a link": {
           "buttons": [
@@ -4976,9 +4978,8 @@ describe("the parts a host may leave out", () => {
     expect(screen.queryByText("Listen link")).toBeNull();
   });
 
-  it("leaves out the format, loudness and range choices", () => {
-    setup({ showSettings: false });
-    expect(screen.queryByRole("group", { name: "Formats" })).toBeNull();
+  it("leaves out the loudness and range choices", () => {
+    setup({ exportOptions: { loudness: false, range: false } });
     expect(screen.queryByRole("group", { name: "Loudness" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Range" })).toBeNull();
     expect(screen.getAllByRole("button", { name: /^Export/ })[0]).toBeEnabled();
@@ -4987,5 +4988,329 @@ describe("the parts a host may leave out", () => {
   it("leaves out Saves to without a way to change it", () => {
     setup({ onChangeFolder: undefined });
     expect(screen.queryByText(/Saves to/)).toBeNull();
+  });
+});
+
+describe("host export options", () => {
+  const file = (name: string) => ({ name, format: "mp3" });
+
+  it("offers the formats the host gives, sized from their own rates", () => {
+    setup({
+      initialSettings: { ...SETTINGS, formats: ["m4a"] },
+      exportOptions: {
+        formats: [
+          { id: "m4a", label: "M4A (AAC) · 128 kbps", bytesPerSecond: 16_000 },
+        ],
+      },
+    });
+    const group = screen.getByRole("group", { name: "Formats" });
+    expect(within(group).getAllByRole("button")).toHaveLength(1);
+    expect(
+      within(group).getByRole("button", { name: /^M4A \(AAC\) · 128 kbps/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(within(group).queryByRole("button", { name: /^MP3/ })).toBeNull();
+  });
+
+  it("reports the formats the person toggles", async () => {
+    const onFormats = vi.fn();
+    setup({
+      initialSettings: { ...SETTINGS, formats: ["mp3"] },
+      exportOptions: {
+        formats: [
+          { id: "mp3", label: "MP3", bytesPerSecond: 16_000 },
+          { id: "flac", label: "FLAC", bytesPerSecond: 97_000 },
+        ],
+        selected: ["mp3"],
+        onFormats,
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    expect(onFormats).toHaveBeenLastCalledWith(["mp3", "flac"]);
+  });
+
+  it("follows the formats the host chooses and keeps the person's own toggle", async () => {
+    const view = render(
+      <DeliverStage
+        {...props({
+          initialSettings: { ...SETTINGS, formats: [] },
+          exportOptions: { selected: [] },
+        })}
+      />,
+    );
+    const pressed = () =>
+      screen
+        .getAllByRole("button", { name: /^(MP3|WAV|FLAC)/ })
+        .filter((b) => b.getAttribute("aria-pressed") === "true")
+        .map((b) => b.textContent?.slice(0, 3));
+    expect(pressed()).toEqual([]);
+    view.rerender(
+      <DeliverStage
+        {...props({
+          initialSettings: { ...SETTINGS, formats: [] },
+          exportOptions: { selected: ["flac", "mp3"] },
+        })}
+      />,
+    );
+    expect(pressed()).toEqual(["MP3", "FLA"]);
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    expect(pressed()).toEqual(["MP3"]);
+  });
+
+  it("says WAV is always written, and still exports with nothing else chosen", () => {
+    const { all, stage } = setup({
+      initialSettings: { ...SETTINGS, formats: [] },
+      exportOptions: { wavAlwaysWritten: true, formats: [] },
+    });
+    expect(
+      screen.getByText(
+        "WAV is the lossless master and is always written. Turn it off in the Pipeline tab.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "WAV" })).toBeDisabled();
+    modE(stage());
+    expect(all.onExport).toHaveBeenCalledOnce();
+  });
+
+  it("blocks Export with no format when WAV is not written", () => {
+    setup({ initialSettings: { ...SETTINGS, formats: [] } });
+    expect(
+      screen.getAllByRole("button", { name: "Export" })[0],
+    ).toHaveAttribute("title", "Choose a format first.");
+  });
+
+  it("shows why the settings did not load", () => {
+    setup({ exportOptions: { settingsError: "no config" } });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Export settings did not load: no config. Export uses this project's saved formats.",
+    );
+  });
+
+  it("still exports the project's saved formats when the settings did not load", () => {
+    const { all, stage } = setup({
+      initialSettings: { ...SETTINGS, formats: [] },
+      exportOptions: { settingsError: "no config", formats: [] },
+    });
+    modE(stage());
+    expect(all.onExport).toHaveBeenCalledOnce();
+  });
+
+  it("says the settings are loading and holds Export until they are", () => {
+    const { all, stage } = setup({
+      initialSettings: { ...SETTINGS, formats: [] },
+      exportOptions: { loading: true, formats: [] },
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading export settings…",
+    );
+    expect(screen.queryByRole("group", { name: "Formats" })).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Export" })[0],
+    ).toHaveAttribute("title", "Wait for the settings to load.");
+    modE(stage());
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+
+  const missingModelGate = () => {
+    const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
+    const accept = vi.fn();
+    const gate: ModelGate = {
+      run: () => Promise.reject(new Error("unused")),
+      prompt: {
+        need: { id: view.id },
+        label: view.label,
+        purpose: view.purpose,
+        size: view.size,
+        phase: "ask",
+        view,
+        blockedReason: undefined,
+      },
+      declined: null,
+      accept,
+      decline: vi.fn(),
+      cancelDownload: vi.fn(),
+      openModels: vi.fn(),
+      reset: vi.fn(),
+    };
+    return { view, accept, gate };
+  };
+
+  it("shows the model prompt in place of the model row, and its decline hint after a failure", async () => {
+    const { view, accept, gate } = missingModelGate();
+    const { unmount } = setup({
+      exportState: {
+        phase: "needs-model",
+        model: "Speaker model",
+        size: "25 MB",
+      },
+      exportOptions: { gate },
+    });
+    expect(screen.queryByText("Needs the Speaker model")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(accept).toHaveBeenCalledOnce();
+    unmount();
+
+    setup({
+      exportState: {
+        phase: "failed",
+        cause: "Speaker model is not downloaded.",
+      },
+      exportOptions: {
+        gate: {
+          ...gate,
+          prompt: null,
+          declined: { id: view.id, label: view.label },
+        },
+      },
+    });
+    expect(screen.getByText(/Export will ask again/)).toBeInTheDocument();
+  });
+
+  it("moves focus to the model prompt's Download when it appears", () => {
+    const { gate } = missingModelGate();
+    setup({
+      exportState: {
+        phase: "needs-model",
+        model: "Speaker model",
+        size: "25 MB",
+      },
+      exportOptions: { gate },
+    });
+    expect(screen.getByRole("button", { name: "Download" })).toHaveFocus();
+  });
+
+  it("scrolls the running export into view when it starts, not when it is already running", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const running = {
+      phase: "running" as const,
+      progress: null,
+      detail: "Starting export…",
+    };
+    const first = render(<DeliverStage {...props({ exportState: running })} />);
+    expect(scroll).not.toHaveBeenCalled();
+    first.unmount();
+    const view = render(<DeliverStage {...props()} />);
+    view.rerender(<DeliverStage {...props({ exportState: running })} />);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toHaveTextContent("Starting export…");
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  it("swaps the loudness choice for the host's sentence", () => {
+    setup({
+      exportOptions: {
+        loudnessNote: "Mastered to −16.0 LUFS, peaks under −1.5 dBTP.",
+      },
+    });
+    expect(
+      screen.getByText(
+        "Mastered to −16.0 LUFS, peaks under −1.5 dBTP. Change the target in the Pipeline tab.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Loudness" })).toBeNull();
+  });
+
+  it("hides the loudness choice when the host has no target to set", () => {
+    setup({ exportOptions: { loudness: false } });
+    expect(screen.queryByRole("group", { name: "Loudness" })).toBeNull();
+    expect(
+      screen.queryByText("Loudness", { selector: ".dv-field-label" }),
+    ).toBeNull();
+  });
+
+  it("hides Range when the host cannot honour it", () => {
+    setup({ exportOptions: { range: false } });
+    expect(screen.queryByRole("group", { name: "Range" })).toBeNull();
+    expect(
+      screen.queryByText("Range", { selector: ".dv-field-label" }),
+    ).toBeNull();
+  });
+
+  it("shows the host's reason on a disabled Export and exports nothing", () => {
+    const { all, stage } = setup({
+      exportOptions: { blockedReason: "No project loaded" },
+    });
+    const button = screen.getAllByRole("button", { name: "Export" })[0];
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", "No project loaded");
+    expect(screen.getByText("No project loaded")).toBeInTheDocument();
+    modE(stage());
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+
+  it("keeps Export, not Reveal, after an export when the host cannot reveal", () => {
+    setup({ env: "none", exportState: DONE });
+    expect(screen.queryByRole("button", { name: REVEAL })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reveal" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download" })).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Export" }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("explains a running export without a total, and why Cancel is off", () => {
+    setup({
+      exportState: {
+        phase: "running",
+        progress: null,
+        detail: "Starting export…",
+        cancelReason:
+          "The export is still starting. Cancel once it has started.",
+        cancelError: "offline",
+      },
+    });
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.getByText("Starting export…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveAttribute(
+      "title",
+      "The export is still starting. Cancel once it has started.",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Cancel failed: offline",
+    );
+  });
+
+  it("offers Try again after a failure", async () => {
+    const onExportAgain = vi.fn();
+    setup({
+      exportState: { phase: "failed", cause: "Disk full" },
+      exportOptions: { onExportAgain },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onExportAgain).toHaveBeenCalledOnce();
+  });
+
+  it("lists what a cancelled export had written, and offers Export again", async () => {
+    const onExportAgain = vi.fn();
+    setup({
+      exportState: {
+        phase: "cancelled",
+        detail: "Cancelled after 1 file was written to export/.",
+        files: [file("episode.mp3")],
+      },
+      exportOptions: { onExportAgain },
+    });
+    expect(
+      screen.getByText("Cancelled after 1 file was written to export/."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("episode.mp3")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Export again" }));
+    expect(onExportAgain).toHaveBeenCalledOnce();
+  });
+
+  it("says what a finished export measured, with the host's own summary and no sizes", () => {
+    setup({
+      exportState: {
+        ...(DONE as Extract<ExportState, { phase: "done" | "stale" }>),
+        summary: "Exported 2 files to export/",
+        measured: "Measured −16.2 LUFS, true peak −1.8 dBTP.",
+        files: [file("episode.mp3"), file("episode.wav")],
+      },
+    });
+    expect(screen.getByText("Exported 2 files to export/")).toBeInTheDocument();
+    expect(
+      screen.getByText("Measured −16.2 LUFS, true peak −1.8 dBTP."),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".dv-file-size")).toBeNull();
   });
 });

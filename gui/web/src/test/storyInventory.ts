@@ -1,5 +1,5 @@
 /**
- * The 135 non-interaction surface IDs in the UI inventory
+ * The 134 non-interaction surface IDs in the UI inventory
  * (the #2279 surface inventory, derived from `gui/web/src`; the source document
  * is `docs/design/stages/inventory.md`). A new surface gets its ID here and a
  * row in the coverage manifest.
@@ -51,7 +51,6 @@ export const INVENTORY_IDS: readonly string[] = [
   "DLG-ASK-CONFIRM",
   "DLG-ASK-TEXT",
   "DLG-BOUNCE",
-  "DLG-EXPORT",
   "DLG-GESTURES",
   "DLG-HELP",
   "DLG-MCP",

@@ -9,7 +9,18 @@ import {
 import { episode } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
+import { ExportFlowProvider } from "./exportFlow";
 import { StageHost, type StageHostProps } from "./StageHost";
+
+const PIPELINE = {
+  config: {
+    export: {
+      wav: true,
+      formats: [{ ext: "mp3", codec: "libmp3lame", bitrate_kbps: 128 }],
+    },
+    master: { integrated_lufs: -16, true_peak_db: -1.5 },
+  },
+};
 
 const meta: Meta<StageHostProps> = {
   title: "Stages/Deliver/Host",
@@ -23,20 +34,25 @@ const meta: Meta<StageHostProps> = {
   decorators: [
     withEpisode,
     (Story) => (
-      <div data-daw-app-chrome>
-        <Story />
-      </div>
+      <ExportFlowProvider>
+        <div data-daw-app-chrome>
+          <Story />
+        </div>
+      </ExportFlowProvider>
     ),
   ],
   parameters: {
     ...viewportStoryParameters,
     ...portaledOverlayParameters,
     viewport: { options: studioViewports },
-    episode: { state: { stage: "deliver" } },
+    episode: {
+      state: { stage: "deliver" },
+      responses: { "/api/pipeline/config": PIPELINE },
+    },
     docs: {
       description: {
         component:
-          "The Deliver stage host: Readiness, Chapters and Clips with their edits saved to the project, then the Bounce and Listen link entry points. Export opens its dialog. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
+          "The Deliver stage host: Readiness, Chapters and Clips with their edits saved to the project, the project's export formats with Export, its progress and its outcome, then the Bounce and Listen link entry points. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
       },
     },
   },
@@ -75,6 +91,22 @@ export const Ready: Story = {
       await canvas.findByRole("button", { name: "Export" }),
     ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Bounce…" })).toBeVisible();
+  },
+};
+
+export const ExportFormats: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const formats = await canvas.findByRole("group", { name: "Formats" });
+    await waitFor(() =>
+      expect(
+        within(formats).getByRole("button", { name: "WAV" }),
+      ).toBeDisabled(),
+    );
+    await expect(
+      within(formats).getByRole("button", { name: /^MP3/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByText(/always written/)).toBeVisible();
   },
 };
 

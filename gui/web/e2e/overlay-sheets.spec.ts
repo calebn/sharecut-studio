@@ -20,7 +20,6 @@ const SHELLS: readonly Shell[] = [
 const DIALOGS = [
   { item: "Bounce…", name: "Bounce…", primary: "Bounce" },
   { item: "Connect agent…", name: "Connect agent", primary: "Copy URL" },
-  { item: "Export deliverables…", name: "Export deliverables", primary: null },
 ] as const;
 
 for (const shell of SHELLS) {

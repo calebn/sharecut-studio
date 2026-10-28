@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   addChapter,
@@ -11,15 +11,17 @@ import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { Slot } from "../../extensions/Slot";
+import { useNowSec } from "../../hooks/useNowSec";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { useOfflineAttention } from "../../services/offlineQueue/offlineAttention";
 import { DeliverStage as DeliverStageBody } from "../../stages/deliver/DeliverStage";
-import type {
-  Chapter,
-  Clip,
-  EpisodeSettings,
-  ExportState,
+import {
+  type Chapter,
+  type Clip,
+  type ExportRequest,
+  exportBlocker,
+  exportRequest,
 } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
 import { StatusRow } from "../../system/StatusRow";
@@ -34,6 +36,7 @@ import {
   sendDeliverEdit,
   useDeliverDraft,
 } from "./deliverDraft";
+import { exportOptionsOf, exportStateOf } from "./deliverExport";
 import {
   type ChapterOp,
   type ClipOp,
@@ -42,17 +45,21 @@ import {
   clipOps,
   clipsOf,
   deliverFacts,
+  editHeadOf,
   type FixRoute,
   fixRoute,
   sameChapters,
   sameClipBounds,
 } from "./deliverModel";
+import { useExportFlow } from "./exportFlowContext";
 import { HostBody } from "./HostBody";
 import { hostStateOf } from "./hostModels";
 
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
 };
+
+let liveHosts = 0;
 
 const DELIVER_COMMANDS = new Set([
   "AddChapter",
@@ -61,13 +68,6 @@ const DELIVER_COMMANDS = new Set([
   "UpdateSocialClip",
   "DeleteSocialClip",
 ]);
-
-const NEVER: ExportState = { phase: "never" };
-const SETTINGS: EpisodeSettings = {
-  formats: ["mp3"],
-  loudness: "podcast",
-  part: { mode: "whole" },
-};
 
 async function saveChapterOp(path: string, op: ChapterOp) {
   if (op.kind === "add") await addChapter(path, op.at, op.title);
@@ -94,9 +94,19 @@ function playFrom(seconds: number) {
 }
 
 function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
-  const { project, projectPath } = useDawStore(
-    useShallow((s) => ({ project: s.project, projectPath: s.projectPath })),
-  );
+  const { project, projectPath, exportRequested, setExportRequested } =
+    useDawStore(
+      useShallow((s) => ({
+        project: s.project,
+        projectPath: s.projectPath,
+        exportRequested: s.chrome.exportRequested,
+        setExportRequested: s.setExportRequested,
+      })),
+    );
+  const exportFlow = useExportFlow();
+  const { reload: reloadExportSettings, start: startExport } = exportFlow;
+  const nowSec = useNowSec(exportFlow.run.kind === "running");
+  const exportCmd = useCommand("export.deliverables");
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body", ".dv-page");
   const breakdown = useStaleRenderBreakdown(project);
@@ -134,6 +144,77 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     offline.pending > 0 ||
     offline.settling;
 
+  useEffect(() => {
+    reloadExportSettings();
+  }, [reloadExportSettings]);
+  const exportBlockedReason =
+    exportCmd.whenReason ??
+    (draft.pending > 0 ? "Saving your changes first." : undefined);
+  const chosenFormats = exportFlow.selected;
+  const episodeSettings = useMemo(
+    () => ({
+      formats: chosenFormats,
+      loudness: "podcast" as const,
+      part: { mode: "whole" as const },
+    }),
+    [chosenFormats],
+  );
+  const edits = project ? editHeadOf(project.history) : undefined;
+  const formatsBlocker =
+    exportFlow.loading || exportFlow.settings === null
+      ? undefined
+      : exportBlocker(episodeSettings, undefined, {
+          wavAlwaysWritten: exportFlow.settings.wav,
+          settingsError: exportFlow.settingsError ?? undefined,
+        });
+  const guardedStart = useCallback(
+    (keys: readonly string[], request: ExportRequest) => {
+      if (formatsBlocker) return;
+      startExport(keys, request);
+    },
+    [formatsBlocker, startExport],
+  );
+  useEffect(() => {
+    liveHosts += 1;
+    return () => {
+      liveHosts -= 1;
+      window.setTimeout(() => {
+        if (liveHosts === 0) useDawStore.getState().setExportRequested(false);
+      }, 0);
+    };
+  }, []);
+  useEffect(() => {
+    if (
+      !exportRequested ||
+      state !== "ready" ||
+      exportFlow.loading ||
+      exportBlockedReason
+    )
+      return;
+    setExportRequested(false);
+    guardedStart(
+      chosenFormats,
+      exportRequest(
+        episodeSettings,
+        page.clips,
+        page.chapters,
+        undefined,
+        edits,
+      ),
+    );
+  }, [
+    exportRequested,
+    state,
+    exportFlow.loading,
+    exportBlockedReason,
+    setExportRequested,
+    guardedStart,
+    chosenFormats,
+    episodeSettings,
+    page.clips,
+    page.chapters,
+    edits,
+  ]);
   useEffect(() => {
     if (!projectPath || state !== "ready" || draft.page?.key === seedKey)
       return;
@@ -244,22 +325,30 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           key={`${projectPath}|${page.key}`}
           facts={facts}
           total={project.timeline_duration_sec}
-          initialSettings={SETTINGS}
+          initialSettings={episodeSettings}
           initialChapters={page.chapters}
           initialClips={page.clips}
-          exportState={NEVER}
-          env="app"
+          exportState={exportStateOf(exportFlow, nowSec)}
+          exportOptions={{
+            ...exportOptionsOf(exportFlow),
+            blockedReason: exportBlockedReason,
+            edits,
+            onFormats: exportFlow.setSelected,
+          }}
+          env="none"
           getPlayheadSec={() => useDawStore.getState().playheadSec}
           layout={shell === "phone" ? "phone" : "desktop"}
           showLink={false}
           showPlayer={false}
-          showSettings={false}
           clipUndo={false}
           showClipEdits={false}
           onChapters={onChapters}
           onClips={onClips}
           onFix={(stage, target) => runFix(fixRoute(stage, target))}
-          onExport={() => runPointerCommand("export.deliverables")}
+          onExport={(request) =>
+            guardedStart(request.settings.formats, request)
+          }
+          onCancel={exportFlow.cancel}
           onPlayFrom={playFrom}
           onPlayClip={playClip}
           onFindClips={() => runPointerCommand("stage.edit")}
@@ -291,7 +380,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
- * and clip edits written back to the document. Export, Bounce and Share still
- * open their dialogs, which stay mounted in `DawApp`. Host only.
+ * and clip edits written back to the document, and the export run by the
+ * flow in `DawApp`. Bounce and Share still open their dialogs. Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);
