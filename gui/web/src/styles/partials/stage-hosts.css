@@ -154,3 +154,16 @@
   border-block-start: 1px solid var(--color-border-subtle);
   background: var(--color-bg-canvas);
 }
+
+.stage-host-guest-script {
+  display: flex;
+  flex-direction: column;
+  block-size: min(28rem, 55dvh);
+  min-block-size: 0;
+  margin-block-end: var(--space-4);
+}
+
+html[data-shell="phone"] .stage-host-guest-script {
+  flex: 0 0 auto;
+  block-size: clamp(6rem, 17dvh, 16rem);
+}

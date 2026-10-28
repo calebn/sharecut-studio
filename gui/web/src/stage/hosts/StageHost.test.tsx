@@ -169,6 +169,50 @@ describe("Review host", () => {
     expect(screen.queryByRole("button", { name: "Deliver" })).toBeNull();
   });
 
+  it("puts the read-only Script above a guest's comments, and not above the host's", () => {
+    useDawStore.getState().hydrate(
+      "share:abc",
+      minimalProject({
+        transcript: {
+          utterances: [
+            {
+              track_id: "t1",
+              source_id: "s1",
+              speaker: "Maya",
+              start: 0,
+              end: 0,
+              text: "",
+              words: [
+                {
+                  text: "Welcome",
+                  start: 0,
+                  end: 0,
+                  timeline_start: 1,
+                  timeline_end: 2,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    useDawStore.setState({ stage: "review", guestMode: "comment" });
+    const { unmount } = mount(true);
+    const script = screen.getByRole("button", { name: "Welcome" });
+    const comments = screen.getByText("guest comments panel");
+    expect(
+      script.compareDocumentPosition(comments) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    unmount();
+    asHost("review");
+    mount();
+    expect(screen.queryByRole("button", { name: "Welcome" })).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Nothing to read yet" }),
+    ).toBeNull();
+  });
+
   it("marks sections that wait on the person", () => {
     asHost("review");
     useDawStore.getState().hydrate(

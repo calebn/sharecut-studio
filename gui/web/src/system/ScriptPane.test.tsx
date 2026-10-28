@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ScriptPane,
   type ScriptPaneHandle,
@@ -16,6 +16,7 @@ import {
   spanPatch,
   suggestedMark,
 } from "./scriptFixtures";
+import { CENTER, NEAREST, probeScript } from "./scriptScrollProbe";
 
 function props(over: Partial<ScriptPaneProps> = {}): ScriptPaneProps {
   return {
@@ -534,19 +535,65 @@ describe("ScriptPane marks", () => {
 });
 
 describe("ScriptPane handle and scrolling", () => {
-  const scroll = vi.fn();
-  beforeEach(() => {
-    scroll.mockClear();
-    Element.prototype.scrollIntoView = scroll;
-  });
-
-  it("scrolls to the stop that holds a word and says when it is not shown", () => {
+  let probe: ReturnType<typeof probeScript> | undefined;
+  afterEach(() => probe?.restore());
+  const mount = (wordTop?: number) => {
     const ref = createRef<ScriptPaneHandle>();
     render(<ScriptPane {...props({ turns: MARKED })} ref={ref} />);
+    const body = document.querySelector(".sys-script-body") as HTMLElement;
+    probe = probeScript(body, wordTop);
+    return { ref, body };
+  };
+
+  it("scrolls to the stop that holds a word and says when it is not shown", () => {
+    const { ref } = mount();
     expect(ref.current?.scrollToWord(47, "center")).toBe(true);
-    expect(scroll.mock.contexts[0]).toHaveClass("sys-script-pill");
-    expect(scroll.mock.calls[0]).toEqual([{ block: "center" }]);
+    expect(probe?.calls).toHaveLength(1);
+    expect(probe?.calls[0]?.[1]).toBe(CENTER);
+    expect(probe?.calls[0]?.[0]).toBe(
+      document.querySelector('.sys-script-pill[data-stop="46"]')?.textContent,
+    );
     expect(ref.current?.scrollToWord(900)).toBe(false);
+  });
+
+  it("lands a word below the view at its bottom edge by default and for nearest", () => {
+    const { ref, body } = mount();
+    const landed = (block?: ScrollLogicalPosition) => {
+      body.scrollTop = 0;
+      probe?.calls.splice(0);
+      ref.current?.scrollToWord(47, block);
+      return probe?.calls.map((c) => c[1]);
+    };
+    expect(landed()).toEqual([NEAREST]);
+    expect(landed("nearest")).toEqual([NEAREST]);
+  });
+
+  it("leaves a word that is already in view where it is by default", () => {
+    const { ref, body } = mount(50);
+    body.scrollTop = 500;
+    probe?.calls.splice(0);
+    expect(ref.current?.scrollToWord(47)).toBe(true);
+    expect(probe?.calls).toEqual([]);
+  });
+
+  it("brings a word above the view to its top by default", () => {
+    const { ref, body } = mount(-300);
+    body.scrollTop = 500;
+    probe?.calls.splice(0);
+    ref.current?.scrollToWord(47);
+    expect(probe?.calls.map((c) => c[1])).toEqual([200]);
+  });
+
+  it("puts a word at the top of the view for start and at the bottom for end", () => {
+    const { ref, body } = mount();
+    const landed = (block: ScrollLogicalPosition) => {
+      body.scrollTop = 0;
+      probe?.calls.splice(0);
+      ref.current?.scrollToWord(47, block);
+      return probe?.calls.map((c) => c[1]);
+    };
+    expect(landed("start")).toEqual([1000]);
+    expect(landed("end")).toEqual([820]);
   });
 
   it("tells the host about a scroll only after the reader's own input", () => {

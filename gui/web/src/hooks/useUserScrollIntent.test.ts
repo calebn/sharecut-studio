@@ -35,6 +35,22 @@ describe("useUserScrollIntent", () => {
     expect(result.current.isUserScroll()).toBe(true);
   });
 
+  it("does not count a touch tap, but counts a touch drag", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useUserScrollIntent());
+    act(() => {
+      result.current.handlers.onTouchStart();
+      result.current.handlers.onTouchEnd();
+    });
+    expect(result.current.isUserScroll()).toBe(false);
+    act(() => {
+      result.current.handlers.onTouchStart();
+      result.current.handlers.onTouchMove();
+      result.current.handlers.onTouchEnd();
+    });
+    expect(result.current.isUserScroll()).toBe(true);
+  });
+
   it("counts pointer and key input only when it targets the scroller", () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useUserScrollIntent());

@@ -29,6 +29,7 @@ export interface UserScrollIntentHandlers {
   onWheel: () => void;
   onTouchStart: () => void;
   onTouchMove: () => void;
+  onTouchEnd: () => void;
   onPointerDown: (e: PointerEvent<HTMLElement>) => void;
   onKeyDown: (e: KeyboardEvent<HTMLElement>) => void;
 }
@@ -38,6 +39,7 @@ export function useUserScrollIntent(): {
   isUserScroll: () => boolean;
 } {
   const untilRef = useRef(Number.NEGATIVE_INFINITY);
+  const movedRef = useRef(false);
 
   const arm = useCallback(() => {
     untilRef.current = performance.now() + USER_SCROLL_INTENT_MS;
@@ -46,8 +48,17 @@ export function useUserScrollIntent(): {
   const handlers = useMemo<UserScrollIntentHandlers>(
     () => ({
       onWheel: arm,
-      onTouchStart: arm,
-      onTouchMove: arm,
+      onTouchStart: () => {
+        movedRef.current = false;
+        arm();
+      },
+      onTouchMove: () => {
+        movedRef.current = true;
+        arm();
+      },
+      onTouchEnd: () => {
+        if (!movedRef.current) untilRef.current = Number.NEGATIVE_INFINITY;
+      },
       // Scrollbar drags target the container itself; clicks on children
       // (word seeks) must not count, or the follow scroll they cause unlocks.
       onPointerDown: (e) => {
