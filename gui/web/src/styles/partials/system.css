@@ -527,6 +527,17 @@
   .sys-header-left .sys-save-count {
     display: inline;
   }
+
+  /* A failed save puts Retry beside Undo and Redo, which leaves the title
+     nothing at 360. The right side gives way as it does under 20 rem (the
+     Project menu keeps people, Invite and search) so the title can read. */
+  .sys-app-header:has(.sys-save--failed) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sys-app-header:has(.sys-save--failed) .sys-header-right {
+    display: none;
+  }
 }
 
 /* Large text on a small phone leaves a header under 20 rem: four 44 px
@@ -693,6 +704,7 @@
   display: inline-flex;
   padding: 0;
   border: 0;
+  border-radius: 50%;
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -1405,7 +1417,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-toast-dock {
   inset-block-end: var(--space-4);
-  inline-size: min(30rem, 100%);
+  inline-size: min(30rem, calc(100% - 2 * var(--space-5)));
   margin-inline: auto;
 }
 
