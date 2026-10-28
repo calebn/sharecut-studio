@@ -5,9 +5,10 @@ acoustic edges, pauses) and then checks the written result. That is nearly all t
 approval, and it depends on the audio, words, configuration and clips near the cut, and on
 each track's whole-track level profile before the batch (the batch-base profile, #2357). The key
 hashes the audio, words, configuration and clips near the cut and a digest of that base profile
-(``base_profile``, from ``cut_proof.BatchBase.stamp``, at full precision), so an entry made under
-a base that differs in any bit, such as the idle warm's before pending mutes are applied, is
-never reused under another. An entry keeps the observation and the outcome under that key.
+(``base_profile``, from ``cut_proof.BatchBase.stamp``: a digest of the inputs of that profile,
+built without decoding audio), so an entry made under a base whose inputs differ, such as the
+idle warm's before pending mutes are applied, is never reused under another.
+An entry keeps the observation and the outcome under that key.
 
 A hit never skips what depends on the live timeline: the placement and the cut itself are
 written again, and the written result and room-tone pads must equal what the entry recorded,

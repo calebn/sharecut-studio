@@ -435,11 +435,7 @@ def test_a_stored_verdict_made_under_other_semantics_is_not_reused(
     assert older > 0
 
     monkeypatch.setattr(verdict_cache, "SEMANTICS", "batch-base-profile")
-    hits: list[str] = []
-    real = verdict_cache.lookup
-    monkeypatch.setattr(
-        verdict_cache, "lookup", lambda key: ((r := real(key)) and hits.append(key)) or r
-    )
+    hits = _count_hits(monkeypatch)
     precompute_verdicts(project, ids, defaults=defaults)
 
     assert hits == []
@@ -516,11 +512,14 @@ def _approve_ids(project: EpisodeProject, ids: list[str], hits: list[str]) -> di
 def _count_hits(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     hits: list[str] = []
     real = verdict_cache.lookup
-    monkeypatch.setattr(
-        verdict_cache,
-        "lookup",
-        lambda key: ((r := real(key)) is not None and hits.append(key)) or r,
-    )
+
+    def lookup(key: str | None) -> verdict_cache.CachedVerdict | None:
+        found = real(key)
+        if found is not None and key is not None:
+            hits.append(key)
+        return found
+
+    monkeypatch.setattr(verdict_cache, "lookup", lookup)
     return hits
 
 
@@ -586,15 +585,68 @@ def test_the_verdict_key_differs_with_the_base_profile(tmp_path: Path) -> None:
     assert parts is not None and "base_profile" in parts
 
 
+def _stamp(project: EpisodeProject) -> str:
+    return cut_proof.BatchBase(project).stamp(defaults=load_defaults())
+
+
+def test_the_stamp_builds_and_decodes_no_audio(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines import audio_audit, ungated_audio
+
+    project = _project(tmp_path)
+
+    def refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("the stamp built or decoded audio")
+
+    for module, name in (
+        (cut_proof, "build_track_rms_caches"),
+        (cut_proof, "shared_timeline_rms_caches"),
+        (audio_audit, "build_track_rms_caches"),
+        (track_evidence, "_evaluate"),
+        (track_evidence, "rms_readers"),
+        (ungated_audio, "load_mono_full"),
+        (ungated_audio, "raw_samples_on_timeline"),
+    ):
+        monkeypatch.setattr(module, name, refuse)
+
+    assert _stamp(project) == _stamp(project.model_copy(deep=True))  # same content, same stamp
+
+
+def test_a_mute_on_any_dialogue_track_shifts_the_stamp(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.engines.mute_regions import add_source_mute
+    from podcast_mcp.models import ClipMuteRegion
+
+    project = _project(tmp_path)
+    before = _stamp(project)
+
+    def muted(track_id: str) -> EpisodeProject:
+        copy = project.model_copy(deep=True)
+        clip = next(c for c in copy.clips if c.track_id == track_id and c.source_start == 80.0)
+        add_source_mute(clip, ClipMuteRegion(start_s=85.0, end_s=86.0, fill=None))
+        return copy
+
+    assert _stamp(muted("host")) != before
+    assert _stamp(muted("guest")) != before  # the base covers every dialogue track
+    assert _stamp(muted("host")) != _stamp(muted("guest"))
+
+
+def test_one_track_with_other_contents_in_the_same_place_differs(tmp_path: Path) -> None:
+    """Same ids, same clips, same path: only the recording's file differs."""
+    project = _project(tmp_path)
+    before = _stamp(project)
+    raw = tmp_path / "raw" / "host.wav"
+    raw.unlink()
+    _write(raw, 99, [31.0, 50.0])
+
+    assert _stamp(project) != before
+
+
 @pytest.mark.parametrize("field", ["room_db", "speech_db", "loud_db"])
-def test_a_one_ulp_change_of_a_base_profile_changes_its_stamp(field: str) -> None:
+def test_a_one_ulp_change_of_a_base_profile_is_still_a_different_profile(field: str) -> None:
+    """The stamp no longer measures; profiles still differ bit for bit, as adopt relies on."""
     profile = LevelProfile(room_db=-60.0, speech_db=-20.0, loud_db=-12.0)
     nudged = dataclasses.replace(profile, **{field: math.nextafter(getattr(profile, field), 0.0)})
-
-    def stamp(p: LevelProfile) -> str:
-        base = cut_proof.BatchBase(None)  # type: ignore[arg-type]  # profiles are preset
-        base._profiles = {"host": p, "guest": profile}
-        return base.stamp(defaults=load_defaults())
-
-    assert stamp(profile) == stamp(profile)
-    assert stamp(nudged) != stamp(profile)
+    assert nudged != profile

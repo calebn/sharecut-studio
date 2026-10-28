@@ -18,7 +18,7 @@ import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import verdict_cache
+from podcast_mcp.edits import cut_proof, verdict_cache
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.models import (
     AppliedEditRecord,
@@ -503,7 +503,12 @@ def test_a_pause_key_moves_when_a_clip_outside_the_window_moves_the_far_word(
 def test_a_pause_verdict_stays_cached_when_a_far_fade_changes_nothing_the_span_reads(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """130 and 400 ms both pass the 120 ms floor and differ, yet the word gap bounds the span."""
+    """130 and 400 ms both pass the 120 ms floor and differ, yet the word gap bounds the span.
+
+    The base-profile stamp is held fixed here: a fade on any clip changes the track's samples, so
+    it changes the stamp by design (it is a digest of the track's inputs, not of what the span reads).
+    """
+    monkeypatch.setattr(cut_proof.BatchBase, "stamp", lambda self, *, defaults: "fixed")
     variants = [_early_clip(130), _early_clip(400)]
     keys, spans = _keys_and_spans(tmp_path, monkeypatch, variants)
     assert spans[0] == spans[1]
