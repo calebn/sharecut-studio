@@ -145,7 +145,7 @@ function ExportSettingsForm({ stage, onToggleFormat }: ExportDialogViewProps) {
                 id={wavNoteId}
                 className="export-dialog-note export-dialog-indent"
               >
-                Always written. Turn it off in the Pipeline tab.
+                Always written.
               </p>
             </>
           ) : null}
@@ -167,7 +167,7 @@ function ExportSettingsForm({ stage, onToggleFormat }: ExportDialogViewProps) {
       ) : null}
       {loudness ? (
         <p className="export-dialog-note">
-          {loudness} Change the target in the Pipeline tab.
+          {loudness} Change the target in Prepare, under Cleanup.
         </p>
       ) : null}
     </>

@@ -58,9 +58,7 @@ export function usePrepareSources(input: {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const splitJobs = useRef(new Map<string, string>());
   const splitNeeds = useRef(new Map<string, ModelNeeded>());
-  const timers = useRef(
-    new Map<string, { timer: number; name: string }>(),
-  );
+  const timers = useRef(new Map<string, { timer: number; name: string }>());
   const latest = useRef({ projectPath, tracks, chosenVoices });
   latest.current = { projectPath, tracks, chosenVoices };
   const soloBefore = useRef<Record<string, boolean> | null>(null);
