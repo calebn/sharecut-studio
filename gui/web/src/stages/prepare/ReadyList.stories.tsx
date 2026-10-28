@@ -94,6 +94,19 @@ export const NeedsModel: Story = {
   },
 };
 
+export const ModelDownloading: Story = {
+  args: { rows: ROWS.modelDownloading },
+  play: async ({ canvasElement }) => {
+    const bar = within(canvasElement).getByRole("progressbar", {
+      name: "Transcribe",
+    });
+    await expect(bar).toHaveAttribute("aria-valuenow", "40");
+    await expect(
+      within(canvasElement).getByText("Downloading the transcription model"),
+    ).toBeVisible();
+  },
+};
+
 export const KeepMyFixes: Story = {
   args: { rows: ROWS.keepFixes },
   play: async ({ args, canvasElement }) => {
