@@ -898,7 +898,7 @@ def sanitize_guest_project_view(
     # History can embed local paths in labels/params - keep only the opaque head.
     if "history" in out:
         out["history"] = _guest_history(out["history"])
-    # Guest ShareCut Studio keeps a zeroed impact stub so StatusBar/ImpactPanel stay safe.
+    # Guest ShareCut Studio keeps a zeroed impact stub so StatusBar stays safe.
     if full or "edit_impact" in out:
         out["edit_impact"] = dict(_GUEST_IMPACT_STUB)
     if full or "social_clips" in out:
