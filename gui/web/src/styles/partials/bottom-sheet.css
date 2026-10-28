@@ -261,7 +261,7 @@ html[data-shell="phone"] .bottom-sheet-root {
 /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
 @media (max-height: 40rem) {
   .bottom-sheet--half {
-    height: min(45%, 17.5rem);
+    height: max(min(45%, 17.5rem), min(100%, 9rem));
   }
 
   .bottom-sheet--half:has(.modifier-inspector),
