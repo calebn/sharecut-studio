@@ -330,6 +330,20 @@ def apply_auto_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return {"operation": "apply_auto_edits", "applied_count": EditService(ws).apply_auto()}
 
 
+def apply_edit_plan(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    n = EditService(ws).apply_plan(
+        p["edits"],
+        review_required=p["review_required"],
+        use_inaudible_opt=p["use_inaudible_opt"],
+    )
+    return {
+        "operation": "apply_edit_plan",
+        "entries_added": n,
+        "review_required": p["review_required"],
+        "use_inaudible_opt": p["use_inaudible_opt"],
+    }
+
+
 def fade_joins(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).fade_joins(
         track_id=p.get("track_id"), speaker=p.get("speaker"), fade_ms=p.get("fade_ms")
