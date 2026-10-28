@@ -46,9 +46,9 @@ queued delivery into a server success or add another job or save queue.
 
 ## Editor pipeline geometry
 
-The Prepare stage shows a running pipeline as the Transcribe row in its Getting
-ready list, not as a progress bar. `prepare-progress.spec.ts` checks that the
-row stays in view without horizontal overflow at a short desktop and a phone
+The Prepare stage shows a running pipeline as rows in its Getting ready list
+and a transcription bar on each Source card. `prepare-progress.spec.ts` checks
+that the bar stays in view without horizontal overflow at a short desktop and a phone
 size, in both motion modes. The Pipeline panel bar and the profile scenes that
 measured it were removed; their reports stay in the
 [retained findings](testing-e2e.md#retained-responsiveness-findings-879).
