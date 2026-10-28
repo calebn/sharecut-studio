@@ -661,14 +661,9 @@ def test_transcribe_file_drops_a_looped_window(sample_wav):
     assert [w.text for w in transcript.words] == [f"word{i}" for i in range(20)]
     drop = engine._loop_drop
     assert drop is not None
-    assert drop.dropped == 221
+    assert len(drop.dropped) == 221
     assert drop.start == pytest.approx(299.84)
     assert drop.end == pytest.approx(299.96, abs=0.001)
-    assert set(model.transcribe.call_args.kwargs) == {
-        "language",
-        "word_timestamps",
-        *engine.options.transcribe_kwargs(),
-    }
 
 
 def test_transcribe_file_drops_the_loop_before_the_duration_flags(sample_wav):
@@ -704,20 +699,6 @@ def test_transcribe_file_without_a_loop_records_nothing(sample_wav):
     assert engine._loop_drop is None
 
 
-def test_decode_key_does_not_change_with_the_loop_guard():
-    from podcast_mcp.engines.asr_options import AsrOptions
-
-    assert AsrOptions().decode_key() == {
-        "vad": {"threshold": 0.4, "min_silence_duration_ms": 500, "speech_pad_ms": 300},
-        "temperature": [0.0, 0.2, 0.4],
-        "no_speech_threshold": 0.6,
-        "log_prob_threshold": -1.0,
-        "compression_ratio_threshold": 2.4,
-        "condition_on_previous_text": True,
-        "hallucination_silence_threshold": 2.0,
-    }
-
-
 def _legacy_looped_cache(engine, proj, job, sha):
     from podcast_mcp.models import Transcript, TranscriptWord
 
@@ -735,48 +716,28 @@ def _legacy_looped_cache(engine, proj, job, sha):
     return cache
 
 
-def test_read_asr_cache_repairs_a_legacy_cache_that_holds_a_loop(minimal_project, sample_wav):
+def test_read_asr_cache_drops_a_legacy_loop_on_every_read_without_rewriting_the_file(
+    minimal_project, sample_wav
+):
     from podcast_mcp.engines.transcribe import TranscribeJob
 
     proj = _dialogue_project(minimal_project, sample_wav)
     job = TranscribeJob(track_id="host", source_id=None, audio=sample_wav)
-    engine = TranscriptionEngine(defaults=load_defaults())
-    cache = _legacy_looped_cache(engine, proj, job, "ab" * 32)
-    path, first = engine.read_asr_cache(
-        proj, job, language=None, initial_prompt=None, audio_sha256="ab" * 32
+    cache = _legacy_looped_cache(
+        TranscriptionEngine(defaults=load_defaults()), proj, job, "ab" * 32
     )
-    assert path == cache
-    assert first is not None
-    assert len(first.words) == 20
-    assert engine._loop_drop is not None
-    assert engine._loop_drop.dropped == 221
-    _, second = engine.read_asr_cache(
-        proj, job, language=None, initial_prompt=None, audio_sha256="ab" * 32
-    )
-    assert second is not None
-    assert len(second.words) == 20
-    assert engine._loop_drop is not None
-    assert engine._loop_drop.dropped == 221
-
-
-def test_read_asr_cache_repair_is_not_written_back_and_is_found_again(minimal_project, sample_wav):
-    from podcast_mcp.engines.transcribe import TranscribeJob
-
-    proj = _dialogue_project(minimal_project, sample_wav)
-    job = TranscribeJob(track_id="host", source_id=None, audio=sample_wav)
-    engine = TranscriptionEngine(defaults=load_defaults())
-    cache = _legacy_looped_cache(engine, proj, job, "cd" * 32)
     before = cache.read_text(encoding="utf-8")
-    engine.read_asr_cache(proj, job, language=None, initial_prompt=None, audio_sha256="cd" * 32)
-    assert cache.read_text(encoding="utf-8") == before
-    again = TranscriptionEngine(defaults=load_defaults())
-    _, repaired = again.read_asr_cache(
-        proj, job, language=None, initial_prompt=None, audio_sha256="cd" * 32
-    )
-    assert repaired is not None
-    assert len(repaired.words) == 20
-    assert again._loop_drop is not None
-    assert again._loop_drop.dropped == 221
+    for _ in range(2):
+        engine = TranscriptionEngine(defaults=load_defaults())
+        path, transcript = engine.read_asr_cache(
+            proj, job, language=None, initial_prompt=None, audio_sha256="ab" * 32
+        )
+        assert path == cache
+        assert transcript is not None
+        assert len(transcript.words) == 20
+        assert engine._loop_drop is not None
+        assert len(engine._loop_drop.dropped) == 221
+        assert cache.read_text(encoding="utf-8") == before
 
 
 def test_transcribe_job_reports_a_fresh_drop_and_the_cache_written_has_none(

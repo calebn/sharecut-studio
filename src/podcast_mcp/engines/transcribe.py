@@ -15,7 +15,7 @@ import numpy as np
 from filelock import FileLock, Timeout
 
 from podcast_mcp.config.defaults import EffectiveConfig, whisper_cache_dir
-from podcast_mcp.engines.asr_loops import LoopDrop, guard_transcript
+from podcast_mcp.engines.asr_loops import LoopReport, guard_transcript
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
@@ -506,10 +506,9 @@ class TranscriptionEngine:
         self.silence_filter_skipped: list[str] = []
         # Per-job forced-alignment outcomes (transcribe.forced_alignment); read by the step summary.
         self.forced_alignment_jobs: list[dict[str, Any]] = []
-        # Per-job looped-word drops and dense-word counts (engines.asr_loops); read by the step summary.
         self.asr_loop_drops: list[dict[str, Any]] = []
         # The guard's result for the transcript read or decoded last; transcribe_job records it.
-        self._loop_drop: LoopDrop | None = None
+        self._loop_drop: LoopReport | None = None
         self._word_aligner: WordAligner | None = None
         self._word_aligner_error: Exception | None = None
         # Dialogue-track levels for the aligner evidence gate (#780), decoded once per engine
@@ -967,7 +966,7 @@ class TranscriptionEngine:
             {
                 "label": job.label,
                 "track_id": job.track_id,
-                "dropped": drop.dropped,
+                "dropped": len(drop.dropped),
                 "start": drop.start,
                 "end": drop.end,
                 "dense_words": drop.dense_words,
