@@ -44,13 +44,6 @@ export function sourcePointToTimeline(
   return best;
 }
 
-export function clipsForTrack(
-  clipsByTrack: Record<string, ClipRow[]> | undefined,
-  trackId: string,
-): ClipRow[] {
-  return clipsByTrack?.[trackId] ?? [];
-}
-
 export function originTrackId(clip: ClipRow): string {
   return clip.origin_track_id ?? clip.track_id;
 }

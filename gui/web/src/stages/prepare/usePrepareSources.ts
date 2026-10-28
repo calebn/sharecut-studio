@@ -28,7 +28,7 @@ import {
   parseSplitSpeakersResult,
   splitSpeakersDoneCopy,
 } from "../../utils/speakerSplit";
-import { type SplitProgress, sourceTracks } from "./prepareMappers";
+import { MIN_VOICES, type SplitProgress, sourceTracks } from "./prepareMappers";
 import type { SourceActions } from "./prepareTypes";
 
 const NAME_SAVE_MS = 600;
@@ -145,7 +145,7 @@ export function usePrepareSources(input: {
     try {
       const job = await startSplitSpeakersJob(path, {
         trackId,
-        speakerCount: chosen[trackId] ?? 2,
+        speakerCount: chosen[trackId] ?? MIN_VOICES,
         names: null,
         enrollment: null,
       });

@@ -70,7 +70,7 @@ export type SplitSpeakerReviewSpan = {
 };
 
 /** `SpeakerService.split_speakers`'s result, as the `split_speakers` job carries it. */
-export type SplitSpeakersResult = {
+type SplitSpeakersResult = {
   split_id: string;
   lanes: SplitSpeakersLane[];
   crosstalk_sec: number;
