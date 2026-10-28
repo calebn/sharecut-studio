@@ -13,6 +13,7 @@ import {
   openHostShare,
 } from "./shareNavigation";
 import {
+  altClickSplit,
   goToStage,
   openProjectDialog,
   openProjectMenu,
@@ -20,7 +21,6 @@ import {
   openViewSheet,
   phone,
   type Stage,
-  selectTool,
   setAudition,
   stageTab,
 } from "./stageNav";
@@ -82,7 +82,7 @@ test.describe("Stage shell on desktop", () => {
       page.getByRole("tablist", { name: "Stages" }).getByRole("tab"),
     ).toHaveCount(5);
     await expect(
-      page.getByRole("group", { name: "Editing tools" }),
+      page.getByRole("group", { name: "Timeline view" }),
     ).toBeVisible();
     await expect(player(page)).toBeVisible();
     await expectPageAxeClean(page);
@@ -148,8 +148,6 @@ test.describe("Stage shell on desktop", () => {
     await expect(play).toHaveAttribute("aria-label", /Play/);
     await setAudition(page, "raw");
     await setAudition(page, "mix");
-    await selectTool(page, "blade");
-    await selectTool(page, "select");
   });
 
   test("adds a comment from the Player and sees it in Review", async ({
@@ -205,7 +203,7 @@ test.describe("Stage shell on desktop", () => {
 });
 
 for (const width of [1024, 1440]) {
-  test.describe(`Blade cut button at ${width}`, () => {
+  test.describe(`Alt-click Split at ${width}`, () => {
     test.use({ viewport: { width, height: 900 } });
 
     // The cut stays in the project, so it runs on a copy: a cut left in the
@@ -214,7 +212,7 @@ for (const width of [1024, 1440]) {
     let workspaceDir: string;
 
     test.beforeEach(async () => {
-      const fixture = createRelocatedE2eProject("sharecut-e2e-blade-cut-");
+      const fixture = createRelocatedE2eProject("sharecut-e2e-alt-split-");
       projectPath = fixture.projectPath;
       workspaceDir = fixture.workspaceDir;
       await switchE2eProject(projectPath);
@@ -225,36 +223,73 @@ for (const width of [1024, 1440]) {
       if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
     });
 
-    test("takes a real click and adds a clip", async ({ page }) => {
-      await openStageProject(page, projectPath);
-      const pathParam = encodeURIComponent(projectPath);
-      const clipCount = async () => {
-        const res = await page.request.get(
-          `/api/project?path=${pathParam}&phase=full`,
-        );
-        const body = (await res.json()) as {
-          clips: { tracks: Record<string, unknown[]> };
-        };
-        return Object.values(body.clips.tracks).reduce(
-          (sum, clips) => sum + clips.length,
-          0,
-        );
+    const clipCounter = (page: Page) => async () => {
+      const res = await page.request.get(
+        `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
+      );
+      const body = (await res.json()) as {
+        clips: { tracks: Record<string, unknown[]> };
       };
+      return Object.values(body.clips.tracks).reduce(
+        (sum, clips) => sum + clips.length,
+        0,
+      );
+    };
+
+    test("a plain click on a clip selects it and never splits", async ({
+      page,
+    }) => {
+      await openStageProject(page, projectPath);
+      const clipCount = clipCounter(page);
       const before = await clipCount();
-      await page.getByRole("slider", { name: "Timeline position" }).focus();
-      await page.keyboard.press("ArrowRight");
-      await selectTool(page, "blade");
-      const cut = page
-        .getByRole("group", { name: "Editing tools" })
-        .getByRole("button", { name: "Blade cut", exact: true });
-      await expect(cut).toBeVisible();
-      // No force: Playwright fails the click if anything covers the button.
-      await cut.click({ timeout: 5000 });
+      const clip = page.locator(".clip-hit").first();
+      await clip.click();
+      // The press is done once the clip is selected; nothing was cut.
+      await expect(clip).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".split-guide")).toHaveCount(0);
+      await expect(page.getByRole("dialog", { name: /^Cut at/ })).toHaveCount(
+        0,
+      );
+      expect(await clipCount()).toBe(before);
+    });
+
+    test("holding Alt over the lanes shows the split guide, and releasing Alt takes it away", async ({
+      page,
+    }) => {
+      await openStageProject(page, projectPath);
+      const clip = page.locator(".clip-hit").first();
+      await clip.hover();
+      await expect(page.locator(".split-guide")).toHaveCount(0);
+      await page.keyboard.down("Alt");
+      const guide = page.locator(".split-guide").first();
+      await expect(guide).toBeVisible();
+      const box = (await clip.boundingBox())!;
+      const guideBox = (await guide.boundingBox())!;
+      expect(guideBox.x).toBeGreaterThanOrEqual(box.x - 2);
+      expect(guideBox.x).toBeLessThanOrEqual(box.x + box.width + 2);
+      await page.keyboard.up("Alt");
+      await expect(page.locator(".split-guide")).toHaveCount(0);
+    });
+
+    test("takes a real Alt-click on a clip and adds a clip", async ({
+      page,
+    }) => {
+      await openStageProject(page, projectPath);
+      const clipCount = clipCounter(page);
+      const before = await clipCount();
+      const clip = page.locator(".clip-hit").first();
+      await altClickSplit(page, clip);
+      // A tablet asks first; a desktop cuts straight away.
       const confirm = page.getByRole("dialog", { name: /^Cut at/ });
       if (await confirm.isVisible().catch(() => false)) {
         await confirm.getByRole("button", { name: "Cut", exact: true }).click();
       }
       await expect.poll(clipCount).toBeGreaterThan(before);
+      // The press did not also select the clip it split.
+      await expect(page.locator(".clip-hit").first()).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
     });
   });
 }

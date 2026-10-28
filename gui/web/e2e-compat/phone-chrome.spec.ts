@@ -83,7 +83,7 @@ test("a phone held sideways keeps two whole compact lanes and Undo in reach", as
   });
 });
 
-test("a phone in portrait keeps Undo and Redo in the header, the tools on one row and four whole lanes", async ({
+test("a phone in portrait keeps Undo and Redo in the header, the corner controls on one row and four whole lanes", async ({
   page,
 }) => {
   await page.setViewportSize(PORTRAIT_SAFARI);
@@ -94,13 +94,13 @@ test("a phone in portrait keeps Undo and Redo in the header, the tools on one ro
     await openPhoneTimeline(page);
     await expect(page.locator(".lane-row")).toHaveCount(6);
 
-    const rail = page.getByRole("group", { name: "Editing tools" });
+    const rail = page.getByRole("group", { name: "Timeline view" });
     const header = page.locator(".sys-app-header-host");
     const railBox = (await rail.boundingBox())!;
-    const buttons = ["Select tool", "Blade tool", "Select range"].map((name) =>
+    const buttons = ["Select range", "Zoom out", "Zoom in"].map((name) =>
       rail.getByRole("button", { name, exact: true }),
     );
-    // One row: the tools sit level, 44px squares, inside the strip.
+    // One row: the controls sit level, 44px squares, inside the corner.
     const toolBoxes = await Promise.all(buttons.map((b) => b.boundingBox()));
     for (const box of toolBoxes) {
       expect(box!.width).toBeGreaterThanOrEqual(44);
@@ -119,13 +119,13 @@ test("a phone in portrait keeps Undo and Redo in the header, the tools on one ro
       expect(box.x + box.width).toBeLessThanOrEqual(PORTRAIT_SAFARI.width);
     }
 
-    // The frame's header, tool strip, Player and tab bar leave room for four 104 px
+    // The frame's header, corner, Player and tab bar leave room for four 104 px
     // lanes on this phone.
     expect((await visibleLanes(page))!.full).toBeGreaterThanOrEqual(4);
   });
 });
 
-test("a 360px phone keeps the tools, Zoom, Undo and Redo whole and in reach, and Zoom runs", async ({
+test("a 360px phone keeps the range toggle, Zoom, Undo and Redo whole and in reach, and Zoom runs", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
@@ -136,12 +136,8 @@ test("a 360px phone keeps the tools, Zoom, Undo and Redo whole and in reach, and
 
     const groups: [Locator, string[]][] = [
       [
-        page.getByRole("group", { name: "Editing tools" }),
-        ["Select tool", "Blade tool", "Select range"],
-      ],
-      [
         page.getByRole("group", { name: "Timeline view" }),
-        ["Zoom out", "Zoom in"],
+        ["Select range", "Zoom out", "Zoom in"],
       ],
       [page.locator(".sys-app-header-host"), ["Undo", "Redo"]],
     ];
@@ -289,15 +285,15 @@ test("the phone timeline shows Undo and Redo; a Safari tab offers the Home Scree
   });
 });
 
-async function expectLandscapeRail(page: Page, width: number) {
+async function expectLandscapeCorner(page: Page, width: number) {
   await page.setViewportSize({ width, height: 834 });
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame--tablet")).toBeVisible();
-    const rail = page.getByRole("group", { name: "Editing tools" });
-    for (const name of ["Select tool", "Blade tool", "Select range"]) {
+    const corner = page.getByRole("group", { name: "Timeline view" });
+    for (const name of ["Select range", "Zoom in"]) {
       await expect(
-        rail.getByRole("button", { name, exact: true }),
+        corner.getByRole("button", { name, exact: true }),
       ).toBeVisible();
     }
     await expect(
@@ -306,14 +302,14 @@ async function expectLandscapeRail(page: Page, width: number) {
   });
 }
 
-test("an iPad Air 1180 wide in landscape keeps Select, Blade, Select range and the add-track button on the tool strip", async ({
+test("an iPad Air 1180 wide in landscape keeps Select range in the corner and the add-track button", async ({
   page,
 }) => {
-  await expectLandscapeRail(page, 1180);
+  await expectLandscapeCorner(page, 1180);
 });
 
-test("an iPad Pro 11 1194 wide in landscape keeps Select, Blade, Select range and the add-track button on the tool strip (#1674)", async ({
+test("an iPad Pro 11 1194 wide in landscape keeps Select range in the corner and the add-track button (#1674)", async ({
   page,
 }) => {
-  await expectLandscapeRail(page, 1194);
+  await expectLandscapeCorner(page, 1194);
 });
