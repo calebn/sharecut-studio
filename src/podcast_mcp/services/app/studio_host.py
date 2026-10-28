@@ -15,6 +15,7 @@ asks the address named in it and accepts the answer only from the same run that 
 from __future__ import annotations
 
 import dataclasses
+import errno
 import http.client
 import json
 import logging
@@ -220,6 +221,20 @@ def _connection(host: StudioHost, timeout: float) -> http.client.HTTPConnection:
     return http.client.HTTPConnection(host.host, host.port, timeout=timeout)
 
 
+_WSAETIMEDOUT = 10060
+
+
+def _is_timeout(exc: BaseException) -> bool:
+    """A socket timeout, including the Windows one that surfaces as a plain ``OSError``."""
+    if isinstance(exc, TimeoutError):
+        return True
+    if not isinstance(exc, OSError):
+        return False
+    return (
+        _WSAETIMEDOUT in (exc.errno, getattr(exc, "winerror", None)) or exc.errno == errno.ETIMEDOUT
+    )
+
+
 def _remaining(deadline: float) -> float:
     remaining = deadline - time.monotonic()
     if remaining <= 0:
@@ -311,9 +326,9 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
             body = json.loads(raw.decode("utf-8"))
             _remaining(deadline)
             return status, body
-        except TimeoutError:
-            raise
-        except (OSError, http.client.HTTPException, ValueError, RecursionError):
+        except (OSError, http.client.HTTPException, ValueError, RecursionError) as exc:
+            if _is_timeout(exc):
+                raise
             _remaining(deadline)
             return status, None
     except (OSError, http.client.HTTPException, ValueError):
@@ -342,11 +357,16 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
     try:
         try:
             status, body = _ping(host, resolved)
-        except TimeoutError:
+        except OSError as exc:
+            if not _is_timeout(exc):
+                raise
             status, body = _ping(host, resolved)
-    except TimeoutError:
-        raise StudioUnresponsive(host) from None
-    except (OSError, http.client.HTTPException, ValueError):
+    except OSError as exc:
+        if _is_timeout(exc):
+            raise StudioUnresponsive(host) from None
+        log.debug("studio announced at %s:%s did not answer", host.host, host.port)
+        return None
+    except (http.client.HTTPException, ValueError):
         log.debug("studio announced at %s:%s did not answer", host.host, host.port)
         return None
     if status != 200:
@@ -427,9 +447,9 @@ def hand_off(
                 headers={**_headers(host), "Content-Type": "application/json"},
             )
             response = conn.getresponse()
-        except TimeoutError as exc:
-            raise HandoffLost(_lost_message(host, None, "it did not answer in time")) from exc
         except (OSError, http.client.HTTPException) as exc:
+            if _is_timeout(exc):
+                raise HandoffLost(_lost_message(host, None, "it did not answer in time")) from exc
             raise HandoffLost(_lost_message(host, None, "it stopped answering")) from exc
         if response.status != 200:
             raise _refusal(host, response)
