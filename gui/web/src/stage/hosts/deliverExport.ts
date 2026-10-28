@@ -18,7 +18,7 @@ import {
   exportResultCopy,
   isLossless,
   loudnessTargetCopy,
-} from "../dialogs/exportSettings";
+} from "./exportSettings";
 
 const LOSSLESS_BYTES_PER_SECOND = 97_000;
 const DEFAULT_BYTES_PER_SECOND = 16_000;

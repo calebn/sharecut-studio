@@ -13,7 +13,7 @@ import {
   STARTING_REASON,
 } from "./deliverExport";
 import type { ExportFlow, ExportRun } from "./exportFlowContext";
-import { exportSettingsFromConfig } from "../dialogs/exportSettings";
+import { exportSettingsFromConfig } from "./exportSettings";
 
 const SETTINGS = exportSettingsFromConfig({
   export: {

@@ -16,27 +16,30 @@ describe("export.deliverables", () => {
     clearRegisteredCommands();
     registerDawCommands();
     vi.mocked(api.startExportJob).mockReset();
-    setChrome({ exportDialogOpen: false });
+    setChrome({ exportRequested: false });
     useDawStore.setState({
       projectPath: "/tmp/test/episode.project.json",
       project: minimalProject(),
       guestMode: null,
+      stage: "edit",
     });
   });
 
-  it("opens the export dialog instead of starting a render", async () => {
+  it("goes to Deliver and asks for the export instead of starting a render", async () => {
     expect(
       await execute("export.deliverables", {}, { skipWhen: true }),
     ).toEqual({ status: "ok" });
-    expect(useDawStore.getState().chrome.exportDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.exportRequested).toBe(true);
+    expect(useDawStore.getState().stage).toBe("deliver");
     expect(api.startExportJob).not.toHaveBeenCalled();
   });
 
-  it("stays closed without a loaded host project", async () => {
-    useDawStore.setState({ project: null });
+  it("asks for nothing without a loaded host project", async () => {
+    useDawStore.setState({ project: null, stage: "edit" });
     expect(
       await execute("export.deliverables", {}, { skipWhen: true }),
     ).toEqual({ status: "disabled", reason: "No project loaded" });
-    expect(useDawStore.getState().chrome.exportDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.exportRequested).toBe(false);
+    expect(useDawStore.getState().stage).toBe("edit");
   });
 });

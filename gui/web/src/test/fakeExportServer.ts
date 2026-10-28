@@ -79,6 +79,7 @@ export function fakeExportServer() {
     configAnswer: null as Answer | null,
     startAnswer: null as Answer | null,
     holdStart: null as Promise<void> | null,
+    holdConfig: null as Promise<void> | null,
     cancelAnswer: null as Answer | null,
     started: EXPORT_STARTED,
     settled: null as PipelineJobSnapshot | null,
@@ -122,6 +123,7 @@ export function fakeExportServer() {
         server.configRequests.push(
           decodeURIComponent(url.split("path=")[1] ?? ""),
         );
+        await server.holdConfig;
         return json(server.configAnswer, server.config);
       }
       if (url.includes("/api/export/deliverables")) {

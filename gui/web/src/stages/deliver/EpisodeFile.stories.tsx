@@ -133,7 +133,6 @@ export const WithProjectFormats: Story = {
     await expect(view.getByRole("button", { name: /^M4A/ })).toBeVisible();
     await expect(view.queryByRole("group", { name: "Loudness" })).toBeNull();
     await expect(view.queryByRole("group", { name: "Range" })).toBeNull();
-    await expect(view.queryByText(/Saves to/)).toBeNull();
   },
 };
 

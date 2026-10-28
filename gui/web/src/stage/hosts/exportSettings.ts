@@ -123,17 +123,6 @@ export function selectedFormats(
     .map((choice) => choice.spec);
 }
 
-/** Why Export is disabled, or null when it can start. */
-export function exportStartBlocker(
-  settings: ExportSettings | null,
-  selected: readonly string[],
-): string | null {
-  if (settings && !settings.wav && selected.length === 0) {
-    return "Choose at least one format.";
-  }
-  return null;
-}
-
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
