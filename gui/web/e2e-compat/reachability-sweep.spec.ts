@@ -303,11 +303,8 @@ async function sweepCell(
   });
 
   await openPanel(page, "pipeline");
-  await expect(
-    page.locator(".pipeline-vocabulary-field").first(),
-  ).toBeVisible();
-  await page.getByText("From / Only shortcuts", { exact: true }).click();
-  found["pipeline panel"] = await reachFailures(page, {
+  await expect(page.locator(".sys-prepare")).toBeVisible();
+  found["prepare stage"] = await reachFailures(page, {
     scope: STAGE_BODY,
     skip: [".bottom-sheet-root"],
     dense: DENSE,
