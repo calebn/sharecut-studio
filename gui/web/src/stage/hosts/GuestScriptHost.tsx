@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
+import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { GuestScript } from "../../stages/guest/GuestScript";
 import { useDawStore } from "../../state/dawStore";
@@ -19,6 +20,7 @@ function GuestScriptHostAdapter() {
     })),
   );
   const shell = useViewportClass();
+  const short = useShortViewport();
   const role = stageRoleOf(guestMode);
   const { turns, wordStarts, words } = useMemo(
     () => guestScriptOf(utterances),
@@ -38,7 +40,7 @@ function GuestScriptHostAdapter() {
       playheadWord: last === "" ? undefined : Number(last),
     };
   }, [positionKey]);
-  if (role === "host") return null;
+  if (role === "host" || short) return null;
   return (
     <div className="stage-host-guest-script">
       <GuestScript

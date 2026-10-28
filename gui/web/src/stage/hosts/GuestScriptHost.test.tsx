@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SHORT_VIEWPORT_MQ } from "../../hooks/useShortViewport";
 import { useDawStore } from "../../state/dawStore";
 import { CENTER, NEAREST, probeScript } from "../../system/scriptScrollProbe";
 import { minimalProject } from "../../test/fixtures";
@@ -72,6 +73,27 @@ describe("GuestScriptHost", () => {
     as(null, 0);
     const { container } = render(<GuestScriptHost />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows nothing on a very short window, and returns when it grows", () => {
+    as("view", 0);
+    const listeners = new Set<() => void>();
+    let short = true;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      get matches() {
+        return short && query === SHORT_VIEWPORT_MQ;
+      },
+      media: query,
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    }));
+    const { container } = render(<GuestScriptHost />);
+    expect(container).toBeEmptyDOMElement();
+    act(() => {
+      short = false;
+      listeners.forEach((fn) => fn());
+    });
+    expect(screen.getByText("Read only")).toBeInTheDocument();
   });
 
   it.each([
