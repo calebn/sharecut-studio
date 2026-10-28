@@ -7,7 +7,11 @@ import {
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import { type ModelView, modelActivity, useModels } from "../../models";
 import { useDawStore } from "../../state/dawStore";
-import { currentMediaKey, recordJobMedia } from "../../state/jobMedia";
+import {
+  currentMediaKey,
+  recordJobMedia,
+  runIncludesTranscribe,
+} from "../../state/jobMedia";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
@@ -180,11 +184,9 @@ export function usePrepareRun(input: PrepareRunInput) {
         if (!cfg) throw new Error("Could not read the pipeline settings.");
         let job: PipelineJobSnapshot;
         const keyAtRequest = currentMediaKey();
+        const options = runOptions(cfg, mode, overwriteEdited, fromStep);
         try {
-          job = await startPipelineRun(
-            latest.current.projectPath,
-            runOptions(cfg, mode, overwriteEdited, fromStep),
-          );
+          job = await startPipelineRun(latest.current.projectPath, options);
         } catch (error) {
           if (isModelNeeded(error)) {
             refusedRef.current = { mode, overwriteEdited, fromStep };
@@ -193,7 +195,8 @@ export function usePrepareRun(input: PrepareRunInput) {
           }
           throw error;
         }
-        recordJobMedia(job.id, keyAtRequest);
+        if (runIncludesTranscribe({ fromStep: options.fromStep }))
+          recordJobMedia(job.id, keyAtRequest);
         setNeed(null);
         refusedRef.current = null;
         failedRef.current = null;
