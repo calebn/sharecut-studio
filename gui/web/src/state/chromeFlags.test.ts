@@ -7,7 +7,7 @@ const FLAGS = [
   "commandPaletteOpen",
   "gesturesSheetOpen",
   "bounceDialogOpen",
-  "exportDialogOpen",
+  "exportRequested",
   "shareDialogOpen",
   "hostMcpDialogOpen",
   "helpDialogOpen",
@@ -20,7 +20,7 @@ const SETTERS: Record<Flag, string> = {
   commandPaletteOpen: "setCommandPaletteOpen",
   gesturesSheetOpen: "setGesturesSheetOpen",
   bounceDialogOpen: "setBounceDialogOpen",
-  exportDialogOpen: "setExportDialogOpen",
+  exportRequested: "setExportRequested",
   shareDialogOpen: "setShareDialogOpen",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
@@ -140,7 +140,7 @@ describe("dawStore chrome flags", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       expect(read("transcriptFindReplaceOpen")).toBe(true);
       expect(read("bounceDialogOpen")).toBe(true);
-      expect(read("exportDialogOpen")).toBe(true);
+      expect(read("exportRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
@@ -152,12 +152,12 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes the bounce and export dialogs when the project switches", () => {
+    it("closes the bounce dialog and drops a pending export request when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
       expect(read("bounceDialogOpen")).toBe(false);
-      expect(read("exportDialogOpen")).toBe(false);
+      expect(read("exportRequested")).toBe(false);
     });
   });
 });

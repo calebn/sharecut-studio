@@ -172,6 +172,18 @@ describe("export contract", () => {
     ).toBe("done");
   });
 
+  it("goes stale when the document changed after the export", () => {
+    const done = { ...DONE, exported: { ...DONE.exported, edits: "h1" } };
+    const at = (edits?: string) =>
+      currentExportState(
+        done,
+        exportRequest(SETTINGS, CLIPS, CHAPTERS, undefined, edits),
+      ).phase;
+    expect(at("h1")).toBe("done");
+    expect(at("h2")).toBe("stale");
+    expect(at(undefined)).toBe("stale");
+  });
+
   it("goes stale when a format, the loudness, the part or the clips change", () => {
     const stale = (request: ReturnType<typeof now>) =>
       currentExportState(DONE, request).phase === "stale";
@@ -668,6 +680,50 @@ describe("round three of the audit", () => {
       "Needs the transcription model.",
     );
     expect(exportBlocker(SETTINGS)).toBeUndefined();
+  });
+
+  it("waits for host settings before anything else but the model", () => {
+    const none = { ...SETTINGS, formats: [] };
+    expect(exportBlocker(none, undefined, { loading: true })).toBe(
+      "Wait for the settings to load.",
+    );
+    expect(exportBlocker(SETTINGS, undefined, { loading: true })).toBe(
+      "Wait for the settings to load.",
+    );
+  });
+
+  it("lets a host that always writes WAV, or could not load its formats, export none", () => {
+    const none = { ...SETTINGS, formats: [] };
+    expect(exportBlocker(none, undefined, { wavAlwaysWritten: true })).toBe(
+      undefined,
+    );
+    expect(exportBlocker(none, undefined, { settingsError: "offline" })).toBe(
+      undefined,
+    );
+    expect(exportBlocker(none)).toBe("Choose a format first.");
+    // Known formats stay required when only a later reload failed.
+    expect(
+      exportBlocker(none, undefined, {
+        settingsError: "offline",
+        formats: [{ id: "mp3", label: "MP3", bytesPerSecond: 16_000 }],
+      }),
+    ).toBe("Choose a format first.");
+  });
+
+  it("gives the host's own reason first", () => {
+    const needs = { phase: "needs-model", model: "m", size: "1 GB" } as const;
+    expect(
+      exportBlocker({ ...SETTINGS, formats: [] }, needs, {
+        blockedReason: "No project loaded",
+        loading: true,
+      }),
+    ).toBe("No project loaded");
+  });
+
+  it("offers Reveal or Download only where the host has them", () => {
+    expect(primaryAction(DONE, "none")).toBe("export");
+    expect(primaryAction(DONE, "app")).toBe("reveal");
+    expect(primaryAction(DONE, "browser")).toBe("download");
   });
 
   it("keeps Out inside the episode when In is the episode end", () => {

@@ -239,7 +239,7 @@ type UiSlice = Pick<
   | "bounceRangeTarget"
   | "setBounceRangeTarget"
   | "setBounceDialogOpen"
-  | "setExportDialogOpen"
+  | "setExportRequested"
   | "prepareFocusTrackId"
   | "setPrepareFocusTrackId"
   | "setShareDialogOpen"
@@ -301,7 +301,7 @@ export function chromeInitial(): ChromeFlags {
     commandPaletteOpen: false,
     gesturesSheetOpen: false,
     bounceDialogOpen: false,
-    exportDialogOpen: false,
+    exportRequested: false,
     shareDialogOpen: false,
     hostMcpDialogOpen: false,
     helpDialogOpen: false,
@@ -723,8 +723,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         chrome: { ...s.chrome, bounceDialogOpen: on },
         ...(on ? {} : { bounceRangeTarget: null }),
       })),
-    setExportDialogOpen: (on) =>
-      set((s) => ({ chrome: { ...s.chrome, exportDialogOpen: on } })),
+    setExportRequested: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, exportRequested: on } })),
     setPrepareFocusTrackId: (prepareFocusTrackId) =>
       set({ prepareFocusTrackId }),
     setShareDialogOpen: (on) =>

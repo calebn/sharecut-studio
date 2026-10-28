@@ -45,6 +45,10 @@ const OFFERED: readonly ExportFormatSpec[] = [M4A, FLAC];
 
 const LOSSLESS = new Set(["flac", "wav", "alac"]);
 
+export function isLossless(ext: string): boolean {
+  return LOSSLESS.has(ext);
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -119,22 +123,10 @@ export function selectedFormats(
     .map((choice) => choice.spec);
 }
 
-/** Why Export is disabled, or null when it can start. */
-export function exportStartBlocker(
-  settings: ExportSettings | null,
-  selected: readonly string[],
-): string | null {
-  if (settings && !settings.wav && selected.length === 0) {
-    return "Choose at least one format.";
-  }
-  return null;
-}
-
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** Shared by the dialog, the status announcement and the Activity chip copy. */
 export function exportResultCopy(paths: readonly string[]): string {
   return `Exported ${plural(paths.length, "file", "files")} to export/`;
 }
@@ -158,15 +150,25 @@ export function loudnessTargetCopy(
   return `Mastered to ${db(target.lufs)} LUFS, peaks under ${db(target.truePeakDb)} dBTP.`;
 }
 
-/** What the master measured, from the job's `result.master` (`master_qc.json`). */
-export function masterMeasuredCopy(master: unknown): string | null {
+export function masterMeasured(
+  master: unknown,
+): { lufs: number; truePeak?: number } | null {
   const measured = asRecord(asRecord(master).measured);
   const lufs = measured.integrated_lufs;
   const peak = measured.true_peak_db;
   if (typeof lufs !== "number") {
     return null;
   }
-  return typeof peak === "number"
-    ? `Measured ${db(lufs)} LUFS, true peak ${db(peak)} dBTP.`
-    : `Measured ${db(lufs)} LUFS.`;
+  return typeof peak === "number" ? { lufs, truePeak: peak } : { lufs };
+}
+
+/** What the master measured, from the job's `result.master` (`master_qc.json`). */
+export function masterMeasuredCopy(master: unknown): string | null {
+  const measured = masterMeasured(master);
+  if (!measured) {
+    return null;
+  }
+  return measured.truePeak !== undefined
+    ? `Measured ${db(measured.lufs)} LUFS, true peak ${db(measured.truePeak)} dBTP.`
+    : `Measured ${db(measured.lufs)} LUFS.`;
 }

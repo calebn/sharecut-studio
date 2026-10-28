@@ -19,6 +19,7 @@ import {
   type DeliverEnv,
   type EpisodeSettings,
   type ExportFile,
+  type ExportOptions,
   type ExportRequest,
   type ExportState,
   exportBlocker,
@@ -85,8 +86,7 @@ export type DeliverStageProps = {
   showLink?: boolean;
   /** False when the app frame already carries the Player bar. */
   showPlayer?: boolean;
-  /** False when the host does not pass the format, loudness and range choices to Export. */
-  showSettings?: boolean;
+  exportOptions?: ExportOptions;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
   /** False when the host cannot save a clip's title or approval. */
@@ -139,7 +139,7 @@ export function DeliverStage({
   toastMs = 6000,
   showLink = true,
   showPlayer = true,
-  showSettings = true,
+  exportOptions,
   clipUndo = true,
   showClipEdits = true,
   onChapters,
@@ -160,6 +160,21 @@ export function DeliverStage({
   onRetry,
 }: DeliverStageProps) {
   const [settings, setSettings] = useState(initialSettings);
+  const hostFormats = exportOptions?.selected;
+  const hostKey = hostFormats?.join("\n");
+  const [seenHostKey, setSeenHostKey] = useState(hostKey);
+  if (hostKey !== seenHostKey) {
+    setSeenHostKey(hostKey);
+    if (hostFormats && hostKey !== settings.formats.join("\n")) {
+      setSettings({ ...settings, formats: [...hostFormats] });
+    }
+  }
+  const onFormats = exportOptions?.onFormats;
+  const changeSettings = (next: EpisodeSettings) => {
+    setSettings(next);
+    if (next.formats.join("\n") !== settings.formats.join("\n"))
+      onFormats?.(next.formats);
+  };
   const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
   const [clips, setClips] = useState<readonly Clip[]>(initialClips);
   const liveChapters = useWriteBack(chapters, onChapters);
@@ -177,10 +192,11 @@ export function DeliverStage({
 
   const blocker = loading
     ? "Still loading."
-    : exportBlocker(settings, exportState);
+    : exportBlocker(settings, exportState, exportOptions);
   const pick = validSelection(selection, total);
-  const request = exportRequest(settings, clips, chapters);
-  const keyRequest = exportRequest(settings, clips, chapters, pick);
+  const edits = exportOptions?.edits;
+  const request = exportRequest(settings, clips, chapters, undefined, edits);
+  const keyRequest = exportRequest(settings, clips, chapters, pick, edits);
   const shownState = currentExportState(exportState, request, keyRequest);
   const action = primaryAction(shownState, env);
 
@@ -355,8 +371,8 @@ export function DeliverStage({
               env={env}
               state={sharedState}
               dock={phone}
-              showSettings={showSettings}
-              onSettings={setSettings}
+              options={exportOptions}
+              onSettings={changeSettings}
               onChangeFolder={onChangeFolder}
               onExport={() => startExport()}
               onGetModel={onGetModel}
