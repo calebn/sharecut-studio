@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
+import { CENTER, NEAREST, probeScript } from "../../system/scriptScrollProbe";
 import { minimalProject } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { CombinedUtterance } from "../../types/project";
@@ -230,30 +231,26 @@ describe("GuestScriptHost", () => {
   });
 
   it("stops following on scroll and Back to playhead follows again", async () => {
-    const scroll = vi.fn();
-    window.HTMLElement.prototype.scrollIntoView = scroll;
     as("view", 11.2);
     render(<GuestScriptHost />);
     const body = document.querySelector(".sys-script-body") as HTMLElement;
+    const probe = probeScript(body);
     fireEvent.wheel(body);
     fireEvent.scroll(body);
-    scroll.mockClear();
+    probe.clear();
     await userEvent.click(
       screen.getByRole("button", { name: /Back to playhead/ }),
     );
-    expect(scroll).toHaveBeenCalledWith({ block: "center" });
+    expect(probe.calls[0]?.[1]).toBe(CENTER);
+    probe.restore();
     expect(
       screen.queryByRole("button", { name: /Back to playhead/ }),
     ).toBeNull();
   });
 
   describe("following playback", () => {
-    const scroll = vi.fn();
-    const scrolledTo = () =>
-      scroll.mock.calls.map(([arg], i) => [
-        (scroll.mock.contexts[i] as HTMLElement).textContent,
-        arg,
-      ]);
+    let probe: ReturnType<typeof probeScript>;
+    const scrolledTo = () => probe.calls;
     const scrollAway = () => {
       const body = document.querySelector(".sys-script-body") as HTMLElement;
       fireEvent.wheel(body);
@@ -262,50 +259,53 @@ describe("GuestScriptHost", () => {
     const moveTo = (playheadSec: number) =>
       act(() => useDawStore.setState({ playheadSec }));
 
-    beforeEach(() => {
-      scroll.mockClear();
-      window.HTMLElement.prototype.scrollIntoView = scroll;
-    });
+    const mount = () => {
+      render(<GuestScriptHost />);
+      probe = probeScript(
+        document.querySelector(".sys-script-body") as HTMLElement,
+      );
+    };
+    afterEach(() => probe?.restore());
 
     it("scrolls to the playing word when it changes", () => {
       as("view", 10.1);
-      render(<GuestScriptHost />);
-      scroll.mockClear();
+      mount();
+      probe.clear();
       moveTo(11.2);
-      expect(scrolledTo()).toEqual([["back", { block: "nearest" }]]);
+      expect(scrolledTo()).toEqual([["back", NEAREST]]);
     });
 
     it("does not scroll once the guest scrolls away", () => {
       as("view", 10.1);
-      render(<GuestScriptHost />);
+      mount();
       scrollAway();
-      scroll.mockClear();
+      probe.clear();
       moveTo(11.2);
-      expect(scroll).not.toHaveBeenCalled();
+      expect(scrolledTo()).toEqual([]);
     });
 
     it("scrolls again after Back to playhead", async () => {
       as("view", 10.1);
-      render(<GuestScriptHost />);
+      mount();
       scrollAway();
       await userEvent.click(
         screen.getByRole("button", { name: /Back to playhead/ }),
       );
-      scroll.mockClear();
+      probe.clear();
       moveTo(11.2);
-      expect(scrolledTo()).toEqual([["back", { block: "nearest" }]]);
+      expect(scrolledTo()).toEqual([["back", NEAREST]]);
     });
 
     it("offers Back to playhead in a pause and targets the last heard word", async () => {
       as("view", 10.1);
-      render(<GuestScriptHost />);
+      mount();
       scrollAway();
       moveTo(10.8);
-      scroll.mockClear();
+      probe.clear();
       await userEvent.click(
         screen.getByRole("button", { name: /Back to playhead/ }),
       );
-      expect(scrolledTo()[0]).toEqual(["Welcome", { block: "center" }]);
+      expect(scrolledTo()[0]).toEqual(["Welcome", CENTER]);
       expect(
         document.querySelector(".sys-script-word[data-playing]"),
       ).toBeNull();
