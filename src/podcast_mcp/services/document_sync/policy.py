@@ -86,13 +86,23 @@ def may_decide_exact_range(caps: list[str] | None, range_policy: str) -> bool:
 def must_skip_unsure(caps: list[str] | None, ids: object, requested: bool) -> bool:
     """Whether ``ApproveEdits`` must hold the cuts that cover an unsure word.
 
-    The host's CLI and MCP bulk approve ask for it (``skip_unsure``); a Studio bulk verb does not yet. A guest never gets to
-    choose: a guest approve of more than one edit always holds them, so a share link cannot
+    The host's CLI and MCP bulk approve ask for it (``skip_unsure``); the Studio client does not
+    send it yet. A guest never gets to choose: a guest approve of more than one edit always holds them, so a share link cannot
     cut unsure words in bulk by leaving the flag off. One edit by name still cuts.
     """
     if requested:
         return True
     return caps is not None and isinstance(ids, list) and len(set(map(str, ids))) > 1
+
+
+def must_skip_unsure_suggested(caps: list[str] | None, requested: bool) -> bool:
+    """Whether ``ApplySuggestedActions`` must hold the cuts that cover an unsure word.
+
+    The host's CLI and MCP ask for it (``skip_unsure``) on the all-suggested path and for
+    several ids; a Studio verb does not yet. A guest never gets to choose: every guest apply
+    holds them, so a share link cannot cut unsure words in bulk by leaving the flag off.
+    """
+    return requested or caps is not None
 
 
 def authorize_pending_update(

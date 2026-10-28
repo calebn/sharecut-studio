@@ -798,6 +798,7 @@ class DocumentSyncService:
             authorize_pending_update,
             may_decide_exact_range,
             must_skip_unsure,
+            must_skip_unsure_suggested,
             range_reason,
             resolve_range_mode,
             resolve_structural_mode,
@@ -827,6 +828,10 @@ class DocumentSyncService:
         if command.type == "ApproveEdits":
             payload["skip_unsure"] = must_skip_unsure(
                 capabilities, payload.get("ids"), payload.get("skip_unsure") is True
+            )
+        if command.type == "ApplySuggestedActions":
+            payload["skip_unsure"] = must_skip_unsure_suggested(
+                capabilities, payload.get("skip_unsure") is True
             )
         if command.type == "EditSelectedRange":
             from podcast_mcp.services.document_sync.payloads import validate_payload

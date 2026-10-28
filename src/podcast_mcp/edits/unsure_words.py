@@ -99,6 +99,26 @@ class NothingLeftToApply(Exception):
     """Raised inside a mutation when a re-check held every cut: roll back, save and step nothing."""
 
 
+def hold_unsure_actions(
+    project: EpisodeProject, actions: dict[str, str], threshold: float
+) -> list[str]:
+    """Drop the cut and shorten actions over an unsure word from ``actions``; return their ids.
+
+    Same rule and same saved-words reading as :func:`hold_unsure_cuts`. Lower and leave never
+    cut a word, so they stay in ``actions``.
+    """
+    held: list[HeldEdit] = []
+    hold_unsure_cuts(
+        project,
+        [i for i, action in actions.items() if action in ("cut", "shorten")],
+        threshold,
+        held,
+    )
+    for item in held:
+        del actions[item.edit_id]
+    return [item.edit_id for item in held]
+
+
 def hold_unsure_cuts(
     project: EpisodeProject, ids: list[str], threshold: float, held: list[HeldEdit]
 ) -> list[str]:
