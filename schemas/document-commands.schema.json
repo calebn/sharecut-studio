@@ -1056,6 +1056,134 @@
       "title": "ApplyAutoEditsPayload",
       "type": "object"
     },
+    "ApplyEditPlanCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/ApplyEditPlanPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "ApplyEditPlan",
+          "default": "ApplyEditPlan",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "ApplyEditPlanCommand",
+      "type": "object"
+    },
+    "ApplyEditPlanPayload": {
+      "properties": {
+        "edits": {
+          "items": {
+            "$ref": "#/$defs/EditPlanEntry"
+          },
+          "title": "Edits",
+          "type": "array"
+        },
+        "review_required": {
+          "default": true,
+          "title": "Review Required",
+          "type": "boolean"
+        },
+        "use_inaudible_opt": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Use Inaudible Opt"
+        }
+      },
+      "required": [
+        "edits"
+      ],
+      "title": "ApplyEditPlanPayload",
+      "type": "object"
+    },
     "ApplyFadeRecommendationListCommand": {
       "properties": {
         "causation_id": {
@@ -3229,6 +3357,68 @@
       ],
       "title": "EditMode",
       "type": "string"
+    },
+    "EditPlanEntry": {
+      "properties": {
+        "applied": {
+          "default": false,
+          "title": "Applied",
+          "type": "boolean"
+        },
+        "crossfade_ms": {
+          "default": 10,
+          "title": "Crossfade Ms",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "reason": {
+          "default": "agent:plan",
+          "title": "Reason",
+          "type": "string"
+        },
+        "review_required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Required"
+        },
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        },
+        "use_inaudible_opt": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Use Inaudible Opt"
+        }
+      },
+      "required": [
+        "track_id",
+        "start",
+        "end"
+      ],
+      "title": "EditPlanEntry",
+      "type": "object"
     },
     "EditSelectedRangeCommand": {
       "properties": {
@@ -10130,6 +10320,7 @@
       "AddSocialClip": "#/$defs/AddSocialClipCommand",
       "AddTrack": "#/$defs/AddTrackCommand",
       "ApplyAutoEdits": "#/$defs/ApplyAutoEditsCommand",
+      "ApplyEditPlan": "#/$defs/ApplyEditPlanCommand",
       "ApplyFadeRecommendationList": "#/$defs/ApplyFadeRecommendationListCommand",
       "ApplyFadeRecommendations": "#/$defs/ApplyFadeRecommendationsCommand",
       "ApplySuggestedActions": "#/$defs/ApplySuggestedActionsCommand",
@@ -10371,6 +10562,9 @@
     },
     {
       "$ref": "#/$defs/ApplyAutoEditsCommand"
+    },
+    {
+      "$ref": "#/$defs/ApplyEditPlanCommand"
     },
     {
       "$ref": "#/$defs/FadeJoinsCommand"

@@ -9,6 +9,7 @@ export type DocumentCommandType =
   | "AddSocialClip"
   | "AddTrack"
   | "ApplyAutoEdits"
+  | "ApplyEditPlan"
   | "ApplyFadeRecommendationList"
   | "ApplyFadeRecommendations"
   | "ApplySuggestedActions"
@@ -84,6 +85,7 @@ export const DocumentCommand = {
   AddSocialClip: "AddSocialClip",
   AddTrack: "AddTrack",
   ApplyAutoEdits: "ApplyAutoEdits",
+  ApplyEditPlan: "ApplyEditPlan",
   ApplyFadeRecommendationList: "ApplyFadeRecommendationList",
   ApplyFadeRecommendations: "ApplyFadeRecommendations",
   ApplySuggestedActions: "ApplySuggestedActions",

@@ -68,6 +68,7 @@ DocumentCommandType = Literal[
     "InsertGap",
     "FillRoomTone",
     "ApplyAutoEdits",
+    "ApplyEditPlan",
     "FadeJoins",
     "CrossfadeJoins",
     "MoveByText",

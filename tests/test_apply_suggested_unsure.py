@@ -305,15 +305,20 @@ def test_no_guest_path_reaches_apply_edit_plan():
     from pathlib import Path
 
     import podcast_mcp
-    from podcast_mcp.services.document_sync.payloads import _PAYLOAD_BY_TYPE as PAYLOAD_MODELS
+    from podcast_mcp.services.document_sync.capabilities import (
+        EDIT_COMMANDS,
+        ROLE_DOCUMENT_COMMANDS,
+        SUGGEST_COMMANDS,
+    )
     from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS
 
     assert not [t for t in ALL_GUEST_TOOLS if "edit_plan" in t]
-    assert not [t for t in PAYLOAD_MODELS if "Plan" in t]
+    assert "ApplyEditPlan" not in EDIT_COMMANDS | SUGGEST_COMMANDS
+    assert all("ApplyEditPlan" not in granted for granted in ROLE_DOCUMENT_COMMANDS.values())
     root = Path(podcast_mcp.__file__).parent
     callers = {
         str(p.relative_to(root))
         for p in root.rglob("*.py")
         if re.search(r"\.apply_plan\(", p.read_text())
     }
-    assert callers == {"mcp/tools/edits.py"}
+    assert callers == {"services/document_sync/handlers/edits.py"}
