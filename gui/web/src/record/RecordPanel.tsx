@@ -56,14 +56,6 @@ function RecordPanelBody({ room }: { room: HostRoom }) {
     noAudioShown.current = noAudioNeedsAttention;
   }, [noAudioNeedsAttention, setRecordPanelOpen, shareDialogOpen]);
 
-  const wasOpen = useRef(recordPanelOpen);
-  useEffect(() => {
-    if (recordPanelOpen && !wasOpen.current) {
-      recheck();
-    }
-    wasOpen.current = recordPanelOpen;
-  }, [recordPanelOpen, recheck]);
-
   const takeControlRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!state) {
@@ -158,7 +150,8 @@ function RecordPanelBody({ room }: { room: HostRoom }) {
 }
 
 function StandaloneRecordPanel(props: Props) {
-  const room = useHostRoom(props);
+  const open = useDaw((s) => s.chrome.recordPanelOpen);
+  const room = useHostRoom(props, { hydrate: open });
   return <RecordPanelBody room={room} />;
 }
 
