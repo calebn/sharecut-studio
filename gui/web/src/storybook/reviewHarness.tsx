@@ -6,31 +6,24 @@ import {
 } from "../review/ReviewStage";
 import type { ReviewEntry } from "../review/reviewItems";
 import type { ReviewFilter, ReviewItem } from "../review/reviewQueueModel";
-import { useReviewSession } from "../review/reviewSession";
+import {
+  type SessionStageProps,
+  useReviewSession,
+} from "../review/reviewSession";
 import { KIND_META } from "../system/decisionKinds";
 import type { SystemIconName } from "../system/icons";
 import { SystemIcon } from "../system/SystemIcon";
 import { iconOf } from "../system/verbDisplay";
 import { Toast } from "../ui";
 
-type SessionProps =
-  | "ref"
-  | "items"
-  | "selectedId"
-  | "filter"
-  | "looksRight"
-  | "onSelect"
-  | "onFilter"
-  | "onLooksRight"
-  | "onDecide";
-
-export type ReviewStageHarnessProps = Omit<ReviewStageProps, SessionProps> & {
+export type ReviewStageHarnessProps = Omit<
+  ReviewStageProps,
+  Exclude<keyof SessionStageProps, "content"> | "ref" | "onDecide"
+> & {
   initialItems: readonly ReviewItem[];
   initialSelectedId?: string;
   initialFilter?: ReviewFilter;
-  /** Undo toast lifetime in ms. */
   toastMs?: number;
-  /** Called with every intent before the session records it. */
   onDecide?: (intent: ReviewIntent) => void;
 };
 
@@ -41,11 +34,7 @@ type Shown = {
   icon: SystemIconName;
 };
 
-/**
- * Story and test host: `useReviewSession` over fixtures, plus the Undo toast
- * the frame owns in the app. Undo reverts and returns focus to the stage ref,
- * the contract `announceStatus`'s `returnFocus` carries. Never imported by app code.
- */
+/** Story and test host: `useReviewSession` over fixtures plus the Undo toast. Never imported by app code. */
 export function ReviewStageHarness({
   initialItems,
   initialSelectedId,

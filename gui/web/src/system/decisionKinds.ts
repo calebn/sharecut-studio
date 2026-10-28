@@ -18,30 +18,18 @@ export type DecisionKindMeta = {
   readonly verb: VerbId;
   /** The word on the primary button when it differs from the verb label. */
   readonly verbLabel?: string;
-  /** Changes audio, so the card may draw a waveform when the content has one. */
-  readonly wave: boolean;
+  readonly wave?: true;
 };
 
 export const KIND_META: Readonly<Record<DecisionKind, DecisionKindMeta>> = {
-  check: {
-    label: "Check",
-    icon: "triangle-alert",
-    verb: "approve",
-    wave: false,
-  },
+  check: { label: "Check", icon: "triangle-alert", verb: "approve" },
   "unsure-word": {
     label: "Unsure word",
     icon: "circle-help",
     verb: "approve",
     verbLabel: "Looks right",
-    wave: false,
   },
-  comment: {
-    label: "Comment",
-    icon: "message-square",
-    verb: "resolve",
-    wave: false,
-  },
+  comment: { label: "Comment", icon: "message-square", verb: "resolve" },
   filler: { label: "Filler", icon: "scissors", verb: "cut", wave: true },
   pause: {
     label: "Pause",

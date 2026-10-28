@@ -16,9 +16,7 @@ export type ReviewItem = {
   unsure?: boolean;
   /** The server will not apply it yet. */
   blocked?: boolean;
-  /** Server table action. "leave" means Keep is the right answer; never in a group verb. Absent for checks and comments. */
   suggested?: "cut" | "shorten" | "lower" | "leave";
-  /** listen_one_by_one or harsh: decided alone, never in a group verb. */
   oneByOne?: boolean;
   /** The refine check: the only one that Cut anyway and the last unsure word resolve. */
   transcript?: boolean;
@@ -44,43 +42,34 @@ export type ReviewGroup = {
 type QueueKind = {
   readonly group: string;
   readonly filter: Exclude<ReviewFilter, "all">;
-  /** An open transcript check holds this kind's verb until Cut anyway. */
   readonly gated: boolean;
-  /** May join a group verb. Per-item exclusions are in bulkEligible. */
   readonly bulk: boolean;
 };
 
-/** Row order is queue order. A kind without a row fails tsc. */
+const held = (group: string, filter: QueueKind["filter"]): QueueKind => ({
+  group,
+  filter,
+  gated: false,
+  bulk: false,
+});
+
+const cut = (group: string, bulk = true): QueueKind => ({
+  group,
+  filter: "suggestions",
+  gated: true,
+  bulk,
+});
+
 const QUEUE_KIND: Readonly<Record<DecisionKind, QueueKind>> = {
-  check: { group: "Checks", filter: "checks", gated: false, bulk: false },
-  "unsure-word": {
-    group: "Unsure words",
-    filter: "checks",
-    gated: false,
-    bulk: false,
-  },
-  comment: {
-    group: "Comments",
-    filter: "comments",
-    gated: false,
-    bulk: false,
-  },
-  filler: { group: "Fillers", filter: "suggestions", gated: true, bulk: true },
-  pause: { group: "Pauses", filter: "suggestions", gated: true, bulk: true },
-  repeat: { group: "Repeats", filter: "suggestions", gated: true, bulk: true },
-  "false-start": {
-    group: "False starts",
-    filter: "suggestions",
-    gated: true,
-    bulk: true,
-  },
-  sound: { group: "Sounds", filter: "suggestions", gated: true, bulk: true },
-  suggestion: {
-    group: "Other suggestions",
-    filter: "suggestions",
-    gated: true,
-    bulk: false,
-  },
+  check: held("Checks", "checks"),
+  "unsure-word": held("Unsure words", "checks"),
+  comment: held("Comments", "comments"),
+  filler: cut("Fillers"),
+  pause: cut("Pauses"),
+  repeat: cut("Repeats"),
+  "false-start": cut("False starts"),
+  sound: cut("Sounds"),
+  suggestion: cut("Other suggestions", false),
 };
 
 export const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
