@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer } from "react";
 import { type DecisionPlan, planDecision, stepUndecided } from "./advance";
 import type { ReviewContent } from "./ReviewQueue";
-import type { ReviewIntent, ReviewStageProps } from "./ReviewStage";
+import type { ReviewIntent } from "./ReviewStage";
 import type { ReviewEntry } from "./reviewItems";
 import type { ReviewFilter } from "./reviewQueueModel";
 
@@ -17,17 +17,7 @@ export type ReviewSession = {
   readonly looksRight: ReadonlySet<string>;
 };
 
-export type SessionStageProps = Pick<
-  ReviewStageProps,
-  | "items"
-  | "content"
-  | "selectedId"
-  | "filter"
-  | "looksRight"
-  | "onSelect"
-  | "onFilter"
-  | "onLooksRight"
->;
+export type SessionStageProps = ReturnType<typeof useReviewSession>["props"];
 
 export type SessionAction =
   | { type: "select"; id: string | null }
@@ -45,12 +35,15 @@ export function mergeOpen(
   decided: ReviewSession["decided"],
 ): ReviewEntry[] {
   const openIds = new Set(open.map((e) => e.item.id));
-  const shown = open.map((e) => {
-    const hit = decided.get(e.item.id);
-    return hit && !hit.left ? hit.entry : e;
-  });
-  const rest = [...decided.values()].filter((hit) => !openIds.has(idOf(hit)));
-  return [...shown, ...rest.map((hit) => hit.entry)];
+  return [
+    ...open.map((e) => {
+      const hit = decided.get(e.item.id);
+      return hit && !hit.left ? hit.entry : e;
+    }),
+    ...[...decided.values()]
+      .filter((hit) => !openIds.has(idOf(hit)))
+      .map((hit) => hit.entry),
+  ];
 }
 
 const without = <T>(set: ReadonlySet<T>, drop: readonly T[]) =>
@@ -61,13 +54,10 @@ function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
   const hits = [...s.decided.values()];
   const back = hits.filter((hit) => hit.left && openIds.has(idOf(hit)));
   const gone = hits.filter((hit) => !hit.left && !openIds.has(idOf(hit)));
-  let base = s;
-  if (back.length || gone.length) {
-    const decided = new Map(s.decided);
-    for (const hit of back) decided.delete(idOf(hit));
-    for (const hit of gone) decided.set(idOf(hit), { ...hit, left: true });
-    base = { ...s, decided };
-  }
+  const decided = new Map(s.decided);
+  for (const hit of back) decided.delete(idOf(hit));
+  for (const hit of gone) decided.set(idOf(hit), { ...hit, left: true });
+  const base = back.length || gone.length ? { ...s, decided } : s;
   const first = back[0];
   if (first) {
     return {
@@ -110,13 +100,12 @@ export function reviewSession(
     case "revert": {
       const hit = a.ids.filter((id) => s.decided.has(id));
       if (hit.length === 0) return s;
-      const back = hit.filter((id) => !s.decided.get(id)?.left);
       const decided = new Map(s.decided);
       for (const id of hit) decided.delete(id);
       return {
         ...s,
         decided,
-        selectedId: back[0] ?? s.selectedId,
+        selectedId: hit.find((id) => !s.decided.get(id)?.left) ?? s.selectedId,
         looksRight: without(s.looksRight, hit),
       };
     }
@@ -133,11 +122,7 @@ const NO_CONTENT: ReviewContent = {
 export function useReviewSession(
   open: readonly ReviewEntry[],
   init: { selectedId?: string; filter?: ReviewFilter } = {},
-): {
-  props: SessionStageProps;
-  decide: (intent: ReviewIntent) => DecisionPlan | null;
-  revert: (ids: readonly string[]) => void;
-} {
+) {
   const [s, dispatch] = useReducer(reviewSession, undefined, () => {
     const filter = init.filter ?? "all";
     const items = open.map((e) => e.item);
@@ -165,11 +150,11 @@ export function useReviewSession(
       selectedId: s.selectedId,
       filter: s.filter,
       looksRight: s.looksRight,
-      onSelect: (id) => dispatch({ type: "select", id }),
-      onFilter: (filter) => dispatch({ type: "filter", filter }),
-      onLooksRight: (id) => dispatch({ type: "looksRight", id }),
+      onSelect: (id: string | null) => dispatch({ type: "select", id }),
+      onFilter: (filter: ReviewFilter) => dispatch({ type: "filter", filter }),
+      onLooksRight: (id: string) => dispatch({ type: "looksRight", id }),
     },
-    decide: ({ ids, result, waive }) => {
+    decide: ({ ids, result, waive }: ReviewIntent): DecisionPlan | null => {
       const plan = planDecision(items, ids, result, {
         filter: s.filter,
         waive: !!waive,
@@ -181,6 +166,6 @@ export function useReviewSession(
       dispatch({ type: "decided", plan, snapshot: merged });
       return plan;
     },
-    revert: (ids) => dispatch({ type: "revert", ids }),
+    revert: (ids: readonly string[]) => dispatch({ type: "revert", ids }),
   };
 }

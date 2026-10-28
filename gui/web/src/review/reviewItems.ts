@@ -1,6 +1,6 @@
 import type { DecisionKind } from "../system/decisionKinds";
 import { formatSeconds } from "../system/seconds";
-import type { PendingEditView, PendingKind } from "../types/project";
+import type { PendingEditView } from "../types/project";
 import { formatTimeShort } from "../utils/time";
 import type { ReviewContent } from "./ReviewQueue";
 import type { ReviewItem } from "./reviewQueueModel";
@@ -10,20 +10,16 @@ export type ReviewEntry = {
   readonly content: ReviewContent;
 };
 
-const KIND_OF: Record<PendingKind, DecisionKind> = {
-  filler: "filler",
-  pause: "pause",
-  repeat: "repeat",
-  "false-start": "false-start",
-  sound: "sound",
-  other: "suggestion",
-};
+const SAME_KIND = [
+  "filler",
+  "pause",
+  "repeat",
+  "false-start",
+  "sound",
+] as const;
 
-export function decisionKindOf(kind: unknown): DecisionKind {
-  return typeof kind === "string" && Object.hasOwn(KIND_OF, kind)
-    ? KIND_OF[kind as PendingKind]
-    : "suggestion";
-}
+export const decisionKindOf = (kind: unknown): DecisionKind =>
+  SAME_KIND.find((k) => k === kind) ?? "suggestion";
 
 const PREFIX = "edit:";
 
@@ -34,27 +30,21 @@ export const editIdOf = (reviewId: string): string | null =>
 
 const SUGGESTED = ["cut", "shorten", "lower", "leave"] as const;
 
-const suggestedOf = (action: string | null | undefined) =>
-  !action
-    ? undefined
-    : (SUGGESTED.find((a) => a === action) ?? ("leave" as const));
-
-const spanSeconds = (s: { start: number; end: number }) => {
-  const length = s.end - s.start;
-  return Number.isFinite(length) && length > 0 ? length : 0;
-};
-
-const savedSecondsOf = (edit: PendingEditView, suggested?: string) =>
-  suggested === "lower" || suggested === "leave"
-    ? 0
-    : (edit.timeline_spans ?? []).reduce((sum, s) => sum + spanSeconds(s), 0);
-
 function entryOf(edit: PendingEditView): ReviewEntry {
   const at = Number.isFinite(edit.timeline_start)
     ? (edit.timeline_start as number)
     : Number.POSITIVE_INFINITY;
-  const suggested = suggestedOf(edit.suggested_action);
-  const savedSeconds = savedSecondsOf(edit, suggested);
+  const action = edit.suggested_action;
+  const suggested = !action
+    ? undefined
+    : (SUGGESTED.find((a) => a === action) ?? ("leave" as const));
+  const savedSeconds =
+    suggested === "lower" || suggested === "leave"
+      ? 0
+      : (edit.timeline_spans ?? []).reduce((sum, s) => {
+          const length = s.end - s.start;
+          return Number.isFinite(length) && length > 0 ? sum + length : sum;
+        }, 0);
   const title = edit.label ?? "Suggestion";
   const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
   return {
