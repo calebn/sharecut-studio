@@ -797,6 +797,8 @@ class PasteRejectedError(CodedError, ValueError):
         super().__init__(f"{code}: {detail}", code=code)
 
 
+DEFAULT_SHORTEN_GAP_SEC = 0.35
+
 _PASTE_EDGE_TOLERANCE_SEC = 1e-3
 
 
@@ -1144,7 +1146,7 @@ def roll_clip_join(
 
 def plan_shorten_word_gaps(
     project: EpisodeProject,
-    max_gap_sec: float = 0.35,
+    max_gap_sec: float = DEFAULT_SHORTEN_GAP_SEC,
     *,
     use_inaudible_opt: bool | None = None,
     defaults: EffectiveConfig,

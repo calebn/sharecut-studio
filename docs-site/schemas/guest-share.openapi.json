@@ -7999,6 +7999,124 @@
         "title": "ShareReplyRequest",
         "type": "object"
       },
+      "ShortenWordGapsCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ShortenWordGapsPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ShortenWordGaps",
+            "default": "ShortenWordGaps",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "ShortenWordGapsCommand",
+        "type": "object"
+      },
+      "ShortenWordGapsPayload": {
+        "properties": {
+          "max_gap_sec": {
+            "default": 0.35,
+            "title": "Max Gap Sec",
+            "type": "number"
+          },
+          "override_audio_checks": {
+            "default": false,
+            "description": "Apply even if the automatic audio-quality and cut-position checks would hold this edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that may run the command; the history entry and applied edits record who overrode and through which surface.",
+            "title": "Override Audio Checks",
+            "type": "boolean"
+          },
+          "use_inaudible_opt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Inaudible Opt"
+          }
+        },
+        "title": "ShortenWordGapsPayload",
+        "type": "object"
+      },
       "SourceSpan": {
         "description": "``[start_s, end_s)`` in source-media seconds.",
         "properties": {
@@ -11152,6 +11270,7 @@
                     "SetTranscriptWordSuppressed": "#/components/schemas/SetTranscriptWordSuppressedCommand",
                     "SetTranscriptWordTiming": "#/components/schemas/SetTranscriptWordTimingCommand",
                     "SetTranscriptWordsIgnored": "#/components/schemas/SetTranscriptWordsIgnoredCommand",
+                    "ShortenWordGaps": "#/components/schemas/ShortenWordGapsCommand",
                     "SplitAtTime": "#/components/schemas/SplitAtTimeCommand",
                     "StageTextMatchCut": "#/components/schemas/StageTextMatchCutCommand",
                     "StageTimeRangeCut": "#/components/schemas/StageTimeRangeCutCommand",
@@ -11347,6 +11466,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/ApplyEditPlanCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ShortenWordGapsCommand"
                   },
                   {
                     "$ref": "#/components/schemas/FadeJoinsCommand"

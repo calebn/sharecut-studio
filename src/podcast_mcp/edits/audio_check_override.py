@@ -10,7 +10,7 @@ History and every applied edit record who overrode and through which surface.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
@@ -19,6 +19,8 @@ from podcast_mcp.models import CutIntent
 
 OVERRIDE_PARAM = "audio_check_override"
 OVERRIDE_FLAG = "override_audio_checks"
+MCP_HOST_ACTOR = "mcp:host"
+MCP_HOST_SURFACE = "host_mcp"
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,10 @@ def audio_check_override(
         yield override
     finally:
         _ACTIVE.reset(token)
+
+
+def mcp_host_override(*, enabled: bool = True) -> AbstractContextManager[AudioCheckOverride | None]:
+    return audio_check_override(MCP_HOST_ACTOR, MCP_HOST_SURFACE, enabled=enabled)
 
 
 def is_human_intent(intent: CutIntent) -> bool:

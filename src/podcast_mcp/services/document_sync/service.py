@@ -814,6 +814,7 @@ class DocumentSyncService:
             "RejectEdits",
             "ApplySuggestedActions",
             "ApplyEditPlan",
+            "ShortenWordGaps",
             "UndoHistory",
             "RedoHistory",
         }:

@@ -69,6 +69,7 @@ DocumentCommandType = Literal[
     "FillRoomTone",
     "ApplyAutoEdits",
     "ApplyEditPlan",
+    "ShortenWordGaps",
     "FadeJoins",
     "CrossfadeJoins",
     "MoveByText",

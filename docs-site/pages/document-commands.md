@@ -89,6 +89,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTranscriptWordSuppressed` | `suppressed` (boolean), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `SetTranscriptWordTiming` | `end` (number), `expected_token` (string), `start` (number), `target` (object) | — |
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
+| `ShortenWordGaps` | — | `max_gap_sec` (number), `override_audio_checks` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `StageTextMatchCut` | `query` (string) | `match_all` (boolean), `review_required` (boolean), `speaker` (string \| null), `track_id` (string \| null), `use_inaudible_opt` (boolean \| null) |
 | `StageTimeRangeCut` | `end` (number), `start` (number), `track_id` (string) | `reason` (string \| null), `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
@@ -105,7 +106,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 73 command types._
+_Generated 74 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`
