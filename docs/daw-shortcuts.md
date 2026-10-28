@@ -18,8 +18,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused |
-| `K` | Stop playback (`transport.stop`) | Always (when not typing in an input) | K alone stops playback; Mod+K is Blade cut |
+| `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused; Shift+Space is Hear |
+| `K` | Stop playback (`transport.stop`) | Always (when not typing in an input) | K alone stops playback; Mod+K splits at the playhead |
 | `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B: rebuild stems/premix when host or Docs Editor |
 
 ## navigation
@@ -46,6 +46,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace: selected tighten hit |
 | `Mod+Shift+Enter` | Apply suggested actions (`tighten.applySuggested`) | tightenPanelOpen | Mod+Shift+Enter: every listed sound gets its own suggested action |
 | `P` | Preview tighten hit (`tighten.previewHit`) | tightenPanelOpen | P: rendered Suggested preview when possible |
+| `C` | Add comment (`comment.draftAt`) | Host or a link that can comment | C: comment on the selection, else at the playhead; Mod+C is Copy |
 
 ## history
 
@@ -59,7 +60,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
 | `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: focused word in Navigate mode |
-| `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | Also clears track targeting |
+| `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | Closes the Inspector first, then clears the selection and track targeting |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
 | `ArrowLeft` | Trim clip edge (`edit.trimClipEdge`) | focusedTrimHandle | Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels. |
 | `Mod+C` | Copy (`edit.copy`) | editStage | Mod+C |
@@ -69,13 +70,21 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `ArrowUp` | Move track up (`track.moveUp`) | editStageMoveSelectedTrackUp | Inspector track selected |
 | `ArrowDown` | Move track down (`track.moveDown`) | editStageMoveSelectedTrackDown | Inspector track selected |
 | `Shift+F10` | Create here (`create.menu`) | Timeline focused | Shift+F10: create menu at the focused target or the playhead; the Menu key too |
-| `Backspace` | Delete clip (`edit.delete`) | editStageStructural |  |
+| `Backspace` | Cut selection (`edit.delete`) | editStageStructural |  |
 | `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | editStageStructural | Mod+Backspace |
-| `Mod+K` | Blade cut (`edit.bladeCut`) | editStageStructural | Mod+K: cut at playhead — Mod+K cuts; K alone stops playback |
+| `Mod+K` | Split at playhead (`edit.bladeCut`) | editStageStructural | Mod+K: split at the playhead — Mod+K splits; K alone stops playback |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
 | `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A: Logic-style; empty targeting |
-| `M` | Toggle track mute (`track.muteToggle`) | Project loaded | M mutes the targeted track; on the Record stage, M drops a marker instead |
-| `S` | Toggle track solo (`track.soloToggle`) | Project loaded |  |
+| `M` | Mute (`edit.mute`) | Project loaded | M mutes what is selected (words, a range, a clip), else the targeted track; on the Record stage, M drops a marker instead |
+| `Shift+S` | Toggle track solo (`track.soloToggle`) | Project loaded | Shift+S: S is Split |
+| `S` | Split (`edit.split`) | editStageStructural | S: split at the playhead, or at both edges of the selected words or range, as one undo step — S splits; Shift+S solos the targeted track; Mod+K splits at the playhead |
+| `Space` | Hear (`edit.hear`) | editStage | Shift+Space: hear the selection |
+| `A` | Hear before (`edit.hearBefore`) | editStage | A: the suggestion as it is now |
+| `B` | Hear after (`edit.hearAfter`) | editStage | B: the suggestion applied |
+| `X` | Keep (`edit.keep`) | editStage | X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard |
+| `I` | Inspect (`edit.inspect`) | editStage | I: open or close the Inspector for the selection; Mod+I is Import |
+| `.` | More (`edit.more`) | editStage | .: open the Action bar's More menu |
+| `Shift+C` | Add chapter at playhead (`edit.addChapter`) | Loaded host project | Shift+C: add a chapter at the playhead |
 | `Mod+Shift+T` | New track (`track.add`) | editStageIngest | Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T) |
 | `Mod+I` | Import audio… (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
 
@@ -97,7 +106,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes the targeted track — M drops a marker only on the Record stage; otherwise M mutes the targeted track |
+| `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes — M drops a marker only on the Record stage; otherwise M mutes |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
 | `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: bounce dialog (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
@@ -108,7 +117,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `Escape` | Stop following (`presence.unfollow`) | While following another client |  |
+| `Escape` | Stop following (`presence.unfollow`) | While following another client | After the selection: Esc clears what is selected, then stops following |
 
 ## Commands without default keys
 
@@ -130,6 +139,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Comment on range | `range.comment` | Project loaded |  |
 | Bounce selected range | `range.bounce` | Project loaded |  |
 | Select a range | `range.arm` | Project loaded |  |
+| Toggle track mute | `track.muteToggle` | Project loaded | M: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in an input) | Toggle: fill the stage height, or a fixed track height |
@@ -162,9 +172,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join glyph popover on the timeline; Incoming transition select and Apply transition length in the clip inspector |
 | Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — Clip inspector Apply move or pointer body drag; one clip or a multi-selection. Inspector placementToken is rechecked inside the mutation queue. |
-| Add chapter at playhead | `edit.addChapter` | Loaded host project | Args: { atTime?: number } → chapter titled from that time (the touch create menu's held time), else the playhead (AddChapter); turns the Markers layer on. Host only. |
 | Add envelope point | `envelope.addPoint` | Host or shared edit mode | Args: { trackId: string, atTime: number } → visible volume layer required; SetEnvelope with a point at the envelope's current level there; the touch create menu |
-| Add comment | `comment.draftAt` | Host or a link that can comment | Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu |
 | Change an applied sound | `tighten.reviseSuggested` | tightenPanelOpen | Args: { id: string, action: cut \| shorten \| lower \| leave }: ApplySuggestedActions revise of the latest batch |
 | Go to tighten hit | `tighten.goToHit` | tightenPanelOpen | Args: { id?: string }: seek + select pending |
 
