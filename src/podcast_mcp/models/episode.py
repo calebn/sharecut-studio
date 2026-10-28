@@ -425,6 +425,14 @@ class ArchivedTranscriptWord(BaseModel):
     word: TranscriptWord
 
 
+class DroppedAsrWord(BaseModel):
+    """A decoded word the loop guard removed, kept so the drop can be inspected."""
+
+    text: str
+    start: float
+    end: float
+
+
 # One transcript per (track_id, source_id) within a project.
 TranscriptKey = tuple[str, str | None]
 
@@ -513,6 +521,14 @@ class Transcript(BaseModel):
     alignment_score_method: str | None = None
     # True once a user/agent correction, suppression or verify changed the words.
     user_edited: bool = False
+    # Words engines.asr_loops removed from the decode (a repetition loop crammed into well
+    # under a second); the first 500 are kept, asr_dropped_count is the true total.
+    asr_dropped_words: list[DroppedAsrWord] = Field(default_factory=list)
+    asr_dropped_count: int = 0
+    # Words kept although more than 16 of them sit in one second, and windows that stayed
+    # over the compression-ratio threshold without a dense cluster.
+    asr_dense_words: int = 0
+    asr_looped_segments: int = 0
 
     def active_words_with_ordinals(self) -> list[tuple[int, TranscriptWord]]:
         """Place active words around archive slots without changing their list order."""

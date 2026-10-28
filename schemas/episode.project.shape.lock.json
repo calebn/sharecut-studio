@@ -660,6 +660,25 @@
           },
           "type": "object"
         },
+        "DroppedAsrWord": {
+          "properties": {
+            "end": {
+              "type": "number"
+            },
+            "start": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
         "EditDecision": {
           "properties": {
             "applied": {
@@ -3101,6 +3120,24 @@
                 "$ref": "#/$defs/ArchivedTranscriptWord"
               },
               "type": "array"
+            },
+            "asr_dense_words": {
+              "default": 0,
+              "type": "integer"
+            },
+            "asr_dropped_count": {
+              "default": 0,
+              "type": "integer"
+            },
+            "asr_dropped_words": {
+              "items": {
+                "$ref": "#/$defs/DroppedAsrWord"
+              },
+              "type": "array"
+            },
+            "asr_looped_segments": {
+              "default": 0,
+              "type": "integer"
             },
             "audio_mtime_ns": {
               "anyOf": [
@@ -4075,6 +4112,25 @@
           },
           "type": "object"
         },
+        "DroppedAsrWord": {
+          "properties": {
+            "end": {
+              "type": "number"
+            },
+            "start": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
         "EditDecision": {
           "properties": {
             "applied": {
@@ -6517,6 +6573,24 @@
               },
               "type": "array"
             },
+            "asr_dense_words": {
+              "default": 0,
+              "type": "integer"
+            },
+            "asr_dropped_count": {
+              "default": 0,
+              "type": "integer"
+            },
+            "asr_dropped_words": {
+              "items": {
+                "$ref": "#/$defs/DroppedAsrWord"
+              },
+              "type": "array"
+            },
+            "asr_looped_segments": {
+              "default": 0,
+              "type": "integer"
+            },
             "audio_mtime_ns": {
               "anyOf": [
                 {
@@ -6852,6 +6926,7 @@
     "CutSpeechTrack": "ignore",
     "CutSpeechWord": "ignore",
     "DocumentSyncSection": "ignore",
+    "DroppedAsrWord": "ignore",
     "EditDecision": "ignore",
     "EditorialSection": "ignore",
     "EpisodeProject": "ignore",

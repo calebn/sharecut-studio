@@ -15,6 +15,7 @@ import numpy as np
 from filelock import FileLock, Timeout
 
 from podcast_mcp.config.defaults import EffectiveConfig, whisper_cache_dir
+from podcast_mcp.engines.asr_loops import guard_transcript
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
@@ -505,6 +506,8 @@ class TranscriptionEngine:
         self.silence_filter_skipped: list[str] = []
         # Per-job forced-alignment outcomes (transcribe.forced_alignment); read by the step summary.
         self.forced_alignment_jobs: list[dict[str, Any]] = []
+        # Per-job looped-word drops and dense-word counts (engines.asr_loops); read by the step summary.
+        self.asr_loop_drops: list[dict[str, Any]] = []
         self._word_aligner: WordAligner | None = None
         self._word_aligner_error: Exception | None = None
         # Dialogue-track levels for the aligner evidence gate (#780), decoded once per engine
@@ -617,6 +620,8 @@ class TranscriptionEngine:
             audio_sha256=audio_sha256,
         )
         transcript = _read_cache(cache)
+        if transcript is not None:
+            guard_transcript(transcript)
         return cache, transcript
 
     def load_word_aligner(self) -> WordAligner:
@@ -816,10 +821,12 @@ class TranscriptionEngine:
         total = math.ceil(duration) if duration else None
         label = progress_label or audio_path.name
         words: list[TranscriptWord] = []
+        window_ratios: list[object] = []
         with resolve_progress_task(
             "transcribe_audio", f"Transcribing {label}", total=total
         ) as task:
             for segment in segments:
+                before = len(words)
                 if segment.words:
                     for w in segment.words:
                         words.append(
@@ -840,11 +847,16 @@ class TranscriptionEngine:
                                 end=float(segment.end),
                             )
                         )
+                window_ratios += [getattr(segment, "compression_ratio", None)] * (
+                    len(words) - before
+                )
                 if total is not None and duration:
                     done = int(min(float(segment.end), duration))
                     task.advance_to(done, message=f"{label}: {done}s of {total}s", total=total)
-        flag_anomalous_asr_durations(words, max_word_sec=max_word_sec)
-        return Transcript(track_id="", language=language or "en", words=words)
+        transcript = Transcript(track_id="", language=language or "en", words=words)
+        guard_transcript(transcript, window_ratios)
+        flag_anomalous_asr_durations(transcript.words, max_word_sec=max_word_sec)
+        return transcript
 
     def transcribe_job(
         self,
@@ -888,6 +900,7 @@ class TranscriptionEngine:
         transcript.track_id = job.track_id
         transcript.source_id = job.source_id
         transcript.audio_sha256 = sha
+        self._record_asr_loops(job, transcript)
         # Whisper's own times until _align_words re-times them (the ASR cache never holds a marker).
         transcript.word_aligner = None
         transcript.alignment_score_method = None
@@ -943,6 +956,26 @@ class TranscriptionEngine:
                 n,
             )
         return transcript
+
+    def _record_asr_loops(self, job: TranscribeJob, transcript: Transcript) -> None:
+        if not (
+            transcript.asr_dropped_count
+            or transcript.asr_dense_words
+            or transcript.asr_looped_segments
+        ):
+            return
+        dropped = transcript.asr_dropped_words
+        self.asr_loop_drops.append(
+            {
+                "label": job.label,
+                "track_id": job.track_id,
+                "dropped": transcript.asr_dropped_count,
+                "start": min((w.start for w in dropped), default=None),
+                "end": max((w.end for w in dropped), default=None),
+                "dense_words": transcript.asr_dense_words,
+                "looped_segments": transcript.asr_looped_segments,
+            }
+        )
 
     def _evidence_for(
         self, project: EpisodeProject, job: TranscribeJob, transcript: Transcript

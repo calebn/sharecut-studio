@@ -136,7 +136,11 @@
         "silence_filter_fingerprint": null,
         "word_aligner": null,
         "alignment_score_method": null,
-        "user_edited": true
+        "user_edited": true,
+        "asr_dropped_words": [],
+        "asr_dropped_count": 0,
+        "asr_dense_words": 0,
+        "asr_looped_segments": 0
       }
     ],
     "combined": null

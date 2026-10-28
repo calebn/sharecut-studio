@@ -739,8 +739,34 @@
           "default": false,
           "description": "True once a user or agent edit (correct, suppress, verify, cleanup) changed the words."
         },
+        "asr_dropped_words": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DroppedAsrWord" },
+          "default": [],
+          "description": "Words the ASR loop guard removed from the decode (a repetition loop crammed into well under a second); the first 500, asr_dropped_count is the total."
+        },
+        "asr_dropped_count": { "type": "integer", "default": 0, "description": "How many words the ASR loop guard removed." },
+        "asr_dense_words": {
+          "type": "integer",
+          "default": 0,
+          "description": "Words kept although more than 16 of them sit in one second."
+        },
+        "asr_looped_segments": {
+          "type": "integer",
+          "default": 0,
+          "description": "Decode windows that stayed over the compression-ratio threshold without a dense cluster."
+        },
         "words": { "type": "array", "items": { "$ref": "#/$defs/TranscriptWord" } },
         "archived_words": { "type": "array", "items": { "$ref": "#/$defs/ArchivedTranscriptWord" }, "default": [] }
+      }
+    },
+    "DroppedAsrWord": {
+      "type": "object",
+      "required": ["text", "start", "end"],
+      "properties": {
+        "text": { "type": "string" },
+        "start": { "type": "number" },
+        "end": { "type": "number" }
       }
     },
     "ArchivedTranscriptWord": {
