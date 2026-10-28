@@ -206,7 +206,7 @@ held sideways) compact the editor:
   readable to a screen reader only. The 9rem floor above belongs to the compact drawer; this
   sheet has its own. `useKeepEditedLaneClear` measures the ruler's bottom
   (`pinnedChromeBottom`, which still reads the marker lane where it pins) plus one
-  lane height, caps the sheet to what is left (`--sheet-lane-cap`, never under 9rem,
+  lane height, caps the sheet to what is left (`--sheet-lane-cap`, never under the pinned chrome plus one touch row (`laneSheetCap`),
   honoured next to the transcript's `--sheet-cap` as the smaller of the two) and
   scrolls the edited lane into that band. It runs again whenever the scroller,
   the slot or the lane changes size, so a rotation that remounts the shell, which
@@ -357,7 +357,7 @@ native menus keep the toast ordering in
 Guests see only the stages their role allows (`stagesForRole`): a Commenter link is Review alone and has no Stage bar.
 
 The Player bar and the header wrap their controls when one row cannot hold them, which happens at Safari page zoom 200% on a phone and at 200% text. The bar grows with the wrap so the stage content starts below it. Targets stay `--touch-min`. This is not pinch-zoom on the timeline. A physical iPhone Safari 200% Aa zoom remains a Mac-simulator check. Phone menu rows use the 44px touch target and omit keyboard shortcut hints.
-**The short fold is a measured fit, not a size threshold (R-short-9).** `useShortFrame` (`gui/web/src/stage/frame/useShortFrame.ts`) folds the frame when its height is less than the full header, the full Player, the tab bar and `--stage-stacked-lanes-min` together (`frameFolds`, pinned in `useShortFrame.test.ts`). The hook lifts the fold, reads the natural heights of `.stage-frame-header`, `.stage-frame-player` and `.stage-frame-tabs` and resolves the lane floor token, then restores the fold in the same task before paint, so the fold tracks text size, header wrapping and the safe area with no `rem` breakpoint. Its only observer is the governed `useResizeObserver`. A folded frame sets `data-frame-short` on `<html>` (system.css and stage-frame.css key on it): the tab bar becomes the header's Stage menu, the Edit rows and the corner (zoom, the eye and, off the phone, the Script toggle) become the header's Tools button and its sheet, and the Player is one touch-height row. The stacked lanes' floor is capped at the workspace height, so a frame too short even when folded keeps its lanes inside the body, not clipped under the Player.
+**The short fold is a measured fit, not a size threshold (R-short-9).** `useShortFrame` (`gui/web/src/stage/frame/useShortFrame.ts`) folds the frame when its height is less than the full header, the full Player, the tab bar and `--stage-stacked-lanes-min` together (`frameFolds`, pinned in `useShortFrame.test.ts`). The hook lifts the fold, reads the natural heights of `.stage-frame-header`, `.stage-frame-player` and `.stage-frame-tabs` and resolves the lane floor token, then restores the fold in the same task before paint, so the fold tracks text size, header wrapping and the safe area with no `rem` breakpoint. Its only observer is the governed `useResizeObserver`. A folded frame sets `data-frame-short` on `<html>` (system.css and stage-frame.css key on it): the tab bar becomes the header's Stage menu, the Edit rows and the corner (zoom, the eye and, off the phone, the Script toggle) become the header's Tools button and its sheet, and the Player is one touch-height row. The corner folds whenever it would leave the lanes less than their floor (`laneAreaHeight - cornerHeight < lanesMin`), so it never floats over a lane at the floor, as at 844x390. The stacked lanes' floor is capped at the workspace height, so a frame too short even when folded keeps its lanes inside the body, not clipped under the Player.
 
 While `project === null` (progressive load), the frame shows the header and Stage bar with skeleton content and a disabled Player bar ("Loading episode…"). That chrome is not the ingest empty-session coach.
 
@@ -399,9 +399,15 @@ keeps the target's name at every detent, and the last detent opens the next
 selection. A selection the open plain sheet's own form makes (a point saved from a
 track's envelope form) stays in that sheet until it closes, so the form keeps
 its layout and focus; a tap on the timeline, even with that sheet open, opens
-the drawer as usual. At large text on a phone held sideways, half never takes
-less than 9rem of the slot, so the header, Collapse and Close stay on screen
-(half and full then share a height). The header's actions (Collapse, Expand,
+the drawer as usual. In a folded frame the sheet's grabber sits in the
+header row and the title shrinks to an ellipsis before the actions wrap, so the
+chrome is one row wherever its actions fit one (R-short-11). Where half the slot
+cannot hold that one-row chrome and a touch row (`halfDetentFits`, measured from the
+slot and the header in `ui/compactSheet.ts`), the sheet has no half detent: Expand
+goes from the strip to full, and a stored half shows as full without being
+overwritten. Where even the full sheet cannot hold the chrome and a touch row
+(`chromePins`), the chrome scrolls away with the body, so the content gets the whole
+slot. The header's actions (Collapse, Expand,
 Close) wrap beneath the title when they cannot sit beside it, as at 32 px text
 on a 390 px phone, so the title keeps a line of its own (at least 8rem wide)
 instead of being squeezed to nothing. A slot under 20rem tall, at the strip,
