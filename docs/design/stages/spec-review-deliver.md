@@ -124,7 +124,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Fate:** restyle into inline field errors.
 - **Spec:** error text 13/16 in the danger color directly under the path field, with a fix: "That folder has no ShareCut episode. Choose the folder that holds episode.project.json." Opening a project another window already has open: "This episode is open in another window. Switch to it" (button).
 - **Shared elements used:** inline error.
-- **Story to build:** covered by `Stages/Home/OpenOther` `PathError`, `AlreadyOpen`.
+- **Story to build:** covered by `Stages/Home/OpenOther` `PathError`.
 
 ### SCR-SETUP · Setup wizard (+ CHECKING, DOWNLOAD, LOADERROR)
 
