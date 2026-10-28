@@ -649,11 +649,12 @@ html[data-shell="phone"] .guest-attention-dismiss {
   box-shadow: 0 0 0 1px var(--color-warning-emphasis);
 }
 
+/* Forced colors drop backgrounds and shadows; a border survives, in a system color. */
 @media (forced-colors: active) {
   .split-guide {
-    forced-color-adjust: none;
-    background: Highlight;
-    box-shadow: 0 0 0 1px CanvasText;
+    background: none;
+    box-shadow: none;
+    border-inline-start: 0.125rem solid var(--color-warning);
   }
 }
 
