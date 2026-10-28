@@ -43,6 +43,8 @@ type Props = {
   onOpenInEdit: (id: string) => void;
   onFind: () => void;
   onTrimGesture?: (active: boolean) => void;
+  /** False shows a clip's title as text and leaves out Approve. */
+  editable?: boolean;
 };
 
 const shown = (
@@ -114,6 +116,7 @@ export function ClipsRow({
   onOpenInEdit,
   onFind,
   onTrimGesture,
+  editable = true,
 }: Props) {
   const sortedWords = useMemo(
     () => (words ? normaliseWords(words) : undefined),
@@ -168,12 +171,18 @@ export function ClipsRow({
                     onClick={() => onPlay(clip.id)}
                   />
                 </div>
-                <input
-                  className="dv-clip-title"
-                  aria-label={`Title of ${name}`}
-                  value={clip.title}
-                  onChange={(event) => onRetitle(clip.id, event.target.value)}
-                />
+                {editable ? (
+                  <input
+                    className="dv-clip-title"
+                    aria-label={`Title of ${name}`}
+                    value={clip.title}
+                    onChange={(event) => onRetitle(clip.id, event.target.value)}
+                  />
+                ) : (
+                  <span className="dv-clip-title dv-clip-title--static">
+                    {clip.title}
+                  </span>
+                )}
                 {active ? (
                   <div className="dv-clip-trim">
                     <ClipTrimWave
@@ -239,7 +248,7 @@ export function ClipsRow({
                       <SystemIcon name={iconOf("approve")} size={14} />
                       Approved
                     </span>
-                  ) : (
+                  ) : editable ? (
                     <Button
                       data-focus-key={`clip:${clip.id}:approve`}
                       aria-label={`Approve ${name}`}
@@ -248,7 +257,7 @@ export function ClipsRow({
                       <SystemIcon name={iconOf("approve")} size={14} />
                       Approve
                     </Button>
-                  )}
+                  ) : null}
                   <ClipMenu
                     name={name}
                     trimming={active !== null}

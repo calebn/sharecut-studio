@@ -115,6 +115,11 @@
 
 .dv-files,
 .dv-chapters,
+.dv-clip-title--static {
+  display: flex;
+  align-items: center;
+}
+
 .dv-clips {
   margin: 0;
   padding: 0;

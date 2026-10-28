@@ -1,13 +1,11 @@
 import { useSyncExternalStore } from "react";
 import type { Chapter, Clip } from "../../stages/deliver/deliverLogic";
-import type { PageFields } from "./deliverModel";
 
 export type DeliverPage = { key: string; chapters: Chapter[]; clips: Clip[] };
 
-export type DeliverDraft = {
+type DeliverDraft = {
   page: DeliverPage | null;
   epoch: number;
-  fields: PageFields;
   pending: number;
   unsaved: boolean;
   ackedAt: number;
@@ -19,7 +17,6 @@ type Entry = { draft: DeliverDraft; queue: Promise<unknown> };
 const EMPTY: DeliverDraft = {
   page: null,
   epoch: 0,
-  fields: {},
   pending: 0,
   unsaved: false,
   ackedAt: 0,

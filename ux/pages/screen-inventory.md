@@ -66,7 +66,7 @@ flowchart TB
   SEL[Selection] --> BS[Bottom sheet: inspector + related commands]
 ```
 
-The Deliver stage saves chapter edits and clip trims and removals to the project as they happen; a trim is one save when the drag or the arrow presses end. A change that cannot send yet stays on the page under "Not saved yet"; one the project refuses, now or when it sends later, stays under "Could not save your changes", with a button to show the saved version. A removed clip cannot be brought back from the toast. Clip titles and approvals, which have no write-back command yet, stay on the page when you leave Deliver and return, but not across a reload. The format, loudness and range choices and the export status are not shown: Export opens its own dialog.
+The Deliver stage saves chapter edits and clip trims and removals to the project as they happen; a trim is one save when the drag or the arrow presses end. A change that cannot send yet stays on the page under "Not saved yet"; one the project refuses, now or when it sends later, stays under "Could not save your changes", with a button to show the saved version. A removed clip cannot be brought back from the toast. Clip titles and approvals cannot be edited here, because the project has no command to save them; a clip shows the title and approval the project holds. The format, loudness and range choices and the export status are not shown: Export opens its own dialog.
 
 On a phone the Stage bar is the bottom tab bar, Edit shows one of Timeline or Script at a time, and the people slot shows one avatar plus a count. A Commenter share link is Review alone, with no Stage bar.
 
