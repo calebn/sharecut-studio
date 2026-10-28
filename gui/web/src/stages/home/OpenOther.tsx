@@ -1,6 +1,7 @@
 import {
   type FormEvent,
   type KeyboardEvent,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -47,6 +48,16 @@ export function OpenOther({
   const errorId = useId();
   const noteId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
+  const field = useRef<HTMLInputElement>(null);
+  const wasPicker = useRef(mode === "picker");
+  useEffect(() => {
+    if (mode === "path" && wasPicker.current) setOpen(true);
+    wasPicker.current = mode === "picker";
+  }, [mode]);
+  const showing = mode === "path" && open;
+  useEffect(() => {
+    if (showing) field.current?.focus();
+  }, [showing]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onSubmit();
@@ -69,7 +80,7 @@ export function OpenOther({
       >
         Open other…
       </button>
-      {mode === "path" && open ? (
+      {showing ? (
         <form
           className="sys-open-pop"
           aria-label="Open another episode"
@@ -77,6 +88,7 @@ export function OpenOther({
         >
           <div className="sys-open-row">
             <input
+              ref={field}
               type="text"
               className="sys-open-field"
               aria-label="Folder of the episode"
