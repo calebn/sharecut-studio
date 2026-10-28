@@ -18,6 +18,7 @@ import { StartTile } from "../../system/StartTile";
 import { SystemIcon } from "../../system/SystemIcon";
 import {
   BrandLockup,
+  Button,
   InlineError,
   Menu,
   MenuItem,
@@ -33,8 +34,8 @@ type SetupData = Pick<
 >;
 
 export type HomeViewProps = {
-  /** `loading` shows the skeleton (the 300 ms rule is the caller's). */
-  phase: "loading" | "empty" | "ready";
+  /** `loading` shows the skeleton (the 300 ms rule is the caller's); `error` is a failed read with Try again. */
+  phase: "loading" | "error" | "empty" | "ready";
   projects: readonly ProjectCardData[];
   /** Null when nothing is needed. */
   setup: SetupData | null;
@@ -46,7 +47,7 @@ export type HomeViewProps = {
   loadingElapsedMs?: number;
   /** Files being dragged over Home; worded in the Import tile's drop line. */
   dropCount?: number;
-  /** The skeleton's Retry, shown once loading runs long. */
+  /** The skeleton's Retry once loading runs long, and Try again after a failed read. */
   onRetryLoad?: () => void;
   onOpenProject: (id: string, stage: ProjectCardData["stage"]) => void;
   onFindProject: (id: string) => void;
@@ -225,8 +226,13 @@ export function HomeView({
   const empty = phase === "empty";
   useEffect(() => {
     if (!autoFocusPrimary || phase !== "ready") return;
-    host.current
-      ?.querySelector<HTMLButtonElement>("[data-project-open]")
+    const root = host.current;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    root
+      ?.querySelector<HTMLButtonElement>(
+        '[data-project-open]:not([aria-disabled="true"])',
+      )
       ?.focus();
   }, [autoFocusPrimary, phase]);
   const tileSize = narrow ? "phone-bar" : empty ? 220 : 160;
@@ -259,6 +265,13 @@ export function HomeView({
         elapsedMs={loadingElapsedMs}
         onRetry={onRetryLoad}
       />
+    );
+  } else if (phase === "error") {
+    recent = (
+      <div className="sys-home-load-error" role="alert">
+        <p className="sys-home-empty">Couldn&apos;t load your episodes.</p>
+        {onRetryLoad ? <Button onClick={onRetryLoad}>Try again</Button> : null}
+      </div>
     );
   } else if (empty) {
     recent = <p className="sys-home-empty">Your episodes will appear here.</p>;
@@ -306,11 +319,7 @@ export function HomeView({
               <h2 id="home-recent" className="sys-home-recent-title">
                 Recent
               </h2>
-              <OpenOther
-                key={openOther.mode}
-                {...openOther}
-                onChooseFolder={onOpenOther}
-              />
+              <OpenOther {...openOther} onChooseFolder={onOpenOther} />
             </div>
             <InlineError message={notice} />
             {working ? (

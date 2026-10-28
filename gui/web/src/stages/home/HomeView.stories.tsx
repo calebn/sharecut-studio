@@ -94,6 +94,14 @@ export const LoadingSlow: Story = {
     await expect(args.onRetryLoad).toHaveBeenCalledOnce();
   },
 };
+export const LoadFailed: Story = {
+  args: { phase: "error", projects: [] },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await expect(args.onRetryLoad).toHaveBeenCalledOnce();
+  },
+};
 export const Phone: Story = {};
 export const PhoneEmpty: Story = {
   args: { phase: "empty", projects: [] },

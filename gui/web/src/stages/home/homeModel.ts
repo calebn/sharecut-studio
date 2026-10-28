@@ -146,6 +146,8 @@ function sizeLabelOf(models: readonly ModelView[]): string {
 /**
  * The Setup card's state from the models provider, or null when nothing is
  * needed (or the first status has not arrived: nothing renders while checking).
+ * Nothing to download is also null: a missing ffmpeg shows in the Models dialog,
+ * not as a download that would do nothing.
  */
 export function setupOf(
   api: Pick<ReturnType<typeof useModels>, "models" | "ready" | "loadError">,
@@ -181,6 +183,7 @@ export function setupOf(
   }
   if (ready) return null;
   const toGet = models.filter((m) => m.tier !== "offered" && needsDownload(m));
+  if (toGet.length === 0) return null;
   const failed = toGet.some((m) => m.state.kind === "failed");
   return {
     state: failed ? "failed" : "needed",

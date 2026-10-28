@@ -2131,6 +2131,13 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   text-align: center;
 }
 
+.sys-home-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .sys-home-hint {
   display: inline-flex;
   align-items: center;

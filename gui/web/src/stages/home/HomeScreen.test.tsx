@@ -144,6 +144,71 @@ describe("HomeScreen", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("says a failed read and reads again on Try again", async () => {
+    const user = userEvent.setup();
+    list.mockRejectedValueOnce(new Error("500"));
+    render(<HomeScreen />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't load your episodes.",
+    );
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("list", { name: "Recent episodes" }),
+    ).toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps typing in the path field when the list arrives late", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?home=1&openOther=1",
+      search: "?home=1&openOther=1",
+      assign,
+    });
+    render(<HomeScreen />);
+    const field = await screen.findByRole("textbox", {
+      name: "Folder of the episode",
+    });
+    await screen.findByRole("list", { name: "Recent episodes" });
+    expect(field).toHaveFocus();
+    await user.keyboard("/ws");
+    expect(field).toHaveValue("/ws");
+  });
+
+  it("shows a card's open failure even when the path field is closed", async () => {
+    const user = userEvent.setup();
+    pick.mockResolvedValue({ unavailable: true });
+    open.mockRejectedValue(new ApiError("x", "project_open_failed", 400));
+    render(<HomeScreen />);
+    await user.click(
+      await screen.findByRole("button", { name: "Open other…" }),
+    );
+    await screen.findByRole("textbox", { name: "Folder of the episode" });
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Rosa/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "That episode didn't open. Try again.",
+    );
+  });
+
+  it("says Opening… while a card opens and refuses a second action in words", async () => {
+    const user = userEvent.setup();
+    let release: (v: { project_path: string; name: string }) => void = () => {};
+    open.mockReturnValue(new Promise((resolve) => (release = resolve)));
+    render(<HomeScreen />);
+    await user.click(await screen.findByRole("button", { name: /Rosa/ }));
+    expect(await screen.findByText("Opening…")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Record/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Finish the current step first.",
+    );
+    expect(create).not.toHaveBeenCalled();
+    release({ project_path: EP, name: "rosa" });
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("blocks every switch while a recording is armed", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("location", {
@@ -318,6 +383,32 @@ describe("HomeScreen", () => {
       expect(takeAutoRun(EP)).toBe(false);
     });
 
+    it("says Starting an episode… while Record creates it", async () => {
+      const user = userEvent.setup();
+      let release: (v: { project_path: string; name: string }) => void =
+        () => {};
+      create.mockReturnValue(new Promise((resolve) => (release = resolve)));
+      render(<HomeScreen />);
+      await user.click(await screen.findByRole("button", { name: /^Record/ }));
+      expect(await screen.findByText("Starting an episode…")).toBeVisible();
+      release({ project_path: EP, name: "x" });
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+    });
+
+    it("a cancelled Import keeps a visible error", async () => {
+      const user = userEvent.setup();
+      create.mockRejectedValueOnce(new Error("nope"));
+      render(<HomeScreen />);
+      await user.click(await screen.findByRole("button", { name: /^Record/ }));
+      await screen.findByRole("alert");
+      pickFiles.mockResolvedValue([]);
+      await user.click(screen.getByRole("button", { name: /^Import audio/ }));
+      await waitFor(() => expect(pickFiles).toHaveBeenCalled());
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "The episode didn't start.",
+      );
+    });
+
     it("says the episode did not start when create fails", async () => {
       const user = userEvent.setup();
       create.mockRejectedValue(new Error("nope"));
@@ -352,6 +443,45 @@ describe("HomeScreen", () => {
       );
       expect(screen.queryByText("Get ShareCut ready")).not.toBeInTheDocument();
       expect(window.localStorage.getItem(SETUP_DISMISSED_KEY)).toBe("1");
+    });
+
+    it("keeps a failed or running download visible after Not now", async () => {
+      window.localStorage.setItem(SETUP_DISMISSED_KEY, "1");
+      const failed = modelsApi({
+        status: modelStatus(registryRows(), { ready: false }),
+        failures: { whisper: { kind: "network", plain: "x" } },
+      });
+      const { unmount } = rtlRender(
+        <ModelsContext.Provider value={failed}>
+          <HomeScreen />
+        </ModelsContext.Provider>,
+      );
+      expect(
+        await screen.findByText("The download didn't finish."),
+      ).toBeInTheDocument();
+      unmount();
+      const base = modelsApi({
+        status: modelStatus(registryRows(), { ready: false }),
+      });
+      const running = {
+        ...base,
+        models: (base.models ?? []).map((m) =>
+          m.id === "whisper"
+            ? {
+                ...m,
+                state: { kind: "downloading" as const, bytes: 1, total: 2 },
+              }
+            : m,
+        ),
+      };
+      rtlRender(
+        <ModelsContext.Provider value={running}>
+          <HomeScreen />
+        </ModelsContext.Provider>,
+      );
+      expect(
+        await screen.findByText("Getting ShareCut ready"),
+      ).toBeInTheDocument();
     });
 
     it("stays away after it was dismissed, and when models are ready", async () => {

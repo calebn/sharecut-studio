@@ -42,6 +42,9 @@ const SWITCH_BLOCKED =
   "Return to the recording project and stop the room before switching projects.";
 const NOT_OPENED = "That episode didn't open. Try again.";
 const NOT_STARTED = "The episode didn't start. Try again.";
+const BUSY = "Finish the current step first.";
+const OPENING = "Opening…";
+const STARTING = "Starting an episode…";
 const NO_PICKER =
   "Choose the moved folder with Open other…, then it replaces this card.";
 /** Codes the server gives a folder that is not an episode, or is gone. */
@@ -78,6 +81,7 @@ function wantsPathField(): boolean {
 export function HomeScreen() {
   const models = useModels();
   const [recents, setRecents] = useState<RecentProject[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [reload, setReload] = useState(0);
   const [now] = useState(() => new Date());
   const [notice, setNotice] = useState<string | undefined>();
@@ -100,23 +104,33 @@ export function HomeScreen() {
   useEffect(() => {
     const controller = new AbortController();
     void reload;
+    setLoadFailed(false);
     listRecentProjects(controller.signal)
       .then(setRecents)
-      // A failed read leaves the skeleton up; its Retry asks again.
-      .catch(() => undefined);
+      .catch(() => {
+        if (!controller.signal.aborted) setLoadFailed(true);
+      });
     return () => controller.abort();
   }, [reload]);
 
   /** One action at a time, and none while a recording would be left behind. */
   const guarded = useCallback(
-    async (run: () => Promise<void>, onError: (error: unknown) => void) => {
-      if (busy.current) return;
+    async (
+      run: () => Promise<void>,
+      onError: (error: unknown) => void,
+      label?: string,
+    ) => {
+      if (busy.current) {
+        setNotice(BUSY);
+        return;
+      }
       if (desktopCloseGuardArmed()) {
         setNotice(SWITCH_BLOCKED);
         return;
       }
       busy.current = true;
       setNotice(undefined);
+      setWorking(label);
       try {
         await run();
       } catch (error: unknown) {
@@ -124,13 +138,19 @@ export function HomeScreen() {
       } finally {
         busy.current = false;
         setWorking(undefined);
+        setNotice((now) => (now === BUSY ? undefined : now));
       }
     },
     [],
   );
 
   const open = useCallback(
-    (target: string, stage?: ProjectCardData["stage"], replaces?: string) =>
+    (
+      target: string,
+      stage?: ProjectCardData["stage"],
+      replaces?: string,
+      fromField = false,
+    ) =>
       guarded(
         async () => {
           const out = await openEpisodeProject(target);
@@ -142,11 +162,12 @@ export function HomeScreen() {
         },
         (error) => {
           const message = openFailure(error);
-          if (pathMode) setPathError(message);
+          if (fromField) setPathError(message);
           else setNotice(message);
         },
+        OPENING,
       ),
-    [guarded, pathMode],
+    [guarded],
   );
 
   const pick = useCallback(
@@ -170,6 +191,7 @@ export function HomeScreen() {
           if (picked.detail) setNotice(picked.detail);
         },
         (error) => setNotice(openFailure(error)),
+        OPENING,
       ),
     [guarded],
   );
@@ -180,7 +202,6 @@ export function HomeScreen() {
       guarded(
         async () => {
           if (files.length === 0) return;
-          setWorking(importingLine(files.length));
           const created = await createEpisodeProject(
             "",
             episodeNameFromFiles(files, new Date()),
@@ -201,12 +222,15 @@ export function HomeScreen() {
           navigateToProject(created.project_path);
         },
         () => setNotice(NOT_STARTED),
+        importingLine(files.length),
       ),
     [guarded],
   );
 
   const onImport = useCallback(() => {
-    void pickAudioFiles(true).then(startFromFiles);
+    void pickAudioFiles(true).then((files) => {
+      if (files.length > 0) void startFromFiles(files);
+    });
   }, [startFromFiles]);
 
   const onRecord = useCallback(() => {
@@ -220,6 +244,7 @@ export function HomeScreen() {
         navigateToProject(created.project_path);
       },
       () => setNotice(NOT_STARTED),
+      STARTING,
     );
   }, [guarded]);
 
@@ -230,6 +255,10 @@ export function HomeScreen() {
     () => void models.download(bundleToGet(models.models)),
     [models],
   );
+  const hideSetup =
+    setupDismissed &&
+    setup?.state !== "downloading" &&
+    setup?.state !== "failed";
   const dismissSetup = useCallback(() => {
     writeLocal(SETUP_DISMISSED_KEY, "1");
     setSetupDismissed(true);
@@ -239,8 +268,9 @@ export function HomeScreen() {
     () => (recents ? cardsOf(recents, now) : []),
     [recents, now],
   );
-  const phase =
-    recents === null ? "loading" : recents.length ? "ready" : "empty";
+  let phase: "loading" | "error" | "empty" | "ready" = "loading";
+  if (recents) phase = recents.length ? "ready" : "empty";
+  else if (loadFailed) phase = "error";
 
   const openOther: Omit<OpenOtherProps, "onChooseFolder"> = {
     mode: pathMode ? "path" : "picker",
@@ -252,7 +282,7 @@ export function HomeScreen() {
       setPathError(undefined);
     },
     onSubmit: () => {
-      if (path.trim()) void open(path.trim());
+      if (path.trim()) void open(path.trim(), undefined, undefined, true);
       else setPathError(NOT_AN_EPISODE);
     },
     onSwitchWindow: () => undefined,
@@ -263,7 +293,7 @@ export function HomeScreen() {
       <HomeView
         phase={phase}
         projects={projects}
-        setup={setupDismissed ? null : setup}
+        setup={hideSetup ? null : setup}
         showInstallHint={hintShown}
         dropActive={drop.active}
         dropCount={drop.count}
