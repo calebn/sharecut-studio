@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines.audio import sources
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines import timeline_render
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, LateMpegAudioError
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.timeline_render import (
     placed_track_audio,
@@ -166,6 +167,48 @@ def test_a_track_above_the_grid_rate_limit_keeps_float_placement(
     project = _project(tmp_path, {"host": 384_000})
     clips = _joined_clips([None])[:2]
     assert track_grid(project, project.tracks[0], clips, engine) is None
+
+
+def test_an_unprobeable_recording_has_no_grid(tmp_path: Path, engine: FFmpegEngine) -> None:
+    project = _project(tmp_path, {"host": 48_000})
+    (tmp_path / "raw" / "junk.bin").write_bytes(b"this is not audio")
+    project.sources.append(SourceRecording(id="junk", path="raw/junk.bin", duration_sec=1.0))
+    clips = _joined_clips(["host", "junk"])[:4]
+    assert track_grid(project, project.tracks[0], clips, engine) is None
+    assert track_grid(project, project.tracks[0], clips[:1], engine) is not None
+
+
+def test_track_grid_reads_the_container_lead_from_the_engine_or_the_probe_cache(
+    tmp_path: Path, engine: FFmpegEngine
+) -> None:
+    project = _project(tmp_path, {"host": 48_000})
+    clips = _joined_clips([None])[:2]
+    track = project.tracks[0]
+
+    class _Engine:
+        def audio_start_sec(self, path: Path) -> float:
+            return 0.25
+
+    with_engine = track_grid(project, track, clips, _Engine())  # type: ignore[arg-type]
+    without = track_grid(project, track, clips)
+    assert with_engine is not None and without is not None
+    assert {seek.lead_us for seek in with_engine.seeks.values()} == {250_000}
+    assert {seek.lead_us for seek in without.seeks.values()} == {0}
+    assert without == track_grid(project, track, clips, engine)
+
+
+def test_an_unreadable_audio_start_propagates_instead_of_returning_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, {"host": 48_000})
+    clips = _joined_clips([None])[:2]
+
+    def late(_path: Path) -> float:
+        raise LateMpegAudioError
+
+    monkeypatch.setattr(timeline_render, "audio_start_sec", late)
+    with pytest.raises(LateMpegAudioError):
+        track_grid(project, project.tracks[0], clips)
 
 
 def test_a_window_decides_grid_or_float_from_the_whole_track(
