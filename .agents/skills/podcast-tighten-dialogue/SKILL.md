@@ -136,7 +136,10 @@ returns the same hits, under the same ids, each run. An Ask thread
    optionally with the ids they listed and `overrides` for the sounds they want
    handled differently. It applies every action in one undo step: lower turns a
    sound down 12 dB when another speaker talks over it and otherwise leaves it,
-   and leave dismisses the proposal and keeps the audio. MCP, CLI, and pipeline
+   and leave dismisses the proposal and keeps the audio. With no ids, or several,
+   a cut over a transcript word below `analysis.unsure_word_confidence` stays pending
+   and is named in `held_unsure`: check the words, then apply that cut by passing its
+   single id. MCP, CLI, and pipeline
    application retain fresh acoustic checks. Only trusted interactive human intent
    overrides an acoustic peer hold; that session ripple is counted in
    `cut_over_speaker`. Programmatic confirmation flags do not create that intent.
