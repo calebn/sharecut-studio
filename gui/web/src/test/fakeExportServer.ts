@@ -78,6 +78,7 @@ export function fakeExportServer() {
     config: EXPORT_CONFIG as unknown,
     configAnswer: null as Answer | null,
     startAnswer: null as Answer | null,
+    holdStart: null as Promise<void> | null,
     cancelAnswer: null as Answer | null,
     started: EXPORT_STARTED,
     settled: null as PipelineJobSnapshot | null,
@@ -115,7 +116,8 @@ export function fakeExportServer() {
           : input instanceof URL
             ? input.href
             : input.url;
-      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      const body =
+        typeof init?.body === "string" ? JSON.parse(init.body) : null;
       if (url.includes("/api/pipeline/config")) {
         server.configRequests.push(
           decodeURIComponent(url.split("path=")[1] ?? ""),
@@ -124,6 +126,7 @@ export function fakeExportServer() {
       }
       if (url.includes("/api/export/deliverables")) {
         server.exportRequests.push(body);
+        await server.holdStart;
         return json(server.startAnswer, { job: server.started });
       }
       if (url.includes("/api/pipeline/cancel")) {

@@ -189,16 +189,8 @@ describe("the export flow over the server's routes", () => {
   });
 
   it("does not cancel before the server has answered the start", async () => {
-    server.startAnswer = null;
     const answer = Promise.withResolvers<void>();
-    const fetchStub = vi.mocked(fetch);
-    const real = fetchStub.getMockImplementation();
-    fetchStub.mockImplementation(async (input, init) => {
-      if (String(input).includes("/api/export/deliverables")) {
-        await answer.promise;
-      }
-      return real?.(input, init) as Promise<Response>;
-    });
+    server.holdStart = answer.promise;
     mount();
     await loaded();
     act(() => flow.start(["mp3"], REQUEST));
