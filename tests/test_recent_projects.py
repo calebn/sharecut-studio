@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -102,14 +104,57 @@ def test_forget_removes_only_the_named_entry(tmp_path):
     assert [e.path for e in recent.read_recent()] == [str(b.resolve())]
 
 
-def test_default_workspace_numbers_a_taken_folder(tmp_path):
+def test_default_workspace_reserves_and_numbers_a_taken_folder(tmp_path):
     root = tmp_path / "workspaces"
-    assert recent.default_workspace_dir("Pilot") == root / "Pilot"
-    (root / "Pilot").mkdir(parents=True)
-    (root / "Pilot 2").mkdir()
-    assert recent.default_workspace_dir("Pilot") == root / "Pilot 3"
-    assert recent.default_workspace_dir("a/b:c") == root / "abc"
-    assert recent.default_workspace_dir("  ") == root / "episode"
+    first = recent.default_workspace_dir("Pilot")
+    assert first == (root / "Pilot").resolve()
+    assert first.is_dir()
+    assert recent.default_workspace_dir("Pilot") == (root / "Pilot 2").resolve()
+    (root / "Pilot 3").mkdir()
+    assert recent.default_workspace_dir("Pilot") == (root / "Pilot 4").resolve()
+    assert recent.default_workspace_dir("a/b:c") == (root / "abc").resolve()
+    assert recent.default_workspace_dir("  ") == (root / "episode").resolve()
+
+
+def test_concurrent_reservations_never_share_a_folder(tmp_path):
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        got = list(pool.map(lambda _: recent.default_workspace_dir("Pilot"), range(24)))
+    assert len(set(got)) == 24
+    assert all(p.is_dir() for p in got)
+
+
+def test_concurrent_creates_make_distinct_episodes(local, tmp_path):
+    def create(_):
+        res = TestClient(create_app(), client=LOOPBACK).post(
+            "/api/project/create", json={"name": "Pilot"}
+        )
+        return res.status_code, res.json()["project_path"]
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        got = list(pool.map(create, range(6)))
+    assert {code for code, _ in got} == {200}
+    assert len({path for _, path in got}) == 6
+
+
+def test_blank_folder_create_refuses_an_existing_project_file(local, tmp_path, monkeypatch):
+    existing = _make(tmp_path, "taken")
+    before = existing.read_bytes()
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.project.default_workspace_dir", lambda name: existing.parent
+    )
+    res = local.post("/api/project/create", json={"name": "Pilot"})
+    assert res.status_code == 400
+    assert res.headers[CODE] == "project_create_failed"
+    assert existing.read_bytes() == before
+
+
+def test_failed_blank_folder_create_releases_the_reserved_folder(local, tmp_path, monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.project.ProjectWorkspace.create", boom)
+    assert local.post("/api/project/create", json={"name": "Pilot"}).status_code == 400
+    assert not (tmp_path / "workspaces" / "Pilot").exists()
 
 
 def test_get_lists_cards_for_opened_and_created_projects(local, tmp_path):
@@ -288,3 +333,139 @@ def test_job_table_fault_does_not_hide_the_list(tmp_path):
     project = _make(tmp_path, "boom")
     _edit_project(project, _with_track)
     assert _chip(project, Boom()) == ("edit", {"text": "Edited", "state": "done"})
+
+
+def _card_for(path: Path, jobs=None) -> dict:
+    recent.record_recent(path)
+    return recent.recent_project_cards(jobs)[0]
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda d: d["render"].update(pipeline_runs={"a": 1}),
+        lambda d: d["render"].update(pipeline_runs=[{"steps": {"a": 1}}]),
+        lambda d: d["render"].update(pipeline_runs=[7]),
+        lambda d: d["render"].update(artifacts=[1]),
+        lambda d: d["timeline"].update(tracks={"a": 1}),
+        lambda d: d["editorial"].update(edit_decisions="x"),
+        lambda d: d.update(meta=[1]),
+    ],
+)
+def test_hostile_project_fields_do_not_fail_the_card(tmp_path, edit):
+    project = _make(tmp_path, "hostile")
+    _edit_project(project, edit)
+    card = _card_for(project)
+    assert card["path"] == str(project.resolve())
+    assert card["chip"]["text"] in ("Not started", "Needs attention", "Edited")
+
+
+@pytest.mark.parametrize("raw", ["[]", "7", "null", '"x"', "{", ""])
+def test_non_object_project_file_is_a_needs_attention_card(tmp_path, raw):
+    project = _make(tmp_path, "weird")
+    project.write_text(raw, encoding="utf-8")
+    assert _card_for(project)["chip"] == {"text": "Needs attention", "state": "failed"}
+
+
+def test_one_bad_card_does_not_fail_the_list(tmp_path, monkeypatch):
+    good = _make(tmp_path, "good")
+    bad = _make(tmp_path, "bad")
+    recent.record_recent(good)
+    recent.record_recent(bad)
+    real = recent._summarize
+
+    def flaky(path):
+        if path.parent.name == "bad":
+            raise KeyError(-1)
+        return real(path)
+
+    monkeypatch.setattr(recent, "_summarize", flaky)
+    cards = {c["name"]: c for c in recent.recent_project_cards()}
+    assert cards["bad"]["chip"]["text"] == "Needs attention"
+    assert cards["good"]["chip"]["text"] == "Not started"
+
+
+def test_card_builder_fault_is_caught_per_card(tmp_path, monkeypatch):
+    project = _make(tmp_path, "fault")
+    monkeypatch.setattr(recent, "_stage_chip", lambda **kw: 1 / 0)
+    assert _card_for(project)["chip"]["text"] == "Needs attention"
+
+
+@pytest.mark.parametrize("token", ["NaN", "Infinity", "-Infinity", "1e999", "1" + "0" * 400])
+def test_non_finite_duration_is_dropped_and_the_response_renders(local, tmp_path, token):
+    project = _make(tmp_path, "dur")
+    text = project.read_text(encoding="utf-8")
+    data = json.loads(text)
+    data["timeline"]["duration_sec"] = 1
+    project.write_text(json.dumps(data).replace('"duration_sec": 1,', f'"duration_sec": {token},'))
+    assert f'"duration_sec": {token}' in project.read_text(encoding="utf-8")
+    recent.record_recent(project)
+    res = local.get("/api/projects/recent")
+    assert res.status_code == 200
+    assert res.json()["projects"][0]["duration_sec"] is None
+
+
+def test_unchanged_project_file_is_parsed_once(tmp_path, monkeypatch):
+    project = _make(tmp_path, "cached")
+    recent.record_recent(project)
+    calls = []
+    real = recent._summarize
+    monkeypatch.setattr(recent, "_summarize", lambda p: calls.append(p) or real(p))
+    recent.recent_project_cards()
+    recent.recent_project_cards()
+    assert len(calls) == 1
+    _edit_project(project, _with_track)
+    assert recent.recent_project_cards()[0]["duration_sec"] == 3125.5
+    assert len(calls) == 2
+
+
+def test_running_state_is_not_cached_with_the_summary(tmp_path):
+    project = _make(tmp_path, "live")
+    _edit_project(project, _with_track)
+    assert _chip(project, _Jobs({"running": False}))[1]["text"] == "Edited"
+    running = _Jobs({"running": True, "job": {"current": 1, "total": 4}})
+    assert _chip(project, running)[1]["text"] == "Processing 25%"
+    assert _chip(project, _Jobs({"running": False}))[1]["text"] == "Edited"
+
+
+def test_twenty_large_projects_cost_one_parse_each(tmp_path, monkeypatch):
+    paths = []
+    for i in range(20):
+        project = _make(tmp_path, f"big{i}")
+        _edit_project(project, lambda d: d.update(blob="x" * 2_000_000))
+        recent.record_recent(project)
+        paths.append(project)
+    calls = []
+    real = recent._summarize
+    monkeypatch.setattr(recent, "_summarize", lambda p: calls.append(p) or real(p))
+    recent.recent_project_cards()
+    first = len(calls)
+    start = time.perf_counter()
+    recent.recent_project_cards()
+    assert len(calls) == first == 20
+    assert time.perf_counter() - start < 1.0
+
+
+def test_cache_forgets_projects_that_left_the_list(tmp_path):
+    project = _make(tmp_path, "gone")
+    recent.record_recent(project)
+    recent.recent_project_cards()
+    assert str(project.resolve()) in recent._SUMMARIES
+    recent.forget_recent(project)
+    recent.recent_project_cards()
+    assert str(project.resolve()) not in recent._SUMMARIES
+
+
+def test_mastered_path_outside_the_folder_is_not_followed(tmp_path):
+    project = _make(tmp_path, "escape")
+    outside = tmp_path / "outside.wav"
+    outside.write_bytes(b"x")
+    _edit_project(project, _with_track)
+
+    def point(data):
+        data["render"]["artifacts"]["mastered"] = "../outside.wav"
+
+    _edit_project(project, point)
+    stage, chip = _chip(project)
+    assert stage == "deliver"
+    assert chip["text"].startswith("Delivered ")

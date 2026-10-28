@@ -414,7 +414,7 @@ uv run make test       # or: .venv/bin/pytest
 Note: transcription (`faster-whisper`, core dependency) already ships
 `onnxruntime` and a bundled Silero VAD model. Whisper **weights** are not
 auto-pulled by pipeline Run or transcription — download them via
-`podcast bootstrap --component whisper`, the ShareCut Studio first-run wizard, or
+`podcast bootstrap --component whisper`, the Setup card on ShareCut Studio's Home, the Models dialog, or
 the Pipeline picker before running those steps. Source installs
 require a supported FFmpeg pair as described above. Whisper weights are still
 required for ASR.
