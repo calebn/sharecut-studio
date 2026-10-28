@@ -14,11 +14,13 @@ import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
 import { useDawKeymapListener } from "./keymap/listener";
 import { ModelsDialog } from "./models";
+import { HostRoomProvider } from "./record/hostRoomContext";
 import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
 import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { RecordPanel } from "./record/RecordPanel";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
+import { useHostRoom } from "./record/useHostRoom";
 import { isShareProjectKey } from "./shareMode";
 import { BounceDialog } from "./stage/dialogs/BounceDialog";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
@@ -160,6 +162,26 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     send: (payload) => sendRecordHostCommand("Signal", payload),
   });
 
+  const hostRoom = useHostRoom(
+    {
+      recordingLocally: hostKeeper.recordingLocally,
+      keeperFinalizing: hostKeeper.finalizing,
+      keeperError: hostKeeper.error,
+      onRetryKeeper: hostKeeper.retry,
+      micError: hostKeeper.micError,
+      micPending: hostKeeper.micPending,
+      micStatus: hostKeeper.micStatus,
+      hearing: hostMonitor.hearing,
+      monitorError: hostMonitor.error,
+      stream: hostKeeper.stream,
+      micLost: hostKeeper.micLost,
+      onRetryMic: hostKeeper.retryMic,
+      onCheckMic: hostKeeper.checkMic,
+      micCheckFailed: hostKeeper.micCheckFailed,
+    },
+    { hydrate: syncEnabled },
+  );
+
   useEffect(() => {
     if (!projectName) {
       return;
@@ -190,7 +212,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   );
 
   return (
-    <>
+    <HostRoomProvider value={hostRoom}>
       {engines}
       <div data-daw-app-chrome>
         <StageFrame
@@ -211,22 +233,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <ExportDialog />
       <SplitSpeakersDialog />
       <ShareDialog />
-      <RecordPanel
-        recordingLocally={hostKeeper.recordingLocally}
-        keeperFinalizing={hostKeeper.finalizing}
-        keeperError={hostKeeper.error}
-        onRetryKeeper={hostKeeper.retry}
-        micError={hostKeeper.micError}
-        micPending={hostKeeper.micPending}
-        micStatus={hostKeeper.micStatus}
-        hearing={hostMonitor.hearing}
-        monitorError={hostMonitor.error}
-        stream={hostKeeper.stream}
-        micLost={hostKeeper.micLost}
-        onRetryMic={hostKeeper.retryMic}
-        onCheckMic={hostKeeper.checkMic}
-        micCheckFailed={hostKeeper.micCheckFailed}
-      />
+      <RecordPanel />
       <HostMcpDialog
         open={hostMcpDialogOpen}
         onClose={() => setHostMcpDialogOpen(false)}
@@ -244,6 +251,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       ) : null}
       <AskDialog />
       <FeedbackToast host={feedbackHost} />
-    </>
+    </HostRoomProvider>
   );
 }
