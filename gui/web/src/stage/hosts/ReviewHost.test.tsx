@@ -250,7 +250,6 @@ beforeEach(() => {
     configurable: true,
     value: commandLocks(),
   });
-  sessionStorage.clear();
   Object.assign(server, fresh());
   order.length = 0;
   wire.rows = [];
