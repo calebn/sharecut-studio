@@ -83,3 +83,10 @@ test("the Cut button of the blade confirmation can be tapped at 16px text: lands
   browserName,
 }, info) =>
   cutIsTappable("landscape", 16, { page, context, browserName }, info));
+
+test("the Cut button of the blade confirmation can be tapped at 32px text: landscape", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  cutIsTappable("landscape", 32, { page, context, browserName }, info));
