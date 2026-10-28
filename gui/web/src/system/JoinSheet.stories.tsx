@@ -106,12 +106,27 @@ const meta: Meta<StoryArgs> = {
 export default meta;
 type Story = StoryObj<StoryArgs>;
 
-const sheet = async () =>
-  within(
-    await within(document.body).findByRole("dialog", {
-      name: "Maya, Anneke and Rosa are here",
-    }),
-  );
+/** True once the element and every ancestor are fully opaque. */
+const opaque = (element: Element | null): boolean => {
+  for (let node = element; node; node = node.parentElement) {
+    if (Number(getComputedStyle(node).opacity || 1) < 1) return false;
+  }
+  return true;
+};
+
+/**
+ * The open sheet, once its ~150 ms fade-in has settled: toBeVisible reads
+ * opacity, which jsdom never animates but a real browser does.
+ */
+const sheet = async () => {
+  const dialog = await within(document.body).findByRole("dialog", {
+    name: "Maya, Anneke and Rosa are here",
+  });
+  // The fade is on the panel inside the dialog root, so check from there up.
+  const panel = dialog.querySelector(".sys-join-sheet") ?? dialog;
+  await waitFor(() => expect(opaque(panel)).toBe(true));
+  return within(dialog);
+};
 
 const rowState = (step: string) =>
   document
