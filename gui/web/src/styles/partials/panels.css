@@ -1,26 +1,4 @@
 /* Bottom panels, transcript, comments, pipeline */
-.impact-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.impact-bulk {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.impact-bulk-lead,
-.impact-bulk-reason {
-  margin: 0;
-}
-
-.impact-bulk-reason {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-}
-
 .impact-bulk-working {
   display: flex;
   align-items: center;
@@ -28,46 +6,6 @@
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
-}
-
-.impact-bulk-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-/* A finger gets the full touch target, and on a phone each decision is a full
-   row, so Approve and Reject are never a thumb's width apart. */
-@media (pointer: coarse) {
-  .impact-bulk-actions .ui-control {
-    min-block-size: var(--touch-min);
-  }
-}
-
-html[data-shell="phone"] .impact-bulk-actions {
-  flex-direction: column;
-}
-
-html[data-shell="phone"] .impact-bulk-actions .ui-control {
-  min-block-size: var(--touch-min);
-}
-
-.impact-pending-list {
-  margin: var(--space-3) 0 0;
-  padding-left: var(--space-5);
-  font-size: var(--font-size-small);
-}
-
-@media (pointer: coarse) {
-  .impact-pending-select {
-    min-inline-size: var(--touch-min);
-    min-block-size: var(--touch-min);
-  }
-}
-
-html[data-shell="phone"] .impact-pending-select {
-  min-inline-size: var(--touch-min);
-  min-block-size: var(--touch-min);
 }
 
 /* Scroll container for the comments list; `.ui-toast-region` (ui.css)
