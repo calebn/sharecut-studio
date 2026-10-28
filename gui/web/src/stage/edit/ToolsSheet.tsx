@@ -5,6 +5,7 @@ import { canEditMix } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
+import { EditActionBar } from "./EditActionBar";
 import { EditCorner } from "./EditCorner";
 import { EditSurfaceSwitch } from "./PhoneEditSurfaceView";
 
@@ -12,7 +13,8 @@ import { EditSurfaceSwitch } from "./PhoneEditSurfaceView";
  * The Edit controls behind the header's Tools button, for a frame too short for
  * their rows: on a phone the Timeline and Script switch, then the corner (zoom,
  * the eye, the Script toggle and, on touch, the range toggle, which a short
- * frame takes off the lanes) and Mix.
+ * frame takes off the lanes), Mix and, on a phone, the Action bar the dock
+ * would otherwise spend the lanes' height on.
  */
 export function ToolsSheet() {
   const { surface, setOpenSheet, mixAllowed } = useDawStore(
@@ -32,6 +34,12 @@ export function ToolsSheet() {
             runPointerCommand("stage.edit", { surface: next })
           }
         />
+      ) : null}
+      {phone ? (
+        // biome-ignore lint/a11y/noStaticElementInteractions: a verb's own click bubbles here to dismiss the sheet it ran from.
+        <div onClick={() => setOpenSheet(null)}>
+          <EditActionBar form="dock" root={null} />
+        </div>
       ) : null}
       {surface === "lanes" || !phone ? (
         <EditCorner showScript={!phone} />

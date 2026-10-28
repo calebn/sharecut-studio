@@ -250,7 +250,8 @@
   background: var(--color-bg-base);
 }
 
-.edit-dock:empty {
+.edit-dock:empty,
+html[data-frame-short] .edit-dock {
   display: none;
 }
 
