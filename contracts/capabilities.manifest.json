@@ -1076,7 +1076,8 @@
       "surfaces": {
         "command": "stage.record",
         "gui": [
-          "stageBar"
+          "stageBar",
+          "editPlusMenu"
         ],
         "keyboard": "Mod+1"
       },
@@ -1547,7 +1548,7 @@
       "surfaces": {
         "command": "record.createRoom",
         "gui": [
-          "RecordPanel"
+          "RecordStage"
         ],
         "cli": "podcast review share --kind record",
         "mcp": [
@@ -1556,7 +1557,7 @@
         "skill": "podcast-record-session"
       },
       "omit": {
-        "keyboard_reason": "empty-state action in the Record room panel",
+        "keyboard_reason": "empty-state action on the Record stage",
         "guest": true
       },
       "tooltip": "Create record room",
@@ -1599,8 +1600,7 @@
       "surfaces": {
         "command": "record.start",
         "gui": [
-          "RecordPanel",
-          "transport.recChip"
+          "RecordStage"
         ],
         "cli": "podcast record start",
         "mcp": [
@@ -1630,7 +1630,7 @@
       "surfaces": {
         "command": "record.roomTone",
         "gui": [
-          "RecordPanel"
+          "RecordStage"
         ],
         "cli": "podcast record room-tone",
         "mcp": [
@@ -1687,8 +1687,7 @@
       "surfaces": {
         "command": "record.pause",
         "gui": [
-          "RecordPanel",
-          "transport.recChip"
+          "RecordStage"
         ],
         "cli": "podcast record pause",
         "mcp": [
@@ -1718,8 +1717,7 @@
       "surfaces": {
         "command": "record.resume",
         "gui": [
-          "RecordPanel",
-          "transport.recChip"
+          "RecordStage"
         ],
         "cli": "podcast record resume",
         "mcp": [
@@ -1749,8 +1747,7 @@
       "surfaces": {
         "command": "record.stop",
         "gui": [
-          "RecordPanel",
-          "transport.recChip"
+          "RecordStage"
         ],
         "cli": "podcast record stop",
         "mcp": [
@@ -1780,7 +1777,7 @@
       "surfaces": {
         "command": "record.land",
         "gui": [
-          "RecordPanel"
+          "RecordStage"
         ],
         "cli": "podcast record land",
         "mcp": [
@@ -2033,21 +2030,15 @@
       }
     },
     {
-      "id": "daw.record.panel",
-      "label": "Record room\u2026",
+      "id": "daw.record.state",
+      "label": "Record room state",
       "effect": "view",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
-        "hostProjectLoaded"
+        "canManageProjects"
       ],
       "surfaces": {
-        "command": "record.openPanel",
-        "gui": [
-          "RecordPanel",
-          "transport.recChip",
-          "editPlusMenu"
-        ],
         "cli": "podcast record state",
         "mcp": [
           "record_state_tool"
@@ -2055,10 +2046,10 @@
         "skill": "podcast-record-session"
       },
       "omit": {
-        "keyboard_reason": "chords in a later PR",
+        "keyboard_reason": "host CLI/MCP only",
         "guest": true
       },
-      "tooltip": "Record room\u2026",
+      "tooltip": "Record room state",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -2071,12 +2062,12 @@
       "service": "RecordSessionService",
       "industry_standard_key": true,
       "gates": [
-        "recordPanelOpen"
+        "recordStageActive"
       ],
       "surfaces": {
         "command": "record.marker",
         "gui": [
-          "LiveComments"
+          "RecordStage"
         ],
         "keyboard": "M",
         "mcp": [

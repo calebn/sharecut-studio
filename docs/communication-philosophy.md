@@ -212,7 +212,7 @@ choice; phone and tablet keep their existing editing rail and compact inspector.
 ## Progressive disclosure rules
 
 - **Surface the right controls at the right time.** Record-room
-  creation lives where the user discovers they need it (RecordPanel
+  creation lives where the user discovers they need it (Record stage
   empty state), not only in Share; link revocation lives in Share
   where links are managed. (Surfaces 1, 2.)
 - **Every empty state ships with its recovery action.** No dead-end
@@ -380,14 +380,14 @@ the empty state, not a separate discovery task.
 ## Copy patterns for buttons and links
 
 - **Verb-first labels.** "Create link", "Copy guest link", "Stop
-  sharing", "End room", "Open room panel", "Import audio". Never
+  sharing", "End room", "Open Record stage", "Import audio". Never
   "Click here", never a bare noun that hides the action.
 - **Decision actions first.** In action rows, the actual decisions
   lead: Apply / Skip before Preview / Go to. Most-likely-first in
   menus too. (Surfaces 4, 5.)
 - **Menus: grouped, ordered, short, single.** Related items grouped
   with separators; most frequent at top of group; destructive last;
-  no duplicated paths to the same action ("Open room panel" twice in
+  no duplicated paths to the same action ("Open Record stage" twice in
   one dialog — Surface 2); the overflow "Project" section keeps New /
   Open, then the Export pair adjacent, then Share / Record room, with
   Help under View. In the phone Listen hero, timeline-only actions stay in
