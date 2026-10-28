@@ -16,7 +16,7 @@ function carriesFiles(event: DragEvent): boolean {
 export function useWindowFileDrop(
   enabled: boolean,
   onFiles: (files: File[]) => void,
-): { active: boolean; count: number | undefined } {
+): { active: boolean; count?: number } {
   const [state, setState] = useState<{ active: boolean; count?: number }>({
     active: false,
   });
@@ -68,5 +68,5 @@ export function useWindowFileDrop(
       end();
     };
   }, [enabled]);
-  return { active: state.active, count: state.count };
+  return state;
 }

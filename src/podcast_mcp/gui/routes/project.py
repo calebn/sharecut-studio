@@ -202,6 +202,15 @@ def close_project_path(
     return {"ok": True}
 
 
+def _require_recent_access(request: Request) -> None:
+    if not _peer_may_switch_project(request):
+        raise coded_http_error(
+            403,
+            "recent projects not available from this client",
+            code="project_recent_not_allowed",
+        )
+
+
 @router.get("/api/projects/recent")
 def list_recent_projects(
     request: Request,
@@ -210,12 +219,7 @@ def list_recent_projects(
 ) -> JSONResponse:
     """The last opened episodes on this machine as Home cards (host / loopback only)."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    if not _peer_may_switch_project(request):
-        raise coded_http_error(
-            403,
-            "recent projects not available from this client",
-            code="project_recent_not_allowed",
-        )
+    _require_recent_access(request)
     cards = recent_project_cards(getattr(request.app.state, "jobs", None))
     return JSONResponse({"projects": cards}, headers={"Cache-Control": "no-store"})
 
@@ -229,12 +233,7 @@ def forget_recent_project(
 ) -> dict[str, bool]:
     """Remove one entry from the recent list; the project itself is never touched."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    if not _peer_may_switch_project(request):
-        raise coded_http_error(
-            403,
-            "recent projects not available from this client",
-            code="project_recent_not_allowed",
-        )
+    _require_recent_access(request)
     return {"removed": forget_recent(path)}
 
 
