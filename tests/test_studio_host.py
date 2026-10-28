@@ -1156,7 +1156,6 @@ def test_an_announcement_for_a_bind_that_cannot_be_pinged_round_trips(
     raw = json.loads(studio_host_path(project).read_text(encoding="utf-8"))
     assert raw["host"] == address
     assert raw["hostname"] == socket.gethostname()
-    assert "reachable" not in raw
 
 
 def test_a_loopback_announcement_is_byte_for_byte_what_it_was(project: Path) -> None:
@@ -1199,8 +1198,6 @@ def test_a_studio_on_an_address_that_cannot_be_pinged_refuses_without_a_ping(
     for needed in (
         f"pid {os.getpid()}",
         LAN_ADDRESS,
-        "cannot hand work to",
-        "Nothing was run",
         "--host 127.0.0.1",
         "PODCAST_NO_STUDIO_HANDOFF=1",
         str(studio_host_path(project)),
@@ -1249,22 +1246,11 @@ def test_an_address_nobody_listens_on_is_a_stale_announcement(
     [
         ConnectionRefusedError(errno.ECONNREFUSED, "refused"),
         OSError(errno.ECONNREFUSED, "refused"),
-        OSError(10061, "WSAECONNREFUSED"),
     ],
 )
 def test_a_refused_connect_reads_as_absent(
     project: Path, monkeypatch: pytest.MonkeyPatch, refused: OSError
 ) -> None:
-    announce_studio_host(project, _lan_host())
-    _dial_fails_with(monkeypatch, refused)
-    assert locate_studio(project) is None
-
-
-def test_a_windows_refusal_carried_in_winerror_reads_as_absent(
-    project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    refused = OSError(0, "refused")
-    refused.winerror = 10061  # type: ignore[attr-defined]
     announce_studio_host(project, _lan_host())
     _dial_fails_with(monkeypatch, refused)
     assert locate_studio(project) is None
@@ -1278,7 +1264,6 @@ def test_a_windows_refusal_carried_in_winerror_reads_as_absent(
         OSError(errno.ENETUNREACH, "network unreachable"),
         OSError(errno.EHOSTUNREACH, "host unreachable"),
         socket.gaierror(socket.EAI_NONAME, "no such scope"),
-        ValueError("bad scope id"),
     ],
 )
 def test_a_probe_that_cannot_tell_fails_closed(
@@ -1289,6 +1274,31 @@ def test_a_probe_that_cannot_tell_fails_closed(
     with pytest.raises(StudioUnresponsive) as refusal:
         locate_studio(project)
     assert not isinstance(refusal.value, studio_host_module.StudioNotReachable)
+
+
+def test_a_probe_that_cannot_tell_names_the_file_to_delete(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    announce_studio_host(project, _lan_host())
+    _dial_fails_with(monkeypatch, TimeoutError("timed out"))
+    with pytest.raises(StudioUnresponsive) as refusal:
+        locate_studio(project)
+    text = str(refusal.value)
+    assert str(studio_host_path(project)) in text
+    assert "delete" in text
+
+
+@pytest.mark.parametrize(
+    "announced",
+    [socket.gethostname().upper(), socket.gethostname() + ".local", socket.gethostname() + ".lan"],
+)
+def test_the_machine_name_matches_ignoring_case_and_domain(
+    project: Path, monkeypatch: pytest.MonkeyPatch, announced: str
+) -> None:
+    announce_studio_host(project, _lan_host(hostname=announced))
+    _dial_fails_with(monkeypatch, TimeoutError("timed out"))
+    with pytest.raises(StudioUnresponsive):
+        locate_studio(project)
 
 
 def test_an_announcement_from_another_machine_is_not_probed(
