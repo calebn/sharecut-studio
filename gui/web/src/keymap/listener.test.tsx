@@ -529,3 +529,114 @@ it("Mod+Z still sends while an edit's save is in flight (#2168)", async () => {
   await save;
   await waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
 });
+
+async function press(
+  target: Element,
+  init: KeyboardEventInit & { key: string },
+): Promise<string[]> {
+  vi.mocked(execute).mockClear();
+  vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
+  await act(async () => {
+    fireEvent.keyDown(target, init);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  return vi.mocked(execute).mock.calls.map(([id]) => id);
+}
+
+it("binds the Action bar's keys: S, X, I, ., A, B, C, Shift+C and Shift+S", async () => {
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  const keys: [KeyboardEventInit & { key: string }, string][] = [
+    [{ key: "s", code: "KeyS" }, "edit.split"],
+    [{ key: "S", code: "KeyS", shiftKey: true }, "track.soloToggle"],
+    [{ key: "x", code: "KeyX" }, "edit.keep"],
+    [{ key: "i", code: "KeyI" }, "edit.inspect"],
+    [{ key: ".", code: "Period" }, "edit.more"],
+    [{ key: "a", code: "KeyA" }, "edit.hearBefore"],
+    [{ key: "b", code: "KeyB" }, "edit.hearAfter"],
+    [{ key: "c", code: "KeyC" }, "comment.draftAt"],
+    [{ key: "C", code: "KeyC", shiftKey: true }, "edit.addChapter"],
+  ];
+  for (const [init, id] of keys)
+    expect(await press(canvas, init), `${init.key}`).toEqual([id]);
+});
+
+it("Shift+Space hears on a focused button instead of clicking it", async () => {
+  render(<KeymapHost />);
+  const button = screen.getByRole("button", { name: "Boundary button" });
+  const click = vi.fn();
+  button.addEventListener("click", click);
+  button.focus();
+  expect(
+    await press(button, { key: " ", code: "Space", shiftKey: true }),
+  ).toEqual(["edit.hear"]);
+  // The browser would click on the keyup: the listener takes it.
+  const up = new KeyboardEvent("keyup", {
+    key: " ",
+    code: "Space",
+    shiftKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  button.dispatchEvent(up);
+  expect(up.defaultPrevented).toBe(true);
+  expect(click).not.toHaveBeenCalled();
+});
+
+it("leaves a plain Space keyup alone and never takes a Space it did not handle", () => {
+  render(<KeymapHost />);
+  const up = new KeyboardEvent("keyup", {
+    key: " ",
+    bubbles: true,
+    cancelable: true,
+  });
+  screen.getByRole("button", { name: "Boundary button" }).dispatchEvent(up);
+  expect(up.defaultPrevented).toBe(false);
+});
+
+it("ignores a key while an IME composition is open", async () => {
+  render(<KeymapHost />);
+  expect(
+    await press(screen.getByTestId("canvas"), {
+      key: "s",
+      code: "KeyS",
+      isComposing: true,
+    }),
+  ).toEqual([]);
+  expect(
+    await press(screen.getByTestId("canvas"), {
+      key: "Process",
+      keyCode: 229,
+    }),
+  ).toEqual([]);
+});
+
+it("does not repeat Split while S is held", async () => {
+  render(<KeymapHost />);
+  expect(
+    await press(screen.getByTestId("canvas"), {
+      key: "s",
+      code: "KeyS",
+      repeat: true,
+    }),
+  ).toEqual([]);
+});
+
+it("says why a refused edit did nothing, in the live region", async () => {
+  render(<KeymapHost />);
+  useDawStore.setState({ statusAnnouncement: "" });
+  vi.mocked(execute).mockImplementation(async () => ({
+    status: "disabled",
+    reason: "Move the playhead onto the clip to split it",
+  }));
+  await act(async () => {
+    fireEvent.keyDown(screen.getByTestId("canvas"), {
+      key: "s",
+      code: "KeyS",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(useDawStore.getState().statusAnnouncement).toBe(
+    "Move the playhead onto the clip to split it",
+  );
+});
