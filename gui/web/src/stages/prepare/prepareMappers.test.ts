@@ -292,6 +292,24 @@ describe("readyRows", () => {
     expect(readyRows({ ...base, starting: true })[1].action).toBeUndefined();
   });
 
+  it("says why a refused run stopped, with Try again", () => {
+    const job = pipelineJobSnapshot({
+      status: "error",
+      error: "refusing to replace edited transcripts in an unattended run",
+      error_code: "transcript_overwrite_refused",
+      steps: [
+        step("transcribe_tracks", "error", {
+          error: "refusing to replace edited transcripts in an unattended run",
+        }),
+      ],
+    });
+    expect(readyRows({ ...base, job })[1]).toMatchObject({
+      state: "failed",
+      detail: "The audio changed on a track with hand fixes.",
+      action: { label: "Try again", run: "try-again" },
+    });
+  });
+
   it("shows the import while files are being added", () => {
     expect(readyRows({ ...base, ingestBusy: true })[0]).toMatchObject({
       state: "running",

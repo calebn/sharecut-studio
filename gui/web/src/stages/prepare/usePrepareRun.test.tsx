@@ -139,6 +139,11 @@ describe("runOptions", () => {
       forceTranscribe: true,
       overwriteEdited: true,
     });
+    expect(runOptions(cfg, "update", true)).toMatchObject({
+      fromStep: "transcribe_tracks",
+      forceTranscribe: false,
+      overwriteEdited: true,
+    });
     expect(runOptions(cfg, "retime", false)).toMatchObject({
       fromStep: "transcribe_tracks",
       forceTranscribe: false,
@@ -400,6 +405,73 @@ describe("usePrepareRun Run while waiting", () => {
     expect(useDawStore.getState().statusAnnouncement).toMatch(
       /Another job is running/,
     );
+  });
+});
+
+describe("usePrepareRun start errors", () => {
+  it("stops waiting after an error that is not a busy slot", async () => {
+    start.mockRejectedValue(new ApiError("busy", "pipeline_busy", 409));
+    const { result, rerender } = setup();
+    rerender({ ingestBusy: true, mediaKey: "" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(result.current.waiting).toBe(true));
+    start.mockRejectedValue(new Error("Network down"));
+    await act(async () => result.current.tryAgain());
+    expect(result.current.waiting).toBe(false);
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
+      /Could not start/,
+    );
+  });
+});
+
+describe("usePrepareRun refused over hand fixes", () => {
+  const refused = pipelineJobSnapshot({
+    id: "j7",
+    status: "error",
+    error: "refusing to replace edited transcripts in an unattended run",
+    error_code: "transcript_overwrite_refused",
+  });
+
+  function fixed(edited: string[]) {
+    vocabulary.mockResolvedValue({
+      show_title: null,
+      prompt_limit: null,
+      prompt_primer: "",
+      terms: [],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: false,
+      edited_tracks: edited,
+    });
+  }
+
+  it("asks Keep or Replace when a run it started is refused", async () => {
+    fixed(["maya"]);
+    const { result } = setup();
+    act(() => useDawStore.setState({ pipelineJob: refused }));
+    await waitFor(() =>
+      expect(result.current.keepFixes).toEqual({
+        mode: "update",
+        names: ["MAYA"],
+      }),
+    );
+    await act(async () => result.current.replaceFixes());
+    expect(start.mock.calls[0][1]).toMatchObject({
+      fromStep: "transcribe_tracks",
+      forceTranscribe: false,
+      overwriteEdited: true,
+    });
+  });
+
+  it("leaves a refusal already there as a failed row, and Try again asks", async () => {
+    fixed(["maya"]);
+    useDawStore.setState({ pipelineJob: refused });
+    const { result } = setup();
+    await act(async () => undefined);
+    expect(result.current.keepFixes).toBeNull();
+    await act(async () => result.current.tryAgain());
+    expect(start).not.toHaveBeenCalled();
+    expect(result.current.keepFixes).toMatchObject({ mode: "update" });
   });
 });
 
