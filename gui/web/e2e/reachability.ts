@@ -147,7 +147,30 @@ export async function reachFailures(
         if (top && top !== el && !el.contains(top) && !top.contains(el)) {
           const labelled = (el as HTMLInputElement).labels?.[0];
           if (!(labelled && (labelled === top || labelled.contains(top)))) {
-            out.push({ failure: "covered", ...base, coveredBy: describe(top) });
+            const tr = top.getBoundingClientRect();
+            const pl = el.closest(".sys-player");
+            const pc = pl ? getComputedStyle(pl) : null;
+            const er = el.getBoundingClientRect();
+            out.push({
+              failure: "covered",
+              ...base,
+              coveredBy:
+                describe(top) +
+                ` top@${[tr.left, tr.top, tr.width, tr.height].map(Math.round)} el@${[er.left, er.top, er.width, er.height].map(Math.round)} pt@${Math.round(x)},${Math.round(y)} vw=${innerWidth} player=${pl ? pl.getBoundingClientRect().width : "-"} cols=${pc?.gridTemplateColumns} topChain=${[
+                  ...(function* () {
+                    let n: Element | null = top;
+                    while (n && n !== document.body) {
+                      yield (n.className?.toString?.() || n.tagName).slice(
+                        0,
+                        30,
+                      );
+                      n = n.parentElement;
+                    }
+                  })(),
+                ]
+                  .slice(0, 6)
+                  .join(">")}`,
+            });
           }
         }
       }
