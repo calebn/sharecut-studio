@@ -9,6 +9,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from podcast_mcp.edits.cut_quality import fade_reach_sec
@@ -333,6 +334,13 @@ def pad_sample_well_formed(sample: object) -> bool:
     )
 
 
+def pad_sample_recording(project: EpisodeProject, sample: dict[str, Any]) -> Path:
+    """The resolved file a well-formed pad sample names; raises ``PAD_SAMPLE_UNRESOLVED_ERRORS``."""
+    return recording_audio_path(project, sample["track_id"], sample["source_id"]).resolve(
+        strict=True
+    )
+
+
 def pad_sample_range(sample: dict[str, Any]) -> tuple[float, float] | None:
     """A pad sample's source range, or ``None`` when the check rejects it (non-finite, lo < 0, hi <= lo)."""
     lo, hi = sample.get("source_start"), sample.get("source_end")
@@ -425,9 +433,7 @@ def original_pause_support(
             if not pad_sample_well_formed(sample):
                 return CutRejected("source_geometry")
             try:
-                referenced = recording_audio_path(
-                    project, sample["track_id"], sample["source_id"]
-                ).resolve(strict=True)
+                referenced = pad_sample_recording(project, sample)
             except PAD_SAMPLE_UNRESOLVED_ERRORS:
                 return CutRejected("source_geometry")
             if not same_recording(referenced, media):

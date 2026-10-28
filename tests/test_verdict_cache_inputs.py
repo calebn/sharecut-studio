@@ -920,3 +920,15 @@ def test_a_cached_pause_verdict_equals_a_cold_check_for_every_pad_record_shape(
     """The check's read set and ``_pad_records_seen`` must not drift apart."""
     _, cold, cached = _compare(tmp_path, monkeypatch, True, _nothing, _record_shapes()[shape])
     assert cached == cold
+
+
+def test_a_pad_record_key_hashes_every_sample_not_only_the_first(tmp_path: Path) -> None:
+    near = [
+        {"track_id": "host", "source_id": None, "source_start": a, "source_end": b}
+        for a, b in (TILE, (TILE[0] + 0.1, TILE[1]))
+    ]
+    moved = [near[0], {**near[1], "source_end": TILE[1] - 0.05}]
+    base = _key_of(tmp_path, lambda p: _pad_record(p, near))
+    assert base != _key_of(tmp_path, _nothing)
+    assert base == _key_of(tmp_path, lambda p: _pad_record(p, [dict(s) for s in near]))
+    assert base != _key_of(tmp_path, lambda p: _pad_record(p, moved))
