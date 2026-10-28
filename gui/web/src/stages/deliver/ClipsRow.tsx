@@ -42,6 +42,7 @@ type Props = {
   onRemove: (id: string) => void;
   onOpenInEdit: (id: string) => void;
   onFind: () => void;
+  onTrimGesture?: (active: boolean) => void;
 };
 
 const shown = (
@@ -112,6 +113,7 @@ export function ClipsRow({
   onRemove,
   onOpenInEdit,
   onFind,
+  onTrimGesture,
 }: Props) {
   const sortedWords = useMemo(
     () => (words ? normaliseWords(words) : undefined),
@@ -185,6 +187,7 @@ export function ClipsRow({
                       end={clip.end}
                       words={sortedWords}
                       onTrim={(edge, at) => onTrim(clip.id, edge, at)}
+                      onGesture={onTrimGesture}
                     />
                     <TimeField
                       label={`In of ${name}`}

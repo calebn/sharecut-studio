@@ -4908,6 +4908,45 @@ describe("a chapter title", () => {
   });
 });
 
+describe("a clip trim gesture", () => {
+  const openTrim = async () => {
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Nobody asked the river" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+  };
+
+  it("is reported once when a drag ends", async () => {
+    const onClips = vi.fn();
+    setup({ onClips });
+    await openTrim();
+    const handle = screen.getByRole("slider", {
+      name: "In handle of Nobody asked the river",
+    });
+    fireEvent.pointerDown(handle, { clientX: 10, pointerId: 1, buttons: 1 });
+    for (const clientX of [20, 30, 40])
+      fireEvent.pointerMove(handle, { clientX, pointerId: 1, buttons: 1 });
+    expect(onClips).not.toHaveBeenCalled();
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+    expect(onClips).toHaveBeenCalledOnce();
+  });
+
+  it("is reported once when focus leaves after arrow presses", async () => {
+    const onClips = vi.fn();
+    setup({ onClips });
+    await openTrim();
+    screen
+      .getByRole("slider", { name: "Out handle of Nobody asked the river" })
+      .focus();
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+    expect(onClips).not.toHaveBeenCalled();
+    await userEvent.tab();
+    expect(onClips).toHaveBeenCalledOnce();
+  });
+});
+
 describe("a clip removed in a host that cannot restore it", () => {
   it("offers no Undo", async () => {
     setup({ clipUndo: false });

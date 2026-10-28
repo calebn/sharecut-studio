@@ -44,6 +44,7 @@ import {
   deliverFacts,
   type FixRoute,
   fixRoute,
+  pageFieldsOf,
   sameChapters,
   sameClipBounds,
   withPageFields,
@@ -54,6 +55,14 @@ import { hostStateOf } from "./hostModels";
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
 };
+
+const DELIVER_COMMANDS = new Set([
+  "AddChapter",
+  "UpdateChapter",
+  "DeleteChapter",
+  "UpdateSocialClip",
+  "DeleteSocialClip",
+]);
 
 const NEVER: ExportState = { phase: "never" };
 const SETTINGS: EpisodeSettings = {
@@ -99,22 +108,31 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const state = hostStateOf(project, loadFailure);
 
   const draft = useDeliverDraft(projectPath);
-  const seedKey = `${state === "ready"}|${draft.reseed.epoch}`;
+  const seedKey = `${state === "ready"}|${draft.epoch}`;
   const docChapters = project?.chapters;
   const docClips = project?.social_clips;
-  const carried = draft.reseed.clips;
+  const fields = draft.fields;
   const seed = useMemo(
     () => ({
       key: seedKey,
       chapters: chaptersOf(docChapters ?? []),
-      clips: withPageFields(clipsOf(docClips ?? []), carried),
+      clips: withPageFields(clipsOf(docClips ?? []), fields),
     }),
-    [seedKey, docChapters, docClips, carried],
+    [seedKey, docChapters, docClips, fields],
   );
   const page = draft.page?.key === seedKey ? draft.page : seed;
+  const refused = offline.conflicts.filter(
+    (c) =>
+      c.kind === "refused" &&
+      !c.dismissed &&
+      DELIVER_COMMANDS.has(c.command.type) &&
+      c.command.created_at >= draft.since &&
+      c.command.created_at > draft.ackedAt,
+  );
+  const unsaved = draft.unsaved || refused.length > 0;
   const settling =
     draft.pending > 0 ||
-    draft.unsaved ||
+    unsaved ||
     !offline.loaded ||
     offline.pending > 0 ||
     offline.settling;
@@ -130,15 +148,16 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       !sameChapters(page.chapters, chaptersOf(docChapters ?? [])) ||
       !sameClipBounds(page.clips, clipsOf(docClips ?? []))
     ) {
-      patchDeliverDraft(projectPath, (d) => ({
-        reseed: { epoch: d.reseed.epoch + 1, clips: page.clips },
-      }));
+      patchDeliverDraft(projectPath, (d) => ({ epoch: d.epoch + 1 }));
     }
   }, [projectPath, page, docChapters, docClips, settling, state]);
 
   const commit = (patch: Partial<Pick<DeliverPage, "chapters" | "clips">>) => {
     if (projectPath)
-      patchDeliverDraft(projectPath, () => ({ page: { ...page, ...patch } }));
+      patchDeliverDraft(projectPath, (d) => ({
+        page: { ...page, ...patch },
+        fields: patch.clips ? pageFieldsOf(patch.clips, d.fields) : d.fields,
+      }));
   };
   const onChapters = (next: readonly Chapter[]) => {
     if (!projectPath) return;
@@ -197,7 +216,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       scrollRef={scrollRef}
     >
       <div className="stage-host-deliver">
-        {draft.unsaved ? (
+        {unsaved ? (
           <div className="stage-host-status" role="alert">
             <StatusRow
               density="alert"
@@ -208,7 +227,11 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
                 label: "Show the saved version",
                 onAction: () =>
                   projectPath &&
-                  patchDeliverDraft(projectPath, () => ({ unsaved: false })),
+                  patchDeliverDraft(projectPath, (d) => ({
+                    unsaved: false,
+                    epoch: d.epoch + 1,
+                    ackedAt: Date.now(),
+                  })),
               }}
             />
           </div>
@@ -223,7 +246,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           </div>
         ) : null}
         <DeliverStageBody
-          key={page.key}
+          key={`${projectPath}|${page.key}`}
           facts={facts}
           total={project.timeline_duration_sec}
           initialSettings={SETTINGS}

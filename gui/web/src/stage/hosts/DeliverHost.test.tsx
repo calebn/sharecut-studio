@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const wire = vi.hoisted(() => ({
   post: vi.fn(),
   rows: [] as { command_id: string }[],
+  conflicts: {} as Record<string, unknown[]>,
   seek: vi.fn(async () => ({ ok: true })),
 }));
 vi.mock("../../api/documentTransport", async (importOriginal) => ({
@@ -29,13 +30,17 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
     return { persisted: true, hadPredecessor };
   },
   loadHostCommandQueue: async () => [...wire.rows],
-  loadHostAttention: async () => ({ pending: wire.rows.length, conflicts: [] }),
+  loadHostAttention: async (path: string) => ({
+    pending: wire.rows.length,
+    conflicts: [...(wire.conflicts[path] ?? [])],
+  }),
   settleHostCommandOutcome: async (
-    _path: string,
+    path: string,
     id: string,
-    _outcome: unknown,
+    outcome: unknown,
     remove: boolean,
   ) => {
+    if (outcome) (wire.conflicts[path] ??= []).push(outcome);
     if (remove) wire.rows = wire.rows.filter((r) => r.command_id !== id);
   },
   removeHostQueuedCommands: async (_path: string, ids: string[]) => {
@@ -61,6 +66,7 @@ let OTHER = "";
 
 const INTRO = { time: 0, title: "Intro" };
 const MIDDLE = { time: 120, title: "Middle" };
+const OUTRO = { time: 300, title: "Outro" };
 const CLIP = {
   id: "s1",
   track_id: "t1",
@@ -170,6 +176,7 @@ beforeEach(() => {
   });
   sessionStorage.clear();
   wire.rows = [];
+  wire.conflicts = {};
   network.mode = "up";
   server.held = { chapters: [INTRO, MIDDLE], social_clips: [CLIP] };
   server.seq = 0;
@@ -339,7 +346,27 @@ describe("Deliver host when a save does not land at once", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("clears the message when another project opens", async () => {
+  it("shows the other project's chapters and writes only to it", async () => {
+    network.mode = "refusing";
+    render(<DeliverStage />);
+    await removeMiddle();
+    await screen.findByRole("alert");
+    network.mode = "up";
+    act(() =>
+      useDawStore
+        .getState()
+        .hydrate(OTHER, projectAt("o1", { chapters: [OUTRO] })),
+    );
+    const outro = await screen.findByRole("button", { name: "Remove Outro" });
+    expect(screen.queryByRole("button", { name: "Remove Intro" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await userEvent.click(outro);
+    await waitFor(() => expect(wire.post).toHaveBeenCalledTimes(2));
+    expect(wire.post.mock.calls[1]?.[0]).toBe(OTHER);
+    expect(sent()[1]).toEqual(["DeleteChapter", { time: 300, title: "Outro" }]);
+  });
+
+  it("keeps the refusal for the first project while another is open", async () => {
     network.mode = "refusing";
     render(<DeliverStage />);
     await removeMiddle();
@@ -347,12 +374,11 @@ describe("Deliver host when a save does not land at once", () => {
     act(() =>
       useDawStore
         .getState()
-        .hydrate(OTHER, projectAt("o1", { chapters: [INTRO] })),
+        .hydrate(OTHER, projectAt("o1", { chapters: [OUTRO] })),
     );
-    expect(
-      await screen.findByRole("button", { name: "Remove Intro" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).toBeNull();
+    await screen.findByRole("button", { name: "Remove Outro" });
+    act(() => useDawStore.getState().hydrate(PATH, projectAt("h1")));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove Middle" })).toBeNull();
   });
 
@@ -377,6 +403,140 @@ describe("Deliver host when a save does not land at once", () => {
     expect(
       screen.getByRole("button", { name: "Remove Intro" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Deliver host when a refusal needs the page back", () => {
+  it("shows the saved version at once, even while another save is in flight", async () => {
+    network.mode = "refusing";
+    render(<DeliverStage />);
+    const title = screen.getByRole("textbox", { name: "Title of Middle" });
+    await userEvent.clear(title);
+    await userEvent.type(title, "Mid2{Enter}");
+    const alert = await screen.findByRole("alert");
+    let finish: () => void = () => {};
+    wire.post.mockImplementationOnce(
+      (_path: string, body) =>
+        new Promise((resolve) => (finish = () => resolve(answer(body)))),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Remove Intro" }));
+    await waitFor(() => expect(wire.post).toHaveBeenCalledTimes(2));
+    await userEvent.click(
+      within(alert).getByRole("button", { name: "Show the saved version" }),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("textbox", { name: "Title of Middle" }),
+    ).toBeInTheDocument();
+    network.mode = "up";
+    await act(async () => finish());
+  });
+
+  it("says so when a waiting edit is refused as the queue drains", async () => {
+    network.mode = "down";
+    render(<DeliverStage />);
+    const title = screen.getByRole("textbox", { name: "Title of Middle" });
+    await userEvent.clear(title);
+    await userEvent.type(title, "Mid2{Enter}");
+    await screen.findByRole("status");
+    network.mode = "refusing";
+    await act(async () => requestHostDrain(PATH));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Could not save your changes");
+    expect(
+      screen.getByRole("textbox", { name: "Title of Mid2" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      within(alert).getByRole("button", { name: "Show the saved version" }),
+    );
+    expect(
+      await screen.findByRole("textbox", { name: "Title of Middle" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it.each([
+    {
+      name: "a refused removal is dismissed",
+      restore: async () => {
+        await userEvent.click(
+          within(screen.getByRole("alert")).getByRole("button", {
+            name: "Show the saved version",
+          }),
+        );
+      },
+      mode: "refusing" as const,
+    },
+    {
+      name: "the project brings the clip back",
+      restore: async () => setProject(projectAt("h3")),
+      mode: "up" as const,
+    },
+  ])(
+    "keeps a clip's title and approval when $name",
+    async ({ restore, mode }) => {
+      network.mode = mode;
+      render(<DeliverStage />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Approve A line" }),
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: "Title of A line" }),
+        {
+          target: { value: "Better line" },
+        },
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "More for Better line" }),
+      );
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: "Remove" }),
+      );
+      if (mode === "refusing") await screen.findByRole("alert");
+      else await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+      await restore();
+      expect(
+        await screen.findByDisplayValue("Better line"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Approved")).toBeInTheDocument();
+    },
+  );
+});
+
+describe("Deliver host clip trims", () => {
+  it("sends one command for a burst of arrow presses", async () => {
+    render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for A line" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    screen.getByRole("slider", { name: "Out handle of A line" }).focus();
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+    expect(wire.post).not.toHaveBeenCalled();
+    await userEvent.tab();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()[0]?.[0]).toBe("UpdateSocialClip");
+    expect(sent()[0]?.[1]).toMatchObject({ id: "s1", start: 10 });
+    expect(sent()[0]?.[1].end).toBeCloseTo(39.97, 5);
+  });
+
+  it("sends one command for a drag", async () => {
+    render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for A line" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    const handle = screen.getByRole("slider", { name: "In handle of A line" });
+    fireEvent.pointerDown(handle, { clientX: 10, pointerId: 1, buttons: 1 });
+    for (const clientX of [20, 30, 40])
+      fireEvent.pointerMove(handle, { clientX, pointerId: 1, buttons: 1 });
+    expect(wire.post).not.toHaveBeenCalled();
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
   });
 });
 
