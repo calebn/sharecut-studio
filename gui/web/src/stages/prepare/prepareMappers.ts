@@ -544,8 +544,14 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   }
   // The run was refused, so no work runs while the model asks or downloads.
   if (input.model) return { phase: "needs-model" };
-  // Refused for a busy slot: nothing runs until the slot frees or Run is tapped.
-  if (input.waiting) return { phase: "waiting" };
+  // Refused for a busy slot, or never started (a row offers Start): nothing
+  // runs until the slot frees or Run is tapped, so this is not "transcribing".
+  if (
+    input.waiting ||
+    input.rows.some((row) => row.state === "queued" && row.action)
+  ) {
+    return { phase: "waiting" };
+  }
   // A row that waits on the person (word timing to download, hand fixes to
   // keep) is not work in progress: nothing runs, so the hand-off is not held.
   if (
