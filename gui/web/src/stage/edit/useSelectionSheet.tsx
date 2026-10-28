@@ -33,7 +33,6 @@ interface SheetOpenState {
   shell: SheetShell;
   selection: Selection;
   rangeArmed: boolean;
-  /** What the Inspector was opened for (Inspect), or null. */
   inspectorKey: string | null;
   /** The surface the Edit stage shows. */
   screen: SheetScreen;

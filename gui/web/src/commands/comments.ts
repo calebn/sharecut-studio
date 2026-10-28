@@ -15,10 +15,6 @@ export function openCommentDraft(draft: CommentDraft): void {
   state.openStage("review", { section: "comments" });
 }
 
-/**
- * Where a comment on the selection lands: its words or range, else the span of
- * the clip, seam or suggestion, else the playhead (C with nothing selected).
- */
 function draftForSelection(
   state: Pick<DawState, "project" | "selection" | "playheadSec">,
 ): CommentDraft {

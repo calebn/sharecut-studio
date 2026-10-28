@@ -63,7 +63,6 @@ export function registerTranscriptWordCommands(): void {
   });
 }
 
-/** Opens the inline fix for one timed word of a host project; the Fix text verb and F2 share it. */
 export function requestInlineEdit(
   trackId: string,
   sourceId: string | null,

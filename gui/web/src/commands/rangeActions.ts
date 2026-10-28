@@ -72,7 +72,6 @@ function correctingWordReason(
     : "Use Select mode for range actions (Correct is ASR-only)";
 }
 
-/** A guest hears the rendered mix, not the lanes, and the button says so. */
 export const PLAY_FULL_MIX_LABEL = "Play full mix";
 
 export function rangeActionDescriptors(
@@ -145,7 +144,6 @@ export function rangeActionDescriptors(
 
 let previewUrl: string | null = null;
 
-/** `override` is a span the caller built (one clip's), for a selection that is not a range. */
 export async function runRangeAction(
   action: RangeAction,
   override?: ExactRangeTarget,

@@ -283,7 +283,6 @@ function select(selection: NonNullable<Selection>) {
   act(() => useDawStore.getState().setSelection(selection));
 }
 
-/** Inspect: the only thing that opens the Inspector or the sheet. */
 function inspect() {
   act(() => useDawStore.getState().setInspectorOpen(true));
 }
@@ -550,7 +549,6 @@ describe("Inspect, not selection, opens the surface", () => {
       select(SELECTIONS.clip);
       inspect();
       expect(open()).not.toBeNull();
-      // A new selection shuts it.
       select(SELECTIONS.pending);
       expect(open()).toBeNull();
       // Esc shuts it before it clears the selection.
@@ -564,7 +562,6 @@ describe("Inspect, not selection, opens the surface", () => {
       expect(useDawStore.getState().selection).toMatchObject({
         kind: "pending",
       });
-      // Close shuts it and keeps the selection.
       inspect();
       fireEvent.click(
         within(open() as HTMLElement).getAllByRole("button", {

@@ -24,7 +24,6 @@ export function Inspector({
     );
   }
 
-  // The Inspector opens for a selection (Inspect), so there is always one.
   if (!selection) return null;
 
   return renderSelectionBody(selection, {

@@ -766,7 +766,6 @@ export async function deleteSocialClip(
   });
 }
 
-/** Splits at `atTime` and every `extraAtTimes` as one undo step. */
 export async function splitAtTime(
   projectPath: string,
   atTime: number,

@@ -245,7 +245,6 @@
   flex-direction: column;
 }
 
-/* The phone's Action bar dock: above the Player, below the lanes or Script. */
 .edit-dock {
   flex: 0 0 auto;
   background: var(--color-bg-base);

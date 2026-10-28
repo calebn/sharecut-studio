@@ -194,7 +194,6 @@ export function inspectKeyOf(selection: Selection): string | null {
   }
 }
 
-/** The Inspector is open when it was opened for the selection that is still held. */
 export function inspectorOpenFor(
   selection: Selection,
   inspectorKey: string | null,

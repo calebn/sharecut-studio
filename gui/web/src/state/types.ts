@@ -299,7 +299,6 @@ export interface DawState {
    */
   inspectorKey: string | null;
   setInspectorOpen: (open: boolean) => void;
-  /** Bumped by `edit.more` (.) so the Action bar opens its More menu. */
   moreRequest: number;
   requestMore: () => void;
   setRangeArmed: (armed: boolean) => void;

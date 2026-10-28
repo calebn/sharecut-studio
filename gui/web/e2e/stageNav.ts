@@ -520,10 +520,6 @@ export async function collapsePlayer(page: Page): Promise<void> {
   await expect(expanded).toBeHidden();
 }
 
-/**
- * Open the Inspector for the current selection the way a user does: the Action
- * bar's Inspect verb. A selection alone never opens it.
- */
 export async function inspectSelection(page: Page): Promise<void> {
   await page
     .getByRole("group", { name: /^(Selection|Edit) actions$/ })
