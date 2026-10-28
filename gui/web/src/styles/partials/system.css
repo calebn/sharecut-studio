@@ -792,16 +792,6 @@
     display: none;
   }
 
-  .sys-player-pill-text {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
   .sys-player-time {
     min-block-size: var(--touch-min);
   }
@@ -822,6 +812,45 @@
   .sys-player .sys-icon-btn:not(.sys-play-btn) {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
+  }
+}
+
+/* Under 50 rem the Status pill is its glyph and the text stays for assistive
+   tech: the right-hand controls and the pill's text do not fit the side column
+   of a wide phone, and the A and B toggles slid under the skip buttons. */
+@container sys-player (max-width: 50rem) {
+  /* Nothing plays during an audio error, so the A and B toggles give their
+     room to the Retry button: with both, the right-hand controls outgrow the
+     side column and slide under Play. */
+  .sys-player-host[data-state="error"] .sys-player-hear {
+    display: none;
+  }
+
+  .sys-player-pill-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A 360 px phone is 29 px short of Play, the clock and the four controls at the
+   usual spacing: tighter gaps and a smaller clock keep every 44 px target clear
+   of the next. */
+@container sys-player (max-width: 23.5rem) {
+  .sys-player {
+    gap: var(--space-1);
+  }
+
+  .sys-player-right {
+    gap: var(--space-1);
+  }
+
+  .sys-player-now {
+    font-size: var(--font-size-ui);
   }
 }
 
