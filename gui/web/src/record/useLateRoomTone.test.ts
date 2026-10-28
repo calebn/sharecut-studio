@@ -30,7 +30,6 @@ type Props = {
   producer?: boolean;
   captureReady?: boolean;
   transport?: ReturnType<typeof memoryUploadTransport> | null;
-  delivery?: "device" | "host";
   error?: string | null;
 };
 
@@ -48,7 +47,6 @@ function setup(initial: Props = {}) {
         transport: props.transport === undefined ? transport : props.transport,
         roomTone: {
           status: props.status ?? "idle",
-          delivery: props.delivery ?? "device",
           error: props.error ?? null,
           captureReady: props.captureReady ?? true,
           record,
@@ -156,15 +154,11 @@ describe("useLateRoomTone", () => {
     expect(reloaded.result.current).toBeNull();
   });
 
-  it("remembers a bed the host acknowledged across a reload, not one still on the device", async () => {
+  it("does not ask again after a recorded bed, even before the host acknowledged it", async () => {
     const first = setup();
     await waitFor(() => expect(first.result.current).not.toBeNull());
-    first.rerender({ status: "recorded", delivery: "device" });
+    first.rerender({ status: "recorded" });
     first.unmount();
-    const unsent = setup();
-    await waitFor(() => expect(unsent.result.current).not.toBeNull());
-    unsent.rerender({ status: "recorded", delivery: "host" });
-    unsent.unmount();
     const reloaded = setup();
     await act(async () => {});
     expect(reloaded.result.current).toBeNull();
