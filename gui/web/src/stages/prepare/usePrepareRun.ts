@@ -24,7 +24,7 @@ const WHISPER = "whisper";
 const WORD_ALIGNER = "word-aligner";
 const BUSY_CODE = "pipeline_busy";
 
-export type RunMode = "run" | "retranscribe" | "retime";
+type RunMode = "run" | "retranscribe" | "retime";
 
 /** Options for one run, from the project's saved pipeline settings. */
 export function runOptions(
@@ -64,12 +64,11 @@ function installed(row: ModelView | null, need: ModelNeeded): boolean {
 }
 
 /** The model ask for the row, following the download once the person taps Get. */
-export function modelAskOf(
-  need: ModelNeeded | null,
+function modelAskOf(
+  need: ModelNeeded,
   row: ModelView | null,
   busy: boolean,
-): ModelAsk | null {
-  if (!need) return null;
+): ModelAsk {
   const { working, downloading, failure } = modelActivity(row, busy);
   const size = need.size || row?.size || "";
   const what = whatIs(need);
@@ -86,7 +85,7 @@ export function modelAskOf(
   return { phase: "ask", size, what };
 }
 
-export type PrepareRunInput = {
+type PrepareRunInput = {
   projectPath: string;
   workingSet: PipelineWorkingSet;
   /** Sources that still have no transcript. */
@@ -99,7 +98,7 @@ export type PrepareRunInput = {
   nameOf: (trackId: string) => string;
 };
 
-export type KeepFixes = {
+type KeepFixes = {
   mode: Exclude<RunMode, "run">;
   names: string[];
 };
@@ -115,7 +114,6 @@ export function usePrepareRun(input: PrepareRunInput) {
   const { models, busy: slotTaken, download } = useModels();
   const [starting, setStarting] = useState(false);
   const [need, setNeed] = useState<ModelNeeded | null>(null);
-  /** A run was refused because another job holds the pipeline slot. */
   const [waiting, setWaiting] = useState(false);
   const [keepFixes, setKeepFixes] = useState<KeepFixes | null>(null);
   const [wantRetime, setWantRetime] = useState(false);

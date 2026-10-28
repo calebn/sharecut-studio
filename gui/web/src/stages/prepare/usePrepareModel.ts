@@ -35,15 +35,13 @@ import { usePrepareRun } from "./usePrepareRun";
 import { usePrepareSources } from "./usePrepareSources";
 import { useVocabulary } from "./useVocabulary";
 
-export type PrepareModel = {
+type PrepareModel = {
   view: PrepareViewProps;
   advanced: {
     open: boolean;
     onClose: () => void;
     props: AdvancedStepsProps;
   };
-  /** The person may add audio here. */
-  canIngest: boolean;
 };
 
 /**
@@ -68,12 +66,6 @@ function usePrepareFocus(trackId: string | null, ready: boolean): void {
   );
 }
 
-/**
- * The Prepare stage's model: the project, the pipeline job and the model
- * downloads mapped onto the props of the presentational `PrepareView`, with
- * the actions behind its buttons. The mappers are in `prepareMappers.ts`;
- * this only reads the store and wires the callbacks.
- */
 export function usePrepareModel(): PrepareModel {
   const {
     project,
@@ -245,8 +237,8 @@ export function usePrepareModel(): PrepareModel {
     },
     onReset: (stepId, paramId) => {
       const path = paramPath(stepId, paramId);
-      const fallback = cfg && path ? getByPath(cfg.defaults, path) : undefined;
       if (!path) return;
+      const fallback = cfg ? getByPath(cfg.defaults, path) : undefined;
       const value =
         typeof fallback === "number" || typeof fallback === "string"
           ? fallback
@@ -307,6 +299,5 @@ export function usePrepareModel(): PrepareModel {
       onClose: () => setAdvancedOpen(false),
       props: advancedProps,
     },
-    canIngest,
   };
 }
