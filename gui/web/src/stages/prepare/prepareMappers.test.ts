@@ -292,6 +292,77 @@ describe("readyRows", () => {
     expect(readyRows({ ...base, starting: true })[1].action).toBeUndefined();
   });
 
+  it("does not call new audio done because an earlier run finished", () => {
+    const finished = pipelineJobSnapshot({
+      status: "ok",
+      steps: [step("transcribe", "ok"), step("analyze", "ok")],
+    });
+    const rows = readyRows({ ...base, sourceCount: 1, job: finished });
+    expect(rows.map((r) => [r.id, r.state])).toEqual([
+      ["add", "done"],
+      ["transcribe", "queued"],
+      ["align", "queued"],
+      ["clean", "queued"],
+      ["suggest", "queued"],
+    ]);
+    expect(rows[1]).toMatchObject({
+      detail: "Not transcribed yet",
+      action: { label: "Start", run: "try-again" },
+    });
+    expect(
+      readyRows({ ...base, job: finished, starting: true })[1],
+    ).toMatchObject({
+      state: "queued",
+      detail: "Starts in a moment",
+    });
+    expect(
+      preparePhase({
+        sources: 1,
+        ingestBusy: false,
+        checking: false,
+        rows: readyRows({ ...base, job: finished, starting: true }),
+      }).phase,
+    ).toBe("transcribing");
+  });
+
+  it("keeps a finished run done once every source has a transcript", () => {
+    const finished = pipelineJobSnapshot({
+      status: "ok",
+      steps: [step("transcribe", "ok"), step("analyze", "ok")],
+    });
+    const rows = readyRows({
+      ...base,
+      transcribed: true,
+      job: finished,
+    });
+    expect(rows.every((r) => r.state === "done")).toBe(true);
+  });
+
+  it("shows a start that failed as a failed row with Try again", () => {
+    const finished = pipelineJobSnapshot({
+      status: "ok",
+      steps: [step("transcribe", "ok"), step("analyze", "ok")],
+    });
+    const rows = readyRows({
+      ...base,
+      sourceCount: 1,
+      job: finished,
+      startError: "Network down",
+    });
+    expect(rows[1]).toMatchObject({
+      state: "failed",
+      action: { label: "Try again", run: "try-again" },
+    });
+    expect(rows.some((r) => r.state === "done" && r.id !== "add")).toBe(false);
+    const phase = preparePhase({
+      sources: 1,
+      ingestBusy: false,
+      checking: false,
+      rows,
+    });
+    expect(phase.phase).toBe("failed");
+  });
+
   it("says why a refused run stopped, with Try again", () => {
     const job = pipelineJobSnapshot({
       status: "error",

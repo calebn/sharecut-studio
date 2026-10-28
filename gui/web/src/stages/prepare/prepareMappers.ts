@@ -242,6 +242,8 @@ export type ReadyInput = {
   starting: boolean;
   /** A run was refused because another job holds the pipeline slot. */
   waiting?: boolean;
+  /** Starting the run failed for a reason other than a busy slot. */
+  startError?: string | null;
   job: PipelineJobSnapshot | null;
   pendingSuggestions: number;
   model: ModelAsk | null;
@@ -326,7 +328,9 @@ export const OVERWRITE_REFUSED = "transcript_overwrite_refused";
 
 export function readyRows(input: ReadyInput): ReadyRowData[] {
   if (input.sourceCount === 0) return [];
-  const { job } = input;
+  // A finished run says nothing about audio that has no transcript yet.
+  const job =
+    input.job?.status === "ok" && !input.transcribed ? null : input.job;
   const live = isLive(job);
   const jobless = job === null;
   const settled = jobless && input.transcribed && !input.starting;
@@ -401,6 +405,8 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
         "Another job is running. This starts when it finishes, or press Run to try now.",
       action: { label: "Run", run: "try-again" },
     });
+  } else if (input.startError && !live) {
+    rows.push(failedRow("transcribe", input.startError));
   } else if (transcribe?.state === "failed") {
     rows.push(
       job?.error_code === OVERWRITE_REFUSED
@@ -447,7 +453,12 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
       id: "transcribe",
       state: "queued",
       title: ROW_TITLE.transcribe,
-      detail: input.starting || live ? "Starts in a moment" : "Not started",
+      detail:
+        input.starting || live
+          ? "Starts in a moment"
+          : input.job
+            ? "Not transcribed yet"
+            : "Not started",
       action:
         input.starting || live || input.ingestBusy
           ? undefined
