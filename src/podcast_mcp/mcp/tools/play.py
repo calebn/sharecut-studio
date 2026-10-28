@@ -285,7 +285,9 @@ def play_pending_preview_tool(
 
     Suggested renders the window after approving the edit on a snapshot: the same
     ripple, paced pad, fades and mute that approving ships. Splits have no Suggested
-    side. Does not mutate the project.
+    side. ``pad_sec`` is the audio either side of the edit, 0 to 10 seconds (default 0.5);
+    outside that range it is refused with ``pending_preview_pad_out_of_range``.
+    Does not mutate the project.
     """
     ws = ProjectWorkspace.open(project_path)
     result = PlayService(ws).play_pending_preview(

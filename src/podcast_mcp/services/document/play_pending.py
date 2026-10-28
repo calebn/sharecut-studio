@@ -57,7 +57,7 @@ from .play_support import PlayResult
 log = logging.getLogger(__name__)
 
 # Seconds of lead-in a window renders (and drops) on a track with an adaptive effect; loudnorm's
-# residual against the whole stem falls from about -16 dB (cold) to about -50 dB at 12 s.
+# residual against the whole stem falls from about -16 dB (cold) to about -50 dB at 15 s.
 PENDING_WARMUP_SEC = 15.0
 # arnndn history: a window within this many seconds of the start renders from 0 and is exact.
 PENDING_HISTORY_SEC = 600.0

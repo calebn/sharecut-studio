@@ -50,8 +50,22 @@ _HOP_BY_HOP_RESP = frozenset(
     }
 )
 
+# Where a pending-preview file sits, for the guest's A / B playheads. The same seven names as
+# podcast_mcp.gui.audio.PENDING_PREVIEW_HEADER_NAMES (a test keeps the two lists equal).
+_PENDING_PREVIEW_RESP_HEADERS = frozenset(
+    {
+        "x-preview-edit-id",
+        "x-preview-mode",
+        "x-preview-pad-sec",
+        "x-preview-start-sec",
+        "x-preview-end-sec",
+        "x-preview-edit-start-sec",
+        "x-preview-edit-end-sec",
+    }
+)
+
 # Only these response headers may leave the relay toward guests (drop Set-Cookie).
-_ALLOWED_RESP_HEADERS = frozenset(
+_ALLOWED_RESP_HEADERS = _PENDING_PREVIEW_RESP_HEADERS | frozenset(
     {
         "content-type",
         "cache-control",
