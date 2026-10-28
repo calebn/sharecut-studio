@@ -7,7 +7,7 @@ import { openProject } from "./stageNav";
 test.use({ launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] } });
 
 for (const phone of [false, true]) {
-  test(`provisional recording geometry with panel closed (${phone ? "fixed phone" : "desktop"})`, async ({
+  test(`provisional recording geometry off the Record stage (${phone ? "fixed phone" : "desktop"})`, async ({
     page,
   }) => {
     await page.setViewportSize(
@@ -70,13 +70,6 @@ for (const phone of [false, true]) {
     send("recording", 1);
     const overlay = page.getByRole("img", { name: /provisional recording/ });
     await expect(overlay).toBeAttached();
-    const recordDialog = page.getByRole("dialog", { name: "Record room" });
-    if (await recordDialog.count()) {
-      await recordDialog
-        .getByRole("button", { name: "Close", exact: true })
-        .click();
-    }
-    await expect(recordDialog).toHaveCount(0);
     await expect
       .poll(async () => scroller.evaluate((el) => el.scrollWidth))
       .toBeGreaterThan(before.width);
