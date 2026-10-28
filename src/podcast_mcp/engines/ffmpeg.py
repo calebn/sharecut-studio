@@ -37,7 +37,7 @@ from podcast_mcp.engines.audio import (
     postorder,
     sources,
 )
-from podcast_mcp.engines.effect_filters import format_effect
+from podcast_mcp.engines.effect_filters import format_effect, graph_rate
 from podcast_mcp.engines.mastering import (
     LIMITER_MARGIN_DB,
     LIMITER_MAX_RENDERS,
@@ -1353,13 +1353,19 @@ class FFmpegEngine:
                 )
 
         split_labels = [""] * n
+        # A one-rate filter downstream (arnndn, loudnorm) makes FFmpeg resample each recording
+        # before ``atrim``, but only while no delay pins the rate in between. Naming the
+        # resample here puts every piece at that rate whether or not the graph has delays.
+        forced = graph_rate(af_chain)
+        resample = f"aresample={forced}" if forced else ""
         for input_index, path in enumerate(source_ranges):
             segment_indices = [i for i, p in enumerate(source_paths) if p == path]
             labels = [f"[src_in{input_index}_{i}]" for i in range(len(segment_indices))]
             if len(labels) > 1:
-                filters.append(f"[{input_index}:a]asplit={len(labels)}{''.join(labels)}")
+                head = f"{resample}," if resample else ""
+                filters.append(f"[{input_index}:a]{head}asplit={len(labels)}{''.join(labels)}")
             else:
-                filters.append(f"[{input_index}:a]anull{labels[0]}")
+                filters.append(f"[{input_index}:a]{resample or 'anull'}{labels[0]}")
             for segment_index, label in zip(segment_indices, labels, strict=True):
                 split_labels[segment_index] = label
 
