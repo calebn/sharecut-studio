@@ -8,6 +8,7 @@ import { openDialogFromMenu } from "../e2e/overlayReachability";
 import { expectPlaybackAdvancesThenHolds, playButton } from "../e2e/playback";
 import {
   clickHostTransport,
+  closeHostMore,
   createRecordRoom,
   HOST_PARTICIPANT_ID,
   joinAsGuest,
@@ -116,6 +117,7 @@ test.describe("core flow", () => {
             ]);
 
             await landParticipant(roomDlg, "Ava");
+            await closeHostMore(host);
             await expect(
               guest.getByText(
                 "Saved to project and on the timeline. This device's copy clears automatically.",
