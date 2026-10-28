@@ -459,6 +459,36 @@ describe("usePrepareRun failed start", () => {
   });
 });
 
+describe("usePrepareRun and the audio a job covers", () => {
+  const audio = () => mediaKeyOf([sampleTrack({ id: "a" })]);
+
+  beforeEach(() => {
+    useDawStore.setState({
+      project: minimalProject({ tracks: [sampleTrack({ id: "a" })] }),
+    });
+  });
+
+  it.each([
+    ["a full run", "run", undefined],
+    ["Re-transcribe", "retranscribe", undefined],
+    ["from transcribe_tracks", "run", "transcribe_tracks"],
+  ] as const)("%s covers the audio", async (_label, mode, fromStep) => {
+    const { result } = setup();
+    await act(async () => result.current.run(mode, false, fromStep));
+    expect(jobMediaKey("j1")).toBe(audio());
+  });
+
+  it("a run from a later step does not", async () => {
+    start.mockResolvedValue(
+      pipelineJobSnapshot({ id: "j-later", status: "running" }),
+    );
+    const { result } = setup();
+    await act(async () => result.current.run("run", false, "align_tracks"));
+    expect(start).toHaveBeenCalledOnce();
+    expect(jobMediaKey("j-later")).toBeUndefined();
+  });
+});
+
 describe("usePrepareRun Try again after a failed start", () => {
   it("replays a failed Re-transcribe with its options", async () => {
     start.mockRejectedValueOnce(new Error("Network down"));
