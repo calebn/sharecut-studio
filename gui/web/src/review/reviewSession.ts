@@ -110,12 +110,13 @@ export function reviewSession(
     case "revert": {
       const hit = a.ids.filter((id) => s.decided.has(id));
       if (hit.length === 0) return s;
+      const back = hit.filter((id) => !s.decided.get(id)?.left);
       const decided = new Map(s.decided);
       for (const id of hit) decided.delete(id);
       return {
         ...s,
         decided,
-        selectedId: hit[0] ?? s.selectedId,
+        selectedId: back[0] ?? s.selectedId,
         looksRight: without(s.looksRight, hit),
       };
     }
@@ -148,7 +149,7 @@ export function useReviewSession(
         init.selectedId ?? stepUndecided(items, null, "forward", filter),
     } satisfies ReviewSession;
   });
-  useEffect(() => dispatch({ type: "observed", open }), [open]);
+  useEffect(() => dispatch({ type: "observed", open }), [open, s.decided]);
 
   const merged = useMemo(() => mergeOpen(open, s.decided), [open, s.decided]);
   const items = useMemo(() => merged.map((e) => e.item), [merged]);
