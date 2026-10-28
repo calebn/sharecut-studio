@@ -401,10 +401,6 @@ with axe before the collected results are asserted.
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a track with an envelope and an effect chain keeps every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending-edit and transcript-word sheet bodies keep every control reachable | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Pipeline native targets stay clear in the Pipeline panel | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Pipeline retains a scrolled focused control across viewport resizes | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Pipeline keeps an oversized native control targetable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Pipeline native flow keeps phone and coarse-pointer targets usable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the tablet sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | agent range controls stay reachable from a tablet clip sheet | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -569,14 +565,6 @@ regions against rendered ruler ticks within 0.5 CSS px, and the trim ghost
 waveform against the committed clip edge before verifying the saved trim.
 The deep-zoom journey keeps its accessible envelope-point query and measures
 waveform tiles, ruler ticks, and envelope chunks through the same hooks.
-
-`e2e-compat/pipeline-toolbar-fit.spec.ts` checks eight independent cases per
-engine. The cases cover Pipeline controls in the original short panel at 16px
-and 32px text, focused-control and scroll-anchor retention at both text sizes,
-an oversized native control, and phone/coarse-pointer flows at two phone text
-sizes and a short iPad landscape viewport. Each case uses its own disposable
-project. These are bundled Chromium and Playwright WebKit checks, not physical
-Safari or Firefox coverage.
 
 The `frontend-e2e-suites` compatibility job runs the focused
 `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in bundled Chromium
