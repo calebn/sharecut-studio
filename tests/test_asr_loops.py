@@ -3,8 +3,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from podcast_mcp.engines.asr_loops import drop_looped_words, zlib_ratio
 
+from podcast_mcp.engines.asr_loops import drop_looped_words, zlib_ratio
 from podcast_mcp.models import TranscriptWord
 
 LOOP_TEXT = ("And I know that " * 60).split()

@@ -759,9 +759,7 @@ def test_read_asr_cache_repairs_a_legacy_cache_that_holds_a_loop(minimal_project
     assert engine._loop_drop.dropped == 221
 
 
-def test_read_asr_cache_repair_is_not_written_back_and_is_found_again(
-    minimal_project, sample_wav
-):
+def test_read_asr_cache_repair_is_not_written_back_and_is_found_again(minimal_project, sample_wav):
     from podcast_mcp.engines.transcribe import TranscribeJob
 
     proj = _dialogue_project(minimal_project, sample_wav)

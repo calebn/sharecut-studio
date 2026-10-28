@@ -136,7 +136,7 @@ See [testing.md § Lab tape: alignment testing grounds](test-results.md#lab-tape
 |------|---------|
 | `{workspace}/show_glossary.yaml` | Show title, recurring terms, replacements |
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
-| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (words the plausibility trim could not reach; no time rewrite) + `forced_alignment` per-job outcomes (each freshly-aligned job also carries `align_sec`, the wall time `WordAligner.align` took; a cache hit or a kept-Whisper failure has no `align_sec`; `no_evidence_words` counts words below `min_word_score` when the floor is on, #195) |
+| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (words the plausibility trim could not reach; no time rewrite) + `asr_loops` (per track: dropped looped ASR words with their `start`/`end`, `dense_words`, `looped_segments`; this run only, not stored in the project) + `forced_alignment` per-job outcomes (each freshly-aligned job also carries `align_sec`, the wall time `WordAligner.align` took; a cache hit or a kept-Whisper failure has no `align_sec`; `no_evidence_words` counts words below `min_word_score` when the floor is on, #195) |
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
 | `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + `transcript_fingerprint` of the reviewed word text. The same `edits/review_gate.ReviewGate` as `align_accept_status.json`; `REFINE_GATE` in `edits/transcript_refine_status.py` supplies only the fingerprint and brief |
 

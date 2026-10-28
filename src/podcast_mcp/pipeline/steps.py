@@ -108,6 +108,18 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
     return f"{len(admitted)} tracks probed, {waveforms} waveforms, {dialogue} dialogue"
 
 
+def _dropped_loops_summary(entries: list[dict[str, Any]]) -> str:
+    def span(entry: dict[str, Any]) -> str:
+        return f"at {entry['start']:.1f}-{entry['end']:.1f}s on {entry['track_id']}"
+
+    if len(entries) > 3:
+        total = sum(entry["dropped"] for entry in entries)
+        return f"dropped {total} looped word(s) on {len(entries)} tracks, first {span(entries[0])}"
+    return ", ".join(
+        f"dropped {entry['dropped']} looped word(s) {span(entry)}" for entry in entries
+    )
+
+
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.pipeline_unattended import is_unattended
     from podcast_mcp.edits.transcript_reuse import (
@@ -200,6 +212,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         if options.forced_alignment_enabled
         else []
     )
+    asr_loops = [entry for e in engines for entry in e.asr_loop_drops]
     forced_alignment: dict[str, Any] = {**options.forced_alignment.report(), "jobs": align_jobs}
     retime_ok = {j["label"] for j in align_jobs if forced_alignment_succeeded(j)}
     retimed = [j.label for j in plan.retime if j.label in retime_ok]
@@ -220,6 +233,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
                 "flag_count": len(timing_flags),
                 "flags": timing_flags,
                 "forced_alignment": forced_alignment,
+                "asr_loops": asr_loops,
                 "punctuation_flags": punctuation_flags,
             },
             indent=2,
@@ -233,6 +247,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", {trimmed} implausible word span(s) trimmed"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"
+    if dropped_loops := [entry for entry in asr_loops if entry["dropped"]]:
+        summary += f", {_dropped_loops_summary(dropped_loops)}"
     if punctuation_flags:
         low = ", ".join(f["track_id"] for f in punctuation_flags)
         summary += f", low punctuation rate on {low}"
