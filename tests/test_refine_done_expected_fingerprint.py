@@ -83,6 +83,15 @@ def test_mark_checked_refuses_and_keeps_the_existing_record(project) -> None:
     assert _sidecar(project).read_text(encoding="utf-8") == recorded
 
 
+def test_mark_checked_repeat_with_the_matching_fingerprint_is_a_no_op(project) -> None:
+    svc = TranscriptRefineService(ProjectWorkspace.open(project))
+    first = svc.mark_checked(expected_fingerprint=_fingerprint(project))
+    recorded = _sidecar(project).read_text(encoding="utf-8")
+    again = svc.mark_checked(notes="ignored", expected_fingerprint=_fingerprint(project))
+    assert again["updated_at"] == first["updated_at"]
+    assert _sidecar(project).read_text(encoding="utf-8") == recorded
+
+
 def test_mark_checked_refuses_a_stale_fingerprint_on_a_fresh_gate(project) -> None:
     reviewed = _fingerprint(project)
     svc = TranscriptRefineService(ProjectWorkspace.open(project))
