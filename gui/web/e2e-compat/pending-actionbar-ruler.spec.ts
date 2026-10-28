@@ -43,7 +43,7 @@ const VIEWPORTS: Record<
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
   // No bottom panel is left in the stage frame, so the card keeps its room
   // between the marker lane and the Player down to about this height.
-  "desktop-short": { width: 1280, height: 260, outcome: "inline" },
+  "desktop-short": { width: 1280, height: 220, outcome: "inline" },
 };
 
 let projectPath: string;
