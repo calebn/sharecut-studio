@@ -443,6 +443,53 @@ describe("usePrepareRun failed start", () => {
   });
 });
 
+describe("usePrepareRun Try again after a failed start", () => {
+  it("replays a failed Re-transcribe with its options", async () => {
+    start.mockRejectedValueOnce(new Error("Network down"));
+    const { result } = setup();
+    await act(async () => result.current.run("retranscribe", true));
+    await waitFor(() => expect(result.current.startError).toBe("Network down"));
+    await act(async () => result.current.tryAgain());
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(start.mock.calls[1][1]).toMatchObject({
+      fromStep: "transcribe_tracks",
+      forceTranscribe: true,
+      overwriteEdited: true,
+    });
+  });
+
+  it("replays a failed Run from here at the same step", async () => {
+    start.mockRejectedValueOnce(new Error("Network down"));
+    const { result } = setup();
+    await act(async () => result.current.run("run", false, "tighten_tracks"));
+    await waitFor(() => expect(result.current.startError).toBe("Network down"));
+    await act(async () => result.current.tryAgain());
+    expect(start.mock.calls[1][1]).toMatchObject({
+      fromStep: "tighten_tracks",
+      forceTranscribe: false,
+    });
+  });
+
+  it("runs plain once a start worked and a later job failed", async () => {
+    start.mockRejectedValueOnce(new Error("Network down"));
+    const { result } = setup();
+    await act(async () => result.current.run("retranscribe", true));
+    await waitFor(() => expect(result.current.startError).toBe("Network down"));
+    await act(async () => result.current.run("run"));
+    await waitFor(() => expect(result.current.startError).toBeNull());
+    act(() =>
+      useDawStore.setState({
+        pipelineJob: pipelineJobSnapshot({ id: "j1", status: "error" }),
+      }),
+    );
+    await act(async () => result.current.tryAgain());
+    expect(start.mock.calls[2][1]).toMatchObject({
+      fromStep: undefined,
+      forceTranscribe: false,
+    });
+  });
+});
+
 describe("usePrepareRun refused over hand fixes", () => {
   const refused = pipelineJobSnapshot({
     id: "j7",
