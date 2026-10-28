@@ -3,7 +3,7 @@ import type {
   CombinedUtterance,
   TranscriptWordView,
 } from "../../types/project";
-import { guestScriptOf } from "./guestScript";
+import { guestScriptOf, playingWordsAt } from "./guestScript";
 
 const word = (
   text: string,
@@ -34,19 +34,19 @@ const utterance = (
 
 describe("guestScriptOf", () => {
   it("is empty for no utterances and for utterances with no heard words", () => {
-    expect(guestScriptOf([])).toEqual({ turns: [], wordStarts: [] });
+    expect(guestScriptOf([])).toEqual({ turns: [], wordStarts: [], words: [] });
     expect(
       guestScriptOf([
         utterance("Maya", [word("gone", 1, { suppressed: true })]),
         { ...utterance("Maya", []), words: undefined },
       ]),
-    ).toEqual({ turns: [], wordStarts: [] });
+    ).toEqual({ turns: [], wordStarts: [], words: [] });
   });
 
   it("orders turns by time and numbers words across them", () => {
     const { turns, wordStarts } = guestScriptOf([
-      utterance("Anneke", [word("Thanks", 20), word("Maya", 20.5)], "t2"),
       utterance("Maya", [word("Hello", 724), word("there", 725)]),
+      utterance("Anneke", [word("Thanks", 20), word("Maya", 20.5)], "t2"),
     ]);
     expect(turns.map((t) => [t.speaker.name, t.time])).toEqual([
       ["Anneke", "0:20"],
@@ -90,12 +90,32 @@ describe("guestScriptOf", () => {
     ]);
   });
 
-  it("holds word starts from going backwards over overlapping speech", () => {
-    const { wordStarts } = guestScriptOf([
+  it("keeps each word's own start over overlapping speech", () => {
+    const { wordStarts, turns } = guestScriptOf([
       utterance("Maya", [word("one", 10), word("two", 14)]),
       utterance("Anneke", [word("over", 12)], "t2"),
     ]);
-    expect(wordStarts).toEqual([10, 14, 14]);
+    expect(wordStarts).toEqual([10, 14, 12]);
+    expect(turns.map((t) => t.words.map((w) => w.text))).toEqual([
+      ["one", "two"],
+      ["over"],
+    ]);
+  });
+
+  it("finds every word being spoken at a time, overlaps included", () => {
+    const { words } = guestScriptOf([
+      utterance("Maya", [word("one", 10), word("two", 14)]),
+      utterance("Anneke", [word("over", 12)], "t2"),
+    ]);
+    expect(playingWordsAt(words, 9.9)).toEqual([]);
+    expect(playingWordsAt(words, 10.2)).toEqual([0]);
+    expect(playingWordsAt(words, 12.2)).toEqual([2]);
+    expect(playingWordsAt(words, 14.2)).toEqual([1]);
+    const crosstalk = guestScriptOf([
+      utterance("Maya", [{ ...word("long", 10), timeline_end: 13 }]),
+      utterance("Anneke", [word("over", 12)], "t2"),
+    ]);
+    expect(playingWordsAt(crosstalk.words, 12.2)).toEqual([0, 1]);
   });
 
   it("measures the pause before each turn from the last word's end", () => {
@@ -104,6 +124,15 @@ describe("guestScriptOf", () => {
       utterance("Maya", [word("c", 13)]),
     ]);
     expect(turns.map((t) => t.pauseBefore)).toEqual([undefined, 1.5]);
+  });
+
+  it("measures a pause from the latest end of every earlier turn", () => {
+    const { turns } = guestScriptOf([
+      utterance("Maya", [{ ...word("long", 10), timeline_end: 20 }]),
+      utterance("Anneke", [word("short", 12)], "t2"),
+      utterance("Maya", [word("later", 23)]),
+    ]);
+    expect(turns.map((t) => t.pauseBefore)).toEqual([undefined, 0, 3]);
   });
 
   it("gives each speaker one presence colour, in order of first speech", () => {

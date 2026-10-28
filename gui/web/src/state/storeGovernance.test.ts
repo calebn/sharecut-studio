@@ -466,7 +466,7 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   {
     file: "stage/hosts/GuestScriptHost.tsx",
     reason:
-      "the guest Script follows the live playhead; only this leaf adapter renders it",
+      "the selector turns the live playhead into a key of the playing words, so the Script re-renders only when a word changes",
   },
   {
     file: "state/presenceSlice.ts",

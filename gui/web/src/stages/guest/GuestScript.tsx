@@ -2,17 +2,17 @@ import { useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
 import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
 import type { ScriptTurn } from "../../system/scriptPieces";
-import { lastIndexAtOrBefore } from "../../utils/math";
 import type { GuestRole } from "./guestLogic";
 
 export type GuestScriptProps = {
   access: GuestRole;
   layout: "desktop" | "phone";
   turns: readonly ScriptTurn[];
-  /** Start second of each word, by word index, ascending. */
+  /** Start second of each word, by word index. */
   wordStarts: readonly number[];
-  /** Playhead in seconds; the Script follows it until the guest scrolls away. */
-  playhead: number;
+  playing: number | readonly number[] | undefined;
+  /** The transcript has words, but none is left for a guest to read. */
+  hasTranscript?: boolean;
   onSeek: (seconds: number) => void;
   onUserScroll?: () => void;
 };
@@ -22,17 +22,20 @@ export function GuestScript({
   layout,
   turns,
   wordStarts,
-  playhead,
+  playing,
+  hasTranscript = false,
   onSeek,
   onUserScroll,
 }: GuestScriptProps) {
   const [following, setFollowing] = useState(true);
   const pane = useRef<ScriptPaneHandle>(null);
-  const word = lastIndexAtOrBefore(wordStarts, playhead);
+  const first = typeof playing === "number" ? playing : playing?.[0];
   if (turns.length === 0) {
     return (
       <Cover size="region" glyph="inbox" title="Nothing to read yet">
-        The host has not made a transcript of this version.
+        {hasTranscript
+          ? "Every word of this version has been cut or ignored."
+          : "The host has not made a transcript of this version."}
       </Cover>
     );
   }
@@ -42,16 +45,19 @@ export function GuestScript({
       turns={turns}
       layout={layout}
       guest={access === "viewer" ? "viewer" : "commenter"}
-      playing={word}
+      playing={playing}
       following={following}
-      onSeek={(index) => onSeek(wordStarts[index] ?? playhead)}
+      onSeek={(index) => {
+        const start = wordStarts[index];
+        if (start !== undefined) onSeek(start);
+      }}
       onUserScroll={() => {
         setFollowing(false);
         onUserScroll?.();
       }}
       onBackToPlayhead={() => {
         setFollowing(true);
-        if (word !== undefined) pane.current?.scrollToWord(word, "center");
+        if (first !== undefined) pane.current?.scrollToWord(first, "center");
       }}
       onFollowChange={setFollowing}
     />

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
@@ -9,6 +9,17 @@ import { GuestScriptHost } from "./GuestScriptHost";
 
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../commands/seek", () => ({ seekTransport }));
+const scriptRenders = vi.hoisted(() => vi.fn());
+vi.mock("../../stages/guest/GuestScript", async (original) => {
+  const actual =
+    await original<typeof import("../../stages/guest/GuestScript")>();
+  return {
+    GuestScript: (props: Parameters<typeof actual.GuestScript>[0]) => {
+      scriptRenders();
+      return actual.GuestScript(props);
+    },
+  };
+});
 
 const UTTERANCES: CombinedUtterance[] = [
   {
@@ -38,19 +49,21 @@ const UTTERANCES: CombinedUtterance[] = [
   },
 ];
 
-function as(mode: "view" | "comment" | "edit" | null, playheadSec: number) {
+function as(
+  mode: "view" | "comment" | "edit" | null,
+  playheadSec: number,
+  utterances: CombinedUtterance[] = UTTERANCES,
+) {
   useDawStore
     .getState()
-    .hydrate(
-      "share:abc",
-      minimalProject({ transcript: { utterances: UTTERANCES } }),
-    );
+    .hydrate("share:abc", minimalProject({ transcript: { utterances } }));
   useDawStore.setState({ guestMode: mode, playheadSec });
 }
 
 beforeEach(() => {
   stubViewportShell("desktop");
   seekTransport.mockClear();
+  scriptRenders.mockClear();
 });
 
 describe("GuestScriptHost", () => {
@@ -100,5 +113,137 @@ describe("GuestScriptHost", () => {
     expect(
       screen.getByRole("heading", { name: "Nothing to read yet" }),
     ).toBeInTheDocument();
+  });
+
+  it("says every word was cut when the transcript has no heard words", () => {
+    as("view", 0, [
+      {
+        ...UTTERANCES[0],
+        words: [{ text: "cut", start: 0, end: 0, suppressed: true }],
+      } as CombinedUtterance,
+    ]);
+    render(<GuestScriptHost />);
+    expect(
+      screen.getByText("Every word of this version has been cut or ignored."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("The host has not made a transcript of this version."),
+    ).toBeNull();
+  });
+
+  it("says the host made no transcript for an empty one", () => {
+    as("view", 0, []);
+    render(<GuestScriptHost />);
+    expect(
+      screen.getByText("The host has not made a transcript of this version."),
+    ).toBeInTheDocument();
+  });
+
+  describe("overlapping speech", () => {
+    const word = (text: string, at: number) => ({
+      text,
+      start: 0,
+      end: 0,
+      timeline_start: at,
+      timeline_end: at + 1,
+    });
+    const OVERLAP: CombinedUtterance[] = [
+      { ...UTTERANCES[0], words: [word("one", 10), word("two", 14)] },
+      {
+        ...UTTERANCES[0],
+        track_id: "t2",
+        speaker: "Anneke",
+        words: [word("over", 12)],
+      } as CombinedUtterance,
+    ];
+
+    it("marks the overlapped word while it is spoken", () => {
+      as("view", 12.5, OVERLAP);
+      render(<GuestScriptHost />);
+      expect(
+        [...document.querySelectorAll(".sys-script-word[data-playing]")].map(
+          (el) => el.textContent,
+        ),
+      ).toEqual(["over"]);
+    });
+
+    it("marks both words when two tracks speak at once", () => {
+      as("view", 10.5, [
+        ...OVERLAP,
+        {
+          ...OVERLAP[1],
+          track_id: "t3",
+          words: [word("with", 10.2)],
+        } as CombinedUtterance,
+      ]);
+      render(<GuestScriptHost />);
+      expect(
+        [...document.querySelectorAll(".sys-script-word[data-playing]")].map(
+          (el) => el.textContent,
+        ),
+      ).toEqual(["one", "with"]);
+    });
+
+    it("seeks to the overlapped word's own start", async () => {
+      as("comment", 0, OVERLAP);
+      render(<GuestScriptHost />);
+      await userEvent.click(screen.getByRole("button", { name: "over" }));
+      expect(seekTransport).toHaveBeenCalledExactlyOnceWith(12);
+    });
+  });
+
+  it("wraps speaker colours after eight", () => {
+    as(
+      "view",
+      0,
+      Array.from({ length: 9 }, (_, i) => ({
+        ...UTTERANCES[0],
+        track_id: `t${i}`,
+        speaker: `S${i}`,
+        words: [
+          {
+            text: `w${i}`,
+            start: 0,
+            end: 0,
+            timeline_start: i,
+            timeline_end: i,
+          },
+        ],
+      })) as CombinedUtterance[],
+    );
+    const { container } = render(<GuestScriptHost />);
+    const colors = [...container.querySelectorAll<HTMLElement>("[style]")]
+      .map((el) => el.style.getPropertyValue("--sys-person-color"))
+      .filter(Boolean);
+    expect(colors).toContain("var(--color-presence-7)");
+    expect(colors.at(-1)).toBe("var(--color-presence-0)");
+  });
+
+  it("re-renders only when the playing word changes", () => {
+    as("view", 10.1);
+    render(<GuestScriptHost />);
+    const before = scriptRenders.mock.calls.length;
+    act(() => useDawStore.setState({ playheadSec: 10.3 }));
+    expect(scriptRenders).toHaveBeenCalledTimes(before);
+    act(() => useDawStore.setState({ playheadSec: 11.1 }));
+    expect(scriptRenders.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it("stops following on scroll and Back to playhead follows again", async () => {
+    const scroll = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scroll;
+    as("view", 11.2);
+    render(<GuestScriptHost />);
+    const body = document.querySelector(".sys-script-body") as HTMLElement;
+    fireEvent.wheel(body);
+    fireEvent.scroll(body);
+    scroll.mockClear();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Back to playhead/ }),
+    );
+    expect(scroll).toHaveBeenCalledWith({ block: "center" });
+    expect(
+      screen.queryByRole("button", { name: /Back to playhead/ }),
+    ).toBeNull();
   });
 });
