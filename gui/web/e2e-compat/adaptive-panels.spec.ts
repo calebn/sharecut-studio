@@ -13,7 +13,12 @@ import {
 } from "../e2e/liveProject";
 import { hostOfflineQueueCount } from "../e2e/offlineQueue";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject, saveStatus } from "../e2e/stageNav";
+import {
+  closeTools,
+  openProject,
+  openToolsIfFolded,
+  saveStatus,
+} from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, isMobile: true });
@@ -107,7 +112,9 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
         await expect(page.locator(".track-header-row")).toHaveCount(2);
         // The stacked tablet gives the lower half to the Script; the timeline
         // takes the whole body once the Script is hidden.
+        const folded = await openToolsIfFolded(page);
         await page.getByRole("button", { name: "Show or hide Script" }).click();
+        if (folded) await closeTools(page);
         await expect(page.locator(".edit-script")).toHaveCount(0);
         await page.evaluate(() => document.fonts.ready);
         const scroller = page.locator(".timeline-scroll");
@@ -273,7 +280,9 @@ for (const { theme, reducedMotion } of withAppearance([0], 3)) {
         await expect(page.locator(".track-header-row")).toHaveCount(2);
         // The stacked tablet gives the lower half to the Script; the timeline
         // takes the whole body once the Script is hidden.
+        const folded = await openToolsIfFolded(page);
         await page.getByRole("button", { name: "Show or hide Script" }).click();
+        if (folded) await closeTools(page);
         await expect(page.locator(".edit-script")).toHaveCount(0);
         await page.evaluate(() => document.fonts.ready);
         await expectMixSettled(page, fixture.projectPath);
