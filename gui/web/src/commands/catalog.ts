@@ -682,11 +682,10 @@ export const COMMANDS: Record<string, CommandDef> = {
     mutates: true,
     category: "edit",
     label: "Split speakers…",
-    variants: ["Review split…"],
     keywords: ["speakers", "one track", "interview", "room mic", "per person"],
     when: "editStageSplitSpeakers",
     notes:
-      "Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step",
+      "Opens Prepare at the split prompt for the inspector track (args { trackId? }); the split runs as a job and is one undo step",
   },
   "track.reorder": {
     id: "track.reorder",
