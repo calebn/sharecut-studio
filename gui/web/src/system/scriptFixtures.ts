@@ -139,3 +139,73 @@ export function replaceSpan(
     }),
   }));
 }
+
+const FILLER =
+  "the room sounds smaller when we talk about it than when we are in it and that changes what we hear";
+
+/**
+ * `count` turns of about `size` words, alternating two speakers, with word
+ * indices running on from 0. For scrolling, edge scroll and size stories.
+ */
+export function longScript(count: number, size = 24): ScriptTurn[] {
+  const filler = FILLER.split(" ");
+  let next = 0;
+  return Array.from({ length: count }, (_, at) => {
+    const from = next;
+    const words: ScriptWord[] = Array.from({ length: size }, (_, w) => ({
+      index: from + w,
+      key: `episode:${from + w}`,
+      text: filler[(at + w) % filler.length],
+    }));
+    next += size;
+    const maya = at % 2 === 0;
+    return {
+      id: `long-${at}`,
+      speakerId: maya ? "maya" : "anneke",
+      speaker: maya ? MAYA : ANNEKE,
+      time: `${String(Math.floor(at / 2) + 1).padStart(2, "0")}:${at % 2 === 0 ? "04" : "34"}`,
+      pauseBefore: 1.2,
+      words,
+    };
+  });
+}
+
+/** One turn of `size` words: the size a row of hours-long dictation reaches. */
+export function hugeTurn(size: number): ScriptTurn[] {
+  return longScript(1, size);
+}
+
+/** A Hebrew turn between two English ones, so lines run both ways. */
+export const RTL_TURNS: readonly ScriptTurn[] = (() => {
+  const hebrew = "שלום לכולם ברוכים הבאים להקלטה של היום על חדרים קטנים".split(
+    " ",
+  );
+  const before = SCRIPT_TURNS[0].words.slice(0, 6);
+  return [
+    { ...SCRIPT_TURNS[0], words: before },
+    {
+      id: "he",
+      speakerId: "anneke",
+      speaker: ANNEKE,
+      time: "12:19",
+      pauseBefore: 1.4,
+      words: hebrew.map((text, at) => ({
+        index: 6 + at,
+        key: `episode:${6 + at}`,
+        text,
+      })),
+    },
+    {
+      id: "en",
+      speakerId: "maya",
+      speaker: MAYA,
+      time: "12:30",
+      pauseBefore: 1.4,
+      words: ["Thanks", "for", "that."].map((text, at) => ({
+        index: 6 + hebrew.length + at,
+        key: `episode:${6 + hebrew.length + at}`,
+        text,
+      })),
+    },
+  ];
+})();

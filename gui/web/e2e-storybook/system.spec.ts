@@ -527,11 +527,14 @@ test("System/ScriptPane a grip's region reaches only toward its knob, so the wor
   );
   expect(under).not.toBeNull();
   await page.touchscreen.tap(x, y);
-  await expect(page.locator(".sys-handle")).toHaveCount(0);
+  // The tap selected that word, so the grips now sit on it alone.
+  await expect(page.locator(".sys-handle")).toHaveCount(2);
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.textContent))
     .toBe(under);
-  await expect(start).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveText(
+    `1 word selected: ${under}`,
+  );
   await context.close();
 });
 
