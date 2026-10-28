@@ -709,6 +709,8 @@
   }
 
   .sys-header-project {
+    justify-content: center;
+    min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
   }
 
