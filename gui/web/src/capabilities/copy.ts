@@ -328,9 +328,9 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Skip staged session",
     tooltip: "Skip a staged recorded session",
   },
-  "daw.record.panel": {
-    label: "Record room…",
-    tooltip: "Record room…",
+  "daw.record.state": {
+    label: "Record room state",
+    tooltip: "Record room state",
   },
   "daw.record.marker": {
     label: "Record marker",
@@ -578,6 +578,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   viewSheet: "daw.view.trackHeightDecrease",
   "transport.fit": "daw.view.fit",
   stageBar: "daw.stage.deliver",
+  editPlusMenu: "daw.edit.addChapter",
   historyPanel: "daw.history.redo",
   "timeline.waveform": "daw.view.waveformZoomOut",
   "transport.fitTracksHeight": "daw.view.fitTracksHeight",
@@ -587,10 +588,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   GesturesSheet: "daw.ui.toggleCommandPalette",
   ShareDialog: "daw.share.manage",
   BounceDialog: "daw.export.bounce",
-  RecordPanel: "daw.record.panel",
-  "transport.recChip": "daw.record.panel",
-  editPlusMenu: "daw.edit.addChapter",
-  LiveComments: "daw.record.marker",
+  RecordStage: "daw.record.marker",
   HostMcpDialog: "daw.mcp.connect",
   "home.help": "daw.help.diagnosticsBundle",
   HelpDialog: "daw.help.diagnosticsBundle",

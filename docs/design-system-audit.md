@@ -32,7 +32,7 @@ The domain composition inventory covered 42 story families. This is a snapshot f
 | Timeline (12) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EditMarkerLayer, EnvelopeOverlay, JoinPopover, MarkerLane, PendingEditOverlay, PresenceOverlay, StaleInvalidationOverlay, TimeRuler, TimelineRange |
 | Transcript (3) | EditBoundaryMark, GhostWordChips, TranscriptTurn |
 | Comments (2) | CommentCard, CommentCompose |
-| Recording (8) | ConsentGate, Declined, DeviceCheck, FullRoom, HostUploadRoster, LiveComments, Lobby, RecIndicator |
+| Recording (7) | ConsentGate, Declined, DeviceCheck, FullRoom, LiveComments, Lobby, RecIndicator |
 | Tracks (1) | TrackHeader |
 
 Domain coverage was a source/composition review, with deeper inspection of forms,

@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditToolStrip, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -113,8 +113,7 @@ state in the story, no app providers, no network, no store — belongs under **T
 with its story colocated in the feature folder (for example
 `src/record/Declined.stories.tsx` → `Templates/Declined`,
 `src/record/ConsentGate.stories.tsx` → `Templates/ConsentGate`,
-`src/record/LiveComments.stories.tsx` → `Templates/LiveComments`,
-`src/record/HostUploadRoster.stories.tsx` → `Templates/HostUploadRoster`).
+`src/record/LiveComments.stories.tsx` → `Templates/LiveComments`).
 
 - Render the surface in its production shell and stylesheet so the story
   renders what ships. Record-room stories use `recordStoryDecorator`

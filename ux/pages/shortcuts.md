@@ -85,7 +85,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Mod+K` | Blade cut (`edit.bladeCut`) | editStageStructural | Mod+K: cut at playhead — Mod+K cuts; K alone stops playback |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
 | `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A: Logic-style; empty targeting |
-| `M` | Toggle track mute (`track.muteToggle`) | Project loaded | M mutes the targeted track; while the record panel is open, M drops a marker instead |
+| `M` | Toggle track mute (`track.muteToggle`) | Project loaded | M mutes the targeted track; on the Record stage, M drops a marker instead |
 | `S` | Toggle track solo (`track.soloToggle`) | Project loaded |  |
 | `Mod+Shift+T` | New track (`track.add`) | editStageIngest | Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T) |
 | `Mod+I` | Import audio… (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
@@ -108,7 +108,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `M` | Record marker (`record.marker`) | recordPanelOpen | M: live marker while the record panel is open; with the panel closed, M still mutes the targeted track — M drops a marker only while the record panel is open; otherwise M mutes the targeted track |
+| `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes the targeted track — M drops a marker only on the Record stage; otherwise M mutes the targeted track |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
 | `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: bounce dialog (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
@@ -154,7 +154,6 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Resume recording | `record.resume` | Host project management |  |
 | Stop recording | `record.stop` | Host project management |  |
 | Land recording on timeline | `record.land` | Host project management |  |
-| Record room… | `record.openPanel` | Loaded host project |  |
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Manage models… | `models.open` | Host project management | Host-only dialog listing every model with its state, size and a download |
