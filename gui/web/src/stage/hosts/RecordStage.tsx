@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { runPointerCommand } from "../../commands/pointer";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import {
@@ -118,6 +119,7 @@ function RecordStageBody({
       clipping?.takeIndex === takeIndex ? clipping.regions[0] : undefined;
     const jump = room.jumpFor(clipped ?? TAKE_START, takeIndex);
     if (jump) {
+      runPointerCommand("stage.edit");
       jump();
     } else {
       announceStatus("That take is not on the timeline yet.");
@@ -279,9 +281,4 @@ function RecordStageAdapter(props: RecordStageProps) {
   );
 }
 
-/**
- * The Record stage host: the Room view and the Takes tray, fed by the shared
- * host room hook that `DawApp` mounts once. The room's uploads and capture live
- * there, so a take survives a stage switch; the frame hides the Player here.
- */
 export const RecordStage = memo(RecordStageAdapter);

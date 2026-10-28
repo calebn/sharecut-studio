@@ -302,7 +302,7 @@ flowchart TD
    During a healthy host take, the persistent transport control has a red dot,
    REC, and a running clock on desktop; phone keeps the same control in a row
    above every mode body. Reduced-motion settings keep
-   the dot still. The control opens the Record room panel. PAUSED and local
+   the dot still. The control opens the Record stage. PAUSED and local
    capture failure remain explicit states rather than a healthy REC dot.
    If the host's connection to the record room drops mid-take, the control
    reads "REC (reconnecting)" without the dot until the socket returns (not
@@ -310,8 +310,8 @@ flowchart TD
    After Stop, microphone loss no longer locks the host dialog. A take where
    the host never captured a full-quality recording warns "No full-quality
    recording was captured", even if the mic never became available. If a host record command (Start, Pause, Resume, Stop,
-   Land) fails, the Record room panel opens and shows the error; over the
-   Share dialog the failure is only announced, and an already open panel shows it
+   Land) fails, the failure shows in the Record stage when it is up, is announced and kept for the stage elsewhere, and is only announced over the
+   Share dialog; the stage shows it
    without announcing it a second time. Closing the panel clears it.
 8. Host Stop. The host panel shows one take control (Pause while recording,
    Resume while paused) and keeps Stop alone at the end behind a divider; Stop
@@ -375,7 +375,7 @@ flowchart TD
    same link was removed; then the guest sees "Invite link closed" and needs a
    fresh link from the host. The Join lease check and host removal
    use one room decision so removal cannot look like ordinary lease expiry.
-   The host Record panel points to Share through **Copy links…**. There the
+   The host Record stage points to Share through **Copy links…**. There the
    closed guest or producer invite cannot be copied for newcomers; **Replace
    guest invite** / **Replace producer invite** mints and copies a link for the
    same room and role. Existing valid leases on the old link continue working.

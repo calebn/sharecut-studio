@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   liveTakeOpen,
   useHostRoomContext,
@@ -55,6 +56,13 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
     (room.micLossNeedsAttention ||
       room.captureUnavailable ||
       room.noAudioNeedsAttention);
+  const announceStatus = useDawStore((s) => s.announceStatus);
+  const micLostAway = room != null && !onRecord && room.micLossNeedsAttention;
+  useEffect(() => {
+    if (micLostAway) {
+      announceStatus("Your mic stopped. Open Record to reconnect it.");
+    }
+  }, [micLostAway, announceStatus]);
   const input = useDaw((s) => ({
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,

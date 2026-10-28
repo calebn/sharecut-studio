@@ -121,7 +121,7 @@ The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **R
 
 **Stop sharing** and **End room** trail their row, apart from the copy actions, and confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Escape keeps the link or room (the same as **Keep**) and leaves the dialog open; a second Escape closes it. Each record room has one room-level row: **Open Record stage**, then **End room**.
 
-When a participant is removed, the Record panel directs the host to **Copy
+When a participant is removed, the Record stage directs the host to **Copy
 links…**. Share marks the affected role's invite closed to new guests, disables
 copying its old link, and offers a same-room, same-role replacement. Existing
 leases remain valid. Guests never see this dialog (`canManageProjects` is false
@@ -441,7 +441,7 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 | **Record lobby** | Producer | Name only; **Not recorded** roster group; no mic, no consent. **Shipped (no screenshot yet).** |
 | **Record lobby / room / panel** | Recorded guest and host | **Own** peak meter (sample peak only) with a latching clip LED and headroom hint; REC indicator gets a take **clip LED**; live clipping notice during REC and a **Clipping report** after Stop (host: **Jump to** on the timeline). Producers and Full room have none. |
 | **Record room** | Guest | Persistent **REC** / **PAUSED** + clock; mute (silence in the full-quality recording + send stops); roster; "Recording in full quality on this device."; **Hearing the room.** Each segment reads "Saving to project…", then "Saved to project"; then host timeline clips. **Shipped (no screenshot yet).** |
-| **Record panel** | Host | Start / Pause / Resume / Stop / **Land**; a status line per recorded participant and segment ("Saving to project…", then "Saved to project"). A saved file auto-lands its clips; Land retries. **Shipped (no screenshot yet).** |
+| **Record stage** | Host | Start / Pause / Resume / Stop / **Land**; a status line per recorded participant and segment ("Saving to project…", then "Saved to project"). A saved file auto-lands its clips; Land retries. **Shipped (no screenshot yet).** |
 | **Record room** | Producer | Same REC/PAUSED + **Not recorded** group; mix-minus of recorded peers; no full-quality recording, no saving status. **Shipped (no screenshot yet).** |
 | **Full room** | 5th recorded or 3rd producer | Full-room copy; never `getUserMedia`. **Shipped (no screenshot yet).** |
 | **Declined** | Guest who declined while REC/PAUSED | Declined copy; host may re-invite as producer. **Shipped (no screenshot yet).** |

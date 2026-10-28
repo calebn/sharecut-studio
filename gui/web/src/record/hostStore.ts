@@ -15,7 +15,7 @@ type RecordHostState = {
   /** The record socket was open and has since closed (a drop, not the first connect). */
   dropped: boolean;
   startPending: boolean;
-  /** Last failed host record command (transport or land); shown in the Record room panel. */
+  /** Last failed host record command (transport or land); shown on the Record stage. */
   transportError: string | null;
   setTransportError: (error: string | null) => void;
   keeperSink: ByteSink | null;

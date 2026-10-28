@@ -295,7 +295,7 @@ Long supplementary errors scroll within the pinned card.
 ### Provisional recording timeline
 
 A dedicated timeline leaf shows an aggregate current-take band and recording
-needle while recording/paused, independent of the Record room panel and saved
+needle while recording/paused, independent of the Record stage and saved
 track lanes. It uses the server's Land-compatible take origin and a monotonic
 recording clock. Pause freezes it; Stop clears it; Land supplies real clips through
 the existing document refresh. Its overflow is visual scroll extent only: the
