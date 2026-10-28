@@ -302,7 +302,10 @@ def track_grid(
 ) -> TrackGrid | None:
     """The grid for ``clips``, or None when their recordings do not share one sample rate.
 
-    A recording that cannot be probed has no rate either; the render reports it.
+    A recording that cannot be probed has no rate either; the render reports it. None is only
+    for rate reasons; ``audio_start_sec`` can raise ``LateMpegAudioError`` (MPEG-TS/PS) or
+    ``CodedValueError`` (probe failed), and that propagates, as the render would fail on it
+    anyway.
     ``atrim`` runs at each recording's own rate and ``concat`` resamples to a negotiated
     one, so a single integer grid only exists for one rate. Such a track keeps float
     placement, with delays still on whole samples. A ``window`` decides from every clip of
