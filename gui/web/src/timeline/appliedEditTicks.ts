@@ -223,7 +223,7 @@ export function recordAnchors(
       return seamAnchors(record, trackId);
     case "ripple_delete_clips":
     case "delete_clips":
-      // Recorded by clip id with no source clocks: listed in Impact only.
+      // Recorded by clip id with no source clocks: no tick, and no list shows it since #2293.
       return { kind: "seam", anchors: [] };
     default:
       // Unknown or legacy operation: best effort from its source clocks.
