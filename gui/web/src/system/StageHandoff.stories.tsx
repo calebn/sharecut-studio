@@ -25,7 +25,7 @@ const meta: Meta<typeof StageHandoff> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The button that hands the work to the next stage: the stage icon, the label, an arrow. Secondary until the work is done, then primary once per group. Sizes 36, 40 and 48 (full width on a phone, with no key hint). A disabled hand-off stays focusable and shows why beside it. The key hint is display only (Cmd+Enter on Apple platforms, Ctrl+Enter elsewhere): no key is bound in this slice.\n\n**Motion.** Hover and press change the fill with `--motion-hover`. Nothing else moves.",
+          "The button that hands the work to the next stage: the stage icon, the label, an arrow. Secondary until the work is done, then primary once per group. Sizes 36, 40 and 48 (full width on a phone, with no key hint, and `keyHint={false}` drops it where no key is bound). A disabled hand-off stays focusable and shows why beside it. The key hint is display only (Cmd+Enter on Apple platforms, Ctrl+Enter elsewhere): no key is bound in this slice.\n\n**Motion.** Hover and press change the fill with `--motion-hover`. Nothing else moves.",
       },
     },
   },
