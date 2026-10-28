@@ -819,6 +819,13 @@
    tech: the right-hand controls and the pill's text do not fit the side column
    of a wide phone, and the A and B toggles slid under the skip buttons. */
 @container sys-player (max-width: 50rem) {
+  /* Nothing plays during an audio error, so the A and B toggles give their
+     room to the Retry button: with both, the right-hand controls outgrow the
+     side column and slide under Play. */
+  .sys-player-host[data-state="error"] .sys-player-hear {
+    display: none;
+  }
+
   .sys-player-pill-text {
     position: absolute;
     inline-size: 1px;
