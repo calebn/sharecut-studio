@@ -118,11 +118,12 @@ def test_room_tone_render_keeps_speech_and_fill_on_their_samples(
 ) -> None:
     after = _render(media[ext], tmp_path / "after.wav", FILL_AFTER_CLIP)
     before = _render(media[ext], tmp_path / "before.wav", FILL_BEFORE_CLIP)
-    # The hole opens at 3365 ms (overlaps place fills on a whole millisecond).
+    # The hole opens at timeline 4.6 - CLIP_START = 3.3654322 s, sample round(161540.7) = 161541
+    # on the track grid; the fill's click is 0.1 s (4800 samples) into it.
     assert _click_near(after, 96_000) == 96_000
-    assert _click_near(after, 166_320) == 166_320
+    assert _click_near(after, 166_341) == 166_341
     assert _click_near(before, 96_000) == 96_000
-    assert _click_near(before, 166_320) == 166_320
+    assert _click_near(before, 166_341) == 166_341
 
 
 @pytest.mark.parametrize("ext", CONTAINERS)
