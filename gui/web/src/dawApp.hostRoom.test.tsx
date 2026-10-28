@@ -23,9 +23,6 @@ vi.mock("./stage/dialogs/HostMcpDialog", () => ({
   HostMcpDialog: () => null,
 }));
 vi.mock("./stage/dialogs/ShareDialog", () => ({ ShareDialog: () => null }));
-vi.mock("./stage/dialogs/SplitSpeakersDialog", () => ({
-  SplitSpeakersDialog: () => null,
-}));
 vi.mock("./feedback/AskDialog", () => ({ AskDialog: () => null }));
 vi.mock("./feedback/FeedbackToast", () => ({ FeedbackToast: () => null }));
 vi.mock("./home/HelpDialog", () => ({ HelpDialog: () => null }));
