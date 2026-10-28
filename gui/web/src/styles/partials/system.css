@@ -3117,7 +3117,7 @@ button.sys-picker-option:focus-visible {
 
   .sys-prepare-handoff .sys-handoff {
     flex: none;
-    min-block-size: 2.5rem;
+    min-block-size: 2.75rem;
   }
 
   .sys-prepare-handoff .sys-keys {
