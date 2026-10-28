@@ -23,6 +23,7 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.cut_placement import CutScopeHold, pending_pad_source_spans
 from podcast_mcp.edits.cut_proof import (
+    BatchBase,
     CarriedTimelineRms,
     RebuiltTimelineRms,
     TimelineRms,
@@ -544,9 +545,16 @@ def _apply_source_remove(
     manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
     key = entry = None
     placed = cut_safety.source_cut_placement(project, edit)
-    if verdict_cache.enabled():
+    stamp = _base_profile_stamp(project, timeline, defaults) if verdict_cache.enabled() else None
+    if stamp is not None:
         key = verdict_cache.verdict_key(
-            project, edit, defaults=defaults, manual=manual, batch=batch, span=placed[1]
+            project,
+            edit,
+            defaults=defaults,
+            manual=manual,
+            batch=batch,
+            span=placed[1],
+            base_profile=stamp,
         )
         entry = verdict_cache.lookup(key)
         if entry is not None and not verdict_cache.verifying():
@@ -585,6 +593,21 @@ def _apply_source_remove(
         verify=entry,
     )
     return cast(_Decided, decided)  # only a reused check can return None
+
+
+def _base_profile_stamp(
+    project: EpisodeProject, timeline: TimelineRms | None, defaults: EffectiveConfig
+) -> str | None:
+    """The batch-base profile digest a check's verdict key carries; ``None`` if it cannot be measured.
+
+    Every batch (approve, the idle warm, the auto-apply) asks its own ``BatchBase``; a check
+    with no batch is a batch of one, whose base is ``project`` itself.
+    """
+    base = timeline.base if timeline is not None else BatchBase(project)
+    try:
+        return base.stamp(defaults=defaults)
+    except (OSError, ValueError, KeyError):
+        return None
 
 
 def _observe(

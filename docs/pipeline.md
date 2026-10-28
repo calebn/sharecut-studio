@@ -650,19 +650,34 @@ pads, which must equal what the entry recorded or the full check runs. A check t
 unreadable file is never stored. A batch applied from the end backward builds its timeline audio
 once and carries it while each next cut lies beyond that same reach of every applied cut
 (`CarriedTimelineRms`); a cut within reach builds the audio again from the project as the earlier
-cuts left it (#2357): a track with an effects chain whose tree the evaluator takes is evaluated
-only over the cut's reach (`WindowedTrackRmsCache`, which holds those samples bit for bit and
-raises `WindowMiss` for any read outside them, on which the check is made again on whole
-tracks), and every other track is built whole. Either way every check of the batch reads each
-track's level profile as it stood before the batch's cuts (the batch-base profile,
-`BatchBase`), so a verdict does not depend on which other cuts of the batch were applied first.
-The same holds for the idle warm and for the auto-apply of tighten removes. The key carries a
-`semantics` constant (`verdict_cache.SEMANTICS`) naming that definition, so an entry made under
-another one is never reused. The key does not hash the base profile itself: a cut applied far from a check moves it by hundredths of a dB. `PODCAST_VERDICT_VERIFY=1` also runs the full check on every
-hit and fails if it differs; the approve and cut tests pass in that mode except nine that count
-checks (named in `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
+cuts left it (#2357). At a 48 kHz source, a track with an effects chain whose tree the evaluator
+takes is evaluated only over the cut's reach (`WindowedTrackRmsCache`, which holds those samples
+bit for bit and raises `WindowMiss` for any read outside them, on which the check is made again on
+whole tracks); every other track is built whole. A 44.1 kHz or other source rate, a tree the
+evaluator declines, and a track whose evidence is already stored take the whole-track build, with
+no speed-up (44.1 kHz windows are a follow-up). The auto-apply of tighten removes
+(`RebuiltTimelineRms`) rebuilds whole tracks on every check and gets only the profile definition
+below, no speed-up.
+
+Whichever way the audio is built, every check of a batch reads each track's level profile as it
+stood before the batch's cuts (the batch-base profile, `BatchBase`), for approve, the idle warm and
+the auto-apply alike. A verdict therefore does not depend on which other cuts of the batch were
+applied first. The key carries two things for this: a `semantics` constant
+(`verdict_cache.SEMANTICS`), which only separates entries within one process (the store is in
+memory, so it matters when the constant changes under a running process, as in tests), and
+`base_profile`, a digest of each dialogue track's base room, speech and loud levels at full
+precision (`BatchBase.stamp`; the warm, the approve and the auto-apply all take it from their
+batch's `BatchBase`). Equal bases give equal digests, so an unchanged project keeps every hit; a
+base that differs in any bit does not. That is what makes the idle warm and the approve differ when
+pending mutes apply first: approve's base has the mutes applied and the warm's does not, so the
+warm's entries are not reused there. The stamp needs the start's timeline audio, which a batch
+whose checks all hit would otherwise not build, so asking for it builds that once per batch.
+`PODCAST_VERDICT_VERIFY=1` also runs the full check on every hit and fails if it differs; the
+approve and cut tests pass in that mode except nine that count checks (named in
+`tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,
 `tests/test_verdict_cache_downstream.py` and `tests/test_verdict_cache_fuzz.py` (a fixed-seed
-cached-versus-cold comparison over random timelines, both reading the batch-base profile), which set the flags themselves.
+cached-versus-cold comparison over random timelines, both reading the batch-base profile), which
+set the flags themselves.
 
 ### Which fingerprint answers which question
 

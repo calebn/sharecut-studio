@@ -3,9 +3,11 @@
 Checking a source remove for approval observes the neighbourhood of the cut (peer speech,
 acoustic edges, pauses) and then checks the written result. That is nearly all the cost of an
 approval, and it depends on the audio, words, configuration and clips near the cut, and on
-each track's whole-track level profile before the batch, which the key does not hash (a cut
-applied far from this one moves that profile by hundredths of a dB). An entry keeps the
-observation and the outcome under a key that hashes the inputs near the cut.
+each track's whole-track level profile before the batch (the batch-base profile, #2357). The key
+hashes the audio, words, configuration and clips near the cut and a digest of that base profile
+(``base_profile``, from ``cut_proof.BatchBase.stamp``, at full precision), so an entry made under
+a base that differs in any bit, such as the idle warm's before pending mutes are applied, is
+never reused under another. An entry keeps the observation and the outcome under that key.
 
 A hit never skips what depends on the live timeline: the placement and the cut itself are
 written again, and the written result and room-tone pads must equal what the entry recorded,
@@ -58,10 +60,10 @@ if TYPE_CHECKING:
 ENABLE_ENV = "PODCAST_VERDICT_CACHE"
 VERIFY_ENV = "PODCAST_VERDICT_VERIFY"
 READ_SEC = 6.0
-# What a stored verdict means, so a process that holds entries made under another meaning cannot
-# reuse them. "batch-base-profile": every check of a batch read each track's level profile as it
-# stood before the batch (#2357); before, a check after an applied cut read the profile of the
-# track as that cut left it.
+# What a stored verdict means. "batch-base-profile": every check of a batch read each track's level
+# profile as it stood before the batch (#2357); before, a check after an applied cut read the
+# profile of the track as that cut left it. The store lives in one process, so this guards only a
+# process in which the constant changes (tests); the profile itself is in the key as ``base_profile``.
 SEMANTICS = "batch-base-profile"
 PAUSE_REACH_FLOOR_SEC = 13.0
 LONG_FADE_NO_CACHE_SEC = 1.0
@@ -212,12 +214,17 @@ def verdict_key(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
+    base_profile: str | None = None,
 ) -> str | None:
-    """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable."""
+    """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable.
+
+    ``base_profile`` is ``BatchBase.stamp`` of the batch the check belongs to; a caller that
+    leaves it out gets a key that no batch's check shares.
+    """
     if _has_long_fade(project):
         return None
     try:
-        return _key(project, edit, defaults, manual, batch, span)
+        return _key(project, edit, defaults, manual, batch, span, base_profile)
     except (OSError, ValueError, KeyError):
         return None
 
@@ -236,12 +243,13 @@ def key_parts(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
+    base_profile: str | None = None,
 ) -> dict[str, str] | None:
     """A digest per input of the key, to see which input made a check miss (lab); ``None`` as ``verdict_key``."""
     if _has_long_fade(project):
         return None
     try:
-        payload = _payload(project, edit, defaults, manual, batch, span)
+        payload = _payload(project, edit, defaults, manual, batch, span, base_profile)
     except (OSError, ValueError, KeyError):
         return None
     return {name: _digest(value) for name, value in payload.items()}
@@ -254,8 +262,9 @@ def _key(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
+    base_profile: str | None,
 ) -> str:
-    return _digest(_payload(project, edit, defaults, manual, batch, span))
+    return _digest(_payload(project, edit, defaults, manual, batch, span, base_profile))
 
 
 def _payload(
@@ -265,6 +274,7 @@ def _payload(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
+    base_profile: str | None,
 ) -> dict[str, Any]:
     from podcast_mcp.util.tracks import recording_audio_path
 
@@ -355,6 +365,7 @@ def _payload(
         "batch": chosen,
         "disk": _disk_stamps(project),
         "semantics": SEMANTICS,
+        "base_profile": base_profile,
         "policy": [
             repr(sorted(cut_policy.CUT_ACTION_TABLE.items())),
             repr(cut_policy.CUT_EDGE_CHECKS),
