@@ -23,7 +23,7 @@ function presenceOf(person: RecordParticipant, you: boolean) {
   if (!person.connected) {
     return "left" as const;
   }
-  if (person.consented === null) {
+  if (person.consented === null && person.role !== "producer") {
     return "joining" as const;
   }
   return "live" as const;
