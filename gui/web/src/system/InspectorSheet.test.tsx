@@ -261,7 +261,8 @@ describe("InspectorSheet card", () => {
 
   it("leaves Enter and Escape to the input method while a composition is open", async () => {
     const onRename = vi.fn();
-    card({ onRename });
+    const onClose = vi.fn();
+    card({ onRename, onClose });
     const field = screen.getByRole("textbox", { name: "Name" });
     fireEvent.change(field, { target: { value: "にほん" } });
     fireEvent.keyDown(field, { key: "Enter", isComposing: true });
@@ -269,6 +270,7 @@ describe("InspectorSheet card", () => {
     fireEvent.keyDown(field, { key: "Escape", isComposing: true });
     fireEvent.keyDown(field, { key: "Escape", keyCode: 229 });
     expect(onRename).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
     expect(field).toHaveValue("にほん");
     fireEvent.keyDown(field, { key: "Enter" });
     expect(onRename.mock.calls).toEqual([["にほん"]]);
