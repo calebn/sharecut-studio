@@ -22,6 +22,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import anyio
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
@@ -40,6 +41,7 @@ from podcast_mcp.util.progress import mcp_progress_sink
 log = logging.getLogger(__name__)
 
 HOST_MCP_PATH = "/mcp"
+INITIALIZE_TIMEOUT_SEC = 10.0
 
 #: Tool arguments that name a file or folder on the caller's machine. Studio's working
 #: directory is not the caller's, so a relative one is made absolute before it is sent.
@@ -129,15 +131,17 @@ async def _run_in_studio(
     sent = False
     try:
         url = _studio_mcp_url(host)
-        async with (
-            streamable_http_client(url) as (read, write, *_),
-            ClientSession(read, write) as session,
-        ):
-            await session.initialize()
-            sent = True
-            if relay is None:
-                return await session.call_tool(name, arguments)
-            return await session.call_tool(name, arguments, progress_callback=relay)
+        with anyio.fail_after(INITIALIZE_TIMEOUT_SEC) as initialization:
+            async with (
+                streamable_http_client(url) as (read, write, *_),
+                ClientSession(read, write) as session,
+            ):
+                await session.initialize()
+                initialization.deadline = float("inf")
+                sent = True
+                if relay is None:
+                    return await session.call_tool(name, arguments)
+                return await session.call_tool(name, arguments, progress_callback=relay)
     except Exception as exc:
         if not sent:
             log.debug("Studio at %s:%s did not take the call", host.host, host.port, exc_info=True)

@@ -25,6 +25,13 @@ a connection reset while reading the ping body is an incomplete reply. The tool
 stops with an error and does not run locally. Body-read timeouts still follow
 the retry rule above. The CLI uses the same discovery rules.
 
+After discovery succeeds, stdio gives MCP initialization ten seconds total,
+including transport setup. Incoming bytes do not restart this deadline. If
+initialization times out, the tool is not sent and the call stops with an error
+saying nothing was run. It does not run locally behind Studio. This deadline
+ends when initialization succeeds and does not limit tool execution, including
+long calls with or without progress notifications.
+
 ## Mode 1: stdio
 
 `podcast-mcp` runs the stdio server when launched without arguments. Confirm
