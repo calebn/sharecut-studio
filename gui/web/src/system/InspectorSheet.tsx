@@ -9,13 +9,14 @@ import {
 import { CloseButton } from "../ui";
 import type { SystemIconName } from "./icons";
 import {
-  type CardPlacement,
   dragHeight,
+  INSPECTOR_DETENTS,
   type InspectorBounds,
   type InspectorDetent,
   type InspectorRect,
   placeCard,
   riseVelocity,
+  type Sample,
   settleDetent,
   steppedDetent,
   toggledDetent,
@@ -23,11 +24,9 @@ import {
 import { SystemIcon } from "./SystemIcon";
 import { useGrab } from "./useGrab";
 
-export type { InspectorBounds, InspectorDetent, InspectorRect };
-
-export type InspectorRow = {
+type InspectorRow = {
   id: string;
-  /** Left of the control; a row without one gives the control the whole width. */
+  /** A row without a label gives the control the whole width. */
   label?: string;
   control: ReactNode;
 };
@@ -46,7 +45,6 @@ type InspectorBase = {
   /** Makes the name an inline field; the new name is reported on Enter or blur. */
   onRename?: (name: string) => void;
   sections: readonly InspectorSection[];
-  /** The close button and Escape. */
   onClose: () => void;
 };
 
@@ -59,7 +57,7 @@ export type InspectorCardProps = InspectorBase & {
 
 export type InspectorPhoneProps = InspectorBase & {
   form: "phone";
-  /** The 64 px action dock: the sheet's first detent. */
+  /** The first detent. */
   dock?: ReactNode;
   detent: InspectorDetent;
   onDetentChange: (detent: InspectorDetent) => void;
@@ -67,7 +65,7 @@ export type InspectorPhoneProps = InspectorBase & {
   onDismiss: () => void;
 };
 
-export type InspectorSheetProps = InspectorCardProps | InspectorPhoneProps;
+type InspectorSheetProps = InspectorCardProps | InspectorPhoneProps;
 
 const DETENT_TEXT: Record<InspectorDetent, string> = {
   dock: "Dock",
@@ -204,7 +202,7 @@ function Card({
   anchor,
   bounds,
 }: InspectorCardProps) {
-  const place: CardPlacement = placeCard(anchor, bounds);
+  const place = placeCard(anchor, bounds);
   const style: CSSProperties = {
     insetInlineStart: place.inline,
     maxBlockSize: place.maxBlock,
@@ -234,7 +232,6 @@ function Card({
 }
 
 type Drag = { start: number; container: number; height: number };
-type Sample = { t: number; height: number };
 
 function Phone({
   icon,
@@ -334,7 +331,7 @@ function Phone({
           aria-orientation="vertical"
           aria-valuemin={0}
           aria-valuemax={2}
-          aria-valuenow={["dock", "half", "full"].indexOf(detent)}
+          aria-valuenow={INSPECTOR_DETENTS.indexOf(detent)}
           aria-valuetext={DETENT_TEXT[detent]}
           {...grab.handlers("grip")}
           onClick={(event) => {

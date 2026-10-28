@@ -14,7 +14,6 @@ import type { InspectorBounds, InspectorRect } from "./inspectorSheetMath";
 import { ScrubField, type ScrubFieldProps } from "./ScrubField";
 import { TimeField } from "./TimeField";
 
-/** A scrub field that keeps its own value, the way a host's store would. */
 export function LiveScrub(props: ScrubFieldProps) {
   const [committed, setCommitted] = useState(props.value);
   const [shown, setShown] = useState(props.value);
@@ -22,7 +21,7 @@ export function LiveScrub(props: ScrubFieldProps) {
     <ScrubField
       {...props}
       value={shown}
-      onPreview={(next) => setShown(next)}
+      onPreview={setShown}
       onCommit={(next) => {
         setCommitted(next);
         setShown(next);
@@ -63,7 +62,7 @@ export function SeamAudition() {
     <AbAudition
       side={side}
       change={{ start: 612.4, end: 612.9 }}
-      onSelect={(next) => setSide(next)}
+      onSelect={setSide}
     />
   );
 }
@@ -116,7 +115,6 @@ const frame: CSSProperties = {
   background: "var(--color-bg-base)",
 };
 
-/** A positioned box that reports its size, the box a host places the sheet in. */
 export function Framed({
   children,
 }: {
@@ -143,7 +141,6 @@ export function Framed({
   );
 }
 
-/** The object the sheet hangs from. */
 export function AnchorMark({ anchor }: { anchor: InspectorRect }) {
   return (
     <div
@@ -162,7 +159,6 @@ export function AnchorMark({ anchor }: { anchor: InspectorRect }) {
   );
 }
 
-/** The 64 px dock a host mounts as the first detent: Hear, Keep and Comment. */
 export function DemoDock() {
   return (
     <ActionBar
