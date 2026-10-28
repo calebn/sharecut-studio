@@ -3636,7 +3636,7 @@ button.sys-picker-option:focus-visible {
   inline-size: 2.25rem;
   block-size: 0.3125rem;
   border-radius: var(--radius-xl);
-  background: var(--sys-inspector-bar);
+  background: var(--color-border-strong);
 }
 
 .sys-actions--dock .sys-actions-dock-btn {
