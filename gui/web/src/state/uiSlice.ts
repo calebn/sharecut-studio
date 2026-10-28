@@ -128,6 +128,7 @@ type UiSlice = Pick<
   | "highlightStaleRender"
   | "renderPreviewBusy"
   | "ingestBusy"
+  | "ingestFileCount"
   | "ingestDropTrackId"
   | "statusAnnouncement"
   | "statusAnnouncementSeq"
@@ -272,6 +273,7 @@ export function uiAlwaysInitial() {
     wordDraft: null as WordDraftEntry | null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     ingestBusy: false,
+    ingestFileCount: 0,
     ingestDropTrackId: null as string | null,
   };
 }
@@ -327,7 +329,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setHighlightStaleRender: (highlightStaleRender) =>
       set({ highlightStaleRender }),
     setRenderPreviewBusy: (renderPreviewBusy) => set({ renderPreviewBusy }),
-    setIngestBusy: (ingestBusy) => set({ ingestBusy }),
+    setIngestBusy: (ingestBusy, ingestFileCount = 0) =>
+      set({ ingestBusy, ingestFileCount }),
     setIngestDropTrackId: (ingestDropTrackId) => set({ ingestDropTrackId }),
     announceStatus: (rawMessage, options = {}) =>
       set((s) => {
