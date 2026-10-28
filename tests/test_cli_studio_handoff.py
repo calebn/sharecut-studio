@@ -74,11 +74,15 @@ class StudioRun:
 
 
 def _start_studio(
-    project: Path, monkeypatch: pytest.MonkeyPatch
+    project: Path, monkeypatch: pytest.MonkeyPatch, bind_host: str = "127.0.0.1"
 ) -> tuple[StudioRun, Callable[[], None]]:
-    run_app = create_app(served_project=project, bind_host="127.0.0.1")
-    sock = exclusive_listen_socket("127.0.0.1", 0)
+    run_app = create_app(served_project=project, bind_host=bind_host)
+    try:
+        sock = exclusive_listen_socket(bind_host, 0)
+    except OSError as exc:
+        pytest.skip(f"cannot bind {bind_host}: {exc}")
     run_app.state.listen_port = sock.getsockname()[1]
+    run_app.state.listen_host = sock.getsockname()[0]
     server = uvicorn.Server(uvicorn.Config(run_app, log_level="warning"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()
@@ -110,6 +114,16 @@ def minimal_project(tmp_workspace: Path) -> Path:
 @pytest.fixture
 def studio(minimal_project: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[StudioRun]:
     run, stop = _start_studio(minimal_project, monkeypatch)
+    try:
+        yield run
+    finally:
+        stop()
+
+
+@pytest.fixture
+def alias_studio(minimal_project: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[StudioRun]:
+    """A Studio bound to 127.0.0.2: loopback-range, but no address a client may ping."""
+    run, stop = _start_studio(minimal_project, monkeypatch, "127.0.0.2")
     try:
         yield run
     finally:
@@ -697,3 +711,124 @@ def test_a_live_studio_http_error_stops_the_command_without_a_direct_write(
     assert "Traceback" not in result.output
     assert result.exception is None or isinstance(result.exception, SystemExit)
     assert comment_bodies(minimal_project) == []
+
+
+@pytest.mark.parametrize(
+    ("bind_host", "listen_host", "address"),
+    [
+        ("", None, "127.0.0.1"),
+        ("localhost", None, "127.0.0.1"),
+        ("localhost", "::1", "127.0.0.1"),
+        ("127.0.0.1", None, "127.0.0.1"),
+        ("127.0.0.1", "127.0.0.1", "127.0.0.1"),
+        ("::1", None, "::1"),
+        ("::1", "::1", "::1"),
+        ("0.0.0.0", None, "127.0.0.1"),
+        ("0.0.0.0", "0.0.0.0", "127.0.0.1"),
+        ("::", None, "127.0.0.1"),
+        ("::", "::", "127.0.0.1"),
+        ("127.0.0.2", None, "127.0.0.2"),
+        ("127.0.0.2", "127.0.0.2", "127.0.0.2"),
+        ("192.0.2.2", None, "192.0.2.2"),
+        ("192.0.2.2", "192.0.2.2", "192.0.2.2"),
+        ("fe80::1%eth0", "fe80::1%eth0", "fe80::1%eth0"),
+        ("myhost.local", "192.0.2.2", "192.0.2.2"),
+        ("myhost.local", None, None),
+        ("garbage", None, None),
+    ],
+)
+def test_a_studio_announces_the_address_it_really_listens_on(
+    bind_host: str, listen_host: str | None, address: str | None
+) -> None:
+    state = handoff_route.StudioHostState(bind_host)
+    state.listen_host = listen_host
+    assert state.address == address
+
+
+def _announcing_app(project: Path, bind_host: str) -> Any:
+    return create_app(served_project=project, bind_host=bind_host)
+
+
+def test_a_studio_on_a_lan_address_announces_it_privately_and_withdraws_on_exit(
+    minimal_project: Path,
+) -> None:
+    run_app = _announcing_app(minimal_project, "192.0.2.2")
+    handoff_route.listening(run_app, port=8123, host="192.0.2.2")
+    host = read_studio_host(minimal_project)
+    assert host is not None
+    assert (host.host, host.port, host.pid) == ("192.0.2.2", 8123, os.getpid())
+    assert host.hostname == socket.gethostname()
+    if os.name != "nt":
+        assert stat.S_IMODE(studio_host_path(minimal_project).stat().st_mode) == 0o600
+    handoff_route.stopped(run_app)
+    assert read_studio_host(minimal_project) is None
+
+
+def test_a_studio_bound_to_a_name_announces_the_address_it_resolved_to(
+    minimal_project: Path,
+) -> None:
+    run_app = _announcing_app(minimal_project, "myhost.local")
+    handoff_route.listening(run_app, port=8123, host="192.0.2.2")
+    host = read_studio_host(minimal_project)
+    assert host is not None
+    assert host.host == "192.0.2.2"
+    handoff_route.stopped(run_app)
+
+
+def test_a_studio_bound_to_a_name_with_no_resolved_address_announces_nothing(
+    minimal_project: Path,
+) -> None:
+    run_app = _announcing_app(minimal_project, "myhost.local")
+    handoff_route.listening(run_app, port=8123)
+    assert not studio_host_path(minimal_project).exists()
+    handoff_route.stopped(run_app)
+
+
+def test_a_studio_that_is_not_listening_yet_announces_nothing(minimal_project: Path) -> None:
+    run_app = _announcing_app(minimal_project, "192.0.2.2")
+    assert not studio_host_path(minimal_project).exists()
+    handoff_route.stopped(run_app)
+
+
+def test_a_wildcard_studio_still_announces_loopback_with_no_machine_name(
+    minimal_project: Path,
+) -> None:
+    run_app = _announcing_app(minimal_project, "0.0.0.0")
+    handoff_route.listening(run_app, port=8123, host="0.0.0.0")
+    raw = json.loads(studio_host_path(minimal_project).read_text(encoding="utf-8"))
+    assert raw["host"] == "127.0.0.1"
+    assert "hostname" not in raw
+    handoff_route.stopped(run_app)
+
+
+def test_commands_for_a_studio_on_127_0_0_2_are_refused_and_nothing_is_written(
+    alias_studio: StudioRun,
+) -> None:
+    before = alias_studio.project.read_bytes()
+    for result in (
+        comment_add(alias_studio.project),
+        podcast("history-status", "--project", str(alias_studio.project)),
+    ):
+        assert result.returncode == 1
+        for needed in (
+            f"pid {os.getpid()}",
+            "127.0.0.2",
+            "cannot hand work to",
+            "Nothing was run",
+            "--host 127.0.0.1",
+            "PODCAST_NO_STUDIO_HANDOFF=1",
+            str(studio_host_path(alias_studio.project)),
+        ):
+            assert needed in result.stderr
+    assert alias_studio.commands == []
+    assert alias_studio.project.read_bytes() == before
+    assert comment_bodies(alias_studio.project) == []
+
+
+def test_a_studio_on_127_0_0_2_is_bypassed_when_the_caller_opts_out(
+    alias_studio: StudioRun,
+) -> None:
+    result = comment_add(alias_studio.project, env={"PODCAST_NO_STUDIO_HANDOFF": "1"})
+    assert result.returncode == 0, result.stderr
+    assert alias_studio.commands == []
+    assert comment_bodies(alias_studio.project) == ["hello"]
