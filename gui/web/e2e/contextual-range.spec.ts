@@ -10,7 +10,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { armRange, goToStage, openPanel } from "./stageNav";
+import { armRange, openPanel } from "./stageNav";
 
 function repeatedProject(prefix: string) {
   const copy = createRelocatedE2eProject(prefix);
@@ -109,7 +109,7 @@ async function rangeAxe(page: Page) {
   );
 }
 
-test("idle desktop reaches an edit in removed audio through Review Impact", async ({
+test("idle desktop reaches an edit in removed audio through the Review queue", async ({
   page,
 }) => {
   await withShareableProject(
@@ -119,11 +119,11 @@ test("idle desktop reaches an edit in removed audio through Review Impact", asyn
       await expect(page.locator(".edit-workspace")).not.toHaveClass(
         /edit-workspace--inspector/,
       );
-      // The old status chip is gone: Review's Impact lists the edit, and
-      // choosing it opens the Inspector on the Edit stage.
-      await openPanel(page, "impact");
-      await page.locator('[data-pending-id="orphan"]').click();
-      await goToStage(page, "edit");
+      // The old status chip is gone: the Review queue lists the edit, and
+      // Open in Edit opens the Inspector on the Edit stage.
+      await openPanel(page, "queue");
+      await page.locator(".sys-queue-main").first().click();
+      await page.getByRole("button", { name: "Open in Edit" }).click();
       await expect(page.locator(".edit-workspace")).toHaveClass(
         /edit-workspace--inspector/,
       );
