@@ -82,24 +82,117 @@ describe("layoutMarkers", () => {
     ]);
   });
 
-  it("lets a long clip take every marker that starts inside it", () => {
-    const items = layoutMarkers(
-      [
-        { kind: "clip", id: "long", start: 0, end: 50, title: "Long" },
-        { kind: "comment", id: "in1", start: 10, author: "A" },
-        { kind: "comment", id: "in2", start: 20, author: "B" },
-        { kind: "chapter", id: "after", start: 52, title: "After" },
-      ],
+  it("lets the markers inside a long clip stand on its span, and folds only what lands on its start glyph or its chip", () => {
+    const nested: LaneMarker[] = [
+      { kind: "clip", id: "long", start: 0, end: 50, title: "Long" },
+      { kind: "comment", id: "in1", start: 10, author: "A" },
+      { kind: "comment", id: "in2", start: 20, author: "B" },
+      { kind: "chapter", id: "after", start: 52, title: "After" },
+    ];
+    expect(summary(layoutMarkers(nested, 0, 6, 400))).toEqual([
+      ["long", 0, 300, 0, 6],
+      ["in1", 52, 68, 14, 14],
+      ["in2", 112, 128, 14, 14],
+      ["after", 312, 400, 6, 0],
+    ]);
+    const folded = layoutMarkers(
+      [...nested, { kind: "chapter", id: "glyph", start: 0.5, title: "Glyph" }],
       0,
       6,
       400,
     );
-    expect(summary(items)).toEqual([
+    expect(summary(folded).slice(0, 2)).toEqual([
       ["long", 0, 300, 0, 6],
-      ["stack", 18, 58, 9, 14],
-      ["after", 312, 400, 6, 0],
+      ["stack", 18, 58, 1, 14],
     ]);
-    expect(items[1]?.type === "stack" && items[1].hidden).toHaveLength(2);
+    expect(folded[0]).toMatchObject({ stacked: true });
+    expect(folded[1]?.type === "stack" && folded[1].hidden).toEqual([
+      { kind: "chapter", id: "glyph", start: 0.5, title: "Glyph" },
+      { kind: "comment", id: "in1", start: 10, author: "A" },
+    ]);
+  });
+
+  it("unfolds nothing it should not: zoomed in, a marker inside a range still stands when the range starts off screen", () => {
+    const nested: LaneMarker[] = [
+      { kind: "clip", id: "long", start: 0, end: 50, title: "Long" },
+      { kind: "comment", id: "in1", start: 10, author: "A" },
+      { kind: "comment", id: "in2", start: 20, author: "B" },
+      { kind: "chapter", id: "after", start: 52, title: "After" },
+    ];
+    const items = layoutMarkers(nested, 9.5, 60, 600);
+    expect(summary(items)).toEqual([
+      ["long", -512, 1112, 0, 0],
+      ["in1", 22, 38, 11, 14],
+      ["in2", 622, 638, 14, 0],
+    ]);
+    expect(items.some((item) => item.type === "stack")).toBe(false);
+    expect(items[0]).toMatchObject({ startVisible: false, stacked: false });
+  });
+
+  it("keeps a range comment's contained pin apart from the range", () => {
+    const items = layoutMarkers(
+      [
+        { kind: "comment", id: "range", start: 10, end: 40, author: "R" },
+        { kind: "comment", id: "pin", start: 25, author: "P" },
+      ],
+      0,
+      6,
+      360,
+    );
+    expect(summary(items)).toEqual([
+      ["range", 60, 240, 14, 14],
+      ["pin", 142, 158, 14, 14],
+    ]);
+  });
+
+  it("folds a marker that lands on a bracket's end glyph into the bracket's chip", () => {
+    const items = layoutMarkers(
+      [
+        { kind: "clip", id: "c", start: 10, end: 20, title: "C" },
+        { kind: "chapter", id: "end", start: 19.5, title: "End" },
+      ],
+      0,
+      6,
+      360,
+    );
+    expect(summary(items)).toEqual([
+      ["c", 60, 120, 14, 14],
+      ["stack", 78, 118, 1, 14],
+    ]);
+    expect(items[0]).toMatchObject({ stacked: true });
+  });
+
+  it("draws markers at their time on a lane wider than 1024 px", () => {
+    const wide: LaneMarker[] = [
+      { kind: "clip", id: "d", start: 120, end: 270, title: "D" },
+      { kind: "chapter", id: "a", start: 180, title: "A" },
+      { kind: "comment", id: "c", start: 210, author: "C" },
+      { kind: "chapter", id: "b", start: 240, title: "B" },
+    ];
+    expect(summary(layoutMarkers(wide, 0, 6, 1500))).toEqual([
+      ["d", 720, 1620, 14, 0],
+      ["a", 1080, 1252, 14, 0],
+      ["c", 1252, 1268, 0, 14],
+      ["b", 1440, 1500, 14, 0],
+    ]);
+  });
+
+  it("holds a drawing to 512 px past the lane, not to 1024 px, and culls on the true footprint", () => {
+    const items = layoutMarkers(
+      [
+        { kind: "clip", id: "span", start: 100, end: 400, title: "Span" },
+        { kind: "comment", id: "edge", start: 255, author: "E" },
+        { kind: "comment", id: "gone", start: 270, author: "G" },
+        { kind: "chapter", id: "far", start: 3000, title: "Far" },
+      ],
+      0,
+      6,
+      1500,
+    );
+    expect(summary(items)).toEqual([
+      ["span", 600, 2012, 14, 0],
+      ["edge", 1522, 1538, 14, 0],
+    ]);
   });
 
   it("keeps a marker on its own while it is pinned, wherever it is dragged", () => {

@@ -5535,6 +5535,12 @@ input.sys-edit-fix {
   --sys-marker-hit: var(--touch-min);
 }
 
+@media (pointer: coarse) {
+  .sys-markers {
+    --sys-marker-hit: var(--touch-min);
+  }
+}
+
 .sys-markers-track {
   position: absolute;
   inset: 0;
@@ -5551,6 +5557,10 @@ input.sys-edit-fix {
 
 .sys-markers .sys-marker-hit[data-movable][aria-pressed="true"] {
   touch-action: none;
+}
+
+.sys-markers .sys-marker-hit[aria-pressed="true"] {
+  outline-offset: calc(var(--selection-outline-width) * -1);
 }
 
 .sys-markers .sys-marker-hit:focus-visible {
@@ -5597,6 +5607,10 @@ input.sys-edit-fix {
 
 .sys-marker-edge[data-edge="start"] {
   inset-inline-start: 0;
+}
+
+.sys-marker[data-stacked] .sys-marker-edge[data-edge="start"] {
+  --sys-marker-zone: min(var(--sys-marker-hit), 34%, 1.125rem);
 }
 
 .sys-marker-edge[data-edge="end"] {
@@ -5647,7 +5661,8 @@ input.sys-edit-fix {
 .sys-marker-add {
   position: absolute;
   inset-block: 0;
-  inset-inline-start: min(
+  inset-inline-start: clamp(
+    0rem,
     var(--sys-marker-add-at),
     max(0rem, calc(100% - 10rem))
   );
@@ -5689,5 +5704,14 @@ input.sys-edit-fix {
   .sys-markers {
     --sys-marker-ink: Highlight;
     --sys-marker-ring: Canvas;
+  }
+
+  .sys-marker[data-kind] {
+    --sys-marker-color: CanvasText;
+  }
+
+  .sys-marker-line,
+  .sys-marker-bar {
+    forced-color-adjust: none;
   }
 }

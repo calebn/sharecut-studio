@@ -48,6 +48,12 @@ describe("Ruler drawing", () => {
     expect(body()).toHaveAttribute("tabindex", "0");
   });
 
+  it("clamps the slider's text to the episode like its value", () => {
+    setup({ duration: 0, playhead: 10 });
+    expect(body()).toHaveAttribute("aria-valuenow", "0");
+    expect(body()).toHaveAttribute("aria-valuetext", "0:00.0");
+  });
+
   it("labels the window at the smallest nice step that keeps labels 64 px apart", () => {
     const { container, rerender } = setup();
     expect(labels(container)).toEqual([
@@ -158,7 +164,7 @@ describe("Ruler scrubbing", () => {
       shiftKey: true,
     });
     fireEvent.pointerUp(body(), { pointerId: 1, clientX: 120 });
-    fireEvent.click(body(), { clientX: 120 });
+    fireEvent.click(body(), { clientX: 120, detail: 1 });
     expect(onScrubStart.mock.calls).toEqual([
       [606, { clientX: 80, clientY: 0, shift: false, alt: true }],
     ]);
@@ -240,7 +246,7 @@ describe("Ruler scrubbing", () => {
     const handled = fireEvent.keyDown(document.body, { key: "Escape" });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 120 });
     fireEvent.pointerUp(body(), { pointerId: 1, clientX: 120 });
-    fireEvent.click(body(), { clientX: 120 });
+    fireEvent.click(body(), { clientX: 120, detail: 1 });
     expect(handled).toBe(false);
     expect(onScrubEnd.mock.calls).toEqual([[false]]);
     expect(onScrub).toHaveBeenCalledTimes(1);
@@ -312,7 +318,7 @@ describe("Ruler selection handles", () => {
       shiftKey: true,
     });
     fireEvent.pointerUp(grip, { pointerId: 1, clientX: 284 });
-    fireEvent.click(grip, { clientX: 284 });
+    fireEvent.click(grip, { clientX: 284, detail: 1 });
     expect(onSelectionDragStart.mock.calls).toEqual([
       ["end", { clientX: 284, clientY: 12, shift: true, alt: false }],
     ]);
@@ -342,8 +348,10 @@ describe("Ruler selection handles", () => {
     expect(onSeek.mock.calls).toEqual([[606.25]]);
   });
 
-  it("let a finger take them at once", () => {
-    const { handle, onSelectionDragStart } = setup({ selection });
+  it("let a finger take them from 10 px, and the drag starts at the knob without a jump", () => {
+    const { handle, onSelectionDragStart, onSelectionDrag } = setup({
+      selection,
+    });
     const finger = (clientX: number) => ({
       pointerId: 4,
       pointerType: "touch",
@@ -351,7 +359,51 @@ describe("Ruler selection handles", () => {
     });
     fireEvent.pointerDown(handle("start"), finger(80));
     fireEvent.pointerMove(handle("start"), finger(84));
+    fireEvent.pointerMove(handle("start"), finger(89));
+    expect(onSelectionDragStart).not.toHaveBeenCalled();
+    fireEvent.pointerMove(handle("start"), finger(90));
+    fireEvent.pointerMove(handle("start"), finger(130));
     expect(onSelectionDragStart).toHaveBeenCalledTimes(1);
+    expect(
+      onSelectionDrag.mock.calls.map(([, drag]) => [drag.dx, drag.seconds]),
+    ).toEqual([
+      [0, 606],
+      [40, 607],
+    ]);
+  });
+
+  it("end once as committed when a knob dragged out of the window is released anywhere, and the bare mouse then drags nothing", () => {
+    const { handle, rerender, onSelectionDrag, onSelectionDragEnd } = setup({
+      selection,
+    });
+    const group = () => screen.getByRole("group", { name: "Time ruler" });
+    fireEvent.pointerDown(handle("end"), { pointerId: 1, clientX: 244 });
+    fireEvent.pointerMove(handle("end"), { pointerId: 1, clientX: 300 });
+    rerender(
+      <Ruler
+        {...base}
+        selection={{ start: 606, end: 700 }}
+        onSelectionDrag={onSelectionDrag}
+        onSelectionDragEnd={onSelectionDragEnd}
+      />,
+    );
+    expect(screen.queryByRole("slider", { name: "Selection end" })).toBeNull();
+    fireEvent.pointerUp(group(), { pointerId: 1, clientX: 700, clientY: 200 });
+    expect(onSelectionDragEnd.mock.calls).toEqual([["end", true]]);
+    fireEvent.pointerMove(body(), { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(group(), { pointerId: 1, clientX: 120 });
+    expect(onSelectionDrag).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends as not committed when the pointer capture is lost off the knob", () => {
+    const { handle, onSelectionDragEnd } = setup({ selection });
+    const group = screen.getByRole("group", { name: "Time ruler" });
+    fireEvent.pointerDown(handle("end"), { pointerId: 1, clientX: 244 });
+    fireEvent.pointerMove(handle("end"), { pointerId: 1, clientX: 300 });
+    fireEvent.lostPointerCapture(handle("end"), { pointerId: 1 });
+    expect(onSelectionDragEnd).not.toHaveBeenCalled();
+    fireEvent.lostPointerCapture(group, { pointerId: 1 });
+    expect(onSelectionDragEnd.mock.calls).toEqual([["end", false]]);
   });
 
   it("end as not committed on Escape, a blur, a cancel, a second pointer's absence and the host dropping the selection", () => {
