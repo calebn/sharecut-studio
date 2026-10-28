@@ -86,9 +86,12 @@ def transcript_refine_done(
     """Mark the transcript checked for the host. A repeat while done writes nothing."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
-    return TranscriptRefineService(ProjectWorkspace.open(project_path)).mark_checked(
-        notes=req.notes, source="user"
-    )
+    try:
+        return TranscriptRefineService(ProjectWorkspace.open(project_path)).mark_checked(
+            notes=req.notes, source="user"
+        )
+    except ValueError as exc:
+        raise bad_request_error(exc) from exc
 
 
 @router.post("/api/transcript/refine/waive")

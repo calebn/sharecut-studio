@@ -33,6 +33,7 @@ class TranscriptRefineService(ReviewGateService):
         A waiver does not count: checking the transcript after "Cut anyway" is the
         stronger record, so it replaces the waiver. Returns :meth:`gate_status`.
         """
+        self.check_notes(notes)
         with self.ws.transaction():
             current = self.gate.report(self.ws.project, load_defaults())
             if not (current["clear"] and current["stored_status"] == "done"):

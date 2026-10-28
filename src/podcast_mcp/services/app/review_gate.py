@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.review_gate import ReviewGate, ReviewSource
+from podcast_mcp.edits.review_gate import ReviewGate, ReviewSource, check_gate_text_length
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 
 
@@ -31,12 +31,18 @@ class ReviewGateService:
     def mark_done(
         self, *, notes: str | None = None, source: ReviewSource = "cli"
     ) -> dict[str, Any]:
+        self.check_notes(notes)
         return self._stamp(lambda: self.gate.mark_done(self.ws.project, source=source, notes=notes))
 
     def waive(self, *, reason: str, source: ReviewSource = "cli") -> dict[str, Any]:
+        check_gate_text_length(reason, subject="The reason is")
         return self._stamp(
             lambda: self.gate.mark_waived(self.ws.project, reason=reason, source=source)
         )
+
+    @staticmethod
+    def check_notes(notes: str | None) -> None:
+        check_gate_text_length(notes, subject="The notes are")
 
     def _stamp(self, write: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         if not self.transactional:
