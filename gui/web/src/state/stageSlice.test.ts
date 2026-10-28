@@ -135,9 +135,10 @@ describe("stageSlice", () => {
   });
 
   it("sets the review section with a deep link", () => {
-    st().openStage("review", { section: "impact" });
+    expect(st().reviewSection).toBe("queue");
+    st().openStage("review", { section: "comments" });
     expect(st().stage).toBe("review");
-    expect(st().reviewSection).toBe("impact");
+    expect(st().reviewSection).toBe("comments");
     st().openStage("review", { section: "tighten" });
     expect(st().reviewSection).toBe("tighten");
   });

@@ -54,7 +54,7 @@ describe("stage commands", () => {
 
   it("breaks the follow of the host when a control switches stage", async () => {
     useDawStore.setState({ followingClientId: "host-1" });
-    await execute("stage.review", { section: "impact" });
+    await execute("stage.review", { section: "queue" });
     expect(useDawStore.getState().followingClientId).toBeNull();
   });
 
