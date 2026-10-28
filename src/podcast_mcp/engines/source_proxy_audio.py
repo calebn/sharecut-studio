@@ -20,7 +20,7 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
     SourceFrameMapping,
     SourceMuteEnvelope,
-    delay_milliseconds,
+    delay_frames,
     rescale_frames,
 )
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, bleed_gate_payload, build_bleed_gate_plan
@@ -363,7 +363,7 @@ def _room_filters(
         if not isinstance(leaf, SourceAudio):
             raise clock_error()
         seek = seeks[leaf.path]
-        delay = first + rescale_frames(delay_milliseconds(tile.start_sec), 1000, rate)
+        delay = first + delay_frames(tile.start_sec, rate)
         operations = [
             f"atrim=start={seek.offset(leaf.src_start)}:end={seek.offset(leaf.src_end)}",
             "asetpts=PTS-STARTPTS",
@@ -813,7 +813,7 @@ class SourceProxyInputs:
                     ):
                         row.pop(key, None)
         payload = {
-            "revision": "source-proxy-inputs-v2",
+            "revision": "source-proxy-inputs-v3",
             "clock_policy": "packed-source-proxy-v1",
             "restore_revision": RESTORE_RENDER_REV,
             "baseline_encoding": "pcm_s16le",

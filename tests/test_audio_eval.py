@@ -274,7 +274,7 @@ def test_edge_fades_and_crossfade_are_linear_ramps() -> None:
     assert np.allclose(seam, 1.0, atol=1e-3)
 
 
-def test_mix_places_components_on_the_millisecond_delay() -> None:
+def test_mix_places_components_on_the_nearest_sample() -> None:
     ones = np.ones(RATE, dtype=np.float32)
     piece = SourceAudio(Path("a"), 0.0, 0.5)
     mixed = MixAudio(
@@ -287,8 +287,9 @@ def test_mix_places_components_on_the_millisecond_delay() -> None:
     assert result is not None
     assert result.size == RATE + 2000
     assert result[:4000].tolist() == [1.0] * 4000
-    assert result[4000:8000].tolist() == [1.0] * 4000
-    assert result[8000:].tolist() == [0.0] * (result.size - 8000)
+    assert result[4000:4003].tolist() == [0.0] * 3
+    assert result[4003:8003].tolist() == [1.0] * 4000
+    assert result[8003:].tolist() == [0.0] * (result.size - 8003)
 
 
 def test_overlapping_mix_components_sum_like_the_render(tmp_path: Path) -> None:

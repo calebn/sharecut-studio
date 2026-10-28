@@ -32,7 +32,7 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
-    delay_milliseconds,
+    delay_frames,
     fade_duration,
     postorder,
     sources,
@@ -338,7 +338,7 @@ def _crossfade(left: Piece, right: Piece, overlap: int) -> Piece | None:
 
 
 def _mix(starts: list[float], parts: list[Piece], rate: int) -> Piece:
-    offsets = [delay_milliseconds(start) * rate // 1000 for start in starts]
+    offsets = [delay_frames(start, rate) for start in starts]
     size = max(o + p.size for o, p in zip(offsets, parts, strict=True))
 
     def read(start: int, stop: int) -> np.ndarray:

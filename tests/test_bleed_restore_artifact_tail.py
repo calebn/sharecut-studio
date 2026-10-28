@@ -76,15 +76,16 @@ def test_fractional_delay_restore_preserves_full_nonlinear_artifact(
     with wave.open(str(output), "rb") as stream:
         rate = stream.getframerate()
     assert len(actual) == len(baseline) == clocks[0].output.frames
+    delay_frames = math.floor(delay * RATE + 0.5)
+    placed_end = (delay_frames + RATE) * rate // RATE
     editorial_end = round((delay + 1) * rate)
-    assert (len(actual) > editorial_end) == (delay == 0.10051)
+    assert len(actual) == placed_end
     g = plan.gains_for_frames(0, len(actual), rate)
     g[editorial_end:] = 1
     u, w = branches[:2]
     b = (u.astype(np.float32) * g[:, None]).astype("<i2")
     lifted = (w.astype(np.float32) * g[:, None]).astype("<i2")
     np.testing.assert_array_equal(baseline, b)
-    delay_frames = round(delay * 1000) * RATE // 1000
     first = (delay_frames + math.ceil(0.3 * RATE)) * rate // RATE
     last = (delay_frames + math.ceil(0.9 * RATE)) * rate // RATE
     frames = np.arange(len(actual))

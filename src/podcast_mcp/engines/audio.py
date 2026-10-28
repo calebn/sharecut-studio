@@ -297,8 +297,9 @@ def sources(audio: Audio) -> list[SourceAudio]:
     return leaves
 
 
-def delay_milliseconds(seconds: float) -> int:
-    return round(seconds * 1000)
+def delay_frames(seconds: float, rate: int) -> int:
+    """Whole samples a delay of ``seconds`` lands on at ``rate``, half up."""
+    return math.floor(seconds * rate + 0.5)
 
 
 def rescale_frames(frames: int, source_rate: int, target_rate: int) -> int:
@@ -481,9 +482,7 @@ def rendered_sources(audio: Audio, clock: RenderClock) -> tuple[RenderedSource, 
                     if at.start_sec > 0:
                         delay = delays[current_index, child_index]
                         require_rate(child.clock.sample_rate, delay.producer.sample_rate)
-                        offset = int(
-                            delay_milliseconds(at.start_sec) * delay.producer.sample_rate / 1000
-                        )
+                        offset = delay_frames(at.start_sec, delay.producer.sample_rate)
                         delayed = translated(
                             child.sources,
                             child.clock.sample_rate,
