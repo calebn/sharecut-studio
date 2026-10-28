@@ -64,8 +64,33 @@ import {
   stepEdge,
 } from "./scriptSelection";
 
+/**
+ * Scroll `body` only, so the word lands in view. `scrollIntoView` would also
+ * scroll every scrollable ancestor (a host panel, the page), which yanks a
+ * guest who is reading elsewhere on a short viewport.
+ */
+function scrollWithin(
+  body: HTMLElement,
+  el: HTMLElement,
+  block: ScrollLogicalPosition,
+) {
+  const box = body.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
+  const top = rect.top - box.top + body.scrollTop;
+  const bottom = top + rect.height;
+  const view = body.clientHeight;
+  const from = body.scrollTop;
+  let to = from;
+  if (block === "center") to = top - (view - rect.height) / 2;
+  else if (block === "start") to = top;
+  else if (block === "end") to = bottom - view;
+  else if (top < from) to = top;
+  else if (bottom > from + view) to = bottom - view;
+  if (to !== from) body.scrollTop = Math.max(0, to);
+}
+
 export type ScriptPaneHandle = {
-  /** Scroll the word into view. False when the pane does not show it, so the host should widen its window of turns. */
+  /** Scroll the word into view inside the pane's own scroll body, never an outer scroller. False when the pane does not show it, so the host should widen its window of turns. */
   scrollToWord: (index: number, block?: ScrollLogicalPosition) => boolean;
   /** Put focus on the header's Find button, where the Find bar's focus goes when it closes or finishes a bulk verb. False when the pane draws no such button. */
   focusFind: () => boolean;
@@ -717,7 +742,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         scrollToWord: (index, block = "nearest") => {
           const stop = stopContaining(live.current.stops, index);
           const el = stop ? registry.current.get(stop.start) : undefined;
-          el?.scrollIntoView?.({ block });
+          const body = bodyRef.current;
+          if (el && body) scrollWithin(body, el, block);
           return el !== undefined;
         },
         focusFind: () => {

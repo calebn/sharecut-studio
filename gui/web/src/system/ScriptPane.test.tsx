@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ScriptPane,
   type ScriptPaneHandle,
@@ -16,6 +16,7 @@ import {
   spanPatch,
   suggestedMark,
 } from "./scriptFixtures";
+import { CENTER, probeScript } from "./scriptScrollProbe";
 
 function props(over: Partial<ScriptPaneProps> = {}): ScriptPaneProps {
   return {
@@ -533,18 +534,16 @@ describe("ScriptPane marks", () => {
 });
 
 describe("ScriptPane handle and scrolling", () => {
-  const scroll = vi.fn();
-  beforeEach(() => {
-    scroll.mockClear();
-    Element.prototype.scrollIntoView = scroll;
-  });
-
   it("scrolls to the stop that holds a word and says when it is not shown", () => {
     const ref = createRef<ScriptPaneHandle>();
     render(<ScriptPane {...props({ turns: MARKED })} ref={ref} />);
+    const probe = probeScript(
+      document.querySelector(".sys-script-body") as HTMLElement,
+    );
     expect(ref.current?.scrollToWord(47, "center")).toBe(true);
-    expect(scroll.mock.contexts[0]).toHaveClass("sys-script-pill");
-    expect(scroll.mock.calls[0]).toEqual([{ block: "center" }]);
+    expect(probe.calls).toHaveLength(1);
+    expect(probe.calls[0]?.[1]).toBe(CENTER);
+    probe.restore();
     expect(ref.current?.scrollToWord(900)).toBe(false);
   });
 

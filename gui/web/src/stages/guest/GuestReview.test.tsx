@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
+import { CENTER, probeScript } from "../../system/scriptScrollProbe";
 import { GuestReview, type GuestReviewProps } from "./GuestReview";
 import { DURATION, PEAKS, WORD_STARTS } from "./guestFixture";
 
@@ -84,20 +85,20 @@ describe("Comment and collapse controls", () => {
 
 describe("Back to playhead", () => {
   it("scrolls the playing word into view as well as following again", async () => {
-    const scroll = vi.fn();
-    window.HTMLElement.prototype.scrollIntoView = scroll;
     setup({ initialPlayhead: 735 });
     const body = document.querySelector(".sys-script-body") as HTMLElement;
+    const probe = probeScript(body);
     fireEvent.wheel(body);
     fireEvent.scroll(body);
     expect(
       screen.getByRole("button", { name: /Back to playhead/ }),
     ).toBeInTheDocument();
-    scroll.mockClear();
+    probe.clear();
     await userEvent.click(
       screen.getByRole("button", { name: /Back to playhead/ }),
     );
-    expect(scroll).toHaveBeenCalledWith({ block: "center" });
+    expect(probe.calls[0]?.[1]).toBe(CENTER);
+    probe.restore();
     expect(
       screen.queryByRole("button", { name: /Back to playhead/ }),
     ).toBeNull();
