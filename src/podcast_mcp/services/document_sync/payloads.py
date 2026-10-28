@@ -178,7 +178,7 @@ class ApproveEditsPayload(BaseModel):
             "(`analysis.unsure_word_confidence`) is not applied. It stays pending and is "
             "reported in `held` with reason `unsure_word`; every other edit applies as one "
             "history step. The server checks the saved words at approval time, not a list the "
-            "client sends. Bulk verbs (Cut all, approve all) send it; approving one cut by "
+            "client sends. Bulk verbs (the CLI and MCP approve-all, a group Cut all) send it; approving one cut by "
             "name does not. A guest's multi-edit approve always behaves as if it were true."
         ),
     )

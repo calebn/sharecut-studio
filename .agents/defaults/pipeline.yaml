@@ -396,7 +396,7 @@ analysis:
     mode: waive_unattended
   # The one "unsure word" line (ASR confidence, 0..1): a word below it is unsure. The
   # mapped transcript's `unsure` flag, a pending cut's `unsure_words`, the bulk-approve
-  # guard (`skip_unsure`), `transcript low-confidence` / `low_confidence_words_tool` and the
+  # guard (`skip_unsure`), `transcript review` / `low_confidence_words_tool` and the
   # refine brief's `low_confidence_open_words` all read this key.
   unsure_word_confidence: 0.7
   speaker_id:

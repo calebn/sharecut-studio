@@ -49,7 +49,7 @@ def map_pending_edits_to_timeline(
     """Map pending edit decisions from source clock to timeline intervals.
 
     ``unsure_words`` maps an edit id to the unsure transcript words inside its cut (the
-    document layer decides which; ``EditService.unsure_words_for``). With it, each row
+    document layer decides which; ``TranscriptService.unsure_words_for``). With it, each row
     carries ``unsure_words`` and ``unsure_count``; without it, rows omit both.
     """
     timeline = SessionTimeline(project)
