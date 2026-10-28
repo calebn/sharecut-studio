@@ -381,8 +381,8 @@ leak; the raw checkpoints also preserve decreases.
 The Pipeline panel progress bar these scenes measured was removed with the
 panel, and the progress scenes, the native progress observer and their frozen
 budgets went with it. Their earlier reports remain historical evidence. A
-running Transcribe row on the Prepare stage is covered by
-`prepare-progress.spec.ts`, which checks that the row stays in view without
+running transcription on the Prepare stage is covered by
+`prepare-progress.spec.ts`, which checks that its progress bar stays in view without
 horizontal overflow at a short desktop and a phone size, in both motion modes.
 
 Each report has a distinct execution ID and start time. Missing required
