@@ -128,7 +128,7 @@ def forget_recent(project_path: Path | str) -> bool:
                 return False
             _write(kept)
             return True
-    except OSError:
+    except (OSError, ValueError):
         log.warning("Cannot save the recent projects list at %s", recent_projects_path())
         return False
 
@@ -190,9 +190,12 @@ def _delivered_on(mastered: str | None, project_file: Path) -> datetime | None:
     parent = project_file.parent
     try:
         target = (parent / mastered).resolve()
-        stamp = (
-            (target if target.is_relative_to(parent.resolve()) else project_file).stat().st_mtime
-        )
+        if target.is_relative_to(parent.resolve()):
+            if not target.is_file():
+                return None
+            stamp = target.stat().st_mtime
+        else:
+            stamp = project_file.stat().st_mtime
     except (OSError, ValueError):
         try:
             stamp = project_file.stat().st_mtime
@@ -260,6 +263,9 @@ def _summary_for(project_file: Path, stat: os.stat_result) -> _Summary | None:
         return cached[1]
     try:
         summary: _Summary | None = _summarize(project_file)
+    except OSError:
+        log.warning("Cannot read %s for the recent list", project_file, exc_info=True)
+        return None
     except Exception:  # one bad project file must not fail the whole list
         log.warning("Cannot summarize %s for the recent list", project_file, exc_info=True)
         summary = None

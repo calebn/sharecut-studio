@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -155,6 +156,55 @@ def test_failed_blank_folder_create_releases_the_reserved_folder(local, tmp_path
     monkeypatch.setattr("podcast_mcp.gui.routes.project.ProjectWorkspace.create", boom)
     assert local.post("/api/project/create", json={"name": "Pilot"}).status_code == 400
     assert not (tmp_path / "workspaces" / "Pilot").exists()
+
+
+def test_late_failure_releases_the_reserved_folder_with_its_contents(local, tmp_path, monkeypatch):
+    def disk_full(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("podcast_mcp.services.app.workspace.HistoryManager.record", disk_full)
+    res = local.post("/api/project/create", json={"name": "Pilot"})
+    assert res.status_code == 400
+    assert res.headers[CODE] == "project_create_failed"
+    assert not (tmp_path / "workspaces" / "Pilot").exists()
+    assert recent.read_recent() == []
+
+
+def test_failed_create_keeps_a_folder_the_person_chose(local, tmp_path, monkeypatch):
+    chosen = tmp_path / "mine"
+    chosen.mkdir()
+    (chosen / "notes.txt").write_text("keep", encoding="utf-8")
+
+    def disk_full(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("podcast_mcp.services.app.workspace.HistoryManager.record", disk_full)
+    res = local.post("/api/project/create", json={"workspace_dir": str(chosen)})
+    assert res.status_code == 400
+    assert (chosen / "notes.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_blank_folder_create_with_a_file_as_workspace_root_is_a_coded_400(
+    local, tmp_path, monkeypatch
+):
+    root = tmp_path / "root-is-a-file"
+    root.write_text("x", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_WORKSPACE_ROOT", str(root))
+    res = local.post("/api/project/create", json={"name": "Pilot"})
+    assert res.status_code == 400
+    assert res.headers[CODE] == "project_create_failed"
+
+
+def test_blank_folder_create_with_an_overlong_name_is_a_coded_400(local):
+    res = local.post("/api/project/create", json={"name": "n" * 400})
+    assert res.status_code == 400
+    assert res.headers[CODE] == "project_create_failed"
+
+
+def test_delete_with_a_nul_byte_removes_nothing_and_does_not_fail(local):
+    res = local.delete("/api/projects/recent", params={"path": "a\x00b"})
+    assert res.status_code == 200
+    assert res.json() == {"removed": False}
 
 
 def test_get_lists_cards_for_opened_and_created_projects(local, tmp_path):
@@ -460,12 +510,37 @@ def test_mastered_path_outside_the_folder_is_not_followed(tmp_path):
     project = _make(tmp_path, "escape")
     outside = tmp_path / "outside.wav"
     outside.write_bytes(b"x")
+    os.utime(outside, (1_000_000_000, 1_000_000_000))
+    os.utime(project, (1_700_000_000, 1_700_000_000))
+    stamp = recent._delivered_on("../outside.wav", project)
+    assert stamp is not None
+    assert stamp.timestamp() == 1_700_000_000
+
+
+def test_a_missing_master_does_not_read_delivered(tmp_path):
+    project = _make(tmp_path, "gone-master")
     _edit_project(project, _with_track)
 
     def point(data):
-        data["render"]["artifacts"]["mastered"] = "../outside.wav"
+        data["render"]["artifacts"]["mastered"] = "artifacts/gone.wav"
 
     _edit_project(project, point)
-    stage, chip = _chip(project)
-    assert stage == "deliver"
-    assert chip["text"].startswith("Delivered ")
+    assert _chip(project) == ("edit", {"text": "Edited", "state": "done"})
+
+
+def test_a_transient_read_failure_is_not_cached(tmp_path, monkeypatch):
+    project = _make(tmp_path, "flaky")
+    _edit_project(project, _with_track)
+    recent.record_recent(project)
+    real = Path.read_text
+    failing = {"on": True}
+
+    def flaky(self, *args, **kwargs):
+        if failing["on"] and self.name == "episode.project.json":
+            raise PermissionError("busy")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky)
+    assert recent.recent_project_cards()[0]["chip"]["text"] == "Needs attention"
+    failing["on"] = False
+    assert recent.recent_project_cards()[0]["chip"]["text"] == "Edited"
