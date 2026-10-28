@@ -792,16 +792,6 @@
     display: none;
   }
 
-  .sys-player-pill-text {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
   .sys-player-time {
     min-block-size: var(--touch-min);
   }
@@ -822,6 +812,31 @@
   .sys-player .sys-icon-btn:not(.sys-play-btn) {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
+  }
+}
+
+/* Under 50 rem the Status pill is its glyph and the text stays for assistive
+   tech: the right-hand controls and the pill's text do not fit the side column
+   of a wide phone, and the A and B toggles slid under the skip buttons. */
+@container sys-player (max-width: 50rem) {
+  .sys-player-pill-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A 360 px phone has no room for an informational Status glyph beside Play, the
+   clock and the four controls, so it waits for the expanded Player. An error
+   glyph stays. */
+@container sys-player (max-width: 23.5rem) {
+  .sys-player:not(.sys-player--expanded)
+    .sys-player-status:not(:has(.sys-pill--danger)) {
+    display: none;
   }
 }
 

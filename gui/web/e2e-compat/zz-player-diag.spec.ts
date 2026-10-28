@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { phone } from "../e2e/stageNav";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
 
@@ -12,6 +13,8 @@ async function dump(page: Page, width: number, height: number) {
     await page.setViewportSize({ width, height });
     await openHostShare(page, projectPath);
     await openPhoneTimeline(page);
+    await phone.showListen(page);
+    await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
     const dump = await page.evaluate(() => {
       const player = document.querySelector(".sys-player");
       const box = (el: Element) => {
