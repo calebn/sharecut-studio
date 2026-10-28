@@ -113,7 +113,7 @@ Default speech model is **large-v3-turbo**. Users can pick a smaller size in the
 
 First run checks the bundled FFmpeg pair and downloads Whisper, with optional RNNoise.
 
-**Open project:** ShareCut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
+**Open project:** Home's **Open other…** calls `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`, and Mod+O opens Home. A path field replaces the dialog when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
 
 ## Closing while recording
 

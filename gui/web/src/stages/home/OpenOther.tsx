@@ -14,14 +14,11 @@ export type OpenOtherProps = {
   path: string;
   /** Plain words with a fix; never the server's text. */
   error?: string;
-  /** Another window has this episode open. */
-  alreadyOpen?: boolean;
   /** Starts with the path popover showing (stories, and a retry after an error). */
   defaultOpen?: boolean;
   onChooseFolder: () => void;
   onPathChange: (path: string) => void;
   onSubmit: () => void;
-  onSwitchWindow: () => void;
 };
 
 /** The error copy for a folder with no episode in it. */
@@ -37,16 +34,13 @@ export function OpenOther({
   mode,
   path,
   error,
-  alreadyOpen = false,
   defaultOpen = false,
   onChooseFolder,
   onPathChange,
   onSubmit,
-  onSwitchWindow,
 }: OpenOtherProps) {
   const [open, setOpen] = useState(defaultOpen);
   const errorId = useId();
-  const noteId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLInputElement>(null);
   const wasPicker = useRef(mode === "picker");
@@ -68,7 +62,6 @@ export function OpenOther({
     setOpen(false);
     trigger.current?.focus();
   };
-  const describedBy = alreadyOpen ? noteId : error ? errorId : undefined;
   return (
     <div className="sys-open-other">
       <button
@@ -96,7 +89,7 @@ export function OpenOther({
               autoComplete="off"
               value={path}
               aria-invalid={error ? true : undefined}
-              aria-describedby={describedBy}
+              aria-describedby={error ? errorId : undefined}
               onChange={(event) => onPathChange(event.target.value)}
               onKeyDown={closeOnEscape}
             />
@@ -104,18 +97,7 @@ export function OpenOther({
               Open
             </Button>
           </div>
-          {alreadyOpen ? (
-            <div className="sys-open-note">
-              <p id={noteId} role="status" className="sys-open-text">
-                This episode is open in another window.
-              </p>
-              <Button onClick={onSwitchWindow} onKeyDown={closeOnEscape}>
-                Switch to it
-              </Button>
-            </div>
-          ) : (
-            <InlineError id={errorId} message={error} />
-          )}
+          <InlineError id={errorId} message={error} />
         </form>
       ) : null}
     </div>

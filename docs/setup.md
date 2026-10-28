@@ -823,7 +823,7 @@ podcast gui --project /path/to/episode.project.json
 podcast gui --project /path/to/episode.project.json --background
 # loopback without --project opens New/Open home (Pass 8)
 # with a project pinned, / redirects to it; /?home=1 shows home without unpinning
-# Browse… / Mod+O use a host OS file dialog (paste path still works)
+# Open other… on Home uses a host OS file dialog (a path field when there is none); Mod+O opens Home
 podcast gui
 ```
 

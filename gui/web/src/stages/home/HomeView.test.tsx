@@ -227,7 +227,6 @@ describe("OpenOther", () => {
         onChooseFolder={vi.fn()}
         onPathChange={vi.fn()}
         onSubmit={onSubmit}
-        onSwitchWindow={vi.fn()}
       />,
     );
     await user.click(
@@ -237,17 +236,15 @@ describe("OpenOther", () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
-  const renderOpen = (alreadyOpen = false) => {
+  const renderOpen = () => {
     render(
       <OpenOther
         mode="path"
         path="/ep"
         defaultOpen
-        alreadyOpen={alreadyOpen}
         onChooseFolder={vi.fn()}
         onPathChange={vi.fn()}
         onSubmit={vi.fn()}
-        onSwitchWindow={vi.fn()}
       />,
     );
     return userEvent.setup();
@@ -270,15 +267,6 @@ describe("OpenOther", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open other…" })).toHaveFocus();
   });
-
-  it("announces the already-open note and describes the field by it", async () => {
-    await renderOpen(true);
-    const note = screen.getByRole("status");
-    expect(note).toHaveTextContent("This episode is open in another window.");
-    expect(
-      screen.getByRole("textbox", { name: "Folder of the episode" }),
-    ).toHaveAccessibleDescription("This episode is open in another window.");
-  });
 });
 
 describe("OpenOther mode flip", () => {
@@ -287,7 +275,6 @@ describe("OpenOther mode flip", () => {
     onChooseFolder: vi.fn(),
     onPathChange: vi.fn(),
     onSubmit: vi.fn(),
-    onSwitchWindow: vi.fn(),
   };
 
   it("keeps the trigger mounted, opens the field and focuses it", () => {

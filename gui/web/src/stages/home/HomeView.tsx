@@ -79,7 +79,6 @@ const NO_OPEN_OTHER: Omit<OpenOtherProps, "onChooseFolder"> = {
   path: "",
   onPathChange: () => {},
   onSubmit: () => {},
-  onSwitchWindow: () => {},
 };
 
 /** Below this container width Home is the phone layout (40rem at 16 px). */
