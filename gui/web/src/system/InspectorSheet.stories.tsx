@@ -2,14 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
-import {
-  type InspectorRect,
-  type InspectorSection,
-  InspectorSheet,
-} from "./InspectorSheet";
+import { type InspectorSection, InspectorSheet } from "./InspectorSheet";
 import type { SystemIconName } from "./icons";
 import { AnchorMark, DemoDock, Framed } from "./inspectorSheetFixtures";
-import type { InspectorDetent } from "./inspectorSheetMath";
+import type { InspectorDetent, InspectorRect } from "./inspectorSheetMath";
 import {
   CLIP_SECTIONS,
   LONG_SECTIONS,

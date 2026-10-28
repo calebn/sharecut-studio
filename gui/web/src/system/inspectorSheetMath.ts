@@ -8,18 +8,17 @@ export const INSPECTOR_DETENTS: readonly InspectorDetent[] = [
   "full",
 ];
 
-/** The action dock is the first detent: 64 px (4rem at 16 px). */
-export const DOCK_PX = 64;
+const DOCK_PX = 64;
 const HALF_SHARE = 0.5;
 const FULL_SHARE = 0.92;
 /** Released this far below the dock, or projected there by a flick, the sheet is dismissed. */
-export const DISMISS_PX = 24;
+const DISMISS_PX = 24;
 /** How far ahead a flick carries the sheet. */
 const FLICK_MS = 120;
 
-export const CARD_WIDTH_PX = 320;
-export const CARD_GAP_PX = 8;
-export const CARD_EDGE_PX = 8;
+const CARD_WIDTH_PX = 320;
+const CARD_GAP_PX = 8;
+const CARD_EDGE_PX = 8;
 const CARD_MAX_SHARE = 0.6;
 
 export type InspectorRect = {
@@ -31,11 +30,11 @@ export type InspectorRect = {
 
 export type InspectorBounds = { width: number; height: number };
 
-export type CardPlacement = {
+export type Sample = { t: number; height: number };
+
+type CardPlacement = {
   side: "below" | "above";
-  /** Offset from the left edge of the bounds. */
   inline: number;
-  /** Offset from the top edge of the bounds (below) or the bottom edge (above). */
   block: number;
   maxBlock: number;
 };
@@ -54,10 +53,7 @@ export function dragHeight(start: number, dy: number, container: number) {
 const STALE_MS = 80;
 
 /** Pixels per millisecond, positive when the sheet is rising, from the last two samples, and zero once the finger has rested. */
-export function riseVelocity(
-  samples: readonly { t: number; height: number }[],
-  now: number,
-): number {
+export function riseVelocity(samples: readonly Sample[], now: number): number {
   const last = samples[samples.length - 1];
   const prev = samples[samples.length - 2];
   if (!last || !prev || last.t <= prev.t || now - last.t > STALE_MS) return 0;
