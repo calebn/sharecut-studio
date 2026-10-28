@@ -23,6 +23,7 @@ import logging
 import os
 import queue
 import secrets
+import socket
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -59,18 +60,7 @@ HEARTBEAT_SEC = 5.0
 #: A handed-off command that has run this long is probably waiting for Studio's own job.
 BUSY_NOTICE_AFTER_SEC = 2.0
 BUSY_NOTICE_EVERY_SEC = 30.0
-
-
-def _binds_loopback(bind_host: str) -> bool:
-    """True when a server bound to ``bind_host`` answers on this computer's loopback address
-    (a wildcard bind does too)."""
-    if bind_host in {"", "localhost"}:
-        return True
-    try:
-        address = ipaddress.ip_address(bind_host)
-    except ValueError:
-        return False
-    return address.is_loopback or address.is_unspecified
+_PINGABLE_ADDRESSES = ("127.0.0.1", "::1")
 
 
 @dataclass
@@ -91,6 +81,8 @@ class StudioHostState:
         self.token = new_token()
         self.bind_host = bind_host
         self.port: int | None = None
+        #: The address the socket is bound to, which tells a name or a wildcard from a literal.
+        self.listen_host: str | None = None
         self.announced: Path | None = None
         self.runs: dict[str, _Run] = {}
         self.lock = threading.Lock()
@@ -99,10 +91,19 @@ class StudioHostState:
 
     @property
     def address(self) -> str | None:
-        """The loopback address local processes reach this Studio at, if it has one."""
-        if not _binds_loopback(self.bind_host):
+        """The address local processes reach this Studio at: loopback for a bind a client may
+        ping (a wildcard bind answers there too), else the bound address itself, or None when
+        it is not known."""
+        if self.bind_host in {"", "localhost"}:
+            return "127.0.0.1"
+        literal = self.listen_host or self.bind_host
+        try:
+            address = ipaddress.ip_address(literal)
+        except ValueError:
             return None
-        return "::1" if self.bind_host == "::1" else "127.0.0.1"
+        if address.is_unspecified:
+            return "127.0.0.1"
+        return str(address)
 
 
 def _state(app: Any) -> StudioHostState:
@@ -128,7 +129,8 @@ def _announce_locked(app: Any, state: StudioHostState) -> None:
     previous, state.announced = state.announced, None
     if previous is not None and previous != served:
         _withdraw(previous, state)
-    if served is None or state.port is None or state.address is None:
+    address = state.address
+    if served is None or state.port is None or address is None:
         return
     try:
         announce_studio_host(
@@ -136,10 +138,11 @@ def _announce_locked(app: Any, state: StudioHostState) -> None:
             StudioHost(
                 instance=state.instance,
                 pid=os.getpid(),
-                host=state.address,
+                host=address,
                 port=state.port,
                 token=state.token,
                 version=__version__,
+                hostname="" if address in _PINGABLE_ADDRESSES else socket.gethostname(),
             ),
         )
     except OSError:
@@ -155,9 +158,11 @@ def _withdraw(project_path: Path, state: StudioHostState) -> None:
         log.warning("Could not withdraw the Studio announcement for %s", project_path)
 
 
-def listening(app: Any, *, port: int) -> None:
+def listening(app: Any, *, port: int, host: str | None = None) -> None:
     """The server is bound: from here local CLIs can reach it."""
-    _state(app).port = port
+    state = _state(app)
+    state.port = port
+    state.listen_host = host
     _announce(app)
 
 

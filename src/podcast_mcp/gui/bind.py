@@ -99,6 +99,7 @@ def run_gui_server(
         state = getattr(app, "state", None)
         if state is not None:
             state.listen_port = bound_port
+            state.listen_host = str(sock.getsockname()[0])
         listen = settings.text(LISTEN_FILE_ENV)
         if listen:
             dest = Path(listen)

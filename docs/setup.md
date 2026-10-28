@@ -919,7 +919,7 @@ podcast review share --project episode.project.json \
   --role commenter --base-url http://YOUR_HOST:8765
 ```
 
-While a Studio bound off-loopback serves a project, the stdio MCP server refuses tool calls for it with a message instead of writing behind Studio; the CLI still hands off. Restart Studio with `--host 127.0.0.1` for MCP, or set `PODCAST_NO_STUDIO_HANDOFF=1` to write directly.
+While a Studio bound off-loopback serves a project, the stdio MCP server refuses tool calls for it with a message instead of writing behind Studio. A Studio bound to a wildcard address (`0.0.0.0`, `::`) still takes CLI commands on `127.0.0.1`. A Studio bound to `127.0.0.2` or a LAN address cannot take handoff at all, so the stdio MCP server and every CLI command that names `--project` (reads too) refuse with a message and nothing runs. Restart Studio with `--host 127.0.0.1`, or set `PODCAST_NO_STUDIO_HANDOFF=1` to write directly (this may overwrite what Studio is holding). The message names the Studio's `artifacts/studio-host.json`; delete it if no Studio is running.
 
 The global share index / registry is written mode `0600` (see [share-tokens.md](share-tokens.md)).
 `podcast review backup-registry` creates a standalone backup with a new generated
