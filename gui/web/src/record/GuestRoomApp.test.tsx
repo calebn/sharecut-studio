@@ -751,6 +751,32 @@ describe("GuestRoomApp", () => {
       expect(puts).toEqual([]);
     });
 
+    it("shows the plain closed-invite cover once the keeper was reclaimed", async () => {
+      stubUploadFetch();
+      const sink = new MemorySink();
+      const wavPath = await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_g",
+      });
+      await sink.remove(wavPath);
+      await renderStoppedRoom(sink);
+      sockets[0]?.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Error",
+          code: "invite_closed",
+        }),
+      });
+      expect(
+        await screen.findByRole("heading", { name: "Invite link closed" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/safe on this device/)).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Save my recording" }),
+      ).toBeNull();
+    });
+
     it("keeps a failed recovery out of the storage error channel", async () => {
       stubUploadFetch();
       const sink = new MemorySink();
@@ -903,6 +929,13 @@ describe("GuestRoomApp", () => {
 
   it("stops a live local capture and offers its keeper after removal", async () => {
     stubBootstrap();
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, {
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_g",
+    });
+    vi.mocked(createOpfsSink).mockResolvedValue(sink);
     const { container } = render(<GuestRoomApp token="guest-tok" />);
     await readyToJoin(getUserMedia);
     await userEvent.click(joinButton());

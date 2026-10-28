@@ -19,6 +19,7 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     accessEnded: false,
     inviteClosed: false,
     captureSettled: true,
+    localRecording: true,
     keeperActions: { busy: false, error: null, notice: null },
     snapshot: recordSnapshot({ participants: [host] }),
     ...over,
@@ -204,6 +205,30 @@ describe("GuestCovers", () => {
       },
       snapshot: recordSnapshot({ participants: [host], take_index: -1 }),
     });
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("offers no recording actions once nothing is left on this device", () => {
+    const actions = {
+      busy: false,
+      error: null,
+      notice: null,
+      download: vi.fn(),
+      recover: vi.fn(),
+    };
+    const take = {
+      snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+      keeperActions: actions,
+      localRecording: false,
+    };
+    const ended = show({ ...take, accessEnded: true });
+    expect(screen.getByText("Thanks for recording.")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    ended.unmount();
+    show({ ...take, accessEnded: true, inviteClosed: true });
+    expect(
+      screen.getByText("Hana closed this invite link. Ask for a new link."),
+    ).toBeInTheDocument();
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 

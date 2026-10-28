@@ -13,6 +13,7 @@ import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
 import { guestRecordUploadTransport } from "./upload/http";
 import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
+import { useLocalKeeper } from "./upload/useLocalKeeper";
 import {
   keeperCaptureSettled,
   useRecordUpload,
@@ -244,6 +245,13 @@ export function useGuestRoom(
       (snapshot?.state === "stopped" || accessEnded) && captureSettled,
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
+  const localRecording = useLocalKeeper({
+    sink,
+    sessionId: snapshot?.session_id ?? null,
+    participantId: me?.participant_id ?? null,
+    takeIndex: snapshot?.take_index ?? null,
+    recheck: `${accessEnded}:${captureSettled}:${keeperActions.busy}:${uploadRetryNonce}`,
+  });
   const roomTone = useRoomToneCapture({
     enabled:
       !!bootstrap?.build.upload &&
@@ -316,6 +324,7 @@ export function useGuestRoom(
     uploadTransport,
     takeClipping,
     keeperActions,
+    localRecording,
     roomTone,
     liveComments,
     captureSettled,

@@ -1175,7 +1175,7 @@ stateDiagram-v2
 | Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open ShareCut Studio in your browser and allow microphone access there." |
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
-| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; with an unsent local take it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again** |
+| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again** |
 | Room tone (host Record stage) | "Record 3 seconds of room tone" |
 | Room tone too loud | "Too loud: is something playing?" |
 | Room tone saved on this device (not yet acknowledged by the host) | "Room tone saved on this device" |
