@@ -4,7 +4,7 @@ import type { DrawerDetent } from "../ui/BottomSheet";
 import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 
-export type SheetStep = {
+type SheetStep = {
   title: string;
   children: ReactNode;
   onBack: () => void;
