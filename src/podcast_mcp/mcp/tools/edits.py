@@ -555,10 +555,8 @@ def propose_edits(
 
 def apply_edits(project_path: str) -> str:
     """Auto-apply non-review REMOVE/MUTE decisions whose reason starts filler: or pause:."""
-    ws = ProjectWorkspace.open(project_path)
-    n = EditService(ws).apply_auto()
-    agent_mutated(ws)
-    return to_json({"operation": "apply_auto_edits", "applied_count": n})
+    r = submit_host_command_result(project_path, "ApplyAutoEdits", {})
+    return to_json({"operation": r["operation"], "applied_count": r["applied_count"]})
 
 
 def register(mcp: MCPServer) -> None:

@@ -807,3 +807,36 @@ def test_room_tone_fill_shape_gate_holds_on_every_guest_surface(
     assert submit(token, "FillRoomTone", RANGE)
     assert load_project(minimal_project).clips != before
     assert journal_types(minimal_project) == ["FillRoomTone"]
+
+
+@pytest.mark.parametrize(
+    "caps",
+    [EDITOR, [*EDITOR, "mcp"], COMMENTER, [*COMMENTER, "mcp"], VIEWER],
+    ids=["editor", "editor-mcp", "commenter", "commenter-mcp", "viewer"],
+)
+def test_apply_auto_edits_is_host_only(minimal_project, monkeypatch, caps):
+    svc = gap_project(minimal_project, monkeypatch)
+    before = deepcopy(svc.ws.project.clips)
+    total = history_total(minimal_project)
+    with pytest.raises(PermissionError) as raised:
+        svc.submit(guest_command("ApplyAutoEdits", {}), capabilities=caps)
+    assert raised.value.code == "share_capability_required"
+    assert load_project(minimal_project).clips == before
+    assert history_total(minimal_project) == total
+    assert journal_types(minimal_project) == []
+
+
+def test_host_apply_auto_edits_passes(minimal_project, monkeypatch):
+    svc = gap_project(minimal_project, monkeypatch)
+    svc.submit(guest_command("ApplyAutoEdits", {}), capabilities=None)
+    assert journal_types(minimal_project) == ["ApplyAutoEdits"]
+
+
+@pytest.mark.parametrize("surface", ["browser", "mcp"])
+def test_apply_auto_edits_is_refused_on_every_guest_surface(
+    minimal_project, sample_wav, monkeypatch, surface
+):
+    gap_project(minimal_project, monkeypatch)
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
+    assert not guest_submitter(surface)(token, "ApplyAutoEdits", {})
+    assert journal_types(minimal_project) == []

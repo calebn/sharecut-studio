@@ -705,6 +705,10 @@ class FillRoomTonePayload(BaseModel):
         return self
 
 
+class ApplyAutoEditsPayload(BaseModel):
+    pass
+
+
 class FadeJoinsPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
@@ -1120,6 +1124,11 @@ class FillRoomToneCommand(DocumentCommandEnvelope):
     payload: FillRoomTonePayload
 
 
+class ApplyAutoEditsCommand(DocumentCommandEnvelope):
+    type: Literal["ApplyAutoEdits"] = "ApplyAutoEdits"
+    payload: ApplyAutoEditsPayload = Field(default_factory=ApplyAutoEditsPayload)
+
+
 class FadeJoinsCommand(DocumentCommandEnvelope):
     type: Literal["FadeJoins"] = "FadeJoins"
     payload: FadeJoinsPayload
@@ -1238,6 +1247,7 @@ DocumentCommandBody = Annotated[
     | MoveSegmentCommand
     | InsertGapCommand
     | FillRoomToneCommand
+    | ApplyAutoEditsCommand
     | FadeJoinsCommand
     | CrossfadeJoinsCommand
     | MoveByTextCommand
@@ -1367,6 +1377,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "MoveSegment": MoveSegmentPayload,
     "InsertGap": InsertGapPayload,
     "FillRoomTone": FillRoomTonePayload,
+    "ApplyAutoEdits": ApplyAutoEditsPayload,
     "FadeJoins": FadeJoinsPayload,
     "CrossfadeJoins": CrossfadeJoinsPayload,
     "MoveByText": MoveByTextPayload,

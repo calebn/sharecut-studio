@@ -38,6 +38,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddReply` | `author` (string), `body` (string), `comment_id` (string) | — |
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
+| `ApplyAutoEdits` | — | — |
 | `ApplyFadeRecommendationList` | `recommendations` (array[object]) | — |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
 | `ApplySuggestedActions` | — | `ids` (array \| null), `override_audio_checks` (boolean), `overrides` (object), `revise` (boolean), `skip_unsure` (boolean) |
@@ -103,7 +104,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 71 command types._
+_Generated 72 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

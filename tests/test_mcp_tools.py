@@ -256,6 +256,7 @@ def test_propose_and_apply_edits(tmp_path, monkeypatch):
     applied = json.loads(mcp_server.apply_edits(path))
     assert applied["operation"] == "apply_auto_edits"
     assert applied["applied_count"] >= 0
+    assert set(applied) == {"operation", "applied_count"}
 
 
 def test_update_pending_and_revert_mcp_tools(tmp_path, monkeypatch):
