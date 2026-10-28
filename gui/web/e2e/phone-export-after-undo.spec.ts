@@ -3,7 +3,7 @@ import { AUTO_MIX_PREF_KEY } from "../src/hooks/autoMixPref";
 import { expectFitsViewport, openDialogFromMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
-import { openProject, selectTool } from "./stageNav";
+import { openProject, runPaletteCommand } from "./stageNav";
 
 const PHONE_VIEWPORTS = [
   { width: 390, height: 844 },
@@ -12,7 +12,7 @@ const PHONE_VIEWPORTS = [
 
 const CANCEL_REASON = /still starting/i;
 
-async function cutThroughRailThenUndo(
+async function cutThenUndo(
   page: Page,
   pathParam: string,
   beforeUndo: () => Promise<void>,
@@ -30,7 +30,6 @@ async function cutThroughRailThenUndo(
     );
   };
   const before = await clipCount();
-  const rail = page.getByRole("group", { name: "Editing tools" });
   await page.getByRole("slider", { name: "Timeline position" }).focus();
   await page.keyboard.press("ArrowRight");
   await page
@@ -40,8 +39,8 @@ async function cutThroughRailThenUndo(
     .getByRole("dialog", { name: "reference clip" })
     .getByRole("button", { name: "Close" })
     .click();
-  await selectTool(page, "blade");
-  await rail.getByRole("button", { name: "Blade cut", exact: true }).click();
+  // A phone has no Alt key: the palette runs the same split at the playhead.
+  await runPaletteCommand(page, "Blade cut");
   await page
     .getByRole("dialog", { name: /^Cut at/ })
     .getByRole("button", { name: "Cut", exact: true })
@@ -88,13 +87,9 @@ for (const viewport of PHONE_VIEWPORTS) {
           rebuildStarted();
         }
       });
-      await cutThroughRailThenUndo(
-        page,
-        encodeURIComponent(projectPath),
-        async () => {
-          armed = true;
-        },
-      );
+      await cutThenUndo(page, encodeURIComponent(projectPath), async () => {
+        armed = true;
+      });
       const exportStatuses: number[] = [];
       await page.route("**/api/export/deliverables", async (route) => {
         await rebuildLive;

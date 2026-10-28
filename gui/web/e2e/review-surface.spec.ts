@@ -40,10 +40,6 @@ for (const theme of ["light", "dark"] as const) {
             guest.getByText(COMMENTER_BANNER, { exact: true }),
           ).toBeVisible();
 
-          await guest
-            .getByRole("button", { name: "Toggle comment mode", exact: true })
-            .first()
-            .click();
           const body = `Commenter feedback in ${theme}`;
           await guest
             .getByRole("textbox", { name: "Comment", exact: true })
