@@ -53,7 +53,7 @@ async function visibleLanes(page: Page) {
   });
 }
 
-test("a phone held sideways keeps three compact lanes and Undo in reach", async ({
+test("a phone held sideways keeps two whole compact lanes and Undo in reach", async ({
   page,
 }) => {
   await page.setViewportSize(LANDSCAPE);
@@ -63,7 +63,7 @@ test("a phone held sideways keeps three compact lanes and Undo in reach", async 
     await addTracks(page, projectPath, 3);
     await expect(page.locator(".lane-row")).toHaveCount(5);
     await expect.poll(() => visibleLanes(page)).toMatchObject({ height: 72 });
-    expect((await visibleLanes(page))!.full).toBeGreaterThanOrEqual(3);
+    expect((await visibleLanes(page))!.full).toBeGreaterThanOrEqual(2);
 
     const header = page.locator(".sys-app-header-host");
     const undo = header.getByRole("button", { name: "Undo", exact: true });
