@@ -80,7 +80,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `M` | Mute (`edit.mute`) | Project loaded | M mutes what is selected (words, a range, a clip), else the targeted track; on the Record stage, M drops a marker instead |
 | `Shift+S` | Toggle track solo (`track.soloToggle`) | Project loaded | Shift+S: S is Split |
 | `S` | Split (`edit.split`) | editStageStructural | S: split at the playhead, or at both edges of the selected words or range, as one undo step — S splits; Shift+S solos the targeted track; Mod+K splits at the playhead |
-| `Space` | Hear (`edit.hear`) | editStage | Shift+Space: hear the selection |
+| `Shift+Space` | Hear (`edit.hear`) | editStage | Shift+Space: hear the selection |
 | `A` | Hear before (`edit.hearBefore`) | editStage | A: the suggestion as it is now |
 | `B` | Hear after (`edit.hearAfter`) | editStage | B: the suggestion applied |
 | `X` | Keep (`edit.keep`) | editStage | X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard |

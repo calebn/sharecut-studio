@@ -92,7 +92,7 @@ def _keymap_chords() -> dict[str, str]:
                 out[cid] = head
                 continue
         if primary in (" ", "Space"):
-            chord = "Space"
+            chord = "Shift+Space" if req_shift else "Space"
         elif req_alt:
             chord = f"Alt+{primary}"
         elif req_mod and req_shift:

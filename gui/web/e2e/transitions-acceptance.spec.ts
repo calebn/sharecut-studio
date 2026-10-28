@@ -10,7 +10,7 @@ import {
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import { openProject, waitForLanding } from "./stageNav";
+import { inspectSelection, openProject, waitForLanding } from "./stageNav";
 
 let projectPath: string;
 let workspaceDir: string;
@@ -166,6 +166,7 @@ test("pending suggestions preserve drafts and save the displayed full range once
       .first()
       .focus();
     await phone.keyboard.press("Enter");
+    await inspectSelection(phone);
     const expand = phone.getByRole("button", { name: "Expand", exact: true });
     if (await expand.isVisible()) await expand.click();
     await phone
@@ -210,6 +211,7 @@ test("clip names identify audio and pending hatching fills the lane", async ({
   expect(name).not.toContain(clipId!);
   expect(name).toMatch(/Select .+ clip .+\d/);
   await hit.click();
+  await inspectSelection(page);
   await expect(page.locator(".inspector")).toContainText("Delete");
   await expect(page.locator(".inspector")).not.toContainText(clipId!);
   await expectPageAxeClean(page, ".inspector");

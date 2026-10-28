@@ -11,6 +11,7 @@ import { switchE2eProject } from "../e2e/shareableProject";
 import {
   closeTools,
   inspectSelection,
+  inspectSelectionByKey,
   openProject,
   openToolsIfFolded,
 } from "../e2e/stageNav";
@@ -346,6 +347,7 @@ for (const [name, view] of Object.entries(COLUMN)) {
         await centerOf(page, `${lane} [data-pending-id] >> nth=0`),
       );
       await finger.up();
+      await inspectSelectionByKey(page);
       await expectColumn(page, view, name);
       const bar = page.locator(".pending-actionbar");
       await expect(bar).toBeVisible();

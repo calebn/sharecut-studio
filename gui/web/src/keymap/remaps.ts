@@ -27,6 +27,8 @@ const RENAMED_COMMANDS: Readonly<Record<string, string | null>> = {
   "tool.blade": null,
   "review.toggleCommentMode": null,
   "review.exitCommentMode": null,
+  // Mute is one verb on what is selected; the track mute is its fallback.
+  "track.muteToggle": "edit.mute",
 };
 
 /** Move renamed ids to their new id (an existing remap there wins); drop removed ones. */

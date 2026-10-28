@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { seekTransport } from "../commands/seek";
 import {
   CommentAnchorChip,
@@ -135,6 +135,10 @@ export function CommentsPanel({
   };
 
   const focusCompose = () => bodyRef.current?.focus();
+
+  useEffect(() => {
+    if (commentDraft) bodyRef.current?.focus();
+  }, [commentDraft]);
 
   const toggleTrack = (id: string) => {
     setTrackIds((prev) =>
