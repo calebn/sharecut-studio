@@ -32,6 +32,8 @@ export type NotesRailProps = {
   /** The composer still works while paused; the line says the notes land at the pause. */
   paused?: boolean;
   onSelect?: (id: string) => void;
+  /** Why notes cannot be sent now. The composer is disabled and the line shows the reason. */
+  disabledReason?: string;
 };
 
 const SEND_REASON = "Write a note to send";
@@ -55,12 +57,14 @@ export function NotesRail({
   onSend,
   paused = false,
   onSelect,
+  disabledReason,
 }: NotesRailProps) {
   const fieldId = useId();
   const input = useRef<HTMLTextAreaElement>(null);
   const reasonId = useId();
   const rows = sortNotes(visibleNotes(items, viewer, selfName));
-  const canSend = canSendNote(draft);
+  const canSend = canSendNote(draft) && !disabledReason;
+  const reason = disabledReason ?? SEND_REASON;
   const send = () => {
     if (!canSend) return;
     onSend({ text: draft.trim(), time: draftTime, everyone });
@@ -141,6 +145,7 @@ export function NotesRail({
             rows={1}
             placeholder="Add a note"
             value={draft}
+            disabled={disabledReason !== undefined}
             aria-describedby={canSend ? undefined : reasonId}
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={onKeyDown}
@@ -150,7 +155,7 @@ export function NotesRail({
             className="sys-notes-send"
             aria-label="Send note"
             aria-disabled={canSend ? undefined : true}
-            title={canSend ? "Send note" : SEND_REASON}
+            title={canSend ? "Send note" : reason}
             aria-describedby={canSend ? undefined : reasonId}
             onClick={send}
           >
@@ -159,7 +164,7 @@ export function NotesRail({
         </div>
         {!canSend ? (
           <p id={reasonId} className="sys-notes-quiet">
-            {SEND_REASON}
+            {reason}
           </p>
         ) : null}
         {onEveryoneChange ? (

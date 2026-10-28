@@ -82,6 +82,24 @@ describe("StatusRow failed", () => {
     );
   });
 
+  it("shows a secondary action beside the primary one", async () => {
+    const onAction = vi.fn();
+    const onSecondary = vi.fn();
+    render(
+      <StatusRow
+        state="failed"
+        title="Saving stopped."
+        action={{ label: "Resume saving", onAction }}
+        secondaryAction={{ label: "Save a copy", onAction: onSecondary }}
+      />,
+    );
+    const secondary = screen.getByRole("button", { name: "Save a copy" });
+    expect(secondary).not.toHaveClass("primary");
+    await userEvent.click(secondary);
+    expect(onSecondary).toHaveBeenCalledOnce();
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
   it("has no Details button without a technical cause or outside failure", () => {
     const { rerender } = render(
       <StatusRow

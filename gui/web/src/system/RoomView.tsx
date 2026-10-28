@@ -66,6 +66,15 @@ export type RoomViewProps = {
   embedded?: boolean;
   recordDisabledReason?: string;
   takes?: ReactNode;
+  /** Why notes cannot be sent now (no take is open); the composer is disabled with this reason. */
+  notesDisabledReason?: string;
+  /**
+   * Whether the Everyone toggle shows. Defaults on for the host and off for a
+   * producer, whose notes carry no visibility on the wire until #2419 adds it.
+   */
+  noteVisibility?: boolean;
+  /** A bare page: the room fills 100dvh and clears the top safe area. */
+  page?: boolean;
 };
 
 type RailTab = "notes" | "takes";
@@ -142,6 +151,9 @@ export function RoomView({
   embedded = false,
   recordDisabledReason,
   takes,
+  notesDisabledReason,
+  noteVisibility,
+  page = false,
 }: RoomViewProps) {
   const tabId = useId();
   const [railTab, setRailTab] = useState<RailTab>("notes");
@@ -175,6 +187,7 @@ export function RoomView({
   const paused = phase.kind === "paused";
 
   const closeSheet = useCallback(() => setNotesChoice(false), []);
+  const showEveryone = noteVisibility ?? seat === "host";
   const rail = (
     <NotesRail
       items={notes}
@@ -185,7 +198,8 @@ export function RoomView({
       draftTime={draftTime}
       onClearTime={() => setTimeCleared(phaseKey(phase))}
       everyone={everyone}
-      onEveryoneChange={seat === "guest" ? undefined : setEveryone}
+      onEveryoneChange={showEveryone ? setEveryone : undefined}
+      disabledReason={notesDisabledReason}
       onSend={(note) => {
         onSendNote(note);
         setDraft("");
@@ -236,6 +250,7 @@ export function RoomView({
       data-width={viewerWidth}
       data-embedded={embedded ? "" : undefined}
       data-declined={declined ? "" : undefined}
+      data-page={page ? "" : undefined}
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">

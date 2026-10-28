@@ -2,17 +2,19 @@ import {
   type CSSProperties,
   type FormEvent,
   type ReactNode,
+  type RefObject,
   useId,
   useRef,
   useState,
 } from "react";
-import { Button, ToggleButton } from "../ui";
+import { Button, Field, ToggleButton } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import { BUSY_REASON } from "../ui/disabledReason";
 import {
   consentDetails,
   consentLine,
   JOIN_TEXT,
+  type JoinBlocker,
   type JoinMic,
   type JoinMicAction,
   type JoinPrimary,
@@ -45,8 +47,17 @@ export type JoinSheetProps = {
   headphones?: boolean;
   onHeadphonesChange?: (on: boolean) => void;
   lowStorage?: boolean;
+  /** Extra lines under the mic meter, such as "your saved microphone is gone". */
+  micNotes?: string[];
+  /** Storage that cannot keep a recording; the first reason, before the name. */
+  blocker?: JoinBlocker;
+  onBlockerAction?: () => void;
   onMicAction?: (action: JoinMicAction) => void;
+  /** The input picked in the mic row; `mic.devices` fills the list. */
+  onInputChange?: (inputId: string) => void;
   joining?: boolean;
+  /** Back from Not now: the sheet opens on the consent step, with Join recording focused. */
+  rejoin?: boolean;
   onJoin: () => void;
   /** Not now, Escape and Close all decline. */
   onDecline: () => void;
@@ -54,11 +65,11 @@ export type JoinSheetProps = {
 
 function Row({
   row,
-  onMicAction,
+  onAction,
   children,
 }: {
   row: JoinRow;
-  onMicAction?: (action: JoinMicAction) => void;
+  onAction?: (kind: NonNullable<JoinRow["action"]>["kind"]) => void;
   children?: ReactNode;
 }) {
   const { action } = row;
@@ -73,7 +84,7 @@ function Row({
             ? {
                 label: action.label,
                 name: action.name,
-                onAction: () => onMicAction?.(action.kind),
+                onAction: () => onAction?.(action.kind),
               }
             : undefined
         }
@@ -116,10 +127,12 @@ function Consent({
 
 function Footer({
   primary,
+  primaryRef,
   onJoin,
   onDecline,
 }: {
   primary: JoinPrimary;
+  primaryRef: RefObject<HTMLButtonElement | null>;
   onJoin: () => void;
   onDecline: () => void;
 }) {
@@ -127,6 +140,7 @@ function Footer({
   return (
     <div className="sys-join-footer">
       <Button
+        ref={primaryRef}
         variant="primary"
         onClick={onJoin}
         aria-busy={primary.busy || undefined}
@@ -167,13 +181,19 @@ export function JoinSheet({
   headphones = false,
   onHeadphonesChange,
   lowStorage = false,
+  micNotes,
+  blocker,
+  onBlockerAction,
   onMicAction,
+  onInputChange,
   joining = false,
+  rejoin = false,
   onJoin,
   onDecline,
 }: JoinSheetProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const primaryRef = useRef<HTMLButtonElement>(null);
   const [detent, setDetent] = useState<DrawerDetent>("full");
   const phone = viewerWidth === "phone";
   const guest = seat === "guest";
@@ -182,6 +202,8 @@ export function JoinSheet({
     mic,
     headphones,
     lowStorage,
+    micNotes,
+    blocker,
     joining,
   });
   const producerModel = joinProducerModel({ name, joining });
@@ -206,6 +228,10 @@ export function JoinSheet({
     }
   };
 
+  const rowOf = (key: JoinStep) =>
+    guestModel.rows.find((row) => row.key === key) as JoinRow;
+  const act = (kind: NonNullable<JoinRow["action"]>["kind"]) =>
+    kind === "blocker" ? onBlockerAction?.() : onMicAction?.(kind);
   const nameField = (
     <input
       ref={nameRef}
@@ -225,10 +251,15 @@ export function JoinSheet({
       panelClassName="sys-join-sheet"
       detent={detent}
       onDetentChange={setDetent}
-      initialFocusRef={phone ? undefined : nameRef}
+      initialFocusRef={phone ? undefined : rejoin ? primaryRef : nameRef}
       onClose={onDecline}
       footer={
-        <Footer primary={primary} onJoin={onJoin} onDecline={onDecline} />
+        <Footer
+          primary={primary}
+          primaryRef={primaryRef}
+          onJoin={onJoin}
+          onDecline={onDecline}
+        />
       }
     >
       <form
@@ -250,8 +281,33 @@ export function JoinSheet({
         ) : null}
         {guest ? (
           <>
-            <Row row={guestModel.rows[0]}>{nameField}</Row>
-            <Row row={guestModel.rows[1]} onMicAction={onMicAction}>
+            {blocker ? <Row row={rowOf("storage")} onAction={act} /> : null}
+            <Row row={rowOf("name")}>{nameField}</Row>
+            <Row row={rowOf("mic")} onAction={act}>
+              {mic.status === "ready" && mic.devices?.length ? (
+                <Field
+                  label="Input"
+                  hint={mic.inputLocked ? JOIN_TEXT.inputLocked : undefined}
+                  className="sys-join-field"
+                >
+                  {(control) => (
+                    <select
+                      {...control}
+                      className="sys-join-input"
+                      value={mic.inputId ?? ""}
+                      disabled={mic.inputLocked}
+                      onChange={(event) => onInputChange?.(event.target.value)}
+                    >
+                      <option value="">{JOIN_TEXT.defaultInput}</option>
+                      {mic.devices?.map((device) => (
+                        <option key={device.id} value={device.id}>
+                          {device.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              ) : null}
               {mic.status === "ready" ? (
                 <span
                   className="sys-room-meter sys-join-meter"
@@ -276,7 +332,7 @@ export function JoinSheet({
                 ))}
               </div>
             </Row>
-            <Row row={guestModel.rows[2]}>
+            <Row row={rowOf("headphones")}>
               <ToggleButton
                 pressed={headphones}
                 onClick={() => onHeadphonesChange?.(!headphones)}

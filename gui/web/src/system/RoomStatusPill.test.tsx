@@ -37,6 +37,20 @@ describe("RoomStatusPill", () => {
     ).toBe(0.25);
   });
 
+  it("reads the saving percent in the pill, held to 0 to 100", () => {
+    const at = (percent: number) =>
+      roomPillRendering({
+        kind: "saving",
+        savedPeople: 0,
+        totalPeople: 2,
+        percent,
+      });
+    expect(at(64.4)).toMatchObject({ text: "Saving · 64%", progress: 0.64 });
+    expect(at(140)).toMatchObject({ text: "Saving · 100%", progress: 1 });
+    expect(at(-3)).toMatchObject({ text: "Saving · 0%", progress: 0 });
+    expect(at(Number.NaN).text).toBe("Saving · 0 of 2");
+  });
+
   it("writes an hour as h:mm:ss", () => {
     expect(clockText(3723)).toBe("1:02:03");
     expect(clockText(-5)).toBe("0:00");

@@ -5,6 +5,13 @@ import { audioContextCtor } from "../../utils/audio";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { detachE2eRemote, injectE2eRemote, recordE2eEnabled } from "./e2eHook";
 import { RecordMesh } from "./mesh";
+import {
+  createPeerLevelTap,
+  PEER_LEVEL_INTERVAL_MS,
+  type PeerLevelTap,
+  readPeerLevels,
+  sameLevels,
+} from "./peerLevels";
 import { type SignalPayload, subscribeRecordSignal } from "./signalBus";
 
 type Args = {
@@ -55,8 +62,15 @@ export function useRecordMonitor({
   localStream,
   muted,
   send,
-}: Args): { hearing: boolean; remoteCount: number; error: string | null } {
+}: Args): {
+  hearing: boolean;
+  remoteCount: number;
+  error: string | null;
+  /** Each remote peer's level, 0 to 1, from an analyser on their audio. Client-side only. */
+  levels: Record<string, number>;
+} {
   const [remoteCount, setRemoteCount] = useState(0);
+  const [levels, setLevels] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const sessionId = snapshot?.session_id ?? null;
   const sendRef = useRef(send);
@@ -68,6 +82,7 @@ export function useRecordMonitor({
   const graphRef = useRef<MixMinusGraph | null>(null);
   const sourcesRef = useRef(new Map<string, AudioNode>());
   const oscillatorsRef = useRef(new Map<string, OscillatorNode>());
+  const tapsRef = useRef(new Map<string, PeerLevelTap>());
   const ctxRef = useRef<AudioContext | null>(null);
   const meshRef = useRef<RecordMesh | null>(null);
   const goneTimers = useRef(new Map<string, number>());
@@ -122,6 +137,11 @@ export function useRecordMonitor({
   useEffect(() => {
     const sources = sourcesRef.current;
     const oscillators = oscillatorsRef.current;
+    const taps = tapsRef.current;
+    const dropTap = (peerId: string) => {
+      taps.get(peerId)?.dispose();
+      taps.delete(peerId);
+    };
     if (!enabled || !localId || !sessionId) {
       meshRef.current?.dispose();
       meshRef.current = null;
@@ -135,12 +155,16 @@ export function useRecordMonitor({
       for (const id of [...sources.keys()]) {
         detachE2eRemote(sources, oscillators, id);
       }
+      for (const id of [...taps.keys()]) {
+        dropTap(id);
+      }
       const ctx = ctxRef.current;
       ctxRef.current = null;
       if (ctx) {
         void ctx.close();
       }
       setRemoteCount(0);
+      setLevels((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     const Ctor = audioContextCtor();
@@ -182,6 +206,11 @@ export function useRecordMonitor({
           source,
           peerMuted(snapshotRef.current, peerId),
         );
+        dropTap(peerId);
+        const tap = createPeerLevelTap(ctx, source);
+        if (tap) {
+          taps.set(peerId, tap);
+        }
         setRemoteCount(sources.size);
       },
       onRemoteGone: (peerId) => {
@@ -198,6 +227,7 @@ export function useRecordMonitor({
             return;
           }
           detachE2eRemote(sources, oscillators, peerId);
+          dropTap(peerId);
           setRemoteCount(sources.size);
         }, holdMs);
         gone.set(peerId, timer);
@@ -226,10 +256,26 @@ export function useRecordMonitor({
       for (const id of [...sources.keys()]) {
         detachE2eRemote(sources, oscillators, id);
       }
+      for (const id of [...taps.keys()]) {
+        dropTap(id);
+      }
       ctxRef.current = null;
       void ctx.close();
     };
   }, [enabled, localId, role, sessionId]);
+
+  useEffect(() => {
+    if (remoteCount === 0) {
+      setLevels((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+      return;
+    }
+    const taps = tapsRef.current;
+    const timer = window.setInterval(() => {
+      const next = readPeerLevels(taps);
+      setLevels((prev) => (sameLevels(prev, next) ? prev : next));
+    }, PEER_LEVEL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [remoteCount]);
 
   useEffect(() => {
     meshRef.current?.setLocalStream(localStream);
@@ -257,5 +303,6 @@ export function useRecordMonitor({
     hearing: remoteCount > 0,
     remoteCount,
     error,
+    levels,
   };
 }

@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { SRC_ROOT } from "../test/sourceFiles";
 import type { NoteItem } from "./notesRailModel";
 import { RoomView, type RoomViewProps } from "./RoomView";
 import type { RoomPerson } from "./roomViewModel";
@@ -77,16 +80,96 @@ describe("RoomView", () => {
     );
   });
 
-  it("a producer's rail starts open and has the Everyone toggle", () => {
-    renderRoom({
+  it("a producer's rail starts open and hides Everyone until visibility is on", () => {
+    const { unmount } = renderRoom({
       seat: "producer",
       people: [HOST, JON, ROSA],
       selfName: "Rosa Diaz",
     });
     expect(screen.getByLabelText("Add a note")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
+    unmount();
+    renderRoom({
+      seat: "producer",
+      people: [HOST, JON, ROSA],
+      selfName: "Rosa Diaz",
+      noteVisibility: true,
+    });
     expect(
       screen.getByRole("button", { name: "Everyone" }),
     ).toBeInTheDocument();
+  });
+
+  it("the host keeps Everyone, and noteVisibility false hides it", () => {
+    const host: Partial<RoomViewProps> = {
+      seat: "host",
+      people: [{ ...HOST, you: true }],
+    };
+    const { unmount } = renderRoom({ ...host, defaultNotesOpen: true });
+    expect(
+      screen.getByRole("button", { name: "Everyone" }),
+    ).toBeInTheDocument();
+    unmount();
+    renderRoom({ ...host, defaultNotesOpen: true, noteVisibility: false });
+    expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
+  });
+
+  it("disables the composer with the reason and sends nothing", async () => {
+    const { onSendNote } = renderRoom({
+      defaultNotesOpen: true,
+      notesDisabledReason: "Notes open when the take starts.",
+    });
+    expect(screen.getByLabelText("Add a note")).toBeDisabled();
+    expect(screen.getByText("Notes open when the take starts.")).toBeVisible();
+    const send = screen.getByRole("button", { name: "Send note" });
+    expect(send).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(send);
+    expect(onSendNote).not.toHaveBeenCalled();
+  });
+
+  it("keeps two guests with one name as two tiles", () => {
+    const twin = (id: string): RoomPerson => ({
+      id,
+      role: "guest",
+      person: { name: "Guest", colorIndex: 1 },
+      presence: "live",
+    });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderRoom({ people: [HOST, twin("p_1"), twin("p_2")] });
+    expect(document.querySelectorAll(".sys-room-tile")).toHaveLength(3);
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it("reads a guest's own upload percent in the pill and the dock", () => {
+    renderRoom({
+      phase: { kind: "saving", savedPeople: 1, totalPeople: 3, percent: 64.4 },
+    });
+    expect(
+      document.querySelector(".sys-pill, .sys-status-pill"),
+    ).toHaveTextContent("Saving · 64%");
+    expect(
+      screen.getByText("Saving · 64% · keep this page open"),
+    ).toBeVisible();
+  });
+
+  it("fills a bare page and clears the notch only when asked", () => {
+    const { container, unmount } = renderRoom({ page: true });
+    expect(container.querySelector(".sys-room-view")).toHaveAttribute(
+      "data-page",
+    );
+    unmount();
+    expect(renderRoom().container.querySelector("[data-page]")).toBeNull();
+    const css = readFileSync(
+      join(SRC_ROOT, "styles/partials/system-record.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /\.sys-room-view\[data-page\] \{\s*block-size: 100dvh;\s*padding-block-start: env\(safe-area-inset-top\);/,
+    );
+    expect(css).toMatch(
+      /padding-block-end: max\(var\(--space-3\), env\(safe-area-inset-bottom\)\);\s*overflow-y: auto;/,
+    );
   });
 
   it("a guest gets no Everyone toggle", async () => {

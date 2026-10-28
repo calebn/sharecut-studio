@@ -442,6 +442,40 @@ describe("roomViewModel host", () => {
     ]);
   });
 
+  it("keys tiles and listeners by id, falling back to role and name", () => {
+    const model = roomViewModel(
+      base({
+        role: "host",
+        people: [
+          host({ you: true }),
+          guest(JON, { id: "p_2" }),
+          guest(JON, { id: "p_3" }),
+          guest(JON),
+          producer({ id: "p_9" }),
+        ],
+      }),
+    );
+    expect(
+      model.tiles.filter((t) => t.kind === "person").map((t) => t.key),
+    ).toEqual(["host-Maya Okafor", "p_2", "p_3", "guest-Jon"]);
+    expect(model.listeners.map((l) => l.key)).toEqual(["p_9"]);
+  });
+
+  it("reads the saving percent into the dock line when it is given", () => {
+    const saving = (percent?: number): RoomPhase => ({
+      kind: "saving",
+      savedPeople: 1,
+      totalPeople: 3,
+      percent,
+    });
+    expect(
+      roomViewModel(base({ role: "guest", phase: saving(64) })).dockStatus,
+    ).toBe("Saving · 64% · keep this page open");
+    expect(
+      roomViewModel(base({ role: "guest", phase: saving() })).dockStatus,
+    ).toBe("Saving · 1 of 3 · keep this page open");
+  });
+
   it("replaces the dock controls with a saving line while the take saves", () => {
     const model = roomViewModel(
       base({

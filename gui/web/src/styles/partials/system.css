@@ -1582,6 +1582,11 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   background: var(--color-danger-muted);
 }
 
+/* The muted red ground is too close to the secondary text colour in dark. */
+.sys-status[data-state="failed"] .sys-status-detail {
+  color: var(--color-text-primary);
+}
+
 .sys-status-actions {
   display: flex;
   flex-wrap: wrap;

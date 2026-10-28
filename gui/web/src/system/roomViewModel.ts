@@ -8,7 +8,7 @@ import type { PersonData } from "./Person";
 import type { RecordFace } from "./RecordButton";
 import type { DockSeat } from "./RecordDock";
 import type { RoomAlertInput } from "./roomAlertModel";
-import type { RoomPhase } from "./roomPhase";
+import { type RoomPhase, savingPercent } from "./roomPhase";
 import {
   effectiveLive,
   type RoomConnection,
@@ -21,6 +21,8 @@ export type ViewerWidth = "desktop" | "phone" | "phone-landscape";
 
 /** One person in the room as the viewer's client knows them. */
 export type RoomPerson = {
+  /** The participant's id; keys the tile so two people with one name stay apart. */
+  id?: string;
   role: RoomRole;
   person: PersonData;
   /** The viewer's own entry. */
@@ -88,6 +90,10 @@ const RECORDED_CAP = 4;
 
 /** Producers listen; everyone else is recorded. */
 const isRecorded = (person: RoomPerson) => person.role !== "producer";
+
+/** The id when the caller has one; otherwise role and name, which collide for two guests called "Guest". */
+const personKey = (entry: RoomPerson) =>
+  entry.id ?? `${entry.role}-${entry.person.name}`;
 
 /** The viewer's own tile leads the grid. */
 function ownFirst(people: RoomPerson[]): RoomPerson[] {
@@ -166,9 +172,11 @@ function hostRecord(people: RoomPerson[], phase: RoomPhase): RoomRecord {
 }
 
 function savingStatus(phase: RoomPhase): string | null {
-  return phase.kind === "saving"
+  if (phase.kind !== "saving") return null;
+  const percent = savingPercent(phase);
+  return percent === null
     ? `Saving · ${phase.savedPeople} of ${phase.totalPeople} · keep this page open`
-    : null;
+    : `Saving · ${percent}% · keep this page open`;
 }
 
 export function roomViewModel(input: RoomViewInput): RoomViewModel {
@@ -181,7 +189,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       ? ownFirst(recorded)
       : recorded;
   const tiles: RoomTileEntry[] = ordered.map((entry) => ({
-    key: `${entry.role}-${entry.person.name}`,
+    key: personKey(entry),
     kind: "person",
     props: tileProps(entry),
   }));
@@ -195,7 +203,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
   const listeners = people
     .filter((person) => person.role === "producer")
     .map((person) => ({
-      key: `producer-${person.person.name}`,
+      key: personKey(person),
       person: person.person,
       label: person.you ? "You" : undefined,
     }));

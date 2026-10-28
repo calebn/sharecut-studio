@@ -27,6 +27,36 @@ describe("RoomAlert", () => {
     expect(onAction).toHaveBeenCalledOnce();
   });
 
+  it("offers a second action beside the first when both handlers exist", async () => {
+    const onAction = vi.fn();
+    const onSecondaryAction = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <RoomAlert
+        alerts={[{ kind: "saving-failed", onAction, onSecondaryAction }]}
+      />,
+    );
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "Save a copy" }));
+    expect(onSecondaryAction).toHaveBeenCalledOnce();
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it("drops the second action without its handler or on a kind without one", () => {
+    const { rerender } = render(
+      <RoomAlert alerts={[{ kind: "saving-failed", onAction: vi.fn() }]} />,
+    );
+    expect(screen.queryByRole("button", { name: "Save a copy" })).toBeNull();
+    rerender(
+      <RoomAlert
+        alerts={[
+          { kind: "mic-lost", onAction: vi.fn(), onSecondaryAction: vi.fn() },
+        ]}
+      />,
+    );
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+
   it("offers no action when the handler is missing", () => {
     render(<RoomAlert alerts={[{ kind: "no-audio" }]} />);
     expect(
