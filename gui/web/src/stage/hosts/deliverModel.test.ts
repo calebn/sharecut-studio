@@ -1,59 +1,50 @@
 import { describe, expect, it } from "vitest";
 import {
   chapterOps,
-  chaptersOf,
   clipOps,
   clipsOf,
   deliverFacts,
   fixRoute,
+  withPageFields,
 } from "./deliverModel";
 
-const chapters = chaptersOf([
-  { time: 0, title: "Cold open" },
-  { time: 312.4, title: "The old mill" },
-]);
+const coldOpen = { id: "ch-0", at: 0, title: "Cold open" };
+const oldMill = { id: "ch-1", at: 312.4, title: "The old mill" };
+const chapters = [coldOpen, oldMill];
 
-const clips = clipsOf([
-  {
-    id: "s1",
-    track_id: "t1",
-    start: 10,
-    end: 40,
-    score: 0.8,
-    title_suggestion: "  A line  ",
-    approved: false,
-    review_required: false,
-  },
-  {
-    id: "s2",
-    track_id: "t1",
-    start: 50,
-    end: 70,
-    score: 0.5,
-    title_suggestion: null,
-    approved: true,
-    review_required: false,
-  },
-]);
+const lineA = {
+  id: "s1",
+  title: "A line",
+  start: 10,
+  end: 40,
+  score: 0.8,
+  approved: false,
+};
+const lineB = {
+  id: "s2",
+  title: "Untitled clip",
+  start: 50,
+  end: 70,
+  score: 0.5,
+  approved: true,
+};
+const clips = [lineA, lineB];
 
-describe("chaptersOf / clipsOf", () => {
-  it("numbers chapters by position", () => {
-    expect(chapters).toEqual([
-      { id: "ch-0", at: 0, title: "Cold open" },
-      { id: "ch-1", at: 312.4, title: "The old mill" },
-    ]);
-  });
-
+describe("clipsOf", () => {
   it("trims a suggested title and names an empty one", () => {
-    expect(clips.map((c) => c.title)).toEqual(["A line", "Untitled clip"]);
-    expect(clips[1]).toEqual({
-      id: "s2",
-      title: "Untitled clip",
-      start: 50,
-      end: 70,
-      score: 0.5,
-      approved: true,
+    const view = (id: string, title: string | null) => ({
+      id,
+      track_id: "t1",
+      start: 10,
+      end: 40,
+      score: 0.8,
+      title_suggestion: title,
+      approved: false,
+      review_required: false,
     });
+    expect(
+      clipsOf([view("s1", "  A line  "), view("s2", null)]).map((c) => c.title),
+    ).toEqual(["A line", "Untitled clip"]);
   });
 });
 
@@ -63,9 +54,9 @@ describe("chapterOps", () => {
   });
 
   it("deletes a removed chapter by its time and title", () => {
-    expect(chapterOps(chapters, [chapters[0] as (typeof chapters)[0]])).toEqual(
-      [{ kind: "delete", at: 312.4, title: "The old mill" }],
-    );
+    expect(chapterOps(chapters, [coldOpen])).toEqual([
+      { kind: "delete", at: 312.4, title: "The old mill" },
+    ]);
   });
 
   it("adds a chapter the project does not hold", () => {
@@ -80,7 +71,7 @@ describe("chapterOps", () => {
   it("updates a retimed or retitled chapter from its old time and title", () => {
     expect(
       chapterOps(chapters, [
-        { id: "ch-0", at: 0, title: "Cold open" },
+        coldOpen,
         { id: "ch-1", at: 320, title: "The mill" },
       ]),
     ).toEqual([
@@ -96,7 +87,7 @@ describe("chapterOps", () => {
   it("deletes before it adds", () => {
     expect(
       chapterOps(chapters, [
-        chapters[0] as (typeof chapters)[0],
+        coldOpen,
         { id: "new-0", at: 312.4, title: "Replaced" },
       ]).map((op) => op.kind),
     ).toEqual(["delete", "add"]);
@@ -105,21 +96,29 @@ describe("chapterOps", () => {
 
 describe("clipOps", () => {
   it("keeps only what the document can hold", () => {
-    const next = clips.map((c) =>
-      c.id === "s1" ? { ...c, title: "New", approved: true } : c,
-    );
+    const next = [{ ...lineA, title: "New", approved: true }, lineB];
     expect(clipOps(clips, next)).toEqual([]);
   });
 
   it("trims and deletes", () => {
-    expect(
-      clipOps(clips, [
-        { ...(clips[0] as (typeof clips)[0]), start: 12, end: 38 },
-      ]),
-    ).toEqual([
+    expect(clipOps(clips, [{ ...lineA, start: 12, end: 38 }])).toEqual([
       { kind: "trim", id: "s1", start: 12, end: 38 },
       { kind: "delete", id: "s2" },
     ]);
+  });
+});
+
+describe("withPageFields", () => {
+  it("keeps the page's title and approval and the project's bounds", () => {
+    const page = [{ ...lineA, title: "Better", approved: true, start: 0 }];
+    expect(withPageFields(clips, page)).toEqual([
+      { ...lineA, title: "Better", approved: true },
+      lineB,
+    ]);
+  });
+
+  it("leaves a clip the page does not hold as the project has it", () => {
+    expect(withPageFields(clips, [])).toEqual(clips);
   });
 });
 

@@ -60,7 +60,7 @@ function props(extra: Partial<DeliverStageProps> = {}): DeliverStageProps {
     saveTo: "Field Notes/export",
     exportState: NEVER,
     clock: { time: "0:00", total: "52:00" },
-    playhead: 724,
+    getPlayheadSec: () => 724,
     link: { url: null },
     pinnedTo: "Rough cut",
     toastMs: 600_000,
@@ -487,7 +487,7 @@ describe("chapters", () => {
 
 describe("the Add at playhead position", () => {
   it("never puts a chapter past the end of the episode", async () => {
-    setup({ playhead: TOTAL + 500 });
+    setup({ getPlayheadSec: () => TOTAL + 500 });
     await userEvent.click(
       screen.getByRole("button", { name: "Add at playhead" }),
     );
@@ -4843,40 +4843,29 @@ describe("the Listen link reach in the stage", () => {
   });
 });
 
+const at = (c: { at: number }) => c.at;
+
 describe("write-back to the host", () => {
   it("reports nothing until something changes", () => {
-    const onSettings = vi.fn();
     const onChapters = vi.fn();
     const onClips = vi.fn();
-    setup({ onSettings, onChapters, onClips });
-    expect(onSettings).not.toHaveBeenCalled();
+    setup({ onChapters, onClips });
     expect(onChapters).not.toHaveBeenCalled();
     expect(onClips).not.toHaveBeenCalled();
   });
 
   it("reports the chapters after one is added at the playhead", async () => {
     const onChapters = vi.fn();
-    setup({ onChapters, playhead: 724 });
+    const getPlayheadSec = vi.fn(() => 900);
+    setup({ onChapters, getPlayheadSec });
+    expect(getPlayheadSec).not.toHaveBeenCalled();
     await userEvent.click(
       screen.getByRole("button", { name: /Add at playhead/ }),
     );
     expect(onChapters).toHaveBeenCalledOnce();
-    const next = onChapters.mock.calls[0]?.[0] as typeof CHAPTERS;
-    expect(next.map((chapter) => chapter.at)).toEqual(
-      [...CHAPTERS.map((chapter) => chapter.at), 724].sort((a, b) => a - b),
+    expect(onChapters.mock.calls[0]?.[0].map(at)).toEqual(
+      [...CHAPTERS.map(at), 900].sort((a, b) => a - b),
     );
-  });
-
-  it("reads a playhead function when the chapter is added", async () => {
-    const onChapters = vi.fn();
-    const playhead = vi.fn(() => 900);
-    setup({ onChapters, playhead });
-    expect(playhead).not.toHaveBeenCalled();
-    await userEvent.click(
-      screen.getByRole("button", { name: /Add at playhead/ }),
-    );
-    const next = onChapters.mock.calls[0]?.[0] as typeof CHAPTERS;
-    expect(next.map((chapter) => chapter.at)).toContain(900);
   });
 
   it("reports the chapters after one is removed, and not the clips", async () => {
@@ -4895,21 +4884,31 @@ describe("write-back to the host", () => {
   it("reports the clips after one is approved", async () => {
     const onClips = vi.fn();
     setup({ onClips });
-    const approve = screen.getAllByRole("button", { name: /^Approve/ })[0];
-    await userEvent.click(approve as HTMLElement);
-    const next = onClips.mock.calls[0]?.[0] as typeof CLIPS;
-    expect(next.filter((clip) => clip.approved)).toHaveLength(
-      CLIPS.filter((clip) => clip.approved).length + 1,
+    await userEvent.click(
+      screen.getAllByRole("button", { name: /^Approve/ })[0]!,
     );
+    const approved = (clips: readonly { approved: boolean }[]) =>
+      clips.filter((clip) => clip.approved).length;
+    expect(approved(onClips.mock.calls[0]?.[0])).toBe(approved(CLIPS) + 1);
   });
+});
 
-  it("leaves out the Listen link when asked", () => {
+describe("the parts a host may leave out", () => {
+  it("leaves out the Listen link", () => {
     setup({ showLink: false });
     expect(screen.queryByText("Listen link")).toBeNull();
   });
 
-  it("shows the Listen link by default", () => {
-    setup();
-    expect(screen.getByText("Listen link")).toBeInTheDocument();
+  it("leaves out the format, loudness and range choices", () => {
+    setup({ showSettings: false });
+    expect(screen.queryByRole("group", { name: "Formats" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Loudness" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Range" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /^Export/ })[0]).toBeEnabled();
+  });
+
+  it("leaves out Saves to without a way to change it", () => {
+    setup({ onChangeFolder: undefined });
+    expect(screen.queryByText(/Saves to/)).toBeNull();
   });
 });

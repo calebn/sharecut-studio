@@ -139,6 +139,11 @@
   min-block-size: 0;
 }
 
+.stage-host-deliver > .stage-host-status {
+  padding-inline: var(--space-4);
+  border-block-end: 1px solid var(--color-border-subtle);
+}
+
 .stage-host-deliver > .stage-host-actions {
   padding: var(--space-1) var(--space-4);
   border-block-start: 1px solid var(--color-border-subtle);

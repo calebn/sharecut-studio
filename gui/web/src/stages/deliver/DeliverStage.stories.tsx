@@ -35,7 +35,7 @@ const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
 function Live(props: DeliverStageProps) {
   const [exportState, setExportState] = useState(props.exportState);
   const [copy, setCopy] = useState<LinkCopyState>("idle");
-  const [url, setUrl] = useState(props.link.url);
+  const [url, setUrl] = useState(props.link?.url ?? null);
   return (
     <DeliverStage
       {...props}
@@ -76,7 +76,7 @@ const meta: Meta<typeof DeliverStage> = {
     exportState: NEVER,
     env: "app",
     clock: { time: "12:04", total: "52:00" },
-    playhead: 724,
+    getPlayheadSec: () => 724,
     link: { url: null },
     pinnedTo: "Rough cut",
     toastMs: 600_000,

@@ -6,7 +6,7 @@ import type {
 import type { ChapterMarker, SocialClipView } from "../../types/project";
 import type { StageId } from "../../types/stage";
 
-/** The stage's chapters from the project's, with ids that stay put while the page is open. */
+/** The stage's chapters from the project's. */
 export function chaptersOf(markers: readonly ChapterMarker[]): Chapter[] {
   return markers.map((m, i) => ({ id: `ch-${i}`, at: m.time, title: m.title }));
 }
@@ -63,10 +63,7 @@ export type ClipOp =
   | { kind: "trim"; id: string; start: number; end: number }
   | { kind: "delete"; id: string };
 
-/**
- * Clip edits the document can keep: a removed clip and new bounds. A new title
- * or an approval has no document command yet and stays on the page.
- */
+/** Document commands that turn the clips the project holds into the ones on the page. */
 export function clipOps(
   base: readonly Clip[],
   next: readonly Clip[],
@@ -93,7 +90,7 @@ export type DeliverFactsInput = {
   removedSeconds: number;
 };
 
-/** The readiness facts the project can state. Loudness and peaks are measured by an export, so they are left out. */
+/** The readiness facts the project can state. */
 export function deliverFacts(input: DeliverFactsInput): ReadinessFacts {
   return {
     suggestions: {
@@ -136,7 +133,7 @@ export function sameChapters(a: readonly Chapter[], b: readonly Chapter[]) {
   );
 }
 
-/** Whether two clip lists hold the same clips with the same bounds. Titles and approvals live on the page only. */
+/** Whether two clip lists hold the same clips with the same bounds. */
 export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
   return (
     a.length === b.length &&
@@ -145,4 +142,16 @@ export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
         c.id === b[i]?.id && c.start === b[i]?.start && c.end === b[i]?.end,
     )
   );
+}
+
+/** The project's clips with the title and approval the page holds for the same clip. */
+export function withPageFields(
+  clips: readonly Clip[],
+  page: readonly Clip[],
+): Clip[] {
+  const held = new Map(page.map((c) => [c.id, c]));
+  return clips.map((c) => {
+    const there = held.get(c.id);
+    return there ? { ...c, title: there.title, approved: there.approved } : c;
+  });
 }

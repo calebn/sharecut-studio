@@ -13,20 +13,21 @@ import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { Slot } from "../../extensions/Slot";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { canRefreshMix } from "../../shareMode";
+import { useOfflineAttention } from "../../services/offlineQueue/offlineAttention";
 import { DeliverStage as DeliverStageBody } from "../../stages/deliver/DeliverStage";
 import type {
   Chapter,
   Clip,
+  EpisodeSettings,
   ExportState,
 } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
+import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
 import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
-import { DeliverStageView } from "./DeliverStageView";
 import {
   type ChapterOp,
   type ClipOp,
@@ -35,17 +36,25 @@ import {
   clipOps,
   clipsOf,
   deliverFacts,
+  type FixRoute,
   fixRoute,
   sameChapters,
   sameClipBounds,
+  withPageFields,
 } from "./deliverModel";
-import { deliverReadiness, hostStateOf, type ReadinessRow } from "./hostModels";
+import { HostBody } from "./HostBody";
+import { hostStateOf } from "./hostModels";
 
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
 };
 
 const NEVER: ExportState = { phase: "never" };
+const SETTINGS: EpisodeSettings = {
+  formats: ["mp3"],
+  loudness: "podcast",
+  part: { mode: "whole" },
+};
 
 async function saveChapterOp(path: string, op: ChapterOp) {
   if (op.kind === "add") await addChapter(path, op.at, op.title);
@@ -58,153 +67,97 @@ async function saveClipOp(path: string, op: ClipOp) {
   else await updateSocialClip(path, op.id, op.start, op.end);
 }
 
-function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
-  const { project, projectPath, guestMode, shareCapabilities } = useDawStore(
-    useShallow((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-    })),
+function runFix(route: FixRoute) {
+  if (route.kind === "refreshMix") runPointerCommand("render.refreshMix");
+  else
+    runPointerCommand(
+      `stage.${route.stage}`,
+      route.section ? { section: route.section } : {},
+    );
+}
+
+function playFrom(seconds: number) {
+  void seekTransport(seconds);
+}
+
+function DeliverStageForProject({ loadFailure }: DeliverStageProps) {
+  const { project, projectPath } = useDawStore(
+    useShallow((s) => ({ project: s.project, projectPath: s.projectPath })),
   );
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body");
   const breakdown = useStaleRenderBreakdown(project);
-  const exportCmd = useCommand("export.deliverables");
   const bounceCmd = useCommand("export.bounce");
   const shareCmd = useCommand("share.manage");
-  const mayRefreshMix = canRefreshMix(
-    projectPath,
-    guestMode,
-    shareCapabilities,
-  );
-  const mixStale = project != null && breakdown.stale;
-  const mixMissing = project != null && breakdown.premixMissing;
+  const offline = useOfflineAttention(projectPath);
   const state = hostStateOf(project, loadFailure);
 
-  // What the document holds, as the stage last saw it. Edits are diffed
-  // against it and it moves forward once they are sent.
-  const saved = useRef<{ chapters: Chapter[]; clips: Clip[] } | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [pending, setPending] = useState(0);
-  const [epoch, setEpoch] = useState(0);
-  // Seeded once per project (and again per epoch); later edits come from the
-  // stage itself. Re-derived during render when the key changes.
-  const seedKey = `${projectPath ?? ""}|${state === "ready"}|${epoch}`;
-  const [seeded, setSeeded] = useState(() => ({
+  const [unsaved, setUnsaved] = useState(false);
+  const [reseed, setReseed] = useState<{ epoch: number; clips: Clip[] }>({
+    epoch: 0,
+    clips: [],
+  });
+  const seedKey = `${state === "ready"}|${reseed.epoch}`;
+  const seed = () => ({
     key: seedKey,
     chapters: chaptersOf(project?.chapters ?? []),
-    clips: clipsOf(project?.social_clips ?? []),
-  }));
-  if (seeded.key !== seedKey) {
-    setSeeded({
-      key: seedKey,
-      chapters: chaptersOf(project?.chapters ?? []),
-      clips: clipsOf(project?.social_clips ?? []),
-    });
-  }
-  const seed = seeded;
+    clips: withPageFields(clipsOf(project?.social_clips ?? []), reseed.clips),
+  });
+  const [page, setPage] = useState(seed);
+  if (page.key !== seedKey) setPage(seed());
+
+  const docChapters = project?.chapters;
+  const docClips = project?.social_clips;
+  const settling =
+    pending > 0 || unsaved || offline.pending > 0 || offline.settling;
   useEffect(() => {
-    saved.current = { chapters: seed.chapters, clips: seed.clips };
-  }, [seed]);
+    if (settling || state !== "ready") return;
+    if (
+      !sameChapters(page.chapters, chaptersOf(docChapters ?? [])) ||
+      !sameClipBounds(page.clips, clipsOf(docClips ?? []))
+    ) {
+      setReseed((r) => ({ epoch: r.epoch + 1, clips: page.clips }));
+    }
+  }, [page, docChapters, docClips, settling, state]);
+
   const send = (work: (path: string) => Promise<void>) => {
     if (!projectPath) return;
     setPending((n) => n + 1);
     queue.current = queue.current
       .then(() => work(projectPath))
-      .then(() => setSaveError(null))
-      .catch((error: unknown) =>
-        setSaveError(error instanceof Error ? error.message : String(error)),
-      )
+      .catch(() => setUnsaved(true))
       .finally(() => setPending((n) => n - 1));
   };
-  // A new history revision (Undo, Redo, an outside edit) that leaves the
-  // chapters or clips different from what the page holds re-seeds the stage.
-  // Never while a save is in flight, so an unsaved edit is not lost.
-  const docChapters = project?.chapters;
-  const docClips = project?.social_clips;
-  useEffect(() => {
-    const held = saved.current;
-    if (pending > 0 || !held || state !== "ready") return;
-    const now = {
-      chapters: chaptersOf(docChapters ?? []),
-      clips: clipsOf(docClips ?? []),
-    };
-    if (
-      !sameChapters(held.chapters, now.chapters) ||
-      !sameClipBounds(held.clips, now.clips)
-    ) {
-      setEpoch((n) => n + 1);
-    }
-  }, [docChapters, docClips, pending, state]);
+  const commit = (patch: Partial<Pick<typeof page, "chapters" | "clips">>) =>
+    setPage((now) => ({ ...now, ...patch }));
   const onChapters = (next: readonly Chapter[]) => {
-    const base = saved.current?.chapters ?? [];
-    const ops = chapterOps(base, next);
-    saved.current = {
-      chapters: [...next],
-      clips: saved.current?.clips ?? [],
-    };
+    const ops = chapterOps(page.chapters, next);
+    commit({ chapters: [...next] });
     send(async (path) => {
       for (const op of ops) await saveChapterOp(path, op);
     });
   };
   const onClips = (next: readonly Clip[]) => {
-    const base = saved.current?.clips ?? [];
-    const ops = clipOps(base, next);
-    saved.current = {
-      chapters: saved.current?.chapters ?? [],
-      clips: [...next],
-    };
+    const ops = clipOps(page.clips, next);
+    commit({ clips: [...next] });
     send(async (path) => {
       for (const op of ops) await saveClipOp(path, op);
     });
   };
 
-  const { rows, summary } = deliverReadiness({
-    pendingReviewCount: project?.edit_impact.pending_review_count ?? 0,
-    openCommentCount: project?.comments?.filter((c) => !c.resolved).length ?? 0,
-    mixStale,
-    mixMissing,
-    mayRefreshMix,
-  });
-  const action = (
-    label: string,
-    command: ReturnType<typeof useCommand>,
-    id: string,
-  ) => ({
-    label,
-    disabledReason: command.whenReason,
-    onClick: () => runPointerCommand(id),
-  });
-
   if (state !== "ready" || !project) {
-    const onFix = (row: ReadinessRow) => {
-      const fix = row.fix;
-      if (!fix) return;
-      if (fix.kind === "refreshMix") runPointerCommand("render.refreshMix");
-      else
-        runPointerCommand(
-          `stage.${fix.stage}`,
-          fix.section ? { section: fix.section } : {},
-        );
-    };
     return (
-      <DeliverStageView
+      <HostBody
+        stage="deliver"
         shell={shell}
         state={state}
         failure={loadFailure}
-        summary={summary}
-        rows={rows}
-        onFix={onFix}
-        exportAction={action("Export", exportCmd, "export.deliverables")}
-        bounce={action("Bounce…", bounceCmd, "export.bounce")}
-        share={action("Share a listen link", shareCmd, "share.manage")}
-        shareSlot={(content) => (
-          <Slot id={FEATURE_SHARE_UI_MENU}>{content}</Slot>
-        )}
         scrollRef={scrollRef}
-      />
+      >
+        {null}
+      </HostBody>
     );
   }
 
@@ -217,69 +170,64 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       false,
       false,
     ).length,
-    mixUpToDate: !mixStale && !mixMissing,
-    chapterCount: seed.chapters.length,
+    mixUpToDate: !breakdown.stale && !breakdown.premixMissing,
+    chapterCount: page.chapters.length,
     removedSeconds: project.edit_impact.total_removed_sec,
   });
-  const playFrom = (sec: number) => {
-    void seekTransport(sec);
+  const playClip = (id: string) => {
+    const clip = page.clips.find((c) => c.id === id);
+    if (clip) playFrom(clip.start);
   };
   return (
     <div className="stage-host-deliver">
-      {saveError ? (
-        <div className="guest-banner" role="alert">
-          Could not save your changes: {saveError}
+      {unsaved ? (
+        <div className="stage-host-status" role="alert">
+          <StatusRow
+            density="alert"
+            state="failed"
+            title="Could not save your changes"
+            detail="They are still on this page, but not in the project."
+            action={{
+              label: "Show the saved version",
+              onAction: () => setUnsaved(false),
+            }}
+          />
+        </div>
+      ) : offline.pending > 0 ? (
+        <div className="stage-host-status" role="status">
+          <StatusRow
+            density="alert"
+            state="queued"
+            title="Not saved yet"
+            detail={`${offline.pending} waiting to send. Kept on this device.`}
+          />
         </div>
       ) : null}
       <DeliverStageBody
-        key={`${projectPath ?? "none"}:${epoch}`}
+        key={page.key}
         facts={facts}
         total={project.timeline_duration_sec}
-        initialSettings={{
-          formats: ["mp3"],
-          loudness: "podcast",
-          part: { mode: "whole" },
-        }}
-        initialChapters={seed.chapters}
-        initialClips={seed.clips}
-        saveTo=""
+        initialSettings={SETTINGS}
+        initialChapters={page.chapters}
+        initialClips={page.clips}
         exportState={NEVER}
         env="app"
-        clock={{ time: "", total: "" }}
-        playhead={() => useDawStore.getState().playheadSec}
-        link={{ url: null }}
-        pinnedTo="the latest export"
+        getPlayheadSec={() => useDawStore.getState().playheadSec}
         layout={shell === "phone" ? "phone" : "desktop"}
         showLink={false}
         showPlayer={false}
+        showSettings={false}
         onChapters={onChapters}
         onClips={onClips}
-        onFix={(stage, target) => {
-          const route = fixRoute(stage, target);
-          if (route.kind === "refreshMix")
-            runPointerCommand("render.refreshMix");
-          else
-            runPointerCommand(
-              `stage.${route.stage}`,
-              route.section ? { section: route.section } : {},
-            );
-        }}
+        onFix={(stage, target) => runFix(fixRoute(stage, target))}
         onExport={() => runPointerCommand("export.deliverables")}
-        onCancel={() => {}}
-        onReveal={() => runPointerCommand("export.deliverables")}
-        onDownload={() => runPointerCommand("export.deliverables")}
-        onChangeFolder={() => runPointerCommand("export.deliverables")}
         onCopyLink={() => runPointerCommand("share.manage")}
         onRefreshMix={() => runPointerCommand("render.refreshMix")}
         onPlayFrom={playFrom}
-        onPlayClip={(id) => {
-          const clip = seed.clips.find((c) => c.id === id);
-          if (clip) playFrom(clip.start);
-        }}
+        onPlayClip={playClip}
         onFindClips={() => runPointerCommand("stage.edit")}
         onOpenClipInEdit={(id) => {
-          const clip = seed.clips.find((c) => c.id === id);
-          if (clip) playFrom(clip.start);
+          playClip(id);
           runPointerCommand("stage.edit");
         }}
       />
@@ -300,6 +248,16 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         </Slot>
       </div>
     </div>
+  );
+}
+
+function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
+  const projectPath = useDawStore((s) => s.projectPath);
+  return (
+    <DeliverStageForProject
+      key={projectPath ?? "none"}
+      loadFailure={loadFailure}
+    />
   );
 }
 
