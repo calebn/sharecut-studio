@@ -325,7 +325,7 @@ export async function openProjectMenuItem(
 
 /**
  * Open the dialog `dialog` from where it lives now: Share, Export and Bounce on
- * Deliver, the Record room on Record, the palette on the header's search.
+ * Deliver, the Record stage, the palette on the header's search.
  */
 export async function openProjectDialog(
   page: Page,
@@ -346,9 +346,6 @@ export async function openProjectDialog(
       return;
     case "record":
       await goToStage(page, "record");
-      await page
-        .getByRole("button", { name: /^(Open|Back to) the room$/ })
-        .click();
       return;
     case "palette": {
       const search = page.getByRole("button", { name: /^Palette\b/ });
@@ -373,12 +370,12 @@ export async function openProjectDialog(
   }
 }
 
-/** Open the host Record room dialog and wait for it. */
+/** Open the Record stage and return its root. */
 export async function openRecordRoom(page: Page): Promise<Locator> {
   await openProjectDialog(page, "record");
-  const roomDialog = page.getByRole("dialog", { name: "Record room" });
-  await expect(roomDialog).toBeVisible();
-  return roomDialog;
+  const room = page.locator(".stage-host--record");
+  await expect(room).toBeVisible();
+  return room;
 }
 
 /** Open the Edit stage's eye sheet (view options) and return it. */

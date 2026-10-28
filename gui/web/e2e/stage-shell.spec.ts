@@ -173,7 +173,7 @@ test.describe("Stage shell on desktop", () => {
     await expect.poll(waiting).toBeGreaterThan(0);
   });
 
-  test("opens Export, Bounce and the Record room from where they live", async ({
+  test("opens Export, Bounce and the Record stage from where they live", async ({
     page,
   }) => {
     await openProject(page);
@@ -186,9 +186,10 @@ test.describe("Stage shell on desktop", () => {
     await expect(page.getByRole("dialog", { name: /Bounce/ })).toBeVisible();
     await page.keyboard.press("Escape");
     await openProjectDialog(page, "record");
-    await expect(
-      page.getByRole("dialog", { name: "Record room" }),
-    ).toBeVisible();
+    await expect(stageTab(page, "record")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   test("the Project menu goes Home and carries Appearance", async ({

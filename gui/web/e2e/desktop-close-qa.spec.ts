@@ -5,6 +5,7 @@ import {
   joinAsGuest,
   markSharecutE2e,
   openHostRecordRoom,
+  stopHostTake,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { openProject } from "./stageNav";
@@ -37,9 +38,9 @@ test("host publishes close risk across recording and pause, then clears after st
       await markSharecutE2e(guest);
       await joinAsGuest(guest, room.guest.token, "Ava");
       await expect(
-        dialog.getByRole("button", { name: "Start", exact: true }),
+        dialog.getByRole("button", { name: "Record", exact: true }),
       ).toBeEnabled();
-      await dialog.getByRole("button", { name: "Start", exact: true }).click();
+      await dialog.getByRole("button", { name: "Record", exact: true }).click();
       await expect(
         dialog.getByText("Recording in full quality on this device."),
       ).toBeVisible();
@@ -47,17 +48,15 @@ test("host publishes close risk across recording and pause, then clears after st
         .poll(() => new URL(host.url()).searchParams.get("sc_close_guard"))
         .toBe("host");
 
-      await dialog.getByRole("button", { name: "Pause", exact: true }).click();
-      await expect(dialog.locator(".record-rec-label")).toHaveText("PAUSED");
+      await dialog
+        .getByRole("button", { name: "Pause take", exact: true })
+        .click();
+      await expect(dialog.getByText(/^Paused · /)).toBeVisible();
       expect(new URL(host.url()).searchParams.get("sc_close_guard")).toBe(
         "host",
       );
 
-      await dialog.getByRole("button", { name: "Stop", exact: true }).click();
-      await dialog
-        .getByRole("button", { name: "Stop take", exact: true })
-        .click();
-      await expect(dialog.locator(".record-rec-label")).toHaveText("Stopped");
+      await stopHostTake(host, dialog, projectPath);
       await expect
         .poll(() => new URL(host.url()).searchParams.has("sc_close_guard"))
         .toBe(false);

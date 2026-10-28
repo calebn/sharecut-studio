@@ -15,7 +15,7 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 | Story | Issue | Status | Automated coverage | Still manual |
 | --- | --- | --- | --- | --- |
 | US-1 | #3 | Automated | `gui/web/e2e/record-lobby.spec.ts`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193) |
-| US-2 | #9 | Automated | `tests/test_record_host_reconnect.py`, `gui/web/src/record/RecordPanel.test.tsx`, `gui/web/src/record/Room.test.tsx`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193), listening by ear |
+| US-2 | #9 | Automated | `tests/test_record_host_reconnect.py`, `gui/web/src/stage/hosts/RecordStage.test.tsx`, `gui/web/src/record/Room.test.tsx`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193), listening by ear |
 | US-3 | #10 | Automated | `tests/test_ingest_recorder_import_e2e.py` | Tauri recording (#193) |
 | US-4 | #4 | Automated | `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/e2e/transcript-ignore.spec.ts`, `gui/web/e2e/transcript-refine-recovery.spec.ts`, `gui/web/e2e/sharecut.mobile.spec.ts`, `gui/web/src/panels/TranscriptPanel.test.tsx`, `gui/web/src/transcript/TranscriptTurnView.test.tsx`, `gui/web/src/stage/frame/saveState.test.ts`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
 | US-5 | #5 | Automated | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `gui/web/src/inspector/views/PendingEditInspector.test.tsx`, `gui/web/src/panels/ImpactPanel.test.tsx`, `tests/test_tighten.py`, `tests/test_mute_in_place.py` | Listening by ear |
