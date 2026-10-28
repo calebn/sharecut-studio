@@ -415,7 +415,7 @@ export function tightenHits(): PendingEditView[] {
       kind: "false-start",
       sound_kind: "restart",
       label: "Restart",
-      why: "Tomas restarts the sentence",
+      why: "Tomas cuts off a word and says it again",
       harsh: true,
       listen_one_by_one: true,
       review_required: true,

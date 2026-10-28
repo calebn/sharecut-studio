@@ -6,6 +6,7 @@ contains only reason parsing and detector vocabulary.
 
 from __future__ import annotations
 
+import math
 import re
 
 ACOUSTIC_FILLER_REASON = "filler:acoustic"
@@ -16,6 +17,7 @@ POSSIBLE_WORD_FLAG = "possible_word"
 ACOUSTIC_KIND_FLAGS: tuple[str, ...] = (LIKELY_LAUGH_FLAG, POSSIBLE_WORD_FLAG)
 REPETITION_REASON_PREFIX = "repetition:"
 RESTART_REASON_PREFIX = "restart:"
+RESTART_PARTIAL_REASON_PREFIX = f"{RESTART_REASON_PREFIX}partial:"
 PAUSE_REASON_PREFIX = "pause:"
 REPEATED_WORD_REASON_PREFIX = f"{REPETITION_REASON_PREFIX}word:"
 # Suffixes the proposer appends after a reason's own fields; the repeated word ends where one begins.
@@ -32,12 +34,16 @@ _REASON_FLAGS = frozenset(
     }
 )
 _PAUSE_GAP = re.compile(r"^pause:(\d+(?:\.\d+)?)s(?::|$)")
+_MAX_PAUSE_GAP_SEC = 3600.0
 
 
 def pause_gap_sec(reason: str | None) -> float | None:
     """The timeline-measured gap a ``pause:2.90s[:solo]`` reason records; None if unreadable."""
     match = _PAUSE_GAP.match(reason or "")
-    return float(match.group(1)) if match else None
+    if match is None:
+        return None
+    gap = float(match.group(1))
+    return gap if math.isfinite(gap) and gap < _MAX_PAUSE_GAP_SEC else None
 
 
 def repeated_word(reason: str | None) -> str | None:
@@ -46,8 +52,8 @@ def repeated_word(reason: str | None) -> str | None:
     if not text.startswith(REPEATED_WORD_REASON_PREFIX):
         return None
     parts: list[str] = []
-    for part in text[len(REPEATED_WORD_REASON_PREFIX) :].split(":"):
-        if part in _REASON_FLAGS:
+    for index, part in enumerate(text[len(REPEATED_WORD_REASON_PREFIX) :].split(":")):
+        if index and part in _REASON_FLAGS:
             break
         parts.append(part)
     return ":".join(parts) or None

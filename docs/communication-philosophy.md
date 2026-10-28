@@ -399,14 +399,15 @@ the empty state, not a separate discovery task.
 
 ## Why lines on suggestions
 
-Each suggested edit can carry one plain sentence saying why it is suggested (`edits/tighten_hits.py`, sent as `pending_edits[].why`). It states only what the suggestion's own record shows, in words a listener would use, and never a detector, score or reason code. It makes no claim the server did not measure: no "reads the same without it", no "nobody talks over it". The line is absent, not blank, for guest, agent and manual edits and for a reason the server cannot read. `{Name}` is the speaker's name; with no name known the line drops it ("“{word}” is said twice", "The sentence restarts"). A repeated word longer than 24 characters is cut with an ellipsis.
+Each suggested edit can carry one plain sentence saying why it is suggested (`edits/tighten_hits.py`, sent as `pending_edits[].why`). It states only what the suggestion's own record shows, in words a listener would use, and never a detector, score or reason code. It makes no claim the server did not measure: no "reads the same without it", no "nobody talks over it". The line is absent, not blank, for guest, agent and manual edits and for a reason the server cannot read. `{Name}` is the speaker's name; with no name known the line drops it ("“{word}” is said twice", "A word is cut off and said again", "A phrase is repeated"). A repeated word or a name longer than 24 characters is cut with an ellipsis.
 
 | Kind | Line |
 |------|------|
 | Filler word | Filler word |
 | Pause | A {gap} s gap |
 | Repeated word | {Name} says “{word}” twice |
-| False start | {Name} restarts the sentence |
+| False start, cut-off word | {Name} cuts off a word and says it again |
+| False start, repeated phrase | {Name} repeats a phrase |
 | Laugh | Might be a laugh; listen before cutting |
 | Possible missed word | Might be a word the transcript missed; listen before cutting |
 | Unclear sound | An unclear sound; listen before deciding |
@@ -586,6 +587,8 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
 shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
+
+- 2026-10-28 Added "Why lines on suggestions" (#2293): one plain sentence per suggested edit, with a copy table pinned to the code by a test.
 
 - 2026-10-23 Tighten's confirmed **Apply suggested actions** shows an in-place **Applying N suggested actions…** line, a pulse and elapsed time after two seconds. Apply is busy and disabled until the command returns. Submitted rows say **Applying…** where the Status column is visible; on phones the working line and disabled Apply and Skip controls show the work in progress. The result keeps its toast and Undo. A queued outcome leaves **Still sending**, without claiming the server applied it (#2165).
 
