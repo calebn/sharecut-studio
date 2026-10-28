@@ -59,7 +59,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `recommend_fades_tool` / `apply_fade_recommendations_tool` | Harsh edit boundaries; applying the list submits through the document plane (one History step, visible in an open Studio tab) |
 | `low_audibility_words_tool` / `apply_low_audibility_suppression_tool` | Legacy single-track suppression (explicit apply); `words` items need `track_id` and `word_index` (`source_id` optional; other row keys are ignored and not journaled); `word_index` is coerced to an integer (`"1"`, `1.0` and `true` become 1; 2.7 and -1 are refused) and `track_id` / `source_id` must be strings, else a coded `invalid_payload` (details in [session sync](session-sync.md)) |
 | `gate_overreach_tool` | Noise gate clipping detection |
-| `render_preview` | Premix after edits |
+| `render_preview` | Premix after edits. `edit_count` counts current `editorial.edit_log` records, matching info's `applied_edits`, including with `rerender=false`. Decision rows do not contribute. See [Preview edit count](pipeline.md#preview-edit-count) |
 | `history_undo` | Optional `rerender=true`; optional `expected_head_id` (from `history_status_tool`) refuses with `history_stale` if another edit landed since |
 | `play_transcript_query_tool` | Search transcript + play match (topic audition) |
 | `play_audio_tool` | Play by time range, `query`, or `processed:<id>` / `premix` |

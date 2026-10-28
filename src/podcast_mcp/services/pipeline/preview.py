@@ -58,7 +58,7 @@ def rerender_preview(
         runner.run(project, only_step="mix_with_music", progress=NullProgress())
         task.advance(1, message="Mixed music", total=3)
         premix = premix_path(project)
-        edit_count = sum(1 for e in project.edit_decisions if e.applied)
+        edit_count = len(project.editorial.edit_log)
         if should_reconcile:
             if run_reconcile and not reconcile_before_gate:
                 reconciliation_result = maybe_auto_reconcile(
@@ -115,6 +115,6 @@ def render_preview_result(
         info = {
             "path": str(premix) if premix.is_file() else None,
             "ok": premix.is_file(),
-            "edit_count": sum(1 for e in project.edit_decisions if e.applied),
+            "edit_count": len(project.editorial.edit_log),
         }
     return json.dumps(info, indent=2)
