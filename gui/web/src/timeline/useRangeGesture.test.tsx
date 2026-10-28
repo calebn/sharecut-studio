@@ -87,9 +87,7 @@ beforeEach(() => {
       ],
     }),
     selection: null,
-    toolMode: "select",
     rangeArmed: false,
-    commentMode: false,
     joinMutationInFlight: false,
   });
 });
@@ -116,6 +114,23 @@ describe("lane range gestures", () => {
         track_ids: ["destination", "second"],
       },
     });
+  });
+  it("never starts a range from an Alt press, which is the Split modifier", () => {
+    const view = setup();
+    fireEvent.pointerDown(view.getByTestId("blank"), {
+      clientX: 180,
+      clientY: 75,
+      altKey: true,
+    });
+    fireEvent.pointerMove(view.getByTestId("lanes"), {
+      clientX: 120,
+      clientY: 20,
+    });
+    fireEvent.pointerUp(view.getByTestId("lanes"), {
+      clientX: 120,
+      clientY: 20,
+    });
+    expect(useDawStore.getState().selection).toBeNull();
   });
   it("leaves ordinary clip drag and touch navigation to their handlers", () => {
     const view = setup();

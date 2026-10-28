@@ -6,9 +6,7 @@ import { Button, Icon, SegmentedControl, ToggleButton } from "../../ui";
 export interface PhoneEditSurfaceViewProps {
   surface: EditSurface;
   onSurfaceChange: (surface: EditSurface) => void;
-  /** The tool strip, above the lanes. */
-  tools: ReactNode;
-  /** The zoom and eye cluster over the lanes. */
+  /** The zoom, eye and (touch) range cluster over the lanes. */
   corner: ReactNode;
   lanes: ReactNode;
   script: ReactNode;
@@ -57,7 +55,6 @@ export function EditSurfaceSwitch({
 export function PhoneEditSurfaceView({
   surface,
   onSurfaceChange,
-  tools,
   corner,
   lanes,
   script,
@@ -84,7 +81,6 @@ export function PhoneEditSurfaceView({
       </div>
       {surface === "lanes" ? (
         <div ref={bindings?.lanes} className="phone-edit-timeline">
-          {tools}
           <div className="phone-edit-lanes">
             {lanes}
             {corner}

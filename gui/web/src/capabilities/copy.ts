@@ -31,17 +31,6 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Stop following",
     tooltip: "Stop following",
   },
-  "daw.tool.select": {
-    label: "Select tool",
-    tooltip: "Select tool",
-  },
-  "daw.tool.blade": {
-    label: "Blade tool",
-    tooltip: "Blade tool",
-  },
-  "daw.review.exitCommentMode": {
-    label: "Exit comment mode",
-  },
   "daw.edit.clearSelection": {
     label: "Clear selection",
     tooltip: "Clear selection",
@@ -50,10 +39,6 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Create here",
     tooltip:
       "Open the create menu over the focused timeline target, else at the playhead on the selected track",
-  },
-  "daw.review.toggleCommentMode": {
-    label: "Toggle comment mode",
-    tooltip: "Toggle comment mode",
   },
   "daw.review.resolveComment": {
     label: "Resolve comment",
@@ -100,7 +85,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.edit.bladeCut": {
     label: "Blade cut",
-    tooltip: "Blade cut at the playhead or clicked time",
+    tooltip: "Blade cut at the playhead, or Alt-click at the pointer",
   },
   "daw.edit.delete": {
     label: "Delete clip",
@@ -560,9 +545,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.audition": "daw.transport.audition",
   "presence.avatarStack": "daw.presence.follow",
   "presence.followBanner": "daw.presence.unfollow",
-  toolModeToggle: "daw.tool.blade",
-  editToolStrip: "daw.range.arm",
-  "transport.comment": "daw.review.toggleCommentMode",
   "mobileShell.gesture.swipeLeftComment": "daw.review.resolveComment",
   tightenPanel: "daw.tighten.goToHit",
   timeline: "daw.edit.bladeCut",
@@ -574,7 +556,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   trackHeadersWell: "daw.track.deselectAll",
   "trackHeaders.soloChip": "daw.track.clearSolo",
   trackMix: "daw.track.clearSolo",
-  editCorner: "daw.view.toggleScript",
+  editCorner: "daw.range.arm",
   viewSheet: "daw.view.trackHeightDecrease",
   "transport.fit": "daw.view.fit",
   stageBar: "daw.stage.deliver",

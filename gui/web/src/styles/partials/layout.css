@@ -265,12 +265,10 @@ html[data-shell="phone"] .guest-attention-dismiss {
   }
 }
 
-/* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta).
-   A corner that carries the Edit tool strip keeps the wider gutter, so the
-   tools stay inside the header column instead of reaching over the lanes. */
+/* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta). */
 @container timeline (inline-size < 30rem) {
-  .timeline-scroll:not(:has(.edit-tool-strip)),
-  .timeline-lock-inner:not(:has(.edit-tool-strip)) {
+  .timeline-scroll,
+  .timeline-lock-inner {
     --header-width: 4rem;
   }
 }
@@ -632,65 +630,38 @@ html[data-shell="phone"] .guest-attention-dismiss {
   border-color: var(--color-warning);
 }
 
-/* Icon tools inside the shared .ui-segmented track (paint comes from there). */
-.tool-mode-toggle > .ui-control {
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-size-small);
-  min-width: 2rem;
-  min-height: 2rem;
-}
-
 .ui-icon {
   display: block;
   flex: 0 0 auto;
 }
 
-.blade-cut-guide {
+/* Alt-click Split guide: one per target lane over the lane stack at the
+   pointer's time. SplitGuide sets `left` and `top`; the guide keeps the lane's
+   0.25rem inset. */
+.split-guide {
   position: absolute;
   width: 0.125rem;
   background: var(--color-warning);
   pointer-events: none;
   z-index: var(--z-timeline-interaction);
-  opacity: 0.85;
-}
-
-/* One per target lane over the lane stack; BladeGuide sets `top` to the
-   lane's offset, and the guide keeps the lane's 0.25rem inset. */
-.blade-cut-guide--lane {
   translate: 0 0.25rem;
   height: calc(var(--lane-height) - 0.5rem);
-  opacity: 1;
   box-shadow: 0 0 0 1px var(--color-warning-emphasis);
 }
 
-.lane-row.blade-target {
-  outline: 1px solid var(--color-warning-strong);
-  outline-offset: -1px;
-}
-
-.timeline-blade-mode,
-.timeline-blade-mode .lane-seek,
-.timeline-blade-mode .clip-block,
-.timeline-blade-mode .clip-hit,
-.timeline-comment-mode,
-.timeline-comment-mode .lane-seek,
-.timeline-comment-mode .clip-block,
-.timeline-comment-mode .clip-hit {
+/* Alt held over the lanes (useSplitAtPointer): a blade cursor, and the
+   overlays that would take the click step aside so it lands on the lane. */
+[data-split-armed],
+[data-split-armed] .lane-seek,
+[data-split-armed] .clip-block,
+[data-split-armed] .clip-hit {
   cursor: crosshair;
 }
 
-.timeline-blade-mode .lane-seek {
-  background: var(--color-selection-subtle);
-}
-
-.timeline-comment-mode .lane-seek {
-  background: var(--color-warning-subtle);
-}
-
-.timeline-blade-mode .envelope-overlay,
-.timeline-blade-mode .envelope-overlay .envelope-svg circle,
-.timeline-blade-mode .pending-overlay,
-.timeline-blade-mode .applied-tick {
+[data-split-armed] .envelope-overlay,
+[data-split-armed] .envelope-overlay .envelope-svg circle,
+[data-split-armed] .pending-overlay,
+[data-split-armed] .applied-tick {
   pointer-events: none;
 }
 

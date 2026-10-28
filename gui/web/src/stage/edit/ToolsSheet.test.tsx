@@ -24,8 +24,6 @@ beforeEach(() => {
     .hydrate("/tmp/tools/p.json", minimalProject({ tracks: [sampleTrack()] }));
   useDawStore.setState({
     guestMode: null,
-    toolMode: "select",
-    commentMode: false,
     rangeArmed: false,
     editSurface: "lanes",
     openSheet: null,
@@ -33,40 +31,29 @@ beforeEach(() => {
 });
 
 describe("ToolsButton", () => {
-  it("opens the Tools sheet and shows the tool in use", async () => {
+  it("opens the Tools sheet", async () => {
     const user = userEvent.setup();
     render(<ToolsButton />);
     const button = screen.getByRole("button", { name: "Tools" });
-    expect(button).toHaveAttribute("data-tool", "select");
     await user.click(button);
     expect(useDawStore.getState().openSheet).toBe("tools");
     expect(button).toHaveAttribute("aria-haspopup", "dialog");
   });
-
-  it("swaps its icon for the Blade tool", () => {
-    useDawStore.setState({ toolMode: "blade" });
-    render(<ToolsButton />);
-    expect(screen.getByRole("button", { name: "Tools" })).toHaveAttribute(
-      "data-tool",
-      "blade",
-    );
-  });
 });
 
 describe("ToolsSheet", () => {
-  it("holds the surface switch, the tools and Mix, and is axe-clean", async () => {
+  it("holds the surface switch, the corner and Mix, and is axe-clean", async () => {
     const user = userEvent.setup();
     const { container } = render(<ToolsSheet />);
     expect(
       screen.getByRole("group", { name: "Edit surface" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("group", { name: "Editing tools" }),
+      screen.getByRole("group", { name: "Timeline view" }),
     ).toBeInTheDocument();
     await expectNoA11yViolations(container);
     await user.click(screen.getByRole("button", { name: "Script" }));
     expect(useDawStore.getState().editSurface).toBe("text");
-    expect(screen.queryByRole("group", { name: "Editing tools" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Mix" }));
     expect(useDawStore.getState().openSheet).toBe("mix");
   });
@@ -82,13 +69,20 @@ describe("ToolsSheet", () => {
     expect(useDawStore.getState().openSheet).toBe("view");
   });
 
-  it("on a tablet holds the corner with the Script toggle and no tool rows", () => {
+  it("on a tablet holds the corner with the Script toggle and no surface switch", () => {
     viewport.shell = "tablet";
     render(<ToolsSheet />);
     expect(
       screen.getByRole("group", { name: "Timeline view" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Edit surface" })).toBeNull();
-    expect(screen.queryByRole("group", { name: "Editing tools" })).toBeNull();
+  });
+
+  it("holds the touch range toggle with the corner a short frame takes off the lanes", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({ pointerKind: "coarse" });
+    render(<ToolsSheet />);
+    await user.click(screen.getByRole("button", { name: "Select range" }));
+    expect(useDawStore.getState().rangeArmed).toBe(true);
   });
 });

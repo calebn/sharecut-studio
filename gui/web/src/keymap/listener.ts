@@ -21,7 +21,7 @@ import { isButtonActivation, isTypingTarget } from "./typing";
  * Enter on its buttons) are left to the browser.
  *
  * When several keymap rows share a key (Backspace Tighten hit, track or clip;
- * Escape follow, comment mode or selection), try each match in the order
+ * Escape follow or selection), try each match in the order
  * `SHARED_KEY_ORDER` declares and run the first whose when-clause passes.
  */
 export function useDawKeymapListener(): void {

@@ -27,19 +27,20 @@ const COMMANDS: PaletteCommand[] = [
     disabledReason: null,
   },
   {
-    id: "tool.select",
-    label: "Select tool",
-    category: "tools",
-    shortcut: "V",
-    defaultKey: "V",
+    id: "view.fit",
+    label: "Fit session width",
+    category: "view",
+    shortcut: "\\",
+    defaultKey: "\\",
     disabledReason: null,
   },
   {
-    id: "tool.blade",
-    label: "Blade tool",
-    category: "tools",
-    shortcut: "C",
-    defaultKey: "C",
+    id: "edit.bladeCut",
+    label: "Blade cut",
+    category: "edit",
+    shortcut: "Mod+K",
+    defaultKey: "K",
+    note: "Mod+K cuts; K alone stops playback",
     disabledReason: null,
   },
   {
@@ -129,15 +130,15 @@ export const Browse: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await waitFor(() =>
-      expect(within(dialog).getByText("Select tool")).toBeVisible(),
+      expect(within(dialog).getByText("Fit session width")).toBeVisible(),
     );
     await expect(
       within(dialog).getByRole("option", { name: "Export diagnostics…" }),
     ).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(
-      within(dialog).getByRole("option", { name: "Select tool" }),
+      within(dialog).getByRole("option", { name: "Fit session width" }),
     );
-    await expect(args.onRun).toHaveBeenCalledWith("tool.select");
+    await expect(args.onRun).toHaveBeenCalledWith("view.fit");
   },
 };
 
@@ -152,7 +153,7 @@ export const Search: Story = {
     await expect(within(dialog).getByRole("status")).toHaveTextContent(
       "2 commands. Enter runs Export deliverables…",
     );
-    await expect(within(dialog).queryByText("Select tool")).toBeNull();
+    await expect(within(dialog).queryByText("Blade cut")).toBeNull();
     await userEvent.keyboard("{Enter}");
     await expect(args.onRun).toHaveBeenCalledWith("export.deliverables");
   },
@@ -185,14 +186,14 @@ export const ShowRemaps: Story = {
       ).toBeChecked(),
     );
     const input = await within(dialog).findByRole("textbox", {
-      name: "Remap Blade tool",
+      name: "Remap Blade cut",
     });
     await userEvent.click(input);
     await waitFor(() => expect(input).toHaveFocus());
     await userEvent.type(input, " B ");
     await userEvent.tab();
     await waitFor(() =>
-      expect(args.onRemap).toHaveBeenCalledWith("tool.blade", "B"),
+      expect(args.onRemap).toHaveBeenCalledWith("edit.bladeCut", "B"),
     );
   },
 };
