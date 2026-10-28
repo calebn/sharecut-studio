@@ -104,7 +104,7 @@ describe("measureCompactFit", () => {
       <div class="bottom-sheet-root">
         <div class="bottom-sheet bottom-sheet--compact">
           <div class="bottom-sheet-chrome">
-            <div class="bottom-sheet-header" style="padding: 8px 0">
+            <div class="bottom-sheet-header">
               <button class="dialog-close"></button>
             </div>
           </div>
