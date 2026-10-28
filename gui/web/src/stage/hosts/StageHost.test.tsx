@@ -271,9 +271,14 @@ describe("Deliver host", () => {
       }),
     );
     mount();
-    expect(screen.getByText("Suggestions decided")).toBeInTheDocument();
-    expect(screen.getByText("0 of 2")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Review" }));
+    const readiness = screen.getByRole("region", {
+      name: /left\. You can still export/,
+    });
+    expect(within(readiness).getAllByRole("listitem")).toHaveLength(8);
+    expect(within(readiness).getByText("0 of 2")).toBeInTheDocument();
+    await userEvent.click(
+      within(readiness).getByRole("button", { name: "Review" }),
+    );
     expect(useDawStore.getState().stage).toBe("review");
     expect(useDawStore.getState().reviewSection).toBe("impact");
   });
