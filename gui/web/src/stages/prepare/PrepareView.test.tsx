@@ -431,7 +431,7 @@ describe("PrepareView live region", () => {
   it("has one polite status, and its text is a pure function of the phase", () => {
     expect(
       prepareAnnouncement({ phase: "needs-model", handoffLabel: "x" }),
-    ).toBe("Transcribing needs a download first. Other steps keep going.");
+    ).toBe("Transcribing needs a download first.");
     expect(prepareAnnouncement({ phase: "empty", handoffLabel: "x" })).toBe("");
   });
 });

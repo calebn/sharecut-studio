@@ -182,6 +182,7 @@ export function usePrepareModel(): PrepareModel {
     sources: sourceCount,
     ingestBusy,
     checking: run.starting && job === null,
+    model: run.model,
     waiting: run.waiting,
     rows,
   });

@@ -519,21 +519,38 @@ describe("preparePhase", () => {
     ).toEqual({ phase: "transcribing" });
   });
 
-  it("is needs-model while the model is asked for, done when every row is", () => {
-    expect(
-      preparePhase({
+  it("is needs-model, with the hand-off open, while the model is asked for or downloading", () => {
+    for (const phase of ["ask", "downloading", "failed"] as const) {
+      const model: ModelAsk = {
+        phase,
+        size: "1.6 GB",
+        what: "the transcription model",
+      };
+      const result = preparePhase({
         sources: 2,
         ingestBusy: false,
         checking: false,
-        rows: rows({
-          model: {
-            phase: "ask",
-            size: "1.6 GB",
-            what: "the transcription model",
-          },
-        }),
-      }).phase,
-    ).toBe("needs-model");
+        model,
+        rows: rows({ model }),
+      });
+      expect(result.phase).toBe("needs-model");
+      expect(handoffProps(result.phase, { label: "Edit" }).disabledReason).toBe(
+        undefined,
+      );
+    }
+    expect(
+      readyRows({
+        ...base,
+        model: {
+          phase: "ask",
+          size: "1.6 GB",
+          what: "the transcription model",
+        },
+      })[1].detail,
+    ).toBe("Needs the transcription model before it can start.");
+  });
+
+  it("is done when every row is", () => {
     expect(
       preparePhase({
         sources: 2,
