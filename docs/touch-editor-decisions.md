@@ -184,26 +184,17 @@ The checks (#1096) live with the code:
   command's column from the grammar (the create menu, the kinds' commands
   and the Gestures sheet).
 
-### Decision: Transcript word ranges follow the touch grammar
+### Superseded decision: Transcript word ranges follow the touch grammar
 
 <!-- decision
 id: D-transcript-longpress-range
-status: accepted
+status: superseded
 date: 2026-10-13
 decided-by: calebn
 evidence:
 - #1029 and #1363 shipped the rule for the transcript's Select mode
 - Operator approval, 2026-10-13: keep #1363's rule and record it as a decision extending the owner-approved touch grammar
-enforced-by:
-- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::selects the words a long press then a drag crosses, only when the finger lifts
-- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::scrolls, and selects nothing, when the finger moves before the hold
-- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::puts the earlier selection back when a second finger lands
-- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::leaves a hold that never moves to word correction
-- gui/web/src/transcript/WordRangeControls.test.tsx::adds and drops a word at either end from the keyboard
-- gui/web/src/transcript/WordRangeControls.test.tsx::steps once for a press, then repeats while it is held and stops on lift
-- gui/web/e2e-compat/transcript-touch-range.spec.ts::a long press then a drag selects a word range, and the sheet clears it
-- gui/web/e2e-compat/transcript-touch-range.spec.ts::a finger that moves before the hold scrolls and selects nothing
-- docs-sync: decision-touch-input
+superseded-by: D-script-gestures
 -->
 
 Select mode in the transcript applies the same grammar to word ranges, with no
@@ -218,6 +209,55 @@ new gesture:
 The visible equivalent is Range actions' **Add word before**, **Add word
 after**, **Drop first word** and **Drop last word**, which repeat while held, as
 a strip nudge does (`transcript.extendRange`).
+
+The Script pane (`system/ScriptPane`) replaces the transcript panel's Select
+mode, so the rule changes in one place: a long press that does not move no
+longer opens word correction (it selects the word), and there is no Select
+mode to hold. See the next decision. The legacy panel keeps its tests until
+it is deleted.
+
+### Decision: The Script pane selects by click, drag and long press
+
+<!-- decision
+id: D-script-gestures
+status: accepted
+date: 2026-10-28
+decided-by: calebn
+supersedes: D-transcript-longpress-range
+evidence:
+- "Operator decisions, 2026-10-28: Fix text starts only on Enter, F2 or a double-click or double-tap on a word, and typing never edits; a word selection across tracks covers the range on both tracks; in-text joins stay until the Seam inspector lands"
+- "#2294 W2-gestures: the Script pane could not start a selection by mouse drag, double-click or long press"
+enforced-by:
+- gui/web/src/system/ScriptPane.gestures.test.tsx::selects from the pressed word across turns, previews while it runs and commits once on release
+- gui/web/src/system/ScriptPane.gestures.test.tsx::a long press selects the word and a drag extends it, committing on lift
+- gui/web/src/system/ScriptPane.gestures.test.tsx::a finger that moves before the hold scrolls and selects nothing
+- gui/web/src/system/ScriptPane.gestures.test.tsx::a second finger cancels the drag and leaves the earlier selection
+- gui/web/src/system/ScriptPane.gestures.test.tsx::typing never edits: letters on a selected word reach the keymap untouched
+- gui/web/e2e-storybook/script-gestures.spec.ts::on a phone a swipe scrolls the pane and selects nothing
+- gui/web/e2e-storybook/script-gestures.spec.ts::on a phone a long press selects the word and a drag extends it without scrolling, then the grips show
+-->
+
+The Script pane has no modes, so one grammar covers mouse, touch and keys
+(design-system element 14):
+
+- A click or tap selects the word at once and seeks. It never waits for a
+  second click.
+- A mouse or pen drag from a word selects to the word under the pointer,
+  across turns. A pill or a suggested run in the way is taken whole.
+  Shift-click and Shift-drag extend from the selection's anchor.
+- A double-click or double-tap on a word, and Enter or F2 on a selected word,
+  start Fix text. Typing never does: every letter stays a shortcut.
+- On touch, a long press selects the word and shows the 44 px grips; moving
+  on from the hold extends it under the finger, and it commits when the
+  finger lifts. A finger that moves before the hold scrolls and selects
+  nothing. A second finger cancels the drag and keeps the earlier selection.
+- Esc, a cancelled or lost pointer, a window blur or leaving the pane ends a
+  drag without committing it.
+- The browser's own text selection is off in the pane; the pane's copy event
+  copies the selected words.
+
+Changed from the rule above: a hold that does not move selects the word
+instead of opening word correction, because Fix text now has its own gestures.
 
 ### Decision: A plain grab at a join rolls it
 
