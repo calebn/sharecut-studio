@@ -128,7 +128,6 @@ export type ScriptPaneHandle = {
  * selection when it changes (once, on release, while a grip is dragged),
  * says "Selection cleared" when it clears, and speaks `findStatus`.
  */
-
 export type ScriptPaneProps = {
   turns: readonly ScriptTurn[];
   status?: ScriptStatus;
