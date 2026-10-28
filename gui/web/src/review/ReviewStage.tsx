@@ -152,7 +152,7 @@ export function ReviewStage({
 
   const keep = (id: string) => {
     if (!guest && items.some((i) => i.id === id && !i.result && !i.transcript))
-      onDecide({ ids: [id], result: "kept" });
+      void onDecide({ ids: [id], result: "kept" });
   };
 
   const verb = (id: string) => {
@@ -161,14 +161,14 @@ export function ReviewStage({
     if (item && verbOf(item) === "keep") return keep(id);
     if (!cuttable(id)) return;
     if (holdsGate([id])) setPending({ ids: [id] });
-    else onDecide({ ids: [id], result: "applied" });
+    else void onDecide({ ids: [id], result: "applied" });
   };
 
   const bulk = (all: readonly string[] | undefined) => {
     const ids = all?.filter(cuttable) ?? [];
     if (guest || bulkRunning || !ids.length) return;
     if (holdsGate(ids)) setPending({ ids });
-    else onDecide({ ids, result: "applied" });
+    else void onDecide({ ids, result: "applied" });
   };
   const applyGroup = () =>
     bulk(
@@ -275,7 +275,7 @@ export function ReviewStage({
             if (guest || selected.result) return;
             onLooksRight(selected.id);
             if (selected.kind === "unsure-word")
-              onDecide({ ids: [selected.id], result: "applied" });
+              void onDecide({ ids: [selected.id], result: "applied" });
           },
           onLooksRight: () => !guest && onLooksRight(selected.id),
         }
