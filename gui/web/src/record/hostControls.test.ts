@@ -44,11 +44,11 @@ describe("startBlockerItems", () => {
         storageReady: false,
         storageError: "Storage is blocked.",
         capturingRoomTone: true,
-      }).map((item) => [item.text, item.fix ?? null]),
+      }).map((item) => item.text),
     ).toEqual([
-      ["Waiting for Ava to accept recording.", null],
-      ["Storage is blocked.", "retryStorage"],
-      ["Recording room tone. Start is available when it finishes.", null],
+      "Waiting for Ava to accept recording.",
+      "Storage is blocked.",
+      "Recording room tone. Start is available when it finishes.",
     ]);
     expect(
       startBlockerItems(recordSnapshot({ start_blockers: [] }), ready),

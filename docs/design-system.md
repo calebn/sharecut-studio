@@ -342,7 +342,7 @@ context.
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
 `ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
 links (`../api`), clipboard writes, the copied-flash timer and the
-`record.openPanel` handoff; the view owns the in-place Stop sharing and End
+Record stage handoff; the view owns the in-place Stop sharing and End
 room confirmations (`InlineConfirm`). Stories pass fictional `hostShareRow`
 fixtures and local callbacks, covering empty, live review links with and
 without an MCP URL, a record room, a missing producer link, a just-created

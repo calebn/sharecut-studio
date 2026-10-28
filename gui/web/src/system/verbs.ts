@@ -331,7 +331,7 @@ export const VERBS = [
     status: "conflict",
     commandId: "track.muteToggle",
     replaces: ["record.marker"],
-    note: "Mute everywhere; the live marker in the record panel moves to Comment.",
+    note: "Mute everywhere; the live marker on the Record stage moves to Comment.",
   },
   {
     id: "solo",

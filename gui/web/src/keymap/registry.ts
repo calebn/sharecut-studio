@@ -739,7 +739,7 @@ export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
   {
     key: "M",
     order: ["record.marker", "track.muteToggle"],
-    why: "while the record panel is open M drops a marker; its when-clause fails otherwise and M mutes the targeted track",
+    why: "while the Record stage is active M drops a marker; its when-clause fails otherwise and M mutes the targeted track",
   },
 ];
 

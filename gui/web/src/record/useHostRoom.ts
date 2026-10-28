@@ -6,12 +6,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { errorMessage } from "../utils/apiError";
 import { sourceIdPointToTimeline } from "../utils/timebase";
-import {
-  landGate,
-  type StartFix,
-  startBlockerItems,
-  TAKE_CONTROL,
-} from "./hostControls";
+import { landGate, startBlockerItems, TAKE_CONTROL } from "./hostControls";
 import {
   prepareHostKeeperStorage,
   retryHostKeeperStorage,
@@ -34,7 +29,6 @@ import {
 import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 import {
   keeperCaptureSettled,
-  leaveBlocked,
   useHostUploadSegments,
   useRecordUpload,
 } from "./upload/useRecordUpload";
@@ -190,7 +184,6 @@ export function useHostRoom(
   const retryStorage = useCallback(() => {
     void retryHostKeeperStorage().catch(() => undefined);
   }, []);
-  const startFixes: Record<StartFix, () => void> = { retryStorage };
 
   const runCommand = (commandId: string) => {
     if (transportBusy) {
@@ -215,6 +208,11 @@ export function useHostRoom(
     },
     [projectPath, setTransportError],
   );
+
+  useEffect(() => {
+    setRoomLookup("checking");
+    setDoneNotice(null);
+  }, [projectPath]);
 
   useEffect(() => {
     if (!hydrate || !projectPath) {
@@ -255,7 +253,6 @@ export function useHostRoom(
     [],
   );
   const offline = dropped && (state === "recording" || state === "paused");
-  const uploadBlocking = leaveBlocked(state ?? "", upload);
   const reconnectCopy = snapshot
     ? hostReconnectPauseCopyFromSnapshot(snapshot)
     : null;
@@ -335,7 +332,6 @@ export function useHostRoom(
     blockers,
     startBlocked,
     land,
-    startFixes,
     retryStorage,
     resumeUpload,
     liveComments,
@@ -343,7 +339,6 @@ export function useHostRoom(
     captureUnavailable,
     micLossNeedsAttention,
     noAudioNeedsAttention,
-    uploadBlocking,
     reconnectCopy,
     micCopy,
     micFailed,
