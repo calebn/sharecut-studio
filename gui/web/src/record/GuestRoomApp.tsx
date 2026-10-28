@@ -367,7 +367,9 @@ function GuestRoomSession({
             if (action === "allow") {
               meterRef.current.resume();
               mic.request();
-            } else if (action === "retry") {
+            } else {
+              // A blocked mic shows "How to allow" and tells the guest to
+              // retry once the site is unblocked, so both ask again.
               mic.retry();
             }
           }}

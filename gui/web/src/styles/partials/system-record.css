@@ -908,6 +908,11 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   margin-inline-start: var(--space-6);
 }
 
+/* The headphones toggle and the mic action are thumb targets on a phone. */
+.sys-join-control .ui-control {
+  min-block-size: var(--touch-min);
+}
+
 .sys-join-control:empty {
   display: none;
 }

@@ -2,10 +2,8 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { type Browser, expect, test } from "@playwright/test";
 import {
-  HOST_OFFLINE_COPY,
   hostReconnectPauseCopy,
   RECORD_ROOM_RECONNECTING_COPY,
-  UPLOAD_DONE_COPY,
 } from "../src/record/types";
 import { recordApiBase } from "../src/shareRoute";
 import {
@@ -21,7 +19,9 @@ import {
   clickHostTransport,
   createRecordRoom,
   currentTake,
+  expectNoRoomAlert,
   expectRemintRefused,
+  expectRoomAlert,
   HOST_PARTICIPANT_ID,
   hostRecordConnected,
   hostRecordSnapshot,
@@ -31,11 +31,17 @@ import {
   openHostRecordRoom,
   readSavedProject,
   recordParticipantId,
+  roomPill,
   stopHostTake,
   waitForSegmentsAcked,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
+
+/** The guest room's alert while the host's socket is down; the host's display name is "Host". */
+const HOST_OFFLINE_ALERT =
+  "Host dropped. You're still recording on this device.";
+const LIVE_PILL = /^\d+:\d{2} · Take \d+$/;
 
 /** services/record/state.py HOST_OFFLINE_PAUSE_MS: a host return after this long forces PAUSED. */
 const HOST_OFFLINE_PAUSE_MS = 10_000;
@@ -129,7 +135,7 @@ test.describe("record host reconnect", () => {
             "Start",
             "recording",
           );
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
 
           for (const [page, keeper] of [
             [host, hostKeeper],
@@ -177,8 +183,8 @@ test.describe("record host reconnect", () => {
           await expect(
             roomDlg.getByText(RECORD_ROOM_RECONNECTING_COPY),
           ).toBeHidden();
-          await expect(guest.getByText(HOST_OFFLINE_COPY)).toBeHidden();
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expectNoRoomAlert(guest, HOST_OFFLINE_ALERT);
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
 
           const beforeHost = await keeperSegmentWavBytes(host, hostKeeper, 0);
           const beforeGuest = await keeperSegmentWavBytes(
@@ -208,8 +214,8 @@ test.describe("record host reconnect", () => {
           const outageAt = Date.now();
           await dropBoth(outages);
 
-          await expect(guest.getByText(HOST_OFFLINE_COPY)).toBeVisible();
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expectRoomAlert(guest, HOST_OFFLINE_ALERT);
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
 
           await expect(
             roomDlg.getByText(RECORD_ROOM_RECONNECTING_COPY),
@@ -233,7 +239,7 @@ test.describe("record host reconnect", () => {
             })
             .toBeGreaterThan(offline + ONE_SECOND_KEEPER_PCM_BYTES);
           // The growth above happened while still offline.
-          await expect(guest.getByText(HOST_OFFLINE_COPY)).toBeVisible();
+          await expectRoomAlert(guest, HOST_OFFLINE_ALERT);
 
           await host.waitForTimeout(
             Math.max(0, outageAt + HOST_OUTAGE_MS - Date.now()),
@@ -271,8 +277,8 @@ test.describe("record host reconnect", () => {
             roomDlg.getByText(RECORD_ROOM_RECONNECTING_COPY),
           ).toBeHidden();
 
-          await expect(guest.locator(".record-rec-label")).toHaveText("PAUSED");
-          await expect(guest.getByText(HOST_OFFLINE_COPY)).toBeHidden();
+          await expect(roomPill(guest)).toHaveText(/^Paused · \d+:\d{2}$/);
+          await expectNoRoomAlert(guest, HOST_OFFLINE_ALERT);
           // Host-only reconnect-pause copy must not leak to the guest.
           await expect(guest.getByText(/the host was offline/)).toHaveCount(0);
 
@@ -288,7 +294,7 @@ test.describe("record host reconnect", () => {
             "Resume",
             "recording",
           );
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
           await expect(
             roomDlg.getByText(/Paused: the host was offline/),
           ).toBeHidden();
@@ -322,9 +328,7 @@ test.describe("record host reconnect", () => {
 
         await test.step("stop, upload resumes on the same token, land", async () => {
           await stopHostTake(host, roomDlg, projectPath);
-          await expect(guest.locator(".record-rec-label")).toHaveText(
-            "Stopped",
-          );
+          await expect(roomPill(guest)).toHaveText(/^(Saving · |Saved$)/);
 
           await waitForSegmentsAcked(host, projectPath, [
             guestId,
@@ -338,7 +342,7 @@ test.describe("record host reconnect", () => {
           }
 
           await landParticipant(roomDlg, "Ava");
-          await expect(guest.getByText(UPLOAD_DONE_COPY)).toBeVisible({
+          await expect(roomPill(guest)).toHaveText("Saved", {
             timeout: 30_000,
           });
 

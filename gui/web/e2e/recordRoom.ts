@@ -138,74 +138,125 @@ export async function recordParticipantId(
 /** Participant id of the host keeper (services/record/state.py). */
 export const HOST_PARTICIPANT_ID = "p_host";
 
+/** The Join sheet's name field. */
+export function joinNameField(page: Page): Locator {
+  return page.getByRole("textbox", { name: "Your name", exact: true });
+}
+
 /**
- * Fill the record lobby's Display name field and check that it holds `name`.
+ * Fill the Join sheet's name and check that it holds `name`.
  *
- * A fill can be lost when the lobby re-renders under it (#764), so every
- * record-link join types its name through this helper rather than a bare
- * `fill`.
+ * The name lives in the page's own state and reaches the room through
+ * `UpdateName` once the socket has joined, so a fill before the room echoes
+ * this page's Join is safe (#764 lost it only when the old lobby remounted).
  */
 export async function fillDisplayNameField(
   page: Page,
   name: string,
 ): Promise<void> {
-  const field = page.getByLabel("Display name");
+  const field = joinNameField(page);
   await field.fill(name);
   await expect(field).toHaveValue(name);
 }
 
-/**
- * Type a guest's display name once its record socket has joined.
- *
- * The lobby mounts its Microphone step only after the room echoes this page's
- * Join (`showMic={!!me}` in `src/record/RecordApp.tsx`). A fill that lands in
- * that re-render can be lost: a WebKit CI trace for #764 had the field still
- * empty after `fill("Ava")`, so the room kept the socket's `Guest` name. After
- * the join the name reaches the room through `UpdateName`.
- */
-export async function fillGuestDisplayName(
-  page: Page,
-  name: string,
-): Promise<void> {
-  await expect(
-    page.getByRole("heading", { name: "Microphone", exact: true }),
-  ).toBeVisible();
-  await fillDisplayNameField(page, name);
+/** The room's pill, which reads the phase: `Waiting for Sam to start`, `12:04 · Take 1`, `Saved`. */
+export function roomPill(page: Page): Locator {
+  return page.locator(".sys-room-view-header .sys-pill-text");
 }
 
-/** Join a record link as a guest: name, headphones, mic, skip room tone, Accept; returns once the room lists the guest by name. */
+/** The tile whose accessible name starts with `name`, such as the guest's own. */
+export function roomTile(page: Page, name: string): Locator {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return page.getByRole("group", { name: new RegExp(`^${escaped}`) });
+}
+
+/** The alert slot's status row. */
+export function roomAlertSlot(page: Page): Locator {
+  return page.locator(".sys-room-alert-slot");
+}
+
+async function openAlertList(page: Page): Promise<void> {
+  const chip = roomAlertSlot(page).getByRole("button", {
+    name: /^\d+ more alerts?$/,
+  });
+  if (
+    (await chip.count()) > 0 &&
+    (await chip.getAttribute("aria-expanded")) === "false"
+  ) {
+    await chip.click();
+  }
+}
+
+/**
+ * Wait for an alert by its text. The slot shows only the most urgent alert, so
+ * a lower one (the host dropped) can sit behind the "+N" chip while a higher
+ * one (saving stopped during an outage) is on top: open the list to find it.
+ */
+export async function expectRoomAlert(
+  page: Page,
+  text: string | RegExp,
+): Promise<void> {
+  await expect(async () => {
+    await openAlertList(page);
+    await expect(roomAlertSlot(page).getByText(text)).toBeVisible({
+      timeout: 1_000,
+    });
+  }).toPass();
+}
+
+/** Wait until no alert, top or behind the chip, carries `text`. */
+export async function expectNoRoomAlert(
+  page: Page,
+  text: string | RegExp,
+): Promise<void> {
+  await expect(async () => {
+    await openAlertList(page);
+    await expect(roomAlertSlot(page).getByText(text)).toBeHidden({
+      timeout: 1_000,
+    });
+  }).toPass();
+}
+
+/** Open the Notes rail (closed by default for a guest) and return its section. */
+export async function openRoomNotes(page: Page): Promise<Locator> {
+  const notes = page.getByRole("region", { name: "Notes", exact: true });
+  if (!(await notes.isVisible())) {
+    await page.getByRole("button", { name: "Notes", exact: true }).click();
+  }
+  await expect(notes).toBeVisible();
+  return notes;
+}
+
+/**
+ * Join a record link as a guest: name, microphone, headphones, Join and
+ * record; returns once the room shows the pill and the guest's own tile.
+ */
 export async function joinAsGuest(
   page: Page,
   token: string,
   name: string,
 ): Promise<void> {
   await openRecordLink(page, token);
-  await fillGuestDisplayName(page, name);
-  await page.getByLabel("I am wearing headphones").check();
+  await fillDisplayNameField(page, name);
   await page.getByRole("button", { name: "Allow microphone" }).click();
-  await expect(page.getByLabel("Level")).toBeVisible();
-  await page.getByRole("button", { name: "Skip" }).click();
-  await page.getByRole("button", { name: "Accept" }).click();
-  await expect(page.getByText("Waiting for host")).toBeVisible();
-  // Registration signal for the name: the guest's roster renders the room
-  // snapshot, the same state `recordParticipantId` reads on the host.
+  const headphones = page.getByRole("button", {
+    name: "I'm wearing headphones",
+  });
+  await headphones.click();
+  await expect(headphones).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Join and record" }).click();
   await expect(
-    page
-      .getByRole("region", { name: "Recording", exact: true })
-      .getByRole("listitem")
-      .filter({ hasText: `${name} · consented` }),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Join and record" }),
+  ).toBeHidden();
+  await expect(roomPill(page)).toHaveText(/^Waiting for .+ to start$/);
+  // Registration signal for the name: the tile renders the room snapshot, the
+  // same state `recordParticipantId` reads on the host.
+  await expect(roomTile(page, name)).toBeVisible();
 }
 
 /**
- * Join a record link as a listen-only producer.
- *
- * Unlike a guest (`fillGuestDisplayName`), a producer's record socket opens
- * only after Join (`!!bootstrap && (!producer || producerJoined)` in
- * `src/record/RecordApp.tsx`), so nothing re-renders under the fill and the
- * socket joins with the typed name. Checking the field (`fillDisplayNameField`)
- * before Join keeps that assumption explicit: the room then registers the
- * producer as `name`.
+ * Join a record link as a listen-only producer: name, Join to listen. The
+ * producer never asks for the microphone.
  */
 export async function joinAsProducer(
   page: Page,
@@ -214,8 +265,11 @@ export async function joinAsProducer(
 ): Promise<void> {
   await openRecordLink(page, token);
   await fillDisplayNameField(page, name);
-  await page.getByRole("button", { name: "Join" }).click();
-  await expect(page.getByText("Waiting for host")).toBeVisible();
+  await page.getByRole("button", { name: "Join to listen" }).click();
+  await expect(
+    page.getByRole("button", { name: "Join to listen" }),
+  ).toBeHidden();
+  await expect(roomPill(page)).toHaveText(/^Waiting for .+ to start$/);
 }
 
 /**
