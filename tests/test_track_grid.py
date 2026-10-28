@@ -9,8 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.engines.audio import sources
 from podcast_mcp.engines import timeline_render
+from podcast_mcp.engines.audio import sources
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, LateMpegAudioError
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.timeline_render import (
