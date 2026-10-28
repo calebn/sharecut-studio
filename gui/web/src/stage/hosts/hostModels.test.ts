@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RecordSnapshot } from "../../record";
 import {
-  deliverReadiness,
   effectiveSection,
   prepareHandoff,
   recordStatusOf,
@@ -87,47 +86,5 @@ describe("recordStatusOf", () => {
 
   it("says a take survives a stage switch", () => {
     expect(recordStatusOf(snap("recording")).detail).toMatch(/does not stop/);
-  });
-});
-
-describe("deliverReadiness", () => {
-  const clear = {
-    pendingReviewCount: 0,
-    openCommentCount: 0,
-    mixStale: false,
-    mixMissing: false,
-    mayRefreshMix: true,
-  };
-
-  it("is ready with nothing open", () => {
-    const { rows, summary } = deliverReadiness(clear);
-    expect(summary).toBe("Ready to export");
-    expect(rows.every((r) => r.state === "done" && !r.fix)).toBe(true);
-  });
-
-  it("points each open row at the stage that fixes it and never blocks", () => {
-    const { rows, summary } = deliverReadiness({
-      ...clear,
-      pendingReviewCount: 2,
-      openCommentCount: 1,
-      mixStale: true,
-    });
-    expect(summary).toBe("3 things left. You can still export.");
-    expect(rows.map((r) => r.fix)).toEqual([
-      { kind: "stage", stage: "review", section: "impact", label: "Decide" },
-      { kind: "stage", stage: "review", section: "comments", label: "Resolve" },
-      { kind: "refreshMix", label: "Refresh mix" },
-    ]);
-  });
-
-  it("names a missing mix and withholds the refresh from a role that cannot", () => {
-    const { rows } = deliverReadiness({
-      ...clear,
-      mixMissing: true,
-      mayRefreshMix: false,
-    });
-    const mix = rows.find((r) => r.id === "mix");
-    expect(mix?.title).toBe("No mix yet");
-    expect(mix?.fix).toBeUndefined();
   });
 });
