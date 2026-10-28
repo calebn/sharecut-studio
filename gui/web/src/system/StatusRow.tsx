@@ -1,5 +1,6 @@
 import { type ReactNode, useId, useState } from "react";
 import { Button } from "../ui";
+import { useDisabledReasonNote } from "../ui/disabledReason";
 import type { SystemIconName } from "./icons";
 import { clampUnit, percentOf } from "./progress";
 import { StatusGlyph } from "./StatusGlyph";
@@ -38,6 +39,7 @@ type StatusRowProps = {
     name?: string;
     icon?: SystemIconName;
     onAction: () => void;
+    disabledReason?: string;
   };
   /** The technical cause of a failed row, behind a Details button. */
   details?: string;
@@ -66,6 +68,7 @@ export function StatusRow({
 }: StatusRowProps) {
   const childrenId = useId();
   const detailsId = useId();
+  const reason = useDisabledReasonNote(action?.disabledReason);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const cause = details?.trim();
   const showDetails = state === "failed" && Boolean(cause);
@@ -110,6 +113,8 @@ export function StatusRow({
               <Button
                 variant={state === "failed" ? "primary" : "default"}
                 aria-label={action.name}
+                disabledReason={action.disabledReason}
+                {...reason.describedBy}
                 onClick={action.onAction}
               >
                 {action.icon ? (
@@ -121,6 +126,7 @@ export function StatusRow({
           </div>
         ) : null}
       </div>
+      {reason.note}
       {showDetails && detailsOpen ? (
         <p id={detailsId} className="sys-status-cause">
           {cause}

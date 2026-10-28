@@ -1,6 +1,7 @@
 import { SystemIcon } from "../../system/SystemIcon";
 import { hintOf, iconOf, verbOf } from "../../system/verbDisplay";
 import { Button } from "../../ui";
+import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { isApplePlatform } from "../../utils/platform";
 import type { primaryAction } from "./deliverLogic";
 
@@ -21,6 +22,9 @@ export function ExportButton({
   onDownload,
 }: Props) {
   const verb = verbOf("export");
+  const reason = useDisabledReasonNote(
+    action === "exporting" ? undefined : blocker,
+  );
   return (
     <div className="dv-primary">
       {action === "reveal" ? (
@@ -38,6 +42,7 @@ export function ExportButton({
           variant="primary"
           className="dv-export"
           disabledReason={action === "exporting" ? "Exporting now." : blocker}
+          {...reason.describedBy}
           title={`${verb.label}${hintOf(verb)}`}
           onClick={onExport}
         >
@@ -45,6 +50,7 @@ export function ExportButton({
           {verb.label}
         </Button>
       )}
+      {reason.note}
     </div>
   );
 }

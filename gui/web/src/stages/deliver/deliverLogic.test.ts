@@ -670,6 +670,43 @@ describe("round three of the audit", () => {
     expect(exportBlocker(SETTINGS)).toBeUndefined();
   });
 
+  it("waits for host settings before anything else but the model", () => {
+    const none = { ...SETTINGS, formats: [] };
+    expect(exportBlocker(none, undefined, { loading: true })).toBe(
+      "Wait for the settings to load.",
+    );
+    expect(exportBlocker(SETTINGS, undefined, { loading: true })).toBe(
+      "Wait for the settings to load.",
+    );
+  });
+
+  it("lets a host that always writes WAV, or could not load its formats, export none", () => {
+    const none = { ...SETTINGS, formats: [] };
+    expect(exportBlocker(none, undefined, { wavAlwaysWritten: true })).toBe(
+      undefined,
+    );
+    expect(exportBlocker(none, undefined, { settingsError: "offline" })).toBe(
+      undefined,
+    );
+    expect(exportBlocker(none)).toBe("Choose a format first.");
+  });
+
+  it("gives the host's own reason first", () => {
+    const needs = { phase: "needs-model", model: "m", size: "1 GB" } as const;
+    expect(
+      exportBlocker({ ...SETTINGS, formats: [] }, needs, {
+        blockedReason: "No project loaded",
+        loading: true,
+      }),
+    ).toBe("No project loaded");
+  });
+
+  it("offers Reveal or Download only where the host has them", () => {
+    expect(primaryAction(DONE, "none")).toBe("export");
+    expect(primaryAction(DONE, "app")).toBe("reveal");
+    expect(primaryAction(DONE, "browser")).toBe("download");
+  });
+
   it("keeps Out inside the episode when In is the episode end", () => {
     expect(clampPart({ start: 3120, end: 3120 }, 3120)).toEqual({
       mode: "part",
