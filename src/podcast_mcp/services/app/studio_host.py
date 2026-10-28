@@ -286,12 +286,15 @@ class _PingConnection(http.client.HTTPConnection):
     ) -> _DeadlineSocket:
         host, port = address
         last_error: OSError | None = None
+        timed_out: OSError | None = None
         for family, ip in _LOOPBACK_ADDRESSES[host]:
             try:
                 sock = _DeadlineSocket(family, deadline=self.deadline)
             except OSError as exc:
                 _remaining(self.deadline)
                 last_error = exc
+                if _is_timeout(exc):
+                    timed_out = exc
                 continue
             try:
                 sock.connect((ip, port))
@@ -300,8 +303,10 @@ class _PingConnection(http.client.HTTPConnection):
                 sock.close()
                 _remaining(self.deadline)
                 last_error = exc
+                if _is_timeout(exc):
+                    timed_out = exc
         assert last_error is not None
-        raise last_error
+        raise timed_out or last_error
 
 
 def _headers(host: StudioHost) -> dict[str, str]:
