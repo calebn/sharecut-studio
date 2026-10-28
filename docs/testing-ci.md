@@ -379,6 +379,7 @@ with axe before the collected results are asserted.
 | 914x331 with the envelope sheet open: the Player and the save state stay | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 667x375 phone shell (iPhone SE): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 740x360 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the Edit corner covers no lane at 844x390, and every guest M and S is hit-testable | `gui/web/e2e-compat/edit-corner-lanes.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 767x375 phone shell (widest phone width): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 568x320 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 914x331 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
