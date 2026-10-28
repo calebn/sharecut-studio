@@ -231,6 +231,13 @@ export function DeliverStage({
     release.current = window.setTimeout(clearInFlight, IN_FLIGHT_MS);
     onExport(viaKey ? keyRequest : request);
   };
+  const exportAgain = exportOptions?.onExportAgain;
+  const exportAgainAndStart = exportAgain
+    ? () => {
+        exportAgain();
+        startExport();
+      }
+    : undefined;
   const onKey = useRef(startExport);
   useEffect(() => {
     onKey.current = startExport;
@@ -386,7 +393,12 @@ export function DeliverStage({
               env={env}
               state={sharedState}
               dock={phone}
-              options={exportOptions}
+              options={
+                exportOptions && {
+                  ...exportOptions,
+                  onExportAgain: exportAgainAndStart,
+                }
+              }
               onSettings={changeSettings}
               onChangeFolder={onChangeFolder}
               onExport={() => startExport()}

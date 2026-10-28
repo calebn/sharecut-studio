@@ -206,19 +206,10 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
     setReloads(generation.current);
     return generation.current;
   }, []);
-  const requestRef = useRef(request);
-  requestRef.current = request;
   const again = useCallback(() => {
-    const asked = requestRef.current;
-    if (settingsErrorRef.current !== null || !asked) {
-      setRun({ kind: "idle" });
-      if (settingsErrorRef.current !== null) reload();
-      return;
-    }
     setRun({ kind: "idle" });
-    runRef.current = { kind: "idle" };
-    void start(selectedRef.current, asked);
-  }, [reload, start]);
+    if (settingsErrorRef.current !== null) reload();
+  }, [reload]);
 
   const job =
     run.kind === "running" &&
