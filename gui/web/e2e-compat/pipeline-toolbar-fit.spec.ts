@@ -202,6 +202,9 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
             scrollTop: element.scrollTop,
           }));
           await page.setViewportSize({ width: 1440, height });
+          await expect
+            .poll(() => scroller.evaluate((element) => element.clientHeight))
+            .not.toBe(beforeResize.clientHeight);
           const afterResize = await scroller.evaluate((element) => {
             const target = element.querySelector(
               ".pipeline-advanced-shortcuts label:last-child select",
