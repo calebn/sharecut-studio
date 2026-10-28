@@ -177,17 +177,19 @@ class PlacedSource:
 
 
 def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
-    """Every source leaf with its timeline start and gain ramps, measuring each subtree once."""
+    """Every source leaf with its timeline start and gain ramps.
+
+    Durations come from one bottom-up pass over the tree rather than a fresh walk per
+    visited node. A node object shared under several parents is walked once per
+    occurrence in that pass, so the pass is linear in the number of occurrences.
+    """
     result: list[PlacedSource] = []
     lengths = _durations(audio)
-
-    def duration(node: Audio) -> float:
-        return lengths[id(node)]
 
     def visit(node: Audio, at: float, ramps: tuple[GainRamp, ...]) -> None:
         match node:
             case SourceAudio():
-                length = duration(node)
+                length = lengths[id(node)]
                 own = []
                 if node.fade_in_sec > 0:
                     own.append(
@@ -212,9 +214,9 @@ def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
             case SequenceAudio():
                 for child in (node.head, *node.tail):
                     visit(child, at, ramps)
-                    at += duration(child)
+                    at += lengths[id(child)]
             case CrossfadeAudio():
-                seam = at + duration(node.left)
+                seam = at + lengths[id(node.left)]
                 visit(
                     node.left,
                     at,
@@ -267,7 +269,10 @@ def duration(audio: Audio) -> float:
 
 
 def _durations(audio: Audio) -> dict[int, float]:
-    """Duration of every node under ``audio``, keyed by node identity, in one bottom-up pass."""
+    """Duration of every node under ``audio``, keyed by node identity, in one bottom-up pass.
+
+    Shared node objects are re-walked per occurrence and rewritten with the same value.
+    """
     lengths: dict[int, float] = {}
     durations: list[float] = []
     for node in postorder(audio):
