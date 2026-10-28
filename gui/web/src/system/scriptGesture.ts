@@ -13,7 +13,7 @@ type ScriptGestureSource = "mouse" | "pen" | "touch" | "keyboard";
  */
 type ScriptGestureIntent = "drag" | "extend" | "hold";
 
-/** The flags every selection callback carries after its ids. `mod` is Ctrl or Cmd. */
+/** The flags every selection callback carries after its ids. `mod` is Cmd: a press with Ctrl held never starts a gesture (a Mac Ctrl-click is the context menu), so it is false on Windows and Linux. */
 export type ScriptGesture = {
   source: ScriptGestureSource;
   intent: ScriptGestureIntent;

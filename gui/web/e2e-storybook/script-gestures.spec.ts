@@ -350,3 +350,36 @@ test("on a phone a hold that never moves selects that word and shows its grips",
   await expect(page.locator(".sys-handle")).toHaveCount(2);
   await context.close();
 });
+
+/** A finger that drifts inside the 10 px slop before the hold arms, as a real one does. */
+async function driftThenDrag(browser: Browser, drift: number) {
+  const { context, page } = await touchPage(
+    browser,
+    "system-scriptpane--long-gestures",
+  );
+  const touch = await finger(context, page);
+  const from = await centre(stop(page, 30));
+  const before = await bodyScroll(page);
+  await touch.down(from);
+  await touch.move(from, { x: from.x, y: from.y + drift }, drift);
+  await expect(stop(page, 30)).toHaveAttribute("data-selected", "");
+  const to = await centre(stop(page, 52));
+  await touch.move({ x: from.x, y: from.y + drift }, to, 10);
+  await touch.up();
+  await expect(page.getByRole("status")).toHaveText(/^23 words selected: /);
+  expect(await bodyScroll(page)).toBe(before);
+  await expect(page.locator(".sys-handle")).toHaveCount(2);
+  await context.close();
+}
+
+test("on a phone a finger that drifts 3 px before the hold still drags the selection out, and the pane does not scroll", async ({
+  browser,
+}) => {
+  await driftThenDrag(browser, 3);
+});
+
+test("on a phone a finger that drifts 8 px before the hold still drags the selection out, and the pane does not scroll", async ({
+  browser,
+}) => {
+  await driftThenDrag(browser, 8);
+});

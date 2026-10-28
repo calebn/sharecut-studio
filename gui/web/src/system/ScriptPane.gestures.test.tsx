@@ -199,6 +199,32 @@ describe("ScriptPane mouse drag", () => {
     expect(onCaret).toHaveBeenCalledTimes(1);
   });
 
+  it("never carries the swallow over: a click that arrives later with no pointerdown selects", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { body, onSelect, onCaret } = setup();
+    drag(stop(12), 12, 14);
+    fireEvent.pointerUp(body, { ...MOUSE, ...centre(14) });
+    onSelect.mockClear();
+    advance(200);
+    fireEvent.click(stop(20), { detail: 0 });
+    expect(onCaret).toHaveBeenCalledTimes(1);
+    expect(onSelect.mock.calls).toEqual([[words(20, 20)]]);
+  });
+
+  it("after an Escape the swallow waits for the real release, then ends with it", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { body, onSelect } = setup();
+    drag(stop(12), 12, 14);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    advance(500);
+    fireEvent.pointerUp(body, { ...MOUSE, ...centre(14) });
+    fireEvent.click(stop(14), { detail: 1 });
+    expect(onSelect).not.toHaveBeenCalled();
+    advance(200);
+    fireEvent.click(stop(14), { detail: 0 });
+    expect(onSelect.mock.calls).toEqual([[words(14, 14)]]);
+  });
+
   it("puts focus on the word the drag ended on, so the keyboard goes on from the head", () => {
     const { body } = setup();
     drag(stop(12), 12, 14);
@@ -385,6 +411,19 @@ describe("ScriptPane touch", () => {
     expect(onSelect.mock.calls).toEqual([[words(12, 12)]]);
     fireEvent.click(stop(12), { detail: 1 });
     expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("a finger that drifts before the hold keeps the drag when Chrome moves its capture from the word to the body", () => {
+    const { body, onSelect, onSelectionEnd } = setup();
+    fireEvent.pointerDown(word("small"), { ...FINGER, ...centre(12) });
+    const at = centre(12);
+    fireEvent.pointerMove(body, { ...FINGER, ...at, clientX: at.clientX + 3 });
+    advance(500);
+    fireEvent.lostPointerCapture(stop(12), FINGER);
+    fireEvent.pointerMove(body, { ...FINGER, ...centre(14) });
+    expect(onSelectionEnd).not.toHaveBeenCalled();
+    fireEvent.pointerUp(body, { ...FINGER, ...centre(14) });
+    expect(onSelect.mock.calls).toEqual([[words(12, 14)]]);
   });
 
   it("a finger that moves before the hold scrolls and selects nothing", () => {
