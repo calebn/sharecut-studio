@@ -50,7 +50,6 @@ function workingSet(): PipelineWorkingSet {
     reload: vi.fn(),
     update: vi.fn(async () => true),
     fetchFresh: vi.fn(async () => pipelineConfig()),
-    reset: vi.fn(async () => true),
   };
 }
 

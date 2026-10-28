@@ -447,10 +447,6 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "leaf that reads the presence roster itself",
   },
   {
-    file: "presence/presenceSummary.ts",
-    reason: "selectAgentPresent reduces the presence roster to a boolean",
-  },
-  {
     file: "presence/usePresenceCursorSource.ts",
     reason: "publishes the local scroll position to presence",
   },

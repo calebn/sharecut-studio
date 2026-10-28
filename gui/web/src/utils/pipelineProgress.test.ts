@@ -12,11 +12,9 @@ import {
   pipelineChromeLabel,
   pipelineKindLabel,
   pipelineProgressPercent,
-  pipelineStatusLabel,
   pipelineUnitNoun,
   pipelineUnitsLabel,
   STALE_AFTER_S,
-  showIndeterminatePulse,
   staleUpdateLabel,
   truncateHeadline,
 } from "./pipelineProgress";
@@ -46,7 +44,6 @@ describe("pipelineProgress", () => {
     expect(hasDeterminateProgress(indeterminate)).toBe(false);
     expect(pipelineProgressPercent(indeterminate)).toBeNull();
     expect(pipelineUnitsLabel(indeterminate)).toBeNull();
-    expect(showIndeterminatePulse(indeterminate)).toBe(true);
   });
 
   it("exposes percent and units only when total is real", () => {
@@ -54,14 +51,11 @@ describe("pipelineProgress", () => {
     expect(hasDeterminateProgress(determinate)).toBe(true);
     expect(pipelineProgressPercent(determinate)).toBe(25);
     expect(pipelineUnitsLabel(determinate)).toBe("1/4 steps");
-    expect(showIndeterminatePulse(determinate)).toBe(true);
   });
 
-  it("truncates headlines and distinguishes fail vs cancel", () => {
+  it("truncates headlines", () => {
     expect(truncateHeadline("short")).toBe("short");
     expect(truncateHeadline("x".repeat(50))?.endsWith("…")).toBe(true);
-    expect(pipelineStatusLabel("error")).toBe("failed");
-    expect(pipelineStatusLabel("cancelled")).toBe("cancelled");
   });
 
   it("labels a failed model job plainly, never with the command its raw text carries", () => {
