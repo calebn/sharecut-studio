@@ -39,6 +39,8 @@ def test_project_switch_refused_for_remote_peer(remote):
     _assert(remote.post("/api/project/pick"), 403, "project_pick_not_allowed")
     _assert(remote.post("/api/project/open", json={"path": "/x"}), 403, "project_open_not_allowed")
     _assert(remote.post("/api/project/close"), 403, "project_close_not_allowed")
+    _assert(remote.get("/api/projects/recent"), 403, "project_recent_not_allowed")
+    _assert(remote.delete("/api/projects/recent?path=/x"), 403, "project_recent_not_allowed")
 
 
 def test_open_project_bad_paths(local, tmp_path):

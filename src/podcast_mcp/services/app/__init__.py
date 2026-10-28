@@ -14,6 +14,12 @@ if TYPE_CHECKING:
         resolve_gui_static_root,
         viewer_url,
     )
+    from podcast_mcp.services.app.recent_projects import (
+        default_workspace_dir,
+        forget_recent,
+        recent_project_cards,
+        record_recent,
+    )
     from podcast_mcp.services.app.review_gate import ReviewGateService
     from podcast_mcp.services.app.studio_host import (
         DIRECT_ENV_VAR,
@@ -57,9 +63,11 @@ __all__ = [
     "StudioNotReachable",
     "StudioUnresponsive",
     "announce_studio_host",
+    "default_workspace_dir",
     "drop_oldest_overflow",
     "ensure_viewer",
     "env_differences",
+    "forget_recent",
     "hand_off",
     "is_viewer_up",
     "locate_studio",
@@ -67,6 +75,8 @@ __all__ = [
     "new_token",
     "packaged_cli_gui_refusal",
     "read_studio_host",
+    "recent_project_cards",
+    "record_recent",
     "resolve_gui_static_root",
     "studio_host_path",
     "viewer_url",
@@ -84,6 +94,10 @@ _MODULE_BY_NAME = {
     "packaged_cli_gui_refusal": "gui_launch",
     "resolve_gui_static_root": "gui_launch",
     "viewer_url": "gui_launch",
+    "default_workspace_dir": "recent_projects",
+    "forget_recent": "recent_projects",
+    "recent_project_cards": "recent_projects",
+    "record_recent": "recent_projects",
     "ReviewGateService": "review_gate",
     "DIRECT_ENV_VAR": "studio_host",
     "DIRECT_RUN_REFUSAL_CODES": "studio_host",
