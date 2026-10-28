@@ -39,7 +39,7 @@ for (const { cell: layout, reducedMotion: reduce } of withAppearance([
   { name: "phone", viewport: { width: 390, height: 844 } },
 ])) {
   const reducedMotion = reduce ? "reduce" : "no-preference";
-  test(`Prepare: a running Transcribe row stays readable (${layout.name}, ${reducedMotion})`, async ({
+  test(`Prepare: the running transcription stays in view (${layout.name}, ${reducedMotion})`, async ({
     page,
   }) => {
     await page.setViewportSize(layout.viewport);
@@ -50,9 +50,11 @@ for (const { cell: layout, reducedMotion: reduce } of withAppearance([
       }),
     );
     await openProject(page, e2eProjectPath, { stage: "prepare" });
-    const row = page.getByText(/^Listening to \d+ tracks?$/);
-    await row.scrollIntoViewIfNeeded();
-    await expect(row).toBeInViewport();
+    const bar = page
+      .getByRole("progressbar", { name: /transcription$/ })
+      .first();
+    await bar.scrollIntoViewIfNeeded();
+    await expect(bar).toBeInViewport();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - innerWidth,
     );
