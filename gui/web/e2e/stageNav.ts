@@ -199,14 +199,15 @@ export const phone = {
     await goToStage(page, "edit");
     // Only the phone has one Edit surface at a time; wider shells show both.
     if (!(await isPhoneShell(page))) return;
-    const folded = await openToolsIfFolded(page);
     const name = mode === "text" ? "Script" : "Timeline";
     const toggle = page
       .getByRole("group", { name: "Edit surface" })
       .getByRole("button", { name, exact: true });
+    await openToolsIfFolded(page);
     if ((await toggle.getAttribute("aria-pressed")) !== "true") {
       await toggle.click();
     }
+    const folded = await openToolsIfFolded(page);
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
     if (folded) await closeTools(page);
   },
