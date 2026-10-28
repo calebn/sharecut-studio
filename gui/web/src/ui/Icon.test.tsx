@@ -5,7 +5,7 @@ import { Icon } from "./Icon";
 describe("Icon", () => {
   it("keeps decorative a11y after rest props", () => {
     const { container } = render(
-      <Icon name="select" aria-hidden={false} role="presentation" />,
+      <Icon name="fit" aria-hidden={false} role="presentation" />,
     );
     const svg = container.querySelector("svg");
     expect(svg?.getAttribute("aria-hidden")).toBe("true");
@@ -13,7 +13,7 @@ describe("Icon", () => {
   });
 
   it("exposes title as an img when provided", () => {
-    const { container } = render(<Icon name="comment" title="Comment" />);
+    const { container } = render(<Icon name="fit" title="Fit" />);
     const svg = container.querySelector("svg");
     expect(svg?.getAttribute("role")).toBe("img");
     expect(svg?.getAttribute("aria-hidden")).toBeNull();
