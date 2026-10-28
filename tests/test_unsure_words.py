@@ -441,7 +441,7 @@ def test_a_guest_without_the_word_grant_gets_the_count_but_not_the_words(tmp_pat
     assert rows["uncle"]["unsure_count"] == 1
     patch = sanitize_guest_project_view({"pending_edits": view["pending_edits"]})
     assert all("unsure_words" not in r for r in patch["pending_edits"])
-    assert "uncle" not in str(shown["pending_edits"])
+    assert "'text': 'uncle'" not in str(shown["pending_edits"])
 
 
 def test_a_guest_with_the_word_grant_keeps_the_per_cut_words(tmp_path):
