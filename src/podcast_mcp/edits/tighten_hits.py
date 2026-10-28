@@ -84,6 +84,8 @@ def _plain(text: str | None) -> str | None:
 
 def why_line(decision: EditDecision, *, speaker_name: str | None) -> str | None:
     """One short sentence saying why this edit is suggested, or ``None`` for no line."""
+    if decision.author is not None:
+        return None
     kind = sound_kind(decision.reason)
     name = _plain(speaker_name)
     if kind == "filler":
