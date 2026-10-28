@@ -87,6 +87,24 @@ describe("roomPeople", () => {
     expect(people[0]?.connection).toBe("lost");
   });
 
+  it("does not wait on a producer's consent", () => {
+    const people = roomPeople(
+      recordSnapshot({
+        participants: [
+          host,
+          recordParticipant({
+            participant_id: "p",
+            display_name: "Pat",
+            role: "producer",
+            consented: null,
+            connected: true,
+          }),
+        ],
+      }),
+    );
+    expect(people[1]?.presence).toBe("live");
+  });
+
   it("passes saving progress by participant", () => {
     const people = roomPeople(recordSnapshot({ participants: [host, guest] }), {
       saving: { p_g: { done: 1, total: 2 } },
