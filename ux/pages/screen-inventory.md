@@ -66,7 +66,7 @@ flowchart TB
   SEL[Selection] --> BS[Bottom sheet: inspector + related commands]
 ```
 
-The Deliver stage shows Readiness, the episode file, Chapters and Clips from the open project. Adding, retitling, retiming or removing a chapter, and trimming or removing a social clip, are saved to the project as they happen. A change that cannot reach the server yet reads "Not saved yet" and stays on the page until it sends. A change the project refuses stays on the page under "Could not save your changes", with a button to show the saved version. When Undo, Redo or another editor changes the chapters or clips, the stage shows them once nothing is waiting to save, and keeps a clip's approval and title, which the project does not hold. The format, loudness and range choices are not shown here: Export opens the Export dialog, which has its own settings. Bounce… and Share a listen link sit under the stage and open their dialogs.
+The Deliver stage saves chapter edits and clip trims and removals to the project as they happen. A change that cannot send yet stays on the page under "Not saved yet"; one the project refuses stays under "Could not save your changes", with a button to show the saved version. A removed clip cannot be brought back from the toast. Clip titles and approvals, which have no write-back command yet, stay on the page when you leave Deliver and return. The format, loudness and range choices are not shown: Export opens its own dialog.
 
 On a phone the Stage bar is the bottom tab bar, Edit shows one of Timeline or Script at a time, and the people slot shows one avatar plus a count. A Commenter share link is Review alone, with no Stage bar.
 
