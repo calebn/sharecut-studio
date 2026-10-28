@@ -93,10 +93,41 @@ function scrollWithin(
 }
 
 export type ScriptPaneHandle = {
+  /** Scroll the word into view. False when the pane does not show it, so the host should widen its window of turns. */
   scrollToWord: (index: number, block?: ScrollLogicalPosition) => boolean;
   /** Put focus on the header's Find button, where the Find bar's focus goes when it closes or finishes a bulk verb. False when the pane draws no such button. */
   focusFind: () => boolean;
 };
+
+/**
+ * Every callback is optional. A pane without them reads, and a header control
+ * whose callback is missing is not drawn, which is how a guest's pane is made.
+ *
+ * The pane draws the turns it is given and keeps nothing about the rest of the
+ * episode, so a host that virtualizes passes a window of turns whose word
+ * indices are the episode's. Keyboard moves stop at the window's edge; the
+ * host widens the window and uses `scrollToWord` to land on a word.
+ *
+ * Keys. The pane owns the keys it handles on its words, cut pills, suggested
+ * runs and margin controls: the arrows, Home and End (alone, with Shift, and
+ * Alt+Shift+Left or Right), Enter, F2 on a word when `onFixText` is given, and
+ * Esc when something is selected and `onClearSelection` is given, or while a
+ * drag runs. It calls `preventDefault()` and `stopPropagation()` on them, so
+ * the window keymap never sees them: no playhead nudge on an arrow, no Home to
+ * the start, no second Esc. Every other key, typing included, and any chord
+ * with Ctrl or Cmd, reaches the keymap untouched. The host must not rebind a
+ * key in that list for a script-focused context; when the list changes, the
+ * keymap rows stay as they are.
+ *
+ * Pointer gestures (design-system element 14, `useScriptGestures`). The body
+ * owns the browser's text selection (off) and the pointer: a mouse drag, a
+ * touch long press then drag, Shift-click, a click that selects a word and a
+ * double-click or double-tap that asks for Fix text. They need `onSelect`.
+ *
+ * Live region. The pane has the one polite region of the script. It says the
+ * selection when it changes (once, on release, while a grip is dragged),
+ * says "Selection cleared" when it clears, and speaks `findStatus`.
+ */
 
 export type ScriptPaneProps = {
   turns: readonly ScriptTurn[];
