@@ -166,3 +166,21 @@ def test_a_track_above_the_grid_rate_limit_keeps_float_placement(
     project = _project(tmp_path, {"host": 384_000})
     clips = _joined_clips([None])[:2]
     assert track_grid(project, project.tracks[0], clips, engine) is None
+
+
+def test_a_window_decides_grid_or_float_from_the_whole_track(
+    tmp_path: Path, engine: FFmpegEngine
+) -> None:
+    project = _project(tmp_path, {"wide": 48_000, "narrow": 22_050})
+    clips = _joined_clips(["wide", "narrow"])[:6]
+    track = project.tracks[0]
+    assert track_grid(project, track, clips, engine) is None
+    # Clip 0 alone is one rate, but the stem has no grid, so the window must not either.
+    window = (clips[0].timeline_start + 0.1, clips[0].timeline_end - 0.1)
+    assert track_grid(project, track, clips, engine, window=window) is None
+    # A uniform track still gets a grid for a window, with seeks for the window's clips only.
+    uniform = _project(tmp_path / "uniform", {"wide": 48_000})
+    clips = _joined_clips(["wide"])[:6]
+    grid = track_grid(uniform, uniform.tracks[0], clips, engine, window=window)
+    assert grid is not None
+    assert len(grid.seeks) == 1

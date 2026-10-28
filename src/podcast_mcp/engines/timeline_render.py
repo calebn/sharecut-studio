@@ -305,34 +305,52 @@ def track_grid(
     A recording that cannot be probed has no rate either; the render reports it.
     ``atrim`` runs at each recording's own rate and ``concat`` resamples to a negotiated
     one, so a single integer grid only exists for one rate. Such a track keeps float
-    placement.
+    placement, with delays still on whole samples. A ``window`` decides from every clip of
+    the track, not only the clips it overlaps, so a window and the stem always take the same
+    placement rule; it only limits the seek table.
 
     ``eng`` is optional: the container lead is read from the probe cache, not through the
     engine, so a caller that must not resolve FFmpeg on a cache hit passes none.
     """
     lead_of = eng.audio_start_sec if eng is not None else audio_start_sec
-    placed = [
-        clip
-        for clip in clips
-        if window is None or (clip.timeline_end > window[0] and clip.timeline_start < window[1])
-    ]
+    # The grid-or-float choice reads every clip of the track, so a window takes the same
+    # placement rule as the stem; only the seek table is limited to the window's clips. A
+    # clip outside the window that the window never reads (missing or unprobeable file) is
+    # skipped: the stem reports it, and the window renders without it.
     recordings: dict[Path, None] = {}
     others: dict[Path, None] = {}
-    for clip in placed:
-        path = resolve_clip_audio_path(project, track, clip)
-        recordings[path] = None
-        if (fill := gate_fill_paths(project, track, [path])[0]) is not None:
-            others[fill] = None
-        for region in clip.mute_regions:
-            if region.fill is not None:
-                owner = f"clip {clip.id} fill"
-                others[_source_audio_path(project, track, region.fill.source_id, owner=owner)] = (
-                    None
-                )
+    optional: dict[Path, None] = {}
+    for clip in clips:
+        inside = window is None or (
+            clip.timeline_end > window[0] and clip.timeline_start < window[1]
+        )
+        found: dict[Path, None] = {}
+        try:
+            path = resolve_clip_audio_path(project, track, clip)
+            found[path] = None
+            if (fill := gate_fill_paths(project, track, [path])[0]) is not None:
+                found[fill] = None
+            for region in clip.mute_regions:
+                if region.fill is not None:
+                    owner = f"clip {clip.id} fill"
+                    found[
+                        _source_audio_path(project, track, region.fill.source_id, owner=owner)
+                    ] = None
+        except (FileNotFoundError, CodedValueError):
+            if inside:
+                raise
+            continue
+        if inside:
+            recordings[path] = None
+            others.update({fill_path: None for fill_path in found if fill_path != path})
+        else:
+            optional.update(found)
     rates = set()
-    for path in (*recordings, *others):
+    for path in (*recordings, *others, *optional):
         probe = probe_media(path)
         if probe is None:
+            if path in optional and path not in recordings and path not in others:
+                continue
             return None
         rates.add(probe.sample_rate)
     if len(rates) != 1:
