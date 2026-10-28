@@ -13,8 +13,6 @@ export interface FrameFitSizes {
   rowsHeight: number;
   /** The lanes' own floor (`--stage-stacked-lanes-min`). */
   lanesMin: number;
-  /** One lane (`--lane-height`): the corner may cover the foot of one. */
-  laneHeight: number;
   /** The Edit lanes' column and the corner floating over its foot; 0 off Edit. */
   laneAreaHeight: number;
   cornerHeight: number;
@@ -22,8 +20,8 @@ export interface FrameFitSizes {
 
 /**
  * Whether the frame folds: it cannot hold its full header, the full Player,
- * the tab bar, the Edit rows and the lanes' floor together, or (on Edit) the corner would
- * cover more than the foot of one lane. A size that did not measure (NaN, or a
+ * the tab bar, the Edit rows and the lanes' floor together, or (on Edit) the
+ * corner would leave the lanes less than their floor, so it covers a lane. A size that did not measure (NaN, or a
  * frame not laid out yet) never folds.
  */
 export function frameFolds(sizes: FrameFitSizes): boolean {
@@ -34,7 +32,6 @@ export function frameFolds(sizes: FrameFitSizes): boolean {
     tabsHeight,
     rowsHeight,
     lanesMin,
-    laneHeight,
     laneAreaHeight,
     cornerHeight,
   } = sizes;
@@ -46,7 +43,7 @@ export function frameFolds(sizes: FrameFitSizes): boolean {
     return true;
   }
   const covered = laneAreaHeight > 0 && cornerHeight > 0;
-  return covered && laneAreaHeight - cornerHeight < lanesMin - laneHeight;
+  return covered && laneAreaHeight - cornerHeight < lanesMin;
 }
 
 const FOLD_ATTRIBUTE = "frameShort";
@@ -79,7 +76,6 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
     rowsHeight:
       height(".phone-edit-bar") + height(".phone-edit .edit-tool-strip"),
     lanesMin: tokenHeightPx(frame, "--stage-stacked-lanes-min"),
-    laneHeight: tokenHeightPx(frame, "--lane-height"),
     laneAreaHeight: height(
       ".edit-workspace .edit-timeline-col, .phone-edit-lanes",
     ),
