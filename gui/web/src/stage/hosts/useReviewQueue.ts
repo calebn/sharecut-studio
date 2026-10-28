@@ -7,7 +7,6 @@ import {
   rejectEdits,
   waiveTranscriptRefine,
 } from "../../api";
-import { REVIEW_AUDITION_PAD_SEC } from "../../api/pendingPreview";
 import { playPendingPreview } from "../../audio/pendingPreview";
 import { runPointerCommand } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
@@ -46,6 +45,7 @@ import { useStableCallback } from "../../utils/useStableCallback";
 const WAIVE_NOTE = "Approved after listening in Review";
 const CLOSER_LOOK = "Needs a closer look in Edit";
 const CUT_AGAIN = "The transcript isn't checked yet. Cut again to cut anyway.";
+const AUDITION_PAD_SEC = 3;
 
 type Reply = {
   queued: boolean;
@@ -213,10 +213,10 @@ export function useReviewQueue() {
     if (!editId) return;
     const mode = side === "A" ? "current" : "suggested";
     const outcome = await playPendingPreview(projectPath, editId, mode, {
-      padSec: REVIEW_AUDITION_PAD_SEC,
+      padSec: AUDITION_PAD_SEC,
     });
     if (outcome.status === "disabled")
-      useDawStore.getState().announceStatus(outcome.reason);
+      useDawStore.getState().announceStatus(outcome.reason, { tone: "error" });
   });
 
   const onOpenInEdit = useStableCallback((id: string) => {
