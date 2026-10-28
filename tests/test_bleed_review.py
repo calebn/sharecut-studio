@@ -365,8 +365,10 @@ def test_merged_envelopes_match_direct_stereo_pcm_truth(tmp_path: Path) -> None:
     assert not np.any(after[gain == 0])
 
 
+# The window is the stem slice [round(start * rate), round(end * rate)) = [first, 28800): the
+# first start is the exact tie 14544.5 (rounds up), the second is the double just below 14545.5.
 @pytest.mark.parametrize(
-    "start, first, count", [(14544.5 / 48000, 14544, 14255), (14545.5 / 48000, 14545, 14254)]
+    "start, first, count", [(14544.5 / 48000, 14545, 14255), (14545.5 / 48000, 14545, 14255)]
 )
 def test_half_sample_source_seek_clock_is_separate_from_envelope(
     tmp_path: Path, start: float, first: int, count: int
