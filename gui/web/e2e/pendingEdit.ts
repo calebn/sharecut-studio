@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { goToStage, openPanel, openProject } from "./stageNav";
+import { openPanel, openProject } from "./stageNav";
 
 /**
  * Suggest a 0–2 s cut on the first dialogue track through the document plane
@@ -49,10 +49,11 @@ export async function openSuggestedPendingEdit(
   }, projectPath);
   expect(editId, "SuggestPendingEdit returned the new edit id").toBeTruthy();
   const panels = page.getByRole("main", { name: "Review" });
-  await openPanel(page, "impact");
-  await panels.locator(`[data-pending-id="${editId}"]`).click();
-  // The selection carries to the Edit stage, where its Inspector is.
-  await goToStage(page, "edit");
+  await openPanel(page, "queue");
+  // Every spec suggests the same 0 to 2 s range, so the first row (earliest
+  // time) is an equivalent edit whichever earlier spec left it behind.
+  await panels.locator(".sys-queue-main").first().click();
+  await panels.getByRole("button", { name: "Open in Edit" }).click();
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
