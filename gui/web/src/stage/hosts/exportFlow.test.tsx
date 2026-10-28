@@ -95,7 +95,7 @@ describe("the export flow over the server's routes", () => {
     mount();
     await loaded();
     act(() => flow.setSelected(["mp3", "flac"]));
-    act(() => flow.reload());
+    void act(() => flow.reload());
     await waitFor(() => expect(server.configRequests).toHaveLength(2));
     expect(flow.selected).toEqual(["mp3", "flac"]);
   });
@@ -106,7 +106,7 @@ describe("the export flow over the server's routes", () => {
     server.config = {
       config: { export: { wav: false, formats: [{ ext: "flac" }] } },
     };
-    act(() => flow.reload());
+    void act(() => flow.reload());
     await waitFor(() => expect(flow.selected).toEqual(["flac"]));
     expect(flow.settings?.wav).toBe(false);
   });

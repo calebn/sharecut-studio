@@ -1,10 +1,3 @@
-/**
- * Export deliverables settings, read from the Pipeline working set
- * (`GET /api/pipeline/config` → `config.export` and `config.master`), the same
- * config `PipelineService.export_audio` encodes with.
- */
-
-/** One FFmpeg output spec, as `export.formats` stores it. */
 type ExportFormatSpec = {
   ext: string;
   codec?: string;
@@ -13,27 +6,20 @@ type ExportFormatSpec = {
 };
 
 type ExportFormatChoice = {
-  /** The file extension: each format writes `<episode>.<ext>`. */
   key: string;
   label: string;
   spec: ExportFormatSpec;
 };
 
 export type ExportSettings = {
-  /** `export.wav`: the mastered WAV is copied out on every export. */
   wav: boolean;
-  /** Encoded formats a host can pick, configured ones first. */
   choices: ExportFormatChoice[];
-  /** Keys of the configured formats, checked by default. */
   configured: string[];
-  /** `master.integrated_lufs` / `master.true_peak_db`, when set. */
   target: { lufs: number; truePeakDb: number } | null;
 };
 
-/** Offered beside the configured formats: lossless, and in every FFmpeg build. */
 const FLAC: ExportFormatSpec = { ext: "flac", codec: "flac" };
 
-/** Pinned to `contracts/export-presets.json` and the server's `M4A_AAC`. */
 const M4A: ExportFormatSpec = {
   ext: "m4a",
   codec: "aac",
@@ -76,7 +62,6 @@ export function exportSettingsFromConfig(
   config: Record<string, unknown>,
 ): ExportSettings {
   const exportCfg = asRecord(config.export);
-  // Without `formats`, export_audio writes one MP3 at `mp3_bitrate_kbps`.
   const configuredSpecs =
     "formats" in exportCfg
       ? (Array.isArray(exportCfg.formats) ? exportCfg.formats : [])
@@ -113,7 +98,6 @@ export function exportSettingsFromConfig(
   };
 }
 
-/** The `formats` body for `POST /api/export/deliverables`. */
 export function selectedFormats(
   settings: ExportSettings,
   selected: readonly string[],
@@ -135,7 +119,6 @@ export function exportFileName(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-/** Signed loudness for UI copy: a true minus sign, one decimal. */
 function db(value: number): string {
   const text = Math.abs(value).toFixed(1);
   return value < 0 ? `−${text}` : text;
