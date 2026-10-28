@@ -7,6 +7,7 @@ import {
 } from "../../hooks/useMediaQueryStore";
 import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
 import { opensSheet, type SheetScreen } from "../../inspector/selectionSurface";
+import { inspectorOpenFor } from "../../state/selection";
 import { useDaw } from "../../state/useDaw";
 import type { Selection } from "../../types/project";
 import type { SheetPlacement } from "../../ui/BottomSheet";
@@ -32,12 +33,15 @@ interface SheetOpenState {
   shell: SheetShell;
   selection: Selection;
   rangeArmed: boolean;
+  /** What the Inspector was opened for (Inspect), or null. */
+  inspectorKey: string | null;
   /** The surface the Edit stage shows. */
   screen: SheetScreen;
 }
 
 /**
- * Is the selection sheet open? One rule for every shell: the selection's kind
+ * Is the selection sheet open? One rule for every shell: Inspect opened it for
+ * the selection still held (selecting alone never does), the selection's kind
  * lists the screens it opens on (`SELECTION_SURFACES`), and the phone and the
  * tablet each name the screen they show. Arming a range opens it alone, so the
  * In and Out fields sit in the bottom zone, never in a card at the top
@@ -48,7 +52,10 @@ function selectionSheetOpen(s: SheetOpenState): boolean {
   if (s.rangeArmed) return true;
   if (s.selection == null) return false;
   if (s.rangeArmed && s.selection.kind === "track") return false;
-  return opensSheet(s.selection, s.screen);
+  return (
+    inspectorOpenFor(s.selection, s.inspectorKey) &&
+    opensSheet(s.selection, s.screen)
+  );
 }
 
 export interface SelectionSheet {
@@ -86,9 +93,13 @@ export function useSelectionSheet(
     setSheetExpanded,
     setSelection,
     setRangeArmed,
+    setInspectorOpen,
+    inspectorKey,
     timelineDragging,
   } = useDaw((s) => ({
     selection: s.selection,
+    inspectorKey: s.inspectorKey,
+    setInspectorOpen: s.setInspectorOpen,
     rangeArmed: s.rangeArmed,
     sessionRegion: s.sessionRegion,
     sheetExpanded: s.sheetExpanded,
@@ -103,6 +114,7 @@ export function useSelectionSheet(
       shell,
       selection,
       rangeArmed,
+      inspectorKey,
       screen,
     });
   const landscape = useMediaQueryStore(
@@ -133,8 +145,11 @@ export function useSelectionSheet(
     expanded: sheetExpanded,
     onExpandedChange: setSheetExpanded,
     onClose: () => {
+      // Close shuts the Inspector and keeps the selection (the bar still has
+      // its verbs); an armed range was never a selection to keep.
+      if (rangeArmed) setSelection(null);
       if (shell != null) setRangeArmed(false);
-      setSelection(null);
+      setInspectorOpen(false);
       setSheetExpanded(false);
     },
     className: column

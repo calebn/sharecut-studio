@@ -1,7 +1,7 @@
-import { useDawStore } from "../state/dawStore";
 import { commentDraftFromRange } from "../comments/commentAnchor";
-import { resolveSelectionRange } from "../edit/rangeSelection";
 import { selectionSpan } from "../edit/editSelection";
+import { resolveSelectionRange } from "../edit/rangeSelection";
+import { useDawStore } from "../state/dawStore";
 import type { CommentDraft, DawState } from "../state/types";
 import { clampToSession } from "../utils/time";
 import { buildCommandContext, evaluateWhen } from "./context";

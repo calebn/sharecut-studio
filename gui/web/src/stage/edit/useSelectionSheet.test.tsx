@@ -6,10 +6,17 @@ import {
   type SheetScreen,
 } from "../../inspector/selectionSurface";
 import { useDawStore } from "../../state/dawStore";
+import { inspectKeyOf } from "../../state/selection";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import type { Selection } from "../../types/project";
 import { useSelectionSheet } from "./useSelectionSheet";
+
+/** A selection with the Inspector opened for it, as Inspect leaves the store. */
+const inspected = (selection: Selection) => ({
+  selection,
+  inspectorKey: inspectKeyOf(selection),
+});
 
 const clip = clipRow({ id: "c2", track_id: "host", timeline_start: 10 });
 
@@ -23,7 +30,7 @@ beforeEach(() => {
     null,
   );
   useDawStore.setState({
-    selection: { kind: "clip", id: "c2", trackId: "host" },
+    ...inspected({ kind: "clip", id: "c2", trackId: "host" }),
     selectionHit: { kind: "trim-in", id: "c2" },
     compactInspectorView: "peek",
     timelineDragging: false,
@@ -65,7 +72,7 @@ describe("useSelectionSheet placement", () => {
 
   it("gives an envelope selection no lane band in a column", () => {
     useDawStore.setState({
-      selection: { kind: "envelope", trackId: "host" },
+      ...inspected({ kind: "envelope", trackId: "host" }),
       selectionHit: null,
     });
     const media = stubMatchMedia(true);
@@ -126,9 +133,9 @@ describe("useSelectionSheet placement", () => {
     act(() => rotate(false));
     act(() => useDawStore.setState({ selection: null }));
     act(() =>
-      useDawStore.setState({
-        selection: { kind: "clip", id: "c2", trackId: "host" },
-      }),
+      useDawStore.setState(
+        inspected({ kind: "clip", id: "c2", trackId: "host" }),
+      ),
     );
     expect(result.current.compact?.className).toContain(
       "bottom-sheet--compact",
@@ -148,12 +155,12 @@ describe("useSelectionSheet placement", () => {
   it("keeps the full Inspector for an automatic-reduction band, whose session lives in its body", () => {
     stubRotation(false);
     useDawStore.setState({
-      selection: {
+      ...inspected({
         kind: "bleedAttenuation",
         id: "c2",
         trackId: "host",
         regionKey: null,
-      },
+      }),
       selectionHit: null,
     });
     const { result } = renderHook(() => useSelectionSheet("phone", "timeline"));
@@ -182,12 +189,12 @@ describe("useSelectionSheet placement", () => {
       { value: 360 },
     );
     useDawStore.setState({
-      selection: {
+      ...inspected({
         kind: "bleedAttenuation",
         id: "c2",
         trackId: "host",
         regionKey: "late_gate:0",
-      },
+      }),
       selectionHit: null,
     });
     renderHook(() => useSelectionSheet("phone", "timeline"));
@@ -199,7 +206,23 @@ describe("useSelectionSheet placement", () => {
     stubMatchMedia(true);
     const { result } = renderHook(() => useSelectionSheet("phone", "timeline"));
     act(() => result.current.onClose());
-    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+    expect(useDawStore.getState().selection).not.toBeNull();
+  });
+
+  it("stays shut for a selection alone and opens on Inspect", () => {
+    stubMatchMedia(false);
+    useDawStore.setState({ inspectorKey: null });
+    const { result } = renderHook(() => useSelectionSheet("phone", "timeline"));
+    expect(result.current.open).toBe(false);
+    act(() => useDawStore.getState().setInspectorOpen(true));
+    expect(result.current.open).toBe(true);
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "clip", id: "c3", trackId: "host" }),
+    );
+    expect(result.current.open).toBe(false);
   });
 });
 
@@ -245,7 +268,7 @@ function sheetOpen(
   selection: Selection,
   rangeArmed = false,
 ): boolean {
-  useDawStore.setState({ selection, rangeArmed });
+  useDawStore.setState({ ...inspected(selection), rangeArmed });
   return renderHook(() => useSelectionSheet(shell, screen)).result.current.open;
 }
 

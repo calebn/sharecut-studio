@@ -242,6 +242,10 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "edit/dragThreshold.ts -> hooks/gestureConstants (static)",
   ],
   "commands/edit -> views": [
+    "commands/comments.ts -> comments/commentAnchor (static)",
+    "commands/editVerbs.ts -> system/actionBarSlots (type)",
+    "commands/editVerbs.ts -> system/editActionSets (static)",
+    "commands/editVerbs.ts -> ui/disabledReason (static)",
     "commands/editing.ts -> feedback/ask (static)",
     "commands/editing.ts -> tracks/trackMuteCopy (static)",
     "commands/gestures.ts -> timeline/inputContract (type)",
@@ -293,10 +297,10 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "services -> commands/edit": 2,
   "services -> views": 2,
   "commands/edit -> hooks": 2,
-  "commands/edit -> views": 14,
+  "commands/edit -> views": 18,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 61;
+const ALLOWLIST_SIZE = 65;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

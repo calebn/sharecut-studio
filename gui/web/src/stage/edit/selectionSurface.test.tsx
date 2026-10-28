@@ -191,22 +191,18 @@ const SELECTIONS: Record<SelectionKind, NonNullable<Selection>> = {
 type Reach = { role: "button" | "heading"; name: string; related?: true };
 
 /**
- * What a person must be able to reach for each kind of selection, in the
- * sheet on a touch shell and in the inspector on the desktop. `related`
+ * What a person must be able to reach for each kind of selection once Inspect
+ * has opened it, in the sheet on a touch shell and in the inspector on the
+ * desktop. The verbs themselves live in the Action bar (EditActionBar.test). `related`
  * actions come from the sheet's commands zone, which the desktop aside omits.
  * Typing the table as a Record over the registry's kinds makes a new kind
  * fail to compile until it names its actions.
  */
 const REACH: Record<SelectionKind, Reach[]> = {
-  range: [
-    { role: "button", name: "Cut" },
-    { role: "button", name: "Mute" },
-    { role: "button", name: "Clear range" },
-  ],
+  range: [{ role: "button", name: "Select range" }],
   transcriptRange: [
     { role: "button", name: "Add word before" },
     { role: "button", name: "Ignore" },
-    { role: "button", name: "Clear range" },
   ],
   clip: [
     { role: "button", name: "Delete" },
@@ -243,7 +239,6 @@ const REACH: Record<SelectionKind, Reach[]> = {
 };
 
 const SHELLS: ShellBreakpoint[] = ["phone", "tablet", "desktop"];
-const RANGE_KINDS: SelectionKind[] = ["range", "transcriptRange"];
 const AGENT_RANGE_ADOPTION: Record<SelectionKind, boolean> = {
   range: false,
   transcriptRange: false,
@@ -288,13 +283,18 @@ function select(selection: NonNullable<Selection>) {
   act(() => useDawStore.getState().setSelection(selection));
 }
 
+/** Inspect: the only thing that opens the Inspector or the sheet. */
+function inspect() {
+  act(() => useDawStore.getState().setInspectorOpen(true));
+}
+
 const sheet = () =>
   screen
     .queryAllByRole("dialog")
     .find((dialog) => dialog.classList.contains("bottom-sheet--inspector")) ??
   null;
 const rangeRegions = () =>
-  screen.queryAllByRole("region", { name: "Range actions" });
+  screen.queryAllByRole("region", { name: "Range fields" });
 
 describe("selection surfaces reach every kind on every shell", () => {
   beforeEach(() => {
@@ -309,14 +309,17 @@ describe("selection surfaces reach every kind on every shell", () => {
 
   for (const kind of Object.keys(SELECTION_SURFACES) as SelectionKind[]) {
     for (const shell of SHELLS) {
-      it(`${kind} on the ${shell} shell has a body and its actions in one reachable place`, () => {
+      it(`${kind} on the ${shell} shell opens a body with its actions in one reachable place on Inspect`, () => {
         const { container } = mount(shell);
         select(SELECTIONS[kind]);
+        expect(sheet(), "selecting alone opens nothing").toBeNull();
+        expect(container.querySelector(".edit-inspector")).toBeNull();
+        inspect();
 
         const touch = shell !== "desktop";
         const home = touch
           ? sheet()
-          : RANGE_KINDS.includes(kind)
+          : kind === "transcriptRange"
             ? container.querySelector<HTMLElement>(".edit-timeline-col")
             : container.querySelector<HTMLElement>(".edit-inspector");
         expect(home, "where the selection's surface renders").not.toBeNull();
@@ -376,7 +379,7 @@ describe("selection surfaces reach every kind on every shell", () => {
       }
     });
 
-    it(`an agent range over a clip stays ${shell === "phone" ? "out of the bar" : shell === "tablet" ? "in the sheet" : "in the bar"} on the ${shell} shell, and an armed Select range moves it into ${shell === "desktop" ? "the bar" : "the sheet"}`, () => {
+    it(`an agent range over a clip stays ${shell === "phone" ? "out of the bar" : "in the bar"} on the ${shell} shell, and an armed Select range moves it into ${shell === "desktop" ? "the bar" : "the sheet"}`, () => {
       const { container } = mount(shell);
       act(() =>
         useDawStore.setState({ sessionRegion: { start_sec: 4, end_sec: 9 } }),
@@ -385,9 +388,8 @@ describe("selection surfaces reach every kind on every shell", () => {
       const bar = container.querySelector(".edit-timeline-col");
       if (shell === "phone") {
         expect(rangeRegions()).toEqual([]);
-      } else if (shell === "tablet") {
-        expect(sheet()?.contains(rangeRegions()[0]!)).toBe(true);
       } else {
+        expect(sheet(), "selecting alone opens no sheet").toBeNull();
         expect(bar?.contains(rangeRegions()[0]!)).toBe(true);
       }
       if (shell !== "desktop") {
@@ -406,12 +408,13 @@ describe("selection surfaces reach every kind on every shell", () => {
   }
 
   for (const kind of Object.keys(AGENT_RANGE_ADOPTION) as SelectionKind[]) {
-    it(`keeps the agent range in the tablet sheet for ${kind} selections`, () => {
+    it(`keeps the agent range in the tablet sheet for ${kind} selections once Inspect opens it`, () => {
       const { container } = mount("tablet");
       act(() =>
         useDawStore.setState({ sessionRegion: { start_sec: 0, end_sec: 2 } }),
       );
       select(SELECTIONS[kind]);
+      inspect();
 
       const home = sheet();
       const regions = rangeRegions();
@@ -421,7 +424,7 @@ describe("selection surfaces reach every kind on every shell", () => {
       expect(
         container
           .querySelector(".edit-timeline-col")
-          ?.querySelector('[aria-label="Range actions"]'),
+          ?.querySelector('[aria-label="Range fields"]'),
       ).toBeNull();
       expect(
         within(regions[0]!).queryByRole("button", {
@@ -459,30 +462,32 @@ describe("a tapped word is one kind", () => {
   afterEach(() => clearRegisteredCommands());
 
   it.each(["phone", "tablet"] as const)(
-    "puts the range actions and the word correction in one sheet on the %s shell",
+    "puts the word correction in the sheet on Inspect and Cut in the bar on the %s shell",
     (shell) => {
       mount(shell);
       select(WORD);
+      expect(sheet(), "selecting a word opens no sheet").toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Cut" }),
+        "the Action bar already has Cut",
+      ).toBeVisible();
+      inspect();
       const home = sheet();
       expect(home).not.toBeNull();
-      for (const name of [
-        "Cut",
-        "Mute",
-        "Add word after",
-        "Suppress",
-        "Copy",
-      ]) {
+      for (const name of ["Add word after", "Suppress", "Copy"]) {
         expect(within(home!).getByRole("button", { name })).toBeVisible();
       }
+      expect(within(home!).queryByRole("button", { name: "Cut" })).toBeNull();
     },
   );
 
-  it("puts the range actions in the bar and the word correction in the inspector on the desktop", () => {
+  it("puts Cut in the bar and the word correction in the inspector on the desktop", () => {
     const { container } = mount("desktop");
     select(WORD);
-    const bar = container.querySelector<HTMLElement>(".edit-timeline-col");
+    expect(container.querySelector(".edit-inspector")).toBeNull();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeVisible();
+    inspect();
     const rail = container.querySelector<HTMLElement>(".edit-inspector");
-    expect(within(bar!).getByRole("button", { name: "Cut" })).toBeVisible();
     expect(
       within(rail!).getByRole("button", { name: "Suppress" }),
     ).toBeVisible();
@@ -492,6 +497,7 @@ describe("a tapped word is one kind", () => {
   it("keeps the word editor's validation and draft when Correct changes the sheet order", () => {
     mount("phone");
     select(WORD);
+    inspect();
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "" },
     });
@@ -504,20 +510,71 @@ describe("a tapped word is one kind", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Text cannot be empty",
       );
+      // Correct takes the word handles away; the sheet's order changes, the draft stays.
       expect(
-        screen.getAllByRole("region", { name: "Range actions" }),
-      ).toHaveLength(1);
+        screen.queryAllByRole("region", { name: "Range fields" }),
+      ).toHaveLength(transcriptCorrecting ? 0 : 1);
     }
   });
 
   it("keeps the correction out of a longer range", () => {
     mount("tablet");
     select({ ...WORD, endWordIndex: 1 });
+    inspect();
     expect(
       within(sheet()!).queryByRole("button", { name: "Suppress" }),
     ).toBeNull();
-    expect(within(sheet()!).getByRole("button", { name: "Cut" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeVisible();
   });
+});
+
+describe("Inspect, not selection, opens the surface", () => {
+  beforeEach(() => {
+    offlineStore.loadConflicts.mockResolvedValue([]);
+    offlineStore.loadCommandQueue.mockResolvedValue([]);
+    offlineStore.loadHostConflicts.mockResolvedValue([]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(0);
+    clearRegisteredCommands();
+    registerDawCommands();
+  });
+  afterEach(() => clearRegisteredCommands());
+
+  it.each(SHELLS)(
+    "shuts on Esc, on a new selection and on Close on the %s shell",
+    async (shell) => {
+      const { container } = mount(shell);
+      const open = () =>
+        shell === "desktop"
+          ? container.querySelector(".edit-inspector")
+          : sheet();
+      select(SELECTIONS.clip);
+      inspect();
+      expect(open()).not.toBeNull();
+      // A new selection shuts it.
+      select(SELECTIONS.pending);
+      expect(open()).toBeNull();
+      // Esc shuts it before it clears the selection.
+      inspect();
+      expect(open()).not.toBeNull();
+      await act(async () => {
+        const { execute } = await import("../../commands/execute");
+        await execute("edit.clearSelection", {}, { skipWhen: true });
+      });
+      expect(open()).toBeNull();
+      expect(useDawStore.getState().selection).toMatchObject({
+        kind: "pending",
+      });
+      // Close shuts it and keeps the selection.
+      inspect();
+      fireEvent.click(
+        within(open() as HTMLElement).getAllByRole("button", {
+          name: /^Close/,
+        })[0]!,
+      );
+      expect(open()).toBeNull();
+      expect(useDawStore.getState().selection).not.toBeNull();
+    },
+  );
 });
 
 describe("the sheet opens only on the screens a selection belongs to", () => {

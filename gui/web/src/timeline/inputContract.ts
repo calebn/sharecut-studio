@@ -435,7 +435,7 @@ export interface CreateEntry {
   label: string;
   /**
    * `track` entries act on the held lane. `episode` entries act at the held
-   * time on the episode, not on the held lane (Blade cut cuts the selected
+   * time on the episode, not on the held lane (Split here cuts the selected
    * tracks), so the menu sets them apart from the lane's.
    */
   scope: "track" | "episode";
@@ -451,18 +451,18 @@ export interface CreateEntry {
 /** The create menu a long-press on empty timeline space opens, in order. */
 export const CREATE_ENTRIES: readonly CreateEntry[] = [
   {
+    id: "split",
+    label: "Split here",
+    scope: "episode",
+    command: "edit.bladeCut",
+    args: ({ atTime }) => ({ atTime }),
+  },
+  {
     id: "envelope-point",
     label: "Add envelope point",
     scope: "track",
     command: "envelope.addPoint",
     args: ({ atTime, trackId }) => (trackId ? { atTime, trackId } : null),
-  },
-  {
-    id: "split",
-    label: "Blade cut",
-    scope: "episode",
-    command: "edit.bladeCut",
-    args: ({ atTime }) => ({ atTime }),
   },
   {
     id: "chapter",

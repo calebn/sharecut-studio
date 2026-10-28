@@ -600,8 +600,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
   "inspector.clip.joinMode": "daw.edit.setClipJoin",
   "timeline.join.badge": "daw.edit.setClipJoin",
-  RangeActions: "daw.range.bounce",
-  SpeakerLaneMoveActions: "daw.range.moveSpeakerLaneSpan",
+  actionBar: "daw.range.bounce",
 };
 
 export function capabilityTooltip(

@@ -491,7 +491,9 @@ describe("displayShortcutKeys", () => {
   });
 
   it("keeps bare keys and names Space", () => {
-    expect(displayShortcutKeys(keymapCommandById("edit.split")!, true)).toBe("S");
+    expect(displayShortcutKeys(keymapCommandById("edit.split")!, true)).toBe(
+      "S",
+    );
     expect(
       displayShortcutKeys(keymapCommandById("track.soloToggle")!, true),
     ).toBe("⇧S");
@@ -562,15 +564,11 @@ describe("held keys", () => {
       }
       return cmd;
     };
-    expect(ignoresKeyRepeat({ repeat: true }, row("edit.mute"))).toBe(
-      true,
-    );
+    expect(ignoresKeyRepeat({ repeat: true }, row("edit.mute"))).toBe(true);
     expect(ignoresKeyRepeat({ repeat: true }, row("track.soloToggle"))).toBe(
       true,
     );
-    expect(ignoresKeyRepeat({ repeat: false }, row("edit.mute"))).toBe(
-      false,
-    );
+    expect(ignoresKeyRepeat({ repeat: false }, row("edit.mute"))).toBe(false);
     expect(
       ignoresKeyRepeat(
         { repeat: true },
