@@ -21,7 +21,7 @@
     "gui/web/e2e/crossfade-length.spec.ts": 1,
     "gui/web/e2e/design-polish.spec.ts": 1,
     "gui/web/e2e/document-poll.spec.ts": 2,
-    "gui/web/e2e/editor-workloads.spec.ts": 5,
+    "gui/web/e2e/editor-workloads.spec.ts": 4,
     "gui/web/e2e/finger.ts": 1,
     "gui/web/e2e/host-tab-selection.spec.ts": 4,
     "gui/web/e2e/inspector-responsive.spec.ts": 1,
