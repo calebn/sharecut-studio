@@ -2,6 +2,8 @@
 
 Pause words (real gap): a pause reads the transcript with no source id. Contributor edits and
 words in clip gaps (not real): the cache serves one edit at a time, and edges sit on clip ends.
+The edit log (#2439): a pause check reads the pad records, hashed by ``_pad_records_seen`` with
+the check's own sample validators; a sweep of record shapes pins the two read sets together.
 """
 
 from __future__ import annotations
@@ -747,3 +749,174 @@ def test_a_pause_verdict_is_reused_after_an_unrelated_log_record(
     assert hits == [False]
     _outcome(_project(tmp_path, sourced=True, mutate=_far_pad))
     assert hits == [False, True]
+
+
+# Far samples the check rejects at any distance (#2439 review): invalid ranges on the pause's own
+# recording. Nothing about them is near the pause, so only the validity test puts them in the key.
+def _far_inverted(p: EpisodeProject) -> None:
+    _pad(p, 500.0, 400.0)
+
+
+def _far_negative(p: EpisodeProject) -> None:
+    _pad(p, -50.0, -10.0)
+
+
+def _far_zero_length(p: EpisodeProject) -> None:
+    _pad(p, 2.0, 2.0)
+
+
+def _far_bool_start(p: EpisodeProject) -> None:
+    _pad(p, True, 2.0)
+
+
+def _far_non_finite(p: EpisodeProject) -> None:
+    _pad(p, 500.0, float("inf"))
+
+
+def _far_missing_file(p: EpisodeProject) -> None:
+    p.sources.append(SourceRecording(id="gone", path="raw/gone.wav", duration_sec=DUR))
+    _pad(p, 1.0, 2.0, source_id="gone")
+
+
+def test_a_far_pad_sample_on_a_recording_that_vanishes_from_disk_moves_the_key(
+    tmp_path: Path,
+) -> None:
+    gone = tmp_path / "raw" / "gone.wav"
+    gone.parent.mkdir(parents=True, exist_ok=True)
+    gone.write_bytes(b"x")
+    present = _key_of(tmp_path, _far_missing_file)
+    gone.unlink()
+    assert present != _key_of(tmp_path, _far_missing_file)
+
+
+def _far_tuple_samples(p: EpisodeProject) -> None:
+    _pad_record(
+        p, ({"track_id": "host", "source_id": None, "source_start": 1.0, "source_end": 2.0},)
+    )
+
+
+def _not_a_pause(p: EpisodeProject) -> None:
+    p.edit_decisions[0].reason = "silence"
+
+
+def _reach_of(tmp_path: Path) -> float:
+    project = _project(tmp_path, sourced=True, mutate=_nothing)
+    edit = project.edit_decisions[0]
+    return verdict_cache.check_reach_sec(project, edit, (edit.start, edit.end), load_defaults())
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [_far_inverted, _far_negative, _far_zero_length],
+    ids=["inverted", "negative", "zero_length"],
+)
+def test_a_cached_pause_verdict_equals_a_cold_check_after_a_far_invalid_pad_range(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid: Callable[[EpisodeProject], None]
+) -> None:
+    before, cold, cached = _compare(tmp_path, monkeypatch, True, _nothing, invalid)
+    assert before != cold, "cold verdict must move"
+    assert cached == cold
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        _far_inverted,
+        _far_negative,
+        _far_zero_length,
+        _far_bool_start,
+        _far_non_finite,
+        _far_missing_file,
+    ],
+    ids=["inverted", "negative", "zero_length", "bool", "non_finite", "missing_file"],
+)
+def test_a_far_pad_sample_the_check_rejects_moves_the_key(
+    tmp_path: Path, invalid: Callable[[EpisodeProject], None]
+) -> None:
+    assert _key_of(tmp_path, _far_pad) != _key_of(tmp_path, invalid)
+
+
+def test_a_far_valid_pad_sample_in_a_tuple_leaves_the_key_alone(tmp_path: Path) -> None:
+    assert _key_of(tmp_path, _nothing) == _key_of(tmp_path, _far_tuple_samples)
+
+
+def _near_pad(p: EpisodeProject) -> None:
+    _pad(p, *TILE)
+
+
+@pytest.mark.parametrize("pad", [_legacy_pad_in_log, _near_pad, _far_inverted])
+def test_an_edit_that_is_not_a_pause_ignores_the_pad_records(
+    tmp_path: Path, pad: Callable[[EpisodeProject], None]
+) -> None:
+    def alone(p: EpisodeProject) -> None:
+        _not_a_pause(p)
+
+    def with_pad(p: EpisodeProject) -> None:
+        _not_a_pause(p)
+        pad(p)
+
+    assert _key_of(tmp_path, alone) == _key_of(tmp_path, with_pad)
+
+
+def test_a_pad_sample_moves_the_key_only_within_the_check_reach_of_the_pause(
+    tmp_path: Path,
+) -> None:
+    reach = _reach_of(tmp_path)
+    lo, hi = PAUSE[0] - reach, PAUSE[1] + reach
+    base = _key_of(tmp_path, _nothing)
+
+    def key(a: float, b: float) -> str | None:
+        return _key_of(tmp_path, lambda p: _pad(p, a, b))
+
+    assert key(lo - 5.0, lo) != base, "a range ending on the near edge is in reach"
+    assert key(hi, hi + 5.0) != base, "a range starting on the far edge is in reach"
+    assert key(lo - 5.0, lo - 1e-6) == base
+    assert key(hi + 1e-6, hi + 5.0) == base
+    assert key(lo - 5.0, lo + 1e-6) != base
+    assert key(hi - 1e-6, hi + 5.0) != base
+
+
+def _record_shapes() -> dict[str, Callable[[EpisodeProject], None]]:
+    def one(**sample: Any) -> Callable[[EpisodeProject], None]:
+        def build(p: EpisodeProject) -> None:
+            extra = {k: v for k, v in sample.items() if k not in ("lo", "hi")}
+            _pad(p, sample.get("lo", 1.0), sample.get("hi", 2.0), **extra)
+
+        return build
+
+    def whole(samples: Any) -> Callable[[EpisodeProject], None]:
+        return lambda p: _pad_record(p, samples)
+
+    return {
+        "no_samples": _legacy_pad_in_log,
+        "not_a_list": whole("oops"),
+        "empty_list": whole([]),
+        "sample_not_a_dict": whole(["oops"]),
+        "far_valid": one(),
+        "near_valid_over_pause": _pad_over_pause,
+        "far_inverted": _far_inverted,
+        "far_negative": _far_negative,
+        "far_zero_length": _far_zero_length,
+        "far_bool": _far_bool_start,
+        "far_non_finite": _far_non_finite,
+        "far_missing_file": _far_missing_file,
+        "far_unknown_track": one(track_id="nobody"),
+        "far_empty_track_id": one(track_id=""),
+        "far_int_source_id": one(source_id=7),
+        "far_empty_source_id": one(source_id=""),
+        "far_no_source_key": whole([{"track_id": "host", "source_start": 1.0, "source_end": 2.0}]),
+        "far_string_range": one(lo="1", hi="2"),
+        "far_tuple": _far_tuple_samples,
+        "gap_without_samples": _gap_pad_without_samples,
+        "muted_gap_without_samples": _muted_gap_without_samples,
+        "ordinary_cut": _ordinary_cut,
+    }
+
+
+@pytest.mark.parametrize("shape", list(_record_shapes()))
+def test_a_cached_pause_verdict_equals_a_cold_check_for_every_pad_record_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shape: str
+) -> None:
+    """The check's read set and ``_pad_records_seen`` must not drift apart."""
+    _, cold, cached = _compare(tmp_path, monkeypatch, True, _nothing, _record_shapes()[shape])
+    assert cached == cold
