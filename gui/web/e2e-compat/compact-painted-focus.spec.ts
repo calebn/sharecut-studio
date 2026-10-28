@@ -8,6 +8,7 @@ import { test } from "../e2e/interactionEvidence";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { closeTools, openToolsIfFolded } from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 import { json } from "../e2e/touchTimeline";
 
@@ -27,7 +28,8 @@ for (const { cell: width, theme } of withAppearance([667, 844])) {
           );
           await rememberInspectorDetent(page, "full");
           await openHostShare(page, projectPath);
-          if (width < 768)
+          if (width < 768) {
+            await openToolsIfFolded(page);
             await pointerControl(
               page,
               page
@@ -35,6 +37,8 @@ for (const { cell: width, theme } of withAppearance([667, 844])) {
                 .getByRole("button", { name: "Timeline", exact: true }),
               receipts,
             );
+            await closeTools(page);
+          }
           await expect(
             page.locator(
               '.timeline-scroll .track-headers:not([aria-busy="true"])',
