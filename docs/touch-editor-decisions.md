@@ -116,7 +116,6 @@ enforced-by:
 - gui/web/src/timeline/hitCandidates.test.ts::is still the one candidate when every target in reach is out of reach
 - gui/web/e2e-compat/compact-history-persistence.spec.ts::compact history ${name} root${rootPx} ${theme}
 - gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
-- gui/web/e2e-compat/touch-chrome-reach.spec.ts::the Cut button of the blade confirmation can be tapped at 32px text: landscape
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
 - gui/web/src/ui/BottomSheet.test.tsx::opens fully on a quick flick and lands a slow drag at the nearest detent
