@@ -1027,9 +1027,9 @@ of room tone" with **Record room tone** and **Skip**, in `lobby` or `stopped`
 once the countdown has run out. **Record room tone** runs the same capture, WAV
 encode and `kind=room_tone` upload as a host-started round, so the bed lands under
 the same paths with the same fields (#2490). No row shows while a take is live or
-paused, before any countdown, or once the guest recorded (the host acknowledged the
-file) or skipped; both survive a reload (this device's `localStorage`, and the
-host's upload status for a recorded bed).
+paused, before any countdown, or once the guest recorded or skipped; both survive a reload (this device's
+`localStorage`, and the host's upload status for an acknowledged bed). A bed not yet
+acknowledged at reload is not asked for again, as for an on-time guest.
 
 Before a host can Start or a recorded guest can join, the client completes an
 OPFS preflight that creates, writes, closes, and removes a disposable file in

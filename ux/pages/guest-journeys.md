@@ -234,7 +234,7 @@ flowchart TD
    countdown sees one alert row before the next take, "Record 3 seconds of room
    tone." with **Record room tone** and **Skip** (#2490); it records the same bed
    through the same path, and it does not show during a take, after a skip, or
-   after the host has the bed, including after a reload. Producers never record it.
+   after it recorded, including after a reload. Producers never record it.
 4. **Join and record is the consent.** The sheet says "You'll be recorded in full
    quality on this device. It saves to Ava's project when the take ends." and its
    **Details** explain that joining means you agree to be recorded. **Not now**

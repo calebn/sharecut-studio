@@ -6,7 +6,7 @@ import {
   roomToneMarkKey,
   writeRoomToneMark,
 } from "./lateRoomTone";
-import type { RoomToneDelivery, RoomToneStatus } from "./roomTone";
+import type { RoomToneStatus } from "./roomTone";
 import {
   type RecordParticipant,
   type RecordSnapshot,
@@ -17,7 +17,6 @@ import type { RecordUploadTransport } from "./upload/transport";
 
 type RoomToneControls = {
   status: RoomToneStatus;
-  delivery: RoomToneDelivery;
   error: string | null;
   captureReady: boolean;
   record: () => void;
@@ -27,8 +26,7 @@ type RoomToneControls = {
 /**
  * A guest who joined after the room-tone countdown is asked once, before the
  * next take, to record the same 3 s bed through the same `useRoomToneCapture`
- * the host-started round uses. Done means recorded and acknowledged by the
- * host, or skipped; both survive a reload (this device, or the host's upload
+ * the host-started round uses. Done means recorded or skipped; both survive a reload (this device, or the host's upload
  * status for a recorded bed).
  */
 export function useLateRoomTone({
@@ -53,7 +51,7 @@ export function useLateRoomTone({
   } | null>(null);
   const left = snapshot?.countdown_left_ms ?? 0;
   const [settled, setSettled] = useState<RecordSnapshot | null>(null);
-  const { status, delivery } = roomTone;
+  const { status } = roomTone;
 
   useEffect(() => {
     if (!key || !consented || producer) {
@@ -93,10 +91,10 @@ export function useLateRoomTone({
     }
     if (status === "skipped") {
       writeRoomToneMark(key, "skipped");
-    } else if (status === "recorded" && delivery === "host") {
+    } else if (status === "recorded") {
       writeRoomToneMark(key, "recorded");
     }
-  }, [delivery, key, status]);
+  }, [key, status]);
 
   useEffect(() => {
     if (!snapshot || left <= 0) {
