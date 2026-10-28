@@ -424,6 +424,25 @@ describe("usePrepareRun start errors", () => {
   });
 });
 
+describe("usePrepareRun failed start", () => {
+  it("keeps the failure for the row until a job holds the slot or a start works", async () => {
+    useDawStore.setState({
+      pipelineJob: pipelineJobSnapshot({ id: "old", status: "ok" }),
+    });
+    start.mockRejectedValue(new Error("Network down"));
+    const { result, rerender } = setup();
+    rerender({ ingestBusy: true, mediaKey: "" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(result.current.startError).toBe("Network down"));
+    expect(result.current.starting).toBe(false);
+    start.mockResolvedValue(
+      pipelineJobSnapshot({ id: "j2", status: "running" }),
+    );
+    await act(async () => result.current.tryAgain());
+    await waitFor(() => expect(result.current.startError).toBeNull());
+  });
+});
+
 describe("usePrepareRun refused over hand fixes", () => {
   const refused = pipelineJobSnapshot({
     id: "j7",

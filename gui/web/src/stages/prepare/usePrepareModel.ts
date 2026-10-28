@@ -166,6 +166,7 @@ export function usePrepareModel(): PrepareModel {
     transcribed: sourceCount > 0 && untranscribed.length === 0,
     starting: run.starting,
     waiting: run.waiting,
+    startError: run.startError,
     job,
     pendingSuggestions: project?.edit_impact.pending_review_count ?? 0,
     model: run.model,
