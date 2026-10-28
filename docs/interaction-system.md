@@ -85,8 +85,7 @@ is the one table for phone, tablet and desktop (#1792).
 A tapped word's Correct mode is derived from the selection when the Transcript panel mounts, so rotating across the phone and tablet shells keeps the word, its sheet and Correct (#1870).
 In a Correct-mode word sheet, the correction fields and Apply precede the
 secondary word controls and metadata. The full word remains the accessible
-heading even when its visible title is shortened to one line. Disabled range
-actions follow the word inspector; Select mode keeps its range actions first.
+heading even when its visible title is shortened to one line. The range's verbs live on the Action bar (floating beside the selection on desktop and tablet, docked above the Player on a phone); the Range fields keep In and Out and the word handles, first in Select mode.
 Reordering these sections preserves their component identity and local drafts
 (`#2163`, `stage/edit/selectionSurface.test.tsx`).
 The tracks ticked for a range not yet formed live in `rangeScopeTrackIds`; they
