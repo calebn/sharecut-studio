@@ -33,7 +33,8 @@ describe("record transport command failures", () => {
     submit.mockReset();
     land.mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    setChrome({ recordPanelOpen: false, shareDialogOpen: false });
+    setChrome({ shareDialogOpen: false });
+    useDawStore.setState({ stage: "edit" });
     useDawStore.setState({
       statusAnnouncement: "",
     });
@@ -45,7 +46,7 @@ describe("record transport command failures", () => {
   });
 
   it.each(TRANSPORT_COMMANDS)(
-    "%s failure sets the error, opens the panel and announces",
+    "%s failure sets the error and announces",
     async (id, type) => {
       submit.mockRejectedValue(new Error("Room is not ready"));
       const result = await execute(id);
@@ -54,7 +55,7 @@ describe("record transport command failures", () => {
       expect(useRecordHostStore.getState().transportError).toBe(
         "Room is not ready",
       );
-      expect(useDawStore.getState().chrome.recordPanelOpen).toBe(true);
+      expect(useDawStore.getState().stage).toBe("edit");
       expect(useDawStore.getState().statusAnnouncement).toBe(
         "Room is not ready",
       );
@@ -82,7 +83,7 @@ describe("record transport command failures", () => {
     submit.mockResolvedValue(undefined);
     expect(await execute("record.start")).toEqual({ status: "ok" });
     expect(useRecordHostStore.getState().transportError).toBeNull();
-    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(false);
+    expect(useDawStore.getState().stage).toBe("edit");
   });
 
   it("only announces a failure over the Share dialog", async () => {
@@ -91,15 +92,13 @@ describe("record transport command failures", () => {
     await execute("record.stop");
     expect(useDawStore.getState().statusAnnouncement).toBe("nope");
     expect(useRecordHostStore.getState().transportError).toBeNull();
-    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(false);
   });
 
-  it("shows a failure in the open panel without a second announcement", async () => {
-    useDawStore.getState().setRecordPanelOpen(true);
+  it("shows a failure on the Record stage without a second announcement", async () => {
+    useDawStore.setState({ stage: "record" });
     submit.mockRejectedValue(new Error("nope"));
     await execute("record.pause");
     expect(useRecordHostStore.getState().transportError).toBe("nope");
-    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(true);
     expect(useDawStore.getState().statusAnnouncement).toBe("");
   });
 
@@ -108,6 +107,5 @@ describe("record transport command failures", () => {
     const result = await execute("record.land");
     expect(result.status).toBe("disabled");
     expect(useRecordHostStore.getState().transportError).toBe("Land failed");
-    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(true);
   });
 });

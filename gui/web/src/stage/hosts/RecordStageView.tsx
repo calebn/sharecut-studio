@@ -1,36 +1,129 @@
 import type { ReactNode, Ref } from "react";
 import type { ShellBreakpoint } from "../../state/types";
+import { RoomView, type RoomViewProps } from "../../system/RoomView";
 import { Button } from "../../ui";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
-import type { HostState, RecordStatus } from "./hostModels";
+import type { HostState } from "./hostModels";
+
+export type RecordNotice = {
+  text: string;
+  action?: { label: string; onClick: () => void };
+};
+
+export type RecordLookup = "checking" | "none" | "found" | "failed";
 
 export type RecordStageViewProps = {
   shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
-  status: RecordStatus;
-  /** The live clock while a take runs. */
-  indicator?: ReactNode;
-  /** Why the room cannot be opened now. */
-  disabledReason?: string;
+  lookup: RecordLookup;
+  busy: boolean;
+  hydrateError: string | null;
+  transportError: string | null;
+  room: RoomViewProps | null;
+  notices: readonly RecordNotice[];
+  storage?: ReactNode;
+  more?: ReactNode;
   scrollRef?: Ref<HTMLDivElement>;
-  onOpenRoom: () => void;
+  onCreateRoom: () => void;
+  onCheckAgain: () => void;
 };
 
-/**
- * Record: a launcher with the room's status. The room dialog stays mounted in
- * `DawApp`, so a take keeps running while another stage is up.
- */
+function EmptyRoom({
+  lookup,
+  busy,
+  hydrateError,
+  transportError,
+  onCreateRoom,
+  onCheckAgain,
+}: Pick<
+  RecordStageViewProps,
+  | "lookup"
+  | "busy"
+  | "hydrateError"
+  | "transportError"
+  | "onCreateRoom"
+  | "onCheckAgain"
+>) {
+  const failure = transportError ? (
+    <p className="stage-host-note" role="status">
+      {transportError}
+    </p>
+  ) : null;
+  if (lookup === "none") {
+    return (
+      <section
+        className="stage-host-section stage-host-record-empty"
+        aria-labelledby="record-room"
+      >
+        <h2 id="record-room" className="stage-host-title">
+          No record room yet
+        </h2>
+        <p className="stage-host-note">
+          Creating one copies a guest link you can send.
+        </p>
+        {failure}
+        <div className="stage-host-actions">
+          <Button
+            variant="primary"
+            aria-disabled={busy || undefined}
+            onClick={onCreateRoom}
+          >
+            Create record room
+          </Button>
+        </div>
+      </section>
+    );
+  }
+  if (lookup === "failed") {
+    return (
+      <section
+        className="stage-host-section stage-host-record-empty"
+        aria-labelledby="record-room"
+      >
+        <h2 id="record-room" className="stage-host-title">
+          Could not look up the record room
+        </h2>
+        {hydrateError ? (
+          <p className="stage-host-note" role="status">
+            {hydrateError}
+          </p>
+        ) : null}
+        {failure}
+        <div className="stage-host-actions">
+          <Button aria-disabled={busy || undefined} onClick={onCheckAgain}>
+            Check again
+          </Button>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <div className="stage-host-record-empty">
+      <p className="stage-host-note" role="status">
+        Looking for a record room…
+      </p>
+      {failure}
+    </div>
+  );
+}
+
 export function RecordStageView({
   shell,
   state,
   failure,
-  status,
-  indicator,
-  disabledReason,
+  lookup,
+  busy,
+  hydrateError,
+  transportError,
+  room,
+  notices,
+  storage,
+  more,
   scrollRef,
-  onOpenRoom,
+  onCreateRoom,
+  onCheckAgain,
 }: RecordStageViewProps) {
   return (
     <HostBody
@@ -40,28 +133,32 @@ export function RecordStageView({
       failure={failure}
       scrollRef={scrollRef}
     >
-      <section
-        className="stage-host-section stage-host-launcher"
-        aria-labelledby="record-room"
-        data-record-state={status.kind}
-      >
-        <h2 id="record-room" className="stage-host-title">
-          {status.title}
-        </h2>
-        {indicator}
-        <p className="stage-host-note" role="status">
-          {status.detail}
-        </p>
-        <div className="stage-host-actions">
-          <Button
-            variant="primary"
-            disabledReason={disabledReason}
-            onClick={onOpenRoom}
-          >
-            {status.kind === "idle" ? "Open the room" : "Back to the room"}
-          </Button>
-        </div>
-      </section>
+      {room ? (
+        <>
+          <div className="stage-host-record-notices" aria-live="polite">
+            {notices.map(({ text, action }) => (
+              <p key={text} className="stage-host-note">
+                {text}
+                {action ? (
+                  <Button onClick={action.onClick}>{action.label}</Button>
+                ) : null}
+              </p>
+            ))}
+            {storage}
+          </div>
+          <RoomView {...room} embedded />
+          {more}
+        </>
+      ) : (
+        <EmptyRoom
+          lookup={lookup}
+          busy={busy}
+          hydrateError={hydrateError}
+          transportError={transportError}
+          onCreateRoom={onCreateRoom}
+          onCheckAgain={onCheckAgain}
+        />
+      )}
     </HostBody>
   );
 }

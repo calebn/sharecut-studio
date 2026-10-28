@@ -51,14 +51,14 @@ function shareFeatureGate(what: string): ExecuteResult | null {
 }
 
 /**
- * Keep a failed record command visible. An open Record room panel shows it in its
- * aria-live region, so it is not announced again. Otherwise it is announced, then
- * stored and the panel opens; over the Share dialog it is only announced, so no
- * stale error waits in the store for the next time the panel opens.
+ * Keep a failed record command visible. On the Record stage the room's alert
+ * slot shows it, so it is not announced again. Elsewhere it is announced and
+ * stored for the stage; over the Share dialog it is only announced, so no stale
+ * error waits in the store for the next visit.
  */
 function revealRecordFailure(reason: string): void {
   const daw = useDawStore.getState();
-  if (daw.chrome.recordPanelOpen) {
+  if (daw.stage === "record") {
     useRecordHostStore.getState().setTransportError(reason);
     return;
   }
@@ -67,7 +67,6 @@ function revealRecordFailure(reason: string): void {
     return;
   }
   useRecordHostStore.getState().setTransportError(reason);
-  daw.setRecordPanelOpen(true);
 }
 
 /** One error path for every record command: clear, run, reveal a failure. */
@@ -220,15 +219,6 @@ export function registerHostCommands(): void {
       return blocked;
     }
     useDawStore.getState().setShareDialogOpen(true);
-    return { status: "ok" };
-  });
-
-  registerCommand("record.openPanel", (_args, ctx) => {
-    const blocked = hostProjectGate(ctx);
-    if (blocked) {
-      return blocked;
-    }
-    useDawStore.getState().setRecordPanelOpen(true);
     return { status: "ok" };
   });
 

@@ -19,7 +19,7 @@ export const TAKE_CONTROL = {
 export const STOP_CONFIRM_COPY =
   "Stop this take? Recording ends for everyone in the room.";
 
-/** Fixes the host can apply from the panel; RecordPanel maps each to its action. */
+/** Fixes the host can apply from the panel; the Record stage maps each to its action. */
 export type StartFix = "retryStorage";
 
 export const START_FIX_LABEL = {

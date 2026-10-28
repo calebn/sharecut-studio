@@ -576,19 +576,13 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Land recording on timeline",
     when: "canManageProjects",
   },
-  "record.openPanel": {
-    id: "record.openPanel",
-    category: "ui",
-    label: "Record room…",
-    when: "hostProjectLoaded",
-  },
   "record.marker": {
     id: "record.marker",
     category: "ui",
     label: "Record marker",
     keywords: ["bookmark", "flag"],
-    when: "recordPanelOpen",
-    notes: "M while the record panel is open: posts body Marker",
+    when: "recordStageActive",
+    notes: "M on the Record stage: posts body Marker",
   },
   "mcp.connect": {
     id: "mcp.connect",

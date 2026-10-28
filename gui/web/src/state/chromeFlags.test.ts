@@ -9,7 +9,6 @@ const FLAGS = [
   "bounceDialogOpen",
   "exportDialogOpen",
   "shareDialogOpen",
-  "recordPanelOpen",
   "hostMcpDialogOpen",
   "helpDialogOpen",
   "modelsDialogOpen",
@@ -23,7 +22,6 @@ const SETTERS: Record<Flag, string> = {
   bounceDialogOpen: "setBounceDialogOpen",
   exportDialogOpen: "setExportDialogOpen",
   shareDialogOpen: "setShareDialogOpen",
-  recordPanelOpen: "setRecordPanelOpen",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
   modelsDialogOpen: "setModelsDialogOpen",
@@ -123,20 +121,11 @@ describe("dawStore chrome flags", () => {
     expect(s().bounceRangeTarget).toBeNull();
   });
 
-  it("allows the share dialog and record panel open together", () => {
-    const s = () => useDawStore.getState();
-    s().setShareDialogOpen(true);
-    s().setRecordPanelOpen(true);
-    expect(read("shareDialogOpen")).toBe(true);
-    expect(read("recordPanelOpen")).toBe(true);
-  });
-
   describe("hydrate", () => {
     const OTHER = [
       "commandPaletteOpen",
       "gesturesSheetOpen",
       "shareDialogOpen",
-      "recordPanelOpen",
       "hostMcpDialogOpen",
       "helpDialogOpen",
     ] as const;

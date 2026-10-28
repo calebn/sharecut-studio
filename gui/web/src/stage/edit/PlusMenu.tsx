@@ -53,7 +53,7 @@ export function PlusMenu({
       {host ? (
         <>
           <CommandMenuItem commandId="edit.addChapter" onSelect={close} />
-          <CommandMenuItem commandId="record.openPanel" onSelect={close} />
+          <CommandMenuItem commandId="stage.record" onSelect={close} />
         </>
       ) : null}
     </Menu>

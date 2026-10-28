@@ -51,7 +51,6 @@ const FILE_SURFACES: Record<string, string[]> = {
     "transcript.lowConfidenceNext",
     "transcript.lowConfidencePrev",
   ],
-  "record/RecordTransportChip.tsx": ["transport.recChip"],
   "stage/edit/EditCornerView.tsx": ["editCorner"],
   "stage/edit/EditToolStrip.tsx": ["editToolStrip"],
   "stage/edit/EditToolStripView.tsx": ["editToolStrip"],

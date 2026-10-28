@@ -1,7 +1,14 @@
-// The editor's only door into record/: its store, wire, transport chip and helpers.
+// The editor's only door into record/: its store, wire, host room and helpers.
 
 export { recordingClockMs } from "./clock";
-export { landGate } from "./hostControls";
+export {
+  type LandGate,
+  landGate,
+  STOP_CONFIRM_COPY,
+  type StartBlockerItem,
+} from "./hostControls";
+export { useHostRoomContext } from "./hostRoomContext";
+export { hostRoomPhase } from "./hostRoomPhase";
 export { useRecordHostStore } from "./hostStore";
 export { submitHostRecordTransport } from "./hostTransport";
 export { bindRecordHostSend, sendRecordHostCommand } from "./hostWire";
@@ -11,14 +18,34 @@ export {
   MARKER_BODY,
   postLiveComment,
 } from "./liveCommentQueue";
+export { MIC_RETRY_LABEL } from "./micPermission";
 export { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
+export { noteItems } from "./noteItems";
 export { RecIndicator } from "./RecIndicator";
-export { RecordTransportChip } from "./RecordTransportChip";
 export {
   activeGuestLink,
   copyText,
   createRecordRoomAndCopyGuestLink,
 } from "./recordLinks";
-export { SAVE_STATE_COPY } from "./saveStatus";
-export type { RecordSnapshot } from "./types";
-export { isRecordTransportVisible } from "./types";
+export { roomAlerts } from "./roomAlerts";
+export { roomPeople } from "./roomPeople";
+export { type RoomToneDelivery, type RoomToneStatus } from "./roomTone";
+export { StorageHeadroomWarning } from "./StorageHeadroomWarning";
+export { SAVE_STATE_COPY, type SegmentAckRow } from "./saveStatus";
+export { type TakeInput, takeInputs } from "./takeInputs";
+export {
+  HEARING_COPY,
+  isRecordTransportVisible,
+  LOCAL_KEEPER_COPY,
+  RECORD_ROOM_RECONNECTING_COPY,
+  type RecordSnapshot,
+  ROOM_TONE_CAPTURING_COPY,
+  ROOM_TONE_DEVICE_COPY,
+  ROOM_TONE_HOST_COPY,
+  ROOM_TONE_NOT_READY_COPY,
+  ROOM_TONE_PROMPT_COPY,
+  ROOM_TONE_TOO_LOUD_COPY,
+} from "./types";
+export { UploadStatus } from "./UploadStatus";
+export { type HostRoom, useHostRoom } from "./useHostRoom";
+export { useInputPeakDb } from "./useInputPeakDb";

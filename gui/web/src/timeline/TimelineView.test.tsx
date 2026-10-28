@@ -131,7 +131,6 @@ describe("TimelineView follow auto-fit", () => {
     const raf = stubRaf();
     const project = minimalProject({ timeline_duration_sec: 0 });
     useDawStore.getState().hydrate("/tmp/p.json", project);
-    useDawStore.getState().setRecordPanelOpen(false);
     useRecordHostStore
       .getState()
       .setSnapshot(
@@ -1326,10 +1325,9 @@ describe("TimelineView render isolation", () => {
     return view;
   }
 
-  it("monitors recording with the panel closed without changing playback, project or committed lane renders", () => {
+  it("monitors recording without changing playback, project or committed lane renders", () => {
     const raf = stubRaf();
     vi.spyOn(performance, "now").mockReturnValue(100);
-    useDawStore.getState().setRecordPanelOpen(false);
     const view = mount();
     const before = useDawStore.getState();
     const record = useRecordHostStore.getState();
@@ -1354,7 +1352,7 @@ describe("TimelineView render isolation", () => {
     expect(after.playheadSeekRevision).toBe(before.playheadSeekRevision);
     expect(after.lastAppliedRevision).toBe(before.lastAppliedRevision);
     expect(after.scrollLeft).toBe(before.scrollLeft);
-    expect(after.chrome.recordPanelOpen).toBe(false);
+    expect(after.stage).toBe(before.stage);
     expect(renders.lanes).toEqual([]);
     expect(renders.clips).toEqual([]);
     act(() => record.setSnapshot(null));
