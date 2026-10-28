@@ -138,7 +138,7 @@ describe("exportOptionsOf", () => {
     const at = (run: ExportRun) =>
       exportOptionsOf(flowOf({ run, again })).onExportAgain;
     expect(at({ kind: "failed", reason: "x" })).toBe(again);
-    expect(at({ kind: "cancelled", paths: [] })).toBe(again);
+    expect(at({ kind: "cancelled", paths: [], finishedAt: 0 })).toBe(again);
     expect(at({ kind: "idle" })).toBeUndefined();
     expect(at(running())).toBeUndefined();
   });
@@ -258,7 +258,10 @@ describe("exportStateOf", () => {
 
   it("says a cancel wrote nothing, or came too late and lists the files", () => {
     expect(
-      exportStateOf(flowOf({ run: { kind: "cancelled", paths: [] } }), 0),
+      exportStateOf(
+        flowOf({ run: { kind: "cancelled", paths: [], finishedAt: 0 } }),
+        0,
+      ),
     ).toEqual({
       phase: "cancelled",
       files: [],
@@ -266,13 +269,21 @@ describe("exportStateOf", () => {
     });
     expect(
       exportStateOf(
-        flowOf({ run: { kind: "cancelled", paths: ["/p/export/ep.mp3"] } }),
+        flowOf({
+          run: {
+            kind: "cancelled",
+            paths: ["/p/export/ep.mp3"],
+            finishedAt: 0,
+          },
+        }),
         0,
       ),
     ).toEqual({
       phase: "cancelled",
       files: [{ name: "ep.mp3", format: "mp3" }],
       detail: "Cancel came too late. Exported 1 file to export/",
+      when: expect.stringMatching(/^at /),
+      exported: REQUEST,
     });
   });
 });

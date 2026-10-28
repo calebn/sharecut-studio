@@ -257,7 +257,11 @@ describe("the export flow over the server's routes", () => {
       server.settle({ ...EXPORT_STARTED, status: "cancelled" }),
     );
     await waitFor(() => expect(flow.run.kind).toBe("cancelled"));
-    expect(flow.run).toEqual({ kind: "cancelled", paths: [] });
+    expect(flow.run).toEqual({
+      kind: "cancelled",
+      paths: [],
+      finishedAt: expect.any(Number),
+    });
     expect(useDawStore.getState().pendingJobResults).toEqual({});
     server.reopen();
     act(() => flow.again());
@@ -321,10 +325,27 @@ describe("the export flow over the server's routes", () => {
     expect(flow.run).toEqual({
       kind: "cancelled",
       paths: ["/tmp/ep/export/ep.wav", "/tmp/ep/export/ep.mp3"],
+      finishedAt: expect.any(Number),
     });
     expect(useDawStore.getState().pendingJobResults).toEqual({
       x1: "Cancel came too late. Exported 2 files to export/",
     });
+  });
+
+  it("takes the edit head from a job whose cancel came too late", async () => {
+    mount();
+    await loaded();
+    act(() => flow.start(["mp3"], { ...REQUEST, edits: "clicked" }));
+    await running();
+    await act(async () =>
+      server.settle({
+        ...EXPORT_FINISHED,
+        status: "cancelled",
+        result: { ...EXPORT_FINISHED.result, edit_head_id: "exported" },
+      }),
+    );
+    await waitFor(() => expect(flow.run.kind).toBe("cancelled"));
+    expect(flow.request?.edits).toBe("exported");
   });
 
   it("says why a cancel failed and lets it be tried again", async () => {

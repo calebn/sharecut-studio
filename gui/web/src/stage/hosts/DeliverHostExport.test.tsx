@@ -214,6 +214,42 @@ describe("Export on the Deliver stage", () => {
     expect(screen.queryByRole("button", { name: /Download/ })).toBeNull();
   });
 
+  it("keeps a late-cancelled export Exported until the project is edited", async () => {
+    const setHead = (head: string) => {
+      const project = useDawStore.getState().project;
+      if (!project) throw new Error("fixture");
+      act(() =>
+        useDawStore.setState({
+          project: {
+            ...project,
+            history: {
+              ...project.history,
+              head_id: head as HistoryEntryId,
+              groups: [
+                { kind: "snapshot", id: head, operation: "cut" },
+              ] as typeof project.history.groups,
+            },
+          },
+        }),
+      );
+    };
+    setHead("e1");
+    render(<Host />);
+    await pressExport();
+    await act(async () =>
+      server.settle({
+        ...EXPORT_FINISHED,
+        status: "cancelled",
+        result: { ...EXPORT_FINISHED.result, edit_head_id: "e1" },
+      }),
+    );
+    expect(await screen.findByText("Exported")).toBeInTheDocument();
+    expect(screen.queryByText("Edited since export")).toBeNull();
+    setHead("e2");
+    expect(await screen.findByText("Edited since export")).toBeInTheDocument();
+    expect(screen.queryByText("Exported")).toBeNull();
+  });
+
   it("keeps running when the stage is left and shows the outcome on return", async () => {
     render(<Host />);
     await pressExport();

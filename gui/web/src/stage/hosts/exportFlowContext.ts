@@ -19,7 +19,7 @@ export type ExportRun =
       finishedAt: number;
     }
   | { kind: "failed"; reason: string }
-  | { kind: "cancelled"; paths: string[] };
+  | { kind: "cancelled"; paths: string[]; finishedAt: number };
 
 export type ExportFlow = {
   run: ExportRun;
