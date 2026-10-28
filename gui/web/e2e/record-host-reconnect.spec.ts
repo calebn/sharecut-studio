@@ -124,7 +124,7 @@ test.describe("record host reconnect", () => {
 
           await clickHostTransport(
             host,
-            roomDlg.getByRole("button", { name: "Start", exact: true }),
+            roomDlg.getByRole("button", { name: "Record", exact: true }),
             projectPath,
             "Start",
             "recording",
@@ -280,7 +280,10 @@ test.describe("record host reconnect", () => {
 
           await clickHostTransport(
             host,
-            roomDlg.getByRole("button", { name: "Resume", exact: true }),
+            roomDlg.getByRole("button", {
+              name: "Resume recording",
+              exact: true,
+            }),
             projectPath,
             "Resume",
             "recording",

@@ -8,7 +8,6 @@ import {
 } from "@playwright/test";
 import { findCurrentTake } from "../src/record/types";
 import { isPathInside } from "./pathInside";
-import { participantSaveStatus } from "./saveRoster";
 import { openRecordRoom } from "./stageNav";
 import { wavPeak } from "./wavPeak";
 
@@ -446,74 +445,80 @@ export async function clickHostTransport(
   await ensureHostRecordCommand(host, projectPath, commandType, expectedState);
 }
 
-/** Stop asks once in its own row; answer it and wait for the room to stop. */
+export function hostMoreDialog(scope: Page | Locator): Locator {
+  const page = "page" in scope ? scope.page() : scope;
+  return page.getByRole("dialog", { name: "More", exact: true });
+}
+
+export async function openHostMore(scope: Page | Locator): Promise<Locator> {
+  const dialog = hostMoreDialog(scope);
+  if (await dialog.isVisible()) {
+    return dialog;
+  }
+  const page = "page" in scope ? scope.page() : scope;
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+export async function closeHostMore(scope: Page | Locator): Promise<void> {
+  const dialog = hostMoreDialog(scope);
+  if (await dialog.isVisible()) {
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
+}
+
+/** Stop asks once in the More sheet; answer it and wait for the room to stop. */
 export async function stopHostTake(
   host: Page,
-  roomDlg: Locator,
+  room: Locator,
   projectPath: string,
 ): Promise<void> {
-  await roomDlg.getByRole("button", { name: "Stop", exact: true }).click();
+  const more = await openHostMore(room);
+  await more.getByRole("button", { name: "Stop take", exact: true }).click();
   await clickHostTransport(
     host,
-    roomDlg.getByRole("button", { name: "Stop take", exact: true }),
+    more.getByRole("button", { name: "Stop take", exact: true }),
     projectPath,
     "Stop",
     "stopped",
   );
+  await expect(more).toBeHidden();
 }
 
-/** Open the host's Record room dialog from the app menu and wait for it. */
+/** Open the host's Record stage and return its root. */
 export async function openHostRecordRoom(host: Page): Promise<Locator> {
   return openRecordRoom(host);
 }
 
 /**
- * Wait for every segment of `name`'s full-quality recording to save to the
- * project, then for every take to auto-land, or click Land if it becomes
- * enabled first (tolerating auto-land disabling it between the check and the
- * click).
+ * Wait for the take to land on the timeline from the More sheet: click Land
+ * when it is enabled, or accept that auto-land already finished it (the
+ * disabled Land button then carries "Every take is on the timeline.").
  */
 export async function landParticipant(
-  roomDlg: Locator,
-  name: string,
+  room: Locator,
+  _name: string,
 ): Promise<void> {
-  const uploadList = roomDlg.getByRole("list", {
-    name: "Full-quality recording status",
-  });
-  await expect
-    .poll(
-      async () =>
-        participantSaveStatus(
-          await uploadList.getByRole("listitem").allInnerTexts(),
-          name,
-        ),
-      { timeout: 60_000 },
-    )
-    .toBe("saved");
-  const landed = roomDlg.getByText("Every take is on the timeline.");
-  const landButton = roomDlg.getByRole("button", {
-    name: "Land",
-    exact: true,
-  });
-  await expect
-    .poll(
-      async () => {
-        if (await landed.isVisible()) return "landed";
-        if ((await landButton.count()) > 0 && (await landButton.isEnabled())) {
-          return "land";
-        }
-        return "waiting";
-      },
-      { timeout: 60_000 },
-    )
-    .not.toBe("waiting");
-  if (!(await landed.isVisible())) {
+  const more = await openHostMore(room);
+  const landButton = more.getByRole("button", { name: /^(Retry )?Land$/ });
+  const landedTitle = "Every take is on the timeline.";
+  const state = async () => {
+    if ((await landButton.getAttribute("title")) === landedTitle) {
+      return "landed";
+    }
+    return (await landButton.isEnabled()) ? "land" : "waiting";
+  };
+  await expect.poll(state, { timeout: 60_000 }).not.toBe("waiting");
+  if ((await state()) === "land") {
     await landButton.click({ timeout: 5_000 }).catch(async (error: unknown) => {
-      // Auto-land may disable Land between the check and the click.
-      if (!(await landed.isVisible())) throw error;
+      if ((await state()) !== "landed") throw error;
     });
   }
-  await expect(landed).toBeVisible({ timeout: 60_000 });
+  await expect(landButton).toHaveAttribute("title", landedTitle, {
+    timeout: 60_000,
+  });
 }
 
 /**
