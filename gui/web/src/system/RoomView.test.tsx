@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { NoteItem } from "./notesRailModel";
@@ -262,6 +262,12 @@ describe("RoomView on a phone", () => {
     const { onSendNote } = renderRoom({ viewerWidth: "phone" });
     await userEvent.click(screen.getByRole("button", { name: "Notes" }));
     const dialog = await screen.findByRole("dialog", { name: "Notes" });
+    // The sheet moves focus to Close on the next frame; typing before that loses the field.
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Close" }),
+      ).toHaveFocus(),
+    );
     await userEvent.type(
       within(dialog).getByLabelText("Add a note"),
       "From the sheet",
