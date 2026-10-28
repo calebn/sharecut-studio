@@ -836,7 +836,6 @@
 @container sys-player (max-width: 23.5rem) {
   .sys-player {
     gap: var(--space-1);
-    padding-inline: var(--space-0);
   }
 
   .sys-player-right {
