@@ -271,6 +271,52 @@ for (const width of [1024, 1440]) {
       await expect(page.locator(".split-guide")).toHaveCount(0);
     });
 
+    test("an Alt drag across the lanes never splits at the release point", async ({
+      page,
+    }) => {
+      await openStageProject(page, projectPath);
+      const clipCount = clipCounter(page);
+      const before = await clipCount();
+      const box = (await page.locator(".clip-hit").first().boundingBox())!;
+      const y = box.y + box.height / 2;
+      await page.keyboard.down("Alt");
+      await page.mouse.move(box.x + 20, y);
+      await page.mouse.down();
+      await page.mouse.move(box.x + 120, y, { steps: 6 });
+      await page.mouse.up();
+      await page.keyboard.up("Alt");
+      await expect(page.getByRole("dialog", { name: /^Cut at/ })).toHaveCount(
+        0,
+      );
+      expect(await clipCount()).toBe(before);
+    });
+
+    test("the split guide stays visible under forced colors", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ forcedColors: "active" });
+      await openStageProject(page, projectPath);
+      await page.locator(".clip-hit").first().hover();
+      await page.keyboard.down("Alt");
+      const guide = page.locator(".split-guide").first();
+      await expect(guide).toBeVisible();
+      const paint = await guide.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { background: style.backgroundColor, ring: style.boxShadow };
+      });
+      const canvas = await page.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.style.backgroundColor = "Canvas";
+        document.body.append(probe);
+        const color = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return color;
+      });
+      expect(paint.background).not.toBe(canvas);
+      expect(paint.ring).not.toBe("none");
+      await page.keyboard.up("Alt");
+    });
+
     test("takes a real Alt-click on a clip and adds a clip", async ({
       page,
     }) => {
