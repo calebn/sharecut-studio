@@ -2092,7 +2092,7 @@
       "surfaces": {
         "command": "export.deliverables",
         "gui": [
-          "ExportDialog"
+          "deliverStage"
         ],
         "keyboard": "Mod+Shift+E",
         "mcp": [

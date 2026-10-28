@@ -3,7 +3,11 @@ import type {
   Clip,
   ReadinessFacts,
 } from "../../stages/deliver/deliverLogic";
-import type { ChapterMarker, SocialClipView } from "../../types/project";
+import type {
+  ChapterMarker,
+  HistoryGroup,
+  SocialClipView,
+} from "../../types/project";
 import type { StageId } from "../../types/stage";
 
 export function chaptersOf(markers: readonly ChapterMarker[]): Chapter[] {
@@ -133,4 +137,45 @@ export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
         c.id === b[i]?.id && c.start === b[i]?.start && c.end === b[i]?.end,
     )
   );
+}
+
+/**
+ * The latest history entry at or below the head that is not an automatic mix
+ * rebuild, matching `ProjectHistory.edit_head_id` on the server (both are pinned
+ * by `tests/fixtures/edit_head/cases.json`). `undefined` when the projection
+ * carries no groups for a history that is not empty, so the edit head is not known.
+ */
+export function editHeadOf(history: {
+  head_id: string;
+  groups: readonly Pick<
+    HistoryGroup,
+    "operation" | "id" | "before_id" | "after_id"
+  >[];
+}): string | undefined {
+  if (history.groups.length === 0 && history.head_id !== "root")
+    return undefined;
+  let latest: string | null = null;
+  for (const group of history.groups) {
+    const entries =
+      group.id !== undefined
+        ? [{ id: group.id, edit: group.operation !== "render_preview" }]
+        : [
+            ...(group.before_id === undefined
+              ? []
+              : [{ id: group.before_id, edit: true }]),
+            ...(group.after_id === undefined
+              ? []
+              : [
+                  {
+                    id: group.after_id,
+                    edit: group.operation !== "render_preview",
+                  },
+                ]),
+          ];
+    for (const entry of entries) {
+      if (entry.edit) latest = entry.id;
+      if (entry.id === history.head_id) return latest ?? history.head_id;
+    }
+  }
+  return history.head_id;
 }

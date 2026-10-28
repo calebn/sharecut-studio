@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   chapterOps,
   clipOps,
   clipsOf,
   deliverFacts,
+  editHeadOf,
   fixRoute,
 } from "./deliverModel";
 
@@ -151,5 +153,99 @@ describe("fixRoute", () => {
     ["edit", "peaks", { kind: "stage", stage: "edit" }],
   ] as const)("%s %s", (stage, target, route) => {
     expect(fixRoute(stage, target)).toEqual(route);
+  });
+});
+
+describe("editHeadOf", () => {
+  const cut = { id: "e1", operation: "cut" };
+  const preview = { id: "p1", operation: "render_preview" };
+  it("is the head when it is an edit", () => {
+    expect(editHeadOf({ head_id: "e1", groups: [cut] })).toBe("e1");
+  });
+  it("skips mix rebuild entries", () => {
+    expect(editHeadOf({ head_id: "p1", groups: [cut, preview] })).toBe("e1");
+    expect(
+      editHeadOf({
+        head_id: "p1",
+        groups: [{ before_id: "b", after_id: "a", operation: "cut" }, preview],
+      }),
+    ).toBe("a");
+  });
+  it("counts the state before a mix rebuild as the edit head", () => {
+    expect(
+      editHeadOf({
+        head_id: "p2",
+        groups: [
+          { before_id: "p1", after_id: "p2", operation: "render_preview" },
+        ],
+      }),
+    ).toBe("p1");
+  });
+  it("stops at the head, so an undone edit is not counted", () => {
+    expect(
+      editHeadOf({
+        head_id: "e1",
+        groups: [cut, { id: "e2", operation: "cut" }],
+      }),
+    ).toBe("e1");
+  });
+  it("falls back to the head with no groups", () => {
+    expect(editHeadOf({ head_id: "root", groups: [] })).toBe("root");
+  });
+  it("does not know the edit head of a history shown without groups", () => {
+    expect(editHeadOf({ head_id: "p1", groups: [] })).toBeUndefined();
+  });
+
+  type FixtureEntry = {
+    id: string;
+    label: string;
+    operation: string | null;
+  };
+  // The server pairs a "before X" entry with the "after X" entry that follows.
+  function groupsOf(entries: FixtureEntry[]) {
+    const groups: {
+      id?: string;
+      before_id?: string;
+      after_id?: string;
+      operation: string | null;
+    }[] = [];
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i];
+      const next = entries[i + 1];
+      if (
+        next &&
+        entry.label.startsWith("before ") &&
+        next.label.startsWith("after ")
+      ) {
+        groups.push({
+          before_id: entry.id,
+          after_id: next.id,
+          operation: next.operation,
+        });
+        i += 1;
+      } else {
+        groups.push({ id: entry.id, operation: entry.operation });
+      }
+    }
+    return groups;
+  }
+  const fixture = JSON.parse(
+    readFileSync(
+      `${process.cwd()}/../../tests/fixtures/edit_head/cases.json`,
+      "utf8",
+    ),
+  ) as {
+    cases: {
+      name: string;
+      entries: FixtureEntry[];
+      cursor: number;
+      expected: string;
+    }[];
+  };
+  it.each(fixture.cases)("agrees with the server on $name", (c) => {
+    const head = c.entries[c.cursor]?.id ?? "root";
+    expect(editHeadOf({ head_id: head, groups: groupsOf(c.entries) })).toBe(
+      c.expected,
+    );
   });
 });

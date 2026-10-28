@@ -100,7 +100,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
 | Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsDialog` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
-| Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `ExportDialog` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
+| Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `deliverStage` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | New project… | project | `project.new` | `Mod+N` | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
 | Open project… | session | `project.open` | — (Mod+O is All projects (project.home); open from the palette or Home) | — | — | — | — | — | yes | none · none |
 | All projects | session | `project.home` | `Mod+O` | — | `projectMenu` | — | — | — | yes | none · none |

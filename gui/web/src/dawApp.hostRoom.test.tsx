@@ -1,4 +1,5 @@
 import { act, render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "./api";
 import { DawApp } from "./dawApp";
@@ -18,7 +19,9 @@ vi.mock("./stage/dialogs/BounceDialog", () => ({ BounceDialog: () => null }));
 vi.mock("./stage/dialogs/CheatsheetDialogs", () => ({
   CheatsheetDialogs: () => null,
 }));
-vi.mock("./stage/dialogs/ExportDialog", () => ({ ExportDialog: () => null }));
+vi.mock("./stage/hosts/exportFlow", () => ({
+  ExportFlowProvider: ({ children }: { children: ReactNode }) => children,
+}));
 vi.mock("./stage/dialogs/HostMcpDialog", () => ({
   HostMcpDialog: () => null,
 }));
