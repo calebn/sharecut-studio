@@ -32,6 +32,7 @@ _READ_ONLY = frozenset(
         "preview_suppress_bleed",
         "list_chapters",
         "list_clips",
+        "list_decision_rows",
         "list_decisions",
         "list_effects",
         "low_audibility_words",
