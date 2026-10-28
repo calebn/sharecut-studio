@@ -11,7 +11,7 @@ export const INSPECTOR_DETENTS: readonly InspectorDetent[] = [
 const DOCK_PX = 64;
 const HALF_SHARE = 0.5;
 const FULL_SHARE = 0.92;
-/** Released this far below the dock, or projected there by a flick, the sheet is dismissed. */
+/** Released this far below the dock the sheet is dismissed; a flick dismisses only a sheet that began at the dock. */
 const DISMISS_PX = 24;
 /** How far ahead a flick carries the sheet. */
 const FLICK_MS = 120;
@@ -60,14 +60,19 @@ export function riseVelocity(samples: readonly Sample[], now: number): number {
   return (last.height - prev.height) / (last.t - prev.t);
 }
 
-/** The detent the sheet settles on, or `dismiss` when it was let go below the dock. */
+/**
+ * The detent the sheet settles on, or `dismiss` when it was let go below the dock
+ * or flicked down from the dock. A flick down from higher up lands on the dock.
+ */
 export function settleDetent(
   height: number,
   velocity: number,
   container: number,
+  fromDock = false,
 ): InspectorDetent | "dismiss" {
   const projected = height + velocity * FLICK_MS;
-  if (projected < DOCK_PX - DISMISS_PX) return "dismiss";
+  const bar = DOCK_PX - DISMISS_PX;
+  if (height < bar || (fromDock && projected < bar)) return "dismiss";
   let best: InspectorDetent = "dock";
   let bestGap = Number.POSITIVE_INFINITY;
   for (const detent of INSPECTOR_DETENTS) {
@@ -117,6 +122,11 @@ export function placeCard(
           ? "below"
           : "above";
   const room = Math.max(0, side === "below" ? below : above);
+  const maxBlock = Math.min(tallest, room);
+  const edge =
+    side === "below"
+      ? anchor.y + anchor.height + CARD_GAP_PX
+      : bounds.height - anchor.y + CARD_GAP_PX;
   const width = Math.min(CARD_WIDTH_PX, bounds.width - 2 * CARD_EDGE_PX);
   const centred = anchor.x + anchor.width / 2 - width / 2;
   return {
@@ -126,10 +136,11 @@ export function placeCard(
       CARD_EDGE_PX,
       Math.max(CARD_EDGE_PX, bounds.width - width - CARD_EDGE_PX),
     ),
-    block:
-      side === "below"
-        ? anchor.y + anchor.height + CARD_GAP_PX
-        : bounds.height - anchor.y + CARD_GAP_PX,
-    maxBlock: Math.min(tallest, room),
+    block: clamp(
+      edge,
+      CARD_EDGE_PX,
+      Math.max(CARD_EDGE_PX, bounds.height - CARD_EDGE_PX - maxBlock),
+    ),
+    maxBlock,
   };
 }
