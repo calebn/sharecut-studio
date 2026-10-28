@@ -14,6 +14,8 @@ test("tablet Select range puts In, Out, Select range and Cancel in the sheet at 
 }) => {
   await page.setViewportSize({ width: 1194, height: 834 });
   await openHostProject(page);
+  // The toggle follows the last pointer; opening the project used a mouse.
+  await page.touchscreen.tap(1, 1);
   await page
     .getByRole("button", { name: "Select range", exact: true })
     .first()
