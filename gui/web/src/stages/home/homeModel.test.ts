@@ -10,6 +10,7 @@ import {
   formatEdited,
   importingLine,
   setupOf,
+  toolsMissing,
   untitledEpisodeName,
 } from "./homeModel";
 
@@ -126,7 +127,11 @@ describe("new episode names", () => {
 });
 
 describe("setupOf", () => {
-  const base = { ready: false, loadError: null };
+  const base = {
+    ready: false,
+    loadError: null,
+    tools: { ffmpeg: "installed" as const, hint: null },
+  };
   it("shows nothing while the first status is on its way", () => {
     expect(setupOf({ ...base, models: null })).toBeNull();
   });
@@ -193,16 +198,24 @@ describe("setupOf", () => {
     expect(data?.progress).toBeUndefined();
     expect(data?.detail).toBe("5 MB downloaded");
   });
-  it("offers nothing when only ffmpeg stands in the way", () => {
-    expect(
-      setupOf({
-        ...base,
-        models: [
-          model({ state: { kind: "installed" } }),
-          model({ id: "opt", tier: "offered" }),
-        ],
-      }),
-    ).toBeNull();
+  it("names missing audio tools with nothing to download", () => {
+    const models = [
+      model({ state: { kind: "installed" } }),
+      model({ id: "opt", tier: "offered" }),
+    ];
+    const tools = { ffmpeg: "missing" as const, hint: "Cannot run ffprobe" };
+    expect(setupOf({ ...base, tools, models })).toEqual({
+      state: "tools-missing",
+      sizeLabel: "",
+    });
+    expect(toolsMissing({ tools, models })).toBe(true);
+    expect(toolsMissing({ tools, models: null })).toBe(false);
+    expect(toolsMissing({ tools: base.tools, models })).toBe(false);
+  });
+  it("puts a running download ahead of missing audio tools", () => {
+    const tools = { ffmpeg: "missing" as const, hint: null };
+    const models = [model({ state: { kind: "queued" } })];
+    expect(setupOf({ ...base, tools, models })?.state).toBe("downloading");
   });
   it("reports a failed model", () => {
     const data = setupOf({

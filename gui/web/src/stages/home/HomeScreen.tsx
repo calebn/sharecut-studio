@@ -31,6 +31,7 @@ import {
   episodeNameFromFiles,
   importingLine,
   setupOf,
+  toolsMissing,
   untitledEpisodeName,
 } from "./homeModel";
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
@@ -42,6 +43,8 @@ const SWITCH_BLOCKED =
 const NOT_OPENED = "That episode didn't open. Try again.";
 const NOT_STARTED = "The episode didn't start. Try again.";
 const BUSY = "Finish the current step first.";
+const NO_TOOLS =
+  "Audio tools are missing, so an episode can't start yet. Set them up above, then try again.";
 const OPENING = "Opening…";
 const STARTING = "Starting an episode…";
 const NO_PICKER =
@@ -91,6 +94,7 @@ export function HomeScreen() {
   const [pathMode, setPathMode] = useState(wantsPathField);
   const [path, setPath] = useState("");
   const [pathError, setPathError] = useState<string | undefined>();
+  const [replacing, setReplacing] = useState<string | undefined>();
   const [setupDismissed, setSetupDismissed] = useState(
     () => readLocal(SETUP_DISMISSED_KEY) === "1",
   );
@@ -183,6 +187,7 @@ export function HomeScreen() {
           }
           if ("unavailable" in picked && picked.unavailable) {
             if (replaces) setNotice(NO_PICKER);
+            setReplacing(replaces);
             setPathMode(true);
             return;
           }
@@ -194,9 +199,15 @@ export function HomeScreen() {
     [guarded],
   );
 
+  const noTools = toolsMissing(models);
+
   const startFromFiles = useCallback(
-    (files: File[]) =>
-      guarded(
+    (files: File[]) => {
+      if (files.length > 0 && noTools) {
+        setNotice(NO_TOOLS);
+        return Promise.resolve();
+      }
+      return guarded(
         async () => {
           if (files.length === 0) return;
           const created = await createEpisodeProject(
@@ -220,17 +231,26 @@ export function HomeScreen() {
         },
         () => setNotice(NOT_STARTED),
         importingLine(files.length),
-      ),
-    [guarded],
+      );
+    },
+    [guarded, noTools],
   );
 
   const onImport = useCallback(() => {
+    if (noTools) {
+      setNotice(NO_TOOLS);
+      return;
+    }
     void pickAudioFiles(true).then((files) => {
       if (files.length > 0) void startFromFiles(files);
     });
-  }, [startFromFiles]);
+  }, [startFromFiles, noTools]);
 
   const onRecord = useCallback(() => {
+    if (noTools) {
+      setNotice(NO_TOOLS);
+      return;
+    }
     void guarded(
       async () => {
         const created = await createEpisodeProject(
@@ -243,7 +263,7 @@ export function HomeScreen() {
       () => setNotice(NOT_STARTED),
       STARTING,
     );
-  }, [guarded]);
+  }, [guarded, noTools]);
 
   const drop = useWindowFileDrop(true, (files) => void startFromFiles(files));
 
@@ -255,7 +275,8 @@ export function HomeScreen() {
   const hideSetup =
     setupDismissed &&
     setup?.state !== "downloading" &&
-    setup?.state !== "failed";
+    setup?.state !== "failed" &&
+    setup?.state !== "tools-missing";
   const dismissSetup = useCallback(() => {
     writeLocal(SETUP_DISMISSED_KEY, "1");
     setSetupDismissed(true);
@@ -279,10 +300,9 @@ export function HomeScreen() {
       setPathError(undefined);
     },
     onSubmit: () => {
-      if (path.trim()) void open(path.trim(), undefined, undefined, true);
+      if (path.trim()) void open(path.trim(), undefined, replacing, true);
       else setPathError(NOT_AN_EPISODE);
     },
-    onSwitchWindow: () => undefined,
   };
 
   return (
@@ -308,7 +328,9 @@ export function HomeScreen() {
         onChooseModels={() => setModelsOpen(true)}
         onCancelSetup={() => void models.cancel()}
         onRetrySetup={() =>
-          setup?.state === "check-error" ? void models.refresh() : getReady()
+          setup?.state === "check-error" || setup?.state === "tools-missing"
+            ? void models.refresh()
+            : getReady()
         }
         onDismissSetup={dismissSetup}
         onDismissHint={() => {

@@ -312,6 +312,23 @@ describe("HomeScreen", () => {
       expect(navigatedTo().searchParams.get("project")).toBe(moved);
     });
 
+    it("with no picker, replaces the moved entry once the path field opens the folder", async () => {
+      const user = userEvent.setup();
+      list.mockResolvedValue([recent({ folder_missing: true })]);
+      pick.mockResolvedValue({ unavailable: true });
+      const moved = "/new/rosa/episode.project.json";
+      open.mockResolvedValue({ project_path: moved, name: "rosa" });
+      render(<HomeScreen />);
+      await user.click(await screen.findByRole("button", { name: /Find/ }));
+      const field = await screen.findByRole("textbox", {
+        name: "Folder of the episode",
+      });
+      await user.type(field, `${moved}{Enter}`);
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(forget).toHaveBeenCalledWith(EP);
+      expect(navigatedTo().searchParams.get("project")).toBe(moved);
+    });
+
     it("keeps the entry when the picker is cancelled", async () => {
       const user = userEvent.setup();
       list.mockResolvedValue([recent({ folder_missing: true })]);
@@ -482,6 +499,67 @@ describe("HomeScreen", () => {
       expect(
         await screen.findByText("Getting ShareCut ready"),
       ).toBeInTheDocument();
+    });
+
+    describe("with no audio tools", () => {
+      const noTools = () =>
+        modelsApi({
+          status: modelStatus(
+            registryRows().map((r) => ({ ...r, state: "installed" as const })),
+            {
+              ready: false,
+              tools: {
+                ffmpeg: {
+                  state: "missing",
+                  source: "not found",
+                  hint: "Cannot run 'ffprobe' ... set PODCAST_MCP_FFMPEG",
+                },
+              },
+            },
+          ),
+        });
+
+      it("shows the card with no download, even after Not now, and never the raw hint", async () => {
+        window.localStorage.setItem(SETUP_DISMISSED_KEY, "1");
+        const models = noTools();
+        rtlRender(
+          <ModelsContext.Provider value={models}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        expect(
+          await screen.findByText("Audio tools are missing."),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Get ready" }),
+        ).not.toBeInTheDocument();
+        expect(document.body).not.toHaveTextContent("PODCAST_MCP_FFMPEG");
+        await userEvent.click(
+          screen.getByRole("button", { name: "Check again" }),
+        );
+        expect(models.refresh).toHaveBeenCalled();
+        expect(models.download).not.toHaveBeenCalled();
+      });
+
+      it("Import and Record say why instead of starting an empty episode", async () => {
+        const user = userEvent.setup();
+        pickFiles.mockResolvedValue([new File(["x"], "Rosa.wav")]);
+        rtlRender(
+          <ModelsContext.Provider value={noTools()}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        await user.click(
+          await screen.findByRole("button", { name: /^Import audio/ }),
+        );
+        expect(
+          await screen.findByText(/Audio tools are missing, so/),
+        ).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: /^Record/ }));
+        expect(pickFiles).not.toHaveBeenCalled();
+        expect(create).not.toHaveBeenCalled();
+        expect(assign).not.toHaveBeenCalled();
+      });
     });
 
     it("stays away after it was dismissed, and when models are ready", async () => {

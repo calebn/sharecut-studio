@@ -129,14 +129,23 @@ function sizeLabelOf(models: readonly ModelView[]): string {
   return `about ${Math.max(1, Math.round(total / 1_000_000))} MB`;
 }
 
+/** True once a status has arrived and says the audio tools are not there. */
+export function toolsMissing(
+  api: Pick<ReturnType<typeof useModels>, "models" | "tools">,
+): boolean {
+  return api.models !== null && api.tools.ffmpeg !== "installed";
+}
+
 /**
  * The Setup card's state from the models provider, or null when nothing is
  * needed (or the first status has not arrived: nothing renders while checking).
- * Nothing to download is also null: a missing ffmpeg shows in the Models dialog,
- * not as a download that would do nothing.
+ * Missing audio tools are their own state with nothing to download.
  */
 export function setupOf(
-  api: Pick<ReturnType<typeof useModels>, "models" | "ready" | "loadError">,
+  api: Pick<
+    ReturnType<typeof useModels>,
+    "models" | "tools" | "ready" | "loadError"
+  >,
 ): SetupData | null {
   const { models, ready, loadError } = api;
   if (models === null) {
@@ -167,6 +176,7 @@ export function setupOf(
           : `${formatBytes(bytes)} downloaded`,
     };
   }
+  if (toolsMissing(api)) return { state: "tools-missing", sizeLabel: "" };
   if (ready) return null;
   const toGet = models.filter((m) => m.tier !== "offered" && needsDownload(m));
   if (toGet.length === 0) return null;
