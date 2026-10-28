@@ -34,7 +34,13 @@ export function createChannelPeakTap(
         return samples;
       },
       dispose(): void {
-        for (const disconnect of cleanup.reverse()) disconnect();
+        for (const disconnect of cleanup.reverse()) {
+          try {
+            disconnect();
+          } catch {
+            // a source that was already disconnected wholesale rejects a targeted disconnect
+          }
+        }
       },
     };
   } catch (error) {
