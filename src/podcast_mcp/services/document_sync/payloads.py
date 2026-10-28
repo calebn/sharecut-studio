@@ -638,6 +638,14 @@ class SplitAtTimePayload(BaseModel):
     at_time: float
     track_ids: list[str] | None = None
     reason: str | None = None
+    extra_at_times: list[float] | None = Field(
+        default=None,
+        description=(
+            "More timeline times to split at in the same history step as at_time "
+            "(the other edge of a selected range). A time with no clip to split is "
+            "skipped when another time did split."
+        ),
+    )
 
 
 class DeleteClipPayload(BaseModel):

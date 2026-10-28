@@ -8038,6 +8038,22 @@
           "title": "At Time",
           "type": "number"
         },
+        "extra_at_times": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "More timeline times to split at in the same history step as at_time (the other edge of a selected range). A time with no clip to split is skipped when another time did split.",
+          "title": "Extra At Times"
+        },
         "reason": {
           "anyOf": [
             {

@@ -96,6 +96,9 @@ def test_validate_payload_split_at_time():
     out = validate_payload("SplitAtTime", {"at_time": 12.5, "track_ids": ["host"]})
     assert out["at_time"] == 12.5
     assert out["track_ids"] == ["host"]
+    assert out.get("extra_at_times") is None
+    both = validate_payload("SplitAtTime", {"at_time": 1.0, "extra_at_times": [2.0]})
+    assert both["extra_at_times"] == [2.0]
 
 
 def test_suggest_pending_edit_rejects_nan_and_inverted():
