@@ -7,7 +7,12 @@ import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { describeReach, type Reach, reachFailures } from "../e2e/reachability";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
-import { armRange, openPanel, phone as stagePhone } from "../e2e/stageNav";
+import {
+  armRange,
+  isPhoneShell,
+  openPanel,
+  phone as stagePhone,
+} from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
