@@ -99,7 +99,10 @@ room (the 10th percentile of its 10 ms frames), its speech level (the 90th perce
 the live frames) and its loud level (the 99th). `file_level_profile` measures it once per
 audio file revision and sample rate, and every stage that reads the file at that rate
 reads that one profile (`TrackRmsCache.profile`, `TrackAudioCache.profile`, the ASR
-evidence gate's `TrackEnergy.profile`). Inside an approval batch, `TrackRmsCache.profile` of the timeline caches is the track's profile before the batch's removes (a rebuilt cache is given it as `recording_profile`), not the profile of the track after the batch's earlier cuts. A floor is read at the rate of the frames it is
+evidence gate's `TrackEnergy.profile`). Inside an approval batch, `TrackRmsCache.profile` of the
+timeline caches is the track's profile before the batch's removes (carried sets and windowed
+caches are given it as `recording_profile`), not the profile of the track after the batch's
+earlier cuts. A floor is read at the rate of the frames it is
 compared with, because band-limiting lowers white room tone more than voice (about
 3.5 dB lower at 8 kHz than at 16 kHz): the ASR silence filter, reconcile's 8 kHz caches
 and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and

@@ -218,16 +218,33 @@ def _sources_of(tree: Audio):
     return sources(tree)
 
 
+def plan_size(tree: Audio, readers: dict[Path, ArrayReader]) -> int:
+    piece = plan_audio(
+        tree, crossfade_curve="tri", reader=lambda path: readers[path], sample_rate=SOURCE_RATE
+    )
+    assert piece is not None
+    return piece.size
+
+
 def _readers() -> dict[Path, ArrayReader]:
     return {PATHS[0]: ArrayReader(_noise(1, 30.0)), PATHS[1]: ArrayReader(_noise(2, 30.0))}
 
 
-@pytest.mark.parametrize("seed", range(10))
-def test_a_window_of_an_evaluated_tree_is_the_whole_evaluation_there(seed: int) -> None:
+@pytest.mark.parametrize("residue", range(GRID))
+@pytest.mark.parametrize("seed", range(8))
+def test_a_window_of_an_evaluated_tree_is_the_whole_evaluation_there(
+    seed: int, residue: int
+) -> None:
+    """Random trees, each padded so its length takes every residue mod the grid.
+
+    The evidence tree is the track's clips, fades, joins, pads and mutes; the effects chain is
+    not in it (``timeline_render.unfiltered_track_audio``), so no chain parameters enter here.
+    """
     _ffmpeg_or_skip()
     rng = np.random.default_rng(1000 + seed)
     readers = _readers()
-    tree = _random_tree(rng)
+    body = _random_tree(rng)
+    tree = SequenceAudio(body, (SilenceAudio((SOURCE_RATE // 2 + residue) / SOURCE_RATE),))
     whole = evaluate_resampled(
         tree,
         crossfade_curve="tri",
@@ -239,8 +256,8 @@ def test_a_window_of_an_evaluated_tree_is_the_whole_evaluation_there(seed: int) 
     piece = plan_audio(
         tree, crossfade_curve="tri", reader=lambda path: readers[path], sample_rate=SOURCE_RATE
     )
-    if whole is None or piece is None:
-        pytest.skip("this tree is not evaluable")
+    assert whole is not None and piece is not None, "the seeded tree must be evaluable"
+    assert piece.size % GRID == (plan_size(body, readers) + SOURCE_RATE // 2 + residue) % GRID
     expected = whole[RATE]
 
     for first, last in _windows(expected.size, rng):
@@ -317,18 +334,20 @@ def test_the_windowed_cache_reports_the_profile_it_was_given_and_nothing_whole()
     assert window.with_profile(BASE) is window
     assert window.with_profile(other).profile is other
     assert window.with_profile(other).coverage == window.coverage
+    assert not window.held.flags.writeable
     assert "WindowedTrackRmsCache" in repr(window)
 
 
 def test_a_missing_window_is_not_an_error_a_consumer_may_swallow() -> None:
     """The checks tolerate an unreadable file; a miss must travel past them."""
+    assert issubclass(WindowMiss, RuntimeError)
     assert not issubclass(WindowMiss, (OSError, ValueError, KeyError))
 
 
 # --- the builder ------------------------------------------------------------------------
 
 
-def _full(project, tmp: Path | None = None) -> np.ndarray:
+def _full(project) -> np.ndarray:
     entry = track_evidence._entry(project, "caleb", load_defaults(), locked=False)
     assert not isinstance(entry, Declined)
     return entry.samples[RATE]
@@ -399,7 +418,7 @@ def test_verifying_evidence_compares_a_window_with_the_whole_track(
             track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 5.0, profile=BASE)
             is not None
         )
-        real = WindowedTrackRmsCache.window  # a corrupted window must be caught
+        # a corrupted window must be caught
         broken = WindowedTrackRmsCache(
             np.zeros(10, dtype=np.float32),
             first_index=0,
@@ -410,13 +429,12 @@ def test_verifying_evidence_compares_a_window_with_the_whole_track(
         entry = track_evidence._entry(project, "caleb", load_defaults(), locked=False)
         with pytest.raises(AssertionError):
             track_evidence._verify_window(broken, entry)
-        assert real is WindowedTrackRmsCache.window
 
 
 # --- declines: the full path serves them ------------------------------------------------
 
 
-def _window_of(project, tmp_path: Path | None = None, curve: str | None = None):
+def _window_of(project, curve: str | None = None):
     defaults = load_defaults()
     if curve is not None:
         defaults = copy.deepcopy(defaults)

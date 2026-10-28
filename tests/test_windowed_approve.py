@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import cut_application, cut_proof, cut_safety, verdict_cache
+from podcast_mcp.edits import cut_proof, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_application import apply_prefix_edits, approve_edits, precompute_verdicts
 from podcast_mcp.engines import track_evidence
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
@@ -20,6 +20,7 @@ from podcast_mcp.engines.play_audit import stem_path, write_stem_hash
 from podcast_mcp.engines.windowed_rms import WindowedTrackRmsCache
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -101,6 +102,8 @@ def _project(tmp_path: Path, *, chained: tuple[str, ...] = ("host", "guest")) ->
         ),
     ]
     project.mix.processing_chains = [
+        # The evidence tree leaves the effects chain out (``unfiltered_track_audio``), so a chain
+        # only decides which tracks take the windowed path; its parameters change no sample here.
         ProcessingChain(track_id=tid, effects=[ProcessingEffect(effect="highpass", params={})])
         for tid in chained
     ]
@@ -206,8 +209,7 @@ def test_cuts_within_reach_of_each_other_evaluate_each_track_once_and_window_the
 def test_without_windows_the_same_batch_evaluates_a_track_again_for_every_close_cut(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(track_evidence, "rms_window", lambda *args, **kwargs: None)
-    counts = _Counts(monkeypatch)
+    counts = _Counts(monkeypatch)  # first, so its spy wraps the real window
     monkeypatch.setattr(track_evidence, "rms_window", lambda *args, **kwargs: None)
 
     _approve(_project(tmp_path))
@@ -441,5 +443,141 @@ def test_a_stored_verdict_made_under_other_semantics_is_not_reused(
     assert len(verdict_cache._STORE) == 2 * older
 
 
-def test_the_modules_wire_the_cold_auto_path_through_a_batch_base() -> None:
-    assert cut_application.RebuiltTimelineRms is cut_proof.RebuiltTimelineRms
+def test_a_plain_track_the_rebuild_drops_is_absent_from_a_carried_set_not_its_old_stem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plain track with no samples now, or whose raw read failed, has no cache in a rebuild."""
+    project = _project(tmp_path, chained=("host",))
+    defaults = load_defaults()
+    timeline = cut_proof.CarriedTimelineRms(project)
+    first = timeline.caches_for(project, (40.0, 40.35), reach=6.0, defaults=defaults)
+    assert set(first.caches) == {"host", "guest"}
+    real = cut_proof.build_track_rms_caches
+
+    def without_guest(*args, **kwargs):  # type: ignore[no-untyped-def]
+        built = real(*args, **kwargs)
+        return TrackRmsCacheSet(
+            caches={tid: c for tid, c in built.caches.items() if tid != "guest"}
+        )
+
+    monkeypatch.setattr(cut_proof, "build_track_rms_caches", without_guest)
+    timeline.applied(10.0)
+    timeline._stems_fresh = (True, True)  # a stem went stale: the plain tracks are built again
+
+    carried = timeline._carried_with_current_stems(project, defaults)
+
+    assert set(carried.caches) == {"host"}
+    assert carried.caches["host"] is first.caches["host"]  # the chained track keeps its evidence
+
+
+# --- the verdict key carries the batch-base profile -----------------------------------------
+
+HUMAN = CutIntent.HUMAN_BOUNDARIES  # the mute below sits on speech, which only a person may mute
+
+
+def _with_a_mute_far_from_the_cuts(project: EpisodeProject) -> str:
+    project.edit_decisions.append(
+        EditDecision(
+            id="mute",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=81.0,
+            end=88.0,
+            reason="test",
+            applied=False,
+        )
+    )
+    return "mute"
+
+
+def _approve_ids(project: EpisodeProject, ids: list[str], hits: list[str]) -> dict:
+    held: list = []
+    asked: list = []
+    count = approve_edits(
+        project,
+        ids,
+        defaults=load_defaults(),
+        held_out=held,
+        asked_out=asked,
+        application_intent=HUMAN,
+    )
+    return {
+        "count": count,
+        "held": [dataclasses.asdict(h) for h in held],
+        "asked": [dataclasses.asdict(a) for a in asked],
+        "edits": [(e.id, e.applied) for e in project.edit_decisions],
+        "hits": len(hits),
+    }
+
+
+def _count_hits(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    hits: list[str] = []
+    real = verdict_cache.lookup
+    monkeypatch.setattr(
+        verdict_cache,
+        "lookup",
+        lambda key: ((r := real(key)) is not None and hits.append(key)) or r,
+    )
+    return hits
+
+
+def _warm_then_approve_with_a_mute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, warm: bool
+) -> dict:
+    """Warm the pending cuts on the project as it is, then approve them with a mute that moves the base."""
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1" if warm else "0")
+    verdict_cache._STORE.clear()
+    project = _project(tmp_path)
+    cut_ids = [e.id for e in project.edit_decisions]
+    mute = _with_a_mute_far_from_the_cuts(project)
+    if warm:
+        precompute_verdicts(project, cut_ids, defaults=load_defaults(), application_intent=HUMAN)
+    return _approve_ids(project, [mute, *cut_ids], _count_hits(monkeypatch))
+
+
+def test_a_verdict_warmed_before_a_mute_moved_the_base_profile_is_not_reused_after_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before = _profile_of_whole_track(_project(tmp_path / "probe"))
+    muted = _project(tmp_path / "probe-muted")
+    _approve_ids(muted, [_with_a_mute_far_from_the_cuts(muted)], [])
+    assert _profile_of_whole_track(muted)["host"] != before["host"]  # the mute moves the base
+
+    warm = _warm_then_approve_with_a_mute(tmp_path / "warm", monkeypatch, warm=True)
+    cold = _warm_then_approve_with_a_mute(tmp_path / "cold", monkeypatch, warm=False)
+
+    assert warm == cold  # the same verdicts, and no hit: the warm entries are on the other base
+    assert warm["hits"] == 0
+    assert warm["count"] == len(CUTS) + 1
+
+
+def test_a_verdict_warmed_on_the_same_base_profile_is_reused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stamp is exact, not coarse: an unchanged base keeps every hit."""
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    verdict_cache._STORE.clear()
+    project = _project(tmp_path)
+    ids = [e.id for e in project.edit_decisions]
+    precompute_verdicts(project, ids, defaults=load_defaults())
+    hits = _count_hits(monkeypatch)
+
+    outcome = approve_edits(project, ids, defaults=load_defaults(), held_out=[], asked_out=[])
+
+    assert outcome == len(CUTS)
+    assert len(hits) == len(CUTS)
+
+
+def test_the_verdict_key_differs_with_the_base_profile(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (40.0, 40.35)}
+    base = cut_proof.BatchBase(project).stamp(defaults=load_defaults())
+
+    assert cut_proof.BatchBase(project).stamp(defaults=load_defaults()) == base
+    key = verdict_cache.verdict_key(project, edit, base_profile=base, **kwargs)
+    assert key is not None
+    assert verdict_cache.verdict_key(project, edit, base_profile=base, **kwargs) == key
+    assert verdict_cache.verdict_key(project, edit, base_profile="other", **kwargs) != key
+    parts = verdict_cache.key_parts(project, edit, base_profile=base, **kwargs)
+    assert parts is not None and "base_profile" in parts

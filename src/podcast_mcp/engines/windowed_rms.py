@@ -40,7 +40,11 @@ class WindowMiss(RuntimeError):
     """A read needed samples the windowed cache does not hold.
 
     Not an ``OSError`` or ``ValueError``: the checks that tolerate an unreadable file must not
-    take a miss for one.
+    take a miss for one. It is a ``RuntimeError``, and no handler between a cache read and
+    ``cut_application._observe`` catches that (the approve path was read for it in review of
+    #2357; ``cut_safety`` catches ``Exception`` only around speaker identification, which reads
+    no timeline cache). A new ``except RuntimeError`` or ``except Exception`` around a cache read
+    there would turn a miss into an answer.
     """
 
 
@@ -63,7 +67,8 @@ class WindowedTrackRmsCache(TrackRmsCache):
         profile: LevelProfile,
     ) -> None:
         super().__init__(samples=_NO_SAMPLES, sample_rate=sample_rate, recording_profile=profile)
-        self.held = window
+        self.held = window.view()
+        self.held.flags.writeable = False
         self.first_index = first_index
         self.total_size = total_size
 

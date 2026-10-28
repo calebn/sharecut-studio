@@ -14,6 +14,7 @@ from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.engines.windowed_rms import TimelineWindow
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import frozen
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -65,17 +66,39 @@ class BatchBase:
         self._profiles: dict[str, LevelProfile] | None = None
 
     def profiles(
-        self, project: EpisodeProject, built: TrackRmsCacheSet, *, defaults: EffectiveConfig
+        self,
+        project: EpisodeProject,
+        built: TrackRmsCacheSet | None,
+        *,
+        defaults: EffectiveConfig,
     ) -> dict[str, LevelProfile]:
         """The base profiles; ``built`` is a set made from ``project``, which they come from if it is the start."""
         if self._profiles is None:
             source = (
                 built
-                if project is self._start
+                if built is not None and project is self._start
                 else shared_timeline_rms_caches(self._start, defaults=defaults)
             )
             self._profiles = {tid: cache.profile for tid, cache in source.caches.items()}
         return self._profiles
+
+    def stamp(self, *, defaults: EffectiveConfig) -> str:
+        """A digest of the base profiles, for the verdict key (``verdict_cache``).
+
+        Every value a check reads of a profile is derived from its room, speech and loud
+        levels, so those are hashed at full precision (``repr``): two bases that differ in any
+        bit differ in the stamp, and two that are equal give the same one. Asking for it builds
+        the start's timeline caches if no check has yet, once per batch.
+        """
+        profiles = self.profiles(self._start, None, defaults=defaults)
+        return short_digest(
+            repr(
+                [
+                    (tid, repr(p.room_db), repr(p.speech_db), repr(p.loud_db))
+                    for tid, p in sorted(profiles.items())
+                ]
+            )
+        )
 
     def adopt(
         self, project: EpisodeProject, built: TrackRmsCacheSet, *, defaults: EffectiveConfig
@@ -117,9 +140,6 @@ class RebuiltTimelineRms:
             project, shared_timeline_rms_caches(project, defaults=defaults), defaults=defaults
         )
 
-    def applied(self, timeline_start: float) -> None:
-        """Nothing is carried, so nothing needs to know where a cut began."""
-
 
 class CarriedTimelineRms:
     """The dialogue tracks' timeline audio, built once for a batch applied from the end backward.
@@ -129,7 +149,7 @@ class CarriedTimelineRms:
     carried stems while every applied cut lies beyond that reach. A check that does not reads
     the stretch around its cut from the project as the earlier cuts left it: a chained track
     is evaluated over that stretch only (``WindowedTrackRmsCache``, bit-identical to the whole
-    track there) and the other tracks are built whole, as they are cheap. A read the stretch
+    track there) and the other tracks are built whole. A read the stretch
     does not hold raises ``WindowMiss``, and ``whole`` builds every track. A rebuilt set is
     built from the current project but reports each track's profile from the first build (the
     batch base, ``BatchBase``), so carried and rebuilt checks judge loudness by the same
@@ -215,9 +235,14 @@ class CarriedTimelineRms:
             build_track_rms_caches(project, track_ids=plain, unprocessed=True, defaults=defaults),
             defaults=defaults,
         ).caches
-        return TrackRmsCacheSet(
-            caches={tid: current.get(tid, cache) for tid, cache in self._caches.caches.items()}
-        )
+        # A plain track missing from ``current`` (it has no samples now, or its raw read failed)
+        # is absent, as a full rebuild leaves it; its carried stem is not what plays now.
+        caches = {
+            tid: current[tid] if tid in plain else cache
+            for tid, cache in self._caches.caches.items()
+            if tid in current or tid not in plain
+        }
+        return TrackRmsCacheSet(caches=caches)
 
 
 TimelineRms = CarriedTimelineRms | RebuiltTimelineRms
