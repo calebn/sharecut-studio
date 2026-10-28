@@ -45,7 +45,6 @@ export type ActionBarProps = {
   /** After the verbs where a guest has no primary. */
   readonly trailing?: ReactNode;
   readonly ariaLabel?: string;
-  /** A value that opens the More menu when it changes (the `.` key). */
   readonly moreRequest?: number;
   readonly onVerb: (id: BarId, arg?: string) => void;
 };

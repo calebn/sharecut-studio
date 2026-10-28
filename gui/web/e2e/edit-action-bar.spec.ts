@@ -15,12 +15,6 @@ import {
 } from "./stageNav";
 import { projectJson, touch, watchCommands } from "./touchTimeline";
 
-/*
- * The Edit stage's Action bar (#2294, W1b), on the real backend: where it
- * floats, what its verbs do, and the keys that run the same verbs. Cutting
- * specs run on a copy of the fixture so the shared one stays whole.
- */
-
 const selectionBar = (page: Page) =>
   page.getByRole("group", { name: "Selection actions" });
 const dockBar = (page: Page) =>
@@ -73,7 +67,6 @@ async function selectFirstClip(page: Page): Promise<Locator> {
   return clip;
 }
 
-/** In and Out typed into the armed range's fields, over the reference track. */
 async function selectRange(page: Page, from: string, to: string) {
   await armRange(page);
   const fields = page.getByRole("region", { name: "Range fields" });
@@ -376,7 +369,6 @@ test.describe("Create menu", () => {
   }) => {
     await openEdit(page);
     const lane = page.locator('.lane-row[data-track-id="reference"]');
-    // Cut the reference clip in two and delete the right half: a gap to press.
     await selectFirstClip(page);
     await seekTo(page, 30);
     await page.keyboard.press("s");

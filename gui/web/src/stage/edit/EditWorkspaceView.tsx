@@ -22,7 +22,6 @@ export interface EditWorkspaceViewProps {
   yields?: SideYield;
   /** In and Out, the occurrence choice and the word handles, when the selection sheet does not carry them. */
   rangeFields?: ReactNode;
-  /** The Action bar: floating beside the selection, or the phone dock above the Player. */
   actionBar?: ReactNode;
   /** The headers and lanes, or the empty-session drop target. */
   timeline: ReactNode;

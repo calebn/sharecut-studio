@@ -4,7 +4,6 @@ import { laneColor } from "../../timeline/laneColors";
 import type { ProjectView } from "../../types/project";
 import { dialogueTrackIds } from "../../utils/bladeTracks";
 
-/** The tracks the selection covers, in project order, each with its lane colour. */
 export function scopeOf(
   facts: EditFacts,
   project: ProjectView,

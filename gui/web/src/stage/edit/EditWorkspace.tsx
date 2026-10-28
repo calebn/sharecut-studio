@@ -192,10 +192,6 @@ function EditWorkspaceAdapter({
     showInspector,
     scriptFocus,
   );
-  // A range's In and Out fields are the Inspector's body while it is open; a
-  // words selection keeps its handles above the lanes. On a phone the agent
-  // range's fields stay in the sheet, so the strip above the dock carries only
-  // the handles and the occurrence choice.
   const fieldsInInspector = showInspector && selection?.kind === "range";
   const rangeFields =
     selectionSheet.rangeActionsInSheet || fieldsInInspector ? null : (

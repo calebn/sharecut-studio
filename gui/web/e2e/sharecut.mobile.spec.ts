@@ -176,7 +176,6 @@ test.describe("ShareCut Studio mobile smoke", () => {
 
     await page.locator(".lane-row .clip-block").first().click();
     await inspectSelection(page);
-    // Inspect opens the compact drawer; at half height it lists the commands.
     const drawer = page.locator(".bottom-sheet--compact");
     await expect(drawer).toBeVisible();
     await drawer.getByRole("button", { name: "Expand to half height" }).click();

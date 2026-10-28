@@ -5,7 +5,6 @@ import type { Selection } from "../../types/project";
 
 const esc = (value: string) => CSS.escape(value);
 
-/** The lane of `trackId`, or the first lane when the track has none on screen. */
 function laneOf(root: ParentNode, trackId: string | undefined) {
   return (
     (trackId
@@ -16,13 +15,7 @@ function laneOf(root: ParentNode, trackId: string | undefined) {
   );
 }
 
-/**
- * The element the Action bar floats beside for `selection`: the first selected
- * word chip, the range's overlay, the clip block, the pending edit's mark, and
- * for a kind with no mark of its own (a chapter, a track) its lane or the
- * timeline. Null when none is on screen. Pure over the DOM it is given.
- */
-export function findSelectionAnchor(
+function findSelectionAnchor(
   root: ParentNode,
   selection: Selection,
 ): HTMLElement | null {
@@ -75,21 +68,12 @@ export function findSelectionAnchor(
   }
 }
 
-export type SelectionAnchor = {
+type SelectionAnchor = {
   readonly ref: RefObject<HTMLElement | null>;
-  /** A value that changes when the anchor moves without a scroll or resize. */
   readonly moves: string;
-  /** False while the anchor is off screen (scrolled or zoomed away) or absent. */
   readonly visible: boolean;
 };
 
-/**
- * Finds and follows the selection's anchor. The node is looked up again when
- * the selection or the project changes and whenever the workspace's elements
- * come or go (a zoom or a scroll that remounts marks, the Script showing or
- * hiding); the bar hides while the node is clipped out of view and returns
- * with it. Scroll itself is not read: the placement hook listens for it.
- */
 export function useSelectionAnchor(
   root: HTMLElement | null,
   selection: Selection,
@@ -108,7 +92,7 @@ export function useSelectionAnchor(
       const found =
         enabled && root ? findSelectionAnchor(root, selection) : null;
       ref.current = found;
-      setNode((prev) => (prev === found ? prev : found));
+      setNode(found);
     };
     resolve();
     if (!enabled || !root || typeof MutationObserver === "undefined") return;

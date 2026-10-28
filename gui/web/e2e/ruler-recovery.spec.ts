@@ -582,7 +582,6 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
         });
         await page.mouse.move(end.x, end.y, { steps: 6 });
         expect(await ownership()).toHaveLength(1);
-        // Every dialogue track is in the range: the scope chip says "All".
         await expect(
           page.getByRole("group", { name: "Selection actions" }),
         ).toContainText("All");

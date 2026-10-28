@@ -35,7 +35,6 @@ export function useDawKeymapListener(): void {
       e.preventDefault();
     };
     const onKey = (e: KeyboardEvent) => {
-      // An IME composition owns its keys until it commits.
       if (e.isComposing || e.keyCode === 229) {
         return;
       }
@@ -78,7 +77,6 @@ export function useDawKeymapListener(): void {
           if (result.status === "disabled" && cmd.id.startsWith("tighten.")) {
             continue;
           }
-          // A refused edit says why, in plain words, not by doing nothing.
           if (
             result.status === "disabled" &&
             (def.mutates || def.announcesRefusal)

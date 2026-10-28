@@ -4,9 +4,6 @@
  * command at the held time (`CREATE_ENTRIES` in `inputContract.ts`); one the
  * session cannot run stays in the menu, disabled, with the reason beside it.
  *
- * Split here heads the menu: it is how touch splits, and the entries that act
- * on the episode at that time sit above the one that acts on the held lane.
- *
  * `hitRouting` owns the gesture: the finger that opened the menu can slide
  * onto an item and lift to pick it (a lift that never moved past the slop
  * picks nothing, whatever the menu lies under), or lift anywhere and tap an
