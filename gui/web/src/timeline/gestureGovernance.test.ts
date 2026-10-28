@@ -246,6 +246,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "a step's seconds setting is a native range input beside its value; it is a setting, not a timeline target",
   "system/wavePointer.ts":
     "the pointer helpers shared by the suggestion and clip trim handles: a pointer position as a ratio of a strip, and a safe pointer capture; no gesture of its own",
+  "system/useScriptGestures.ts":
+    "the script text's own selection gestures, by delegation on the pane's body with pointer capture: a mouse or pen drag from a word selects to the word under the pointer, a touch long press then drag does the same while a swipe before the hold scrolls, the body scrolls itself near its edges, and Esc, a lost pointer, a blur or a second finger end it uncommitted (D-script-gestures, which supersedes D-transcript-longpress-range); every gesture has a key path, Shift with the arrows, Enter and F2, so it is a text selection, not a timeline target",
   "system/SelectionHandles.tsx":
     "the script text's selection grips: a drag on either end moves an edge of the selected words by word with pointer capture, and a tap that never moves passes through to the word under it; the grips have no keys, because Shift and Alt+Shift with the arrows do the same from the words; it is a text selection, not a timeline target",
   "system/SuggestionWaveform.tsx":

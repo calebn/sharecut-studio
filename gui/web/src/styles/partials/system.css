@@ -4355,6 +4355,27 @@ button.sys-scope:hover {
   overscroll-behavior: contain;
   font-size: var(--font-size-review);
   line-height: 1.625;
+
+  /*
+   * The selection is the pane's own, never the browser's: native text
+   * selection, the iOS callout and the double-tap zoom would fight a drag, a
+   * long press and a double tap. A swipe still scrolls (manipulation keeps
+   * pan and pinch). Copy is the pane's copy event.
+   */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.sys-script-body[data-selecting] {
+  cursor: text;
+}
+
+.sys-script-editor,
+.sys-script-editor * {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .sys-script[data-layout="phone"] .sys-script-body {

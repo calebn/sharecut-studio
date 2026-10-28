@@ -295,7 +295,8 @@ describe("ScriptPane keyboard", () => {
     await user.click(word("Welcome"));
     await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
     await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
-    expect(onSelect.mock.calls).toEqual([[words(3, 4)]]);
+    // The click selected the word at once; the plain arrows then moved only the caret.
+    expect(onSelect.mock.calls).toEqual([[words(0, 0)], [words(3, 4)]]);
     expect(word("back")).not.toHaveFocus();
   });
 

@@ -53,6 +53,9 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "stages/deliver/DeliverStage.tsx",
   // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.
   "system/ScriptPane.select.test.tsx",
+  // Esc cancels a script selection drag in the capture phase, so it never also clears the selection or reaches the keymap.
+  "system/useScriptGestures.ts",
+  "system/ScriptPane.gestures.test.tsx",
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
@@ -104,7 +107,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/Palette.tsx",
   // The scrub field is a spinbutton: arrows, Home, End, Enter and F2 edit its own value and stop there.
   "system/ScrubField.tsx",
-  // The script pane's words, cut pills and suggested runs are one tab stop: Left and Right, Home and End move among them, Up and Down move by line, Shift extends the selection, Alt+Shift+Left and Right move its start, Enter selects a word, and Esc clears the selection. The margin controls (speaker name, time) take Enter and Space like buttons. Space is left alone for Play/Pause.
+  // The script pane's words, cut pills and suggested runs are one tab stop: Left and Right, Home and End move among them, Up and Down move by line, Shift extends the selection, Alt+Shift+Left and Right move its start, Enter selects a word or, on a selected word, starts Fix text, F2 starts Fix text, and Esc clears the selection. The margin controls (speaker name, time) take Enter and Space like buttons. Space is left alone for Play/Pause.
   "system/ScriptPane.tsx",
   // The seam's button hands its keys and a roving tab index to the host that moves focus among marks; the script pane does so for its cut pills, which join the pane's one tab stop.
   "system/Seam.tsx",

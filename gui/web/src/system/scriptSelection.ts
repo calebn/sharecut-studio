@@ -1,10 +1,12 @@
 import {
   pieceEnd,
   pieceStart,
+  piecesOf,
   type ScriptPiece,
   type ScriptSelection,
   type ScriptSpan,
   type ScriptStop,
+  type ScriptTurn,
   type WordsSelection,
 } from "./scriptPieces";
 
@@ -346,4 +348,95 @@ export function selectionSummary(
   const shown = words.length > 12 ? [...words.slice(0, 12), "..."] : words;
   const count = span.end - span.start + 1;
   return `${count} ${count === 1 ? "word" : "words"} selected: ${shown.join(" ")}`;
+}
+
+/**
+ * One track's share of a words selection. A span that crosses a speaker
+ * change covers each speaker's words on that speaker's track, so the host
+ * writes one store selection per entry. `startIndex` and `endIndex` are the
+ * pane's window indices of that track's first and last word inside the span;
+ * `first` and `last` are those words' `key`s, which the host maps back to
+ * `trackId:sourceId:wordIndex`. A track's words inside a span are contiguous
+ * on that track, even when another speaker's turn sits between two of its
+ * turns. Cut, suggested and muted words are counted: the pane's drag takes a
+ * pill or a run whole, and a cut word is still a word of the track.
+ */
+export type ScriptTrackSpan = {
+  speakerId: string;
+  startIndex: number;
+  endIndex: number;
+  first: string | undefined;
+  last: string | undefined;
+  /** Turns the track's words in the span sit in, in reading order. */
+  turnIds: readonly string[];
+};
+
+export function trackSpans(
+  turns: readonly ScriptTurn[],
+  span: ScriptSpan | null,
+): ScriptTrackSpan[] {
+  if (!span) return [];
+  const bySpeaker = new Map<string, ScriptTrackSpan & { turnIds: string[] }>();
+  for (const turn of turns) {
+    for (const word of turn.words) {
+      if (word.index < span.start || word.index > span.end) continue;
+      const found = bySpeaker.get(turn.speakerId);
+      if (!found) {
+        bySpeaker.set(turn.speakerId, {
+          speakerId: turn.speakerId,
+          startIndex: word.index,
+          endIndex: word.index,
+          first: word.key,
+          last: word.key,
+          turnIds: [turn.id],
+        });
+        continue;
+      }
+      found.endIndex = word.index;
+      found.last = word.key;
+      if (found.turnIds[found.turnIds.length - 1] !== turn.id) {
+        found.turnIds.push(turn.id);
+      }
+    }
+  }
+  return [...bySpeaker.values()];
+}
+
+/**
+ * What a copy of the selection puts on the clipboard: the words as the pane
+ * shows them. A collapsed cut is a pill and gives nothing; with the cut text
+ * showing, its struck words are text and are copied. A turn is a line.
+ * Empty for a cut, a suggestion or nothing selected.
+ */
+export function selectionText(
+  turns: readonly ScriptTurn[],
+  selection: ScriptSelection | null | undefined,
+  showCutText: boolean,
+): string {
+  const span = spanOf(selection);
+  if (!span) return "";
+  return turns
+    .map((turn) =>
+      piecesOf(turn.words, showCutText)
+        .flatMap((piece) => {
+          if (pieceEnd(piece) < span.start || pieceStart(piece) > span.end) {
+            return [];
+          }
+          switch (piece.kind) {
+            case "word":
+              return [piece.word.text];
+            case "muted":
+              return piece.words
+                .filter((w) => w.index >= span.start && w.index <= span.end)
+                .map((w) => w.text);
+            case "suggestion":
+              return [piece.text];
+            default:
+              return [];
+          }
+        })
+        .join(" "),
+    )
+    .filter((line) => line !== "")
+    .join("\n");
 }
