@@ -622,3 +622,212 @@ def test_transcribe_job_silence_filter_can_be_disabled(minimal_project, tmp_path
     with patcher:
         tr = engine.transcribe_job(proj, job, language="en")
     assert not tr.words[0].suspect_hallucination
+
+
+def _loop_segments(loop_words: int = 221):
+    from types import SimpleNamespace
+
+    def seg(texts, start, step, ratio):
+        words = [
+            SimpleNamespace(
+                word=f" {t}", start=start + i * step, end=start + i * step + 0.0005, probability=0.9
+            )
+            for i, t in enumerate(texts)
+        ]
+        return SimpleNamespace(
+            text=" ".join(texts),
+            start=words[0].start,
+            end=words[-1].end,
+            words=words,
+            compression_ratio=ratio,
+            temperature=0.4,
+        )
+
+    real = seg([f"word{i}" for i in range(20)], 294.0, 0.3, 1.4)
+    loop_texts = (["And", "I", "know", "that"] * loop_words)[:loop_words]
+    loop = seg(loop_texts, 299.84, 0.12 / loop_words, 14.0)
+    return real, loop
+
+
+def test_transcribe_file_drops_a_looped_window(sample_wav):
+    from unittest.mock import MagicMock, patch
+
+    real, loop = _loop_segments()
+    engine = TranscriptionEngine(defaults=load_defaults())
+    model = MagicMock()
+    model.transcribe.return_value = ([real, loop], None)
+    with patch.object(engine, "_get_model", return_value=model):
+        transcript = engine.transcribe_file(sample_wav, language="en")
+    assert [w.text for w in transcript.words] == [f"word{i}" for i in range(20)]
+    drop = engine._loop_drop
+    assert drop is not None
+    assert drop.dropped == 221
+    assert drop.start == pytest.approx(299.84)
+    assert drop.end == pytest.approx(299.96, abs=0.001)
+    assert set(model.transcribe.call_args.kwargs) == {
+        "language",
+        "word_timestamps",
+        *engine.options.transcribe_kwargs(),
+    }
+
+
+def test_transcribe_file_drops_the_loop_before_the_duration_flags(sample_wav):
+    from unittest.mock import MagicMock, patch
+
+    real, loop = _loop_segments()
+    engine = TranscriptionEngine(defaults=load_defaults())
+    model = MagicMock()
+    model.transcribe.return_value = ([real, loop], None)
+    seen: list[int] = []
+
+    def spy(words, **kwargs):
+        seen.append(len(words))
+
+    with (
+        patch.object(engine, "_get_model", return_value=model),
+        patch("podcast_mcp.engines.transcribe.flag_anomalous_asr_durations", spy),
+    ):
+        engine.transcribe_file(sample_wav, language="en")
+    assert seen == [20]
+
+
+def test_transcribe_file_without_a_loop_records_nothing(sample_wav):
+    from unittest.mock import MagicMock, patch
+
+    real, _ = _loop_segments()
+    engine = TranscriptionEngine(defaults=load_defaults())
+    model = MagicMock()
+    model.transcribe.return_value = ([real], None)
+    with patch.object(engine, "_get_model", return_value=model):
+        transcript = engine.transcribe_file(sample_wav, language="en")
+    assert len(transcript.words) == 20
+    assert engine._loop_drop is None
+
+
+def test_decode_key_does_not_change_with_the_loop_guard():
+    from podcast_mcp.engines.asr_options import AsrOptions
+
+    assert AsrOptions().decode_key() == {
+        "vad": {"threshold": 0.4, "min_silence_duration_ms": 500, "speech_pad_ms": 300},
+        "temperature": [0.0, 0.2, 0.4],
+        "no_speech_threshold": 0.6,
+        "log_prob_threshold": -1.0,
+        "compression_ratio_threshold": 2.4,
+        "condition_on_previous_text": True,
+        "hallucination_silence_threshold": 2.0,
+    }
+
+
+def _legacy_looped_cache(engine, proj, job, sha):
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    words = [
+        TranscriptWord(text=f"word{i}", start=294.0 + i * 0.3, end=294.2 + i * 0.3)
+        for i in range(20)
+    ]
+    words += [
+        TranscriptWord(text=t, start=299.84 + i * 0.0005, end=299.8405 + i * 0.0005)
+        for i, t in enumerate((["And", "I", "know", "that"] * 56)[:221])
+    ]
+    cache = engine.cache_path(proj, job.cache_id, job.audio, audio_sha256=sha)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(Transcript(track_id="host", words=words).model_dump_json(), encoding="utf-8")
+    return cache
+
+
+def test_read_asr_cache_repairs_a_legacy_cache_that_holds_a_loop(minimal_project, sample_wav):
+    from podcast_mcp.engines.transcribe import TranscribeJob
+
+    proj = _dialogue_project(minimal_project, sample_wav)
+    job = TranscribeJob(track_id="host", source_id=None, audio=sample_wav)
+    engine = TranscriptionEngine(defaults=load_defaults())
+    cache = _legacy_looped_cache(engine, proj, job, "ab" * 32)
+    path, first = engine.read_asr_cache(
+        proj, job, language=None, initial_prompt=None, audio_sha256="ab" * 32
+    )
+    assert path == cache
+    assert first is not None
+    assert len(first.words) == 20
+    assert engine._loop_drop is not None
+    assert engine._loop_drop.dropped == 221
+    _, second = engine.read_asr_cache(
+        proj, job, language=None, initial_prompt=None, audio_sha256="ab" * 32
+    )
+    assert second is not None
+    assert len(second.words) == 20
+    assert engine._loop_drop is not None
+    assert engine._loop_drop.dropped == 221
+
+
+def test_read_asr_cache_repair_is_not_written_back_and_is_found_again(
+    minimal_project, sample_wav
+):
+    from podcast_mcp.engines.transcribe import TranscribeJob
+
+    proj = _dialogue_project(minimal_project, sample_wav)
+    job = TranscribeJob(track_id="host", source_id=None, audio=sample_wav)
+    engine = TranscriptionEngine(defaults=load_defaults())
+    cache = _legacy_looped_cache(engine, proj, job, "cd" * 32)
+    before = cache.read_text(encoding="utf-8")
+    engine.read_asr_cache(proj, job, language=None, initial_prompt=None, audio_sha256="cd" * 32)
+    assert cache.read_text(encoding="utf-8") == before
+    again = TranscriptionEngine(defaults=load_defaults())
+    _, repaired = again.read_asr_cache(
+        proj, job, language=None, initial_prompt=None, audio_sha256="cd" * 32
+    )
+    assert repaired is not None
+    assert len(repaired.words) == 20
+    assert again._loop_drop is not None
+    assert again._loop_drop.dropped == 221
+
+
+def test_transcribe_job_reports_a_fresh_drop_and_the_cache_written_has_none(
+    minimal_project, tmp_path
+):
+    from unittest.mock import MagicMock, patch
+
+    proj, job, engine, _ = _silent_job_engine(minimal_project, tmp_path)
+    real, loop = _loop_segments()
+    model = MagicMock()
+    model.transcribe.return_value = ([real, loop], None)
+    with patch.object(engine, "_get_model", return_value=model):
+        transcript = engine.transcribe_job(proj, job, language="en")
+    assert len(transcript.words) == 20
+    assert engine.asr_loop_drops == [
+        {
+            "label": job.label,
+            "track_id": "host",
+            "dropped": 221,
+            "start": pytest.approx(299.84),
+            "end": pytest.approx(299.96, abs=0.001),
+            "dense_words": 0,
+            "looped_segments": 0,
+        }
+    ]
+    cached = TranscriptionEngine(defaults=load_defaults())
+    with patch.object(cached, "transcribe_file") as again:
+        out = cached.transcribe_job(proj, job, language="en")
+    again.assert_not_called()
+    assert len(out.words) == 20
+    assert cached.asr_loop_drops == []
+
+
+def test_transcribe_job_reports_a_loop_repaired_from_a_legacy_cache(minimal_project, tmp_path):
+    from unittest.mock import patch
+
+    from podcast_mcp.util.hashing import sha256_file
+
+    proj, job, engine, _ = _silent_job_engine(minimal_project, tmp_path)
+    _legacy_looped_cache(engine, proj, job, sha256_file(job.audio))
+    with patch.object(engine, "transcribe_file") as asr:
+        transcript = engine.transcribe_job(proj, job)
+    asr.assert_not_called()
+    assert len(transcript.words) == 20
+    assert [e["dropped"] for e in engine.asr_loop_drops] == [221]
+
+
+def test_transcribe_job_without_a_drop_reports_nothing(minimal_project, tmp_path):
+    proj, job, engine, patcher = _silent_job_engine(minimal_project, tmp_path)
+    with patcher:
+        engine.transcribe_job(proj, job, language="en")
+    assert engine.asr_loop_drops == []
