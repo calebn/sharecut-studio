@@ -359,7 +359,7 @@ bouncing, a nothing-selected error and 360px.
 The frame (#2292) replaced the Studio and Mobile shells. `Stages/Edit/Frame`
 renders the production `StageFrameView` from grouped presentation props: the
 app header, the Stage bar (a bottom tab bar on a phone), stage content, the
-Player bar and banners. `Stages/Edit/Workspace`, `Stages/Edit/ToolStrip`,
+Player bar and banners. `Stages/Edit/Workspace`,
 `Stages/Edit/Corner`, `Stages/Edit/PlusMenu` and `Stages/Edit/Divider` cover the
 Edit stage, and `Stages/Record`, `Prepare`, `Review` and `Deliver` each have a
 host story with empty, loading, error, phone and guest states. The system

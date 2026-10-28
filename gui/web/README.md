@@ -166,7 +166,7 @@ through Canvas play functions, so each can be inspected independently.
 Play functions share
 `openDialogViaLauncher` from `src/storybook/openDialog.ts`. The gesture callback closes its sheet and
 hands off to the live shortcuts owner; the story does not render that owner.
-`Stages/Edit/ToolStrip` and `Templates/CommandPalette` show the production
+`Stages/Edit/Corner` and `Templates/CommandPalette` show the production
 `EditCornerView` and `CommandPaletteView`, each driven by a local-state
 preview so toggling the touch range-arm button, or
 searching commands and remap fields behaves like the live surface
