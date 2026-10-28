@@ -463,8 +463,9 @@ never flip `ignored` automatically. No `EditDecision`, cut, or `edit_log` record
 created either way, but ignore additionally creates none of the mute-region
 bookkeeping that a `tighten.edit_mode: mute` cut would.
 
-**Low-confidence walkthrough (#634):** it uses the same value (0.7 as shipped; Studio holds its own 0.7 constant in `transcript/lowConfidence.ts` until it reads the server's `unsure` flag) as
-`low_confidence_words_tool` (`analysis.unsure_word_confidence`); ShareCut Studio walks those words Next/Previous
+**Low-confidence walkthrough (#634):** it uses Studio's own 0.7 constant (`transcript/lowConfidence.ts`), which matches the shipped
+`analysis.unsure_word_confidence` but does not follow it until Studio reads the server's `unsure` flag;
+`low_confidence_words_tool` follows the key. ShareCut Studio walks those words Next/Previous
 under Annotate; a corrected word (confidence set to 1.0) leaves the list and
 the walk continues with the nearest flagged word after (Next) or before
 (Previous) it in transcript order, even when an agent batch-corrects several.
@@ -542,7 +543,7 @@ After `precorrect_transcript`, the pipeline step **`require_transcript_refine`**
 
 The host GUI reaches the same gate over HTTP: `POST /api/transcript/refine/done` records refine-done for the human (source `user`) through `TranscriptRefineService.mark_checked`, and `GET /api/transcript/refine/status` reads it back (see [gui-integration.md](gui-integration.md#transcript-check-routes)). A repeat of `done` while the record is still `done` and current changes nothing; a `done` after a waiver replaces it, because checking is the stronger record. "Cut anyway" in Review stays a waiver (`refine/waive`, reason "Approved after listening in Review") and reads back as `waived`, never `done`.
 
-**One unsure-word line.** The config key `analysis.unsure_word_confidence` (0.7 as shipped, `.agents/defaults/pipeline.yaml`; read through `config.defaults.unsure_word_confidence`, applied by `edits/unsure_words.is_unsure_word`) is the one confidence below which a word is unsure. `low_confidence_words_tool` / `podcast transcript review --threshold` (both default to it; the tool passes none and the service applies it), the refine brief's `low_confidence_open_words`, the status route's `low_confidence_words`, the mapped word's `unsure` flag, a pending cut's `unsure_words` and the `ApproveEdits` `skip_unsure` guard all use it, and all skip suppressed words, so the counts agree. Approving cuts in bulk leaves a cut over an unsure word pending (reason `unsure_word`): check the word, then approve that cut by name ([gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
+**One unsure-word line.** The config key `analysis.unsure_word_confidence` (0.7 as shipped, `.agents/defaults/pipeline.yaml`; read through `config.defaults.unsure_word_confidence`, applied by `edits/unsure_words.is_unsure_word`) is the one confidence below which a word is unsure. `low_confidence_words_tool` / `podcast transcript review --threshold` (both default to it; the tool passes none and the service applies it), the refine brief's `low_confidence_open_words`, the status route's `low_confidence_words`, the mapped word's `unsure` flag, a pending cut's `unsure_words` and the `ApproveEdits` `skip_unsure` guard all use it, and all skip suppressed words, so the counts agree. Approving cuts in bulk through the CLI, MCP or a guest link leaves a cut over an unsure word pending (reason `unsure_word`; Studio's Approve all does not yet): check the word, then approve that cut by name ([gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
 
 Mode (`analysis.transcript_refine.mode` in pipeline.yaml):
 
