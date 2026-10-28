@@ -434,6 +434,7 @@ type CoverRoom = Pick<
   | "inviteClosed"
   | "captureSettled"
   | "keeperActions"
+  | "localRecording"
   | "snapshot"
 >;
 
@@ -442,8 +443,10 @@ export function guestCoverProps(
   room: CoverRoom,
   onRetry: () => void,
 ): CoverProps | null {
-  // Before the first take there is nothing on this device to save.
-  const recorded = (room.snapshot?.take_index ?? -1) >= 0;
+  // Before the first take, or once every segment has landed and been cleared
+  // from this device, there is nothing here to save.
+  const recorded =
+    (room.snapshot?.take_index ?? -1) >= 0 && room.localRecording;
   const cover = guestCovers({
     bootError: room.bootError,
     error: room.error,

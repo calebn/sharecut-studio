@@ -328,6 +328,24 @@ export async function downloadLocalKeeper(
   });
 }
 
+/** True while at least one segment WAV of this participant is still on the device. */
+export async function hasLocalKeeper(
+  sink: ByteSink,
+  sessionId: string,
+  participantId: string,
+  lastTakeIndex: number,
+): Promise<boolean> {
+  for await (const { wavPath } of keeperSegmentPaths(
+    sink,
+    sessionId,
+    participantId,
+    lastTakeIndex,
+  )) {
+    if (await keeperBlob(sink, wavPath)) return true;
+  }
+  return false;
+}
+
 export async function downloadLocalKeepers(
   sink: ByteSink,
   sessionId: string,
