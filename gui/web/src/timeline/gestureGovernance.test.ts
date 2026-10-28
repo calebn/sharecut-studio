@@ -305,6 +305,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "a focused ruler moves the playhead one tick with the arrows, ten with Shift, and a focused selection handle reports a nudge of its edge, 10 ms and 100 ms with Shift, like a slider; Alt with the arrows walks focus to the handles; the host applies the seek or the nudge",
   "system/MarkerLane.tsx":
     "a focused selected chapter or bracket, and a bracket's edge, report a nudge with the arrows, 0.1 s and 1 s with Shift, like a slider, and Alt with the arrows walks focus along a bracket's edges; the host applies the nudge",
+  "system/InspectorSheet.tsx":
+    "the focused sheet grip is a vertical slider: Up and Down step the detent and Home and End go to the ends, like a slider; the host applies the detent",
   "system/ScrubField.tsx":
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "system/scriptSelection.ts":

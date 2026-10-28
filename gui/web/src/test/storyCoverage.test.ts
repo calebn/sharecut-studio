@@ -22,6 +22,7 @@ const COVERED: Record<string, string[]> = {
     "Templates/Editor · Precision boundary dialog",
     "System/ScrubField",
     "System/Seam",
+    "System/InspectorSheet",
   ],
   "PNL-COMMENTS": [
     "Templates/Editor · Comments panel",
@@ -110,6 +111,7 @@ const COVERED: Record<string, string[]> = {
     "Organisms/BottomSheet",
     "Stages/Edit/Frame",
     "System/ScrubField",
+    "System/InspectorSheet",
   ],
   "CMP-SEEK-FOOTER": ["Templates/InspectorSeekFooter"],
   "DLG-EXPORT": ["Templates/ExportDialog"],
@@ -175,7 +177,11 @@ const COVERED: Record<string, string[]> = {
     "Templates/Editor · Transcript editors",
     "Stages/Edit/SpeakerPopover",
   ],
-  "CMP-WORDBAR": ["Templates/Editor · Inspector · Word", "System/ScrubField"],
+  "CMP-WORDBAR": [
+    "Templates/Editor · Inspector · Word",
+    "System/ScrubField",
+    "System/InspectorSheet",
+  ],
   "CMP-WORDRANGE": [
     "Templates/Editor · Inspector · Range",
     "System/SelectionHandles",

@@ -65,6 +65,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "system/ScriptPane.gestures.test.tsx",
   // Reads only whether Alt is down so the Split guide follows a press made while the pointer rests; it binds no command.
   "timeline/useSplitAtPointer.ts",
+  // The same window-level listener, to prove the keys the Inspector sheet handles never reach the keymap.
+  "system/InspectorSheet.test.tsx",
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
@@ -136,6 +138,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/Ruler.tsx",
   // A marker's button and a bracket's edge sliders: Left and Right on a selected chapter or bracket, or on an edge, nudge it 0.1 s (Shift 1 s), and Alt with Left or Right walks focus along a bracket's edges. Every other key goes to the keymap.
   "system/MarkerLane.tsx",
+  // The Inspector sheet closes on Escape unless a field inside took it, and its grip is a vertical slider: Up and Down step the detents, Home and End go to the ends, Enter and Space toggle half and dock. The inline name field commits on Enter and puts the name back on Escape.
+  "system/InspectorSheet.tsx",
   // The inline Fix text field commits on Enter and Tab and puts the words back on Escape.
   // With apply on activate the person picker is a radiogroup of radio buttons: arrows, Home and End move the focus ring and pick nobody; click, Space and Enter pick.
   "system/PersonPicker.tsx",
