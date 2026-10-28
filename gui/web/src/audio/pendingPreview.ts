@@ -163,6 +163,7 @@ export async function playPendingPreview(
   projectPath: string,
   editId: string,
   mode: PreviewMode,
+  opts: { padSec?: number } = {},
 ): Promise<PendingPreviewOutcome> {
   const captured = useDawStore.getState();
   const edit = livePendingEdit(captured, projectPath, editId);
@@ -184,6 +185,7 @@ export async function playPendingPreview(
   active = request;
   try {
     const query = new URLSearchParams({ edit_id: editId, mode });
+    if (opts.padSec !== undefined) query.set("pad_sec", String(opts.padSec));
     const hostQuery = (q: URLSearchParams, path: string) => {
       const withPath = new URLSearchParams(q);
       withPath.set("path", path);
