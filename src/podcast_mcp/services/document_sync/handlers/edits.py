@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.edits.audio_check_override import mcp_host_override
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
@@ -342,6 +343,13 @@ def apply_edit_plan(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         "review_required": p["review_required"],
         "use_inaudible_opt": p["use_inaudible_opt"],
     }
+
+
+def shorten_word_gaps(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    with mcp_host_override(enabled=p["override_audio_checks"]):
+        return TimelineService(ws).shorten_word_gaps(
+            p["max_gap_sec"], use_inaudible_opt=p["use_inaudible_opt"]
+        )
 
 
 def fade_joins(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

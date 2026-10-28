@@ -876,3 +876,39 @@ def test_apply_edit_plan_is_refused_on_every_guest_surface(
     token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
     assert not guest_submitter(surface)(token, "ApplyEditPlan", PLAN)
     assert journal_types(minimal_project) == []
+
+
+SHORTEN = {"max_gap_sec": 0.35}
+
+
+@pytest.mark.parametrize(
+    "caps",
+    [EDITOR, [*EDITOR, "mcp"], COMMENTER, [*COMMENTER, "mcp"], VIEWER],
+    ids=["editor", "editor-mcp", "commenter", "commenter-mcp", "viewer"],
+)
+def test_shorten_word_gaps_is_host_only(minimal_project, monkeypatch, caps):
+    svc = gap_project(minimal_project, monkeypatch)
+    before = deepcopy(svc.ws.project.clips)
+    total = history_total(minimal_project)
+    with pytest.raises(PermissionError) as raised:
+        svc.submit(guest_command("ShortenWordGaps", SHORTEN), capabilities=caps)
+    assert raised.value.code == "share_capability_required"
+    assert load_project(minimal_project).clips == before
+    assert history_total(minimal_project) == total
+    assert journal_types(minimal_project) == []
+
+
+def test_host_shorten_word_gaps_passes(minimal_project, monkeypatch):
+    svc = gap_project(minimal_project, monkeypatch)
+    svc.submit(guest_command("ShortenWordGaps", SHORTEN), capabilities=None)
+    assert journal_types(minimal_project) == ["ShortenWordGaps"]
+
+
+@pytest.mark.parametrize("surface", ["browser", "mcp"])
+def test_shorten_word_gaps_is_refused_on_every_guest_surface(
+    minimal_project, sample_wav, monkeypatch, surface
+):
+    gap_project(minimal_project, monkeypatch)
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
+    assert not guest_submitter(surface)(token, "ShortenWordGaps", SHORTEN)
+    assert journal_types(minimal_project) == []

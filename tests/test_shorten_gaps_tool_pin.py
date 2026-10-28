@@ -242,7 +242,7 @@ def test_speech_in_the_pause_returns_needs_confirmation_and_changes_nothing(tmp_
     assert Path(path).read_bytes() == before
     assert _history(path)["total"] == 0
     assert load_project(Path(path)).editorial.edit_log == []
-    assert _journal(path) == []
+    assert _journal(path) == ["ShortenWordGaps"]
 
 
 def test_needs_confirmation_is_returned_not_raised_and_repeats_identically(tmp_path):
@@ -332,23 +332,23 @@ def test_negative_max_gap_is_accepted_and_removes_more_than_the_pauses(tmp_path)
 
 
 @pytest.mark.parametrize("bad", ["abc", None])
-def test_non_numeric_max_gap_raises_type_error_and_changes_nothing(tmp_path, bad):
+def test_non_numeric_max_gap_is_a_coded_invalid_payload_and_changes_nothing(tmp_path, bad):
     path = _path(tmp_path)
     before = Path(path).read_bytes()
-    with pytest.raises(TypeError) as raised:
+    with pytest.raises(CodedValueError) as raised:
         mcp_timeline.shorten_gaps_tool(path, bad)
-    assert not isinstance(raised.value, CodedValueError)
-    assert not hasattr(raised.value, "code")
-    expected = "str" if bad == "abc" else "NoneType"
-    assert str(raised.value) == f"'>' not supported between instances of 'float' and '{expected}'"
+    assert raised.value.code == "invalid_payload"
+    assert "max_gap_sec" in str(raised.value)
     assert Path(path).read_bytes() == before
     assert _history(path)["total"] == 0
+    assert _journal(path) == []
 
 
-def test_non_numeric_max_gap_is_not_checked_when_no_words_pair_up(tmp_path):
+def test_non_numeric_max_gap_is_refused_even_when_no_words_pair_up(tmp_path):
     path = _path(tmp_path, ([(0, 0.2)], []))
-    reply = _run(path, "abc")
-    assert reply["unchanged"] is True
+    with pytest.raises(CodedValueError) as raised:
+        mcp_timeline.shorten_gaps_tool(path, "abc")
+    assert raised.value.code == "invalid_payload"
 
 
 def test_registered_tool_rejects_a_non_numeric_max_gap_before_the_service(tmp_path):
@@ -451,22 +451,22 @@ def test_editor_with_the_mcp_capability_is_also_refused(tmp_path):
     assert raised.value.code == "share_capability_required"
 
 
-def test_direct_tool_call_journals_nothing_on_the_document_plane(tmp_path):
+def test_direct_tool_call_journals_one_shorten_row_on_the_document_plane(tmp_path):
     path = _path(tmp_path)
     _run(path)
-    assert _journal(path) == []
+    assert _journal(path) == ["ShortenWordGaps"]
 
 
-def test_registered_tool_journals_one_external_mutate_row_after_an_applying_call(tmp_path):
+def test_registered_tool_journals_one_shorten_row_after_an_applying_call(tmp_path):
     path = _path(tmp_path)
     result = _registered({"project_path": path})
     assert not result.is_error
-    assert _journal(path) == ["ExternalMutate"]
+    assert _journal(path) == ["ShortenWordGaps"]
     rows = DocumentSyncService.open(path).store.commands_after(0)
-    assert [r["client_id"] for r in rows] == ["server:external"]
+    assert [r["client_id"] for r in rows] == ["mcp-agent"]
 
 
-def test_registered_tool_journals_external_mutate_even_when_the_cut_is_held(tmp_path):
+def test_registered_tool_journals_one_shorten_row_even_when_the_cut_is_held(tmp_path):
     path = _path(tmp_path, _HELD_WORDS)
     before = Path(path).read_bytes()
     result = _registered({"project_path": path, "use_inaudible_opt": False})
@@ -475,15 +475,15 @@ def test_registered_tool_journals_external_mutate_even_when_the_cut_is_held(tmp_
         json.loads(result.content[0].text)["needs_confirmation"]["status"] == "needs_confirmation"
     )
     assert Path(path).read_bytes() == before
-    assert _journal(path) == ["ExternalMutate"]
+    assert _journal(path) == ["ShortenWordGaps"]
 
 
-def test_registered_tool_journals_external_mutate_when_nothing_qualifies(tmp_path):
+def test_registered_tool_journals_one_shorten_row_when_nothing_qualifies(tmp_path):
     path = _path(tmp_path)
     result = _registered({"project_path": path, "max_gap_sec": 5.0})
     assert not result.is_error
     assert json.loads(result.content[0].text)["unchanged"] is True
-    assert _journal(path) == ["ExternalMutate"]
+    assert _journal(path) == ["ShortenWordGaps"]
 
 
 def test_registered_tool_override_records_the_same_actor(tmp_path):
