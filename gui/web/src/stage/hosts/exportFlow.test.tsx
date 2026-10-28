@@ -151,8 +151,6 @@ describe("the export flow over the server's routes", () => {
       kind: "done",
       paths: ["/tmp/ep/export/ep.wav", "/tmp/ep/export/ep.mp3"],
       measured: "Measured −16.1 LUFS, true peak −1.6 dBTP.",
-      lufs: -16.1,
-      truePeak: -1.6,
       finishedAt: Date.parse("2026-01-02T03:04:05Z"),
     });
   });

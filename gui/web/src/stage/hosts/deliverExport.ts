@@ -1,8 +1,10 @@
-import type {
-  ExportFile,
-  ExportOptions,
-  ExportState,
-  FormatOption,
+import {
+  COMPRESSED_BYTES_PER_SECOND,
+  type ExportFile,
+  type ExportOptions,
+  type ExportState,
+  type FormatOption,
+  LOSSLESS_BYTES_PER_SECOND,
 } from "../../stages/deliver/deliverLogic";
 import { lateCancelCopy } from "../../utils/pipeline";
 import {
@@ -20,10 +22,7 @@ import {
   loudnessTargetCopy,
 } from "./exportSettings";
 
-const LOSSLESS_BYTES_PER_SECOND = 97_000;
-const DEFAULT_BYTES_PER_SECOND = 16_000;
-
-export function exportFormatOptions(settings: ExportSettings): FormatOption[] {
+function exportFormatOptions(settings: ExportSettings): FormatOption[] {
   return settings.choices.map(({ key, label, spec }) => ({
     id: key,
     label,
@@ -32,7 +31,7 @@ export function exportFormatOptions(settings: ExportSettings): FormatOption[] {
         ? spec.bitrate_kbps * 125
         : isLossless(spec.ext)
           ? LOSSLESS_BYTES_PER_SECOND
-          : DEFAULT_BYTES_PER_SECOND,
+          : COMPRESSED_BYTES_PER_SECOND,
   }));
 }
 
@@ -63,21 +62,20 @@ function filesOf(paths: readonly string[]): ExportFile[] {
   }));
 }
 
-export function exportWhen(finishedAt: number, timeZone?: string): string {
+function exportWhen(finishedAt: number): string {
   const time = new Date(finishedAt).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
-    timeZone,
   });
   return `at ${time}`;
 }
 
-export const STARTING_REASON =
+const STARTING_REASON =
   "The export is still starting. Cancel once it has started.";
-export const CANCELLING_REASON = "Already cancelling the export.";
-export const CANCELLING_DETAIL =
+const CANCELLING_REASON = "Already cancelling the export.";
+const CANCELLING_DETAIL =
   "Cancelling… If the master is still being prepared, the export stops once it is ready.";
-export const CANCELLED_NOTHING =
+const CANCELLED_NOTHING =
   "Export cancelled. Files from an earlier export are unchanged.";
 
 export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {

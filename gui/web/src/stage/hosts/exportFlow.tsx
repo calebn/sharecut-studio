@@ -29,7 +29,6 @@ import {
   type ExportSettings,
   exportResultCopy,
   exportSettingsFromConfig,
-  masterMeasured,
   masterMeasuredCopy,
   selectedFormats,
 } from "./exportSettings";
@@ -135,13 +134,10 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
           return;
         }
         const done = ran.value;
-        const measured = masterMeasured(done.result?.master);
         setRun({
           kind: "done",
           paths: jobResultPaths(done),
           measured: masterMeasuredCopy(done.result?.master),
-          lufs: measured?.lufs ?? null,
-          truePeak: measured?.truePeak ?? null,
           finishedAt: Date.now(),
         });
       } catch (err) {

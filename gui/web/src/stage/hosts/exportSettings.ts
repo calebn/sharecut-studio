@@ -127,7 +127,6 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** Shared by the dialog, the status announcement and the Activity chip copy. */
 export function exportResultCopy(paths: readonly string[]): string {
   return `Exported ${plural(paths.length, "file", "files")} to export/`;
 }

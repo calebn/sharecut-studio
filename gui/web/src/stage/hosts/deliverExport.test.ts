@@ -2,16 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ModelGate } from "../../models";
 import type { ExportRequest } from "../../stages/deliver/deliverLogic";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
-import {
-  CANCELLED_NOTHING,
-  CANCELLING_DETAIL,
-  CANCELLING_REASON,
-  exportFormatOptions,
-  exportOptionsOf,
-  exportStateOf,
-  exportWhen,
-  STARTING_REASON,
-} from "./deliverExport";
+import { exportOptionsOf, exportStateOf } from "./deliverExport";
 import type { ExportFlow, ExportRun } from "./exportFlowContext";
 import { exportSettingsFromConfig } from "./exportSettings";
 
@@ -85,10 +76,10 @@ const running = (over: Partial<Extract<ExportRun, { kind: "running" }>> = {}) =>
     ...over,
   }) as const;
 
-describe("exportFormatOptions", () => {
+describe("format sizes", () => {
   it("sizes a format from its bitrate, a lossless one like FLAC, and the rest like a default MP3", () => {
     expect(
-      exportFormatOptions(SETTINGS).map((o) => [o.id, o.bytesPerSecond]),
+      exportOptionsOf(flowOf()).formats?.map((o) => [o.id, o.bytesPerSecond]),
     ).toEqual([
       ["mp3", 24_000],
       ["m4a", 16_000],
@@ -98,7 +89,9 @@ describe("exportFormatOptions", () => {
       export: { formats: [{ ext: "ogg" }] },
     });
     expect(
-      exportFormatOptions(plain).find((o) => o.id === "ogg")?.bytesPerSecond,
+      exportOptionsOf(flowOf({ settings: plain })).formats?.find(
+        (o) => o.id === "ogg",
+      )?.bytesPerSecond,
     ).toBe(16_000);
   });
 });
@@ -106,7 +99,7 @@ describe("exportFormatOptions", () => {
 describe("exportOptionsOf", () => {
   it("offers the project's formats and the loudness sentence, and hides what has no backend", () => {
     expect(exportOptionsOf(flowOf())).toEqual({
-      formats: exportFormatOptions(SETTINGS),
+      formats: expect.any(Array),
       wavAlwaysWritten: true,
       selected: ["mp3"],
       loading: false,
@@ -157,7 +150,8 @@ describe("exportStateOf", () => {
         phase: "running",
         progress: null,
         detail: "Starting export… · Elapsed 0:00",
-        cancelReason: STARTING_REASON,
+        cancelReason:
+          "The export is still starting. Cancel once it has started.",
         cancelError: undefined,
       },
     );
@@ -185,8 +179,9 @@ describe("exportStateOf", () => {
         1000,
       ),
     ).toMatchObject({
-      detail: `${CANCELLING_DETAIL} · 1/4 steps · Elapsed 1:15`,
-      cancelReason: CANCELLING_REASON,
+      detail:
+        "Cancelling… If the master is still being prepared, the export stops once it is ready. · 1/4 steps · Elapsed 1:15",
+      cancelReason: "Already cancelling the export.",
     });
   });
 
@@ -222,8 +217,6 @@ describe("exportStateOf", () => {
             kind: "done",
             paths: ["/p/export/ep.wav", "C:\\p\\export\\ep.MP3"],
             measured: "Measured −16.1 LUFS, true peak −1.6 dBTP.",
-            lufs: -16.1,
-            truePeak: -1.6,
             finishedAt,
           },
         }),
@@ -235,7 +228,7 @@ describe("exportStateOf", () => {
         { name: "ep.wav", format: "wav" },
         { name: "ep.MP3", format: "mp3" },
       ],
-      when: exportWhen(finishedAt),
+      when: expect.stringMatching(/^at \d{1,2}:\d{2} (AM|PM)$/),
       exported: REQUEST,
       summary: "Exported 2 files to export/",
       measured: "Measured −16.1 LUFS, true peak −1.6 dBTP.",
@@ -251,7 +244,11 @@ describe("exportStateOf", () => {
   it("says a cancel wrote nothing, or came too late and lists the files", () => {
     expect(
       exportStateOf(flowOf({ run: { kind: "cancelled", paths: [] } }), 0),
-    ).toEqual({ phase: "cancelled", files: [], detail: CANCELLED_NOTHING });
+    ).toEqual({
+      phase: "cancelled",
+      files: [],
+      detail: "Export cancelled. Files from an earlier export are unchanged.",
+    });
     expect(
       exportStateOf(
         flowOf({ run: { kind: "cancelled", paths: ["/p/export/ep.mp3"] } }),
@@ -262,13 +259,5 @@ describe("exportStateOf", () => {
       files: [{ name: "ep.mp3", format: "mp3" }],
       detail: "Cancel came too late. Exported 1 file to export/",
     });
-  });
-});
-
-describe("exportWhen", () => {
-  it("is the clock time of the finish", () => {
-    expect(exportWhen(Date.parse("2026-01-02T15:04:00Z"), "UTC")).toBe(
-      "at 3:04 PM",
-    );
   });
 });

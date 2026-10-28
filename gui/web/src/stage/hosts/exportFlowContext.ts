@@ -16,8 +16,6 @@ export type ExportRun =
       kind: "done";
       paths: string[];
       measured: string | null;
-      lufs: number | null;
-      truePeak: number | null;
       finishedAt: number;
     }
   | { kind: "failed"; reason: string }
