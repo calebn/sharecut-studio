@@ -15,7 +15,7 @@ import type { SystemIconName } from "./icons";
  * `new`: no key of the verb is live for `commandId`; it is the command the key
  * will drive.
  */
-export type VerbStatus = "bound" | "conflict" | "new";
+type VerbStatus = "bound" | "conflict" | "new";
 
 export type TouchGesture =
   | "tap"

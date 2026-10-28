@@ -4,7 +4,7 @@ import { BUSY_REASON } from "../ui/disabledReason";
 import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 
-export type CoverAction = {
+type CoverAction = {
   label: string;
   onClick: () => void;
   /** Working on it: the button holds its place, disabled and aria-busy. */

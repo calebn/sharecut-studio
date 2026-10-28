@@ -149,7 +149,7 @@ const CUSTOM_ICON_NAMES = [
   "skip-forward-15",
 ] as const;
 
-export type LucideIconName = keyof typeof LUCIDE_ICONS;
+type LucideIconName = keyof typeof LUCIDE_ICONS;
 export type CustomIconName = (typeof CUSTOM_ICON_NAMES)[number];
 export type SystemIconName = LucideIconName | CustomIconName;
 
