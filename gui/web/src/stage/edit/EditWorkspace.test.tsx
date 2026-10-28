@@ -45,11 +45,25 @@ describe("EditWorkspace regions", () => {
     ).toBeInTheDocument();
   });
 
-  it("puts the tool strip in the timeline corner above the track headers", () => {
+  it("has no Select, Blade or Comment tool modes anywhere on the stage", () => {
+    render(<EditWorkspace />);
+    expect(screen.queryByRole("group", { name: "Editing tools" })).toBeNull();
+    for (const name of ["Select tool", "Blade tool", "Toggle comment mode"])
+      expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+
+  it("keeps the range toggle out of the track header corner and in the lane corner on touch only", () => {
+    useDawStore.setState({ pointerKind: "coarse" });
     render(<EditWorkspace />);
     const headers = screen.getByRole("group", { name: "Tracks" });
-    const strip = within(headers).getByRole("group", { name: "Editing tools" });
-    expect(strip.closest(".track-headers-chrome")).not.toBeNull();
+    expect(
+      within(headers).queryByRole("button", { name: "Select range" }),
+    ).toBeNull();
+    const corner = screen.getByRole("group", { name: "Timeline view" });
+    expect(
+      within(corner).getByRole("button", { name: "Select range" }),
+    ).toBeInTheDocument();
+    useDawStore.setState({ pointerKind: "fine" });
   });
 
   it("hides the Script pane and its divider while Script is collapsed", () => {
@@ -137,12 +151,12 @@ describe("EditWorkspace arrangements", () => {
     render(<EditWorkspace />);
     expect(screen.queryByRole("region", { name: "Script" })).toBeNull();
     expect(
-      screen.getByRole("group", { name: "Editing tools" }),
+      screen.getByRole("group", { name: "Timeline view" }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Script" }));
     expect(useDawStore.getState().editSurface).toBe("text");
     expect(screen.queryByRole("group", { name: "Tracks" })).toBeNull();
-    expect(screen.queryByRole("group", { name: "Editing tools" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Timeline view" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Timeline" }));
     expect(useDawStore.getState().editSurface).toBe("lanes");
     expect(useDawStore.getState().playheadSec).toBe(12);

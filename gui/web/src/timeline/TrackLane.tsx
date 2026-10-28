@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { ClipBleedSnapshot } from "../edit/clipBleedSession";
 import type { RollPreview } from "../edit/clipEdgePreview";
 import { TRIM_MODE } from "../edit/clipEdgeSave";
@@ -97,9 +97,6 @@ interface TrackLaneProps {
   onSelectBleed?: (trackId: string, clipId: string, key: string) => void;
   onSelectTrack: (trackId: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
-  bladeHighlight?: boolean;
-  /** When true, clip hits seek/blade via lane-seek underlay (not select). */
-  bladeMode?: boolean;
   canMoveClips?: boolean;
   selectedClipIds?: readonly string[];
   previewStartById?: Readonly<Record<string, number>>;
@@ -139,8 +136,6 @@ export function TrackLaneView({
   onSelectBleed,
   onSelectTrack,
   onSelectPending,
-  bladeHighlight = false,
-  bladeMode = false,
   canMoveClips = false,
   selectedClipIds = EMPTY_ARR,
   previewStartById = EMPTY_OBJ,
@@ -157,7 +152,6 @@ export function TrackLaneView({
   showStaleInvalidations = false,
   prosody = null,
 }: TrackLaneProps) {
-  const seekRef = useRef<HTMLDivElement>(null);
   const router = useHitRouter();
   const {
     tracks,
@@ -241,17 +235,6 @@ export function TrackLaneView({
     (id: string) => onSelectPending(trackId, id),
     [onSelectPending, trackId],
   );
-  const onClipHit = useCallback(
-    (clipId: string, clientX: number) => {
-      if (bladeMode && seekRef.current) {
-        onSeek(clientX, seekRef.current);
-        return;
-      }
-      selectClip(clipId);
-    },
-    [bladeMode, onSeek, selectClip],
-  );
-
   const isMoving = useCallback(
     (id: string) =>
       Boolean(hideClipIds?.has(id) || previewStartById[id] != null),
@@ -286,7 +269,7 @@ export function TrackLaneView({
 
   return (
     <div
-      className={`lane-row${MUTE_STATE_ROW_CLASS[muteState]}${bladeHighlight ? " blade-target" : ""}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
+      className={`lane-row${MUTE_STATE_ROW_CLASS[muteState]}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
       style={{ width }}
       data-testid={timelineTestIds.lane}
       data-track-id={track.id}
@@ -346,7 +329,6 @@ export function TrackLaneView({
         A div (not button) so Lighthouse target-size ignores this full-lane hit area.
       */}
       <div
-        ref={seekRef}
         className="lane-seek"
         role="presentation"
         {...HIT_SURFACE_PROPS}
@@ -412,10 +394,8 @@ export function TrackLaneView({
               }
               onRollPreview={setRollPreview}
               onSelect={selectClip}
-              onHit={onClipHit}
               onSelectClip={selectClip}
               canMove={canMoveClips}
-              bladeMode={bladeMode}
               gainDb={trackOutputGainDb(track)}
               previewTimelineStart={previewStartById[clip.id] ?? null}
               previewHidden={hideClipIds?.has(clip.id) ?? false}
@@ -433,7 +413,6 @@ export function TrackLaneView({
         bleedInspection.occurrence.trackId === track.id &&
         !rollPreview &&
         !ripple &&
-        !bladeMode &&
         onSelectBleed &&
         clips.some(
           (clip) =>
@@ -519,7 +498,6 @@ export function TrackLaneView({
             rollPreview={null}
             onRollPreview={NOOP}
             onSelect={NOOP}
-            onHit={NOOP}
             interactive={false}
             moving
           />

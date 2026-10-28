@@ -66,7 +66,7 @@ const baseProps = {
   onSelectPending: vi.fn(),
 };
 
-describe("TrackLane bladeMode", () => {
+describe("TrackLane", () => {
   afterEach(() => {
     laneStatus.current = "idle";
     useDawStore.setState({ project: null, projectPath: "" });
@@ -94,40 +94,11 @@ describe("TrackLane bladeMode", () => {
     ).toBeInTheDocument();
   });
 
-  it("routes clip hit through onSeek with lane-seek underlay when bladeMode", async () => {
+  it("selects a clicked clip and does not seek", async () => {
     const onSeek = vi.fn();
     const onSelectClip = vi.fn();
     render(
-      <TrackLane
-        {...baseProps}
-        bladeMode
-        onSeek={onSeek}
-        onSelectClip={onSelectClip}
-      />,
-    );
-
-    await userEvent.click(
-      screen.getByRole("button", { name: /^Select .+ clip at / }),
-    );
-
-    expect(onSelectClip).not.toHaveBeenCalled();
-    expect(onSeek).toHaveBeenCalledTimes(1);
-    const [clientX, target] = onSeek.mock.calls[0];
-    expect(typeof clientX).toBe("number");
-    expect(target).toBeInstanceOf(HTMLElement);
-    expect((target as HTMLElement).classList.contains("lane-seek")).toBe(true);
-  });
-
-  it("selects clip when bladeMode is off", async () => {
-    const onSeek = vi.fn();
-    const onSelectClip = vi.fn();
-    render(
-      <TrackLane
-        {...baseProps}
-        bladeMode={false}
-        onSeek={onSeek}
-        onSelectClip={onSelectClip}
-      />,
+      <TrackLane {...baseProps} onSeek={onSeek} onSelectClip={onSelectClip} />,
     );
 
     await userEvent.click(

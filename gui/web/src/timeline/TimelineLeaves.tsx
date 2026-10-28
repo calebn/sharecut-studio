@@ -7,15 +7,16 @@ import { useTimelineMetrics } from "./timelineMetrics";
 
 /**
  * Per-frame timeline leaves. Each selects the hot store fields (playhead,
- * scroll, presence, blade hover) that `TimelineView` must not, so a tick
+ * scroll, presence, split hover) that `TimelineView` must not, so a tick
  * re-renders only the leaf, never the lanes and clips.
  */
 
 /**
- * Blade-mode cut preview: one guide per target lane, at the pointer's time.
- * Target lanes are the selected tracks, or every lane when none is selected.
+ * Alt-click Split preview: one guide per target lane, at the pointer's time
+ * while Alt is held over the lanes. Target lanes are the selected tracks, or
+ * every lane when none is selected.
  */
-export function BladeGuide({
+export function SplitGuide({
   tracks,
   selectedTrackIds,
   zoomPxPerSec,
@@ -24,17 +25,17 @@ export function BladeGuide({
   selectedTrackIds: readonly string[];
   zoomPxPerSec: number;
 }) {
-  const bladeHoverSec = useDawStore((s) => s.bladeHoverSec);
+  const splitHoverSec = useDawStore((s) => s.splitHoverSec);
   const { laneHeight } = useTimelineMetrics();
-  if (bladeHoverSec == null) {
+  if (splitHoverSec == null) {
     return null;
   }
-  const left = bladeHoverSec * zoomPxPerSec;
+  const left = splitHoverSec * zoomPxPerSec;
   return tracks.map((track, idx) =>
     selectedTrackIds.length === 0 || selectedTrackIds.includes(track.id) ? (
       <div
         key={track.id}
-        className="blade-cut-guide blade-cut-guide--lane"
+        className="split-guide"
         style={{ left, top: idx * laneHeight }}
         aria-hidden
       />

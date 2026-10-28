@@ -34,7 +34,9 @@ describe("CommandPalette", () => {
     expect(
       screen.getByRole("dialog", { name: "Commands and shortcuts" }),
     ).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Select tool" })).toBeTruthy();
+    expect(
+      screen.getByRole("option", { name: "Fit session width" }),
+    ).toBeTruthy();
     expect(
       screen.getByRole("option", { name: "Annotate transcript" }),
     ).toBeTruthy();
@@ -93,13 +95,13 @@ describe("CommandPalette", () => {
     renderPalette();
     await waitForDialogFocus();
     await user.click(screen.getByLabelText("Show remaps"));
-    const input = screen.getByLabelText("Remap Select tool");
+    const input = screen.getByLabelText("Remap Fit session width");
     await user.type(input, "X");
     await user.tab();
-    expect(getKeymapOverride("tool.select")).toEqual(["X"]);
+    expect(getKeymapOverride("view.fit")).toEqual(["X"]);
     await user.clear(input);
     await user.tab();
-    expect(getKeymapOverride("tool.select")).toBeUndefined();
+    expect(getKeymapOverride("view.fit")).toBeUndefined();
   });
 
   it("closes on Escape", async () => {
@@ -136,7 +138,7 @@ describe("CommandPalette", () => {
 
   it("does not repeat a refusal the command already announced", async () => {
     const raw = "Reorder failed: set PODCAST_MCP_FFMPEG to its bin executable.";
-    registerCommand("tool.select", async () => {
+    registerCommand("view.fit", async () => {
       useDawStore.getState().announceStatus(raw, { tone: "error" });
       return { status: "disabled", reason: raw };
     });
@@ -144,7 +146,7 @@ describe("CommandPalette", () => {
     renderPalette();
     await userEvent
       .setup()
-      .click(screen.getByRole("option", { name: "Select tool" }));
+      .click(screen.getByRole("option", { name: "Fit session width" }));
     await waitFor(() =>
       expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1),
     );
@@ -158,19 +160,19 @@ describe("CommandPalette", () => {
     });
   });
 
-  async function runSelectTool(
+  async function runFit(
     handler: Parameters<typeof registerCommand>[1],
   ): Promise<void> {
-    registerCommand("tool.select", handler);
+    registerCommand("view.fit", handler);
     renderPalette();
     await userEvent
       .setup()
-      .click(screen.getByRole("option", { name: "Select tool" }));
+      .click(screen.getByRole("option", { name: "Fit session width" }));
     await new Promise((r) => setTimeout(r, 20));
   }
 
   it("shows the refusal a command returns even when it announced something else", async () => {
-    await runSelectTool(async () => {
+    await runFit(async () => {
       useDawStore.getState().announceStatus("first");
       return { status: "disabled", reason: "SECOND never spoken" };
     });
@@ -180,7 +182,7 @@ describe("CommandPalette", () => {
   });
 
   it("shows the refusal of a silent command when an unrelated announcement lands meanwhile", async () => {
-    await runSelectTool(async () => {
+    await runFit(async () => {
       await Promise.resolve();
       useDawStore
         .getState()
@@ -198,7 +200,7 @@ describe("CommandPalette", () => {
       .announceStatus("Moved clips", { undo: "h-1" as never });
     const standing = useDawStore.getState().feedbackToast;
     const before = useDawStore.getState().statusAnnouncementSeq;
-    await runSelectTool(async () => {
+    await runFit(async () => {
       useDawStore.getState().announceStatus("Can't undo: it changed.", {
         toast: false,
         tone: "error",

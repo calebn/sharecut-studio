@@ -22,7 +22,6 @@ import { oneWordOf } from "../../utils/rangeSelect";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 import { EditCorner } from "./EditCorner";
-import { EditToolStrip } from "./EditToolStrip";
 import { type EditArrangement, EditWorkspaceView } from "./EditWorkspaceView";
 import { EmptySession } from "./EmptySession";
 import { InspectorSheet } from "./InspectorSheet";
@@ -131,7 +130,6 @@ function EditWorkspaceAdapter({
     () => (
       <TrackHeadersColumn
         showSoloChip={!phone}
-        corner={phone ? undefined : <EditToolStrip />}
         addRow={
           mayIngest ? (
             <PlusMenu
@@ -234,7 +232,6 @@ function EditWorkspaceAdapter({
           onSurfaceChange={(surface) =>
             runPointerCommand("stage.edit", { surface })
           }
-          tools={<EditToolStrip />}
           corner={corner}
           lanes={timeline}
           script={script}

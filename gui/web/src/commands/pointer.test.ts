@@ -10,8 +10,8 @@ import { executePointerCommand, runPointerCommand } from "./pointer";
 
 describe("runPointerCommand", () => {
   it("dispatches with skipWhen and empty args by default", () => {
-    runPointerCommand("tool.select");
-    expect(execute).toHaveBeenCalledWith("tool.select", {}, { skipWhen: true });
+    runPointerCommand("view.fit");
+    expect(execute).toHaveBeenCalledWith("view.fit", {}, { skipWhen: true });
   });
 
   it("forwards args", () => {
@@ -46,6 +46,6 @@ describe("runPointerCommand", () => {
     const failure = new Error("Command failed");
     execute.mockRejectedValueOnce(failure);
 
-    await expect(executePointerCommand("tool.select")).rejects.toBe(failure);
+    await expect(executePointerCommand("view.fit")).rejects.toBe(failure);
   });
 });

@@ -94,8 +94,6 @@ beforeEach(() => {
   useDawStore.setState({
     guestMode: null,
     shareCapabilities: null,
-    toolMode: "select",
-    commentMode: false,
     timelineDragging: false,
     joinMutationInFlight: false,
   });
@@ -220,7 +218,6 @@ describe("local clip placement owner", () => {
     "project",
     "permission",
     "gesture",
-    "mode",
   ])("invalidates on %s", async (change) => {
     if (change === "permission")
       useDawStore.setState({
@@ -250,7 +247,6 @@ describe("local clip placement owner", () => {
     if (change === "permission")
       useDawStore.setState({ guestMode: "view", shareCapabilities: [] });
     if (change === "gesture") useDawStore.setState({ timelineDragging: true });
-    if (change === "mode") s.setToolMode("blade");
     await applyClipPlacement(token);
     expect(getClipPlacement()).toEqual({ kind: "idle" });
     expect(moveClips).not.toHaveBeenCalled();
