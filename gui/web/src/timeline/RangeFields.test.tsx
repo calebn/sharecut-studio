@@ -3,9 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
-import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
-import { RangeActions } from "./RangeActions";
+import { RangeFields } from "./RangeFields";
 
 const project = minimalProject({
   tracks: [
@@ -42,46 +41,94 @@ beforeEach(() =>
   }),
 );
 
-describe("range action bar and phone sheet", () => {
-  it.each([false, true])(
-    "renders all six actions and passes axe with sheet=%s",
-    async (sheet) => {
-      const { container } = render(
-        <main>
-          <RangeActions sheet={sheet} />
-        </main>,
-      );
-      expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
-        "Play",
-        "Cut",
-        "Mute",
-        "Fill room tone",
-        "Comment",
-        "Bounce",
-        "Clear range",
-      ]);
-      expect(screen.getByText(/1.00–2.00 s · Speaker/)).toBeTruthy();
-      await expectNoA11yViolations(container);
-    },
-  );
-  it("shows disabled guest actions with readable reasons", async () => {
-    useDawStore.setState({
-      projectPath: "share:token",
-      guestMode: "view",
-      shareCapabilities: ["view"],
+describe("range fields", () => {
+  it("draws nothing for a plain range: its verbs are the Action bar's", () => {
+    const { container } = render(<RangeFields />);
+    expect(container).toBeEmptyDOMElement();
+  });
+  it("has no verb buttons, Clear range or speaker move: those moved to the bar", () => {
+    useDawStore.setState({ rangeArmed: true, selection: null });
+    render(<RangeFields sheet />);
+    const names = screen.getAllByRole("button").map((b) => b.textContent);
+    expect(names).toEqual(["Select range", "Cancel range selection"]);
+  });
+  it("asks which audible occurrence when repeated material has two", async () => {
+    const user = userEvent.setup();
+    const repeated = minimalProject({
+      tracks: [
+        sampleTrack({ id: "speaker", label: "Speaker", range_media_seal: "s" }),
+      ],
+      clips: {
+        tracks: {
+          speaker: [
+            clipRow({
+              id: "first",
+              track_id: "speaker",
+              origin_track_id: "speaker",
+              source_id: null,
+              source_start: 0,
+              source_end: 8,
+              timeline_start: 0,
+              timeline_end: 8,
+            }),
+            clipRow({
+              id: "second",
+              track_id: "speaker",
+              origin_track_id: "speaker",
+              source_id: null,
+              source_start: 0,
+              source_end: 8,
+              timeline_start: 10,
+              timeline_end: 18,
+            }),
+          ],
+        },
+        clip_count: 2,
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "speaker",
+            speaker: "Speaker",
+            start: 1,
+            end: 7,
+            text: "one two",
+            words: [
+              { text: "one", start: 1, end: 2, word_index: 0 },
+              { text: "two", start: 6, end: 7, word_index: 1 },
+            ],
+          },
+        ],
+      },
     });
-    const { container } = render(
-      <main>
-        <RangeActions />
-      </main>,
-    );
-    expect(screen.getByRole("button", { name: "Suggest cut" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Comment" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Bounce" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Suggest cut" }),
-    ).toHaveAccessibleDescription("This share cannot suggest edits");
-    await expectNoA11yViolations(container);
+    useDawStore.setState({
+      project: repeated,
+      selection: {
+        kind: "transcriptRange",
+        trackId: "speaker",
+        startWordIndex: 0,
+        endWordIndex: 1,
+      },
+    });
+    render(<RangeFields />);
+    expect(screen.getByText("Choose the audible occurrence.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Occurrence 2/ }));
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "range",
+      target: { intervals: [{ start: 11, end: 17 }] },
+    });
+  });
+  it("keeps the word handles with a words selection", () => {
+    useDawStore.setState({
+      selection: {
+        kind: "transcriptRange",
+        trackId: "a",
+        startWordIndex: 0,
+        endWordIndex: 0,
+      },
+    });
+    render(<RangeFields />);
+    expect(screen.getByRole("group", { name: /word/i })).toBeTruthy();
   });
   it("requires deliberate lane selection for numeric and agent ranges", async () => {
     const user = userEvent.setup();
@@ -92,7 +139,7 @@ describe("range action bar and phone sheet", () => {
       playheadSec: 9,
       followingClientId: "agent",
     });
-    render(<RangeActions sheet />);
+    render(<RangeFields sheet />);
     await user.click(screen.getByRole("button", { name: "Select range" }));
     expect(screen.getByRole("alert")).toHaveTextContent(
       "choose at least one track",
@@ -116,7 +163,7 @@ describe("range action bar and phone sheet", () => {
       selection: null,
       sessionRegion: { start_sec: 3, end_sec: 4 },
     });
-    render(<RangeActions sheet />);
+    render(<RangeFields sheet />);
     await user.click(screen.getByRole("checkbox", { name: "Speaker" }));
     expect(useDawStore.getState().rangeScopeTrackIds).toEqual(["a"]);
     await user.click(
@@ -132,61 +179,10 @@ describe("range action bar and phone sheet", () => {
       rangeArmed: true,
       selection: { kind: "track", trackId: "a" },
     });
-    render(<RangeActions sheet />);
+    render(<RangeFields sheet />);
     await user.click(
       screen.getByRole("button", { name: "Cancel range selection" }),
     );
     expect(useDawStore.getState().selection).toBeNull();
-  });
-  it("offers Move to the sibling speaker track", () => {
-    const ana = sampleTrack({
-      id: "room",
-      label: "Ana",
-      speaker_split_id: "split_1",
-      range_media_seal: "room",
-    });
-    const ben = sampleTrack({
-      id: "room_ben",
-      label: "Ben",
-      speaker_split_id: "split_1",
-      range_media_seal: "room_ben",
-    });
-    const splitProject = minimalProject({
-      tracks: [ana, ben],
-      clips: {
-        tracks: {
-          room: [
-            clipRow({
-              track_id: "room",
-              timeline_start: 0,
-              timeline_end: 10,
-              source_start: 0,
-              source_end: 10,
-            }),
-          ],
-          room_ben: [
-            clipRow({
-              track_id: "room_ben",
-              timeline_start: 0,
-              timeline_end: 10,
-              source_start: 0,
-              source_end: 10,
-            }),
-          ],
-        },
-        clip_count: 2,
-      },
-    });
-    const splitTarget = makeRangeTarget(
-      splitProject,
-      [{ start: 1, end: 1.4 }],
-      ["room"],
-    )!;
-    useDawStore.setState({
-      project: splitProject,
-      selection: { kind: "range", target: splitTarget },
-    });
-    render(<RangeActions />);
-    expect(screen.getByRole("button", { name: "Move to Ben" })).toBeVisible();
   });
 });

@@ -55,7 +55,6 @@ const COVERED: Record<string, string[]> = {
     "Templates/Editor · Inspector · Pending edit",
     "System/ScrubField",
   ],
-  "INS-EMPTY": ["Templates/Editor · Inspector · Empty"],
   "SCR-LOADING": ["Organisms/LoadingScreen"],
   "SCR-ERROR": ["Organisms/ErrorScreen"],
   "SCR-COVER": ["Organisms/CoverScreen"],

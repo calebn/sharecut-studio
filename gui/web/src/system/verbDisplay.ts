@@ -44,3 +44,21 @@ export function iconOf(id: VerbId): SystemIconName {
   if (!icon) throw new Error(`Verb ${id} has no icon`);
   return icon;
 }
+
+/** The first chord as `aria-keyshortcuts` names it: `Control+Shift+Z`, `Shift+Space`, or undefined. */
+export function ariaShortcutOf(
+  verb: VerbDef,
+  apple: boolean = isApplePlatform(),
+): string | undefined {
+  const spec = verb.keys[0];
+  if (!spec || spec.hold) return undefined;
+  const key = spec.key.length === 1 ? spec.key.toUpperCase() : spec.key;
+  return [
+    spec.mod ? (apple ? "Meta" : "Control") : "",
+    spec.alt ? "Alt" : "",
+    spec.shift ? "Shift" : "",
+    key,
+  ]
+    .filter(Boolean)
+    .join("+");
+}

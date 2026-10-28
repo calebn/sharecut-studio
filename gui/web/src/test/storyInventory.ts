@@ -69,7 +69,6 @@ export const INVENTORY_IDS: readonly string[] = [
   "INS-CLIP",
   "INS-CLIP-MULTI",
   "INS-COMMENT",
-  "INS-EMPTY",
   "INS-ENVELOPE",
   "INS-PEEK",
   "INS-PENDING",

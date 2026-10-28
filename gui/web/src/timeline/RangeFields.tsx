@@ -1,17 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { executePointerCommand } from "../commands/pointer";
-import { rangeActionDescriptors } from "../commands/rangeActions";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
-import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
-import { BUSY_REASON } from "../ui/disabledReason";
 import { oneWordOf } from "../utils/rangeSelect";
-import { SpeakerLaneMoveActions } from "./SpeakerLaneMoveActions";
 
-export function RangeActions({ sheet = false }: { sheet?: boolean }) {
+/**
+ * What the Action bar has no slot for: the In and Out fields with the track
+ * scope and the agent range, the choice between audible occurrences, and the
+ * word-range handles. The verbs live in the bar (`EditActionBar`).
+ */
+export function RangeFields({
+  sheet = false,
+  always = false,
+  numeric: showNumeric = true,
+}: {
+  sheet?: boolean;
+  /** False draws neither the In and Out fields nor the agent range (a phone's strip above the dock). */
+  numeric?: boolean;
+  /** The Inspector's body for a range: the In and Out fields show for the range held. */
+  always?: boolean;
+}) {
   const state = useDaw((s) => ({
     project: s.project,
     selection: s.selection,
@@ -20,10 +30,6 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
     transcriptCorrecting: s.transcriptCorrecting,
     sessionRegion: s.sessionRegion,
     selectedTrackIds: s.rangeScopeTrackIds ?? selectedTrackIdsOf(s.selection),
-    projectPath: s.projectPath,
-    guestMode: s.guestMode,
-    shareCapabilities: s.shareCapabilities,
-    joinMutationInFlight: s.joinMutationInFlight,
     setSelection: s.setSelection,
     setRangeArmed: s.setRangeArmed,
     setRangeScopeTrackIds: s.setRangeScopeTrackIds,
@@ -57,7 +63,6 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
       !sessionRegion)
   )
     return null;
-  const descriptors = rangeActionDescriptors(state, target);
   function selectNumeric() {
     if (!project) return;
     if (!start.trim() || !end.trim()) {
@@ -76,23 +81,35 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
     state.setSelection({ kind: "range", target: next });
     state.setRangeArmed(false);
   }
+  const chooser = resolution.targets.length > 1;
+  const wordHandles =
+    selection?.kind === "transcriptRange" &&
+    !(state.transcriptCorrecting && oneWordOf(selection));
+  const numeric =
+    showNumeric &&
+    (rangeArmed || (always && target) || (sessionRegion && !target));
+  const unresolved =
+    selection?.kind === "transcriptRange" &&
+    !target &&
+    resolution.reason &&
+    resolution.targets.length === 0;
+  if (
+    !(
+      chooser ||
+      wordHandles ||
+      numeric ||
+      unresolved ||
+      error ||
+      state.rangeBusy
+    )
+  )
+    return null;
   return (
     <section
       className={`range-actions${sheet ? " range-actions--sheet" : ""}`}
-      aria-label="Range actions"
+      aria-label="Range fields"
     >
-      {target ? (
-        <p className="range-summary">
-          {target.intervals
-            .map((r) => `${r.start.toFixed(2)}–${r.end.toFixed(2)} s`)
-            .join(" · ")}{" "}
-          ·{" "}
-          {target.track_ids
-            .map((id) => project.tracks.find((t) => t.id === id)?.label ?? id)
-            .join(", ")}
-        </p>
-      ) : null}
-      {resolution.targets.length > 1 ? (
+      {chooser ? (
         <div>
           <p>Choose the audible occurrence.</p>
           {resolution.targets.map((choice, index) => (
@@ -113,53 +130,10 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
           ))}
         </div>
       ) : null}
-      {target ? (
-        <div className="range-action-buttons">
-          {descriptors.map((d) => (
-            <div key={d.action} className="range-action">
-              <Button
-                type="button"
-                className="ui-control--compact"
-                disabledReason={d.reason ?? undefined}
-                onClick={() =>
-                  void executePointerCommand(d.commandId).then((result) => {
-                    if (result.status === "disabled")
-                      useDawStore
-                        .getState()
-                        .announceStatus(result.reason, { tone: "error" });
-                  })
-                }
-              >
-                {d.label}
-              </Button>
-              {d.reason ? <small>{d.reason}</small> : null}
-            </div>
-          ))}
-          <Button
-            type="button"
-            className="ui-control--compact"
-            disabledReason={state.rangeBusy ? BUSY_REASON : undefined}
-            onClick={() => {
-              state.setSelection(null);
-              state.setRangeArmed(false);
-            }}
-          >
-            Clear range
-          </Button>
-          <SpeakerLaneMoveActions />
-        </div>
-      ) : null}
-      {selection?.kind === "transcriptRange" &&
-      !(state.transcriptCorrecting && oneWordOf(selection)) ? (
+      {wordHandles && selection?.kind === "transcriptRange" ? (
         <WordRangeControls selection={selection} />
       ) : null}
-      {rangeArmed ? (
-        <p>
-          Drag across lanes to select. Use In and Out for precise touch
-          selection.
-        </p>
-      ) : null}
-      {rangeArmed || (sessionRegion && !target) ? (
+      {numeric ? (
         <div className="range-numeric">
           <label>
             In{" "}
@@ -207,7 +181,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
           >
             Select range
           </Button>
-          {sessionRegion ? (
+          {sessionRegion && (rangeArmed || !target) ? (
             <Button
               type="button"
               className="ui-control--compact"
@@ -236,21 +210,21 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
               Use agent range on selected tracks
             </Button>
           ) : null}
-          <Button
-            type="button"
-            className="ui-control--compact"
-            onClick={() => {
-              state.setRangeArmed(false);
-              if (selection?.kind === "track") state.setSelection(null);
-            }}
-          >
-            Cancel range selection
-          </Button>
+          {rangeArmed ? (
+            <Button
+              type="button"
+              className="ui-control--compact"
+              onClick={() => {
+                state.setRangeArmed(false);
+                if (selection?.kind === "track") state.setSelection(null);
+              }}
+            >
+              Cancel range selection
+            </Button>
+          ) : null}
         </div>
       ) : null}
-      {!target && resolution.reason && resolution.targets.length === 0 ? (
-        <p>{resolution.reason}</p>
-      ) : null}
+      {unresolved ? <p>{resolution.reason}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {state.rangeBusy ? <p role="status">Preparing range action…</p> : null}
     </section>

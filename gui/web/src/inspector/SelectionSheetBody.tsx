@@ -1,6 +1,6 @@
 import { isRangeSelection } from "../edit/rangeSelection";
 import { useDaw } from "../state/useDaw";
-import { RangeActions } from "../timeline/RangeActions";
+import { RangeFields } from "../timeline/RangeFields";
 import { Inspector } from "./Inspector";
 import { InspectorPeek } from "./InspectorPeek";
 import type { PeekTarget } from "./peekTarget";
@@ -20,7 +20,7 @@ export function SelectionSheetBody({
   const rangeFields = rangeActionsInSheet && !isRangeSelection(selection);
   return (
     <>
-      {rangeFields ? <RangeActions sheet /> : null}
+      {rangeFields ? <RangeFields sheet /> : null}
       {peek ? (
         <InspectorPeek peek={peek} />
       ) : selection != null && !(rangeArmed && selection.kind === "track") ? (

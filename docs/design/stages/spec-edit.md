@@ -5,7 +5,7 @@
 > - Inspector sheet, Invite popover, eye popover, History popover, speaker popover and person popover became **Sheet** instances. Project menu, Create here and More became **Menu** instances.
 > - Script header notices became inline **Status rows**. The Empty state pattern became **Cover**. The corner zoom cluster and marker lane are parts of **Timeline**. The Edit surface switch is a Segmented control (`chart-gantt` / `text`).
 > - Comment popover and suggestion inspector became a compact **Decision card**.
-> - The Blade tool and the Select/Blade toggle are removed. Split is Mod+K, or Alt-click at the pointer. B now means Hear after.
+> - The Blade tool and the Select/Blade toggle are removed. Split is a visible Action bar verb on S (and Mod+K), or Alt-click at the pointer; on touch it is the bar's Split or a long-press on a lane ("Split here"). Solo moves to Shift+S. B now means Hear after.
 > - Keys: hold O became hold A. Shift+M chapter became Shift+C. Mod+Shift+E became Mod+E. Mod+B is palette only. Mod+N is dropped. Tab is "next of the same kind" and F6 moves between regions.
 > - Icons: Keep is `shield-check` (not the U-turn arrow). Hear is `ear`. Follow is `locate-fixed`. The listen role is `ear`. Review stage is `inbox`. Prepare stage is `wand-sparkles`. Deliver stage is `send`. Failed is `octagon-alert`.
 > - Commenter guests get Review only (their Cut makes a Suggestion). Editor guests get Edit and Review, not Prepare.
@@ -269,7 +269,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Today:** SCR-SHELL-TABLET--tablet-light.png, SCR-PHONE-TIMELINE--phone-light.png, SCR-SHELL-DESKTOP shots. Hierarchy: tools are split between the transport (desktop) and a second row (tablet/phone). Interaction cost: ten tools (Select, Blade, Comment mode, Range, Undo, Redo, Zoom ±, Add track, Import, Cut at playhead). Consistency: phone shows Select range as a dashed box, tablet as the words "Select range".
 - **Fate:** replace. Tools collapse to a two-state tool toggle; the rest become verbs, header buttons or the corner zoom cluster.
 - **Spec:**
-  - There is no tool toggle (W1a, #2294). The tool rail, the Select/Blade modes, V, C and the spring-loaded Blade are gone; the corner box keeps the zoom cluster, the Script toggle, the eye and, on touch, the range toggle. Split is Mod+K at the playhead, or Alt-click at the pointer (mouse only).
+  - There is no tool toggle (W1a, #2294). The tool rail, the Select/Blade modes, V, C and the spring-loaded Blade are gone; the corner box keeps the zoom cluster, the Script toggle, the eye and, on touch, the range toggle. Split is the Action bar's Split (S, or Mod+K at the playhead), or Alt-click at the pointer (mouse only); touch has the bar and the long-press menu.
   - Comment mode removed (W1a): the ruler no longer pins a comment, `Mod+Shift+C` and the Comments panel mode button are gone. Comment is a verb on any selection and at the playhead (C, bound by the action bar in W1b; until then the Player bar and the Comments panel compose).
   - Range tool removed on desktop: drag on empty lane area (or Shift-drag over clips) selects a range. Touch: long-press on a lane then drag selects a range; a range toggle (bracket icon, `range.arm`, 44 px) sits in the corner box on touch devices only (W1a: moved from the old tool strip into `EditCorner`, story `Stages/Edit/Corner` `TouchWithRange`).
   - Undo/Redo move to the header. Zoom moves to the corner zoom cluster. Add track and Import move under the track headers ("+"). Cut at playhead is the Split verb at the playhead (Mod+K).
@@ -378,6 +378,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Today:** INS-RANGE--desktop-light.png, --phone-light.png, INS-WORD--desktop-light.png. Hierarchy: a full-width toolbar pushes the timeline down 68 px (152 px with word controls). Hierarchy: "Fill room tone" shows disabled with a sentence explaining why. Interaction cost: seven text buttons plus "Add word before / after / Drop first / last word / Ignore".
 - **Fate:** merge into the Action bar (range variant).
 - **Spec:** action bar over the range: Hear, Cut, Split, Comment, More (Mute, Fill with room tone only when the range contains a gap, Move to speaker only when lanes are speaker-split, Export selection…, Copy), Inspect (In, Out, Length Scrub fields). Left of the verbs: NEW: Scope chip showing which tracks are affected as stacked track-color dots ("All" when all) and a ripple glyph when time will close. Clicking the scope chip opens track toggles. The range edges are dragged directly on the lane or ruler; word-range adjustments are drag handles on the text selection (CMP-WORDRANGE).
+- **Built (W1b, #2294):** `stage/edit/EditActionBar.tsx` draws the bar from `editFacts` and `resolveBar`, worded and gated by `commands/editVerbs.ts` (`barModelOf`, `runEditVerb`): floating by the selection on desktop and tablet (flips below near the top edge, hides while its anchor is scrolled or zoomed out of view), the dock above the Player on a phone. `timeline/RangeActions` shrank to `timeline/RangeFields`: the In and Out fields with the track scope and the agent range, the choice between audible occurrences, and the word-range handles. Its verb buttons, summary line and Clear range (Esc) are gone; Move to speaker is a More row per sibling lane. The gates carried over: busy, a join in flight, a stale range, "Suggest cut" and "Suggest mute" for a suggest link, host-only Export, the guest's "Play full mix" and its stale-mix refusal. A refusal of any verb is announced; only the primary shows a disabled reason in place. A selection across tracks covers the range on every one of them (W2 reads this for words). The Inspector opens only on Inspect (I, the verb, a double-click on a clip), never because something is selected.
 - **Anticipated next action:** after Cut, the next similar range. See INT-WORD-CUT and INT-RANGE.
 - **Shared elements used:** Action bar, NEW: Scope chip, Inspector sheet.
 - **Story to build:** `Edit/ActionBar` stories `Range`, `RangeWithGap`, `RangeScopeOneTrack`, `RangePhoneDock`.
@@ -472,9 +473,9 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 ### MENU-CREATE · Create here menu
 
-- **Today:** MENU-CREATE--desktop-light.png. Language: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar.
+- **Today:** MENU-CREATE--desktop-light.png. Language: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar. Built (W1b): the long-press menu opens with Split here, then Add chapter and Add comment, then the lane's Add envelope point.
 - **Fate:** restyle as the playhead/point variant of the verbs.
-- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (Mod+K), Comment here (C), Add chapter here (Shift+M), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
+- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (S, Mod+K) first, Comment here (C), Add chapter here (Shift+M), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
 - **Shared elements used:** Icon language, Action bar verbs.
 - **Story to build:** `Edit/CreateMenu` stories `Lane`, `WithPaste`, `Phone`.
 
@@ -631,6 +632,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** INS-EMPTY--desktop-light.png. Purpose: an empty column or a heading with an unmapped-edits list.
 - **Fate:** remove. No inspector without a selection. Unmapped pending edits move to Review.
+- **Built (W1b, #2294):** `inspector/views/EmptyInspector*` is deleted; the Inspector opens only on Inspect for a selection. Unmapped pending edits stay in the Impact panel (`panels/ImpactPanel.tsx`).
 - **Story to build:** none.
 
 ### INS-CLIP · Clip inspector
@@ -989,7 +991,7 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 
 **Icon language proposals (coordinate with all specs):** Cut = scissors; Split = blade (vertical blade glyph), so the Split verb and the Alt-click guide share it; Keep = restore arrow; Hear = speaker-wave; Comment = speech bubble; Fix text = text cursor; Remove = trash; Mute = speaker-slash; Solo = headphones; Inspect = sliders; Hear original = A/B.
 
-**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). The Blade tool is removed (W1a): C and V are unbound until W1b, and B is Hear after. C becomes Comment. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. O holds hear-original. Shift+M adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
+**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). The Blade tool is removed (W1a): C is Comment (W1b), V is unbound, and B is Hear after. S is Split and Solo is Shift+S. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. O holds hear-original. Shift+M adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
 
 ---
 

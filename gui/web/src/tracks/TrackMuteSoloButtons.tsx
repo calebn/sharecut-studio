@@ -34,7 +34,7 @@ export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
       solo={solo}
       editsMix={editsMix}
       shortcuts={{
-        mute: displayShortcutFor("track.muteToggle") ?? "",
+        mute: displayShortcutFor("edit.mute") ?? "",
         solo: displayShortcutFor("track.soloToggle") ?? "",
       }}
       onMute={() => {

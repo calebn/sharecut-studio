@@ -6,6 +6,7 @@ import {
   registerClipMoveCommands,
   registerPrimaryEditingCommands,
 } from "../commands/editing";
+import { registerEditVerbCommands } from "../commands/editVerbs";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerProjectMediaCommands } from "../commands/projectMedia";
 import {
@@ -448,6 +449,7 @@ describe("trim nudge document writers", () => {
       setClipboard(null);
       registerClipboardCommands();
       registerPrimaryEditingCommands();
+      registerEditVerbCommands();
       const result = await execute(command, {}, { skipWhen: true });
       expect(result.status).toBe("disabled");
       expect(submitQueuedDocumentCommand).not.toHaveBeenCalled();

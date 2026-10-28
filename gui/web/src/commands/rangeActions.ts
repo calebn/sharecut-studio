@@ -72,6 +72,9 @@ function correctingWordReason(
     : "Use Select mode for range actions (Correct is ASR-only)";
 }
 
+/** A guest hears the rendered mix, not the lanes, and the button says so. */
+export const PLAY_FULL_MIX_LABEL = "Play full mix";
+
 export function rangeActionDescriptors(
   state: RangeActionContext,
   target: ExactRangeTarget | null,
@@ -134,7 +137,7 @@ export function rangeActionDescriptors(
       (action === "cut" || action === "mute") && mode !== "edit"
         ? `Suggest ${short.toLowerCase()}`
         : action === "play" && guest
-          ? "Play full mix"
+          ? PLAY_FULL_MIX_LABEL
           : short;
     return { action, commandId, label, reason };
   });

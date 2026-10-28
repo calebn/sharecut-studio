@@ -395,6 +395,16 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "builds the command ctx snapshot at execute time, not render",
   },
   {
+    file: "commands/comments.ts",
+    reason:
+      "a comment drafted with nothing selected pins to the playhead when the command runs, not in render",
+  },
+  {
+    file: "commands/editVerbs.ts",
+    reason:
+      "Split and Record read the playhead when the verb runs, not in render",
+  },
+  {
     file: "commands/editing.ts",
     reason:
       "falls back to the current playhead when a blade atTime arg is omitted",

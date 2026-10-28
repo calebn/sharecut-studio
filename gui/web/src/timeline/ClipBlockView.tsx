@@ -88,6 +88,7 @@ export type ClipHitHandlers = Pick<
   | "onLostPointerCapture"
   | "onBlur"
   | "onClick"
+  | "onDoubleClick"
 >;
 
 export interface ClipBlockViewProps {
@@ -255,6 +256,7 @@ export function ClipBlockView({
           onLostPointerCapture={hitHandlers?.onLostPointerCapture}
           onBlur={hitHandlers?.onBlur}
           onClick={hitHandlers?.onClick}
+          onDoubleClick={hitHandlers?.onDoubleClick}
         />
       ) : null}
       {showHandles && prevClip ? (

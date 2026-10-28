@@ -1243,31 +1243,12 @@ html[data-shell="phone"] .guest-attention-dismiss {
   margin: 0;
 }
 
-.range-summary {
-  font-family: var(--font-family-mono);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-.range-action-buttons,
 .range-numeric,
 .range-numeric fieldset {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-}
-
-.range-action {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  max-inline-size: 16rem;
-}
-
-.range-action small {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
 }
 
 .range-numeric label {

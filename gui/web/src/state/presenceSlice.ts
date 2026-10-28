@@ -134,9 +134,9 @@ export const createPresenceSlice: StateCreator<
   suppressPublish: false,
   pendingWireSelection: null,
   remoteSelectionRevision: 0,
-  adoptRemoteSelection: (selection, pendingWireSelection = null) =>
+  adoptRemoteSelection: (adopted, pendingWireSelection = null) =>
     set((s) => ({
-      ...selectionPatch(s.selection, selection, s.inspectorKey),
+      ...selectionPatch(s.selection, adopted, s.inspectorKey),
       pendingWireSelection,
       remoteSelectionRevision: s.remoteSelectionRevision + 1,
     })),
