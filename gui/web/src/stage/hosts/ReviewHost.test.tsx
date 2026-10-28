@@ -388,6 +388,22 @@ describe("Review host decisions", () => {
     });
   });
 
+  it("sends skip_unsure for a one-item group verb, and again through Cut anyway", async () => {
+    server.status = "pending";
+    mount([F1]);
+    expect(
+      screen.getByRole("button", { name: "Cut this one" }),
+    ).toHaveTextContent(/^Cut$/);
+    await userEvent.click(screen.getByRole("button", { name: "Cut this one" }));
+    await userEvent.click(await cutAnyway());
+    await waitFor(() => expect(sent("ApproveEdits")).toHaveLength(1));
+    expect(sent("ApproveEdits")[0].payload).toEqual({
+      ids: ["f1"],
+      hold_blocked: true,
+      skip_unsure: true,
+    });
+  });
+
   it("words and routes Lower, Leave and Shorten by the suggested action, and gates only the cut", async () => {
     server.status = "pending";
     mount([

@@ -148,7 +148,7 @@ function GroupHeader({
           </Button>
         </>
       ) : null}
-      {group.held > 0 ? (
+      {group.held > 0 && !guest ? (
         <span id={heldId} className="sys-mono">
           {group.held} to decide one by one
         </span>
