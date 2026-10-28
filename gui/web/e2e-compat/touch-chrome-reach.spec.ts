@@ -7,6 +7,7 @@ import {
 } from "../e2e/compactChromeFixture";
 import { newFinger } from "../e2e/finger";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
+import { runPaletteCommand } from "../e2e/stageNav";
 
 import { json, watchCommands } from "../e2e/touchTimeline";
 
@@ -35,20 +36,9 @@ async function cutIsTappable(
     await page.waitForTimeout(60);
     await finger.up();
   };
-  // A window 16rem tall or less folds the tool strip behind the header's Tools
-  // button, and the Blade cut button sits in that sheet with the tools; taller
-  // ones show the strip.
-  const tools = page.getByRole("button", { name: "Tools", exact: true });
-  const strip = page.getByRole("group", { name: "Editing tools" });
-  await expect(tools.or(strip)).toBeVisible();
-  const folded = await tools.isVisible();
-  if (folded) await tapCentre(tools);
-  await tapCentre(
-    page.getByRole("button", { name: "Blade tool", exact: true }).first(),
-  );
-  const cutAtPlayhead = page.getByRole("button", { name: /^Blade cut/ });
-  await expect(cutAtPlayhead).toBeVisible();
-  await tapCentre(cutAtPlayhead);
+  // A finger has no Alt key, so the split at the playhead comes from the
+  // palette (the action bar's Split arrives with the next slice).
+  await runPaletteCommand(page, "Blade cut");
   const dialog = page.getByRole("dialog", { name: /^Cut at / });
   await expect(dialog).toBeVisible();
   await page.waitForTimeout(600);

@@ -70,7 +70,7 @@ async function open(page: Page, view: Layout, envelope: boolean) {
   if (view.shell === "phone") await openPhoneTimeline(page);
   await expect(page.locator(".lane-row").first()).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "Editing tools" }),
+    page.getByRole("group", { name: "Timeline view" }),
   ).toBeVisible();
   if (envelope) {
     await layer(page, "Volume envelope", true);

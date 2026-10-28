@@ -158,7 +158,7 @@ export async function waitForLanding(page: Page): Promise<void> {
 
 /**
  * A window too short or too narrow for the Edit rows folds the surface switch
- * and the tool strip behind the header's Tools button. Open its sheet when it
+ * and the timeline corner behind the header's Tools button. Open its sheet when it
  * is there; the controls it holds are then visible. Returns whether it opened.
  */
 export async function openToolsIfFolded(page: Page): Promise<boolean> {
@@ -417,21 +417,18 @@ export async function setLayer(
   await expect(sheet).toBeHidden();
 }
 
-/** The Edit tool strip's Select and Blade toggle. */
-export async function selectTool(
+/**
+ * Alt-click Split: hold Alt and click `target` (a lane, a clip) at `position`
+ * in its own box. It replaces the old Select/Blade toggle: a plain click only
+ * selects or seeks.
+ */
+export async function altClickSplit(
   page: Page,
-  tool: "select" | "blade",
+  target: Locator,
+  position?: { x: number; y: number },
 ): Promise<void> {
   await goToStage(page, "edit");
-  const folded = await openToolsIfFolded(page);
-  const strip = page.getByRole("group", { name: "Editing tools" });
-  const button = strip.getByRole("button", {
-    name: tool === "select" ? "Select tool" : "Blade tool",
-    exact: true,
-  });
-  await button.click();
-  await expect(button).toHaveAttribute("aria-pressed", "true");
-  if (folded) await closeTools(page);
+  await target.click({ modifiers: ["Alt"], position });
 }
 
 /** Add a track from the Edit stage's + menu. */
@@ -441,15 +438,38 @@ export async function addTrack(page: Page): Promise<void> {
   await page.getByRole("menuitem", { name: /^New track/ }).click();
 }
 
-/** Arm range selection from the Edit tool strip; the Range actions form opens. */
+/** Run a catalog command from the palette by its label. */
+export async function runPaletteCommand(
+  page: Page,
+  label: string,
+): Promise<void> {
+  await openProjectDialog(page, "palette");
+  const search = page.getByRole("combobox", { name: "Search commands" });
+  await search.fill(label);
+  await search.press("Enter");
+  await expect(
+    page.getByRole("dialog", { name: "Commands and shortcuts" }),
+  ).toBeHidden();
+}
+
+/**
+ * Arm range selection; the Range actions form opens. A touch screen has the
+ * bracket toggle in the timeline corner; a mouse drags a range directly, so
+ * the same command `range.arm` runs from the palette there.
+ */
 export async function armRange(page: Page): Promise<void> {
   await goToStage(page, "edit");
   // Folded, the Range actions open over the Tools sheet and leave it be.
-  await openToolsIfFolded(page);
-  const button = page
-    .getByRole("group", { name: "Editing tools" })
+  const folded = await openToolsIfFolded(page);
+  const toggle = page
+    .getByRole("group", { name: "Timeline view" })
     .getByRole("button", { name: "Select range", exact: true });
-  await button.click();
+  if (await toggle.isVisible()) {
+    await toggle.click();
+  } else {
+    if (folded) await closeTools(page);
+    await runPaletteCommand(page, "Select a range");
+  }
   await expect(
     page.getByRole("region", { name: "Range actions" }),
   ).toBeVisible();
@@ -466,25 +486,6 @@ export async function setAudition(page: Page, mode: Audition): Promise<void> {
   await expect(row).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await expect(row).toBeHidden();
-}
-
-/**
- * Turn comment mode on from the Edit stage's tool strip, which brings up the
- * "Comment time" ruler.
- */
-export async function armCommentMode(page: Page): Promise<void> {
-  await goToStage(page, "edit");
-  const folded = await openToolsIfFolded(page);
-  const toggle = page
-    .getByRole("group", { name: "Editing tools" })
-    .getByRole("button", { name: "Toggle comment mode", exact: true });
-  if ((await toggle.getAttribute("aria-pressed")) !== "true") {
-    await toggle.click();
-  }
-  if (folded) await closeTools(page);
-  await expect(
-    page.getByRole("slider", { name: "Comment time" }),
-  ).toBeVisible();
 }
 
 /**

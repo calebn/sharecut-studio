@@ -191,7 +191,7 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
           html.style.fontSize = `${size}px`;
         }, rootPx);
         const controls = page.locator(
-          '[role="group"][aria-label="Editing tools"] button',
+          '[role="group"][aria-label="Timeline view"] button',
         );
         let visible = 0;
         for (const control of await controls.all()) {

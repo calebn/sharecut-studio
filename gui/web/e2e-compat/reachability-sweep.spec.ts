@@ -317,10 +317,6 @@ async function sweepCell(
   // action items and track picks appear once there is text.
   if (!phone) {
     await openPanel(page, "comments");
-    await page
-      .getByRole("button", { name: "Toggle comment mode", exact: true })
-      .first()
-      .click();
     const body = page.getByRole("textbox", { name: "Comment", exact: true });
     await body.fill("Check this join");
     await expect(page.locator(".comment-track-picks")).toBeVisible();

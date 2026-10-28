@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from "@playwright/test";
-import { goToStage, openPanel } from "./stageNav";
+import { openPanel } from "./stageNav";
 
 export type CapturedCommentCommand = {
   command_id: string;
@@ -37,13 +37,7 @@ export async function interceptCommentCommands(page: Page): Promise<{
 
 /** Open the comment composer and submit one anchored host comment. */
 export async function postHostComment(page: Page, body: string): Promise<void> {
-  // The anchor is set on the Edit stage's ruler; the composer is on Review.
-  await goToStage(page, "edit");
-  await page
-    .getByRole("group", { name: "Editing tools" })
-    .getByRole("button", { name: "Toggle comment mode", exact: true })
-    .click();
-  await page.getByRole("slider", { name: "Comment time" }).click();
+  // The composer is on Review and anchors at the playhead.
   await openPanel(page, "comments");
   await expect(page.getByText("Commenting as")).toContainText("Host");
   await page.getByPlaceholder("Add a comment…").fill(body);
