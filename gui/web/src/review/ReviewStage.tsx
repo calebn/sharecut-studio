@@ -33,7 +33,6 @@ import {
 export type ReviewIntent = {
   ids: readonly string[];
   result: ReviewResult;
-  /** Cut anyway. */
   waive?: { note?: string };
 };
 
@@ -117,10 +116,7 @@ export function ReviewStage({
   const gate = !waived && openOf(items, "check").some((i) => i.transcript);
   const holdsGate = (ids: readonly string[]) =>
     gate &&
-    ids.some((id) => {
-      const item = items.find((i) => i.id === id);
-      return item !== undefined && holdsGateKind(item);
-    });
+    ids.some((id) => items.some((i) => i.id === id && holdsGateKind(i)));
 
   const step = (direction: "forward" | "backward") =>
     onSelect(stepUndecided(items, selectedId, direction, filter));
@@ -147,8 +143,8 @@ export function ReviewStage({
   };
 
   const keep = (id: string) => {
-    const item = items.find((i) => i.id === id);
-    if (item && !item.result && !guest) onDecide({ ids: [id], result: "kept" });
+    if (!guest && items.some((i) => i.id === id && !i.result))
+      onDecide({ ids: [id], result: "kept" });
   };
 
   const bulk = (all: readonly string[] | undefined) => {
@@ -232,9 +228,8 @@ export function ReviewStage({
   }, []);
 
   const body = selected ? content(selected) : null;
-  const range = selected ? ranges[selected.id] : undefined;
   const base = body?.card.waveform;
-  const wave = base ? { ...base, ...range } : undefined;
+  const wave = base && { ...base, ...(selected && ranges[selected.id]) };
   const adjust = (next: TimeRange) => {
     if (selected) setRanges((current) => ({ ...current, [selected.id]: next }));
   };
@@ -259,9 +254,7 @@ export function ReviewStage({
             if (selected.kind === "unsure-word")
               onDecide({ ids: [selected.id], result: "applied" });
           },
-          onLooksRight: () => {
-            if (!guest) onLooksRight(selected.id);
-          },
+          onLooksRight: () => !guest && onLooksRight(selected.id),
         }
       : undefined;
   const unsureWords = openOf(items, "unsure-word").length;
