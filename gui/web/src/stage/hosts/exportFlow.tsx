@@ -24,6 +24,7 @@ import {
   notDownloadedLine,
 } from "../../utils/apiError";
 import { jobResultPaths } from "../../utils/pipeline";
+import { editHeadOf } from "./deliverModel";
 import { type ExportFlow, type ExportRun, Flow } from "./exportFlowContext";
 import {
   type ExportSettings,
@@ -111,7 +112,8 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
               resultCopy: exportResultCopy,
               signal: scope.signal,
               onStart: (job) => {
-                const head = useDawStore.getState().project?.history.head_id;
+                const history = useDawStore.getState().project?.history;
+                const head = history ? editHeadOf(history) : undefined;
                 if (head !== undefined)
                   setRequest((r) =>
                     r && r.edits !== undefined ? { ...r, edits: head } : r,
@@ -140,6 +142,11 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
           return;
         }
         const done = ran.value;
+        const exportedHead = done.result?.edit_head_id;
+        if (typeof exportedHead === "string")
+          setRequest((r) =>
+            r && r.edits !== undefined ? { ...r, edits: exportedHead } : r,
+          );
         setRun({
           kind: "done",
           paths: jobResultPaths(done),

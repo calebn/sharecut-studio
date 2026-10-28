@@ -209,6 +209,21 @@ describe("the export flow over the server's routes", () => {
     expect(flow.request?.edits).toBe("after");
   });
 
+  it("takes the edit head from the finished job", async () => {
+    mount();
+    await loaded();
+    act(() => flow.start(["mp3"], { ...REQUEST, edits: "clicked" }));
+    await running();
+    await act(async () =>
+      server.settle({
+        ...EXPORT_FINISHED,
+        result: { ...EXPORT_FINISHED.result, edit_head_id: "exported" },
+      }),
+    );
+    await waitFor(() => expect(flow.run.kind).toBe("done"));
+    expect(flow.request?.edits).toBe("exported");
+  });
+
   it("does not cancel before the server has answered the start", async () => {
     const answer = deferred();
     server.holdStart = answer.promise;

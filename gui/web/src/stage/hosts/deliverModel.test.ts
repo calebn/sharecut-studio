@@ -4,6 +4,7 @@ import {
   clipOps,
   clipsOf,
   deliverFacts,
+  editHeadOf,
   fixRoute,
 } from "./deliverModel";
 
@@ -151,5 +152,33 @@ describe("fixRoute", () => {
     ["edit", "peaks", { kind: "stage", stage: "edit" }],
   ] as const)("%s %s", (stage, target, route) => {
     expect(fixRoute(stage, target)).toEqual(route);
+  });
+});
+
+describe("editHeadOf", () => {
+  const cut = { id: "e1", operation: "cut" };
+  const preview = { id: "p1", operation: "render_preview" };
+  it("is the head when it is an edit", () => {
+    expect(editHeadOf({ head_id: "e1", groups: [cut] })).toBe("e1");
+  });
+  it("skips mix rebuild entries", () => {
+    expect(editHeadOf({ head_id: "p1", groups: [cut, preview] })).toBe("e1");
+    expect(
+      editHeadOf({
+        head_id: "p1",
+        groups: [{ before_id: "b", after_id: "a", operation: "cut" }, preview],
+      }),
+    ).toBe("a");
+  });
+  it("stops at the head, so an undone edit is not counted", () => {
+    expect(
+      editHeadOf({
+        head_id: "e1",
+        groups: [cut, { id: "e2", operation: "cut" }],
+      }),
+    ).toBe("e1");
+  });
+  it("falls back to the head with no groups", () => {
+    expect(editHeadOf({ head_id: "root", groups: [] })).toBe("root");
   });
 });

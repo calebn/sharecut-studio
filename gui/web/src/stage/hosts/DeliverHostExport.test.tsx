@@ -143,6 +143,41 @@ describe("Export on the Deliver stage", () => {
     expect(screen.queryByText("Exported")).toBeNull();
   });
 
+  it("stays Exported when only a mix rebuild entry lands while it runs", async () => {
+    const setHistory = (head: string, groups: object[]) => {
+      const project = useDawStore.getState().project;
+      if (!project) throw new Error("fixture");
+      act(() =>
+        useDawStore.setState({
+          project: {
+            ...project,
+            history: {
+              ...project.history,
+              head_id: head as HistoryEntryId,
+              groups: groups as typeof project.history.groups,
+            },
+          },
+        }),
+      );
+    };
+    const cut = { kind: "snapshot", id: "e1", operation: "cut" };
+    setHistory("e1", [cut]);
+    render(<Host />);
+    await pressExport();
+    setHistory("p1", [
+      cut,
+      { kind: "snapshot", id: "p1", operation: "render_preview" },
+    ]);
+    await act(async () =>
+      server.settle({
+        ...EXPORT_FINISHED,
+        result: { ...EXPORT_FINISHED.result, edit_head_id: "e1" },
+      }),
+    );
+    expect(await screen.findByText("Exported")).toBeInTheDocument();
+    expect(screen.queryByText("Edited since export")).toBeNull();
+  });
+
   it("says Exporting with the job's progress while it runs", async () => {
     render(<Host />);
     await pressExport();

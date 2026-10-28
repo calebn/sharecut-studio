@@ -45,6 +45,7 @@ import {
   clipOps,
   clipsOf,
   deliverFacts,
+  editHeadOf,
   type FixRoute,
   fixRoute,
   sameChapters,
@@ -158,7 +159,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     }),
     [chosenFormats],
   );
-  const edits = project?.history.head_id ?? undefined;
+  const edits = project ? editHeadOf(project.history) : undefined;
   const formatsBlocker =
     exportFlow.loading || exportFlow.settings === null
       ? undefined
