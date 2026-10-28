@@ -578,8 +578,6 @@ class JobManager:
         svc = PipelineService(ws)
         if job.kind == "export":
             cfg = job.config or {}
-            # The export reports the head at its own checkpoint; this sample, taken when the
-            # workspace opened, stands in for an export that does not.
             opened_head_id = ws.project.history.edit_head_id()
             export = svc.export_audio(cfg.get("formats"), cancel_check=cancel_check)
             result = export.job_result()

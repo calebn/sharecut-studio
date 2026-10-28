@@ -390,8 +390,6 @@ describe("Prepare host", () => {
 });
 
 describe("Deliver host", () => {
-  // Only Deliver talks to the export endpoints; the Prepare host reads its own
-  // pipeline config and must not get the export fake's.
   beforeEach(() => {
     server = fakeExportServer();
   });

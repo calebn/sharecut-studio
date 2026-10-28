@@ -92,8 +92,6 @@ class AudioExportResult:
     # ``master_qc.json``: the configured target and ceiling, the measured master and the
     # verdict. None when the master has no QC report.
     master: dict[str, Any] | None
-    # ``ProjectHistory.edit_head_id()`` read at the export's checkpoint, the point the files
-    # are encoded from. None when the caller did not record it.
     edit_head_id: str | None = None
 
     def master_summary(self) -> str:

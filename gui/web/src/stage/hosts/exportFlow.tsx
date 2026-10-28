@@ -100,8 +100,6 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       if (!path || runRef.current.kind === "running") return;
       const current = settingsRef.current;
       const formats = current ? selectedFormats(current, keys) : null;
-      // Never post an empty list: with WAV not always written it would export
-      // nothing, and a failed reload must not turn the known formats into one.
       if (current && formats?.length === 0 && !current.wav) return;
       selectedRef.current = keys;
       setSelected(keys);
@@ -199,8 +197,6 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
   }, []);
   const requestRef = useRef(request);
   requestRef.current = request;
-  // Export again and Try again run the export once more with what was asked,
-  // unless the settings failed to load: then they load again and wait.
   const again = useCallback(() => {
     const asked = requestRef.current;
     if (settingsErrorRef.current !== null || !asked) {

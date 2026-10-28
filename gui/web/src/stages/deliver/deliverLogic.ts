@@ -377,9 +377,6 @@ export function exportBlocker(
   if (
     settings.formats.length === 0 &&
     !host.wavAlwaysWritten &&
-    // Settings that never loaded leave nothing to choose from; the server then
-    // exports the project's saved formats. Once the formats are known, none
-    // chosen stays refused even if a later reload failed.
     !(host.settingsError && !host.formats?.length)
   )
     return "Choose a format first.";
