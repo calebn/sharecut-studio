@@ -157,25 +157,6 @@ async function settle(page: Page) {
     .toBe(true);
 }
 
-/** Rows the tool strip's visible controls sit on, by vertical centre. */
-function railRows(page: Page) {
-  return page.evaluate(
-    () =>
-      new Set(
-        [
-          ...document.querySelectorAll<HTMLElement>(
-            ".edit-tool-strip .ui-control",
-          ),
-        ]
-          .filter((el) => el.offsetParent !== null)
-          .map((el) => {
-            const box = el.getBoundingClientRect();
-            return Math.round((box.top + box.height / 2) / 8);
-          }),
-      ).size,
-  );
-}
-
 /** Select the first clip with a tap and sweep the surface that opens for it. */
 async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
   const hit = page.locator(".lane-row .clip-hit").first();
@@ -233,21 +214,6 @@ async function sweepCell(
     dense: DENSE,
     sizeExempt: SIZE_EXEMPT,
   });
-  const rows = sheet ? await railRows(page) : 1;
-  // A narrow or short window folds the strip behind the header's Tools button.
-  const folded = await page
-    .getByRole("button", { name: "Tools", exact: true })
-    .isVisible();
-  if (rows !== (folded ? 0 : 1)) {
-    found["tool strip"] = [
-      {
-        failure: "overflows-container",
-        control: `tool strip wraps onto ${rows} rows (#1347)`,
-        layout: { width: 0, height: 0 },
-        rect: { left: 0, top: 0, right: 0, bottom: 0 },
-      },
-    ];
-  }
 
   const trigger = page.locator(".track-header-open").first();
   await trigger.focus();

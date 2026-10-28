@@ -8,7 +8,7 @@ export interface FrameFitSizes {
   headerHeight: number;
   playerHeight: number;
   tabsHeight: number;
-  /** The Edit rows a fold moves into Tools (surface switch, tool strip); 0 off the phone's Edit. */
+  /** The Edit rows a fold moves into Tools (the surface switch); 0 off the phone's Edit. */
   rowsHeight: number;
   /** The lanes' own floor (`--stage-stacked-lanes-min`). */
   lanesMin: number;
@@ -81,8 +81,7 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
     headerHeight: height(".stage-frame-header"),
     playerHeight: height(".stage-frame-player"),
     tabsHeight: height(".stage-frame-tabs"),
-    rowsHeight:
-      height(".phone-edit-bar") + height(".phone-edit .edit-tool-strip"),
+    rowsHeight: height(".phone-edit-bar"),
     lanesMin: tokenHeightPx(frame, "--stage-stacked-lanes-min"),
     laneHeight: tokenHeightPx(frame, "--lane-height"),
     laneAreaHeight: height(

@@ -19,7 +19,7 @@ describe("toastDockBottomPx (phone)", () => {
     );
   });
 
-  it("sits above the Timeline tool rail instead of covering it", () => {
+  it("sits above a docked bar instead of covering it", () => {
     expect(toastDockBottomPx({ ...phone, floorTopsPx: [792, 732] })).toBe(
       844 - 732 + 12,
     );

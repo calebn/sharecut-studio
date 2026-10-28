@@ -326,7 +326,6 @@ const cornerButton =
     await runs(id, () => user.click(button(name)));
   };
 
-/** The range toggle lives in the corner on a touch screen only. */
 const touchRangeToggle: Probe = async (user) => {
   asHost("edit");
   useDawStore.setState({ pointerKind: "coarse" });
@@ -458,8 +457,7 @@ const REMOVED_SURFACES: Entry[] = [
   component("More hub", "People", [peopleSlot]),
 
   // Tool rail and the transport bar's own tool buttons.
-  // Select, Blade and Comment mode are gone: a drag selects, Alt-click splits at
-  // the pointer, and Comment arrives as a verb (C) with the action bar.
+  // Comment mode is gone; Comment arrives as a verb (C) with the action bar.
   entry("tool rail", "Select a range", "range.arm", [touchRangeToggle]),
   entry("tool rail", "Cut at playhead", "edit.bladeCut"),
   entry("transport bar", "Add track", "track.add", [

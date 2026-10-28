@@ -21,7 +21,6 @@ test("Stages/Edit/Corner range toggle is a 44px target on a phone", async ({
   expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   if (!box) return;
-  // Every corner and the centre of the box must land on the toggle itself.
   const inset = 1;
   const points = [
     [box.x + inset, box.y + inset],

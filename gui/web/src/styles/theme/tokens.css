@@ -164,8 +164,8 @@
   --stage-stacked-script-floor: 8rem;
   /* What the Edit stage keeps above an open inspector sheet so the page still
      reads as the page: the app header (a phone's sheet starts below it, so
-     bottom-sheet.css zeroes --sheet-header-clearance there), the row the surface switch and the
-     tools share (a control and its padding), the ruler and the marker lane.
+     bottom-sheet.css zeroes --sheet-header-clearance there), the row the surface switch and Mix
+     share (a control and its padding), the ruler and the marker lane.
      Where those two rows stack (a container under 22rem, as at large text),
      bottom-sheet.css counts the second row too. */
   --sheet-edit-row: calc(var(--control-height) + 2 * var(--space-1));
