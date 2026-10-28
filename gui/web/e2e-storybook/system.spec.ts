@@ -2289,3 +2289,54 @@ for (const mode of ["light", "dark", "forced"] as const) {
     expect(ring.below).toBeGreaterThanOrEqual(0);
   });
 }
+
+test("System/Player the collapsed Play button, AppHeader project button and StatusRow toggle measure 44 px on a phone", async ({
+  browser,
+}) => {
+  const size = async (id: string, name: RegExp | string) => {
+    const { context, page } = await coarsePage(browser, id);
+    const target = page.getByRole("button", { name });
+    await expect(target.first()).toBeVisible();
+    const box = await target.first().boundingBox();
+    await context.close();
+    if (!box) throw new Error(`${id} did not render`);
+    return { width: box.width, height: box.height };
+  };
+  const play = await size("system-player--phone", /^(Play|Pause)/);
+  const project = await size("system-appheader--phone", /Episode 14/);
+  const toggle = await size("system-statusrow--expandable", /Uploading takes/);
+  for (const box of [play, project, toggle]) {
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  expect(play.width).toBeGreaterThanOrEqual(44);
+  expect(project.width).toBeGreaterThanOrEqual(44);
+});
+
+test("System/AppHeader a failed save leaves the title 120 px at 360", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-appheader--failed",
+  );
+  await page.setViewportSize({ width: 360, height: 800 });
+  const title = page.locator(".sys-header-project .sys-header-title");
+  await expect(title).toBeVisible();
+  const shown = await title.evaluate((el) => el.clientWidth);
+  const retry = await page
+    .getByRole("button", { name: /Retry/ })
+    .evaluate((el) => el.getBoundingClientRect().height);
+  await context.close();
+  expect(shown).toBeGreaterThanOrEqual(120);
+  expect(retry).toBeGreaterThanOrEqual(44);
+});
+
+test("System/Toast the dock keeps the page gutter at 360", async ({ page }) => {
+  await open(page, "system-toast--result", 360);
+  const dock = page.locator(".sys-toast-dock");
+  await expect(dock).toBeVisible();
+  const box = await dock.boundingBox();
+  if (!box) throw new Error("Toast dock did not render");
+  expect(box.x).toBeGreaterThanOrEqual(16);
+  expect(360 - (box.x + box.width)).toBeGreaterThanOrEqual(16);
+});
