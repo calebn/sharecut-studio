@@ -213,11 +213,11 @@ describe("Deliver host write-back through the command queue", () => {
     ]);
   });
 
-  it("retitles a chapter by its old time and title", async () => {
+  it("retitles a chapter in one command, not one per key", async () => {
     render(<DeliverStage />);
-    fireEvent.change(screen.getByRole("textbox", { name: "Title of Middle" }), {
-      target: { value: "Centre" },
-    });
+    const title = screen.getByRole("textbox", { name: "Title of Middle" });
+    await userEvent.clear(title);
+    await userEvent.type(title, "Centre{Enter}");
     await waitFor(() =>
       expect(sent()).toEqual([
         [
@@ -446,6 +446,96 @@ describe("Deliver host when the document changes elsewhere", () => {
       screen.getByRole("button", { name: "Remove Intro" }),
     ).toBeInTheDocument();
     expect(wire.post).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Deliver host when the stage is left and opened again", () => {
+  it("shows the edit that is still waiting to send", async () => {
+    network.mode = "down";
+    const first = render(<DeliverStage />);
+    await removeMiddle();
+    await screen.findByRole("status");
+    first.unmount();
+    render(<DeliverStage />);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Not saved yet",
+    );
+    expect(screen.queryByRole("button", { name: "Remove Middle" })).toBeNull();
+  });
+
+  it("shows the refused save and keeps the edit on the page", async () => {
+    network.mode = "refusing";
+    const first = render(<DeliverStage />);
+    await removeMiddle();
+    await screen.findByRole("alert");
+    first.unmount();
+    render(<DeliverStage />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not save your changes",
+    );
+    expect(screen.queryByRole("button", { name: "Remove Middle" })).toBeNull();
+  });
+
+  it("keeps a refusal that arrives after the stage was left", async () => {
+    network.mode = "refusing";
+    let finish: () => void = () => {};
+    wire.post.mockImplementationOnce(
+      (_path: string, body) =>
+        new Promise((resolve) => (finish = () => resolve(answer(body)))),
+    );
+    const first = render(<DeliverStage />);
+    await removeMiddle();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    first.unmount();
+    await act(async () => finish());
+    render(<DeliverStage />);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+
+  it("keeps clip titles and approvals", async () => {
+    const first = render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve A line" }),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Title of A line" }), {
+      target: { value: "Better line" },
+    });
+    first.unmount();
+    render(<DeliverStage />);
+    expect(screen.getByDisplayValue("Better line")).toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(wire.post).not.toHaveBeenCalled();
+  });
+
+  it("keeps how far the page was scrolled", () => {
+    const first = render(<DeliverStage />);
+    const page = first.container.querySelector<HTMLElement>(".dv-page");
+    if (!page) throw new Error("no page");
+    Object.defineProperty(page, "scrollTop", {
+      configurable: true,
+      value: 240,
+    });
+    fireEvent.scroll(page);
+    first.unmount();
+    expect(useDawStore.getState().stageViews.deliver?.panelScroll.body).toBe(
+      240,
+    );
+  });
+});
+
+describe("Deliver host clip removal", () => {
+  it("offers no Undo, because the project cannot take a clip back", async () => {
+    render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for A line" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove" }),
+    );
+    expect(screen.getByText("Removed A line")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(screen.queryByDisplayValue("A line")).toBeNull();
   });
 });
 

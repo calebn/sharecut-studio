@@ -72,7 +72,8 @@ export type ReadinessFacts = {
   comments: { resolved: number; total: number };
   unsureWordsLeft: number;
   mixUpToDate: boolean;
-  loudness: LoudnessId;
+  /** Without it the Loudness row is left out. */
+  loudness?: LoudnessId;
   /** Measured by the last export, in LUFS. */
   measuredLufs?: number;
   /** Highest true peak of the last export, in dBTP. */
@@ -140,15 +141,19 @@ export function readinessRows(facts: ReadinessFacts): ReadinessRow[] {
         ? undefined
         : { label: "Refresh mix", stage: "edit", target: "mix" },
     },
-    {
-      id: "loudness",
-      state: "done",
-      title: "Loudness",
-      detail:
-        facts.measuredLufs === undefined
-          ? `${lufs(target)} target, will be checked`
-          : lufs(facts.measuredLufs),
-    },
+    ...(facts.loudness === undefined && facts.measuredLufs === undefined
+      ? []
+      : [
+          {
+            id: "loudness",
+            state: "done" as const,
+            title: "Loudness",
+            detail:
+              facts.measuredLufs === undefined
+                ? `${lufs(target)} target, will be checked`
+                : lufs(facts.measuredLufs),
+          },
+        ]),
     {
       id: "peaks",
       state:
