@@ -235,6 +235,10 @@ enforced-by:
 - gui/web/src/system/ScriptPane.gestures.test.tsx::typing never edits: letters on a selected word reach the keymap untouched
 - gui/web/e2e-storybook/script-gestures.spec.ts::on a phone a swipe scrolls the pane and selects nothing
 - gui/web/e2e-storybook/script-gestures.spec.ts::on a phone a long press selects the word and a drag extends it without scrolling, then the grips show
+- gui/web/e2e-storybook/script-gestures.spec.ts::on a phone a finger that drifts 8 px before the hold still drags the selection out, and the pane does not scroll
+- gui/web/src/system/ScriptPane.gestures.test.tsx::a finger that drifts before the hold keeps the drag when Chrome moves its capture from the word to the body
+- gui/web/src/system/ScriptPane.gestures.test.tsx::never carries the swallow over: a click that arrives later with no pointerdown selects
+- docs-sync: decision-touch-input
 -->
 
 The Script pane has no modes, so one grammar covers mouse, touch and keys
@@ -251,13 +255,16 @@ The Script pane has no modes, so one grammar covers mouse, touch and keys
   on from the hold extends it under the finger, and it commits when the
   finger lifts. A finger that moves before the hold scrolls and selects
   nothing. A second finger cancels the drag and keeps the earlier selection.
-- Esc, a cancelled or lost pointer, a window blur or leaving the pane ends a
-  drag without committing it.
+- Esc, a cancelled or lost pointer or a window blur ends a drag without
+  committing it. Leaving the pane does not: the pane holds the pointer, so the
+  drag goes on selecting to the nearest word and commits on release.
 - The browser's own text selection is off in the pane; the pane's copy event
   copies the selected words.
 
 Changed from the rule above: a hold that does not move selects the word
 instead of opening word correction, because Fix text now has its own gestures.
+A finger may drift a few pixels, inside the 10 px slop, before the hold arms
+without losing the drag.
 
 ### Decision: A plain grab at a join rolls it
 
