@@ -97,6 +97,10 @@ function query(
  * premix will hold; absolute loudness is not the exported file's, because the
  * master stage's loudness target and limiter are not applied. A and B are
  * comparable to each other, so never claim they equal the export's loudness.
+ * One more limit: B is mixed at the premix headroom trim as it is now, while
+ * Approve re-measures the trim on the approved mix, so a cut that removes the
+ * mix's loudest peak makes the real premix sit at a different gain than the
+ * preview; the cut itself is the same.
  *
  * Throws `ApiError` (with the server's code, e.g. `pending_preview_unavailable`
  * when B does not exist for a split) for a refusal.

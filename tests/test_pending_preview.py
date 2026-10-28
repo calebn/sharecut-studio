@@ -1050,3 +1050,49 @@ def test_noise_reduction_gets_the_long_history_and_a_fresh_stem_is_cut_not_rende
     monkeypatch.setattr(play_pending, "render_track_segment", spy)
     service.play_pending_preview("cut", mode="current", pad_sec=1.0, dry_run=True)
     assert rendered == ["guest"]
+
+
+def test_a_cut_that_removes_the_loudest_peak_is_previewed_at_the_pre_edit_trim(
+    minimal_project,
+) -> None:
+    """Documented limit: Suggested mixes at the premix trim as it is now, while approving
+    re-measures the trim on the approved mix. Pinned here, not avoided."""
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(minimal_project, _session_cut("burst", 4.9, 5.7))
+    play = PlayService(ws)
+    trim_now = play.mix_trim_db()
+    suggested = play.play_pending_preview("burst", mode="suggested", pad_sec=1.0, dry_run=True)
+    with audio_check_override("preview", "preview"):
+        approved, trim_after = _premix_window(
+            ws, suggested.start_sec, suggested.end_sec, approve="burst"
+        )
+    assert trim_after is not None
+    assert trim_now < trim_after - 0.1  # the loud burst is gone: the real premix is less trimmed
+    # The preview did not re-measure: it was mixed at the trim the mix has now.
+    assert play.mix_trim_db() == trim_now
+    assert approved.is_file()
+
+
+def test_the_current_header_end_is_the_files_own_length(minimal_project) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.4))
+    play = PlayService(ws)
+    wav = play.play_pending_preview("cut", mode="current", pad_sec=1.0, dry_run=True).wav_path
+    with wave.open(str(wav), "rb") as audio:
+        length = audio.getnframes() / audio.getframerate()
+    span = play.pending_preview_span("cut", wav, mode="current", pad_sec=1.0)
+    assert span.end_sec == pytest.approx(span.start_sec + length, abs=1e-9)
+
+
+def test_a_pad_that_differs_below_a_millisecond_shares_one_cache_key(minimal_project) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.4))
+    play = PlayService(ws)
+    first = play.play_pending_preview("cut", mode="current", pad_sec=1.0, dry_run=True).wav_path
+    again = play.pending_preview_cached_wav("cut", mode="current", pad_sec=0.9999999)
+    assert again == first
+    other = play.pending_preview_cached_wav("cut", mode="current", pad_sec=1.002)
+    assert other is None
