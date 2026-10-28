@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { useDawStore } from "../../state/dawStore";
+import { inspectKeyOf } from "../../state/selection";
 import {
   portaledOverlayParameters,
   studioViewports,
@@ -137,12 +138,36 @@ export const WithInspector: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason: WIDE_ONLY_REASON,
-    episode: { selection: selections.track },
+    // Inspect opened it: a selection alone never does.
+    episode: {
+      selection: selections.track,
+      state: { inspectorKey: inspectKeyOf(selections.track) },
+    },
   },
   play: async ({ canvasElement }) => {
     await waitFor(() =>
       expect(canvasElement.querySelector(".edit-inspector")).not.toBeNull(),
     );
+  },
+};
+
+export const WithActionBar: Story = {
+  tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason: WIDE_ONLY_REASON,
+    episode: { selection: selections.exactRange },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const bar = await canvas.findByRole("group", {
+      name: "Selection actions",
+    });
+    await expect(bar).toBeVisible();
+    // Selecting alone verbs the object, but opens no Inspector.
+    await expect(
+      within(bar).getByRole("button", { name: "Cut" }),
+    ).toBeVisible();
+    await expect(canvasElement.querySelector(".edit-inspector")).toBeNull();
   },
 };
 

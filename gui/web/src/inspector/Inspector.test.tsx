@@ -181,7 +181,7 @@ describe("Inspector clip lookup", () => {
           media_seals: {},
         },
       },
-      "1.00–3.00 s",
+      "Select range",
     ],
     [
       "transcriptRange",
@@ -199,18 +199,16 @@ describe("Inspector clip lookup", () => {
       useDawStore.getState().setSelection(selection);
       render(<Inspector placement="sheet" />);
       expect(
-        screen.getByRole("region", { name: "Range actions" }),
+        screen.getByRole("region", { name: "Range fields" }),
       ).toHaveTextContent(text);
       expect(screen.queryByText("Clip not found")).toBeNull();
     },
   );
 
-  it("anchors the empty inspector", () => {
+  it("draws nothing without a selection: Inspect opens it for one", () => {
     useDawStore.getState().setSelection(null);
-    render(<Inspector />);
-    expect(
-      document.querySelector('[data-presence-anchor="inspector"]'),
-    ).toBeTruthy();
+    const { container } = render(<Inspector />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("opens the volume envelope workspace for a selected point", () => {

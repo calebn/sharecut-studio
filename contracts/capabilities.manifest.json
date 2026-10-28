@@ -3278,7 +3278,7 @@
       "surfaces": {
         "command": "range.play",
         "gui": [
-          "RangeActions"
+          "actionBar"
         ]
       },
       "omit": {
@@ -3302,7 +3302,7 @@
       "surfaces": {
         "command": "range.cut",
         "gui": [
-          "RangeActions"
+          "actionBar"
         ],
         "mcp": [
           "propose_range_cut_tool"
@@ -3333,7 +3333,7 @@
           "propose_range_mute_tool"
         ],
         "gui": [
-          "RangeActions"
+          "actionBar"
         ]
       },
       "omit": {
@@ -3360,7 +3360,7 @@
           "fill_with_room_tone_tool"
         ],
         "gui": [
-          "RangeActions"
+          "actionBar"
         ]
       },
       "omit": {
@@ -3388,7 +3388,7 @@
         ],
         "cli": "podcast speaker move-lane-span",
         "gui": [
-          "SpeakerLaneMoveActions"
+          "actionBar"
         ],
         "skill": "podcast-speaker-attribution"
       },
@@ -3413,7 +3413,7 @@
       "surfaces": {
         "command": "range.comment",
         "gui": [
-          "RangeActions"
+          "actionBar"
         ],
         "mcp": [
           "add_comment_tool"
@@ -3441,7 +3441,7 @@
       "surfaces": {
         "command": "range.bounce",
         "gui": [
-          "RangeActions"
+          "actionBar"
         ],
         "mcp": [
           "bounce_audio_tool"

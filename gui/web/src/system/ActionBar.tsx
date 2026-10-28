@@ -71,6 +71,7 @@ function LookButton({ look, item, ...rest }: LookButtonProps) {
   const common = {
     type: "button",
     title: titleOf(item),
+    "aria-keyshortcuts": display.shortcut,
     "aria-pressed": item.pressed,
     ...rest,
   } as const;
@@ -139,6 +140,7 @@ function PrimaryButton({
           : `sys-actions-primary sys-actions-primary--${look}`
       }
       title={titleOf(item)}
+      aria-keyshortcuts={barDisplay(item.id).shortcut}
       aria-label={look === "floating" ? label : undefined}
       onClick={() => onVerb(item.id)}
       {...disabledAttrs(item.disabledReason)}

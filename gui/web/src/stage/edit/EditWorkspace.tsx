@@ -1,7 +1,6 @@
-import { memo, type RefCallback, useMemo, useRef, useState } from "react";
+import { memo, type RefCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
-import { isRangeSelection } from "../../edit/rangeSelection";
 import {
   matchesMedia,
   mediaQuerySubscription,
@@ -9,21 +8,22 @@ import {
 } from "../../hooks/useMediaQueryStore";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { Inspector } from "../../inspector/Inspector";
 import { TranscriptPanel } from "../../panels/TranscriptPanel";
 import { canEditMix, canIngestMedia } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { inspectorOpenFor } from "../../state/selection";
 import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
-import { RangeActions } from "../../timeline/RangeActions";
+import { RangeFields } from "../../timeline/RangeFields";
 import { TimelineView } from "../../timeline/TimelineView";
 import { TrackHeadersColumn } from "../../tracks/TrackHeadersColumn";
-import { oneWordOf } from "../../utils/rangeSelect";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
+import { EditActionBar } from "./EditActionBar";
 import { EditCorner } from "./EditCorner";
 import { type EditArrangement, EditWorkspaceView } from "./EditWorkspaceView";
 import { EmptySession } from "./EmptySession";
+import { InspectorColumn } from "./InspectorColumn";
 import { InspectorSheet } from "./InspectorSheet";
 import { PhoneEditSurfaceView } from "./PhoneEditSurfaceView";
 import { PlusMenu } from "./PlusMenu";
@@ -53,6 +53,7 @@ function EditWorkspaceAdapter({
   const {
     project,
     selection,
+    inspectorKey,
     scriptCollapsed,
     scriptFocus,
     editSurface,
@@ -65,6 +66,7 @@ function EditWorkspaceAdapter({
     useShallow((s) => ({
       project: s.project,
       selection: s.selection,
+      inspectorKey: s.inspectorKey,
       scriptCollapsed: s.scriptCollapsed,
       scriptFocus: s.scriptFocus,
       editSurface: s.editSurface,
@@ -181,28 +183,27 @@ function EditWorkspaceAdapter({
     </div>
   );
 
-  const inspectorWanted =
-    shell === "desktop" &&
-    selection != null &&
-    (!isRangeSelection(selection) || oneWordOf(selection) !== null);
-  // A word drag grows the range past one word, which would drop the column
-  // and slide the Script list out from under the pointer. The column holds
-  // until the drag lets go.
-  const heldInspector = useRef(inspectorWanted);
-  const selectionDragging = useDawStore((s) => s.timelineDragging);
-  if (!selectionDragging || inspectorWanted) {
-    heldInspector.current = inspectorWanted;
-  }
-  const showInspector = selectionDragging
-    ? heldInspector.current
-    : inspectorWanted;
+  // The Inspector opens on Inspect (I, the verb, a double-click), never
+  // because something is selected; a new selection, Esc or Close shuts it.
+  const showInspector =
+    shell === "desktop" && inspectorOpenFor(selection, inspectorKey);
   const yields = useSideYield(
     arrangement === "side" ? root : null,
     showInspector,
     scriptFocus,
   );
-  const rangeActions =
-    selectionSheet.rangeActionsInSheet || phone ? null : <RangeActions />;
+  // A range's In and Out fields are the Inspector's body while it is open; a
+  // words selection keeps its handles above the lanes. On a phone the agent
+  // range's fields stay in the sheet, so the strip above the dock carries only
+  // the handles and the occurrence choice.
+  const fieldsInInspector = showInspector && selection?.kind === "range";
+  const rangeFields =
+    selectionSheet.rangeActionsInSheet || fieldsInInspector ? null : (
+      <RangeFields numeric={!phone} />
+    );
+  const actionBar = (
+    <EditActionBar form={phone ? "dock" : "floating"} root={root} />
+  );
   const corner = <EditCorner showScript={!phone} />;
 
   return (
@@ -214,7 +215,8 @@ function EditWorkspaceAdapter({
       scriptFocus={scriptFocus}
       scriptWidthRem={size.widthRem}
       yields={yields}
-      rangeActions={rangeActions}
+      rangeFields={rangeFields}
+      actionBar={actionBar}
       timeline={timeline}
       corner={corner}
       divider={
@@ -225,7 +227,7 @@ function EditWorkspaceAdapter({
         />
       }
       script={script}
-      inspector={showInspector ? <Inspector /> : null}
+      inspector={showInspector ? <InspectorColumn /> : null}
       phone={
         <PhoneEditSurfaceView
           surface={editSurface}

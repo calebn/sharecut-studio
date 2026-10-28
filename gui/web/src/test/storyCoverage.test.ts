@@ -54,7 +54,6 @@ const COVERED: Record<string, string[]> = {
     "Templates/Editor · Inspector · Pending edit",
     "System/ScrubField",
   ],
-  "INS-EMPTY": ["Templates/Editor · Inspector · Empty"],
   "SCR-LOADING": ["Organisms/LoadingScreen"],
   "SCR-ERROR": ["Organisms/ErrorScreen"],
   "SCR-COVER": ["Organisms/CoverScreen"],
@@ -256,7 +255,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(135);
+    expect(INVENTORY_IDS).toHaveLength(134);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });

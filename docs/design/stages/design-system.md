@@ -249,6 +249,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Esc clears the selection. Left from a turn's first word enters its margin (speaker name, then time; Up and Down walk them, Right returns to the words).
   - Esc order, innermost first: a Fix text or rename field, then the speaker popover, then the Find bar while focus is in it, then the selection, then Follow. The handles and the margin controls are not Esc stops.
   - Keys the pane handles are the pane's: it stops them (`preventDefault` and `stopPropagation`) so the window keymap never also nudges the playhead on an arrow, jumps to the start on Home, or takes a second Esc. The list is the arrows, Home and End (alone, with Shift, and Alt+Shift+Left or Right), Enter on a word, F2 on a word when `onFixText` is given, and Esc over a selection or a drag. Every other key and any Ctrl or Cmd chord reaches the keymap. The keymap rows stay as they are; the host must not bind a script-focused when-clause to a key in that list.
+  - The window keymap listener does not read `defaultPrevented`; `stopPropagation` is the contract, and it works because React's root listener runs before the window's. A host that wants a key for itself must stop it, not only prevent it. The listener also skips a key while an IME composition is open, treats Space and Enter on a focused button as the browser's click except Shift+Space (Hear), and prevents the default of Shift+Space's keyup so Hear on a focused word, clip or bar button does not also click it.
   - The pane has the one polite live region of the script. It says the selection (on release while a handle is dragged), "Selection cleared", and the host's `findStatus`; the Find bar's count is plain text.
   - A cut that spans two turns is one pill in each: the turn where it begins shows the length, the later ones say "continued".
   - Fix text over a selection that spans turns is one field, drawn in the first turn, and the later turns show nothing in its place.
@@ -527,7 +528,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 ### Dropped as redundant
 
-- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a crosshair cursor and a 2 px guide (1 px ring) on the lanes the cut will land on, the targeted tracks else the dialogue tracks, while Alt is held over the lanes (W1a, #2294). Touch has no Alt; its Split verb arrives with the action bar in W1b.
+- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a crosshair cursor and a 2 px guide (1 px ring) on the lanes the cut will land on, the targeted tracks else the dialogue tracks, while Alt is held over the lanes (W1a, #2294). Touch has no Alt: it splits with the Action bar's Split verb (the playhead, or both edges of a selection) or a long-press on a lane, whose Create-here menu opens with "Split here" (W1b, #2294).
 - The Edit surface switch as its own element. It is a Segmented control instance: lanes (`chart-gantt`) and text (`text`).
 - The Home New sheet (record FLOW-REC-NEW). Start tiles sit on Home directly, and name and folder default.
 - The Re-record verb. It is the Record verb with a Replace target.
@@ -562,13 +563,13 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Later | `chevron-down` | Tab or ↓ (moves on without deciding) | Swipe up | Decision card, Review dock |
 | Next / Previous of the same kind | none | Tab / Shift+Tab (↓/↑ in the queue) | Swipe up / down on the card | Review queue, Edit after a cut (next occurrence), Fix text (next unsure word) |
 | Apply to all like this | the verb's icon with a count | Shift+Enter | Group header button | Queue group bulk, Find "Cut all", toast "Cut all" |
-| Split | `square-split-horizontal` | Mod+K at playhead; Alt-click at pointer | Dock "Split" with nothing selected | Action bar (range, clip), playhead menu, phone dock |
+| Split | `square-split-horizontal` | S or Mod+K: at the playhead, or at both edges of a range or words selection (one undo step); Alt-click at pointer | Action bar Split (at the playhead, or both edges of a selection); long-press a lane, then "Split here" | Action bar (range, clip, playhead), Create-here menu, phone dock |
 | Comment (also marker, reply) | `message-square` | C | Tap Comment; long-press = compose with time pinned | Player (all stages), Action bar, Record dock, Decision card (reply), Marker, Review queue |
 | Fix text (also rename) | `text-cursor-input` | F2, or start typing on a selection | Double-tap | Script, Decision card unsure word, marker titles, speaker, project title, session name |
 | Remove (non-audio) | `trash-2` | Backspace or Delete on a non-audio object | Swipe left on list rows | Markers, comments, tracks, envelope points, chapter rows, clip ideas, Home Recent ("Remove from list"), person in room (Confirm in place) |
 | Mute | `volume-x` (track, words) / `mic-off` (your mic) | M | Tap | Track header, Mix sheet, Action bar More, Record dock, Person tile |
-| Solo | `headphones` | S | Tap | Track header, Mix sheet, Solo Status pill |
-| Inspect | `sliders-horizontal` | I | Swipe the dock up; double-click the object | Action bar, Prepare Advanced |
+| Solo | `headphones` | Shift+S | Tap | Track header, Mix sheet, Solo Status pill |
+| Inspect | `sliders-horizontal` | I (toggles) | Swipe the dock up; double-click the object | Action bar, Prepare Advanced. The Inspector opens only on Inspect, never because something is selected; Esc, Close or a new selection shuts it |
 | More | `ellipsis` | . (period) | Long-press or right-click | Action bar, rows, cards |
 | Record | filled circle | R: in Record, start or resume, and hold R 600 ms to stop. In Edit, opens Record with a Replace target (selection) or Insert target (playhead) | Tap; hold the Record button to stop | Stage bar, Start tile, Record button, Action bar (Edit, host only), "+" menu |
 | Pause take | `pause` | P | Tap | Record dock (host) |
@@ -739,6 +740,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | K15 | Mod+B force mix refresh (E) | Palette only | The mix refreshes on its own |
 | K16 | Tab: E uses it for clip focus, next occurrence, and next unsure word | Tab is "next of the same kind" inside a content surface. F6 moves between regions | Keeps one meaning for Tab and gives keyboard users a way out |
 | K17 | Skip 5 s (E desktop) versus 15 s (E phone sheet, D Player card) | 15 s everywhere. Fine moves use ←/→ (1 s, Shift 5 s) | Podcast-app convention, for one Player |
+| K18 | S: E has Solo track on S, and the Action bar's Split needs a visible key | S is Split (Caleb, 2026-10-28). Solo is Shift+S, still a button on the track header and in the Mix sheet | Split is the constant verb on a selection; Solo is a mix toggle with a button of its own |
 
 ### Icons
 

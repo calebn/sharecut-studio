@@ -3,7 +3,7 @@ import type { CommandContext } from "../commands/context";
 import { seekTransport } from "../commands/seek";
 import { rangeClips } from "../edit/rangeSelection";
 import type { RoutedTarget } from "../timeline/hitRouting";
-import { RangeActions } from "../timeline/RangeActions";
+import { RangeFields } from "../timeline/RangeFields";
 import type { ProjectView, Selection } from "../types/project";
 import { TranscriptRangeBody } from "./OneWordEditor";
 import {
@@ -83,7 +83,7 @@ const plain = { peek: noPeek, related: noRelated, more: noMore } as const;
 
 const rangeSurface = {
   ...plain,
-  body: () => <RangeActions sheet />,
+  body: () => <RangeFields sheet always />,
   screens: WITH_TEXT,
 } as const;
 
