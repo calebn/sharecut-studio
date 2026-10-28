@@ -23,8 +23,6 @@ import {
 import { Sheet } from "./Sheet";
 import { SystemIcon } from "./SystemIcon";
 
-const noop = () => undefined;
-
 /** The phase's identity for the time chip: a new take or state is a new key. */
 function phaseKey(phase: RoomPhase): string {
   return phase.kind === "live" ? `live-${phase.take}` : phase.kind;
@@ -106,6 +104,7 @@ export function RoomView({
     notesOpen: notesChoice,
     alerts,
     invite: onInvite !== undefined,
+    canRecord: onStartTake !== undefined && onStopTake !== undefined,
     notes,
     selfName,
   });
@@ -217,12 +216,12 @@ export function RoomView({
         <RecordDock
           seat={model.dockSeat}
           record={
-            model.record
+            model.record && onStartTake && onStopTake
               ? {
                   ...model.record,
                   busy: recordBusy,
-                  onStart: onStartTake ?? noop,
-                  onStop: onStopTake ?? noop,
+                  onStart: onStartTake,
+                  onStop: onStopTake,
                 }
               : undefined
           }

@@ -46,6 +46,7 @@ export type RoomViewInput = {
   alerts?: RoomAlertInput[];
   /** Whether the host can invite. Without a handler the host gets no Invite slots. */
   invite?: boolean;
+  canRecord?: boolean;
   notes?: NoteItem[];
   selfName?: string;
 };
@@ -152,6 +153,9 @@ export function notePeek(
 function hostRecord(people: RoomPerson[], phase: RoomPhase): RoomRecord {
   if (phase.kind === "live") return { face: "live" };
   if (phase.kind === "paused") return { face: "paused" };
+  if (phase.kind === "reconnecting") {
+    return { face: "idle", disabledReason: "Reconnecting" };
+  }
   const joining = people.find((person) => person.presence === "joining");
   return joining && phase.kind === "waiting"
     ? {
@@ -227,7 +231,10 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
     sheetOpen,
     notesOpen: railOpen || sheetOpen,
     peek,
-    record: role === "host" ? hostRecord(people, phase) : null,
+    record:
+      role === "host" && input.canRecord === true
+        ? hostRecord(people, phase)
+        : null,
     dockStatus: savingStatus(phase),
     alerts: [...derived, ...callers],
   };

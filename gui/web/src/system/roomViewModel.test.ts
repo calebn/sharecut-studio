@@ -35,6 +35,7 @@ const base = (rest: Partial<RoomViewInput>): RoomViewInput => ({
   people: [],
   phase: LIVE,
   viewerWidth: "desktop",
+  canRecord: true,
   ...rest,
 });
 
@@ -390,6 +391,32 @@ describe("roomViewModel host", () => {
     expect(face({ kind: "saved" })).toBe("idle");
     expect(roomViewModel(base({ role: "guest" })).record).toBeNull();
     expect(roomViewModel(base({ role: "producer" })).record).toBeNull();
+  });
+
+  it("has no Record face unless the host can start a take", () => {
+    const people = [host({ you: true })];
+    expect(
+      roomViewModel(
+        base({ role: "host", people, phase: WAITING, canRecord: false }),
+      ).record,
+    ).toBeNull();
+    expect(
+      roomViewModel({
+        role: "host",
+        people,
+        phase: WAITING,
+        viewerWidth: "desktop",
+      }).record,
+    ).toBeNull();
+  });
+
+  it("holds Record back with a reason while reconnecting", () => {
+    const people = [host({ you: true })];
+    expect(
+      roomViewModel(
+        base({ role: "host", people, phase: { kind: "reconnecting" } }),
+      ).record,
+    ).toEqual({ face: "idle", disabledReason: "Reconnecting" });
   });
 
   it("holds the first take back while a guest is still joining", () => {
