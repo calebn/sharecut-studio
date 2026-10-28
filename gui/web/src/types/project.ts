@@ -188,7 +188,7 @@ export interface PendingEditView {
   listen_one_by_one?: boolean;
   /** Unsure transcript words the cut covers, in word order (`edits/unsure_words.unsure_words_by_edit`); `[]` for a timeline-clock cut. */
   unsure_words?: PendingUnsureWord[];
-  /** `unsure_words.length`; a bulk `ApproveEdits` with `skip_unsure` (CLI, MCP; not sent by Studio yet) leaves a cut with a non-zero count pending. */
+  /** `unsure_words.length`; a bulk `ApproveEdits` with `skip_unsure` (CLI, MCP, the Review Queue's Cut all) leaves a cut with a non-zero count pending. */
   unsure_count?: number;
   /** Server-computed queue group (`edits/cut_policy.py::review_kind`); the client groups on this, never on `reason`. */
   kind: PendingKind;

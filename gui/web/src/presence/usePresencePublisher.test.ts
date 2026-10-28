@@ -68,11 +68,12 @@ describe("usePresencePublisher", () => {
     expect(viewports.at(-1)).toEqual({ start_sec: 0, end_sec: 60 });
   });
 
-  it("still publishes ui while following", () => {
+  it("still publishes ui while following, a guest's Comments whatever the stored section", () => {
     useDawStore.setState({
       followingClientId: "host",
+      guestMode: "comment",
       stage: "review",
-      reviewSection: "comments",
+      reviewSection: "queue",
       auditionMode: "fx",
       viewerMute: { host: true, guest: false },
       soloTracks: { guest: true },

@@ -1422,7 +1422,7 @@
         },
         "skip_unsure": {
           "default": false,
-          "description": "Bulk guard: a cut or shorten over a transcript word below the unsure line (`analysis.unsure_word_confidence`) is not applied. It stays pending and is named in `held` and `held_unsure`; every other sound is applied as one history step, and when all are held nothing is saved. The server checks the saved words at apply time, not a list the client sends. The CLI and MCP send it for the all-suggested path and for several ids (not on revise); naming one id does not. The Studio client does not send it yet. Every guest apply behaves as if it were true.",
+          "description": "Bulk guard: a cut or shorten over a transcript word below the unsure line (`analysis.unsure_word_confidence`) is not applied. It stays pending and is named in `held` and `held_unsure`; every other sound is applied as one history step, and when all are held nothing is saved. The server checks the saved words at apply time, not a list the client sends. The CLI and MCP send it for the all-suggested path and for several ids (not on revise); naming one id does not. No Studio verb sends it yet. Every guest apply behaves as if it were true.",
           "title": "Skip Unsure",
           "type": "boolean"
         }
@@ -1686,7 +1686,7 @@
         },
         "skip_unsure": {
           "default": false,
-          "description": "Bulk guard: a pending cut that covers a transcript word below the unsure line (`analysis.unsure_word_confidence`) is not applied. It stays pending and is reported in `held` with reason `unsure_word`; every other edit applies as one history step. The server checks the saved words at approval time, not a list the client sends. The CLI and MCP approve-all send it; approving one cut by name does not. The Studio client does not send it yet. A guest's multi-edit approve always behaves as if it were true.",
+          "description": "Bulk guard: a pending cut that covers a transcript word below the unsure line (`analysis.unsure_word_confidence`) is not applied. It stays pending and is reported in `held` with reason `unsure_word`; every other edit applies as one history step. The server checks the saved words at approval time, not a list the client sends. The CLI and MCP approve-all send it; approving one cut by name does not. The Studio Review Queue's Cut all sends it. A guest's multi-edit approve always behaves as if it were true.",
           "title": "Skip Unsure",
           "type": "boolean"
         }
