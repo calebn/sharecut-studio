@@ -23,7 +23,6 @@ export type Panel =
 
 export type ProjectDialog =
   | "share"
-  | "export"
   | "bounce"
   | "record"
   | "palette"
@@ -286,18 +285,28 @@ export async function openProjectMenu(page: Page): Promise<Locator> {
 /** Dialog rows and the Project menu item that opens each. */
 const MOVED_MENU_ITEMS: Record<string, ProjectDialog> = {
   "Share…": "share",
-  "Export deliverables…": "export",
   "Bounce…": "bounce",
   "Record room…": "record",
   "Commands and shortcuts": "palette",
 };
+
+export function deliverPage(page: Page): Locator {
+  return page.getByRole("region", { name: "Deliver" });
+}
+
+export async function startExport(page: Page): Promise<void> {
+  await goToStage(page, "deliver");
+  await deliverPage(page)
+    .getByRole("button", { name: "Export", exact: true })
+    .click();
+}
 
 /** Rows with no menu item; the palette runs them. */
 const PALETTE_ONLY_ITEMS = new Set(["Export diagnostics…"]);
 
 /**
  * Open the Project menu and choose the entry named `item`. A name the old
- * transport Menu carried (Share…, Export deliverables…) goes to where it
+ * transport Menu carried (Share…) goes to where it
  * lives now, so the specs that still say it keep working until they are
  * rewritten.
  */
@@ -324,7 +333,7 @@ export async function openProjectMenuItem(
 }
 
 /**
- * Open the dialog `dialog` from where it lives now: Share, Export and Bounce on
+ * Open the dialog `dialog` from where it lives now: Share and Bounce on
  * Deliver, the Record room on Record, the palette on the header's search.
  */
 export async function openProjectDialog(
@@ -335,10 +344,6 @@ export async function openProjectDialog(
     case "share":
       await goToStage(page, "deliver");
       await page.getByRole("button", { name: "Share a listen link" }).click();
-      return;
-    case "export":
-      await goToStage(page, "deliver");
-      await page.getByRole("button", { name: "Export", exact: true }).click();
       return;
     case "bounce":
       await goToStage(page, "deliver");
