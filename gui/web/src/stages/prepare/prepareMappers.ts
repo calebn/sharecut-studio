@@ -321,6 +321,9 @@ function failedRow(
   };
 }
 
+/** The job's `error_code` when a run would have replaced hand fixes. */
+export const OVERWRITE_REFUSED = "transcript_overwrite_refused";
+
 export function readyRows(input: ReadyInput): ReadyRowData[] {
   if (input.sourceCount === 0) return [];
   const { job } = input;
@@ -399,7 +402,15 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
       action: { label: "Run", run: "try-again" },
     });
   } else if (transcribe?.state === "failed") {
-    rows.push(failedRow("transcribe", transcribe.error ?? ""));
+    rows.push(
+      job?.error_code === OVERWRITE_REFUSED
+        ? failedRow(
+            "transcribe",
+            transcribe.error ?? "",
+            "The audio changed on a track with hand fixes.",
+          )
+        : failedRow("transcribe", transcribe.error ?? ""),
+    );
   } else if (transcribe?.state === "running") {
     rows.push({
       id: "transcribe",
