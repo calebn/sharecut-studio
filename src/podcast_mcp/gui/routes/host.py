@@ -48,6 +48,7 @@ from podcast_mcp.util.proxy_paths import is_relayed_request
 router = APIRouter()
 log = logging.getLogger(__name__)
 HOST_WS_AUTHZ_RECHECK_S = 30.0
+HOST_RECORD_ATTACH_POLL_S = 1.0
 Plane = Literal["session", "document", "record"]
 
 
@@ -126,7 +127,9 @@ async def host_ws(
     record_queue: asyncio.Queue[dict[str, Any]] | None = None
     record: RecordSessionService | None = None
     attached_sid: str | None = None
+    failed_sid: str | None = None
     fail_until = 0.0
+    attach_lock = asyncio.Lock()
     connection_id = f"host:{client_id}:{secrets.token_hex(8)}"
     seq = 1
     presence_generation: int | None = None
@@ -178,7 +181,11 @@ async def host_ws(
                     attached_sid = None
 
     async def attach_record() -> None:
-        nonlocal record, record_queue, attached_sid, fail_until
+        async with attach_lock:
+            await attach_record_locked()
+
+    async def attach_record_locked() -> None:
+        nonlocal record, record_queue, attached_sid, failed_sid, fail_until
         session_id = await run_in_threadpool(
             RecordSessionService.active_session_id, workspace.project
         )
@@ -202,6 +209,7 @@ async def host_ws(
                 connection_id=connection_id,
             )
             attached_sid = session_id
+            failed_sid = None
             await send(
                 {
                     "type": "Echo",
@@ -221,10 +229,20 @@ async def host_ws(
             ValueError,
         ) as exc:
             await detach_record()
+            failed_sid = session_id
             fail_until = time.monotonic() + 1.0
             await send(
                 {"type": "Error", "code": "record_attach_failed", "detail": str(exc)}, "record"
             )
+
+    async def watch_record_session() -> None:
+        # A room minted after this socket opened is joined without waiting for
+        # the next client frame, so guests see the host in the roster at once.
+        while not guard.closed:
+            await asyncio.sleep(HOST_RECORD_ATTACH_POLL_S)
+            sid = await run_in_threadpool(RecordSessionService.active_session_id, workspace.project)
+            if sid and sid != attached_sid and sid != failed_sid:
+                await attach_record()
 
     def join_session() -> dict[str, Any]:
         nonlocal presence_generation
@@ -254,6 +272,7 @@ async def host_ws(
                 tasks.spawn(pump(session_queue, "session"))
                 tasks.spawn(pump(document_queue, "document"))
                 await attach_record()
+                tasks.spawn(watch_record_session())
                 while not guard.closed:
                     raw = await websocket.receive()
                     if raw["type"] == "websocket.disconnect":

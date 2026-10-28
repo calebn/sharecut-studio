@@ -550,6 +550,29 @@ def test_host_ws_attaches_record_plane_after_room_mint(
         assert rec["snapshot"]["state"] == "lobby"
 
 
+def test_host_ws_joins_a_room_minted_after_it_opened_without_a_frame(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from urllib.parse import quote
+
+    from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+
+    _isolate()
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    with client.websocket_connect(url) as host:
+        assert host.receive_json()["type"] == "Snapshot"
+        created = ShareService(ws).create_record_room()
+        rec = _drain_until(host, lambda m: m.get("plane") == "record", n=40)
+        assert rec["snapshot"]["state"] == "lobby"
+        svc = RecordSessionService(ws.project, session_id=created["session_id"])
+        roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
+        assert roster[HOST_PARTICIPANT_ID]["display_name"] == "Host"
+        assert roster[HOST_PARTICIPANT_ID]["connected"] is True
+
+
 def test_two_host_session_sockets_survive_record_attach(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
