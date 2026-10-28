@@ -604,6 +604,8 @@ def fill_with_room_tone_tool(
         raise CodedValueError(
             "a range fill needs track_id, start_sec and end_sec", code="range_incomplete"
         )
+    if track_id is None and speaker is None:
+        raise CodedValueError("track_id or speaker is required", code="missing_argument")
     payload = {
         key: value
         for key, value in {
