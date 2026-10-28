@@ -140,6 +140,15 @@ describe("SourceCard", () => {
     expect(onMerge).toHaveBeenCalled();
   });
 
+  it("leaves Merge out of the More menu when nothing can merge", async () => {
+    render(<Card name="Maya" />);
+    await userEvent.click(screen.getByRole("button", { name: /^More for/ }));
+    expect(
+      screen.getByRole("menuitem", { name: "Replace audio for Maya" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: /^Merge/ })).toBeNull();
+  });
+
   it.each([
     ["uploading", "Uploading"],
     ["probing", "Checking file"],
