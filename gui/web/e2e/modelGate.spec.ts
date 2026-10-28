@@ -180,17 +180,6 @@ function getAction(page: Page) {
   return page.getByRole("button", { name: /^Get \(.*\), Transcribe$/ });
 }
 
-async function mockSpeakerDoctor(page: Page): Promise<void> {
-  await page.route("**/api/speaker/doctor", (route) =>
-    route.fulfill({
-      json: {
-        available_backends: ["ecapa-onnx"],
-        recommended: "ecapa-onnx",
-      },
-    }),
-  );
-}
-
 /** Track inspector > Split speakers… opens Prepare at that source's split prompt. */
 async function openSplitSpeakers(page: Page): Promise<void> {
   if ((page.viewportSize()?.width ?? 0) < 720) {
@@ -400,7 +389,6 @@ for (const viewport of VIEWPORTS) {
           rows,
           events: progress.events,
         });
-        await mockSpeakerDoctor(page);
         const split = await mockNeedingRoute(
           page,
           "**/api/speaker/split",
