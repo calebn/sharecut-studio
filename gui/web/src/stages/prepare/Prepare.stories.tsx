@@ -231,7 +231,7 @@ export const NeedsModel: Story = {
     const canvas = within(canvasElement);
     await openReady(canvasElement);
     await userEvent.click(
-      canvas.getByRole("button", { name: /^Download 1.6 GB/ }),
+      canvas.getByRole("button", { name: /^Get \(1.6 GB\)/ }),
     );
     await expect(args.onRowAction).toHaveBeenCalledWith(
       "transcribe",

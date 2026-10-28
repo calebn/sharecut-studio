@@ -137,7 +137,7 @@ describe("ReadyList", () => {
     const { rerender } = render(
       <ReadyList rows={ROWS.needsModel} onAction={onAction} />,
     );
-    await user.click(screen.getByRole("button", { name: /^Download 1.6 GB/ }));
+    await user.click(screen.getByRole("button", { name: /^Get \(1.6 GB\)/ }));
     expect(onAction).toHaveBeenCalledWith("transcribe", "download-model");
     rerender(<ReadyList rows={ROWS.approximateTiming} onAction={onAction} />);
     expect(screen.getByText(/Word timing is approximate/)).toBeVisible();
@@ -174,7 +174,7 @@ describe("ReadyList", () => {
       <ReadyList rows={ROWS.needsModel} onAction={vi.fn()} />,
     );
     const item = screen.getAllByRole("listitem")[1];
-    screen.getByRole("button", { name: /^Download 1.6 GB/ }).focus();
+    screen.getByRole("button", { name: /^Get \(1.6 GB\)/ }).focus();
     await user.keyboard("{Enter}");
     rerender(
       <ReadyList
