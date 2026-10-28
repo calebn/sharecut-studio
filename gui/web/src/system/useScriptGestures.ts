@@ -54,19 +54,10 @@ const insideGrip = (target: EventTarget | null) =>
 
 /**
  * The script body's pointer gestures, by delegation: one set of listeners on
- * the body however many words it holds.
- *
- * A mouse or pen press on a word that moves past the slop makes a selection
- * from that word to the place under the pointer (a pill or run in the way is
- * taken whole). A touch press that holds still for the long-press time does
- * the same from then on; a finger that moves first is a scroll and selects
- * nothing, and once the hold has armed the touch no longer scrolls. The body
- * takes pointer capture for the gesture, scrolls itself near its top and
- * bottom edges, and the gesture ends, committed, on release. Escape, a
- * cancelled or lost pointer, a window blur, a second finger, the pane going
- * away and the gestures turning off all end it uncommitted. A second pointer
- * of any other kind is ignored. The click the browser sends after a gesture
- * is for `consumeClick` to swallow.
+ * the body however many words it holds. A drag (mouse, pen) or a long press
+ * then drag (touch) selects from the pressed word; release commits, anything
+ * else ends it uncommitted. `consumeClick` swallows the click the browser
+ * sends after a gesture.
  */
 export function useScriptGestures(
   bodyRef: RefObject<HTMLElement | null>,
@@ -80,7 +71,7 @@ export function useScriptGestures(
   const lastKind = useRef<PressKind>("mouse");
   const swallow = useRef(false);
 
-  // A layout effect: the listeners are on the body in the commit that draws it, before any press can land.
+  // A layout effect so the listeners exist in the commit that draws the body, before any press can land.
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (!body || !active) return;
@@ -102,7 +93,6 @@ export function useScriptGestures(
       }
     };
 
-    /** Move the head to the place under the pointer. */
     const track = (p: Press) => {
       const stop = ctl.current.stopAt(p.x, p.y);
       if (!stop) return;
@@ -145,12 +135,7 @@ export function useScriptGestures(
       }
       if (drawAnchor) {
         p.head = p.anchor;
-        const first: WordsSelection = {
-          kind: "words",
-          anchor: p.anchor,
-          head: p.anchor,
-        };
-        ctl.current.draft(first);
+        ctl.current.draft({ kind: "words", anchor: p.anchor, head: p.anchor });
         ctl.current.change(p.anchor, p.head, p.gesture);
       }
       return true;
@@ -250,7 +235,6 @@ export function useScriptGestures(
       if (!p.selecting) {
         const moved = Math.hypot(p.x - p.x0, p.y - p.y0);
         if (p.kind === "touch") {
-          // A finger that moves before the hold is scrolling.
           if (moved > pressSlop("touch")) release();
           return;
         }
@@ -310,9 +294,7 @@ export function useScriptGestures(
 
   return useMemo(
     () => ({
-      /** The kind of the last press, so a click can tell a tap from a mouse click. */
       lastKind,
-      /** True once for the click that follows a gesture, so it does not collapse the selection. */
       consumeClick: (): boolean => {
         const was = swallow.current;
         swallow.current = false;
