@@ -39,9 +39,9 @@ type StepDef = {
 
 type GroupDef = { id: string; title: string; steps: readonly StepDef[] };
 
-export const LANGUAGE_PATH = "transcribe.language";
-export const AUTO_LANGUAGE = "auto";
-export const TIGHTEN_ENABLED_PATH = "tighten.enabled";
+const LANGUAGE_PATH = "transcribe.language";
+const AUTO_LANGUAGE = "auto";
+const TIGHTEN_ENABLED_PATH = "tighten.enabled";
 /** A switch on one of these also turns tighten on or off in the saved settings. */
 const TIGHTEN_STEPS = new Set([
   "analyze_fillers_pauses",
@@ -59,7 +59,7 @@ const LANGUAGES = [
 
 const SECONDS = ["second", "seconds"] as const;
 
-export const ADVANCED_DEFS: readonly GroupDef[] = [
+const ADVANCED_DEFS: readonly GroupDef[] = [
   {
     id: "transcribe",
     title: "Transcribe",
@@ -154,7 +154,6 @@ export const ADVANCED_DEFS: readonly GroupDef[] = [
   },
 ];
 
-/** The settings path and the id each step setting carries, for edits. */
 export function paramPath(stepId: string, paramId: string): string | null {
   for (const group of ADVANCED_DEFS) {
     for (const step of group.steps) {
@@ -177,7 +176,6 @@ function stepResult(
   return done?.summary ?? undefined;
 }
 
-/** The step list for the Advanced sheet, from the saved settings and the last job. */
 export function advancedGroups(
   cfg: PipelineConfigResponse,
   job: PipelineJobSnapshot | null,
