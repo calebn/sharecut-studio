@@ -198,7 +198,7 @@ function overlayTranscriptWords(
       previousBySource.set(key, candidates);
     }
   }
-  let complete = true;
+  let complete = incoming.utterances.length > 0;
   const utterances = incoming.utterances.map((utterance) => {
     if (utterance.words) {
       return utterance;
