@@ -298,7 +298,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** status bar says "QC ok" while the step result says "forced alignment unavailable … (podcast bootstrap --component word-aligner)".
 - **Fate:** replace with a Check row in Prepare and Review.
-- **Spec:** in Prepare's Ready list, row 2 finishes with an amber glyph: "Transcribed. Word timing is approximate" and a Model need row "Get word timing · 360 MB". In Review's Checks group the same Check row appears once ("Cuts may clip word edges until word timing is installed") with Get. After install, a "Re-time words" action runs alignment only.
+- **Spec:** in Prepare's Ready list, row 2 finishes with an amber glyph: "Transcribed. Word timing is approximate" and a Model need row "Download word timing (360 MB)". In Review's Checks group the same Check row appears once ("Cuts may clip word edges until word timing is installed") with Get. After install, a "Re-time words" action runs alignment only.
 - **Shared elements used:** Check row, Model need row.
 - **Story to build:** `Stages/Prepare/ReadyList` `ApproximateTiming`; `Stages/Review/Queue` `AlignerMissingCheck`.
 

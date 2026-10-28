@@ -142,7 +142,7 @@ export const ROWS = {
       title: "Transcribe",
       detail: "Needs a 1.6 GB download first.",
       action: {
-        label: "Download 1.6 GB",
+        label: "Get (1.6 GB)",
         icon: "cloud-download",
         run: "download-model",
       },

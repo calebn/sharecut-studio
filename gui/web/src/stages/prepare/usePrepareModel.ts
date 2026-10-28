@@ -5,6 +5,7 @@ import { usePipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import { canIngestMedia, canManageProjects } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { mediaKeyOf } from "../../state/jobMedia";
 import { errorMessage } from "../../utils/apiError";
 import { getByPath } from "../../utils/configPath";
 import { isPipelineKindJob, isPipelineRunning } from "../../utils/pipeline";
@@ -18,7 +19,6 @@ import {
 import type { PrepareViewProps } from "./PrepareView";
 import {
   handoffProps,
-  hasMedia,
   prepareHandoff,
   preparePhase,
   prepareSessions,
@@ -108,10 +108,7 @@ export function usePrepareModel(): PrepareModel {
   const workingSet = usePipelineWorkingSet(projectPath, true);
   const sourcesNow = sourceTracks(allTracks ?? []);
   const untranscribed = sourcesNow.filter((t) => !transcribed.has(t.id));
-  const mediaKey = sourcesNow
-    .filter(hasMedia)
-    .map((t) => `${t.id}:${t.media_path}`)
-    .join("|");
+  const mediaKey = mediaKeyOf(sourcesNow);
 
   const jobCoversMedia = useJobCoverage(job?.id ?? null, mediaKey);
 

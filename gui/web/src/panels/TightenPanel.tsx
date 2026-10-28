@@ -17,6 +17,7 @@ import { useTightenIntensityConfig } from "../hooks/useTightenIntensityConfig";
 import { ModelGateDialog, ModelGateHint, useModelGate } from "../models";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { currentMediaKey, recordJobMedia } from "../state/jobMedia";
 import { useDaw } from "../state/useDaw";
 import {
   Button,
@@ -156,10 +157,12 @@ export function TightenPanel() {
         if (!onPath()) return null;
         const fresh = await intensityCfg.fetchFresh();
         if (!fresh || !onPath()) return null;
+        const keyAtRequest = currentMediaKey();
         const started = await startPipelineRun(
           path,
           tightenProposeRunOptions(fresh, tier),
         );
+        recordJobMedia(started.id, keyAtRequest);
         return onPath() ? started : null;
       });
       if (result.kind !== "ran" || !result.value) return;

@@ -878,7 +878,7 @@
     {
       "id": "gui-pipeline-config-analyze-run",
       "when": "GUI pipeline config / Analyze → Run",
-      "update": "`docs/pipeline.md` § Configurable run, `docs/gui-viewer.md` § Pipeline tab, skill `podcast-pipeline-tune`",
+      "update": "`docs/pipeline.md` § Configurable run, `docs/gui-viewer.md` § Prepare stage (orchestration), skill `podcast-pipeline-tune`",
       "docs": [
         "docs/pipeline.md",
         "docs/gui-viewer.md"
