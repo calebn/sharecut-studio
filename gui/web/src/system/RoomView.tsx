@@ -2,10 +2,12 @@ import {
   type CSSProperties,
   type ReactNode,
   useCallback,
+  useId,
   useState,
 } from "react";
 import { BrandLockup } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
+import { Tab, TabList } from "../ui/Tabs";
 import { NotesRail } from "./NotesRail";
 import type { NoteDraft, NoteItem } from "./notesRailModel";
 import { RecordDock } from "./RecordDock";
@@ -55,7 +57,44 @@ export type RoomViewProps = {
   onPause?: () => void;
   onMore?: () => void;
   onLeave?: () => void;
+  embedded?: boolean;
+  recordDisabledReason?: string;
+  takes?: ReactNode;
 };
+
+type RailTab = "notes" | "takes";
+
+function Stage({
+  embedded,
+  title,
+  children,
+}: {
+  embedded: boolean;
+  title: string;
+  children: ReactNode;
+}) {
+  return embedded ? (
+    <section className="sys-room-view-stage" aria-label={title}>
+      {children}
+    </section>
+  ) : (
+    <main className="sys-room-view-stage">{children}</main>
+  );
+}
+
+function Dockbar({
+  embedded,
+  children,
+}: {
+  embedded: boolean;
+  children: ReactNode;
+}) {
+  return embedded ? (
+    <div className="sys-room-view-dock">{children}</div>
+  ) : (
+    <footer className="sys-room-view-dock">{children}</footer>
+  );
+}
 
 /**
  * The one Room surface for every seat. The header, the alert slot, the tile
@@ -87,7 +126,12 @@ export function RoomView({
   onPause,
   onMore,
   onLeave,
+  embedded = false,
+  recordDisabledReason,
+  takes,
 }: RoomViewProps) {
+  const tabId = useId();
+  const [railTab, setRailTab] = useState<RailTab>("notes");
   const [notesChoice, setNotesChoice] = useState<boolean | undefined>(
     defaultNotesOpen,
   );
@@ -137,6 +181,34 @@ export function RoomView({
       paused={paused}
     />
   );
+  const railContent =
+    takes === undefined ? (
+      rail
+    ) : (
+      <div className="sys-room-view-railtabs">
+        <TabList label="Room panels" className="sys-room-view-tabs">
+          {(["notes", "takes"] as const).map((id) => (
+            <Tab
+              key={id}
+              id={`${tabId}-${id}`}
+              panelId={`${tabId}-panel`}
+              selected={railTab === id}
+              onClick={() => setRailTab(id)}
+            >
+              {id === "notes" ? "Notes" : "Takes"}
+            </Tab>
+          ))}
+        </TabList>
+        <div
+          id={`${tabId}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${tabId}-${railTab}`}
+          className="sys-room-view-tabpanel"
+        >
+          {railTab === "notes" ? rail : takes}
+        </div>
+      </div>
+    );
   const dockStatus = status ?? model.dockStatus ?? undefined;
   const leaveReason =
     leaveDisabledReason ??
@@ -145,14 +217,25 @@ export function RoomView({
       : undefined);
 
   return (
-    <div className="sys-room-view" data-seat={seat} data-width={viewerWidth}>
-      <header className="sys-room-view-header">
-        <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
-        <h1 className="sys-room-view-title">{title}</h1>
-        <RoomStatusPill phase={phase} />
-      </header>
+    <div
+      className="sys-room-view"
+      data-seat={seat}
+      data-width={viewerWidth}
+      data-embedded={embedded ? "" : undefined}
+    >
+      {embedded ? (
+        <div className="sys-room-view-header sys-room-view-header--embedded">
+          <RoomStatusPill phase={phase} />
+        </div>
+      ) : (
+        <header className="sys-room-view-header">
+          <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
+          <h1 className="sys-room-view-title">{title}</h1>
+          <RoomStatusPill phase={phase} />
+        </header>
+      )}
       <div className="sys-room-view-body">
-        <main className="sys-room-view-stage">
+        <Stage embedded={embedded} title={title}>
           <div className="sys-room-view-alert">
             <RoomAlert alerts={model.alerts} />
           </div>
@@ -185,9 +268,11 @@ export function RoomView({
               ))}
             </ListenerRow>
           ) : null}
-        </main>
+        </Stage>
         {model.railOpen ? (
-          <aside className="sys-room-view-rail">{rail}</aside>
+          <aside className="sys-room-view-rail" aria-label="Notes and takes">
+            {railContent}
+          </aside>
         ) : null}
       </div>
       {viewerWidth === "phone" ? (
@@ -212,13 +297,15 @@ export function RoomView({
           ) : null}
         </button>
       ) : null}
-      <footer className="sys-room-view-dock">
+      <Dockbar embedded={embedded}>
         <RecordDock
           seat={model.dockSeat}
           record={
             model.record && onStartTake && onStopTake
               ? {
                   ...model.record,
+                  disabledReason:
+                    recordDisabledReason ?? model.record.disabledReason,
                   busy: recordBusy,
                   onStart: onStartTake,
                   onStop: onStopTake,
@@ -238,7 +325,7 @@ export function RoomView({
           onMore={onMore}
           onLeave={onLeave}
         />
-      </footer>
+      </Dockbar>
       {viewerWidth === "desktop" ? null : (
         <Sheet
           form="bottom"
@@ -248,7 +335,7 @@ export function RoomView({
           detent={detent}
           onDetentChange={setDetent}
         >
-          {rail}
+          {railContent}
         </Sheet>
       )}
     </div>

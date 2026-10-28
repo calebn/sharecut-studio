@@ -628,6 +628,36 @@
   border-block-end: 1px solid var(--color-border-subtle);
 }
 
+.sys-room-view-header--embedded {
+  justify-content: flex-end;
+  block-size: 2.5rem;
+}
+
+.sys-room-view-railtabs {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  min-block-size: 0;
+}
+
+.sys-room-view-tabs {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  padding-inline: var(--space-3);
+  border-block-end: 1px solid var(--color-border-subtle);
+}
+
+.sys-room-view-tabpanel {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.sys-room-view-tabpanel > * {
+  flex: 1 1 auto;
+}
+
 .sys-room-view-wordmark {
   flex: none;
   block-size: 1.5rem;

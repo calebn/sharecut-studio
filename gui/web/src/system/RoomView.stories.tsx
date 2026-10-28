@@ -545,6 +545,35 @@ export const HostLiveNotesOpen: Story = {
   },
 };
 
+export const HostEmbedded: Story = {
+  args: {
+    seat: "host",
+    embedded: true,
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST],
+    selfName: "Maya Okafor",
+    defaultNotesOpen: true,
+    notes: NOTES,
+    takes: <p className="sys-takes-empty">Takes list goes here.</p>,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Inside the stage shell, which supplies the header, the h1, the main landmark and the footer: the status pill sits in a slim bar, the grid is a labelled region and the rail pairs Notes with a Takes tab.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("heading", { level: 1 }),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("main")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "Takes" }));
+    await expect(canvas.getByText("Takes list goes here.")).toBeVisible();
+  },
+};
+
 export const HostPaused: Story = {
   args: {
     seat: "host",

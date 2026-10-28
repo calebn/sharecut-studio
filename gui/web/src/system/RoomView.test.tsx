@@ -398,4 +398,56 @@ describe("RoomView as the host", () => {
     expect(leave).toBeDisabled();
     expect(leave).toHaveAttribute("title", "Your recording is still saving");
   });
+
+  describe("embedded in a stage shell", () => {
+    it("drops its own h1, main and footer, and keeps the status pill and dock", () => {
+      renderRoom({
+        seat: "host",
+        people: [{ ...HOST, you: true }],
+        embedded: true,
+      });
+      expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+      expect(screen.queryByRole("main")).toBeNull();
+      expect(screen.queryByRole("contentinfo")).toBeNull();
+      expect(screen.getByRole("region", { name: "Episode 14" })).toBeVisible();
+      expect(
+        screen.getByRole("group", { name: "Recording controls" }),
+      ).toBeVisible();
+      expect(document.querySelector(".sys-pill")).not.toBeNull();
+    });
+
+    it("carries a Record reason of the caller over the model's", () => {
+      renderRoom({
+        seat: "host",
+        people: [{ ...HOST, you: true }],
+        embedded: true,
+        onStartTake: vi.fn(),
+        onStopTake: vi.fn(),
+        phase: { kind: "waiting" },
+        recordDisabledReason: "Joining the room.",
+      });
+      expect(screen.getByRole("button", { name: "Record" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Record" })).toHaveAttribute(
+        "title",
+        "Joining the room.",
+      );
+    });
+
+    it("pairs Notes with a Takes tab when takes are given", async () => {
+      const user = userEvent.setup();
+      renderRoom({
+        seat: "host",
+        people: [{ ...HOST, you: true }],
+        embedded: true,
+        defaultNotesOpen: true,
+        takes: <p>take list</p>,
+      });
+      expect(screen.getByRole("tab", { name: "Notes" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      await user.click(screen.getByRole("tab", { name: "Takes" }));
+      expect(screen.getByRole("tabpanel")).toHaveTextContent("take list");
+    });
+  });
 });

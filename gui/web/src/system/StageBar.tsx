@@ -61,9 +61,12 @@ export function StageBar({
   const tabs = shown.map((stage) => {
     const selected = stage.id === active;
     const isLive = stage.id === "record" && live;
-    const badge = isLive
-      ? ({ kind: "live" } as StageBadge)
-      : badges?.[stage.id];
+    const attention =
+      stage.id === "record" && badges?.record?.kind === "failed";
+    const badge =
+      isLive && !attention
+        ? ({ kind: "live" } as StageBadge)
+        : badges?.[stage.id];
     return (
       <button
         key={stage.id}
