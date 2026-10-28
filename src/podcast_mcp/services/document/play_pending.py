@@ -25,6 +25,7 @@ from podcast_mcp.edits.pending_preview import (
 )
 from podcast_mcp.engines.effect_filters import ADAPTIVE_EFFECTS
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.engines.room_tone import (
     record_room_tone_pool,
     room_tone_bed_digest,
@@ -41,6 +42,7 @@ from podcast_mcp.util.project_state import (
     RENDER_LOCK_TIMEOUT_SEC,
     snapshot_project,
 )
+from podcast_mcp.util.tracks import stem_path
 from podcast_mcp.util.wav import open_wav
 
 from .play_compose import _PlayCompose
@@ -52,6 +54,8 @@ log = logging.getLogger(__name__)
 # Seconds of lead-in a window renders (and drops) on a track with an adaptive effect; loudnorm's
 # residual against the whole stem falls from about -16 dB (cold) to about -50 dB at 12 s.
 PENDING_WARMUP_SEC = 15.0
+# arnndn history: a window within this many seconds of the start renders from 0 and is exact.
+PENDING_HISTORY_SEC = 600.0
 LEAD_IN_GRID_SEC = 0.64
 
 # The pad range the GUI routes validate against, from the one place the service validates it.
@@ -99,13 +103,19 @@ def _lead_in_start(project: EpisodeProject, track_id: str, start: float) -> floa
 
 
 def _warmup_sec(project: EpisodeProject, track_id: str) -> float:
-    """Lead-in a window render needs on ``track_id``: 0 unless its chain has an adaptive effect."""
+    """Lead-in a window render needs on ``track_id``: 0 unless its chain has an adaptive effect.
+
+    Noise reduction (``arnndn``) is a recurrent network whose state never settles within a
+    few seconds: the window is only the same as inside the whole-episode stem when it is
+    rendered from the start, so it gets up to ``PENDING_HISTORY_SEC`` of history.
+    """
     chain = next((c for c in project.processing_chains if c.track_id == track_id), None)
-    if chain is None or not any(
-        fx.effect in ADAPTIVE_EFFECTS and not fx.bypass for fx in chain.effects
-    ):
+    if chain is None:
         return 0.0
-    return PENDING_WARMUP_SEC
+    live = {fx.effect for fx in chain.effects if not fx.bypass}
+    if "arnndn" in live:
+        return PENDING_HISTORY_SEC
+    return PENDING_WARMUP_SEC if live & ADAPTIVE_EFFECTS else 0.0
 
 
 class _PlayPending(_PlayCompose, _PlayHeadroom):
@@ -288,6 +298,17 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                     sides[mode] = "failed"
         return {"trim_db": trim, "sides": sides}
 
+    def _stem_window_tracks(self, project: EpisodeProject) -> list[str]:
+        """Adaptive-effect tracks whose whole-episode stem is fresh, so a window is cut from it."""
+        return sorted(
+            track.id
+            for track in project.tracks
+            if not track.muted
+            and track.media is not None
+            and _warmup_sec(project, track.id) > 0
+            and stem_is_fresh(project, track.id, defaults=self._defaults)
+        )
+
     def _pending_window_path(self, window: PendingPreviewWindow, side: str) -> Path:
         edit = next(e for e in self.project.edit_decisions if e.id == window.edit_id)
         key = json.dumps(
@@ -295,7 +316,9 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 "window": [window.play_start, window.play_end],
                 "pad_sec": window.pad_sec,
                 # Bump when a side renders differently for the same inputs.
-                "render_rev": 3,
+                "render_rev": 4,
+                # Adaptive tracks are cut from a fresh whole-episode stem on the Current side.
+                "stem_windows": self._stem_window_tracks(self.project) if side == "current" else [],
                 "edit": edit.model_dump(mode="json"),
                 "mix": self._mix_key(),
                 # The Suggested side re-optimizes the cut against every track's words.
@@ -346,13 +369,23 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
             play_end = apply_for_suggested(project, window, defaults=self._defaults)
         else:
             project, play_end = self.project, window.play_end
+        stems = frozenset(self._stem_window_tracks(project)) if side == "current" else frozenset()
         trim = self.mix_trim_db(lock_timeout=lock_timeout)
-        self._render_mix_window(project, window.play_start, play_end, out, trim_db=trim)
+        self._render_mix_window(
+            project, window.play_start, play_end, out, trim_db=trim, stems=stems
+        )
         self._mark_play_cache_used(out)
         return out
 
     def _render_mix_window(
-        self, project: EpisodeProject, start: float, end: float, out: Path, *, trim_db: float
+        self,
+        project: EpisodeProject,
+        start: float,
+        end: float,
+        out: Path,
+        *,
+        trim_db: float,
+        stems: frozenset[str] = frozenset(),
     ) -> None:
         """Mix ``project``'s audible tracks over ``[start, end]`` into ``out`` at ``trim_db``."""
         with tempfile.TemporaryDirectory(dir=out.parent) as directory:
@@ -361,6 +394,14 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 if track.muted or track.media is None:
                     continue
                 segment = Path(directory) / f"{track.id}.wav"
+                if track.id in stems:
+                    # The premix is built from this stem: cut the window from it, so a stateful
+                    # filter (noise reduction, compressor) sounds exactly as it does there.
+                    FFmpegEngine().extract_segment(
+                        stem_path(project, track.id), segment, start, end
+                    )
+                    segments.append((segment, track.fader_db))
+                    continue
                 lead_start = _lead_in_start(project, track.id, start)
                 warm = start - lead_start
                 if warm > 0:

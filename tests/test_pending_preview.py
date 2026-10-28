@@ -944,3 +944,33 @@ def test_a_window_on_a_track_with_an_adaptive_effect_renders_a_lead_in(
     assert wav.is_file()
     assert play_pending._warmup_sec(ws.project, "guest") == 0.0
     assert play_pending._warmup_sec(ws.project, "host") == play_pending.PENDING_WARMUP_SEC
+
+
+def test_noise_reduction_gets_the_long_history_and_a_fresh_stem_is_cut_not_rendered(
+    minimal_project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """arnndn never settles within seconds, so its track renders from far back, and on the Current
+    side a fresh whole-episode stem is cut instead of rendering anything (exactly the premix)."""
+    from podcast_mcp.models.episode import ProcessingChain, ProcessingEffect
+    from podcast_mcp.services.document import PlayService, play_pending
+
+    ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.4))
+    ws.project.processing_chains = [
+        ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="arnndn")])
+    ]
+    assert play_pending._warmup_sec(ws.project, "host") == play_pending.PENDING_HISTORY_SEC
+    service = PlayService(ws)
+    monkeypatch.setattr(service, "_stem_window_tracks", lambda project: ["host"])
+    rendered: list[str] = []
+    real = play_pending.render_track_segment
+
+    def spy(project, track_id, start, end, out, defaults, **kw):
+        rendered.append(track_id)
+        return real(project, track_id, start, end, out, defaults, **kw)
+
+    monkeypatch.setattr(play_pending, "render_track_segment", spy)
+    stem = play_pending.stem_path(ws.project, "host")
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    real(ws.project, "host", 0.0, 6.0, stem, service._defaults)
+    service.play_pending_preview("cut", mode="current", pad_sec=1.0, dry_run=True)
+    assert rendered == ["guest"]
