@@ -36,6 +36,7 @@ from podcast_mcp.edits.cut_placement import (
     held_pause_observation_span,
     is_pad_record,
     pad_sample_range,
+    pad_sample_recording,
     pad_sample_well_formed,
     pause_neighbours,
     pause_words,
@@ -388,8 +389,6 @@ def _pad_records_seen(
     sample whose range lies outside ``[lo, hi]`` (the window around the pause, which no clip
     heard near it can reach). The validity tests are the check's own (``pad_sample_range``).
     """
-    from podcast_mcp.util.tracks import recording_audio_path
-
     if not _is_pause(edit):
         return None
     seen: list[Any] = []
@@ -416,9 +415,7 @@ def _pad_records_seen(
             if pad_range[1] < lo or pad_range[0] > hi:
                 # Far away, but a recording the check cannot resolve rejects wherever it lies.
                 try:
-                    recording_audio_path(project, sample["track_id"], sample["source_id"]).resolve(
-                        strict=True
-                    )
+                    pad_sample_recording(project, sample)
                 except PAD_SAMPLE_UNRESOLVED_ERRORS:
                     kept.append([sample, "unresolved"])
                 continue
