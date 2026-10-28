@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type CSSProperties, useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   portaledOverlayParameters,
   viewportStoryParameters,
@@ -9,13 +9,16 @@ import { ScriptPane, type ScriptPaneProps } from "./ScriptPane";
 import {
   CUT,
   cutMark,
+  hugeTurn,
+  longScript,
   MUTED,
   patchWords,
+  RTL_TURNS,
   SCRIPT_TURNS,
   spanPatch,
   suggestedMark,
 } from "./scriptFixtures";
-import type { ScriptCaret, ScriptSelection } from "./scriptPieces";
+import type { ScriptCaret, ScriptSelection, ScriptSpan } from "./scriptPieces";
 
 const meta: Meta<typeof ScriptPane> = {
   title: "System/ScriptPane",
@@ -25,6 +28,10 @@ const meta: Meta<typeof ScriptPane> = {
     turns: SCRIPT_TURNS,
     onCaret: fn(),
     onSelect: fn(),
+    onSelectionStart: fn(),
+    onSelectionChange: fn(),
+    onSelectionEnd: fn(),
+    onFixText: fn(),
     onSeek: fn(),
     onPrimary: fn(),
     onClearSelection: fn(),
@@ -46,7 +53,7 @@ const meta: Meta<typeof ScriptPane> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The transcript as a document (design-system element 14), view only. A 40 px header holds find, the unsure-words chip, the show-cut-text eye and the follow pin; below it, each turn has an 88 px margin with the speaker's 20 px avatar and first name, and the words run as plain text. There are no modes: a click places the caret and seeks, Shift extends, and the arrows move among words, cut pills and suggested runs (Left and Right by place, Up and Down by line, Home and End; Shift selects from the real anchor). The words, pills and runs are one tab stop. Space is left to Play/Pause; Enter selects a word, or runs the primary of a selection. Esc clears the selection. Alt+Shift+Left grows the selection at its start and Alt+Shift+Right shrinks it from the start. A words selection shows two grips, one at each end, that drag by word (see Stages/Edit/ScriptPane SelectionHandles), and a cut pill inside it takes the selection tint. Left from a turn's first word enters the margin, where Up and Down walk the speaker's name and the time and Right returns to the words. The host owns what each intent does, and may omit the callbacks it does not serve, as a guest's pane does.\n\nWord states. The playing word has a 2 px accent underline. A cut collapses into a Seam pill with the removed length, or, with the eye on, shows struck. A suggested cut is the hatched Suggestion run. Muted words are grey behind a speaker-slash glyph. Find hits take a tint and the current one an outline. Unsure words have a dotted underline. Words just restored sit on the keep tint until the next action. A selection is the selection tint, and a caret is a 2 px bar before a word, in the person's colour when it is somebody else's.\n\nStatus. Loading shows the skeleton. Transcribing shows a Status row with the percent and the time still to come. No transcript shows the Cover with the one button that starts the job. Out of date shows a Status row with Update. When follow is off a Back to playhead pill sits at the bottom centre. A guest reads, selects and comments; the pane marks itself read only.\n\nThe pane scrolls inside its host's height. The pane reports a hand scroll through onUserScroll so the host can turn follow off, and scrollToWord on its ref lands a word in view. It draws the turns it is given, so a host that virtualizes passes a window of turns with the episode's word indices. Under a coarse pointer the header buttons, the cut pill, the speaker's name and the time are 44 px tall and hit-testable all over. A word and a suggested run keep the height of their line (26 or 28 px) and the width of the word: a 44 px region would reach into the lines above and below and take their presses, so running text is the one place the 44 px floor is the line pitch.\n\n**Motion.** None. The playing underline and the restored tint are static.",
+          "The transcript as a document (design-system element 14), view only. A 40 px header holds find, the unsure-words chip, the show-cut-text eye and the follow pin; below it, each turn has an 88 px margin with the speaker's 20 px avatar and first name, and the words run as plain text. There are no modes: a click places the caret and seeks, Shift extends, and the arrows move among words, cut pills and suggested runs (Left and Right by place, Up and Down by line, Home and End; Shift selects from the real anchor). The words, pills and runs are one tab stop. Space is left to Play/Pause; Enter selects a word, or runs the primary of a selection. Esc clears the selection. Alt+Shift+Left grows the selection at its start and Alt+Shift+Right shrinks it from the start. A words selection shows two grips, one at each end, that drag by word (see Stages/Edit/ScriptPane SelectionHandles), and a cut pill inside it takes the selection tint. Left from a turn's first word enters the margin, where Up and Down walk the speaker's name and the time and Right returns to the words. The host owns what each intent does, and may omit the callbacks it does not serve, as a guest's pane does.\n\nWord states. The playing word has a 2 px accent underline. A cut collapses into a Seam pill with the removed length, or, with the eye on, shows struck. A suggested cut is the hatched Suggestion run. Muted words are grey behind a speaker-slash glyph. Find hits take a tint and the current one an outline. Unsure words have a dotted underline. Words just restored sit on the keep tint until the next action. A selection is the selection tint, and a caret is a 2 px bar before a word, in the person's colour when it is somebody else's.\n\nStatus. Loading shows the skeleton. Transcribing shows a Status row with the percent and the time still to come. No transcript shows the Cover with the one button that starts the job. Out of date shows a Status row with Update. When follow is off a Back to playhead pill sits at the bottom centre. A guest reads, selects and comments; the pane marks itself read only.\n\nThe pane scrolls inside its host's height. The pane reports a hand scroll through onUserScroll so the host can turn follow off, and scrollToWord on its ref lands a word in view. It draws the turns it is given, so a host that virtualizes passes a window of turns with the episode's word indices. Under a coarse pointer the header buttons, the cut pill, the speaker's name and the time are 44 px tall and hit-testable all over. A word and a suggested run keep the height of their line (26 or 28 px) and the width of the word: a 44 px region would reach into the lines above and below and take their presses, so running text is the one place the 44 px floor is the line pitch.\n\nGestures. A click or tap selects a word at once and seeks. A mouse drag selects from the pressed word to the word under the pointer across turns (a pill or run in the way is taken whole), Shift-click and Shift-drag extend, and a double-click or double-tap, or Enter or F2 on a selected word, asks the host for Fix text; typing never does. On touch a long press selects the word and shows the grips, and moving on extends it; a swipe before the hold scrolls. Esc, a lost pointer, a blur or a second finger cancel a drag. The browser's own text selection is off in the pane and the copy event copies the selected words. The Gestures stories show what the pane tells the host in a log under the pane.\n\n**Motion.** None. The playing underline and the restored tint are static.",
       },
     },
   },
@@ -492,4 +499,395 @@ export const EscClears: Story = {
       "Selection cleared",
     );
   },
+};
+
+/** The host the gesture stories share: local selection, a Fix text field and a log of what the pane told it. */
+function GestureLive(props: ScriptPaneProps) {
+  const [selection, setSelection] = useState<ScriptSelection | null>(
+    props.selection ?? null,
+  );
+  const [editing, setEditing] = useState<ScriptSpan | null>(null);
+  const [log, setLog] = useState<readonly string[]>([]);
+  const note = (line: string) => setLog((all) => [...all.slice(-4), line]);
+  const phone = props.layout === "phone";
+  return (
+    <div style={phone ? phoneStack : stack}>
+      <div style={phone ? phoneFrame : frame}>
+        <ScriptPane
+          {...props}
+          selection={selection}
+          editing={editing}
+          renderEditor={() => (
+            <input
+              aria-label="Fix text"
+              defaultValue="fixing"
+              ref={(el) => el?.focus()}
+            />
+          )}
+          onSelect={(next) => {
+            props.onSelect?.(next);
+            setSelection(next);
+          }}
+          onClearSelection={() => {
+            props.onClearSelection?.();
+            setSelection(null);
+          }}
+          onSelectionStart={(anchor, gesture) => {
+            note(`start ${anchor} ${gesture.source} ${gesture.intent}`);
+            return props.onSelectionStart?.(anchor, gesture);
+          }}
+          onSelectionChange={(anchor, head, gesture) => {
+            note(`change ${anchor} to ${head}`);
+            props.onSelectionChange?.(anchor, head, gesture);
+          }}
+          onSelectionEnd={(anchor, head, gesture) => {
+            note(
+              `end ${anchor} to ${head} ${gesture.committed ? "committed" : "cancelled"}`,
+            );
+            props.onSelectionEnd?.(anchor, head, gesture);
+          }}
+          onFixText={(span, via) => {
+            note(`fix ${span.start} to ${span.end} by ${via}`);
+            props.onFixText?.(span, via);
+            setEditing(span);
+          }}
+        />
+      </div>
+      <ol aria-label="What the pane told the host" style={logStyle}>
+        {log.map((line, at) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the log only appends and shifts
+          <li key={`${at}-${line}`}>{line}</li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+const stack: CSSProperties = { display: "grid", gap: "0.5rem" };
+const phoneStack: CSSProperties = { ...stack, inlineSize: "22.5rem" };
+const logStyle: CSSProperties = {
+  margin: 0,
+  paddingInlineStart: "1.25rem",
+  minBlockSize: "5.5rem",
+  font: "var(--font-size-small) var(--font-mono, monospace)",
+  overflowWrap: "anywhere",
+};
+
+const gest: Pick<Story, "render"> = {
+  render: (args) => <GestureLive {...args} />,
+};
+
+/** jsdom has no layout, so a play that aims at where a word is drawn runs only in a real browser; the unit tests cover jsdom. */
+const noLayout = (el: Element) => el.getBoundingClientRect().width === 0;
+
+const centreOf = (el: Element) => {
+  const r = el.getBoundingClientRect();
+  return { clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 };
+};
+
+type Kind = { pointerId: number; pointerType: "mouse" | "touch" };
+const MOUSE: Kind = { pointerId: 1, pointerType: "mouse" };
+const TOUCH: Kind = { pointerId: 2, pointerType: "touch" };
+
+/** One pointer event at an element's centre, as the browser would send it. */
+function pointer(
+  type: "pointerdown" | "pointermove" | "pointerup",
+  target: Element,
+  kind: Kind,
+) {
+  target.dispatchEvent(
+    new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      isPrimary: true,
+      button: 0,
+      buttons: type === "pointerup" ? 0 : 1,
+      ...kind,
+      ...centreOf(target),
+    }),
+  );
+}
+
+/** A mouse drag: press on one word, move to another and, unless `keep`, let go. */
+function dragBetween(from: HTMLElement, to: HTMLElement, keep = false) {
+  pointer("pointerdown", from, MOUSE);
+  pointer("pointermove", to, MOUSE);
+  if (!keep) pointer("pointerup", to, MOUSE);
+}
+
+const lastSelect = (args: ScriptPaneProps) =>
+  (args.onSelect as ReturnType<typeof fn>).mock.calls.at(-1)?.[0];
+
+export const MouseDrag: Story = {
+  ...gest,
+  play: async ({ canvasElement, args }) => {
+    if (noLayout(canvasElement)) return;
+    const canvas = within(canvasElement);
+    dragBetween(
+      canvas.getByRole("button", { name: "small" }),
+      canvas.getByRole("button", { name: "one." }),
+    );
+    await expect(lastSelect(args)).toEqual({
+      kind: "words",
+      anchor: 12,
+      head: 19,
+    });
+    await expect(args.onSelectionStart).toHaveBeenCalledWith(12, {
+      source: "mouse",
+      intent: "drag",
+      shift: false,
+      alt: false,
+      mod: false,
+    });
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "8 words selected: small room can sound like a large one.",
+    );
+  },
+};
+
+export const DragAcrossTurns: Story = {
+  ...gest,
+  play: async ({ canvasElement, args }) => {
+    if (noLayout(canvasElement)) return;
+    const canvas = within(canvasElement);
+    dragBetween(
+      canvas.getByRole("button", { name: "large" }),
+      canvas.getByRole("button", { name: "having" }),
+    );
+    await expect(lastSelect(args)).toEqual({
+      kind: "words",
+      anchor: 18,
+      head: 22,
+    });
+  },
+};
+
+export const DragThroughACut: Story = {
+  ...gest,
+  args: {
+    turns: patchWords(SCRIPT_TURNS, spanPatch(13, 14, { mark: CUT })),
+  },
+  play: async ({ canvasElement, args }) => {
+    if (noLayout(canvasElement)) return;
+    const canvas = within(canvasElement);
+    dragBetween(
+      canvas.getByRole("button", { name: "small" }),
+      canvas.getByRole("button", { name: "sound" }),
+    );
+    await expect(lastSelect(args)).toEqual({
+      kind: "words",
+      anchor: 12,
+      head: 15,
+    });
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "small cut room can sound",
+    );
+  },
+};
+
+export const DragStaysUncommittedUntilRelease: Story = {
+  ...gest,
+  play: async ({ canvasElement, args }) => {
+    if (noLayout(canvasElement)) return;
+    const canvas = within(canvasElement);
+    dragBetween(
+      canvas.getByRole("button", { name: "small" }),
+      canvas.getByRole("button", { name: "sound" }),
+      true,
+    );
+    await expect(args.onSelect).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".sys-script-body")).toHaveAttribute(
+        "data-selecting",
+      ),
+    );
+    const sound = canvasElement.querySelector('[data-stop="15"]');
+    if (!sound) throw new Error("No word 15");
+    pointer("pointerup", sound, MOUSE);
+    await expect(args.onSelect).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const EscapeCancelsDrag: Story = {
+  ...gest,
+  args: { selection: { kind: "words", anchor: 0, head: 1 } },
+  play: async ({ canvasElement, args }) => {
+    if (noLayout(canvasElement)) return;
+    const canvas = within(canvasElement);
+    dragBetween(
+      canvas.getByRole("button", { name: "small" }),
+      canvas.getByRole("button", { name: "sound" }),
+      true,
+    );
+    await userEvent.keyboard("{Escape}");
+    await expect(args.onSelectionEnd).toHaveBeenLastCalledWith(
+      12,
+      15,
+      expect.objectContaining({ committed: false }),
+    );
+    await expect(args.onSelect).not.toHaveBeenCalled();
+    await expect(args.onClearSelection).not.toHaveBeenCalled();
+    await expect(
+      canvas.getByRole("button", { name: "Welcome (selected)" }),
+    ).toBeVisible();
+  },
+};
+
+export const ShiftClickExtends: Story = {
+  ...gest,
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    await user.click(canvas.getByRole("button", { name: "small" }));
+    await expect(lastSelect(args)).toEqual({
+      kind: "words",
+      anchor: 12,
+      head: 12,
+    });
+    await user.keyboard("{Shift>}");
+    await user.click(canvas.getByRole("button", { name: "sound" }));
+    await user.keyboard("{/Shift}");
+    await expect(lastSelect(args)).toEqual({
+      kind: "words",
+      anchor: 12,
+      head: 15,
+    });
+  },
+};
+
+export const ClickSelectsAWord: Story = {
+  ...gest,
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "small" }),
+    );
+    await expect(args.onSeek).toHaveBeenLastCalledWith(12);
+    await expect(
+      within(canvasElement).getByRole("button", { name: "small (selected)" }),
+    ).toBeVisible();
+    await expect(args.onFixText).not.toHaveBeenCalled();
+  },
+};
+
+export const DoubleClickFixesText: Story = {
+  ...gest,
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.dblClick(canvas.getByRole("button", { name: "small" }));
+    await expect(args.onFixText).toHaveBeenCalledWith(
+      { start: 12, end: 12 },
+      "double-click",
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Fix text" }),
+    ).toBeVisible();
+  },
+};
+
+export const EnterAndF2FixText: Story = {
+  ...gest,
+  args: { selection: { kind: "words", anchor: 12, head: 14 } },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    canvas.getByRole("button", { name: "room (selected)" }).focus();
+    await userEvent.keyboard("{F2}");
+    await expect(args.onFixText).toHaveBeenLastCalledWith(
+      { start: 12, end: 14 },
+      "f2",
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Fix text" }),
+    ).toBeVisible();
+  },
+};
+
+export const TypingNeverEdits: Story = {
+  ...gest,
+  args: { selection: { kind: "words", anchor: 12, head: 14 } },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    canvas.getByRole("button", { name: "room (selected)" }).focus();
+    await userEvent.keyboard("cxim.a");
+    await expect(canvas.queryByRole("textbox")).toBeNull();
+    await expect(args.onFixText).not.toHaveBeenCalled();
+  },
+};
+
+export const TouchLongPressThenDrag: Story = {
+  ...gest,
+  args: { layout: "phone" },
+  play: async ({ canvasElement, args }) => {
+    if (noLayout(canvasElement)) return;
+    const canvas = within(canvasElement);
+    const from = canvas.getByRole("button", { name: "small" });
+    const to = canvas.getByRole("button", { name: "sound" });
+    pointer("pointerdown", from, TOUCH);
+    await waitFor(() => expect(args.onSelectionStart).toHaveBeenCalled());
+    await expect(args.onSelectionStart).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({ source: "touch", intent: "hold" }),
+    );
+    pointer("pointermove", to, TOUCH);
+    pointer("pointerup", to, TOUCH);
+    await expect(lastSelect(args)).toEqual({
+      kind: "words",
+      anchor: 12,
+      head: 15,
+    });
+    await expect(canvasElement.querySelector(".sys-handle")).not.toBeNull();
+  },
+};
+
+export const RightToLeftTurn: Story = {
+  ...gest,
+  args: { turns: RTL_TURNS },
+  play: async ({ canvasElement, args }) => {
+    if (noLayout(canvasElement)) return;
+    const canvas = within(canvasElement);
+    dragBetween(
+      canvas.getByRole("button", { name: "לכולם" }),
+      canvas.getByRole("button", { name: "להקלטה" }),
+    );
+    await expect(lastSelect(args)).toEqual({
+      kind: "words",
+      anchor: 7,
+      head: 10,
+    });
+  },
+};
+
+export const LongTranscript: Story = {
+  ...gest,
+  args: { turns: longScript(60) },
+  play: async ({ canvasElement }) => {
+    if (noLayout(canvasElement)) return;
+    const body = canvasElement.querySelector(".sys-script-body");
+    await expect((body?.scrollHeight ?? 0) > (body?.clientHeight ?? 0)).toBe(
+      true,
+    );
+  },
+};
+
+/** The gesture host with nothing played, for the real-browser specs to drive. */
+export const Gestures: Story = { ...gest };
+
+export const PhoneGestures: Story = {
+  ...gest,
+  args: { layout: "phone" },
+};
+
+export const RtlGestures: Story = {
+  ...gest,
+  args: { turns: RTL_TURNS },
+};
+
+export const LongGestures: Story = {
+  ...gest,
+  args: { turns: longScript(60) },
+};
+
+export const HugeGestures: Story = {
+  ...gest,
+  args: { turns: hugeTurn(1500) },
 };
