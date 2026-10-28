@@ -1,5 +1,3 @@
-"""apply_edit_plan_tool keeps its reply, errors, effects and history steps (#1847)."""
-
 from __future__ import annotations
 
 import json
