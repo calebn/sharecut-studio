@@ -1,4 +1,11 @@
+import {
+  type NoteItem,
+  noteSnippet,
+  sortNotes,
+  visibleNotes,
+} from "./notesRailModel";
 import type { PersonData } from "./Person";
+import type { RecordFace } from "./RecordButton";
 import type { DockSeat } from "./RecordDock";
 import type { RoomAlertInput } from "./roomAlertModel";
 import type { RoomPhase } from "./roomPhase";
@@ -10,7 +17,7 @@ import {
 } from "./roomTileModel";
 
 export type RoomRole = DockSeat;
-export type ViewerWidth = "desktop" | "phone";
+export type ViewerWidth = "desktop" | "phone" | "phone-landscape";
 
 /** One person in the room as the viewer's client knows them. */
 export type RoomPerson = {
@@ -39,7 +46,17 @@ export type RoomViewInput = {
   alerts?: RoomAlertInput[];
   /** Whether the host can invite. Without a handler the host gets no Invite slots. */
   invite?: boolean;
+  notes?: NoteItem[];
+  selfName?: string;
 };
+
+export type NotePeek = {
+  author: string;
+  text: string;
+  time: string | null;
+};
+
+export type RoomRecord = { face: RecordFace; disabledReason?: string };
 
 type RoomListener = { key: string; person: PersonData; label?: string };
 
@@ -50,14 +67,20 @@ type RoomTileEntry =
 
 type RoomViewModel = {
   tiles: RoomTileEntry[];
-  /** 1 for a lone tile, otherwise two columns (a 2x2 for three or four). */
-  columns: 1 | 2;
+  columns: 1 | 2 | 3 | 4;
   listeners: RoomListener[];
   dockSeat: DockSeat;
   showComment: boolean;
   railOpen: boolean;
+  sheetOpen: boolean;
+  notesOpen: boolean;
+  peek: NotePeek | null;
+  record: RoomRecord | null;
+  dockStatus: string | null;
   alerts: RoomAlertInput[];
 };
+
+export const isPhoneWidth = (width: ViewerWidth) => width !== "desktop";
 
 /** The host's room holds at most four recorded people, the host included. */
 const RECORDED_CAP = 4;
@@ -112,13 +135,47 @@ function hostOffline(people: RoomPerson[]): RoomAlertInput[] {
   return dropped ? [{ kind: "host-offline", name: host.person.name }] : [];
 }
 
+export function notePeek(
+  notes: readonly NoteItem[],
+  role: RoomRole,
+  selfName: string,
+): NotePeek | null {
+  const latest = sortNotes(visibleNotes(notes, role, selfName)).at(-1);
+  if (!latest) return null;
+  return {
+    author: latest.author.name,
+    text: noteSnippet(latest),
+    time: latest.time,
+  };
+}
+
+function hostRecord(people: RoomPerson[], phase: RoomPhase): RoomRecord {
+  if (phase.kind === "live") return { face: "live" };
+  if (phase.kind === "paused") return { face: "paused" };
+  const joining = people.find((person) => person.presence === "joining");
+  return joining && phase.kind === "waiting"
+    ? {
+        face: "idle",
+        disabledReason: `Waiting for ${joining.person.name} to join`,
+      }
+    : { face: "idle" };
+}
+
+function savingStatus(phase: RoomPhase): string | null {
+  return phase.kind === "saving"
+    ? `Saving · ${phase.savedPeople} of ${phase.totalPeople} · keep this page open`
+    : null;
+}
+
 export function roomViewModel(input: RoomViewInput): RoomViewModel {
   const { role, people, phase, viewerWidth } = input;
 
   const recorded = people.filter(isRecorded);
   // The host leads with their own tile everywhere; a guest only on the phone.
   const ordered =
-    role === "host" || viewerWidth === "phone" ? ownFirst(recorded) : recorded;
+    role === "host" || isPhoneWidth(viewerWidth)
+      ? ownFirst(recorded)
+      : recorded;
   const tiles: RoomTileEntry[] = ordered.map((entry) => ({
     key: `${entry.role}-${entry.person.name}`,
     kind: "person",
@@ -139,8 +196,20 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       label: person.you ? "You" : undefined,
     }));
 
-  const railOpen =
-    viewerWidth === "desktop" && (input.notesOpen ?? role === "producer");
+  const desktop = viewerWidth === "desktop";
+  const railOpen = desktop && (input.notesOpen ?? role === "producer");
+  const sheetOpen = !desktop && (input.notesOpen ?? false);
+  const peek =
+    viewerWidth === "phone"
+      ? notePeek(input.notes ?? [], role, input.selfName ?? "")
+      : null;
+  const columns = !desktop
+    ? viewerWidth === "phone-landscape"
+      ? (Math.min(4, Math.max(1, tiles.length)) as 1 | 2 | 3 | 4)
+      : 2
+    : tiles.length > 1
+      ? 2
+      : 1;
 
   // The derived alert is named, so it replaces a caller's nameless host-offline:
   // RoomAlert keeps the first alert of each kind.
@@ -150,11 +219,16 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
   );
   return {
     tiles,
-    columns: viewerWidth === "phone" || tiles.length > 1 ? 2 : 1,
+    columns,
     listeners,
     dockSeat: role,
     showComment: phase.kind !== "waiting",
     railOpen,
+    sheetOpen,
+    notesOpen: railOpen || sheetOpen,
+    peek,
+    record: role === "host" ? hostRecord(people, phase) : null,
+    dockStatus: savingStatus(phase),
     alerts: [...derived, ...callers],
   };
 }

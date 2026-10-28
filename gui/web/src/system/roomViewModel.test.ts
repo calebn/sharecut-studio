@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { NoteItem } from "./notesRailModel";
 import type { RoomPhase } from "./roomPhase";
 import type { RoomPerson, RoomViewInput } from "./roomViewModel";
-import { roomViewModel, tileProps } from "./roomViewModel";
+import { notePeek, roomViewModel, tileProps } from "./roomViewModel";
 
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
 const JON = { name: "Jon", colorIndex: 3 };
@@ -271,5 +272,159 @@ describe("tileProps", () => {
       presence: "declined",
       person: JON,
     });
+  });
+});
+
+const note = (
+  id: string,
+  time: string | null,
+  rest: Partial<NoteItem> = {},
+): NoteItem => ({
+  id,
+  kind: "note",
+  author: { name: "Rosa Diaz" },
+  text: `Note ${id}`,
+  time,
+  visibility: "everyone",
+  ...rest,
+});
+
+describe("roomViewModel phone", () => {
+  it("opens the sheet, not the rail, on a phone and follows the Notes choice", () => {
+    const closed = roomViewModel(base({ viewerWidth: "phone" }));
+    expect(closed.sheetOpen).toBe(false);
+    expect(closed.notesOpen).toBe(false);
+    const open = roomViewModel(
+      base({ viewerWidth: "phone", notesOpen: true, role: "producer" }),
+    );
+    expect(open.sheetOpen).toBe(true);
+    expect(open.railOpen).toBe(false);
+    expect(open.notesOpen).toBe(true);
+  });
+
+  it("never opens the sheet on the desktop", () => {
+    const model = roomViewModel(base({ notesOpen: true }));
+    expect(model.sheetOpen).toBe(false);
+    expect(model.railOpen).toBe(true);
+    expect(model.notesOpen).toBe(true);
+  });
+
+  it("keeps a 2x2 grid in portrait and puts every tile in one row in landscape", () => {
+    const people = [host({ you: true }), guest(JON), guest(ANNEKE)];
+    expect(
+      roomViewModel(base({ role: "host", viewerWidth: "phone", people }))
+        .columns,
+    ).toBe(2);
+    expect(
+      roomViewModel(
+        base({ role: "host", viewerWidth: "phone-landscape", people }),
+      ).columns,
+    ).toBe(4);
+    expect(
+      roomViewModel(
+        base({
+          viewerWidth: "phone-landscape",
+          people: [host(), guest(JON, { you: true })],
+        }),
+      ).columns,
+    ).toBe(2);
+  });
+
+  it("leads with the viewer's own tile in landscape too", () => {
+    const model = roomViewModel(
+      base({
+        viewerWidth: "phone-landscape",
+        people: [host(), guest(JON, { you: true })],
+      }),
+    );
+    expect(names(model.tiles)).toEqual(["Jon", "Maya Okafor"]);
+  });
+
+  it("shows the peek line in portrait only", () => {
+    const notes = [note("a", "12:02")];
+    expect(
+      roomViewModel(base({ viewerWidth: "phone", notes, selfName: "Jon" }))
+        .peek,
+    ).toEqual({ author: "Rosa Diaz", text: "Note a", time: "12:02" });
+    expect(
+      roomViewModel(base({ viewerWidth: "phone-landscape", notes })).peek,
+    ).toBeNull();
+    expect(roomViewModel(base({ notes })).peek).toBeNull();
+  });
+});
+
+describe("notePeek", () => {
+  it("is null without notes", () => {
+    expect(notePeek([], "host", "Maya")).toBeNull();
+  });
+
+  it("takes the latest by the recording clock, not the list order", () => {
+    const peek = notePeek(
+      [note("b", "12:09"), note("a", "12:02"), note("c", null)],
+      "host",
+      "Maya",
+    );
+    expect(peek?.text).toBe("Note b");
+  });
+
+  it("names a marker and skips notes a guest cannot see", () => {
+    const items = [
+      note("a", "12:02"),
+      note("b", "12:09", { visibility: "hosts" }),
+      { id: "m", kind: "marker", author: { name: "Rosa Diaz" }, time: "12:05" },
+    ] satisfies NoteItem[];
+    expect(notePeek(items, "guest", "Jon")?.text).toBe("Marker");
+    expect(notePeek(items, "host", "Maya")?.text).toBe("Note b");
+  });
+});
+
+describe("roomViewModel host", () => {
+  it("gives only the host a Record face, following the phase", () => {
+    const people = [host({ you: true })];
+    const face = (phase: RoomPhase) =>
+      roomViewModel(base({ role: "host", people, phase })).record?.face;
+    expect(face(WAITING)).toBe("idle");
+    expect(face({ kind: "countdown", secondsLeft: 3 })).toBe("idle");
+    expect(face(LIVE)).toBe("live");
+    expect(face({ kind: "paused", clockSec: 12 })).toBe("paused");
+    expect(face({ kind: "saved" })).toBe("idle");
+    expect(roomViewModel(base({ role: "guest" })).record).toBeNull();
+    expect(roomViewModel(base({ role: "producer" })).record).toBeNull();
+  });
+
+  it("holds the first take back while a guest is still joining", () => {
+    const people = [host({ you: true }), guest(JON, { presence: "joining" })];
+    expect(
+      roomViewModel(base({ role: "host", people, phase: WAITING })).record,
+    ).toEqual({ face: "idle", disabledReason: "Waiting for Jon to join" });
+    expect(
+      roomViewModel(base({ role: "host", people, phase: LIVE })).record,
+    ).toEqual({ face: "live" });
+  });
+
+  it("lets a host with no guests record a solo take", () => {
+    const model = roomViewModel(
+      base({ role: "host", people: [host({ you: true })], phase: WAITING }),
+    );
+    expect(model.record).toEqual({ face: "idle" });
+    expect(names(model.tiles)).toEqual([
+      "Maya Okafor",
+      "invite",
+      "invite",
+      "invite",
+    ]);
+  });
+
+  it("replaces the dock controls with a saving line while the take saves", () => {
+    const model = roomViewModel(
+      base({
+        role: "host",
+        phase: { kind: "saving", savedPeople: 2, totalPeople: 3 },
+      }),
+    );
+    expect(model.dockStatus).toBe("Saving · 2 of 3 · keep this page open");
+    expect(roomViewModel(base({ role: "host", phase: LIVE })).dockStatus).toBe(
+      null,
+    );
   });
 });

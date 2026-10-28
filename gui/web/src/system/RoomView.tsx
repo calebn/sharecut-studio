@@ -1,8 +1,14 @@
-import { type CSSProperties, type ReactNode, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useState,
+} from "react";
 import { BrandLockup } from "../ui";
+import type { DrawerDetent } from "../ui/BottomSheet";
 import { NotesRail } from "./NotesRail";
 import type { NoteDraft, NoteItem } from "./notesRailModel";
-import { RecordDock, type RecordDockProps } from "./RecordDock";
+import { RecordDock } from "./RecordDock";
 import { RoomAlert } from "./RoomAlert";
 import { RoomStatusPill } from "./RoomStatusPill";
 import { ListenerAvatar, ListenerRow, RoomTile } from "./RoomTile";
@@ -14,6 +20,10 @@ import {
   roomViewModel,
   type ViewerWidth,
 } from "./roomViewModel";
+import { Sheet } from "./Sheet";
+import { SystemIcon } from "./SystemIcon";
+
+const noop = () => undefined;
 
 /** The phase's identity for the time chip: a new take or state is a new key. */
 function phaseKey(phase: RoomPhase): string {
@@ -37,9 +47,9 @@ export type RoomViewProps = {
   unreadNotes?: number;
   onInvite?: () => void;
   muted?: boolean;
-  /** Host only: the Record button's face and handlers. */
-  record?: RecordDockProps["record"];
-  /** Replaces the secondaries after Stop, as the dock does. */
+  onStartTake?: () => void;
+  onStopTake?: () => void;
+  recordBusy?: boolean;
   status?: ReactNode;
   leaveDisabledReason?: string;
   onMute?: () => void;
@@ -69,7 +79,9 @@ export function RoomView({
   unreadNotes = 0,
   onInvite,
   muted = false,
-  record,
+  onStartTake,
+  onStopTake,
+  recordBusy = false,
   status,
   leaveDisabledReason,
   onMute,
@@ -83,6 +95,7 @@ export function RoomView({
   );
   const [draft, setDraft] = useState("");
   const [everyone, setEveryone] = useState(false);
+  const [detent, setDetent] = useState<DrawerDetent>("half");
   // The chip pins the live clock; clearing it makes the next note a session note.
   const [timeCleared, setTimeCleared] = useState<string | null>(null);
   const model = roomViewModel({
@@ -93,6 +106,8 @@ export function RoomView({
     notesOpen: notesChoice,
     alerts,
     invite: onInvite !== undefined,
+    notes,
+    selfName,
   });
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
@@ -102,6 +117,33 @@ export function RoomView({
   // note is sent, so a cleared chip never comes back on its own mid-take.
   const draftTime = timeCleared === phaseKey(phase) ? null : pinned;
   const paused = phase.kind === "paused";
+
+  const closeSheet = useCallback(() => setNotesChoice(false), []);
+  const rail = (
+    <NotesRail
+      items={notes}
+      viewer={seat}
+      selfName={selfName}
+      draft={draft}
+      onDraftChange={setDraft}
+      draftTime={draftTime}
+      onClearTime={() => setTimeCleared(phaseKey(phase))}
+      everyone={everyone}
+      onEveryoneChange={seat === "guest" ? undefined : setEveryone}
+      onSend={(note) => {
+        onSendNote(note);
+        setDraft("");
+        setTimeCleared(null);
+      }}
+      paused={paused}
+    />
+  );
+  const dockStatus = status ?? model.dockStatus ?? undefined;
+  const leaveReason =
+    leaveDisabledReason ??
+    (seat === "guest" && phase.kind === "saving"
+      ? "Your recording is still saving"
+      : undefined);
 
   return (
     <div className="sys-room-view" data-seat={seat} data-width={viewerWidth}>
@@ -146,45 +188,70 @@ export function RoomView({
           ) : null}
         </main>
         {model.railOpen ? (
-          <aside className="sys-room-view-rail">
-            <NotesRail
-              items={notes}
-              viewer={seat}
-              selfName={selfName}
-              draft={draft}
-              onDraftChange={setDraft}
-              draftTime={draftTime}
-              onClearTime={() => setTimeCleared(phaseKey(phase))}
-              everyone={everyone}
-              onEveryoneChange={seat === "guest" ? undefined : setEveryone}
-              onSend={(note) => {
-                onSendNote(note);
-                setDraft("");
-                setTimeCleared(null);
-              }}
-              paused={paused}
-            />
-          </aside>
+          <aside className="sys-room-view-rail">{rail}</aside>
         ) : null}
       </div>
+      {viewerWidth === "phone" ? (
+        <button
+          type="button"
+          className="sys-room-view-peek"
+          aria-haspopup="dialog"
+          aria-expanded={model.sheetOpen}
+          onClick={() => setNotesChoice(true)}
+        >
+          <SystemIcon name="chevron-up" size={16} />
+          <span className="sys-room-view-peek-label">Notes</span>
+          <span className="sys-room-view-peek-text">
+            {model.peek
+              ? `${model.peek.author}: ${model.peek.text}`
+              : "No notes yet"}
+          </span>
+          {model.peek?.time ? (
+            <span className="sys-mono sys-room-view-peek-time">
+              {model.peek.time}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
       <footer className="sys-room-view-dock">
         <RecordDock
           seat={model.dockSeat}
-          record={record}
+          record={
+            model.record
+              ? {
+                  ...model.record,
+                  busy: recordBusy,
+                  onStart: onStartTake ?? noop,
+                  onStop: onStopTake ?? noop,
+                }
+              : undefined
+          }
           muted={muted}
           showComment={model.showComment}
           unreadNotes={unreadNotes}
-          notesOpen={model.railOpen}
-          status={status}
-          leaveDisabledReason={leaveDisabledReason}
+          notesOpen={model.notesOpen}
+          status={dockStatus}
+          leaveDisabledReason={leaveReason}
           onMute={onMute}
           onComment={onComment}
           onPause={onPause}
-          onNotes={() => setNotesChoice(!model.railOpen)}
+          onNotes={() => setNotesChoice(!model.notesOpen)}
           onMore={onMore}
           onLeave={onLeave}
         />
       </footer>
+      {viewerWidth === "desktop" ? null : (
+        <Sheet
+          form="bottom"
+          title="Notes"
+          open={model.sheetOpen}
+          onClose={closeSheet}
+          detent={detent}
+          onDetentChange={setDetent}
+        >
+          {rail}
+        </Sheet>
+      )}
     </div>
   );
 }
