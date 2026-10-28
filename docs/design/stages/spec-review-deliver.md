@@ -163,7 +163,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### DLG-MODEL-GATE · Download model? (+ DOWNLOADING) and DLG-WHISPER · Download Whisper model?
 
-- **Today:** `DLG-MODEL-GATE--*`, `DLG-MODEL-GATE-DOWNLOADING--*`, `DLG-WHISPER--*`. A modal interrupts the run; "Use without downloading" does nothing (narrow F07, real-recording F04); the Pipeline panel tells the user to run `podcast bootstrap` in a terminal (narrow F02).
+- **Today:** `DLG-MODEL-GATE--*`, `DLG-MODEL-GATE-DOWNLOADING--*`, `DLG-WHISPER--*`. A modal interrupts the run; "Use without downloading" does nothing (narrow F07, real-recording F04); the old Pipeline panel told the user to run `podcast bootstrap` in a terminal (narrow F02); the Getting ready row now asks and downloads on Get.
 - **Fate:** replace with the Model need row shown in place, inside the job that needs it.
 - **Spec:** when a step needs a missing model, its Job row in Prepare (or the export Job row in Deliver) shows the Model need row inline: "Needs the transcription model · 1.6 GB" and a Get button. Pressing Get downloads and the step resumes by itself when it lands. Steps that don't need the model keep running. No modal, no "use without". Choosing a model size in Prepare's advanced sheet never opens a dialog; the size row just shows "Not installed" with Get.
 - **Shared elements used:** Model need row, Job row.
@@ -254,7 +254,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** Job row, Check row, Model need row, A/B audition (for the align move).
 - **Story to build:** `Stages/Prepare/ReadyList` stories `Queued`, `Running`, `NeedsAlignCheck`, `NeedsModel`, `KeepMyFixes`, `Failed`, `Done`.
 
-### PNL-PIPELINE · Pipeline panel
+### PNL-PIPELINE · Pipeline panel (now the Getting ready list and Advanced)
 
 - **Today:** `PNL-PIPELINE--desktop-light.png`, `PNL-PIPELINE--phone-light.png`. Mode select "Batch (waive align + refine)", Analyze/Reset/Run, terminal commands with temp paths (narrow F02), results summary clipped at 320 (narrow F01), all inside a 200 px dock.
 - **Fate:** merge into SCR-PREPARE: the Ready list is the default view; the full step list moves behind "Advanced" in an Inspector sheet.

@@ -129,10 +129,10 @@ describe("generic axe helpers", () => {
   const page = {} as Page;
 
   it("still scans Studio with its existing rules and selector", async () => {
-    await expectPageAxeClean(page, ".pipeline-panel");
+    await expectPageAxeClean(page, ".studio-panel");
     expect(scans.analyzed).toHaveBeenCalledOnce();
     expect(scans.disabled).toHaveBeenCalledWith(["color-contrast", "region"]);
-    expect(scans.included).toHaveBeenCalledWith(".pipeline-panel");
+    expect(scans.included).toHaveBeenCalledWith(".studio-panel");
   });
 
   it("scans reading surfaces with all rules", async () => {
