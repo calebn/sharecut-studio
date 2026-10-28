@@ -30,7 +30,7 @@ describe("App record route", () => {
     resetFeaturesCache();
   });
 
-  it("renders RecordApp and never fetches /api/review/", async () => {
+  it("renders the guest room and never fetches /api/review/", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = urlOf(input);
       if (url.includes("/api/review/")) {
@@ -54,7 +54,7 @@ describe("App record route", () => {
     render(<App />);
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Join the recording" }),
+        screen.getByRole("heading", { name: "Join the room" }),
       ).toBeInTheDocument();
     });
     expect(

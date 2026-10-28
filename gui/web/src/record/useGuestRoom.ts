@@ -31,7 +31,10 @@ function storageKey(token: string, suffix: string): string {
   return `record:${token}:${suffix}`;
 }
 
-export function useGuestRoom(token: string) {
+export function useGuestRoom(
+  token: string,
+  { rejoining = false }: { rejoining?: boolean } = {},
+) {
   const [bootstrap, setBootstrap] = useState<RecordBootstrap | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [name, setName] = useState(
@@ -103,10 +106,9 @@ export function useGuestRoom(token: string) {
 
   const micEnabled =
     !producer &&
-    !!me &&
     !accessEnded &&
     error !== "room_full" &&
-    me.consented !== false;
+    (me?.consented !== false || rejoining);
   const mic = useMicPermission(micEnabled, deviceId);
   const staleMic = mic.staleDeviceId !== null;
   useEffect(() => {

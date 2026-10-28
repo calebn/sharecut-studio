@@ -51,6 +51,18 @@ describe("RoomStatusPill", () => {
     expect(at(Number.NaN).text).toBe("Saving · 0 of 2");
   });
 
+  it("reads a stopped upload as failed, not as progress", () => {
+    expect(
+      roomPillRendering({
+        kind: "saving",
+        savedPeople: 0,
+        totalPeople: 1,
+        percent: 40,
+        failed: true,
+      }),
+    ).toEqual({ state: "failed", text: "Saving stopped" });
+  });
+
   it("writes an hour as h:mm:ss", () => {
     expect(clockText(3723)).toBe("1:02:03");
     expect(clockText(-5)).toBe("0:00");

@@ -23,8 +23,8 @@ const DawApp = lazy(() =>
   import("./dawApp").then((m) => ({ default: m.DawApp })),
 );
 
-const RecordApp = lazy(() =>
-  import("./record/RecordApp").then((m) => ({ default: m.RecordApp })),
+const GuestRoomApp = lazy(() =>
+  import("./record/GuestRoomApp").then((m) => ({ default: m.GuestRoomApp })),
 );
 
 function projectPathFromQuery(): string | null {
@@ -173,7 +173,7 @@ function AppInner() {
   if (recordToken) {
     return (
       <Suspense fallback={<LoadingScreen label="Loading studio…" />}>
-        <RecordApp token={recordToken} />
+        <GuestRoomApp token={recordToken} />
       </Suspense>
     );
   }

@@ -172,7 +172,7 @@ function hostRecord(people: RoomPerson[], phase: RoomPhase): RoomRecord {
 }
 
 function savingStatus(phase: RoomPhase): string | null {
-  if (phase.kind !== "saving") return null;
+  if (phase.kind !== "saving" || phase.failed) return null;
   const percent = savingPercent(phase);
   return percent === null
     ? `Saving · ${phase.savedPeople} of ${phase.totalPeople} · keep this page open`

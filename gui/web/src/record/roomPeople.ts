@@ -11,7 +11,11 @@ type RoomPeopleOptions = {
   dropped?: boolean;
   clipped?: number;
   saving?: Record<string, RoomSaving | null | undefined>;
+  /** Other people's levels, 0 to 1, from the mix-minus analysers. */
+  peerLevels?: Record<string, number>;
 };
+
+const SPEAKING_FRACTION = 0.2;
 
 function presenceOf(person: RecordParticipant, you: boolean) {
   if (you) {
@@ -44,6 +48,7 @@ export function roomPeople(
     }
     const you = participant.participant_id === youId;
     const entry: RoomPerson = {
+      id: participant.participant_id,
       role: participant.role,
       person: { name: participant.display_name, colorIndex: index },
       presence: presenceOf(participant, you),
@@ -56,6 +61,12 @@ export function roomPeople(
       entry.speaking = options.youSpeaking;
       entry.connection = options.dropped ? "lost" : "good";
       entry.clipped = options.clipped;
+    } else {
+      const level = options.peerLevels?.[participant.participant_id];
+      if (level !== undefined && entry.presence === "live") {
+        entry.level = level;
+        entry.speaking = level > SPEAKING_FRACTION && !participant.muted;
+      }
     }
     people.push(entry);
   });

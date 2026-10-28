@@ -8,6 +8,7 @@ import {
   isNotFound,
   joinHere,
   joinMic,
+  ownSaving,
   savingStatus,
 } from "./guestRoomModel";
 import { roomPeople } from "./roomPeople";
@@ -60,6 +61,17 @@ describe("roomPeople for a guest seat", () => {
     ]);
     expect(people[1]).toMatchObject({ level: 0.3, clipped: 1 });
   });
+
+  it("keys people by participant and lights others from their peer level", () => {
+    const people = roomPeople(
+      recordSnapshot({ participants: [host, me, other] }),
+      { youId: "p_g", peerLevels: { p_host: 0.6, p_o: 0.1 } },
+    );
+    expect(people.map((person) => person.id)).toEqual(["p_host", "p_g", "p_o"]);
+    expect(people[0]).toMatchObject({ level: 0.6, speaking: true });
+    expect(people[2]).toMatchObject({ level: 0.1, speaking: false });
+    expect(people[1]?.level).toBeUndefined();
+  });
 });
 
 describe("guestRoomPhase", () => {
@@ -97,15 +109,59 @@ describe("guestRoomPhase", () => {
       ] as never,
       participants: [host, me, other],
     });
-    expect(guestRoomPhase(snapshot, { upload: upload({ total: 3 }) })).toEqual({
+    expect(
+      guestRoomPhase(snapshot, { upload: upload({ acked: 1, total: 3 }) }),
+    ).toEqual({
       kind: "saving",
       savedPeople: 0,
       totalPeople: 1,
+      percent: 33,
     });
     expect(
       guestRoomPhase(snapshot, { upload: upload({ total: 3, fileAck: true }) }),
     ).toEqual({ kind: "saved" });
     expect(guestRoomPhase(snapshot)).toEqual({ kind: "saved" });
+  });
+
+  it("reports a failed upload as a failed save, not as progress", () => {
+    const snapshot = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      participants: [host, me],
+    });
+    const failed = {
+      kind: "saving",
+      savedPeople: 0,
+      totalPeople: 1,
+      failed: true,
+    };
+    expect(
+      guestRoomPhase(snapshot, {
+        upload: upload({ acked: 1, total: 3, error: "offline" }),
+      }),
+    ).toEqual(failed);
+    expect(
+      guestRoomPhase(snapshot, { upload: upload({ recoverable: true }) }),
+    ).toEqual(failed);
+    expect(
+      guestRoomPhase(snapshot, {
+        upload: upload({ total: 3, recoverable: true, uploading: true }),
+      }),
+    ).toMatchObject({ kind: "saving", percent: 0 });
+  });
+
+  it("shows a reloaded take that is still uploading as saving", () => {
+    const snapshot = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      participants: [host, me],
+    });
+    expect(
+      guestRoomPhase(snapshot, { upload: upload({ pending: true }) }),
+    ).toMatchObject({ kind: "saving" });
+    expect(
+      guestRoomPhase(snapshot, { upload: upload({ total: 2, fileAck: true }) }),
+    ).toEqual({ kind: "saved" });
   });
 });
 
@@ -156,7 +212,9 @@ describe("joinMic", () => {
       stream,
       devices: [device("a", "Desk"), device("b", "Headset")],
     };
-    expect(joinMic(mic, { deviceId: "b", levelDb: 0, clipped: true })).toEqual({
+    expect(
+      joinMic(mic, { deviceId: "b", levelDb: 0, clipped: true }),
+    ).toMatchObject({
       status: "ready",
       input: "Headset",
       level: 1,
@@ -167,6 +225,33 @@ describe("joinMic", () => {
     expect(joinMic({ ...mic, devices: [] }, options)).toMatchObject({
       input: "Microphone",
     });
+  });
+
+  it("offers the inputs once there is a choice, and carries the lock", () => {
+    const mic = {
+      status: "granted" as const,
+      stream: {} as MediaStream,
+      devices: [device("a", "Desk"), device("b", "Headset")],
+    };
+    expect(
+      joinMic(mic, { deviceId: "b", levelDb: -30, inputLocked: true }),
+    ).toMatchObject({
+      devices: [
+        { id: "a", label: "Desk" },
+        { id: "b", label: "Headset" },
+      ],
+      inputId: "b",
+      inputLocked: true,
+    });
+    expect(
+      joinMic({ ...mic, devices: [device("a", "Desk")] }, options),
+    ).not.toHaveProperty("devices");
+  });
+
+  it("carries why the microphone is lost", () => {
+    expect(
+      joinMic({ ...base, status: "lost" }, { ...options, detail: "Gone." }),
+    ).toEqual({ status: "lost", detail: "Gone." });
   });
 
   it("is not ready while granted without a stream", () => {
@@ -247,6 +332,19 @@ describe("savingStatus", () => {
       savingStatus(upload({ acked: 1, total: 4, fileAck: true })),
     ).toBeNull();
     expect(savingStatus(upload({ acked: 1, total: 4, error: "x" }))).toBeNull();
+  });
+});
+
+describe("ownSaving", () => {
+  it("follows the guest's own upload", () => {
+    expect(ownSaving(null)).toBeNull();
+    expect(ownSaving(upload())).toBeNull();
+    expect(ownSaving(upload({ acked: 1, total: 4 }))).toEqual({
+      done: 1,
+      total: 4,
+    });
+    expect(ownSaving(upload({ total: 4, fileAck: true }))).toBe("saved");
+    expect(ownSaving(upload({ total: 4, error: "x" }))).toBe("failed");
   });
 });
 
