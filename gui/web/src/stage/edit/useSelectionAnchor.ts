@@ -1,4 +1,10 @@
-import { type RefObject, useLayoutEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../state/dawStore";
 import type { Selection } from "../../types/project";
@@ -70,7 +76,7 @@ function findSelectionAnchor(
 
 type SelectionAnchor = {
   readonly ref: RefObject<HTMLElement | null>;
-  readonly moves: string;
+  readonly moves: readonly unknown[];
   readonly visible: boolean;
 };
 
@@ -131,9 +137,14 @@ export function useSelectionAnchor(
     return () => observer.disconnect();
   }, [node]);
 
+  const moves = useMemo(
+    () => [zoomPxPerSec, node, selection],
+    [zoomPxPerSec, node, selection],
+  );
+
   return {
     ref,
-    moves: String(zoomPxPerSec),
+    moves,
     visible: enabled && node !== null && visible,
   };
 }

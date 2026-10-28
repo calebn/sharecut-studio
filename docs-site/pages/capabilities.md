@@ -135,10 +135,10 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Bounce selected range | project | `range.bounce` | — (Context action with explicit range selection) | — | `actionBar` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
 | Select a range | view | `range.arm` | — (Context action with explicit range selection) | — | `editCorner` | — | — | — | — | none · none |
 | Split | project | `edit.split` | `S` | — | `actionBar` | `split_clip_tool` | — | — | — | time · none |
-| Hear | session | `edit.hear` | `Space` | — | `actionBar` | — | — | — | — | none · none |
+| Hear | session | `edit.hear` | `Shift+Space` | — | `actionBar` | — | — | — | — | none · none |
 | Hear before | session | `edit.hearBefore` | `A` | — | `actionBar` | — | — | — | — | none · none |
 | Hear after | session | `edit.hearAfter` | `B` | — | `actionBar` | — | — | — | — | none · none |
-| Keep | project | `edit.keep` | `X` | — | `actionBar` | — | — (Keep restores a mute or rejects a pending suggestion through the existing History and review commands; the verb is a GUI shortcut to them) | — | — | none · none |
+| Keep | project | `edit.keep` | `X` | — | `actionBar` | — | — (Keep rejects a pending suggestion, and on a cut it opens History where Undo brings the cut back; the verb is a GUI shortcut to the existing History and review commands) | — | — | none · none |
 | Inspect | session | `edit.inspect` | `I` | — | `actionBar` | — | — | — | — | none · none |
 | More | session | `edit.more` | `.` | — | `actionBar` | — | — | — | — | none · none |
 | Mute | project | `edit.mute` | `M` | — | `actionBar` | `propose_range_mute_tool`, `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |

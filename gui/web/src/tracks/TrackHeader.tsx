@@ -2,6 +2,7 @@ import type { DragEvent, MouseEvent } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { canIngestMedia } from "../shareMode";
+import { inspectorOpenFor } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import type { TrackView } from "../types/project";
 import { trackHasSourceAudio } from "../utils/projectMedia";
@@ -58,6 +59,7 @@ export function TrackHeader({
     projectPath,
     guestMode,
     shareCapabilities,
+    expanded,
   } = useDaw((s) => ({
     project: s.project,
     highlightStaleRender: s.highlightStaleRender,
@@ -65,6 +67,9 @@ export function TrackHeader({
     projectPath: s.projectPath,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
+    expanded:
+      s.inspectorKey === `track:${track.id}` &&
+      inspectorOpenFor(s.selection, s.inspectorKey),
   }));
   const mayReorder =
     reorderEnabled && canIngestMedia(projectPath, guestMode, shareCapabilities);
@@ -138,6 +143,7 @@ export function TrackHeader({
       track={track}
       trackIndex={trackIndex}
       selected={selected}
+      expanded={expanded}
       muteState={muteState}
       stemClass={stemClass}
       wholeReasons={wholeReasons}

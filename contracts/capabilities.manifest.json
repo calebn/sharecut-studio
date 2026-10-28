@@ -3524,7 +3524,7 @@
         "gui": [
           "actionBar"
         ],
-        "keyboard": "Space"
+        "keyboard": "Shift+Space"
       },
       "omit": {},
       "tooltip": "Hear the selection (Shift+Space)",
@@ -3596,7 +3596,7 @@
         "keyboard": "X"
       },
       "omit": {
-        "agent_reason": "Keep restores a mute or rejects a pending suggestion through the existing History and review commands; the verb is a GUI shortcut to them"
+        "agent_reason": "Keep rejects a pending suggestion, and on a cut it opens History where Undo brings the cut back; the verb is a GUI shortcut to the existing History and review commands"
       },
       "tooltip": "Keep what is cut, or reject the selected suggestion (X)",
       "presence": {

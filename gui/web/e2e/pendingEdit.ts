@@ -1,9 +1,14 @@
 import { expect, type Page } from "@playwright/test";
-import { goToStage, openPanel, openProject } from "./stageNav";
+import {
+  goToStage,
+  inspectSelectionByKey,
+  openPanel,
+  openProject,
+} from "./stageNav";
 
 /**
  * Suggest a 0–2 s cut on the first dialogue track through the document plane
- * and open its pending edit in the inspector.
+ * and open its pending edit in the inspector (selecting it, then Inspect).
  *
  * The GUI has no one-click "suggest a cut here" control (#532), so the helper
  * sends the `SuggestPendingEdit` command an agent or share guest would send.
@@ -51,8 +56,9 @@ export async function openSuggestedPendingEdit(
   const panels = page.getByRole("main", { name: "Review" });
   await openPanel(page, "impact");
   await panels.locator(`[data-pending-id="${editId}"]`).click();
-  // The selection carries to the Edit stage, where its Inspector is.
   await goToStage(page, "edit");
+  // The pending card covers the floating bar, so Inspect goes by its key.
+  await inspectSelectionByKey(page);
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();

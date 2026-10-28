@@ -621,6 +621,12 @@ function PendingEditRegion({
     };
   }, [labelInPortal, selected, left, width]);
 
+  const inspectorKey = useDawStore((s) => s.inspectorKey);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the Inspector sheet opening moves the dock line
+  useEffect(() => {
+    scheduleResizeUpdateRef.current?.();
+  }, [inspectorKey]);
+
   useLayoutEffect(() => {
     if (!actionbarHost) return;
     const remember = (event: FocusEvent) => {

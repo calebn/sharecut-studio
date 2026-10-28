@@ -8,7 +8,7 @@ import {
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import { altClickSplit, stepTrackHeight } from "./stageNav";
+import { altClickSplit, inspectSelection, stepTrackHeight } from "./stageNav";
 
 const CLIENT_ID = "e2e-pending-edge-controls";
 const MIN_COARSE_HANDLE_LANE_HEIGHT = 88;
@@ -218,8 +218,8 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     })
     .toEqual({ start: payload.start, end: payload.end });
   expect(updateCommands).toHaveLength(1);
-  // The phone timeline opens the compact drawer; at half height it shows the
-  // pending inspector, and the next selection opens there too.
+  // Inspect opens the compact drawer; at half height it shows the pending inspector.
+  await inspectSelection(page);
   await page.getByRole("button", { name: "Expand to half height" }).click();
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
@@ -290,6 +290,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   );
   await wideRegion.locator(".pending-hit").focus();
   await wideRegion.locator(".pending-hit").press("Enter");
+  await inspectSelection(page);
   await page.getByRole("textbox", { name: "Source start", exact: true }).tap();
   await wideRegion.locator(".pending-hit").focus();
   for (
@@ -441,14 +442,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });
   await expect(page.locator(".pending-actionbar")).toHaveCount(0);
-  await altClickSplit(
-    page,
-    page.locator(`.lane-row[data-track-id="${trackId}"]`),
-    {
-      x: 300,
-      y: 12,
-    },
-  );
+  await altClickSplit(page, page.locator(".clip-block").first());
   const bladeConfirmation = page.getByRole("dialog", { name: /^Cut at / });
   await expect(bladeConfirmation).toBeVisible();
   await bladeConfirmation.getByRole("button", { name: "Don't cut" }).click();

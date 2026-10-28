@@ -196,7 +196,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 | Connect agent… | Project menu "Connect agent" | Rare, project-level |
 | Import audio…, New track | Prepare; in Edit, the "+" under the last track header (Import audio / Empty track / Record a take); drop anywhere | Next to the tracks it creates |
 | Remove track, Move track up/down | Track header: drag to reorder; track action bar Remove (trash) | Act on the object |
-| Add chapter at playhead | Playhead action (More, Shift+M); double-click the marker lane | Direct |
+| Add chapter at playhead | Playhead action (More, Shift+C); double-click the marker lane | Direct |
 | Select a range | Drag on empty lane; text selection; R toggles range dragging on touch | Direct |
 | Audition (collapsed) | Player bar Hear original | One transport |
 | Mix status (collapsed) | Player bar mix ring | One transport |
@@ -475,7 +475,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** MENU-CREATE--desktop-light.png. Language: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar. Built (W1b): the long-press menu opens with Split here, then Add chapter and Add comment, then the lane's Add envelope point.
 - **Fate:** restyle as the playhead/point variant of the verbs.
-- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (S, Mod+K) first, Comment here (C), Add chapter here (Shift+M), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
+- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (S, Mod+K) first, Comment here (C), Add chapter here (Shift+C), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
 - **Shared elements used:** Icon language, Action bar verbs.
 - **Story to build:** `Edit/CreateMenu` stories `Lane`, `WithPaste`, `Phone`.
 
@@ -716,7 +716,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 ### DLG-PALETTE · Commands and shortcuts
 
-- **Today:** DLG-PALETTE--desktop-light.png, --phone-light.png. Hierarchy: a help sentence and a "Show remaps" checkbox above the results. Language: "K alone stops playback; Mod+K is Blade cut".
+- **Today:** DLG-PALETTE--desktop-light.png, --phone-light.png. Hierarchy: a help sentence and a "Show remaps" checkbox above the results. Language: "K alone stops playback; Mod+K splits at the playhead".
 - **Fate:** keep, restyle.
 - **Spec:** opened by the header magnifier, /, ? or Mod+Shift+P. 560 px centered card at 20 % from the top (phone: full-height sheet, search field at the top with the keyboard up). Search field first; below it "Recent" (5) when empty, else ranked results. Rows 36 px: verb icon, name, context ("in Edit"), key caps right. Enter runs; Tab shows the row's key so it can be remapped. Results include stages, projects, people, speakers and chapters ("Go to Chapter: Intro"). Gestures are a result group ("Gestures") on touch devices.
 - **Story to build:** `Shell/Palette` stories `Empty`, `Search`, `NoMatch`, `Remap`, `Phone`.
@@ -956,7 +956,7 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 
 **NEW: Player sheet.** Phone full-height listening view opened from the Player bar: big transport, whole-episode scrubber with chapters and comments, comment-at-time composer, chapter list. Replaces Listen.
 
-**NEW: Action bar** (the concrete form of the object selection model). Desktop/tablet: a 40 px (44 px touch) pill floating 8 px above the selected object, horizontally centered on its visible part, flipping below when there is no room; never covers the selection. Anatomy: optional Scope chip, verbs in fixed order (Hear, Cut, Keep, Split, Comment, Fix text, Remove), More (ellipsis), Inspect (sliders). Icons only with tooltip (name + key). Phone: the 64 px action dock above the Player bar with icon over a small label; it is also the Inspector sheet's first detent. With nothing selected, it shows playhead verbs (phone always; desktop on Create here). Reused in Edit, Review (suggestion verbs), Deliver (social clips).
+**NEW: Action bar** (the concrete form of the object selection model). Desktop/tablet: a 40 px (44 px touch) pill floating beside the selected object, horizontally centered on its visible part: below it by default so the ruler stays uncovered, above a selected word so the next line of the Script stays clickable, and on the other side when there is no room; never covers the selection. Anatomy: optional Scope chip, verbs in fixed order (Hear, Cut, Keep, Split, Comment, Fix text, Remove), More (ellipsis), Inspect (sliders). Icons only with tooltip (name + key). Phone: the 64 px action dock above the Player bar with icon over a small label; it is also the Inspector sheet's first detent. With nothing selected, it shows playhead verbs (phone always; desktop on Create here). Reused in Edit, Review (suggestion verbs), Deliver (social clips).
 
 **NEW: Scope chip.** Leftmost element of the action bar for ranges, words and Split: stacked track-color dots for affected tracks ("All" when all) and a glyph for the outcome (ripple arrows = time closes; gap bracket = time kept). Click opens track toggles. Replaces lane checkboxes and ripple modifiers.
 
@@ -988,7 +988,7 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 
 **Icon language proposals (coordinate with all specs):** Cut = scissors; Split = blade (vertical blade glyph), so the Split verb and the Alt-click guide share it; Keep = restore arrow; Hear = speaker-wave; Comment = speech bubble; Fix text = text cursor; Remove = trash; Mute = speaker-slash; Solo = headphones; Inspect = sliders; Hear original = A/B.
 
-**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). The Blade tool is removed (W1a): C is Comment (W1b), V is unbound, and B is Hear after. S is Split and Solo is Shift+S. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. O holds hear-original. Shift+M adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
+**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). The Blade tool is removed (W1a): C is Comment (W1b), V is unbound, and B is Hear after. S is Split and Solo is Shift+S. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. Hold-A hear-original is not built yet (A is Hear before on a suggestion). Shift+C adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
 
 ---
 
