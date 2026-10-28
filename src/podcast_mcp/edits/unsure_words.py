@@ -95,6 +95,10 @@ def unsure_words_by_edit(
     return found
 
 
+class NothingLeftToApply(Exception):
+    """Raised inside a mutation when a re-check held every cut: roll back, save and step nothing."""
+
+
 def hold_unsure_cuts(
     project: EpisodeProject, ids: list[str], threshold: float, held: list[HeldEdit]
 ) -> list[str]:
