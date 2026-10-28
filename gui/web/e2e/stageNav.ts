@@ -296,9 +296,7 @@ export function deliverPage(page: Page): Locator {
 
 export async function startExport(page: Page): Promise<void> {
   await goToStage(page, "deliver");
-  await deliverPage(page)
-    .getByRole("button", { name: "Export", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
 }
 
 /** Rows with no menu item; the palette runs them. */

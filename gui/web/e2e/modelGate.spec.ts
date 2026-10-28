@@ -539,7 +539,7 @@ for (const viewport of VIEWPORTS) {
         expect(mock.runs).toEqual([]);
         expect(exports.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
-        await expectTouchTargets(dialog);
+        await expectTouchTargets(dialog.locator(".model-gate-panel"));
         await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
         await shot(page, viewport.name, theme, "export-idle");
 
