@@ -454,13 +454,13 @@ export async function runPaletteCommand(
 }
 
 /**
- * Arm range selection; the Range actions form opens. A touch screen has the
+ * Arm range selection; the Range fields form opens. A touch screen has the
  * bracket toggle in the timeline corner; a mouse drags a range directly, so
  * the same command `range.arm` runs from the palette there.
  */
 export async function armRange(page: Page): Promise<void> {
   await goToStage(page, "edit");
-  // Folded, the Range actions open over the Tools sheet and leave it be.
+  // Folded, the Range fields open over the Tools sheet and leave it be.
   const folded = await openToolsIfFolded(page);
   const toggle = page
     .getByRole("group", { name: "Timeline view" })
@@ -473,7 +473,7 @@ export async function armRange(page: Page): Promise<void> {
     await runPaletteCommand(page, "Select a range");
   }
   await expect(
-    page.getByRole("region", { name: "Range actions" }),
+    page.getByRole("region", { name: "Range fields" }),
   ).toBeVisible();
 }
 
@@ -510,4 +510,15 @@ export async function collapsePlayer(page: Page): Promise<void> {
     await expanded.getByRole("button", { name: "Collapse player" }).click();
   }
   await expect(expanded).toBeHidden();
+}
+
+/**
+ * Open the Inspector for the current selection the way a user does: the Action
+ * bar's Inspect verb. A selection alone never opens it.
+ */
+export async function inspectSelection(page: Page): Promise<void> {
+  await page
+    .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+    .getByRole("button", { name: "Inspect", exact: true })
+    .click();
 }
