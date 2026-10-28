@@ -1,28 +1,23 @@
 import { formatRulerTime, niceTimeStep } from "../utils/time";
 
-/** Labels never sit closer than this (px). */
-export const RULER_MIN_LABEL_GAP_PX = 64;
-/** Plex Mono at 11 px advances about 0.6 em; the padding is the gap before the tick. */
+const RULER_MIN_LABEL_GAP_PX = 64;
+/** Plex Mono at 11 px advances about 0.6 em. */
 const LABEL_CHAR_PX = 6.6;
 const LABEL_PAD_PX = 8;
-/** A tick this far left of the window still shows the start of its label. */
 const LABEL_BLEED_PX = RULER_MIN_LABEL_GAP_PX;
-/** A guard against a window so wide at a tiny step that it would mount thousands of labels. */
+/** Stops a tiny step over a wide window from mounting thousands of labels. */
 const MAX_TICKS = 600;
 
-export type RulerTick = {
+type RulerTick = {
   time: number;
-  /** Pixels from the ruler's left edge. */
   x: number;
   label: string;
 };
 
-/** Seconds at pixel `x` of a window that starts at `start`. */
 export function timeAtX(x: number, start: number, pxPerSecond: number): number {
   return start + x / pxPerSecond;
 }
 
-/** Pixel position of `time` in a window that starts at `start`. */
 export function xAtTime(
   time: number,
   start: number,
@@ -35,10 +30,7 @@ function labelWidthPx(sec: number, step: number): number {
   return formatRulerTime(sec, step).length * LABEL_CHAR_PX + LABEL_PAD_PX;
 }
 
-/**
- * The tick interval: the smallest nice step whose ticks are at least 64 px
- * apart and wider than the widest label in the window, so labels never touch.
- */
+/** The smallest nice step whose ticks are at least `minGapPx` apart and wider than the widest label in the window. */
 export function rulerStep(
   pxPerSecond: number,
   windowEnd: number,
@@ -51,11 +43,7 @@ export function rulerStep(
     : niceTimeStep(pxPerSecond, Math.max(minGapPx, need));
 }
 
-/**
- * Labelled ticks for the window `[start, start + width / pxPerSecond]`.
- * Each tick is `index * step`, never an accumulated sum, so a deep zoom does
- * not drift.
- */
+/** Each tick is `index * step`, never an accumulated sum, so a deep zoom does not drift. */
 export function rulerTicks(
   start: number,
   pxPerSecond: number,
@@ -81,3 +69,5 @@ export function rulerTicks(
   }
   return ticks;
 }
+
+export const round3 = (value: number) => Number(value.toFixed(3));

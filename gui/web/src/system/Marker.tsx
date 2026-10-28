@@ -44,7 +44,6 @@ export type MarkerProps = MarkerKindProps & {
   /** Start, as a fraction of the lane from its inline start. The lane is the positioned parent. */
   at: number;
   selected?: boolean;
-  /** A drag has hold of the marker. */
   dragging?: boolean;
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Custom properties for the root, such as the reach of a touch hit area. */

@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 import type { LaneMarker } from "./MarkerLane";
 
-/** 52:10, the episode every ruler and lane story edits. */
 export const EPISODE_SECONDS = 3130;
 
 export const stage: CSSProperties = {
@@ -10,7 +9,6 @@ export const stage: CSSProperties = {
   padding: "var(--space-5) var(--space-5) var(--space-6)",
 };
 
-/** The marker lane's fixture: every kind, spaced so each reads in a minute-wide window. */
 export const ALL_KINDS: readonly LaneMarker[] = [
   { kind: "chapter", id: "ch-open", start: 1, title: "Cold open" },
   { kind: "comment", id: "cm-maya", start: 9, author: "Maya" },
@@ -27,7 +25,6 @@ export const ALL_KINDS: readonly LaneMarker[] = [
   },
 ];
 
-/** Fourteen markers inside twenty seconds: at a minute-wide window most fold into "+N" chips. */
 export const DENSE: readonly LaneMarker[] = [
   { kind: "chapter", id: "d-ch1", start: 2, title: "Intro" },
   { kind: "comment", id: "d-c1", start: 20, author: "Maya" },
