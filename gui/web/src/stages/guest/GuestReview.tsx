@@ -8,7 +8,7 @@ import { Skeleton } from "../../system/Skeleton";
 import { StageBar } from "../../system/StageBar";
 import type { ScriptTurn } from "../../system/scriptPieces";
 import type { StageId } from "../../types/stage";
-import { clamp } from "../../utils/math";
+import { clamp, lastIndexAtOrBefore } from "../../utils/math";
 import { formatTimeShort } from "../../utils/time";
 import { GuestScript } from "./GuestScript";
 import { type GuestRole, guestStages, ROLE_HINT } from "./guestLogic";
@@ -160,7 +160,7 @@ export function GuestReview({
         layout={layout}
         turns={turns}
         wordStarts={wordStarts}
-        playhead={playhead}
+        playing={lastIndexAtOrBefore(wordStarts, playhead)}
         onSeek={seek}
         onUserScroll={() => {
           if (phone) setCollapsed(true);
