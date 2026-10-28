@@ -120,6 +120,14 @@ export function usePrepareRun(input: PrepareRunInput) {
   const latest = useRef(input);
   latest.current = input;
   const startingRef = useRef(false);
+  /** Mirrors `waiting`, so a second refusal says so instead of doing nothing. */
+  const waitingRef = useRef(false);
+  /** The request a missing model stopped, replayed once the model is in. */
+  const refusedRef = useRef<{
+    mode: RunMode;
+    overwriteEdited: boolean;
+    fromStep?: string;
+  } | null>(null);
   /** Set once the model was seen missing after the ask, so a stale row never loops the run. */
   const sawMissing = useRef(false);
 
@@ -128,15 +136,19 @@ export function usePrepareRun(input: PrepareRunInput) {
    * the slot frees (the row shows it); other modes say so, so none is silent.
    */
   const busyRefused = useCallback((mode: RunMode) => {
-    if (mode === "run") {
+    if (mode === "run" && !waitingRef.current) {
+      waitingRef.current = true;
       setWaiting(true);
       return;
     }
     useDawStore
       .getState()
-      .announceStatus("Another job is running. Try again when it finishes.", {
-        tone: "error",
-      });
+      .announceStatus(
+        mode === "run"
+          ? "Another job is running. Transcribing starts when it finishes."
+          : "Another job is running. Try again when it finishes.",
+        { tone: "error" },
+      );
   }, []);
 
   const start = useCallback(
@@ -164,12 +176,15 @@ export function usePrepareRun(input: PrepareRunInput) {
           );
         } catch (error) {
           if (isModelNeeded(error)) {
+            refusedRef.current = { mode, overwriteEdited, fromStep };
             setNeed(error.model);
             return;
           }
           throw error;
         }
         setNeed(null);
+        refusedRef.current = null;
+        waitingRef.current = false;
         setWaiting(false);
         if (useDawStore.getState().projectPath === latest.current.projectPath) {
           useDawStore.getState().setPipelineJob(job);
@@ -225,7 +240,13 @@ export function usePrepareRun(input: PrepareRunInput) {
     if (!arrived) return;
     sawMissing.current = false;
     setNeed(null);
-    void start("run");
+    const refused = refusedRef.current;
+    refusedRef.current = null;
+    void start(
+      refused?.mode ?? "run",
+      refused?.overwriteEdited ?? false,
+      refused?.fromStep,
+    );
   }, [arrived, start]);
 
   /** Run from the transcribe step; ask first when hand fixes would be replaced. */
