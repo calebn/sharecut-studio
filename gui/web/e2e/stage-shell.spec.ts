@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import {
@@ -101,6 +102,23 @@ test.describe("Stage shell on desktop", () => {
     await expect(page.getByRole("main", { name: "Review" })).toBeVisible();
     await page.keyboard.press("ControlOrMeta+3");
     await expect(page.getByRole("main", { name: "Edit" })).toBeVisible();
+  });
+
+  test("saves a chapter added in Deliver to the project", async ({ page }) => {
+    const chapterCount = async () => {
+      const response = await page.request.get(
+        `/api/project?path=${encodeURIComponent(e2eProjectPath)}&phase=full`,
+      );
+      expect(response.ok()).toBe(true);
+      return ((await response.json()) as ProjectView).chapters.length;
+    };
+    const before = await chapterCount();
+    await openProject(page);
+    await goToStage(page, "deliver");
+    await page.getByRole("button", { name: "Add at playhead" }).click();
+    await expect.poll(chapterCount).toBe(before + 1);
+    await page.getByRole("button", { name: /^Remove Chapter/ }).click();
+    await expect.poll(chapterCount).toBe(before);
   });
 
   test("keeps the timeline zoom across a stage round trip", async ({
