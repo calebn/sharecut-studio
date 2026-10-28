@@ -997,6 +997,6 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 4. **Audition modes.** Drop the "Full mix / Edited stems / Original" switch for hold-to-hear-original, with "edited stems" in the player's long-press menu? Recommended default: yes.
 5. **Phone tab bar with five stages.** Keep all five (Prepare included) on phone for one model across devices? Recommended default: yes; Prepare on phone mostly shows job progress and import.
 6. **Key changes.** Move Blade from C to B and make C Comment; Mod+1..5 for stages. Recommended default: yes (breaks muscle memory for current testers only).
-7. **Typing over words.** Typing on a selection corrects transcript text only and never synthesizes audio. Recommended default: yes; no voice regeneration.
+7. **Typing over words.** Typing on a selection corrects transcript text only and never synthesizes audio. Recommended default: yes; no voice regeneration. Decided 2026-10-28: typing never starts a correction, because every letter is a shortcut; Fix text starts on Enter, F2, or a double-click or double-tap on a word (design-system element 14, D-script-gestures).
 8. **Drag words to reorder audio.** Not in this round. Recommended default: defer.
 9. **Recordings in Edit.** "+" under the tracks offers "Record a take", which opens Record set to add a new session to this project (initial vs later sessions is spec-record's call). Recommended default: yes.
