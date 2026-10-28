@@ -276,6 +276,49 @@ describe("the export command", () => {
     });
   });
 
+  it("starts nothing and clears the request when no format is chosen", async () => {
+    server.config = {
+      config: {
+        export: { wav: false, formats: [] },
+        master: { integrated_lufs: -16, true_peak_db: -1.5 },
+      },
+    };
+    render(<Host />);
+    await waitFor(() =>
+      expect(server.configRequests.length).toBeGreaterThan(0),
+    );
+    await waitFor(() =>
+      expect(exportButton()).toHaveAttribute("title", "Choose a format first."),
+    );
+    expect(await execute("export.deliverables", {})).toEqual({ status: "ok" });
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.exportRequested).toBe(false),
+    );
+    expect(server.exportRequests).toEqual([]);
+    expect(exportButton()).toBeDisabled();
+    expect(exportButton()).toHaveAttribute("title", "Choose a format first.");
+    expect(screen.queryByText("Exported")).toBeNull();
+  });
+
+  it("does not start an export on a later visit when the request was never served", async () => {
+    let release!: () => void;
+    server.holdConfig = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const view = render(<Host />);
+    await execute("export.deliverables", {});
+    await act(async () => undefined);
+    view.unmount();
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.exportRequested).toBe(false),
+    );
+    release();
+    render(<Host />);
+    await ready();
+    await act(async () => undefined);
+    expect(server.exportRequests).toEqual([]);
+  });
+
   it("waits for the settings before it starts", async () => {
     let release!: () => void;
     server.holdConfig = new Promise<void>((resolve) => {

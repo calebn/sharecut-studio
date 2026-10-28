@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   addChapter,
@@ -19,6 +19,8 @@ import { DeliverStage as DeliverStageBody } from "../../stages/deliver/DeliverSt
 import {
   type Chapter,
   type Clip,
+  type ExportRequest,
+  exportBlocker,
   exportRequest,
 } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
@@ -55,6 +57,8 @@ import { hostStateOf } from "./hostModels";
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
 };
+
+let liveHosts = 0;
 
 const DELIVER_COMMANDS = new Set([
   "AddChapter",
@@ -155,6 +159,29 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     [chosenFormats],
   );
   const edits = project?.history.head_id ?? undefined;
+  const formatsBlocker =
+    exportFlow.loading || exportFlow.settings === null
+      ? undefined
+      : exportBlocker(episodeSettings, undefined, {
+          wavAlwaysWritten: exportFlow.settings.wav,
+          settingsError: exportFlow.settingsError ?? undefined,
+        });
+  const guardedStart = useCallback(
+    (keys: readonly string[], request: ExportRequest) => {
+      if (formatsBlocker) return;
+      startExport(keys, request);
+    },
+    [formatsBlocker, startExport],
+  );
+  useEffect(() => {
+    liveHosts += 1;
+    return () => {
+      liveHosts -= 1;
+      window.setTimeout(() => {
+        if (liveHosts === 0) useDawStore.getState().setExportRequested(false);
+      }, 0);
+    };
+  }, []);
   useEffect(() => {
     if (
       !exportRequested ||
@@ -164,7 +191,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     )
       return;
     setExportRequested(false);
-    startExport(
+    guardedStart(
       chosenFormats,
       exportRequest(
         episodeSettings,
@@ -180,7 +207,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     exportFlow.loading,
     exportBlockedReason,
     setExportRequested,
-    startExport,
+    guardedStart,
     chosenFormats,
     episodeSettings,
     page.clips,
@@ -317,7 +344,9 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           onChapters={onChapters}
           onClips={onClips}
           onFix={(stage, target) => runFix(fixRoute(stage, target))}
-          onExport={(request) => startExport(request.settings.formats, request)}
+          onExport={(request) =>
+            guardedStart(request.settings.formats, request)
+          }
           onCancel={exportFlow.cancel}
           onPlayFrom={playFrom}
           onPlayClip={playClip}
