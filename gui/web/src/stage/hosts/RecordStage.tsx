@@ -94,6 +94,7 @@ function RecordStageBody({
       hydrateError: room.hydrateError,
       clipped: room.takeClipping?.regions.length ?? 0,
       muted: host?.muted ?? false,
+      micCheckFailed: cap.micCheckFailed,
     },
     {
       retryMic: cap.onRetryMic,

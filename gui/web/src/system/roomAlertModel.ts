@@ -10,6 +10,7 @@ export const ROOM_ALERT_PRIORITY = [
   "no-audio",
   "storage-failed",
   "saving-failed",
+  "notice",
   "recovery",
   "host-offline",
   "monitor-failed",
@@ -30,6 +31,9 @@ type RoomAlertText = {
   /** A second action beside it, offered when the caller passes `onSecondaryAction`. */
   secondary?: string;
 };
+
+export const MIC_CHECK_FAILED_COPY =
+  "Still no audio: unmute or reconnect your microphone, then Check mic again.";
 
 export const ROOM_ALERT_TEXT: Record<RoomAlertKind, RoomAlertText> = {
   "mic-lost": {
@@ -75,6 +79,10 @@ export const ROOM_ALERT_TEXT: Record<RoomAlertKind, RoomAlertText> = {
     state: "needs-you",
     title: "You're muted.",
   },
+  notice: {
+    state: "done",
+    title: "Done.",
+  },
   connecting: {
     state: "running",
     title: "Still connecting…",
@@ -91,8 +99,10 @@ export type RoomAlertInput = {
   kind: RoomAlertKind;
   /** The host's name for host-offline. Missing or blank reads "The host". */
   name?: string;
-  /** The generic alert's own sentence. Missing or blank keeps the default. */
+  /** The generic or notice alert's own sentence. Missing or blank keeps the default. */
   message?: string;
+  /** No audio only: the last mic check found nothing, so the title says what to try. */
+  checkFailed?: boolean;
   /** Without it the alert shows no action, even when its kind has one. */
   onAction?: () => void;
   /** Without it the alert shows no second action, even when its kind has one. */
@@ -108,9 +118,12 @@ export function roomAlertTitle({
   kind,
   name,
   message,
+  checkFailed,
 }: RoomAlertInput): string {
-  if (kind === "generic")
-    return message?.trim() || ROOM_ALERT_TEXT.generic.title;
+  if (kind === "generic" || kind === "notice")
+    return message?.trim() || ROOM_ALERT_TEXT[kind].title;
+  if (kind === "no-audio" && checkFailed)
+    return `${ROOM_ALERT_TEXT[kind].title} ${MIC_CHECK_FAILED_COPY}`;
   const subject = name?.trim() || "The host";
   // A function replacer keeps "$&" and the like in a name literal.
   return ROOM_ALERT_TEXT[kind].title.replace("{name}", () => subject);

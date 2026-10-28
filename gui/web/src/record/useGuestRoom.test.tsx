@@ -190,7 +190,7 @@ describe("useGuestRoom", () => {
     expect(result.current.name).toBe("Ava");
     await waitFor(() => expect(result.current.me?.participant_id).toBe("p_g"));
     expect(result.current.producer).toBe(false);
-    expect(result.current.heading).toBe("Join the recording");
+    expect(result.current.heading).toBe("Join the room");
     expect(result.current.episodeName).toBe("Shot of Truth");
     expect(result.current.view).toBe("lobby");
     expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);

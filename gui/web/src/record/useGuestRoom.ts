@@ -72,7 +72,7 @@ export function useGuestRoom(
   }, [name, token]);
 
   const producer = bootstrap?.role === "producer";
-  const heading = producer ? "Producer (not recorded)" : "Join the recording";
+  const heading = producer ? "Producer (not recorded)" : "Join the room";
   const episodeName = bootstrap?.episode.name.trim() ?? "";
 
   useEffect(() => {

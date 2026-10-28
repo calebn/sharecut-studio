@@ -10,6 +10,7 @@ import {
   joinMic,
   ownSaving,
   savingStatus,
+  tookPart,
 } from "./guestRoomModel";
 import { roomPeople } from "./roomPeople";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
@@ -150,6 +151,31 @@ describe("guestRoomPhase", () => {
     ).toMatchObject({ kind: "saving", percent: 0 });
   });
 
+  it("does not call a stopped take saving for a guest who never uploaded", () => {
+    const snapshot = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      takes: [{ take_index: 0, consented_participant_ids: ["p_o"] }] as never,
+      participants: [host, me, other],
+    });
+    expect(
+      guestRoomPhase(snapshot, { upload: upload(), tookPart: false }),
+    ).toEqual({ kind: "waiting", host: "Hana" });
+    expect(guestRoomPhase(snapshot, { tookPart: false })).toEqual({
+      kind: "waiting",
+      host: "Hana",
+    });
+    expect(
+      guestRoomPhase(snapshot, { upload: upload(), tookPart: true }),
+    ).toMatchObject({ kind: "saving" });
+    expect(
+      guestRoomPhase(snapshot, {
+        upload: upload({ pending: true }),
+        tookPart: false,
+      }),
+    ).toMatchObject({ kind: "saving" });
+  });
+
   it("shows a reloaded take that is still uploading as saving", () => {
     const snapshot = recordSnapshot({
       state: "stopped",
@@ -162,6 +188,27 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, { upload: upload({ total: 2, fileAck: true }) }),
     ).toEqual({ kind: "saved" });
+  });
+});
+
+describe("tookPart", () => {
+  const stoppedWith = (ids: string[]) =>
+    recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      takes: [{ take_index: 0, consented_participant_ids: ids }] as never,
+      participants: [host, me],
+    });
+
+  it("needs consent and a place on the take's roster", () => {
+    expect(tookPart(stoppedWith(["p_g"]), me)).toBe(true);
+    expect(tookPart(stoppedWith([]), me)).toBe(true);
+    expect(tookPart(stoppedWith(["p_o"]), me)).toBe(false);
+    expect(tookPart(stoppedWith(["p_g"]), { ...me, consented: false })).toBe(
+      false,
+    );
+    expect(tookPart(stoppedWith(["p_g"]), null)).toBe(false);
+    expect(tookPart(null, me)).toBe(false);
   });
 });
 
@@ -298,6 +345,24 @@ describe("guestRoomAlerts", () => {
     expect(alerts.map((alert) => alert.kind)).toEqual(["mic-lost", "generic"]);
     alerts[0]?.onAction?.();
     expect(retryMic).toHaveBeenCalledOnce();
+  });
+
+  it("tells a failed mic check apart from the first no-audio alert", () => {
+    const noAudio = { ...source, captureHealth: "silent" as const };
+    expect(guestRoomAlerts(noAudio)).toEqual([
+      { kind: "no-audio", onAction: undefined, checkFailed: undefined },
+    ]);
+    expect(
+      guestRoomAlerts({ ...noAudio, micCheckFailed: true })[0],
+    ).toMatchObject({ kind: "no-audio", checkFailed: true });
+    expect(guestRoomAlerts({ ...source, micCheckFailed: true })).toEqual([]);
+  });
+
+  it("carries a recovery notice as a done row", () => {
+    expect(guestRoomAlerts({ ...source, notice: "Recovered it." })).toEqual([
+      { kind: "notice", message: "Recovered it." },
+    ]);
+    expect(guestRoomAlerts({ ...source, notice: null })).toEqual([]);
   });
 
   it("adds host-offline for the guest's own dropped socket", () => {
