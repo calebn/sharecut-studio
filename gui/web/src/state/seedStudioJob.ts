@@ -1,13 +1,17 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { isPipelineKindJob } from "../utils/pipeline";
 import { useDawStore } from "./dawStore";
-import { currentMediaKey, recordJobMedia } from "./jobMedia";
+import {
+  currentMediaKey,
+  recordJobMedia,
+  runIncludesTranscribe,
+} from "./jobMedia";
 
 /** Seed chrome immediately from a start-job snapshot (pipeline vs Activity). */
 export function seedStudioJob(job: PipelineJobSnapshot): void {
   if (
     isPipelineKindJob(job) &&
-    (job.only_step ?? "transcribe_tracks") === "transcribe_tracks"
+    runIncludesTranscribe({ fromStep: job.from_step, onlyStep: job.only_step })
   ) {
     recordJobMedia(job.id, currentMediaKey());
   }
