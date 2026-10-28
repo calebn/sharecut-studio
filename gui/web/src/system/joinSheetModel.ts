@@ -31,9 +31,9 @@ export type JoinRow = {
   action?: { label: string; name: string; kind: JoinMicAction };
 };
 
-export type JoinNote = { tone: "warning"; text: string };
+type JoinNote = { tone: "warning"; text: string };
 
-export type JoinGuestInput = {
+type JoinGuestInput = {
   name: string;
   mic: JoinMic;
   headphones: boolean;
@@ -90,15 +90,6 @@ const MIC_REASON: Record<Exclude<JoinMic["status"], "ready">, string> = {
   lost: "Reconnect your microphone first",
 };
 
-const HEADPHONE_LABEL = /airpods|buds|headset|headphones/i;
-
-/** Preset for the headphones row: a known headphone name in the input or output label. */
-export function looksLikeHeadphones(...labels: (string | undefined)[]) {
-  return labels.some(
-    (label) => label !== undefined && HEADPHONE_LABEL.test(label),
-  );
-}
-
 /** "Maya Okafor" reads "Maya" in a sentence. */
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? "";
@@ -128,7 +119,8 @@ export function listenersLine(
 ): string | null {
   const names = here
     .filter((entry) => entry.role === "producer")
-    .map((entry) => firstName(entry.person.name));
+    .map((entry) => firstName(entry.person.name))
+    .filter((name) => name !== "");
   if (names.length === 0) return null;
   return `${nameList(names)} ${names.length === 1 ? "is" : "are"} listening and won't be recorded`;
 }
@@ -215,13 +207,10 @@ function headphonesRow(on: boolean): JoinRow {
 
 function primaryFor(
   label: string,
-  next: JoinStep | null,
-  micReason: string,
+  reason: string | null,
   joining: boolean,
 ): JoinPrimary {
   if (joining) return { label: JOIN_TEXT.joining, reason: null, busy: true };
-  const reason =
-    next === null ? null : next === "mic" ? micReason : REASON[next];
   return { label, reason, busy: false };
 }
 
@@ -232,8 +221,12 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
     headphonesRow(input.headphones),
   ];
   const next = rows.find((row) => row.state !== "done")?.key ?? null;
-  const micReason =
-    input.mic.status === "ready" ? REASON.mic : MIC_REASON[input.mic.status];
+  const reason =
+    next === null
+      ? null
+      : next === "mic" && input.mic.status !== "ready"
+        ? MIC_REASON[input.mic.status]
+        : REASON[next];
   const micNotes: JoinNote[] = [];
   if (input.mic.status === "ready" && input.mic.clipped) {
     micNotes.push({ tone: "warning", text: JOIN_TEXT.tooLoud });
@@ -246,12 +239,7 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
     micNotes,
     next,
     ready: next === null,
-    primary: primaryFor(
-      JOIN_TEXT.guestPrimary,
-      next,
-      micReason,
-      Boolean(input.joining),
-    ),
+    primary: primaryFor(JOIN_TEXT.guestPrimary, reason, Boolean(input.joining)),
   };
 }
 
@@ -267,8 +255,7 @@ export function joinProducerModel(input: {
     ready: next === null,
     primary: primaryFor(
       JOIN_TEXT.producerPrimary,
-      next,
-      REASON.mic,
+      next === null ? null : REASON[next],
       Boolean(input.joining),
     ),
   };
@@ -279,16 +266,22 @@ export const DECLINED_TEXT = {
   line: "You're not being recorded.",
   join: "Join recording",
   wait: "You can join after this take.",
+  reconnecting: "You can join once the room reconnects.",
 } as const;
 
-export type DeclinedPeek = { disabledReason: string | null };
+type DeclinedPeek = { disabledReason: string | null };
 
-/** No join during a take that is live or paused. */
+/**
+ * Join recording works only while the room waits for a take: not through the
+ * countdown, a live or paused take, saving, saved or a reconnect.
+ */
 export function declinedPeek(phase: RoomPhase): DeclinedPeek {
-  return {
-    disabledReason:
-      phase.kind === "live" || phase.kind === "paused"
-        ? DECLINED_TEXT.wait
-        : null,
-  };
+  switch (phase.kind) {
+    case "waiting":
+      return { disabledReason: null };
+    case "reconnecting":
+      return { disabledReason: DECLINED_TEXT.reconnecting };
+    default:
+      return { disabledReason: DECLINED_TEXT.wait };
+  }
 }

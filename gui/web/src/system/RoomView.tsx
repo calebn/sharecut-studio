@@ -262,7 +262,7 @@ export function RoomView({
         <Sheet
           form="bottom"
           title="Notes"
-          open={model.sheetOpen}
+          open={model.sheetOpen && !declined}
           onClose={closeSheet}
           detent={detent}
           onDetentChange={setDetent}

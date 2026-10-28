@@ -88,6 +88,18 @@ describe("JoinSheet guest", () => {
     ).toHaveFocus();
   });
 
+  it("moves Enter on the name to the mic row itself while the browser is prompting", async () => {
+    const onJoin = vi.fn();
+    render(
+      <Harness name="Jon" mic={{ status: "prompting" }} onJoin={onJoin} />,
+    );
+    const field = screen.getByLabelText("Your name");
+    await waitFor(() => expect(field).toHaveFocus());
+    await userEvent.type(field, "{Enter}");
+    expect(onJoin).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-step="mic"]')).toHaveFocus();
+  });
+
   it.each([
     ["idle", "Allow microphone", "allow"],
     ["denied", "How to allow the microphone", "how-to"],

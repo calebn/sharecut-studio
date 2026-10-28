@@ -421,7 +421,7 @@ describe("RoomView as the host", () => {
       );
     });
 
-    it("opens the Join sheet through Join recording once the take ends", async () => {
+    it("calls onJoin from Join recording when the room is waiting", async () => {
       const onJoin = vi.fn();
       renderRoom({
         phase: { kind: "waiting", host: "Maya" },
@@ -443,6 +443,79 @@ describe("RoomView as the host", () => {
         expect(screen.getByText("You can join after this take.")).toBeVisible();
       },
     );
+
+    it.each([
+      [{ kind: "countdown", secondsLeft: 3 }, "You can join after this take."],
+      [
+        { kind: "saving", savedPeople: 1, totalPeople: 2 },
+        "You can join after this take.",
+      ],
+      [{ kind: "reconnecting" }, "You can join once the room reconnects."],
+    ] as const)("holds Join recording during %j", (phase, reason) => {
+      renderRoom({ phase, declined: { onJoin: vi.fn() } });
+      expect(
+        screen.getByRole("button", { name: "Join recording" }),
+      ).toBeDisabled();
+      expect(screen.getByText(reason)).toBeVisible();
+    });
+
+    it("points the held Join recording at its visible reason", () => {
+      renderRoom({ declined: { onJoin: vi.fn() } });
+      expect(
+        screen.getByRole("button", { name: "Join recording" }),
+      ).toHaveAccessibleDescription("You can join after this take.");
+    });
+
+    it("moves focus from the dock to Join recording when it works", () => {
+      const waiting = { kind: "waiting", host: "Maya" } as const;
+      const { rerender, container } = renderRoom({ phase: waiting });
+      screen.getByRole("button", { name: "Mute" }).focus();
+      rerender(
+        <RoomView
+          seat="guest"
+          title="Episode 14"
+          people={[HOST, JON]}
+          phase={waiting}
+          notes={[]}
+          selfName="Jon"
+          onSendNote={vi.fn()}
+          declined={{ onJoin: vi.fn() }}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Join recording" }),
+      ).toHaveFocus();
+      expect(container.querySelector(".sys-room-view-dock")).toHaveAttribute(
+        "inert",
+      );
+    });
+
+    it("focuses the bar itself while Join recording is held", () => {
+      renderRoom({ declined: { onJoin: vi.fn() } });
+      expect(
+        screen.getByRole("region", { name: "Not being recorded" }),
+      ).toHaveFocus();
+    });
+
+    it("closes the phone Notes sheet when the viewer declines", async () => {
+      const props: RoomViewProps = {
+        seat: "guest",
+        title: "Episode 14",
+        people: [HOST, JON],
+        phase: LIVE,
+        notes: [],
+        selfName: "Jon",
+        onSendNote: vi.fn(),
+        viewerWidth: "phone",
+      };
+      const { rerender } = render(<RoomView {...props} />);
+      await userEvent.click(screen.getByRole("button", { name: "Notes" }));
+      expect(
+        await screen.findByRole("dialog", { name: "Notes" }),
+      ).toBeInTheDocument();
+      rerender(<RoomView {...props} declined={{ onJoin: vi.fn() }} />);
+      expect(screen.queryByRole("dialog", { name: "Notes" })).toBeNull();
+    });
 
     it("adds nothing to a room that has not declined", () => {
       const { container } = renderRoom();

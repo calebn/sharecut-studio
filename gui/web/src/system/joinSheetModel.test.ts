@@ -7,7 +7,6 @@ import {
   joinHeadline,
   joinProducerModel,
   listenersLine,
-  looksLikeHeadphones,
 } from "./joinSheetModel";
 
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
@@ -43,6 +42,20 @@ describe("listenersLine", () => {
     ).toBe("Rosa is listening and won't be recorded");
   });
 
+  it("drops listeners with a blank name", () => {
+    expect(
+      listenersLine([
+        { person: { name: " ", colorIndex: 1 }, role: "producer" },
+        { person: ROSA, role: "producer" },
+      ]),
+    ).toBe("Rosa is listening and won't be recorded");
+    expect(
+      listenersLine([
+        { person: { name: "", colorIndex: 1 }, role: "producer" },
+      ]),
+    ).toBeNull();
+  });
+
   it("is absent with nobody listening", () => {
     expect(listenersLine([{ person: MAYA, role: "host" }])).toBeNull();
   });
@@ -52,23 +65,6 @@ describe("consentLine", () => {
   it("names the host's project, or the host when unnamed", () => {
     expect(consentLine("Maya Okafor")).toContain("saves to Maya's project");
     expect(consentLine(" ")).toContain("saves to the host's project");
-  });
-});
-
-describe("looksLikeHeadphones", () => {
-  it.each([
-    ["AirPods Pro", true],
-    ["Galaxy Buds2", true],
-    ["USB Headset", true],
-    ["Sony Headphones", true],
-    ["MacBook Pro Microphone", false],
-  ])("%s is %s", (label, expected) => {
-    expect(looksLikeHeadphones(label)).toBe(expected);
-    expect(looksLikeHeadphones(undefined, label)).toBe(expected);
-  });
-
-  it("is false with no label", () => {
-    expect(looksLikeHeadphones()).toBe(false);
   });
 });
 
@@ -89,10 +85,23 @@ describe("joinGuestModel", () => {
     });
   });
 
-  it("checks the name row off only for a name with letters", () => {
+  it("leaves the name row open for a blank name", () => {
     expect(joinGuestModel({ ...ready, name: "  " }).rows[0].state).toBe(
       "queued",
     );
+    expect(joinGuestModel({ ...ready, name: "123" }).rows[0].state).toBe(
+      "done",
+    );
+  });
+
+  it("names the name row first when the name and the mic are both unmet", () => {
+    const model = joinGuestModel({
+      name: "",
+      mic: { status: "idle" },
+      headphones: false,
+    });
+    expect(model.next).toBe("name");
+    expect(model.primary.reason).toBe("Add your name first");
   });
 
   it("names the first unmet row, in order", () => {
@@ -192,11 +201,13 @@ describe("joinProducerModel", () => {
 
 describe("declinedPeek", () => {
   it.each([
+    [{ kind: "waiting", host: "Maya" }, null],
+    [{ kind: "countdown", secondsLeft: 3 }, DECLINED_TEXT.wait],
     [{ kind: "live", take: 1, clockSec: 5 }, DECLINED_TEXT.wait],
     [{ kind: "paused", clockSec: 5 }, DECLINED_TEXT.wait],
-    [{ kind: "waiting", host: "Maya" }, null],
-    [{ kind: "saving", savedPeople: 1, totalPeople: 2 }, null],
-    [{ kind: "saved" }, null],
+    [{ kind: "saving", savedPeople: 1, totalPeople: 2 }, DECLINED_TEXT.wait],
+    [{ kind: "saved" }, DECLINED_TEXT.wait],
+    [{ kind: "reconnecting" }, DECLINED_TEXT.reconnecting],
   ] as const)("%j gives %s", (phase, reason) => {
     expect(declinedPeek(phase).disabledReason).toBe(reason);
   });

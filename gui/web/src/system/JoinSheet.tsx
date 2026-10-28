@@ -29,7 +29,7 @@ import { Sheet } from "./Sheet";
 import { StatusRow } from "./StatusRow";
 import { SystemIcon } from "./SystemIcon";
 
-export type JoinHere = { person: PersonData; role: RoomRole };
+type JoinHere = { person: PersonData; role: RoomRole };
 
 export type JoinSheetProps = {
   seat: "guest" | "producer";
@@ -63,7 +63,7 @@ function Row({
 }) {
   const { action } = row;
   return (
-    <div className="sys-join-row" data-step={row.key}>
+    <div className="sys-join-row" data-step={row.key} tabIndex={-1}>
       <StatusRow
         state={row.state}
         title={row.title}
@@ -187,7 +187,8 @@ export function JoinSheet({
   const producerModel = joinProducerModel({ name, joining });
   const { next, ready, primary } = guest ? guestModel : producerModel;
 
-  // Enter on the name moves to the next row; Enter on a ready sheet joins.
+  // Enter on the name moves to the next row (its button, or the row itself
+  // while the browser's prompt is up); Enter on a ready sheet joins.
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (joining) return;
@@ -198,9 +199,10 @@ export function JoinSheet({
     const target: JoinStep = next ?? "name";
     if (target === "name") nameRef.current?.focus();
     else {
-      formRef.current
-        ?.querySelector<HTMLElement>(`[data-step="${target}"] button`)
-        ?.focus();
+      const row = formRef.current?.querySelector<HTMLElement>(
+        `[data-step="${target}"]`,
+      );
+      (row?.querySelector<HTMLElement>("button") ?? row)?.focus();
     }
   };
 
