@@ -344,12 +344,11 @@ npm --prefix gui/web run profile:compare -- --budget /tmp/editor-small-budget.js
 Use an independently generated holdout for each preset. Run on a quiet worker
 with no other browser, fixture decode, build, or full suite. The runner reuses the
 existing Playwright process/port cleanup and starts a fresh server/context for
-each scene. `--scene clip|boundary|playback|cold-waveform|progress-replay|progress-real|progress-reduced|seek|trim`
+each scene. `--scene clip|boundary|playback|cold-waveform|seek|trim`
 (comma-separated for several; `seek` and `trim` run only when named, see [Seek and trim profile](#seek-and-trim-profile-opt-in))
 selects scenes for validity debugging; a selected scene does not establish
-whole-issue coverage. `--trace --scene progress-replay` or
-`--trace --scene cold-waveform` retains a separate Chrome diagnostic trace.
-Both use diagnostic sample phases excluded from primary timing budgets.
+whole-issue coverage. `--trace --scene cold-waveform` retains a separate Chrome
+diagnostic trace. It uses diagnostic sample phases excluded from primary timing budgets.
 The original `large-project.spec.ts` remains the wheel/zoom/ruler-seek and
 extended editor/memory protocol. In Comment mode, ruler dragging anchors a
 comment range. In the ordinary mode, the ruler uses click/keyboard seeking; these measurements do not claim
@@ -379,64 +378,12 @@ checkpoints force GC outside input windows and retain raw heap and DOM counts.
 The positive part of final-minus-initial growth is a diagnostic, not proof of a
 leak; the raw checkpoints also preserve decreases.
 
-Progress replay substitutes only its named EventSource transport and status
-response; the production pipeline hook and UI consume the snapshots. It is
-labeled replay, not backend throughput. Visible bar height, changing widths and
-percentages, delivered cadence, and settled terminal geometry are retained.
-Real-job progress uses the ordinary Run control from `compress_tracks`, with
-`balance_tracks` and their required ingest/clean prerequisites enabled. The job
-executes Compress and Balance only. The default `progress-real` measurement now
-uses the passive `native-progress-passive-v2` observer; the superseded three-state
-implementation has been removed. Its previous reports, invalid/unstable results
-and frozen budgets remain historical evidence, without recalibration. Default
-`pipeline-progress.spec.ts` regressions still check short-panel geometry and both
-motion modes without injecting CSS.
-
-Run the current default observer on one fresh small fixture with the ordinary
-remaining-workload command. Reduced motion is an explicit observation setting:
-
-```sh
-npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-normal
-DAW_PROFILE_NATIVE_MOTION=reduce npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-reduced
-```
-
-The current protocol records the actual POST snapshot, passive CDP native EventSource
-message receipt, passively available browser status responses, raw DOM mutation
-batches, indeterminate presence, bar generations, and event-triggered first/last
-sampled geometry with viewport, ancestor clipping and CSS visibility exclusions.
-Nonrectangular masks/clips and capped ancestor inspection are explicit unknowns;
-style and layout reads are counted. Caps bound retained records and parsing,
-not the transient already-materialized CDP strings or browser response bodies;
-up to 32 response-body reads can be pending. Missing native receipt, meaningful DOM, or
-geometry channels remains incomplete even when backend processing succeeds. Network receipt is not application acceptance;
-DOM mutations are not React render commits or compositor paints. Clock domains
-remain separate, and network/page cutoff timestamps prohibit absence joins
-outside a demonstrated common observation window. Bounded or unavailable channels make causal conclusions
-inconclusive. It prepositions the existing shortcut region, focuses the actual
-Run control without scrolling, and activates it through keyboard Enter; no
-post-start scroll or fabricated zero/dwell changes the natural job. Successful
-processing and retained observation are separate from a three-visible-state
-pass. Project/config hashes and resulting project/artifact references are
-captured outside the action because Compress/Balance legitimately changes state.
-
-`DAW_PROFILE_NATIVE_OBSERVER=control-v2` uses the same preparation, native action,
-terminal polling, and enabled Network domain without the added collector. Its
-observations are a control, not native-progress causal evidence. Use this only in
-a predeclared AB/BA overhead experiment; raw paired wall/CDP values do not prove
-negligible overhead or an acceptable latency. Observer settings are recorded in
-`protocol.nativeObserver`, so earlier reports and current reports are incompatible for
-frozen-budget application. The historical diagnostic allocation was one normal
-and one reduced small attempt, retained without replacements. Tests, source/build
-pins and the campaign manifest were frozen for the two retained natural runs.
-Their observed clipping and unmeasured overhead are summarized below; previous
-three-state budgets remain historical and reject current-protocol reports.
-
-The default command was also checked once on a fresh small fixture without
-observer or motion environment flags. It selected passive/normal observation,
-completed genuine Compress and Balance, and retained native receipt, DOM and
-layout evidence. All sampled geometry remained clipped. This checks default
-wiring without establishing visible progress, producer cadence or collector
-overhead; it does not replace the historical allocations or frozen budgets.
+The Pipeline panel progress bar these scenes measured was removed with the
+panel, and the progress scenes, the native progress observer and their frozen
+budgets went with it. Their earlier reports remain historical evidence. A
+running Transcribe row on the Prepare stage is covered by
+`prepare-progress.spec.ts`, which checks that the row stays in view without
+horizontal overflow at a short desktop and a phone size, in both motion modes.
 
 Each report has a distinct execution ID and start time. Missing required
 coverage, failed validity, or metadata/retention errors preserves the partial
@@ -446,8 +393,7 @@ must be new. Reports record dirty source for validity, but budget comparisons
 require clean source and a served production build without E2E hooks.
 
 The report declares frame-percentile applicability before measurements. Initial
-load, cold decode/detail paint, held clip/boundary preview, playback, real/replayed
-progress, scrub endurance, and multi-key history navigation require at least two
+load, cold decode/detail paint, held clip/boundary preview, playback, scrub endurance, and multi-key history navigation require at least two
 uncapped rAF intervals for a percentile budget. Atomic zoom, seek, save, and other
 short command windows retain all raw intervals but use no percentile budget.
 This policy follows workload definitions, never observed timing. Missing required
