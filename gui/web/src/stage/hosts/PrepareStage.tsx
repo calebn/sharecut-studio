@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -10,6 +10,7 @@ import { isPipelineSlotBusy } from "../../utils/pipeline";
 import { EmptySession } from "../edit/EmptySession";
 import { useAudioDrop } from "../edit/useAudioDrop";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
+import { useKeepFocusInView } from "../useKeepFocusInView";
 import { useStageScroll } from "../useStageScroll";
 
 import { hostStateOf, prepareHandoff } from "./hostModels";
@@ -38,7 +39,19 @@ function PrepareStageAdapter({ loadFailure }: PrepareStageProps) {
     })),
   );
   const shell = useViewportClass();
-  const scrollRef = useStageScroll("prepare", "body");
+  const saveScroll = useStageScroll("prepare", "body");
+  const keepFocusInView = useKeepFocusInView();
+  const scrollRef = useCallback(
+    (node: HTMLElement | null) => {
+      saveScroll(node);
+      const stopKeeping = keepFocusInView(node);
+      return () => {
+        saveScroll(null);
+        stopKeeping?.();
+      };
+    },
+    [saveScroll, keepFocusInView],
+  );
   const drop = useAudioDrop();
 
   const handoff = prepareHandoff({
