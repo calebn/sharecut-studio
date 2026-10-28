@@ -1084,18 +1084,6 @@ button.history-row {
   font-size: var(--font-size-small);
 }
 
-.step-running {
-  color: var(--color-accent-fg);
-}
-
-.step-ok {
-  color: var(--color-success);
-}
-
-.step-error {
-  color: var(--color-danger);
-}
-
 .tighten-panel {
   container: tighten / inline-size;
   display: flex;

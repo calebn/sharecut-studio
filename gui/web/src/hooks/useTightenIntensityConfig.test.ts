@@ -32,14 +32,6 @@ function cfgWith(intensity: string): PipelineConfigResponse {
       },
     ],
     components: {},
-    forced_alignment: {
-      enabled: false,
-      model: null,
-      requested: null,
-      installed: false,
-      blocked: false,
-      reason: "",
-    },
     step_names: [],
   };
 }
