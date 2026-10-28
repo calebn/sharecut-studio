@@ -57,7 +57,9 @@ export function usePrepareSources(input: {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const splitJobs = useRef(new Map<string, string>());
   const splitNeeds = useRef(new Map<string, ModelNeeded>());
-  const timers = useRef(new Map<string, number>());
+  const timers = useRef(
+    new Map<string, { timer: number; name: string }>(),
+  );
   const latest = useRef({ projectPath, tracks, chosenVoices });
   latest.current = { projectPath, tracks, chosenVoices };
   const soloBefore = useRef<Record<string, boolean> | null>(null);
@@ -94,11 +96,16 @@ export function usePrepareSources(input: {
     });
   }, [tracks]);
 
+  // Leaving Prepare saves a name still waiting for its timer.
   useEffect(
     () => () => {
-      for (const timer of timers.current.values()) window.clearTimeout(timer);
+      for (const [id, pending] of timers.current) {
+        window.clearTimeout(pending.timer);
+        saveName(id, pending.name);
+      }
+      timers.current.clear();
     },
-    [],
+    [saveName],
   );
 
   // Hearing a voice solos it for a moment; the solo goes back when it stops.
@@ -212,11 +219,14 @@ export function usePrepareSources(input: {
   const actions: SourceActions = {
     onName: (id, name) => {
       setNames((current) => ({ ...current, [id]: name }));
-      window.clearTimeout(timers.current.get(id));
-      timers.current.set(
-        id,
-        window.setTimeout(() => saveName(id, name), NAME_SAVE_MS),
-      );
+      window.clearTimeout(timers.current.get(id)?.timer);
+      timers.current.set(id, {
+        name,
+        timer: window.setTimeout(() => {
+          timers.current.delete(id);
+          saveName(id, name);
+        }, NAME_SAVE_MS),
+      });
     },
     onRemove: (id) => runPointerCommand("track.remove", { trackId: id }),
     onHear: hear,
