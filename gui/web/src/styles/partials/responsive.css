@@ -69,6 +69,13 @@
     z-index: var(--z-content);
   }
 
+  html:is([data-shell="tablet"], [data-shell="phone"]):has(
+      .bottom-sheet--lane-band
+    )
+    .track-headers-chrome {
+    z-index: var(--z-local-chrome);
+  }
+
   /* The ruler's corner above the track names stays pinned, in no extra
      height, so a lane scrolled up behind the ruler does not show through. */
   html:is([data-shell="tablet"], [data-shell="phone"]):has(
@@ -99,6 +106,10 @@
     position: relative;
     inset-block-start: auto;
     z-index: var(--z-content);
+  }
+
+  html:is([data-shell="tablet"], [data-shell="phone"]) .track-headers-chrome {
+    z-index: var(--z-local-chrome);
   }
 
   html:is([data-shell="tablet"], [data-shell="phone"]) .track-headers::before {
