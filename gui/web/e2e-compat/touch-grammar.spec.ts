@@ -875,10 +875,43 @@ test("the strip follows the finger; a flick opens or closes it fully, a slow dra
       full: Math.min(box.height, 56.25 * rem),
     };
   });
+  /**
+   * A point on the drawer's header clear of its buttons, which do not drag. A
+   * finger lands on a button within its touch radius, so the point keeps 24 px
+   * of header on each side.
+   */
   const grab = async () => {
     const box = await page.locator(".bottom-sheet-grabber").boundingBox();
     if (!box) throw new Error("no grabber");
-    return { x: box.x + box.width / 2 + 60, y: box.y + 4 };
+    const y = box.y + 4;
+    const x = await page.evaluate(
+      ({ y, from }) => {
+        const chrome = document.querySelector(".bottom-sheet-chrome--drawer");
+        if (!chrome) throw new Error("no drawer header");
+        const edge = chrome.getBoundingClientRect();
+        const buttons = [...chrome.querySelectorAll("button")].map((button) =>
+          button.getBoundingClientRect(),
+        );
+        const reach = 24;
+        const clear = (x: number) =>
+          x - reach >= edge.left &&
+          x + reach <= edge.right &&
+          buttons.every(
+            (rect) =>
+              rect.width === 0 ||
+              rect.right < x - reach ||
+              rect.left > x + reach ||
+              rect.bottom < y - reach ||
+              rect.top > y + reach,
+          );
+        for (let dx = 0; dx < edge.width; dx += 4) {
+          for (const x of [from + dx, from - dx]) if (clear(x)) return x;
+        }
+        throw new Error("no header point clear of the buttons");
+      },
+      { y, from: box.x + box.width / 2 + 60 },
+    );
+    return { x, y };
   };
   /** `dy` px in four moves `stepMs` apart, lifted at once: 8 is a flick. */
   const flick = async (dy: number, stepMs = 8) => {
