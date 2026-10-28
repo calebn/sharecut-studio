@@ -649,6 +649,14 @@ html[data-shell="phone"] .guest-attention-dismiss {
   box-shadow: 0 0 0 1px var(--color-warning-emphasis);
 }
 
+@media (forced-colors: active) {
+  .split-guide {
+    forced-color-adjust: none;
+    background: Highlight;
+    box-shadow: 0 0 0 1px CanvasText;
+  }
+}
+
 /* Alt held over the lanes (useSplitAtPointer): a blade cursor, and the
    overlays that would take the click step aside so it lands on the lane. */
 [data-split-armed],

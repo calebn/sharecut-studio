@@ -277,7 +277,7 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
         await openPhoneTimeline(phone);
         await phone
           .getByRole("button", { name: "Select range", exact: true })
-          .click();
+          .tap();
         await expect(
           phone.getByRole("button", {
             name: "Cancel range selection",
@@ -405,37 +405,44 @@ test("host gets a plain reason when a range has no room tone to fill with", asyn
   );
 });
 
-test("a range on an unbroken clip explains why Fill room tone is off", async ({
-  page,
-}) => {
-  await withShareableProject(
-    async (projectPath) => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await openHostShare(page, projectPath);
-      await openPhoneTimeline(page);
-      await page
-        .getByRole("button", { name: "Select range", exact: true })
-        .click();
-      const range = page.getByRole("region", { name: "Range actions" });
-      await range
-        .getByRole("spinbutton", { name: "In", exact: true })
-        .fill("1");
-      await range
-        .getByRole("spinbutton", { name: "Out", exact: true })
-        .fill("2");
-      await range
-        .getByRole("checkbox", { name: "reference", exact: true })
-        .check();
-      await range
-        .getByRole("button", { name: "Select range", exact: true })
-        .click();
-      await expect(
-        range.getByRole("button", { name: "Fill room tone", exact: true }),
-      ).toBeDisabled();
-      await expect(range).toContainText("No gap between clips in this range");
-      await rangeAxe(page);
-    },
-    undefined,
-    gapProject,
-  );
+test.describe("a phone with a touch screen", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  test("a range on an unbroken clip explains why Fill room tone is off", async ({
+    page,
+  }) => {
+    await withShareableProject(
+      async (projectPath) => {
+        await openHostShare(page, projectPath);
+        await openPhoneTimeline(page);
+        await page
+          .getByRole("button", { name: "Select range", exact: true })
+          .tap();
+        const range = page.getByRole("region", { name: "Range actions" });
+        await range
+          .getByRole("spinbutton", { name: "In", exact: true })
+          .fill("1");
+        await range
+          .getByRole("spinbutton", { name: "Out", exact: true })
+          .fill("2");
+        await range
+          .getByRole("checkbox", { name: "reference", exact: true })
+          .check();
+        await range
+          .getByRole("button", { name: "Select range", exact: true })
+          .click();
+        await expect(
+          range.getByRole("button", { name: "Fill room tone", exact: true }),
+        ).toBeDisabled();
+        await expect(range).toContainText("No gap between clips in this range");
+        await rangeAxe(page);
+      },
+      undefined,
+      gapProject,
+    );
+  });
 });
