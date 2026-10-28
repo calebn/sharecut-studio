@@ -3359,6 +3359,9 @@ def _refine_client(minimal_project):
 
 
 def test_api_transcript_refine_status_reads_the_gate(minimal_project) -> None:
+    from podcast_mcp.edits.transcript_refine_status import reviewed_transcript_fingerprint
+    from podcast_mcp.models import load_project
+
     client = _refine_client(minimal_project)
     response = client.get("/api/transcript/refine/status", params={"path": str(minimal_project)})
     assert response.status_code == 200
@@ -3366,7 +3369,7 @@ def test_api_transcript_refine_status_reads_the_gate(minimal_project) -> None:
     assert (body["status"], body["clear"], body["stale"]) == ("pending", False, False)
     assert body["low_confidence_words"] == 1
     assert body["low_confidence_threshold"] == 0.7
-    assert "fingerprint" not in body
+    assert body["fingerprint"] == reviewed_transcript_fingerprint(load_project(minimal_project))
 
 
 def test_api_transcript_refine_done_is_idempotent_and_waiver_stays_waived(

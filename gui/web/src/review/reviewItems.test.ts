@@ -198,6 +198,7 @@ describe("checkEntryOf", () => {
     clear: false,
     stale: false,
     mode: "require",
+    fingerprint: "fp",
     source: null,
     notes: "",
     updated_at: null,

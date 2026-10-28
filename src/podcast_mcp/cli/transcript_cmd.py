@@ -377,9 +377,16 @@ def transcript_refine_brief_cmd(
 def transcript_refine_done_cmd(
     project: Path = typer.Option(..., "--project"),
     notes: str | None = typer.Option(None, "--notes", help="Short note, up to 2000 characters."),
+    expected_fingerprint: str | None = typer.Option(
+        None,
+        "--expected-fingerprint",
+        help="Refuse if the transcript no longer matches this fingerprint from refine-status.",
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    result = TranscriptRefineService(ws).mark_done(notes=notes, source="cli")
+    result = TranscriptRefineService(ws).mark_done(
+        notes=notes, source="cli", expected_fingerprint=expected_fingerprint
+    )
     typer.echo(json.dumps(result, indent=2))
 
 

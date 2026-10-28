@@ -6,6 +6,7 @@ const status = {
   clear: true,
   stale: false,
   mode: "waive_unattended",
+  fingerprint: "fp",
   source: "user",
   notes: "",
   updated_at: "2026-10-27T10:00:00+00:00",

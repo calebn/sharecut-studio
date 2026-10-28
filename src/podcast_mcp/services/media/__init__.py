@@ -77,6 +77,7 @@ if TYPE_CHECKING:
         VocabularyConflictError,
     )
     from podcast_mcp.services.media.transcript_refine import (
+        TranscriptChangedSinceReviewError,
         TranscriptRefineService,
     )
     from podcast_mcp.services.media.waveform import (
@@ -103,6 +104,7 @@ __all__ = [
     "ReadyWaveformEntry",
     "SpeakerService",
     "StaleWaveformKeyError",
+    "TranscriptChangedSinceReviewError",
     "TranscriptContextBusyError",
     "TranscriptPrecorrectService",
     "TranscriptRefineService",
@@ -207,6 +209,7 @@ _MODULE_BY_NAME = {
     "TranscriptContextBusyError": "transcript_precorrect",
     "TranscriptPrecorrectService": "transcript_precorrect",
     "VocabularyConflictError": "transcript_precorrect",
+    "TranscriptChangedSinceReviewError": "transcript_refine",
     "TranscriptRefineService": "transcript_refine",
     "StaleWaveformKeyError": "waveform",
     "WaveformBusyError": "waveform",
