@@ -307,7 +307,7 @@ The idle desktop inspector collapses and restores when an inspector object is
 selected. **Edits in removed audio** in the footer opens Impact, where every
 pending item remains selectable. The transport holds the single mix freshness
 cue (**Mix out of date**, which hosts never have to click); the footer retains transcript,
-pending, comment and job status. Select/Blade remain visible with disabled reasons.
+pending, comment and job status.
 
 Exact pending GUI previews use the same rendered pending preview as every other pending edit, preserving each island and the gaps between them. Target comparison ignores JSON object property order from the server while preserving every sealed value and ordered array. The adapter discards prepared audio, and says so inline, if the edit (exact target, or an ordinary edit's bounds), mix, project, or playback permission changes before it arrives, or the edit is approved or rejected meanwhile. Exact pending titles carry Cut/Mute without a duplicate Type fact, keeping the timeline intervals and selected track value above the phone preview footer. Review reasons for guests without `edit` remain readable beside the disabled controls on desktop and phone; pending labels wrap so their full identity and status stay visible. Exact proposal review controls are enabled for the host and `edit` guests and remain visible with a disabled reason for other guests; source timing and snap controls are absent. Applied exact Cut/Mute ticks retain every recorded timeline edge, including holes and repeated-source occurrences, rather than falling back to the first matching source clock.
 

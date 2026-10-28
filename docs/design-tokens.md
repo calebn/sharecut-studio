@@ -174,7 +174,7 @@ category-first pattern (`bg` category, rung as role).
 | Rung | Token | Used for |
 | ---- | ----- | -------- |
 | **canvas** | `--color-bg-canvas` | App background; the bottom of the stack. |
-| **base** | `--color-bg-base` | Panes, chrome, sidebars: track headers, Script pane, tool strip. (Studio name for the shared `--color-bg-surface`.) |
+| **base** | `--color-bg-base` | Panes, chrome, sidebars: track headers, Script pane. (Studio name for the shared `--color-bg-surface`.) |
 | **raised** | `--color-bg-raised` | Inspector, cards, and badges that sit above base. (Studio name for the shared `--color-bg-elevated`.) |
 | **overlay** | `--color-bg-overlay` | Menus, dialogs, popovers, toasts, bottom sheets — anything floating above the app. |
 | **sunken** | `--color-bg-sunken` | Recessed wells, inputs, code blocks — visually *below* base. |

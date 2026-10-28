@@ -2,6 +2,7 @@ import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView, Selection } from "../types/project";
+import { isSplitModifier } from "./useSplitAtPointer";
 
 export type RangePoint = { clientX: number; clientY: number };
 export type RangeGesture = (
@@ -128,8 +129,7 @@ export function useRangeGesture(
     hasActiveGesture: () => draft.current !== null,
     captureDown(event: PointerEvent<HTMLDivElement>) {
       if (canStart && !canStart()) return;
-      // Alt is the Split modifier for a mouse; it never starts a range.
-      if (event.altKey && event.pointerType !== "touch") return;
+      if (isSplitModifier(event)) return;
       const state = useDawStore.getState();
       const target = event.target;
       if (!(target instanceof Element) || state.joinMutationInFlight) return;

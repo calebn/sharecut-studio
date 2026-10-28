@@ -136,7 +136,7 @@ html[data-shell="phone"] .bottom-sheet-root {
   height: min(100%, 56.25rem);
 }
 
-/* The Edit stage's surface switch and tool strip stack under 22rem wide
+/* The Edit stage's surface switch and Mix stack under 22rem wide
    (src/styles/partials/stage-edit.css), so the sheet keeps clear of both rows. */
 @container sheet-slot (max-width: 22rem) {
   .bottom-sheet {

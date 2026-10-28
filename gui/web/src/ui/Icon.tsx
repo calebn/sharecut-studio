@@ -4,12 +4,8 @@ export type IconName =
   | "play"
   | "pause"
   | "stop"
-  | "select"
-  | "blade"
-  | "comment"
   | "fit"
   | "menu"
-  | "cutAtPlayhead"
   | "agent"
   | "layers"
   | "close"
@@ -58,24 +54,6 @@ const PATHS: Record<IconName, ReactElement> = {
     </>
   ),
   stop: <rect {...FILLED} x="5.5" y="5.5" width="9" height="9" rx="1" />,
-  select: (
-    <>
-      <path d="M5 3.5 5 16.5 8.2 13.2 10.5 18.5 12.6 17.6 10.3 12.3 14.5 12.3Z" />
-    </>
-  ),
-  blade: (
-    <>
-      <circle cx="5.5" cy="5" r="2.25" />
-      <circle cx="5.5" cy="15" r="2.25" />
-      <path d="M7.3 6.3 15.5 14.2" />
-      <path d="M7.3 13.7 15.5 5.8" />
-    </>
-  ),
-  comment: (
-    <>
-      <path d="M4.5 5.5h11a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H9.5L6 16.5v-3H4.5A1.5 1.5 0 0 1 3 12V7a1.5 1.5 0 0 1 1.5-1.5Z" />
-    </>
-  ),
   fit: (
     <>
       <path d="M4 8V4.5h3.5" />
@@ -90,13 +68,6 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M4 6.5h12" />
       <path d="M4 10h12" />
       <path d="M4 13.5h12" />
-    </>
-  ),
-  cutAtPlayhead: (
-    <>
-      <path d="M10 3.5v13" />
-      <path d="M4 14.5 8 10.5 4 6.5" />
-      <path d="M16 6.5 12 10.5 16 14.5" />
     </>
   ),
   agent: (
