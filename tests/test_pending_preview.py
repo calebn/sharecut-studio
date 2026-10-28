@@ -385,6 +385,68 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
     _assert_same_audio(suggested.wav_path, fresh_suggested)
 
 
+def _staged_premix(minimal_project, monkeypatch):
+    """A fresh premix of a host with staging gain and a compressor, and a spy on window renders."""
+    from podcast_mcp.models.episode import ProcessingChain, ProcessingEffect
+    from podcast_mcp.services.document import play_pending
+    from podcast_mcp.services.pipeline.preview import rerender_preview
+
+    ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.6))
+    host = ws.project.track_by_id("host")
+    assert host is not None
+    host.gain_db = -6.0
+    ws.project.processing_chains = [
+        ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="acompressor")])
+    ]
+    ws.save()
+    rerender_preview(ws.project, reconcile=False, defaults=load_defaults())
+    ws.save()
+    rendered: list[str] = []
+    real = play_pending.render_track_segment
+
+    def spy(project, track_id, start, end, out, defaults, **kw):
+        rendered.append(track_id)
+        return real(project, track_id, start, end, out, defaults, **kw)
+
+    monkeypatch.setattr(play_pending, "render_track_segment", spy)
+    return ws, rendered
+
+
+def _premix_cut(ws, start: float, end: float):
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.services.document.play import PlayRequest
+
+    return (
+        PlayService(ws)
+        .play(PlayRequest(source="premix", start_sec=start, end_sec=end), dry_run=True)
+        .wav_path
+    )
+
+
+def test_the_current_side_is_the_window_of_a_fresh_premix(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws, rendered = _staged_premix(minimal_project, monkeypatch)
+    current = PlayService(ws).play_pending_preview("cut", mode="current", pad_sec=0.5, dry_run=True)
+    assert rendered == []
+    _assert_same_audio(current.wav_path, _premix_cut(ws, 1.5, 3.1))
+
+
+def test_a_window_cut_from_a_stem_gets_the_staging_gain_the_premix_gives_it(
+    minimal_project, monkeypatch
+) -> None:
+    """The stem is rendered before the track's staging gain; the premix applies it when mixing."""
+    from podcast_mcp.services.document import PlayService
+
+    ws, rendered = _staged_premix(minimal_project, monkeypatch)
+    play = PlayService(ws)
+    monkeypatch.setattr(play, "_fresh_premix", lambda: None)
+    assert play._stem_window_tracks(ws.project) == ["host"]
+    current = play.play_pending_preview("cut", mode="current", pad_sec=0.5, dry_run=True)
+    assert rendered == ["guest"]
+    _assert_same_audio(current.wav_path, _premix_cut(ws, 1.5, 3.1))
+
+
 def _touch_stems(project) -> None:
     """Stand-in stems for tests that fake the measurement: the record needs files to compare."""
     from podcast_mcp.engines.play_audit import mix_gains, write_stem_hash
@@ -741,6 +803,14 @@ def test_the_window_is_the_edit_plus_the_pad_either_side_clamped_to_the_timeline
     assert resolve_pending_preview(proj, "mid", pad_sec=10.0).play_end == 10.0
 
 
+def test_the_window_starts_and_ends_on_whole_milliseconds() -> None:
+    """A start between milliseconds reads one sample apart through ``-ss`` and ``atrim``."""
+    proj = _project()
+    proj.edit_decisions = [_session_cut("odd", 4.0003226, 4.4502)]
+    odd = resolve_pending_preview(proj, "odd", pad_sec=3.0)
+    assert (odd.play_start, odd.play_end) == (1.0, 7.451)
+
+
 def test_each_pad_caches_its_own_files(minimal_project) -> None:
     from podcast_mcp.services.document import PlayService
 
@@ -930,17 +1000,20 @@ def test_a_window_on_a_track_with_an_adaptive_effect_renders_a_lead_in(
         ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="loudnorm")])
     ]
     starts: dict[str, float] = {}
+    ends: dict[str, float] = {}
     real = play_pending.render_track_segment
 
     def spy(project, track_id, start, end, out, defaults, **kw):
         starts[track_id] = start
+        ends[track_id] = end
         return real(project, track_id, start, end, out, defaults, **kw)
 
     monkeypatch.setattr(play_pending, "render_track_segment", spy)
     wav = PlayService(ws).play_pending_preview("cut", pad_sec=1.0, dry_run=True).wav_path
-    # The host renders from the start of the timeline (the lead-in cannot go before 0); the guest has no
-    # adaptive effect and renders exactly the window.
+    # The host renders from the start of the timeline (the lead-in cannot go before 0) and past the
+    # window's end; the guest has no adaptive effect and renders exactly the window.
     assert starts == {"host": 0.0, "guest": 1.0}
+    assert ends["host"] == pytest.approx(ends["guest"] + play_pending.PENDING_TAIL_SEC)
     assert wav.is_file()
     assert play_pending._warmup_sec(ws.project, "guest") == 0.0
     assert play_pending._warmup_sec(ws.project, "host") == play_pending.PENDING_WARMUP_SEC
