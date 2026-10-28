@@ -830,13 +830,21 @@
   }
 }
 
-/* A 360 px phone has no room for an informational Status glyph beside Play, the
-   clock and the four controls, so it waits for the expanded Player. An error
-   glyph stays. */
+/* A 360 px phone is 29 px short of Play, the clock and the four controls at the
+   usual spacing: tighter gaps and a smaller clock keep every 44 px target clear
+   of the next. */
 @container sys-player (max-width: 23.5rem) {
-  .sys-player:not(.sys-player--expanded)
-    .sys-player-status:not(:has(.sys-pill--danger)) {
-    display: none;
+  .sys-player {
+    gap: var(--space-1);
+    padding-inline: var(--space-0);
+  }
+
+  .sys-player-right {
+    gap: var(--space-1);
+  }
+
+  .sys-player-now {
+    font-size: var(--font-size-ui);
   }
 }
 
