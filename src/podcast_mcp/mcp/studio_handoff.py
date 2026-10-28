@@ -6,8 +6,9 @@ Studio builds the mix. The CLI avoids this by handing each command to Studio (#1
 the same for MCP. While a Studio serves the project, a tool call runs in that Studio through its
 own ``/mcp`` endpoint (single writer, the screen updates live) and the result comes back as
 Studio produced it. With no Studio serving the project, the call runs here. A Studio that was
-found serving the project but cannot take the call (it fails before the call is sent) stops it
-with an error and nothing runs, so the call never writes behind a live Studio.
+found serving the project but cannot take the call (it fails before the call is sent, or it
+mounts no ``/mcp`` because it listens on a wildcard address) stops it with an error and nothing
+runs, so the call never writes behind a live Studio.
 
 Only the stdio entry point installs this. Studio runs the same tool registry, and its own copy
 must never forward to itself.
@@ -72,6 +73,16 @@ def _not_taken_result(host: StudioHost, name: str) -> CallToolResult:
         f"Studio (pid {host.pid}) is serving the project but did not take {name}. "
         f"Nothing was run. Run it again, or set {DIRECT_ENV_VAR}=1 to write directly "
         "(this may overwrite what Studio is holding)."
+    )
+    return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
+
+
+def _no_mcp_result(host: StudioHost, name: str) -> CallToolResult:
+    text = (
+        f"Studio (pid {host.pid}) is serving the project but is listening on a wildcard "
+        f"address, so it does not serve MCP, and {name} was not sent. Nothing was run. "
+        "Restart Studio with `--host 127.0.0.1`, use Studio's own /mcp endpoint, or set "
+        f"{DIRECT_ENV_VAR}=1 to write directly (this may overwrite what Studio is holding)."
     )
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
 
@@ -154,9 +165,10 @@ def install_studio_handoff(server: Any) -> None:
             return CallToolResult(
                 content=[TextContent(type="text", text=str(silent))], is_error=True
             )
-        if host is None or not host.mcp:
-            # A Studio with no /mcp (non-loopback bind) cannot take the call; run it here.
+        if host is None:
             return await call_next(arguments)
+        if not host.mcp:
+            return _no_mcp_result(host, name)
         # Studio binds the project it serves; the path is not sent.
         forwarded = {
             key: _absolute(key, value) for key, value in arguments.items() if key != "project_path"
