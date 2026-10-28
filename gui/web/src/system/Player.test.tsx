@@ -57,14 +57,21 @@ describe("Player", () => {
   it("switches A and B as a segmented control", async () => {
     const user = userEvent.setup();
     const onHearOriginal = vi.fn();
-    render(<Player {...base} onHearOriginal={onHearOriginal} />);
-    expect(screen.getByRole("group", { name: "Audition" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "B" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    const { rerender } = render(
+      <Player {...base} onHearOriginal={onHearOriginal} />,
     );
+    const pressed = () =>
+      ["A", "B"].map((name) =>
+        screen.getByRole("button", { name }).getAttribute("aria-pressed"),
+      );
+    expect(screen.getByRole("group", { name: "Audition" })).toBeInTheDocument();
+    expect(pressed()).toEqual(["false", "true"]);
     await user.click(screen.getByRole("button", { name: "A" }));
     expect(onHearOriginal).toHaveBeenLastCalledWith(true);
+    rerender(<Player {...base} hearOriginal onHearOriginal={onHearOriginal} />);
+    expect(pressed()).toEqual(["true", "false"]);
+    await user.click(screen.getByRole("button", { name: "B" }));
+    expect(onHearOriginal).toHaveBeenLastCalledWith(false);
   });
 
   it("leaves A/B out for a guest", () => {
@@ -112,6 +119,9 @@ describe("Player", () => {
       "aria-current",
       "true",
     );
+    expect(
+      screen.getByRole("button", { name: /The long way round/ }),
+    ).not.toHaveAttribute("aria-current");
     await user.click(screen.getByRole("button", { name: "Collapse player" }));
     expect(onCollapse).toHaveBeenCalledOnce();
   });
@@ -211,5 +221,38 @@ describe("Player", () => {
       );
       expect(screen.queryByRole("button", { name: "Hear options" })).toBeNull();
     });
+  });
+
+  it.each(["bar", "expanded"] as const)(
+    "the %s form has a Comment button that fires with a handler",
+    async (form) => {
+      const user = userEvent.setup();
+      const onComment = vi.fn();
+      render(<Player {...base} form={form} onComment={onComment} />);
+      await user.click(screen.getByRole("button", { name: "Comment" }));
+      expect(onComment).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["bar", "expanded"] as const)(
+    "the %s form has no Comment button without a handler",
+    (form) => {
+      render(<Player {...base} form={form} />);
+      expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+    },
+  );
+
+  it("shows Collapse player with a handler", () => {
+    render(<Player {...base} form="expanded" onCollapse={() => undefined} />);
+    expect(
+      screen.getByRole("button", { name: "Collapse player" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no Collapse player without a handler", () => {
+    render(<Player {...base} form="expanded" />);
+    expect(
+      screen.queryByRole("button", { name: "Collapse player" }),
+    ).toBeNull();
   });
 });
