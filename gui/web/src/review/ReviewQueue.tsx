@@ -119,6 +119,12 @@ function GroupHeader({
   }
   const bulk = guest ? null : group.bulk;
   const verb = bulk ? verbOf(bulk.verb) : null;
+  const bulkLabel =
+    bulk && verb
+      ? bulk.ids.length === 1
+        ? verb.label
+        : `${verb.label} all ${bulk.ids.length}`
+      : "";
   return (
     <div className="rv-group-head">
       <SystemIcon name={meta.icon} size={16} />
@@ -130,12 +136,10 @@ function GroupHeader({
           <Button
             className="rv-bulk"
             onClick={() => onBulk?.(group)}
-            title={`${bulk.ids.length === 1 ? verb.label : `${verb.label} all ${bulk.ids.length}`}${hintOf(verbOf("applyAll"))}`}
+            title={`${bulkLabel}${hintOf(verbOf("applyAll"))}`}
           >
             <SystemIcon name={verb.icon} size={14} />
-            {bulk.ids.length === 1
-              ? verb.label
-              : `${verb.label} all ${bulk.ids.length}`}
+            {bulkLabel}
           </Button>
           {group.held > 0 ? (
             <span className="sys-mono">{group.held} stay for you</span>
