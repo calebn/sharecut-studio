@@ -20,10 +20,6 @@ async function cutIsTappable(
   { page, context, browserName }: Fixtures,
   info: TestInfo,
 ): Promise<void> {
-  test.fixme(
-    browserName === "webkit" && name === "landscape" && rootPx === 32,
-    "Known failure on WebKit (#2415): at 32px landscape the Blade tool tap leaves Select pressed and no Blade cut button appears",
-  );
   await openAt(page, SIZES[name]);
   await page.evaluate((px) => {
     document.documentElement.style.fontSize = `${px}px`;
