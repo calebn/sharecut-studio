@@ -7,6 +7,7 @@ import {
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import { type ModelView, modelActivity, useModels } from "../../models";
 import { useDawStore } from "../../state/dawStore";
+import { currentMediaKey, recordJobMedia } from "../../state/jobMedia";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
@@ -178,6 +179,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         const cfg = workingSet.cfg ?? (await workingSet.fetchFresh());
         if (!cfg) throw new Error("Could not read the pipeline settings.");
         let job: PipelineJobSnapshot;
+        const keyAtRequest = currentMediaKey();
         try {
           job = await startPipelineRun(
             latest.current.projectPath,
@@ -191,6 +193,7 @@ export function usePrepareRun(input: PrepareRunInput) {
           }
           throw error;
         }
+        recordJobMedia(job.id, keyAtRequest);
         setNeed(null);
         refusedRef.current = null;
         failedRef.current = null;

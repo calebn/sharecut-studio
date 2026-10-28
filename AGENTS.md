@@ -99,7 +99,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Agent ↔ DAW session sync (typed commands, sqlite log, WS) | `docs/session-sync.md` (owner; it links the GUI shared-session section), skill `podcast-play-audition`; public catalog https://docs.sharecut.studio/#/document-commands |
 | Document-command schema / developer docs pack | `schemas/document-commands.schema.json`, `docs-site/` (live https://docs.sharecut.studio/); regenerate with `make schema-export` (also capabilities catalog + share/MCP tables + guest OpenAPI); stale → `make generated-check` / pre-commit; deployment is private operations work; alpha — no public changelog yet |
 | Pipeline defaults or export paths | `.agents/defaults/pipeline.yaml`, `docs/pipeline.md` and other pipeline docs |
-| GUI pipeline config / Analyze → Run | `docs/pipeline.md` § Configurable run, `docs/gui-viewer.md` § Pipeline tab, skill `podcast-pipeline-tune` |
+| GUI pipeline config / Analyze → Run | `docs/pipeline.md` § Configurable run, `docs/gui-viewer.md` § Prepare stage (orchestration), skill `podcast-pipeline-tune` |
 | Pipeline step parallelism/performance | `docs/pipeline.md` § Performance, `.agents/skills/podcast-pipeline-run/`, `.agents/skills/podcast-tighten-dialogue/` |
 | Testing or coverage policy | `docs/testing.md`, `pyproject.toml`; Python: `make lint-py` / Ruff+Bandit+Vulture+Deptry+mypy; ShareCut Studio frontend: `make test-web`, `make test-web-e2e` (axe), `gui/web/README.md`; Tauri host: `make test-desktop` / `docs/desktop-packaging.md` |
 | Dependency update automation (Dependabot / npm audit) | `.github/dependabot.yml`, `tests/test_dependabot_config.py`, `docs/testing.md` § Dependency updates and audit, `docs/contributing.md` § Dependency updates |
