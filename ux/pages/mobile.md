@@ -11,7 +11,7 @@ At the bottom of the screen you'll see five tabs, one for each stage of making a
 | Stage | What it's for |
 |-------|---------------|
 | **Record** | Start or join a recording and see a live take. |
-| **Prepare** | Import audio, run the pipeline, and fix what it needs from you. |
+| **Prepare** | Add audio, see whether it is getting ready, and fix what it needs from you. The **Getting ready** summary comes first and opens like a disclosure; Sources, Help the transcriber, Cleanup and **Advanced** follow. |
 | **Edit** | Edit audio. A switch at the top flips between the **Timeline** (waveforms, split clips, fades and joins) and the **Script** (read the transcript; choose Correct to edit a word or ignore it, or Select to suggest a cut or ignore/restore a range). |
 | **Review** | Play through, read and leave comments, and approve or reject suggested edits (Comments, Impact and Tighten). This is where review links land. |
 | **Deliver** | Export, bounce, and share for review. |
@@ -74,14 +74,8 @@ the comment; use **Review → Comments** for comment actions.
 Inspector action buttons, including **Replace audio…**, **Remove track**,
 **Go to start**, and preview controls, keep at least 44 CSS px of height on
 touch devices and in the phone layout, including when you use a mouse.
-Pipeline's toolbar scrolls with the content at every height in one panel
-scroller. The original pinned-on-tall behavior is removed to avoid an overlay
-and scroll-owner switches during resize. Controls keep their DOM, form and
-disclosure state.
-
-Transcript **Find and replace** and Pipeline **Add term** rows wrap their
-controls on a coarse pointer so landscape panels stay inside the panel. Pipeline's
-selects and the From / Only shortcuts row are 44 CSS px tall on touch. At large text
+Transcript **Find and replace** row wraps its
+controls on a coarse pointer so landscape panels stay inside the panel. At large text
 or in a short window, the Transcript panel scrolls as a whole so its chrome does
 not cover the rows under it.
 The envelope-point select, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
@@ -173,7 +167,7 @@ To stop following, scrub the timeline or tap **Stop following** in the banner.
 A few things live in different places on mobile:
 
 - **Comments** are in Review, and the player has a comment button at the playhead
-- **History** is a sheet in Edit; **Tighten** and **Impact** are in Review, and **Pipeline** is in Prepare
+- **History** is a sheet in Edit; **Tighten** and **Impact** are in Review, and the pipeline steps are in Prepare
 - **Gestures** has a reference list behind the search button (Commands and shortcuts)
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
 - **Solo on · Clear solo** sits above every tab while a track is soloed, so you can see why other voices are silent and turn solo off in one tap
