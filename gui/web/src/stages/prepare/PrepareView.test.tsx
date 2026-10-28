@@ -433,22 +433,28 @@ describe("PrepareView live region", () => {
       prepareAnnouncement({ phase: "needs-model", handoffLabel: "x" }),
     ).toBe("Transcribing needs a download first.");
     expect(prepareAnnouncement({ phase: "empty", handoffLabel: "x" })).toBe("");
+    expect(
+      prepareAnnouncement({ phase: "keep-fixes", handoffLabel: "x" }),
+    ).toBe("You fixed words by hand. Keep my fixes or replace them.");
+    expect(
+      prepareAnnouncement({ phase: "model-failed", handoffLabel: "x" }),
+    ).toBe("The download did not finish. Try again.");
+    expect(prepareAnnouncement({ phase: "waiting", handoffLabel: "x" })).toBe(
+      "Transcribing starts when the other job finishes.",
+    );
   });
 });
 
 describe("PrepareView focus", () => {
-  it("does not move focus when a row starts needing you", async () => {
+  it("puts focus on Keep my fixes when the question appears", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<PrepareView {...props()} />);
     const advanced = screen.getByRole("button", { name: "Advanced" });
     await user.click(advanced);
     expect(advanced).toHaveFocus();
     rerender(<PrepareView {...props({ rows: ROWS.keepFixes })} />);
-    expect(screen.getByRole("button", { name: "Keep my fixes" })).toBeVisible();
-    expect(advanced).toHaveFocus();
-    expect(
-      screen.getByRole("button", { name: "Keep my fixes" }),
-    ).not.toHaveFocus();
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Replace" })).not.toHaveFocus();
   });
 
   it("renders the Vocabulary field under Help the transcriber with the named speakers first", () => {
