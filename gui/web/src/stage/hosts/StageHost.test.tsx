@@ -7,7 +7,11 @@ import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { useRecordHostStore } from "../../record/hostStore";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  minimalProject,
+  pipelineJobSnapshot,
+  sampleTrack,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { StageId } from "../../types/stage";
 import { StageHost } from "./StageHost";
@@ -63,6 +67,7 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
   useRecordHostStore.setState({ snapshot: null });
+  useDawStore.setState({ pipelineJob: null });
 });
 
 describe("StageHost gating", () => {
@@ -209,8 +214,22 @@ describe("Prepare host", () => {
     expect(useDawStore.getState().stage).toBe("record");
   });
 
+  it("leaves the hand-off open, with a Start, while nothing has started", () => {
+    asHost("prepare");
+    mount();
+    expect(screen.getByRole("button", { name: /Edit/ })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.queryByText("Still getting ready")).toBeNull();
+    expect(screen.getAllByText("Not started").length).toBeGreaterThan(0);
+  });
+
   it("offers the hand-off to Edit while it works, quietly, with its reason", () => {
     asHost("prepare");
+    useDawStore.setState({
+      pipelineJob: pipelineJobSnapshot({ status: "running" }),
+    });
     mount();
     const handoff = screen.getByRole("button", { name: /Edit/ });
     expect(handoff).toHaveAttribute("aria-disabled", "true");
