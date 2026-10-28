@@ -99,10 +99,19 @@ def transcript_refine_brief_tool(project_path: str) -> str:
 def transcript_refine_done_tool(
     project_path: str,
     notes: str | None = None,
+    expected_fingerprint: str | None = None,
 ) -> str:
-    """Mark transcript refinement done, with optional notes."""
+    """Mark transcript refinement done, with optional notes.
+
+    Pass the status ``fingerprint`` you reviewed as ``expected_fingerprint`` to refuse if the
+    transcript changed since.
+    """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(TranscriptRefineService(ws).mark_done(notes=notes, source="mcp"))
+    return to_json(
+        TranscriptRefineService(ws).mark_done(
+            notes=notes, source="mcp", expected_fingerprint=expected_fingerprint
+        )
+    )
 
 
 def transcript_refine_waive_tool(project_path: str, reason: str) -> str:
