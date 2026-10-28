@@ -25,6 +25,7 @@ from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.decisions import PendingEditBaseline
+from podcast_mcp.edits.timeline_ops import DEFAULT_SHORTEN_GAP_SEC
 from podcast_mcp.models.episode import (
     FADER_MAX_DB,
     FADER_MIN_DB,
@@ -739,6 +740,12 @@ class ApplyEditPlanPayload(BaseModel):
     use_inaudible_opt: bool | None = None
 
 
+class ShortenWordGapsPayload(BaseModel):
+    max_gap_sec: float = Field(DEFAULT_SHORTEN_GAP_SEC, allow_inf_nan=False)
+    use_inaudible_opt: bool | None = None
+    override_audio_checks: bool = Field(default=False, description=OVERRIDE_DESCRIPTION)
+
+
 class FadeJoinsPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
@@ -1164,6 +1171,11 @@ class ApplyEditPlanCommand(DocumentCommandEnvelope):
     payload: ApplyEditPlanPayload
 
 
+class ShortenWordGapsCommand(DocumentCommandEnvelope):
+    type: Literal["ShortenWordGaps"] = "ShortenWordGaps"
+    payload: ShortenWordGapsPayload
+
+
 class FadeJoinsCommand(DocumentCommandEnvelope):
     type: Literal["FadeJoins"] = "FadeJoins"
     payload: FadeJoinsPayload
@@ -1284,6 +1296,7 @@ DocumentCommandBody = Annotated[
     | FillRoomToneCommand
     | ApplyAutoEditsCommand
     | ApplyEditPlanCommand
+    | ShortenWordGapsCommand
     | FadeJoinsCommand
     | CrossfadeJoinsCommand
     | MoveByTextCommand
@@ -1415,6 +1428,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "FillRoomTone": FillRoomTonePayload,
     "ApplyAutoEdits": ApplyAutoEditsPayload,
     "ApplyEditPlan": ApplyEditPlanPayload,
+    "ShortenWordGaps": ShortenWordGapsPayload,
     "FadeJoins": FadeJoinsPayload,
     "CrossfadeJoins": CrossfadeJoinsPayload,
     "MoveByText": MoveByTextPayload,
@@ -1439,6 +1453,7 @@ _CODED_PAYLOAD_TYPES = frozenset(
         "SetBleedAlignmentMode",
         "FillRoomTone",
         "ApplyEditPlan",
+        "ShortenWordGaps",
     }
 )
 
