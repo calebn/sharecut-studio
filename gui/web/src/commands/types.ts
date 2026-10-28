@@ -2,7 +2,6 @@
 
 export type CommandCategory =
   | "transport"
-  | "tools"
   | "navigation"
   | "review"
   | "edit"
@@ -18,9 +17,7 @@ export type ContextPredicateId =
   | "always"
   | "editorFocused"
   | "timelineFocused"
-  | "commentMode"
   | "canSuggestStructural"
-  | "timelineAndStructural"
   | "editStage"
   | "editStageStructural"
   | "editStagePass12"

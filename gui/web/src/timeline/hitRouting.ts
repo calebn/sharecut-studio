@@ -243,11 +243,6 @@ export interface HitRoutingOptions {
    * drag; the arming finger's moves and lift go to it until commit or cancel.
    */
   precision?: PrecisionHandoff;
-  /**
-   * Whether a tap on a plain surface may go to a nearby mark. Off in blade and
-   * comment mode, where such a tap cuts or comments at the finger.
-   */
-  surfaceTaps?: () => boolean;
 }
 
 export interface PrecisionHandoff {
@@ -697,7 +692,7 @@ export function attachHitRouting(
         hits,
         winner,
         tap:
-          !hit && !ownsTap(event.target) && (options.surfaceTaps?.() ?? true)
+          !hit && !ownsTap(event.target)
             ? (surfaceTapTarget(part, origin) ?? winner)
             : winner,
       };

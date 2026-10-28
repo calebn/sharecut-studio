@@ -772,7 +772,7 @@ def test_track_mute_states_keep_their_paint_on_hover() -> None:
         and d.preludes[-1].startswith(".ui-control:hover:not(")
     ]
     assert len(wash) == 1
-    for state in (".trk-btn.mute,", ".trk-btn.mute-implied,", ".trk-btn.solo,"):
+    for state in (".trk-btn.mute,", ".trk-btn.mute-implied,", ".trk-btn.solo"):
         assert state in wash[0].preludes[-1], state
 
 

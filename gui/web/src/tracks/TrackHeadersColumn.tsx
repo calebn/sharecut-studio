@@ -21,8 +21,6 @@ interface Props {
   showAddTrack?: boolean;
   /** Desktop and tablet: Solo on · Clear solo in the corner above the headers. */
   showSoloChip?: boolean;
-  /** Drawn in the corner box with the Solo chip (the Edit tool strip). */
-  corner?: ReactNode;
   /** Replaces the “+ Track” row (the Edit “+” menu). */
   addRow?: ReactNode;
   addDropOver?: boolean;
@@ -37,7 +35,6 @@ function deselectAllTracks(): void {
 export function TrackHeadersColumn({
   showAddTrack = false,
   showSoloChip = false,
-  corner,
   addRow,
   addDropOver = false,
   addFileCount = 1,
@@ -153,7 +150,6 @@ export function TrackHeadersColumn({
           role="presentation"
           onClick={deselectAllTracks}
         />
-        {corner}
         {showSoloChip ? <SoloChip /> : null}
       </div>
       {tracks.map((track, idx) => (

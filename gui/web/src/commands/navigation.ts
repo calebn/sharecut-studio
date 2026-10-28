@@ -1,11 +1,5 @@
 import { patchComment } from "../api";
-import {
-  canManageProjects,
-  canSuggestStructuralOnProject,
-  guestHearsMixOnly,
-  hasShareCapability,
-  isShareProjectKey,
-} from "../shareMode";
+import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { transportAvailability } from "../state/transportAvailability";
 import type { AuditionMode } from "../state/types";
@@ -75,50 +69,6 @@ export function registerNavigationCommands(): void {
 
   registerCommand("presence.unfollow", () => {
     useDawStore.getState().stopFollow("local");
-    return { status: "ok" };
-  });
-
-  registerCommand("tool.select", () => {
-    const state = useDawStore.getState();
-    if (!state.project)
-      return { status: "disabled", reason: "Open a project to select audio" };
-    state.setToolMode("select");
-    return { status: "ok" };
-  });
-
-  registerCommand("tool.blade", () => {
-    const state = useDawStore.getState();
-    if (
-      !canSuggestStructuralOnProject(
-        state.projectPath,
-        state.guestMode,
-        state.shareCapabilities,
-        state.project != null,
-      )
-    )
-      return {
-        status: "disabled",
-        reason: "Blade requires permission to suggest edits",
-      };
-    state.setRangeArmed(false);
-    state.setToolMode("blade");
-    return { status: "ok" };
-  });
-
-  registerCommand("review.exitCommentMode", () => {
-    useDawStore.getState().setCommentMode(false);
-    return { status: "ok" };
-  });
-
-  registerCommand("review.toggleCommentMode", () => {
-    const state = useDawStore.getState();
-    if (
-      (isShareProjectKey(state.projectPath) || state.guestMode != null) &&
-      !hasShareCapability(state.shareCapabilities, "comment")
-    )
-      return { status: "disabled", reason: "This share cannot add comments" };
-    state.setRangeArmed(false);
-    state.toggleCommentMode();
     return { status: "ok" };
   });
 

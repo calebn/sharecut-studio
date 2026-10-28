@@ -32,13 +32,13 @@ describe("paletteCommands", () => {
   });
 
   it("carries the keymap shortcut, default key and collision note", () => {
-    const blade = rowsNow().find((r) => r.id === "tool.blade");
+    const blade = rowsNow().find((r) => r.id === "edit.bladeCut");
     expect(blade).toMatchObject({
-      label: "Blade tool",
-      category: "tools",
-      shortcut: "C",
-      defaultKey: keymapCommandById("tool.blade")?.keys[0],
-      note: keymapCommandById("tool.blade")?.collision,
+      label: "Blade cut",
+      category: "edit",
+      shortcut: expect.stringMatching(/K$/),
+      defaultKey: keymapCommandById("edit.bladeCut")?.keys[0],
+      note: keymapCommandById("edit.bladeCut")?.collision,
     });
     const annotate = rowsNow().find((r) => r.id === "view.transcriptAnnotate");
     expect(annotate?.shortcut).toBeNull();
@@ -49,7 +49,7 @@ describe("paletteCommands", () => {
     ["mp3", "export.deliverables"],
     ["wav", "export.deliverables"],
     ["loudness", "export.deliverables"],
-    ["razor", "tool.blade"],
+    ["razor", "edit.bladeCut"],
     ["invite", "share.manage"],
     ["filler", "tighten.applySuggested"],
   ])("finds what people call it: %s → %s", (query, id) => {

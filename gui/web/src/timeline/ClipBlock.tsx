@@ -27,7 +27,7 @@ import {
   rollJoinInterval,
 } from "../edit/rollLimits";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
-import { useSnapTicks } from "../hooks/useSnapTicks";
+import { useSnapTicks, useSplitGuideOnClip } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
@@ -81,13 +81,10 @@ export interface ClipBlockProps {
   /** Select-only (e.g. fade drag start). Callbacks take the clip id first,
    *  so a lane passes one stable function to every clip. */
   onSelect: (clipId: string) => void;
-  /** Primary clip-hit click; receives clientX for blade seek. */
-  onHit: (clipId: string, clientX: number) => void;
   /** Select-tool body click with Shift/Mod modifiers. */
   onSelectClip?: (clipId: string, mods: ClipSelectMods) => void;
   /** Host or share `edit` — not the host-only handle check. */
   canMove?: boolean;
-  bladeMode?: boolean;
   /** Track output gain (dB), for post-fader waveforms. */
   gainDb?: number;
   /** Live body-drag timeline_start; null uses the committed clip. */
@@ -144,10 +141,8 @@ export function ClipBlockLive({
   rollPreview,
   onRollPreview,
   onSelect,
-  onHit,
   onSelectClip,
   canMove = false,
-  bladeMode = false,
   gainDb = 0,
   previewTimelineStart = null,
   previewHidden = false,
@@ -456,7 +451,9 @@ export function ClipBlockLive({
     if (
       bodyRef.current ||
       rollDragRef.current ||
-      bladeMode ||
+      // Alt+click is a Split at the pointer (useSplitAtPointer): the press
+      // neither selects nor starts a move.
+      (e.altKey && e.pointerType !== "touch") ||
       !interactive ||
       edgeHandles.active ||
       (e.pointerType === "mouse" && e.button !== 0)
@@ -631,11 +628,6 @@ export function ClipBlockLive({
         pointerHandledRef.current = false;
         return;
       }
-      if (bladeMode) {
-        onHit(clip.id, e.clientX);
-        pointerHandledRef.current = false;
-        return;
-      }
       if (!pointerHandledRef.current) {
         onSelectClip?.(clip.id, {
           shift: e.shiftKey,
@@ -648,8 +640,10 @@ export function ClipBlockLive({
 
   const showSnapPoints = useDawStore((s) => s.layers.showSnapPoints);
   // Ticks still load for the paused playhead (a body move magnets to them),
-  // but draw only where they explain an edit: trimming or in blade mode.
-  const drawTicks = showSnapPoints && (trimPreview != null || bladeMode);
+  // but draw only where they explain an edit: trimming, or the Alt-click Split
+  // guide resting on this clip.
+  const splitting = useSplitGuideOnClip(clip);
+  const drawTicks = showSnapPoints && (trimPreview != null || splitting);
 
   return (
     <ClipBlockView
@@ -665,7 +659,6 @@ export function ClipBlockLive({
       nextClip={nextClip}
       showHandles={editable && interactive}
       canMove={canMove}
-      bladeMode={bladeMode}
       moving={moving}
       previewHidden={previewHidden}
       interactive={interactive}

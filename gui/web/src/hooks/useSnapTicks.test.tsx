@@ -47,7 +47,7 @@ describe("useSnapTicks", () => {
       guestMode: null,
       isPlaying: false,
       playheadSec: 3,
-      bladeHoverSec: null,
+      splitHoverSec: null,
     });
   });
 
@@ -79,13 +79,13 @@ describe("useSnapTicks", () => {
     expect(result.current).toEqual([12.5, 13]);
   });
 
-  it("prefers the blade hover, and ignores a playing playhead", async () => {
-    useDawStore.setState({ bladeHoverSec: 5, isPlaying: true });
+  it("prefers the split guide, and ignores a playing playhead", async () => {
+    useDawStore.setState({ splitHoverSec: 5, isPlaying: true });
     renderHook(() => useTicks());
     await settle();
     expect(snap.mock.calls[0]![6]).toBe(15);
     snap.mockClear();
-    act(() => useDawStore.setState({ bladeHoverSec: null }));
+    act(() => useDawStore.setState({ splitHoverSec: null }));
     await settle();
     expect(snap).not.toHaveBeenCalled();
   });
@@ -158,13 +158,13 @@ describe("useSnapTicks", () => {
     expect(result.current).toEqual([12.5, 13]);
   });
 
-  it("fetches blade-hover ticks on the same 0.5 s grid", async () => {
-    useDawStore.setState({ bladeHoverSec: 5.1 });
+  it("fetches split-guide ticks on the same 0.5 s grid", async () => {
+    useDawStore.setState({ splitHoverSec: 5.1 });
     const { result } = renderHook(() => useTicks());
     for (const hover of [5.12, 5.18, 5.2]) {
       act(() => {
         vi.advanceTimersByTime(30);
-        useDawStore.setState({ bladeHoverSec: hover });
+        useDawStore.setState({ splitHoverSec: hover });
       });
     }
     await settle();

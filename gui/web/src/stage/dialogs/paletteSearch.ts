@@ -25,7 +25,6 @@ export const PALETTE_CATEGORY_LABELS: Readonly<
   Record<CommandCategory, string>
 > = {
   transport: "Transport",
-  tools: "Tools",
   navigation: "Navigation",
   review: "Review",
   history: "History",

@@ -49,7 +49,6 @@ import type {
   PointerKind,
   ShellBreakpoint,
   ToastTone,
-  ToolMode,
   TranscriptInlineEditFailure,
   TranscriptInlineEditRequest,
   TranscriptReviewCursor,
@@ -152,8 +151,8 @@ type UiSlice = Pick<
   | "waveformPostFader"
   | "pointerTrackId"
   | "setPointerTrackId"
-  | "bladeHoverSec"
-  | "setBladeHoverSec"
+  | "splitHoverSec"
+  | "setSplitHoverSec"
   | "scrollLeft"
   | "timelineViewportWidth"
   | "setTimelineViewportWidth"
@@ -166,7 +165,6 @@ type UiSlice = Pick<
   | "setRangeBusy"
   | "userZoomed"
   | "layers"
-  | "commentMode"
   | "commentDraft"
   | "envelopeDraft"
   | "envelopeSaving"
@@ -187,7 +185,6 @@ type UiSlice = Pick<
   | "setTranscriptCorrecting"
   | "showCutAwayUtterances"
   | "timelineFocused"
-  | "toolMode"
   | "shellBreakpoint"
   | "pointerKind"
   | "sheetExpanded"
@@ -220,14 +217,11 @@ type UiSlice = Pick<
   | "applyAnchoredZoom"
   | "zoomToSpan"
   | "setLayerVisible"
-  | "setCommentMode"
-  | "toggleCommentMode"
   | "setCommentDraft"
   | "setEnvelopeDraft"
   | "beginEnvelopeSave"
   | "endEnvelopeSave"
   | "setWordDraft"
-  | "setToolMode"
   | "setShellBreakpoint"
   | "setPointerKind"
   | "setSheetExpanded"
@@ -428,10 +422,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     waveformPostFader: DEFAULT_WAVEFORM_VIEW_PREF.postFader,
     pointerTrackId: null as string | null,
     setPointerTrackId: (pointerTrackId) => set({ pointerTrackId }),
-    bladeHoverSec: null as number | null,
-    setBladeHoverSec: (bladeHoverSec) => {
-      if (bladeHoverSec !== get().bladeHoverSec) {
-        set({ bladeHoverSec });
+    splitHoverSec: null as number | null,
+    setSplitHoverSec: (splitHoverSec) => {
+      if (splitHoverSec !== get().splitHoverSec) {
+        set({ splitHoverSec });
       }
     },
     scrollLeft: 0,
@@ -464,7 +458,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       showSnapPoints: true,
       showProsody: false,
     } satisfies LayerVisibility,
-    commentMode: false,
     commentDraft: null as CommentDraft | null,
     transcriptFollowPlayhead: true,
     transcriptInlineCommitPending: false,
@@ -473,7 +466,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     transcriptCorrecting: false,
     showCutAwayUtterances: false,
     timelineFocused: true,
-    toolMode: "select" as ToolMode,
     shellBreakpoint: "desktop" as ShellBreakpoint,
     // Capability baseline; usePointerType() corrects this from matchMedia
     // before first paint and keeps it live from pointer events.
@@ -648,21 +640,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setLayerVisible: (key, visible) =>
       set((s) => ({ layers: { ...s.layers, [key]: visible } })),
-    setCommentMode: (commentMode) =>
-      set({
-        commentMode,
-        commentDraft: commentMode ? get().commentDraft : null,
-        ...(commentMode ? { toolMode: "select" as ToolMode } : {}),
-      }),
-    toggleCommentMode: () =>
-      set((s) => {
-        const next = !s.commentMode;
-        return {
-          commentMode: next,
-          commentDraft: next ? s.commentDraft : null,
-          ...(next ? { toolMode: "select" as ToolMode } : {}),
-        };
-      }),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
     setEnvelopeDraft: (envelopeDraft) => set({ envelopeDraft }),
     beginEnvelopeSave: (target) =>
@@ -672,12 +649,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         envelopeSaving: s.envelopeSaving.filter((entry) => entry !== target),
       })),
     setWordDraft: (wordDraft) => set({ wordDraft }),
-    setToolMode: (toolMode: ToolMode) =>
-      set({
-        toolMode,
-        commentMode: false,
-        commentDraft: null,
-      }),
     setShellBreakpoint: (shellBreakpoint) => {
       set({ shellBreakpoint });
       // Re-derive from the live timeline: a registered scrollport that measures

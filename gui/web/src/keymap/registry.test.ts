@@ -45,10 +45,8 @@ describe("keymap registry", () => {
       ),
     ).toBe(false);
   });
-  it("includes stable command ids for tools and transport", () => {
+  it("includes stable command ids for transport and stages", () => {
     const ids = KEYMAP_COMMANDS.map((c) => c.id);
-    expect(ids).toContain("tool.select");
-    expect(ids).toContain("tool.blade");
     expect(ids).toContain("transport.togglePlay");
     expect(ids).toContain("stage.review");
     expect(ids).toContain("history.undo");
@@ -69,8 +67,9 @@ describe("keymap registry", () => {
   });
 
   it("formats display keys", () => {
-    expect(formatShortcutKeys(keymapCommandById("tool.select")!)).toBe("V");
-    expect(formatShortcutKeys(keymapCommandById("tool.blade")!)).toBe("C");
+    expect(formatShortcutKeys(keymapCommandById("edit.bladeCut")!)).toBe(
+      "Mod+K",
+    );
     expect(formatShortcutKeys(keymapCommandById("transport.togglePlay")!)).toBe(
       "Space",
     );
@@ -81,7 +80,6 @@ describe("keymap registry", () => {
 
   it("groups by category for cheatsheet consumers", () => {
     const by = keymapByCategory();
-    expect(by.tools.map((c) => c.id)).toEqual(["tool.select", "tool.blade"]);
     expect(
       by.navigation.filter((c) => c.id.startsWith("stage.")).map((c) => c.id),
     ).toEqual([
@@ -93,13 +91,21 @@ describe("keymap registry", () => {
     ]);
   });
 
-  it("matches V and C case-insensitively", () => {
-    expect(matchKeymapCommand(keyEvent({ key: "v", code: "KeyV" }))?.id).toBe(
+  it("binds nothing to V, C or Mod+Shift+C now that the tools and Comment mode are gone", () => {
+    for (const event of [
+      keyEvent({ key: "v", code: "KeyV" }),
+      keyEvent({ key: "c", code: "KeyC" }),
+      keyEvent({ key: "C", code: "KeyC", shiftKey: true }),
+      keyEvent({ key: "c", code: "KeyC", metaKey: true, shiftKey: true }),
+    ])
+      expect(matchKeymapCommands(event)).toEqual([]);
+    for (const id of [
       "tool.select",
-    );
-    expect(matchKeymapCommand(keyEvent({ key: "C", code: "KeyC" }))?.id).toBe(
       "tool.blade",
-    );
+      "review.toggleCommentMode",
+      "review.exitCommentMode",
+    ])
+      expect(keymapCommandById(id)).toBeUndefined();
   });
 
   it("matches Space and Mod+digit layouts", () => {
@@ -201,11 +207,7 @@ describe("keymap registry", () => {
       matchKeymapCommands(keyEvent({ key: "Escape", code: "Escape" })).map(
         (c) => c.id,
       ),
-    ).toEqual([
-      "presence.unfollow",
-      "review.exitCommentMode",
-      "edit.clearSelection",
-    ]);
+    ).toEqual(["presence.unfollow", "edit.clearSelection"]);
     expect(matchKeymapCommand(keyEvent({ key: "m", code: "KeyM" }))?.id).toBe(
       "record.marker",
     );
@@ -229,21 +231,11 @@ describe("keymap registry", () => {
     expect(
       matchKeymapCommand(keyEvent({ key: "\\", code: "Backslash" }))?.id,
     ).toBe("view.fit");
-    expect(
-      matchKeymapCommand(
-        keyEvent({
-          key: "c",
-          code: "KeyC",
-          metaKey: true,
-          shiftKey: true,
-        }),
-      )?.id,
-    ).toBe("review.toggleCommentMode");
   });
 
-  it("ignores bare letter tool shortcuts when Alt is held", () => {
+  it("ignores bare letter shortcuts when Alt is held", () => {
     expect(
-      matchKeymapCommand(keyEvent({ key: "v", code: "KeyV", altKey: true })),
+      matchKeymapCommand(keyEvent({ key: "s", code: "KeyS", altKey: true })),
     ).toBeNull();
   });
 
@@ -281,9 +273,9 @@ describe("keymap registry", () => {
 
   it("honors remap overrides", () => {
     _resetKeymapOverridesForTests();
-    setKeymapOverride("tool.select", ["B"]);
+    setKeymapOverride("track.soloToggle", ["B"]);
     expect(matchKeymapCommand(keyEvent({ key: "b", code: "KeyB" }))?.id).toBe(
-      "tool.select",
+      "track.soloToggle",
     );
     _resetKeymapOverridesForTests();
   });
@@ -468,9 +460,9 @@ describe("displayShortcutKeys", () => {
   });
 
   it("keeps bare keys and names Space", () => {
-    expect(displayShortcutKeys(keymapCommandById("tool.select")!, true)).toBe(
-      "V",
-    );
+    expect(
+      displayShortcutKeys(keymapCommandById("track.soloToggle")!, true),
+    ).toBe("S");
     expect(
       displayShortcutKeys(keymapCommandById("transport.togglePlay")!, false),
     ).toBe("Space");
