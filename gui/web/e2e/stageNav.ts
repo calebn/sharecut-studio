@@ -460,7 +460,8 @@ export async function armRange(page: Page): Promise<void> {
     .getByRole("group", { name: "Timeline view" })
     .getByRole("button", { name: "Select range", exact: true });
   if (await toggle.isVisible()) {
-    await toggle.click();
+    // A mouse move would flip the pointer to fine and unmount the touch toggle.
+    await toggle.tap();
   } else {
     if (folded) await closeTools(page);
     await runPaletteCommand(page, "Select a range");

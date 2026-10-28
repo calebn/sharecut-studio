@@ -37,6 +37,7 @@ import {
   type ProjectView,
   parseHistoryEntryId,
 } from "../types/project";
+import { ApiError } from "../utils/apiError";
 import {
   COMPACT_LANE_HEIGHT,
   FIT_GUTTER,
@@ -1577,6 +1578,16 @@ describe("TimelineView render isolation", () => {
     };
     const guides = (container: HTMLElement) =>
       container.querySelectorAll<HTMLElement>(".split-guide");
+    const altPress = (
+      el: Element,
+      init: { clientX: number; clientY?: number },
+    ) =>
+      fireEvent.pointerDown(el, {
+        ...init,
+        altKey: true,
+        pointerType: "mouse",
+        button: 0,
+      });
     const bladeCalls = () =>
       execute.mock.calls.filter(([id]) => id === "edit.bladeCut");
 
@@ -1618,6 +1629,36 @@ describe("TimelineView render isolation", () => {
         altKey: true,
       });
       expect(guides(container)).toHaveLength(3);
+    });
+
+    it("draws the guide only on dialogue lanes when no track is targeted", () => {
+      useDawStore.setState((s) => ({
+        project: s.project && {
+          ...s.project,
+          tracks: s.project.tracks.map((t, i) =>
+            i === 0 ? { ...t, role: "music" } : t,
+          ),
+        },
+      }));
+      const { container } = mount();
+      fireEvent.pointerMove(lanesOf(container), { clientX: 40, altKey: true });
+      expect(guides(container)).toHaveLength(2);
+      expect(guides(container)[0]!.style.top).not.toBe("0px");
+    });
+
+    it("keeps the dialogue-lane guide when a clip is selected", () => {
+      useDawStore.setState((s) => ({
+        project: s.project && {
+          ...s.project,
+          tracks: s.project.tracks.map((t, i) =>
+            i === 0 ? { ...t, role: "music" } : t,
+          ),
+        },
+      }));
+      useDawStore.getState().selectClip("c1", "host");
+      const { container } = mount();
+      fireEvent.pointerMove(lanesOf(container), { clientX: 40, altKey: true });
+      expect(guides(container)).toHaveLength(2);
     });
 
     it("draws no guide without Alt", () => {
@@ -1663,8 +1704,10 @@ describe("TimelineView render isolation", () => {
           shareCapabilities: ["comment"],
         }),
       );
-      fireEvent.pointerMove(lanesOf(container), { clientX: 80, altKey: true });
+      const lanes = lanesOf(container);
+      fireEvent.pointerMove(lanes, { clientX: 80, altKey: true });
       expect(guides(container)).toHaveLength(0);
+      expect(lanes).not.toHaveAttribute("data-split-armed");
       act(() =>
         useDawStore.setState({
           projectPath: "/tmp/p.json",
@@ -1677,6 +1720,7 @@ describe("TimelineView render isolation", () => {
       const { container } = mount();
       lanesOf(container);
       const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
       fireEvent.click(seek, { clientX: 100, altKey: true });
       expect(bladeCalls()).toEqual([
         ["edit.bladeCut", { atTime: 2.5 }, { skipWhen: true }],
@@ -1705,6 +1749,7 @@ describe("TimelineView render isolation", () => {
       const lanes = lanesOf(container);
       const chip = document.createElement("button");
       lanes.append(chip);
+      altPress(chip, { clientX: 100 });
       fireEvent.click(chip, { clientX: 100, altKey: true });
       expect(bladeCalls()).toEqual([]);
     });
@@ -1728,15 +1773,87 @@ describe("TimelineView render isolation", () => {
       });
       const { container } = mount();
       lanesOf(container);
-      fireEvent.click(container.querySelector(".lane-seek") as HTMLElement, {
-        clientX: 100,
-        altKey: true,
-      });
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
+      fireEvent.click(seek, { clientX: 100, altKey: true });
       await vi.waitFor(() =>
         expect(useDawStore.getState().statusAnnouncement).toBe(
           "Splitting needs permission to suggest edits",
         ),
       );
+    });
+
+    it("says so in plain words when the split fails on a gap", async () => {
+      execute.mockRejectedValue(
+        new ApiError(
+          "no clip at timeline 2.5 on tracks ['host']",
+          "no_clip_at_time",
+        ),
+      );
+      const { container } = mount();
+      lanesOf(container);
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
+      fireEvent.click(seek, { clientX: 100, altKey: true });
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "There is no clip at that time to split",
+        ),
+      );
+    });
+
+    it("announces any other failure of the split", async () => {
+      execute.mockRejectedValue(new Error("Project is read-only"));
+      const { container } = mount();
+      lanesOf(container);
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
+      fireEvent.click(seek, { clientX: 100, altKey: true });
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Project is read-only",
+        ),
+      );
+    });
+
+    it("does not split when Alt is dragged across the lanes and released", () => {
+      const { container } = mount();
+      const lanes = lanesOf(container);
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
+      fireEvent.pointerMove(lanes, { clientX: 150, altKey: true });
+      fireEvent.pointerUp(lanes, { clientX: 150, altKey: true });
+      fireEvent.click(lanes, { clientX: 150, altKey: true });
+      expect(bladeCalls()).toEqual([]);
+    });
+
+    it("splits an Alt press that moved less than the drag threshold", () => {
+      const { container } = mount();
+      lanesOf(container);
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
+      fireEvent.click(seek, { clientX: 102, altKey: true });
+      expect(bladeCalls()).toHaveLength(1);
+    });
+
+    it("spends the Alt press once: a later click without a press never splits", () => {
+      const { container } = mount();
+      lanesOf(container);
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
+      fireEvent.click(seek, { clientX: 100, altKey: true });
+      fireEvent.click(seek, { clientX: 100, altKey: true });
+      expect(bladeCalls()).toHaveLength(1);
+    });
+
+    it("forgets an Alt press once a plain press follows it", () => {
+      const { container } = mount();
+      lanesOf(container);
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      altPress(seek, { clientX: 100 });
+      fireEvent.pointerDown(seek, { clientX: 100, pointerType: "mouse" });
+      fireEvent.click(seek, { clientX: 100, altKey: true });
+      expect(bladeCalls()).toEqual([]);
     });
 
     it("leaves a click on the ruler a plain seek, Alt or not", () => {
