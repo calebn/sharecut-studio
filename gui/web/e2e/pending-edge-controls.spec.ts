@@ -441,10 +441,14 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     .getByRole("slider", { name: "Timeline position" })
     .click({ position: { x: 300, y: 12 } });
   await expect(page.locator(".pending-actionbar")).toHaveCount(0);
-  await altClickSplit(page, page.locator(".lane-seek").first(), {
-    x: 300,
-    y: 12,
-  });
+  await altClickSplit(
+    page,
+    page.locator(`.lane-row[data-track-id="${trackId}"]`),
+    {
+      x: 300,
+      y: 12,
+    },
+  );
   const bladeConfirmation = page.getByRole("dialog", { name: /^Cut at / });
   await expect(bladeConfirmation).toBeVisible();
   await bladeConfirmation.getByRole("button", { name: "Don't cut" }).click();
