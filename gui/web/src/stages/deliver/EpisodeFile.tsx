@@ -65,6 +65,11 @@ export function EpisodeFile({
 }: Props) {
   const wavNote = useId();
   const gatePanel = useRef<HTMLDivElement>(null);
+  const runningBlock = useRef<HTMLDivElement>(null);
+  const running = exportState.phase === "running";
+  useEffect(() => {
+    if (running) runningBlock.current?.scrollIntoView?.({ block: "center" });
+  }, [running]);
   const askPhase =
     exportState.phase === "needs-model" ? options.gate?.prompt?.phase : null;
   useEffect(() => {
@@ -273,7 +278,7 @@ export function EpisodeFile({
         />
       ) : null}
       {exportState.phase === "running" ? (
-        <>
+        <div ref={runningBlock}>
           <StatusRow
             state="running"
             title="Exporting"
@@ -298,7 +303,7 @@ export function EpisodeFile({
               message={`Cancel failed: ${exportState.cancelError}`}
             />
           ) : null}
-        </>
+        </div>
       ) : null}
       {exportState.phase === "failed" ? (
         <>

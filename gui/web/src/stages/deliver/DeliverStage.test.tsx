@@ -5178,6 +5178,21 @@ describe("host export options", () => {
     expect(screen.getByRole("button", { name: "Download" })).toHaveFocus();
   });
 
+  it("scrolls the running export into view when it starts", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    setup({
+      exportState: {
+        phase: "running",
+        progress: null,
+        detail: "Starting export…",
+      },
+    });
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toHaveTextContent("Starting export…");
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
   it("swaps the loudness choice for the host's sentence", () => {
     setup({
       exportOptions: {
