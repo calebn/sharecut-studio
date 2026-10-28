@@ -27,6 +27,7 @@ from podcast_mcp.edits import (
     verdict_cache,
 )
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
+from podcast_mcp.edits.cut_policy import review_fields
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     UnconfirmedCutSpeech,
@@ -258,21 +259,8 @@ class EditService(CutMutatingService):
             reason_prefix=reason_prefix,
         )
 
-    def list_decision_rows(
-        self,
-        *,
-        applied: bool | None = None,
-        review_required: bool | None = None,
-        reason_prefix: str | None = None,
-    ) -> list[dict[str, Any]]:
-        from podcast_mcp.edits.cut_policy import review_fields
-
-        return [
-            e.model_dump() | review_fields(e.reason)
-            for e in self.list_decisions(
-                applied=applied, review_required=review_required, reason_prefix=reason_prefix
-            )
-        ]
+    def list_decision_rows(self, **filters: Any) -> list[dict[str, Any]]:
+        return [e.model_dump() | review_fields(e.reason) for e in self.list_decisions(**filters)]
 
     def edit_selected_range(
         self,
