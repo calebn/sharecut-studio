@@ -338,6 +338,43 @@ describe("readyRows", () => {
     expect(rows.every((r) => r.state === "done")).toBe(true);
   });
 
+  it("reads done after a finished run when a source has no speech", () => {
+    const finished = pipelineJobSnapshot({
+      status: "ok",
+      steps: [step("transcribe", "ok"), step("analyze", "ok")],
+    });
+    const rows = readyRows({
+      ...base,
+      transcribed: false,
+      jobCoversMedia: true,
+      job: finished,
+    });
+    expect(rows.every((r) => r.state === "done")).toBe(true);
+    expect(
+      preparePhase({ sources: 3, ingestBusy: false, checking: false, rows })
+        .phase,
+    ).toBe("done");
+  });
+
+  it("does not read done when audio arrived after the finished run", () => {
+    const finished = pipelineJobSnapshot({
+      status: "ok",
+      steps: [step("transcribe", "ok"), step("analyze", "ok")],
+    });
+    const rows = readyRows({
+      ...base,
+      transcribed: false,
+      jobCoversMedia: false,
+      job: finished,
+      startError: "Network down",
+    });
+    expect(rows[1]).toMatchObject({
+      state: "failed",
+      action: { label: "Try again", run: "try-again" },
+    });
+    expect(rows.some((r) => r.state === "done" && r.id !== "add")).toBe(false);
+  });
+
   it("shows a start that failed as a failed row with Try again", () => {
     const finished = pipelineJobSnapshot({
       status: "ok",
