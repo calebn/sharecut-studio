@@ -332,7 +332,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** restyle.
 - **Spec:** 24 px. Labels in Plex Mono 11 px at adaptive intervals (never closer than 64 px). Click seeks; drag scrubs with audio (short grains, 1× speed cap); double-click fits; the current selection draws as a 4 px accent band along the bottom of the ruler with 12 px drag handles at both ends (resize the selection from the ruler). Comment anchors move to the marker lane.
 - **Shared elements used:** Transport (playhead), OVL-RANGE band.
-- **Story to build:** `Edit/Ruler` stories `Fit`, `Zoomed`, `WithSelection`, `Scrubbing`, `Phone`.
+- **Built (design-system element 17a, `System/Ruler`):** the stories are `Fit`, `Zoomed`, `WithSelection`, `Scrubbing`, `Phone` and more, under `System/Ruler`, not `Edit/Ruler`. The part reports the scrub as seconds with commit or not; scrub audio (the grains and the 4x silent pan of INT-SCRUB) is the host's and is not built here. No minor ticks are drawn. A finger swipe scrubs after 10 px on the ruler body, and the selection knobs are 44 px wide and 24 px tall under a coarse pointer, since a taller area would cover the marker lane.
 
 ### CMP-MARKERS · Marker lane
 
@@ -340,7 +340,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** restyle into one NEW: Marker lane.
 - **Spec:** one 24 px lane. Chapter: 12 px flag in the chapter token with its title inline (truncated at the next marker). Comment: 16 px speech-bubble pin in the comment token with the author's initial; a span comment draws a 3 px bar in the same color from start to end. Social clip: bracket pair "[ ]" in the social token connected by a 2 px line, title on hover. Hover any marker: label tooltip with time. Click: select (action bar). Drag a chapter or bracket edge: move with a readout chip. Double-click empty lane: add chapter at that time and open its name for typing. Overlapping markers stack into a "+3" chip that opens a list.
 - **Shared elements used:** Icon language, Action bar, NEW: Readout chip.
-- **Story to build:** `Edit/MarkerLane` stories `AllKinds`, `Dense`, `Selected`, `AddingChapter`, `Phone`.
+- **Built (design-system element 18a, `System/MarkerLane`):** the stories are `AllKinds`, `Dense`, `Selected`, `AddingChapter`, `Phone` and more, under `System/MarkerLane`, not `Edit/MarkerLane`. A whole bracket drags as well as its edges, and a comment pin is selectable but never drags. A touch area is 44 px wide and exactly the lane's 24 px tall. A double-tap on touch relies on `dblclick`, so the phone's primary way to add a chapter is the dock's "Add chapter". A marker folded into a "+N" chip is reached through the chip's list, also from the keyboard.
 
 ### CMP-CLIP · Clip block
 
