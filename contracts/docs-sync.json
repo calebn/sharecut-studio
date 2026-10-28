@@ -1219,7 +1219,9 @@
           "gui/web/src/commands/gestures.ts",
           "gui/web/src/timeline/timelineZoomGestures.ts",
           "gui/web/src/hooks/gestureConstants.ts",
-          "gui/web/src/hooks/useLongPress.ts"
+          "gui/web/src/hooks/useLongPress.ts",
+          "gui/web/src/system/useScriptGestures.ts",
+          "gui/web/src/system/scriptGesture.ts"
         ]
       }
     }
