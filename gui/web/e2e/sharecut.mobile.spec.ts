@@ -9,6 +9,7 @@ import { openPhoneTimeline } from "./phoneTimeline";
 import {
   collapsePlayer,
   expandPlayer,
+  inspectSelection,
   openProject,
   openProjectDialog,
   phone,
@@ -173,7 +174,8 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await openPhoneTimeline(page);
 
     await page.locator(".lane-row .clip-block").first().click();
-    // A clip opens the compact drawer; at half height it lists the commands.
+    await inspectSelection(page);
+    // Inspect opens the compact drawer; at half height it lists the commands.
     const drawer = page.locator(".bottom-sheet--compact");
     await expect(drawer).toBeVisible();
     await drawer.getByRole("button", { name: "Expand to half height" }).click();

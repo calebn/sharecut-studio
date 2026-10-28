@@ -200,16 +200,24 @@ export const phone = {
     // Only the phone has one Edit surface at a time; wider shells show both.
     if (!(await isPhoneShell(page))) return;
     const name = mode === "text" ? "Script" : "Timeline";
-    const toggle = page
-      .getByRole("group", { name: "Edit surface" })
-      .getByRole("button", { name, exact: true });
-    await openToolsIfFolded(page);
-    if ((await toggle.getAttribute("aria-pressed")) !== "true") {
-      await toggle.click();
-    }
-    const folded = await openToolsIfFolded(page);
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
-    if (folded) await closeTools(page);
+    // A resize (a text-size change, the Action bar dock) folds the switch behind
+    // Tools a few frames later, so look again until it settles.
+    await expect(async () => {
+      const folded = await openToolsIfFolded(page);
+      const toggle = page
+        .getByRole("group", { name: "Edit surface" })
+        .getByRole("button", { name, exact: true });
+      if (
+        (await toggle.getAttribute("aria-pressed", { timeout: 2000 })) !==
+        "true"
+      ) {
+        await toggle.click({ timeout: 2000 });
+      }
+      await expect(toggle).toHaveAttribute("aria-pressed", "true", {
+        timeout: 2000,
+      });
+      if (folded) await closeTools(page);
+    }).toPass({ timeout: 20_000 });
   },
   showTimeline: (page: Page) => phone.show(page, "timeline"),
   showText: (page: Page) => phone.show(page, "text"),

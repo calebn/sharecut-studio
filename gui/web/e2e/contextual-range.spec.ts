@@ -184,7 +184,7 @@ test("editor guest cuts a range and one host Undo restores every occurrence", as
       try {
         const guest = await guestContext.newPage();
         await openGuestShare(guest, token);
-        const range = await selectRange(guest);
+        await selectRange(guest);
         await expect(
           actionBar(guest).getByRole("button", {
             name: "Suggest cut",
@@ -242,7 +242,7 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
       await expect(page.locator(".edit-workspace")).not.toHaveClass(
         /edit-workspace--inspector/,
       );
-      let range = await selectRange(page);
+      await selectRange(page);
       await expect(page.locator(".range-overlay")).toHaveCount(1);
       await rangeAxe(page);
       if (process.env.RANGE_SCREENSHOTS)
@@ -261,7 +261,7 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
       ).toEqual(before[0]);
       await undo(page);
       await expect.poll(() => geometry(projectPath)).toEqual(before);
-      range = await selectRange(page);
+      await selectRange(page);
       await chooseMore(page, "Mute");
       await expect
         .poll(

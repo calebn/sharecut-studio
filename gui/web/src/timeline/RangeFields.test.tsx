@@ -173,6 +173,22 @@ describe("range fields", () => {
     );
     expect(useDawStore.getState().rangeScopeTrackIds).toBeNull();
   });
+  it("keeps an open Inspector open on the range it adopts", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({
+      selection: { kind: "track", trackId: "a" },
+      inspectorKey: "track:a",
+      sessionRegion: { start_sec: 3, end_sec: 4 },
+    });
+    render(<RangeFields sheet />);
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use agent range on selected tracks",
+      }),
+    );
+    expect(useDawStore.getState().selection).toMatchObject({ kind: "range" });
+    expect(useDawStore.getState().inspectorKey).toBe("range");
+  });
   it("clears a track selection made while armed when the range is cancelled", async () => {
     const user = userEvent.setup();
     useDawStore.setState({
