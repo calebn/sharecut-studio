@@ -185,7 +185,6 @@ export function registerPrimaryEditingCommands(): void {
 
   registerCommand("edit.clearSelection", () => {
     const s = useDawStore.getState();
-    // Esc ends the innermost thing first: the Inspector, then the selection.
     if (inspectorOpenFor(s.selection, s.inspectorKey)) {
       s.setInspectorOpen(false);
       return { status: "ok" };

@@ -36,7 +36,6 @@ export function selectionPatch(
   };
 }
 
-/** The Inspector stays open only for the selection it was opened for. */
 function inspectorKeyAfter(
   selection: Selection,
   inspectorKey: string | null,

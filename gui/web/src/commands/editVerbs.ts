@@ -1,10 +1,3 @@
-/**
- * The Action bar's verbs, run (#2294 W1b). `runEditVerb` maps a bar id to the
- * command that does it, through `executePointerCommand`, so a refusal reaches
- * the live region in plain words. The key commands (`edit.hear`, `edit.keep`,
- * `edit.split`, `edit.delete`, ...) are the same functions on the selection the
- * store holds, so the bar and the keyboard cannot disagree.
- */
 import {
   applySuggestedActions,
   approveEdits,
@@ -67,8 +60,7 @@ import { seekTransport } from "./seek";
 import { requestInlineEdit } from "./transcriptWord";
 import type { ExecuteResult } from "./types";
 
-/** A More row that stands for one target, such as Move to Ben. */
-export type VerbArg = string | undefined;
+type VerbArg = string | undefined;
 
 const disabled = (reason: string): ExecuteResult => ({
   status: "disabled",
@@ -87,9 +79,11 @@ export function editRoleOf(
     : "editor";
 }
 
-/** The facts of the selection the store holds now, or null before a project opens. */
-export function currentEditFacts(
-  s: DawState = useDawStore.getState(),
+export function editFactsOf(
+  s: Pick<
+    DawState,
+    "selection" | "project" | "projectPath" | "shareCapabilities"
+  >,
 ): EditFacts | null {
   if (!s.project) return null;
   return editFacts(s.selection, s.project, {
@@ -98,7 +92,12 @@ export function currentEditFacts(
   });
 }
 
-/** Why this share cannot play, or null. */
+export function currentEditFacts(
+  s: DawState = useDawStore.getState(),
+): EditFacts | null {
+  return editFactsOf(s);
+}
+
 function playGate(s: DawState): string | null {
   const reason = transportAvailability(s).togglePlay;
   if (reason !== undefined) return reason;
@@ -125,7 +124,6 @@ function playSpan(start: number, end: number, padSec: number): ExecuteResult {
   return OK;
 }
 
-/** Seconds of context either side of a seam, a marker or a clip edge. */
 const HEAR_PAD_SEC = 1;
 const MARKER_HEAR_SEC = 3;
 
@@ -162,8 +160,7 @@ async function hearSide(
   if (facts.kind !== "suggestion" || s.selection?.kind !== "pending")
     return disabled("Select a suggestion to hear it");
   const outcome = await playPendingPreview(s.projectPath, s.selection.id, mode);
-  if (outcome.status === "ok") return OK;
-  if (outcome.status === "superseded") return OK;
+  if (outcome.status === "ok" || outcome.status === "superseded") return OK;
   return disabled(outcome.reason);
 }
 
@@ -222,8 +219,7 @@ async function keep(facts: EditFacts): Promise<ExecuteResult> {
   return disabled("Nothing to keep here");
 }
 
-/** The bar's Cut, and Backspace: one answer per kind of selection. */
-export async function runCutSelection(
+async function runCutSelection(
   args: Record<string, unknown> = {},
 ): Promise<ExecuteResult> {
   const s = useDawStore.getState();
@@ -291,7 +287,6 @@ async function removeMarker(
   }
 }
 
-/** Where Split cuts: both edges of a span, or the playhead (and the tracks it cuts on). */
 export function splitPlan(
   facts: EditFacts,
   selection: Selection,
@@ -385,7 +380,6 @@ function singleClipTarget(project: ProjectView, selection: Selection) {
     : null;
 }
 
-/** M and the More row: words ignore, a range or one clip mutes its span, anything else mutes its track. */
 export async function runMute(): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   switch (s.selection?.kind) {
@@ -410,7 +404,6 @@ export async function runMute(): Promise<ExecuteResult> {
   }
 }
 
-/** Runs one Action bar verb on `facts`' selection; a refusal is announced. */
 export async function runEditVerb(
   id: BarId,
   facts: EditFacts,
@@ -498,11 +491,7 @@ async function dispatch(
   }
 }
 
-/**
- * Which verbs this slice wires for each kind of selection. The bar draws what
- * `resolveBar` says minus what is not wired, so no button is a dead end; the
- * later slices (Script, Inspector contents, Seam, Marker lane) widen this table.
- */
+// The bar draws what resolveBar says minus what is not wired yet, so no button is a dead end.
 export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   playhead: ["split", "addChapter", "record", "paste"],
   words: ["hear", "keep", "comment", "fixText", "record", "more", "inspect"],
@@ -520,8 +509,7 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   bleed: ["inspect"],
 };
 
-/** More rows this slice wires; the others wait for their Inspector parts. */
-export const WIRED_MORE: ReadonlySet<string> = new Set([
+const WIRED_MORE: ReadonlySet<string> = new Set([
   "mute",
   "copy",
   "moveToSpeaker",
@@ -531,12 +519,7 @@ export const WIRED_MORE: ReadonlySet<string> = new Set([
   "moveToTrack",
 ]);
 
-/** The primary verbs this slice wires: Cut, and a suggestion's own accept. */
-export const WIRED_PRIMARY: ReadonlySet<string> = new Set([
-  "cut",
-  "shorten",
-  "lower",
-]);
+const WIRED_PRIMARY: ReadonlySet<string> = new Set(["cut", "shorten", "lower"]);
 
 export function registerEditVerbCommands(): void {
   registerCommand("edit.delete", (args) => runCutSelection(args));
@@ -553,7 +536,7 @@ export function registerEditVerbCommands(): void {
   registerCommand("edit.inspect", (args) => {
     const s = useDawStore.getState();
     if (!s.selection) return disabled("Select something to inspect");
-    // `open: true` is a double-click: it opens and never closes.
+    // open: true is a double-click, which never closes it
     s.setInspectorOpen(
       args.open === true || !inspectorOpenFor(s.selection, s.inspectorKey),
     );
@@ -578,7 +561,7 @@ async function withFacts(
   return run(facts);
 }
 
-export type BarModel = {
+type BarModel = {
   readonly leading: "scope" | "count" | null;
   readonly items: readonly BarItem[];
   readonly more: readonly BarItem[];
@@ -589,11 +572,6 @@ const SPEAKER_HOST_ONLY =
   "Only the host can move a reply between speaker tracks";
 const STALE_RANGE = "Selected audio changed. Select the range again.";
 
-/**
- * What the bar shows for `facts`: `resolveBar`'s answer narrowed to the verbs
- * this slice wires, worded and gated as `rangeActionDescriptors` words them
- * (Suggest cut, Play full mix, the stale and busy reasons).
- */
 export function barModelOf(facts: EditFacts, s: DawState): BarModel {
   const resolved = resolveBar(facts);
   const wired = WIRED_VERBS[facts.kind];
@@ -615,7 +593,6 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
     .filter((id) => readOnly || wired.includes(id))
     .filter((id) => id !== "fixText" || oneWordOf(s.selection) !== null)
     .map((id): BarItem => {
-      // Only a guest's Hear is worded differently: it plays the full mix.
       const guestMix =
         id === "hear" && descriptor("play")?.label === PLAY_FULL_MIX_LABEL;
       return guestMix ? { id, label: PLAY_FULL_MIX_LABEL } : { id };

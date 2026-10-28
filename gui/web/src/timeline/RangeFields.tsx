@@ -7,20 +7,13 @@ import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
 import { oneWordOf } from "../utils/rangeSelect";
 
-/**
- * What the Action bar has no slot for: the In and Out fields with the track
- * scope and the agent range, the choice between audible occurrences, and the
- * word-range handles. The verbs live in the bar (`EditActionBar`).
- */
 export function RangeFields({
   sheet = false,
   always = false,
   numeric: showNumeric = true,
 }: {
   sheet?: boolean;
-  /** False draws neither the In and Out fields nor the agent range (a phone's strip above the dock). */
   numeric?: boolean;
-  /** The Inspector's body for a range: the In and Out fields show for the range held. */
   always?: boolean;
 }) {
   const state = useDaw((s) => ({
@@ -203,7 +196,6 @@ export function RangeFields({
                   selectedTrackIds,
                 );
                 if (next) {
-                  // Adopting from an open Inspector keeps it open on the range.
                   const held = useDawStore.getState();
                   const wasOpen = inspectorOpenFor(
                     held.selection,

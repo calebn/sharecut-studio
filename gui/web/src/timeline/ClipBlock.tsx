@@ -636,7 +636,6 @@ export function ClipBlockLive({
       }
       pointerHandledRef.current = false;
     },
-    // A double-click on a clip is Inspect: the first click selected it.
     onDoubleClick: (e) => {
       e.stopPropagation();
       runPointerCommand("edit.inspect", { open: true });
