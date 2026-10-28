@@ -14,6 +14,7 @@ export const ROOM_ALERT_PRIORITY = [
   "recovery",
   "host-offline",
   "monitor-failed",
+  "room-tone",
   "clipping",
   "muted",
   "connecting",
@@ -24,7 +25,7 @@ export type RoomAlertKind = (typeof ROOM_ALERT_PRIORITY)[number];
 
 type RoomAlertText = {
   state: StatusRowState;
-  /** `{name}` takes the host's name; generic takes its own message. */
+  /** `{name}` takes the host's name; generic, notice and room-tone take their own message. */
   title: string;
   /** The one action's label. Absent when the alert has none. */
   action?: string;
@@ -71,6 +72,12 @@ export const ROOM_ALERT_TEXT: Record<RoomAlertKind, RoomAlertText> = {
     title: "You can't hear the room. Recording is fine.",
     action: "Retry",
   },
+  "room-tone": {
+    state: "needs-you",
+    title: "Record 3 seconds of room tone.",
+    action: "Record room tone",
+    secondary: "Skip",
+  },
   clipping: {
     state: "needs-you",
     title: "You're clipping. Move back a little.",
@@ -99,7 +106,7 @@ export type RoomAlertInput = {
   kind: RoomAlertKind;
   /** The host's name for host-offline. Missing or blank reads "The host". */
   name?: string;
-  /** The generic or notice alert's own sentence. Missing or blank keeps the default. */
+  /** The generic, notice or room-tone alert's own sentence. Missing or blank keeps the default. */
   message?: string;
   /** No audio only: the last mic check found nothing, so the title says what to try. */
   checkFailed?: boolean;
@@ -120,7 +127,7 @@ export function roomAlertTitle({
   message,
   checkFailed,
 }: RoomAlertInput): string {
-  if (kind === "generic" || kind === "notice")
+  if (kind === "generic" || kind === "notice" || kind === "room-tone")
     return message?.trim() || ROOM_ALERT_TEXT[kind].title;
   if (kind === "no-audio" && checkFailed)
     return `${ROOM_ALERT_TEXT[kind].title} ${MIC_CHECK_FAILED_COPY}`;

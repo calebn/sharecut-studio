@@ -21,6 +21,7 @@ describe("ROOM_ALERT_PRIORITY", () => {
       "recovery",
       "host-offline",
       "monitor-failed",
+      "room-tone",
       "clipping",
       "muted",
       "connecting",
@@ -53,6 +54,18 @@ describe("roomAlertTitle", () => {
     expect(roomAlertTitle({ kind: "mic-lost", checkFailed: true })).toBe(
       "Your mic stopped.",
     );
+  });
+
+  it("asks for room tone, or prints the sentence it is given", () => {
+    expect(roomAlertTitle({ kind: "room-tone" })).toBe(
+      "Record 3 seconds of room tone.",
+    );
+    expect(roomAlertTitle({ kind: "room-tone", message: "Too loud." })).toBe(
+      "Too loud.",
+    );
+    expect(
+      roomAlertAction({ kind: "room-tone", onAction: vi.fn() })?.label,
+    ).toBe("Record room tone");
   });
 
   it("prints a notice's own sentence", () => {
@@ -125,10 +138,18 @@ describe("roomAlertSecondary", () => {
     expect(roomAlertSecondary({ kind: "saving-failed" })).toBeUndefined();
   });
 
+  it("offers Skip for room-tone only with a handler", () => {
+    const onSecondaryAction = vi.fn();
+    expect(
+      roomAlertSecondary({ kind: "room-tone", onSecondaryAction }),
+    ).toEqual({ label: "Skip", onAction: onSecondaryAction });
+    expect(roomAlertSecondary({ kind: "room-tone" })).toBeUndefined();
+  });
+
   it("has none for the other kinds", () => {
     const onSecondaryAction = vi.fn();
     for (const kind of ROOM_ALERT_PRIORITY.filter(
-      (kind) => kind !== "saving-failed",
+      (kind) => kind !== "saving-failed" && kind !== "room-tone",
     )) {
       expect(roomAlertSecondary({ kind, onSecondaryAction })).toBeUndefined();
     }
