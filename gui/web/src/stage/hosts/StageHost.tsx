@@ -13,7 +13,7 @@ import { HostBody } from "./HostBody";
 import { stageAvailable } from "./hostModels";
 import { PrepareStage } from "./PrepareStage";
 import { RecordStage } from "./RecordStage";
-import { ReviewStage } from "./ReviewStage";
+import { ReviewHost } from "./ReviewHost";
 
 export type StageHostProps = {
   guestShare?: boolean;
@@ -26,10 +26,12 @@ function StageHostAdapter({
   feedbackHostRef,
   loadFailure,
 }: StageHostProps) {
-  const { stage, guestMode, loaded } = useDawStore(
+  const { stage, guestMode, loaded, projectPath, projectEpoch } = useDawStore(
     useShallow((s) => ({
       stage: s.stage,
       guestMode: s.guestMode,
+      projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
       loaded: s.project != null,
     })),
   );
@@ -79,7 +81,13 @@ function StageHostAdapter({
         />
       );
     case "review":
-      return <ReviewStage guestShare={guestShare} loadFailure={loadFailure} />;
+      return (
+        <ReviewHost
+          key={`${projectPath}:${projectEpoch}`}
+          guestShare={guestShare}
+          loadFailure={loadFailure}
+        />
+      );
     case "deliver":
       return <DeliverStage loadFailure={loadFailure} />;
   }

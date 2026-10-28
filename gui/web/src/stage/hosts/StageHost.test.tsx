@@ -16,9 +16,6 @@ import { stubViewportShell } from "../../test/viewportShell";
 import type { StageId } from "../../types/stage";
 import { StageHost } from "./StageHost";
 
-vi.mock("../../panels/ImpactPanel", () => ({
-  ImpactPanel: () => <div>impact panel</div>,
-}));
 vi.mock("../../panels/TightenPanel", () => ({
   TightenPanel: () => <div>tighten panel</div>,
 }));
@@ -131,12 +128,12 @@ describe("StageHost gating", () => {
       ["record", "Looking for a record room…"],
       ["prepare", "Help the transcriber"],
       ["edit", "edit workspace"],
-      ["review", "impact panel"],
+      ["review", "Nothing to decide"],
       ["deliver", "Episode file"],
     ] as const) {
       asHost(stage);
       const { unmount } = mount();
-      expect(screen.getByText(text)).toBeInTheDocument();
+      expect(screen.getAllByText(text)[0]).toBeInTheDocument();
       unmount();
     }
   });
@@ -152,7 +149,7 @@ describe("Review host", () => {
     expect(tabs.getAllByRole("tab")).toHaveLength(3);
     await userEvent.click(tabs.getByRole("tab", { name: /Queue/ }));
     expect(useDawStore.getState().reviewSection).toBe("queue");
-    expect(screen.getByText("impact panel")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
   });
 
   it("gives a guest Comments only, even when the slice names Tighten", () => {
