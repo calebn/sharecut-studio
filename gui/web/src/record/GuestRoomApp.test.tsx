@@ -612,6 +612,7 @@ describe("GuestRoomApp", () => {
       vi.mocked(createOpfsSink).mockResolvedValue(sink);
       const view = render(<GuestRoomApp token="guest-tok" />);
       await screen.findByRole("heading", { name: "Join the room" });
+      await waitFor(() => expect(sockets).toHaveLength(1));
       sockets[0]?.onmessage?.(
         snapshotMessage(
           { state: "stopped", take_index: 0 },
