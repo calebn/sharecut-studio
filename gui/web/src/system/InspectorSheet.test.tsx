@@ -259,6 +259,21 @@ describe("InspectorSheet card", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("leaves Enter and Escape to the input method while a composition is open", async () => {
+    const onRename = vi.fn();
+    card({ onRename });
+    const field = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(field, { target: { value: "にほん" } });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(field, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(field, { key: "Escape", keyCode: 229 });
+    expect(onRename).not.toHaveBeenCalled();
+    expect(field).toHaveValue("にほん");
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(onRename.mock.calls).toEqual([["にほん"]]);
+  });
+
   it("has no axe violations", async () => {
     const { container } = card({ onRename: vi.fn() });
     await expectNoA11yViolations(container);
@@ -328,14 +343,14 @@ describe("InspectorSheet phone", () => {
     clock();
     const { onDetentChange, onDismiss, sheet } = phone();
     fireEvent.pointerDown(grip(), at(700));
-    moveTo(697, 0);
+    moveTo(692, 0);
     expect(sheet).toHaveAttribute("data-dragging");
     expect(height(sheet)).toBe("64px");
-    moveTo(497, 100);
+    moveTo(492, 100);
     expect(height(sheet)).toBe("264px");
-    moveTo(361, 200);
+    moveTo(356, 200);
     expect(height(sheet)).toBe("400px");
-    fireEvent.pointerUp(grip(), at(361));
+    fireEvent.pointerUp(grip(), at(356));
     expect(sheet).not.toHaveAttribute("data-dragging");
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
     expect(onDismiss).not.toHaveBeenCalled();
@@ -345,7 +360,7 @@ describe("InspectorSheet phone", () => {
     clock();
     const { onDetentChange, sheet } = phone({ detent: "half" });
     fireEvent.pointerDown(grip(), at(500));
-    moveTo(497, 0);
+    moveTo(492, 0);
     moveTo(450, 100);
     moveTo(-900, 110);
     expect(height(sheet)).toBe("736px");
@@ -357,12 +372,12 @@ describe("InspectorSheet phone", () => {
     clock();
     const { onDetentChange, onDismiss, sheet } = phone();
     fireEvent.pointerDown(grip(), at(700));
-    moveTo(703, 0);
-    moveTo(743, 100);
+    moveTo(708, 0);
+    moveTo(748, 100);
     expect(height(sheet)).toBe("24px");
-    moveTo(763, 200);
+    moveTo(768, 200);
     expect(height(sheet)).toBe("4px");
-    fireEvent.pointerUp(grip(), at(763));
+    fireEvent.pointerUp(grip(), at(768));
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(onDetentChange).not.toHaveBeenCalled();
   });
@@ -371,9 +386,9 @@ describe("InspectorSheet phone", () => {
     clock();
     const { onDetentChange, onDismiss } = phone();
     fireEvent.pointerDown(grip(), at(700));
-    moveTo(703, 0);
-    moveTo(718, 1000);
-    fireEvent.pointerUp(grip(), at(718));
+    moveTo(708, 0);
+    moveTo(723, 1000);
+    fireEvent.pointerUp(grip(), at(723));
     expect(onDismiss).not.toHaveBeenCalled();
     expect(onDetentChange).not.toHaveBeenCalled();
   });
@@ -382,11 +397,25 @@ describe("InspectorSheet phone", () => {
     clock();
     const { onDetentChange } = phone();
     fireEvent.pointerDown(grip(), at(700));
-    moveTo(697, 0);
-    moveTo(397, 10);
+    moveTo(692, 0);
+    moveTo(392, 10);
     time.ms = 300;
-    fireEvent.pointerUp(grip(), at(397));
+    fireEvent.pointerUp(grip(), at(392));
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
+  });
+
+  it("reads a finger tap that drifts 5 px as a tap, and a mouse press that moves 5 px as a drag", () => {
+    const { onDetentChange, sheet } = phone();
+    fireEvent.pointerDown(grip(), at(700));
+    fireEvent.pointerMove(grip(), at(705));
+    expect(sheet).not.toHaveAttribute("data-dragging");
+    fireEvent.pointerUp(grip(), at(705));
+    fireEvent.click(grip(), { detail: 1 });
+    expect(onDetentChange.mock.calls).toEqual([["half"]]);
+    const mouse = { pointerId: 3, pointerType: "mouse", clientX: 180 };
+    fireEvent.pointerDown(grip(), { ...mouse, clientY: 700 });
+    fireEvent.pointerMove(grip(), { ...mouse, clientY: 705 });
+    expect(sheet).toHaveAttribute("data-dragging");
   });
 
   it("does not start a drag under the 3 px slop and reads the tap", () => {
@@ -403,10 +432,10 @@ describe("InspectorSheet phone", () => {
     clock();
     const { onDetentChange } = phone();
     fireEvent.pointerDown(grip(), at(700));
-    moveTo(697, 0);
-    moveTo(497, 100);
-    moveTo(361, 200);
-    fireEvent.pointerUp(grip(), at(361));
+    moveTo(692, 0);
+    moveTo(492, 100);
+    moveTo(356, 200);
+    fireEvent.pointerUp(grip(), at(356));
     fireEvent.click(grip(), { detail: 1 });
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
   });
@@ -436,15 +465,15 @@ describe("InspectorSheet phone", () => {
     clock();
     const { onDetentChange, sheet } = phone();
     fireEvent.pointerDown(grip(), at(700));
-    moveTo(697, 0);
-    moveTo(497, 100);
+    moveTo(692, 0);
+    moveTo(492, 100);
     fireEvent.pointerDown(grip(), at(100, 2));
     moveTo(50, 150, 2);
     expect(height(sheet)).toBe("264px");
     fireEvent.pointerUp(grip(), at(50, 2));
     expect(sheet).toHaveAttribute("data-dragging");
-    moveTo(361, 200);
-    fireEvent.pointerUp(grip(), at(361));
+    moveTo(356, 200);
+    fireEvent.pointerUp(grip(), at(356));
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
   });
 

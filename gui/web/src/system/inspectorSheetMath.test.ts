@@ -39,12 +39,19 @@ describe("inspectorSheetMath detents", () => {
     expect(settleDetent(400, -2.5, 800)).toBe("dock");
   });
 
-  it("dismisses when let go more than 24 px below the dock, or flicked there", () => {
+  it("dismisses when let go more than 24 px below the dock, or flicked down from the dock", () => {
     expect(settleDetent(41, 0, 800)).toBe("dock");
     expect(settleDetent(39, 0, 800)).toBe("dismiss");
     expect(settleDetent(0, 0, 800)).toBe("dismiss");
-    expect(settleDetent(64, -0.1, 800)).toBe("dock");
-    expect(settleDetent(64, -0.3, 800)).toBe("dismiss");
+    expect(settleDetent(64, -0.1, 800, true)).toBe("dock");
+    expect(settleDetent(64, -0.3, 800, true)).toBe("dismiss");
+  });
+
+  it("lands a flick down from higher up on the dock instead of dismissing", () => {
+    expect(settleDetent(260, -2, 640)).toBe("dock");
+    expect(settleDetent(300, -3, 640)).toBe("dock");
+    expect(settleDetent(100, -4, 640)).toBe("dock");
+    expect(settleDetent(100, -4, 640, true)).toBe("dismiss");
   });
 
   it("reads the rise velocity from the last two samples", () => {
@@ -131,6 +138,15 @@ describe("inspectorSheetMath card placement", () => {
       block: 348,
       maxBlock: 344,
     });
+  });
+
+  it("keeps the card 8 px inside the box when the anchor is outside it", () => {
+    expect(
+      placeCard({ x: 600, y: -100, width: 80, height: 40 }, desktop),
+    ).toEqual({ side: "below", inline: 480, block: 8, maxBlock: 480 });
+    expect(
+      placeCard({ x: 600, y: 900, width: 80, height: 40 }, desktop),
+    ).toEqual({ side: "above", inline: 480, block: 8, maxBlock: 480 });
   });
 
   it("keeps the card 8 px inside the right edge and fits a narrow viewport", () => {
