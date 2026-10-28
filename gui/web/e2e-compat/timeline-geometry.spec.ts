@@ -6,7 +6,7 @@ import {
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
 import { withShareableProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelection, openProject } from "../e2e/stageNav";
 import { zoomTimelineIn } from "../e2e/timelineZoom";
 import { expectPaintedWaveformTile } from "../e2e/waveformHook";
 import { timelineTestIds } from "../src/timeline/selectors";
@@ -41,10 +41,11 @@ test("snap ticks, mute regions and a live trim ghost share the ruler geometry", 
       await expect
         .poll(() => scroll.evaluate((el) => el.scrollLeft))
         .toBeGreaterThan(0);
-      // Selecting the clip opens the Inspector column and narrows the
+      // Selecting the clip and choosing Inspect opens the Inspector column and narrows the
       // timeline, so select first and measure on the settled layout; a drag
       // that selected it would shift every box it measured beforehand.
       await clip.getByRole("button", { name: /^Select guest clip/ }).click();
+      await inspectSelection(page);
       await expect(page.locator(".edit-inspector")).toBeVisible();
       const trimOut = clip.getByTestId(timelineTestIds.trimOut);
       const committed = await clip.boundingBox();
