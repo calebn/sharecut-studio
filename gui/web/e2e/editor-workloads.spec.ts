@@ -10,25 +10,10 @@ import {
   waiveRefineGate,
 } from "./documentCommand";
 import { createEditorProfiler } from "./editorProfile";
-import {
-  type ClipGeometry,
-  failureReason,
-  hash,
-  unavailable,
-} from "./editorProfileReport";
-import { replayPipelineProgress } from "./editorProgress";
+import { type ClipGeometry, failureReason } from "./editorProfileReport";
 import { workloadResources } from "./editorWorkloadResources";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 import { begin, draw } from "./lifecycleAudit";
-import {
-  NATIVE_PROGRESS_LIMITS,
-  NATIVE_PROGRESS_PROTOCOL,
-  nativeProgressSettings,
-} from "./nativeProgressCore";
-import {
-  armNativeProgress,
-  retainNativeProgress,
-} from "./nativeProgressObserver";
 import { openPanel, openProject, setAudition } from "./stageNav";
 import { parseTimecodeSec } from "./timecode";
 import { zoomTimelineIn } from "./timelineZoom";
@@ -578,290 +563,6 @@ async function trim(page: Page, recorder: Recorder) {
   await recorder.memory("after-trim-restore");
 }
 
-async function prepareRealProgress(page: Page) {
-  await openPanel(page, "pipeline");
-  await page.getByText("From / Only shortcuts", { exact: true }).click();
-  await page.getByRole("combobox", { name: /^Only step/ }).selectOption("");
-  await page
-    .getByRole("combobox", { name: /^From step/ })
-    .selectOption("compress_tracks");
-  const toggles = page.getByRole("checkbox", { name: /^Enable / });
-  await expect(
-    page.getByRole("checkbox", { name: "Enable Balance tracks", exact: true }),
-  ).toBeVisible();
-  await expect.poll(() => toggles.count()).toBeGreaterThan(2);
-  for (const toggle of await toggles.all()) {
-    const label = await toggle.getAttribute("aria-label");
-    const enabled = [
-      "Enable Ingest tracks",
-      "Enable Clean audio",
-      "Enable Compress tracks",
-      "Enable Balance tracks",
-    ].includes(label ?? "");
-    if ((await toggle.isChecked()) !== enabled) {
-      const saved = page.waitForResponse(
-        (response) =>
-          response.url().includes("/api/pipeline/config") &&
-          response.request().method() === "PUT",
-      );
-      await toggle.setChecked(enabled);
-      expect((await saved).ok()).toBe(true);
-      if (enabled) await expect(toggle).toBeChecked();
-      else await expect(toggle).not.toBeChecked();
-    }
-  }
-  const confirmedResponse = await page.request.get(
-    `/api/pipeline/config?path=${encodeURIComponent(e2eProjectPath)}`,
-  );
-  expect(confirmedResponse.ok()).toBe(true);
-  const confirmed = await confirmedResponse.json();
-  expect([...confirmed.enabled_steps].sort()).toEqual([
-    "balance_tracks",
-    "clean_audio",
-    "compress_tracks",
-    "ingest_tracks",
-  ]);
-  expect(
-    await toggles.evaluateAll((elements) =>
-      elements
-        .filter((element) => (element as HTMLInputElement).checked)
-        .map((element) => element.getAttribute("aria-label"))
-        .sort(),
-    ),
-  ).toEqual([
-    "Enable Balance tracks",
-    "Enable Clean audio",
-    "Enable Compress tracks",
-    "Enable Ingest tracks",
-  ]);
-  const run = page.getByRole("button", { name: "Run pipeline", exact: true });
-  await expect(run).toBeEnabled();
-  return { run, confirmed };
-}
-
-async function nativePreparationGeometry(page: Page) {
-  return page.evaluate(() => {
-    const panel = document.querySelector(".pipeline-panel")!;
-    const run = panel.querySelector(".pipeline-run-btn")!;
-    const scrollAncestors: {
-      scrollTop: number;
-      scrollLeft: number;
-      clientHeight: number;
-      scrollHeight: number;
-    }[] = [];
-    let element: Element | null = panel;
-    while (element && scrollAncestors.length < 8) {
-      scrollAncestors.push({
-        scrollTop: element.scrollTop,
-        scrollLeft: element.scrollLeft,
-        clientHeight: element.clientHeight,
-        scrollHeight: element.scrollHeight,
-      });
-      element = element.parentElement;
-    }
-    return {
-      panelRect: panel.getBoundingClientRect().toJSON(),
-      runRect: run.getBoundingClientRect().toJSON(),
-      scrollAncestors,
-      windowScroll: { x: scrollX, y: scrollY },
-      viewport: { width: innerWidth, height: innerHeight },
-    };
-  });
-}
-
-async function nativeProgressDiagnostic(
-  page: Page,
-  recorder: Recorder,
-  settings: NonNullable<ReturnType<typeof nativeProgressSettings>>,
-) {
-  test.fixme(
-    true,
-    "The progress observer harness measured the Pipeline panel bar (.pipeline-bar); Prepare shows progress in the Getting ready rows. Re-point it at the Prepare progress markup (#2295 follow-up).",
-  );
-  const { run, confirmed } = await prepareRealProgress(page);
-  const beforePositioning = await nativePreparationGeometry(page);
-  await page.locator(".pipeline-advanced-shortcuts").scrollIntoViewIfNeeded();
-  await run.evaluate((element) =>
-    (element as HTMLButtonElement).focus({ preventScroll: true }),
-  );
-  const preparation = await page
-    .locator(".pipeline-advanced-shortcuts")
-    .evaluate((element) => ({
-      anchorRect: element.getBoundingClientRect().toJSON(),
-      viewportHeight: innerHeight,
-      runFocused:
-        document.activeElement?.classList.contains("pipeline-run-btn") ?? false,
-      method:
-        "pre-position existing shortcut region; focus native Run without scroll; trusted keyboard Enter",
-    }));
-  expect(preparation.runFocused).toBe(true);
-  const afterPositioning = await nativePreparationGeometry(page);
-  const baselineResponse = await page.request.get("/api/pipeline/status");
-  expect(baselineResponse.ok()).toBe(true);
-  const baseline = await baselineResponse.json();
-  const initialProjectHash = hash(fs.readFileSync(e2eProjectPath));
-  const observer = await armNativeProgress(page, settings.control);
-  observer.core.status(baseline, "driver-status", performance.now());
-  recorder.report.protocol.nativeObserver = {
-    id: NATIVE_PROGRESS_PROTOCOL,
-    mode: observer.control ? "control" : "passive",
-    limits: NATIVE_PROGRESS_LIMITS,
-    motion: settings.motion,
-  };
-  let failure: unknown;
-  let requestBody: unknown;
-  let finalJob: unknown;
-  try {
-    expect(observer.available, "native observer arm completed").toBe(true);
-    expect(
-      (baseline.jobs ?? [baseline.job]).filter(
-        (job: { status: string } | null) =>
-          job && ["running", "queued"].includes(job.status),
-      ),
-      "no competing native job before Run",
-    ).toHaveLength(0);
-    await expect(page.locator('.pipeline-bar[role="progressbar"]')).toHaveCount(
-      0,
-    );
-    await recorder.measure(
-      {
-        id: "real-progress",
-        phase: "warm",
-        input:
-          "native Compress/Balance diagnostic; passive receipt/DOM/layout; no manufactured cadence or three-state acceptance",
-      },
-      async () => {
-        const started = page.waitForResponse(
-          (response) =>
-            response.url().includes("/api/pipeline/run") &&
-            response.request().method() === "POST",
-        );
-        await page.keyboard.press("Enter");
-        const response = await started;
-        expect(response.ok(), await response.text()).toBe(true);
-        const body = response.request().postDataJSON();
-        requestBody = { ...body, path: "<workspace>" };
-        expect(body.only_step).toBeNull();
-        expect(body.from_step).toBe("compress_tracks");
-        expect(
-          [...body.enabled_steps].sort((a: string, b: string) =>
-            a.localeCompare(b),
-          ),
-        ).toEqual([
-          "balance_tracks",
-          "clean_audio",
-          "compress_tracks",
-          "ingest_tracks",
-        ]);
-        const { job } = await response.json();
-        observer.core.bind(job, performance.now());
-        recorder.report.protocol.resources!.progress = {
-          source: "real-job",
-          payloadHash: hash(JSON.stringify(requestBody)),
-          cadenceMs: unavailable("natural producer cadence not instrumented"),
-        };
-        const deadline = Date.now() + 20 * 60000;
-        while (Date.now() < deadline) {
-          const statusResponse = await page.request.get("/api/pipeline/status");
-          expect(statusResponse.ok()).toBe(true);
-          const status = await statusResponse.json();
-          observer.core.status(status, "driver-status", performance.now());
-          const current = (status.jobs ?? [status.job]).find(
-            (entry: { id: string } | null) => entry?.id === job.id,
-          );
-          if (
-            current &&
-            ["ok", "error", "cancelled"].includes(current.status)
-          ) {
-            finalJob = current;
-            observer.core.recordTerminal(current);
-            expect(current.status, JSON.stringify(current)).toBe("ok");
-            expect(
-              current.steps.map((step: { name: string }) => step.name),
-            ).toEqual(["compress_tracks", "balance_tracks"]);
-            expect(
-              current.steps.every(
-                (step: { status: string }) => step.status === "ok",
-              ),
-            ).toBe(true);
-            expect(current.steps[1].summary).toContain("2 tracks gain-staged");
-            return {
-              kind: "native-progress-diagnostic",
-              jobId: job.id,
-              observerProtocol: NATIVE_PROGRESS_PROTOCOL,
-              terminal: "ok",
-            };
-          }
-          await page.waitForTimeout(100);
-        }
-        throw new Error(
-          "native job did not reach authoritative terminal before timeout",
-        );
-      },
-    );
-    const bar = page.locator('.pipeline-bar[role="progressbar"]');
-    await expect(bar).toHaveAttribute("aria-valuenow", "100");
-    await expect
-      .poll(() =>
-        bar.evaluate((element) =>
-          Math.abs(
-            element.getBoundingClientRect().width -
-              element
-                .querySelector(".pipeline-bar-fill")!
-                .getBoundingClientRect().width,
-          ),
-        ),
-      )
-      .toBeLessThanOrEqual(1);
-    await recorder.attachJson("native-progress-project-state.json", {
-      preparation,
-      beforePositioning,
-      afterPositioning,
-      initialProjectHash,
-      finalProjectHash: hash(fs.readFileSync(e2eProjectPath)),
-      configHash: hash(JSON.stringify(confirmed)),
-      requestBody,
-      finalJob,
-      generatedArtifactEntries: fs
-        .readdirSync(path.join(path.dirname(e2eProjectPath), "artifacts"))
-        .sort(),
-      terminalGeometry: await bar.evaluate((element) => ({
-        percent: element.getAttribute("aria-valuenow"),
-        bar: element.getBoundingClientRect().toJSON(),
-        fill: element
-          .querySelector(".pipeline-bar-fill")!
-          .getBoundingClientRect()
-          .toJSON(),
-      })),
-      method:
-        "project/config identity and resulting references outside action; real job legitimately mutates generated media and mix",
-    });
-  } catch (error) {
-    failure = error;
-    throw error;
-  } finally {
-    await retainNativeProgress(
-      failure,
-      observer.finish,
-      async (evidence) => {
-        await recorder.attachJson("native-progress-observation.json", evidence);
-        if (
-          evidence.cleanupFailures.length ||
-          (!observer.control &&
-            evidence.observationIntegrity !== "complete-within-observer-window")
-        )
-          throw new Error(
-            `native observer incomplete: ${evidence.issues.join("; ")}`,
-          );
-      },
-      (error) =>
-        recorder.report.errors.push(
-          `native progress retention: ${failureReason(error)}`,
-        ),
-    );
-  }
-}
-
 test.describe("remaining editor workloads (opt-in)", () => {
   test.skip(
     !scene,
@@ -874,17 +575,7 @@ test.describe("remaining editor workloads (opt-in)", () => {
     test.setTimeout(30 * 60000);
     page.setDefaultTimeout(15000);
     assertDisposableE2eProject(e2eProjectPath);
-    const nativeSettings = nativeProgressSettings(
-      scene,
-      process.env.DAW_PROFILE_NATIVE_OBSERVER,
-      process.env.DAW_PROFILE_NATIVE_MOTION,
-    );
-    if (
-      scene === "progress-reduced" ||
-      scene === "seek" ||
-      scene === "trim" ||
-      nativeSettings?.motion === "reduce"
-    )
+    if (scene === "seek" || scene === "trim")
       await page.emulateMedia({ reducedMotion: "reduce" });
     const required =
       scene === "clip"
@@ -895,11 +586,7 @@ test.describe("remaining editor workloads (opt-in)", () => {
             ? ["ruler-seek"]
             : scene === "trim"
               ? ["trim-cancel", "trim-save"]
-              : scene === "progress-real"
-                ? ["real-progress"]
-                : scene?.startsWith("progress-")
-                  ? ["synthetic-progress"]
-                  : [scene!];
+              : [scene!];
     const resources = await workloadResources(
       e2eProjectPath,
       scene === "cold-waveform",
@@ -1004,20 +691,7 @@ test.describe("remaining editor workloads (opt-in)", () => {
         else if (scene === "playback") await playback(page, recorder);
         else if (scene === "seek") await seek(page, recorder);
         else if (scene === "trim") await trim(page, recorder);
-        else if (scene === "progress-real")
-          await nativeProgressDiagnostic(page, recorder, nativeSettings!);
-        else if (scene?.startsWith("progress-")) {
-          if (process.env.DAW_PROFILE_TRACE)
-            await recorder.trace(async () => {
-              await replayPipelineProgress(
-                page,
-                recorder,
-                e2eProjectPath,
-                true,
-              );
-            });
-          else await replayPipelineProgress(page, recorder, e2eProjectPath);
-        } else throw new Error(`Unknown workload ${scene}`);
+        else throw new Error(`Unknown workload ${scene}`);
       }
       await recorder.memory("after-workload");
     } catch (error) {

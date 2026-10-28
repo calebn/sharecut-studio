@@ -224,10 +224,6 @@ export async function createEditorProfiler(
       ],
       ["cold-waveform", "generator prebuilds pyramids without decoding"],
       ["native-touch", "desktop browser driver is not physical touch"],
-      [
-        "synthetic-progress",
-        "real consumer attached in attempted replay, but progress bar computed height stayed 0px before and after ordinary panel resize; width-transition cost not measured",
-      ],
     ].map(([id, reason]) => ({
       id: id!,
       result: { status: "not-run", reason: reason! },
