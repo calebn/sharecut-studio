@@ -26,7 +26,6 @@ import { stubViewportShell } from "../../test/viewportShell";
 import { CommandPalette } from "../dialogs/CommandPalette";
 import { paletteCommands } from "../dialogs/commandPaletteRows";
 import { EditCorner } from "../edit/EditCorner";
-import { EditToolStrip } from "../edit/EditToolStrip";
 import { EDIT_SHEETS } from "../edit/editSheets";
 import { PlusMenu } from "../edit/PlusMenu";
 import { ViewSheet } from "../edit/ViewSheet";
@@ -327,13 +326,14 @@ const cornerButton =
     await runs(id, () => user.click(button(name)));
   };
 
-const toolStripButton =
-  (name: string, id: string): Probe =>
-  async (user) => {
-    asHost("edit");
-    render(<EditToolStrip />);
-    await runs(id, () => user.click(button(name)));
-  };
+/** The range toggle lives in the corner on a touch screen only. */
+const touchRangeToggle: Probe = async (user) => {
+  asHost("edit");
+  useDawStore.setState({ pointerKind: "coarse" });
+  render(<EditCorner />);
+  await runs("range.arm", () => user.click(button("Select range")));
+  useDawStore.setState({ pointerKind: "fine" });
+};
 
 const viewLayers: Probe = async () => {
   asHost("edit");
@@ -367,8 +367,6 @@ const fitTracksHeight: Probe = async (user) => {
 
 const REMOVED_SURFACES: Entry[] = [
   // Transport Menu: Timeline tools, Project, Media, Markers, Selection, Help.
-  entry("transport Menu", "Select tool", "tool.select"),
-  entry("transport Menu", "Blade tool", "tool.blade"),
   entry("transport Menu", "Select a range", "range.arm"),
   entry("transport Menu", "Cut at playhead", "edit.bladeCut"),
   entry("transport Menu", "New project", "project.new"),
@@ -460,18 +458,9 @@ const REMOVED_SURFACES: Entry[] = [
   component("More hub", "People", [peopleSlot]),
 
   // Tool rail and the transport bar's own tool buttons.
-  entry("tool rail", "Select tool", "tool.select", [
-    toolStripButton("Select tool", "tool.select"),
-  ]),
-  entry("tool rail", "Blade tool", "tool.blade", [
-    toolStripButton("Blade tool", "tool.blade"),
-  ]),
-  entry("tool rail", "Comment mode", "review.toggleCommentMode", [
-    toolStripButton("Toggle comment mode", "review.toggleCommentMode"),
-  ]),
-  entry("tool rail", "Select a range", "range.arm", [
-    toolStripButton("Select range", "range.arm"),
-  ]),
+  // Select, Blade and Comment mode are gone: a drag selects, Alt-click splits at
+  // the pointer, and Comment arrives as a verb (C) with the action bar.
+  entry("tool rail", "Select a range", "range.arm", [touchRangeToggle]),
   entry("tool rail", "Cut at playhead", "edit.bladeCut"),
   entry("transport bar", "Add track", "track.add", [
     plusMenuRow(/New track/, "track.add"),

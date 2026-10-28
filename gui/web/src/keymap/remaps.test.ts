@@ -14,26 +14,48 @@ describe("keymap remaps", () => {
         "focus.timeline": ["G"],
         "focus.cycle": ["F"],
         "layout.text": ["Y"],
-        "tool.select": ["B"],
+        "view.fit": ["B"],
       }),
     );
     expect(getKeymapOverride("focus.timeline")).toBeUndefined();
     expect(getKeymapOverride("focus.cycle")).toBeUndefined();
     expect(getKeymapOverride("layout.text")).toBeUndefined();
-    expect(getKeymapOverride("tool.select")).toEqual(["B"]);
-    expect(stored()).toEqual({ "tool.select": ["B"] });
+    expect(getKeymapOverride("view.fit")).toEqual(["B"]);
+    expect(stored()).toEqual({ "view.fit": ["B"] });
+  });
+
+  it("drops saved remaps for the removed tool and comment-mode commands", () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        "tool.select": ["B"],
+        "tool.blade": ["X"],
+        "review.toggleCommentMode": ["N"],
+        "review.exitCommentMode": ["Q"],
+        "view.fit": ["F"],
+      }),
+    );
+    for (const id of [
+      "tool.select",
+      "tool.blade",
+      "review.toggleCommentMode",
+      "review.exitCommentMode",
+    ])
+      expect(getKeymapOverride(id)).toBeUndefined();
+    expect(getKeymapOverride("view.fit")).toEqual(["F"]);
+    expect(stored()).toEqual({ "view.fit": ["F"] });
   });
 
   it("leaves a map without renamed ids untouched", () => {
-    localStorage.setItem(KEY, JSON.stringify({ "tool.select": ["B"] }));
-    expect(getKeymapOverride("tool.select")).toEqual(["B"]);
+    localStorage.setItem(KEY, JSON.stringify({ "view.fit": ["B"] }));
+    expect(getKeymapOverride("view.fit")).toEqual(["B"]);
   });
 
   it.each(["null", "[]", "42", '"x"', "{not json"])(
     "treats a stored %s as no remaps",
     (raw) => {
       localStorage.setItem(KEY, raw);
-      expect(getKeymapOverride("tool.select")).toBeUndefined();
+      expect(getKeymapOverride("view.fit")).toBeUndefined();
       expect(getKeymapOverride("layout.timeline")).toBeUndefined();
     },
   );

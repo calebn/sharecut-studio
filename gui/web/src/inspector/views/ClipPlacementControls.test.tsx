@@ -50,8 +50,6 @@ beforeEach(() => {
   useDawStore.setState({
     guestMode: null,
     shareCapabilities: null,
-    toolMode: "select",
-    commentMode: false,
     timelineDragging: false,
     joinMutationInFlight: false,
   });

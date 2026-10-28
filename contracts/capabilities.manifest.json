@@ -177,69 +177,6 @@
       }
     },
     {
-      "id": "daw.tool.select",
-      "label": "Select tool",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
-      "gates": [
-        "timelineFocused"
-      ],
-      "surfaces": {
-        "command": "tool.select",
-        "gui": [
-          "toolModeToggle",
-          "editToolStrip"
-        ],
-        "keyboard": "V"
-      },
-      "omit": {},
-      "tooltip": "Select tool",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.tool.blade",
-      "label": "Blade tool",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
-      "gates": [
-        "timelineAndStructural"
-      ],
-      "surfaces": {
-        "command": "tool.blade",
-        "gui": [
-          "toolModeToggle",
-          "editToolStrip"
-        ],
-        "keyboard": "C"
-      },
-      "omit": {},
-      "tooltip": "Blade tool",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.review.exitCommentMode",
-      "label": "Exit comment mode",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "commentMode"
-      ],
-      "surfaces": {
-        "command": "review.exitCommentMode",
-        "keyboard": "Escape"
-      },
-      "omit": {}
-    },
-    {
       "id": "daw.edit.clearSelection",
       "label": "Clear selection",
       "effect": "session",
@@ -270,30 +207,6 @@
       },
       "omit": {},
       "tooltip": "Open the create menu over the focused timeline target, else at the playhead on the selected track"
-    },
-    {
-      "id": "daw.review.toggleCommentMode",
-      "label": "Toggle comment mode",
-      "effect": "view",
-      "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
-      "gates": [
-        "always"
-      ],
-      "surfaces": {
-        "command": "review.toggleCommentMode",
-        "gui": [
-          "transport.comment",
-          "editToolStrip"
-        ],
-        "keyboard": "Mod+Shift+C"
-      },
-      "omit": {},
-      "tooltip": "Toggle comment mode",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
     },
     {
       "id": "daw.review.resolveComment",
@@ -564,8 +477,7 @@
         "command": "edit.bladeCut",
         "gui": [
           "timeline",
-          "timeline.createMenu",
-          "editToolStrip"
+          "timeline.createMenu"
         ],
         "keyboard": "Mod+K",
         "mcp": [
@@ -576,7 +488,7 @@
         ]
       },
       "omit": {},
-      "tooltip": "Blade cut at the playhead or clicked time",
+      "tooltip": "Blade cut at the playhead, or Alt-click at the pointer",
       "presence": {
         "cursor": "time",
         "follow": "none"
@@ -3208,7 +3120,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "touch create menu; comment mode on the ruler is the pointer route"
+        "keyboard_reason": "touch create menu; the pointer route is the comment panel"
       },
       "presence": {
         "cursor": "time",
@@ -3566,7 +3478,7 @@
       "surfaces": {
         "command": "range.arm",
         "gui": [
-          "editToolStrip"
+          "editCorner"
         ]
       },
       "omit": {

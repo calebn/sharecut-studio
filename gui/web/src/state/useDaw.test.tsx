@@ -52,7 +52,7 @@ describe("pickDaw", () => {
       "scrollLeft",
       "sessionClients",
       "pointerTrackId",
-      "bladeHoverSec",
+      "splitHoverSec",
     )(useDawStore.getState());
 
     expect(Object.keys(selected)).toEqual([
@@ -60,7 +60,7 @@ describe("pickDaw", () => {
       "scrollLeft",
       "sessionClients",
       "pointerTrackId",
-      "bladeHoverSec",
+      "splitHoverSec",
     ]);
   });
 

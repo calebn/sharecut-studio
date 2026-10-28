@@ -72,8 +72,6 @@ describe("ClipInspector presentation", () => {
     };
     hydrateClipProject(sampleTrack({ id: "guest" }), moved);
     useDawStore.setState({
-      toolMode: "select",
-      commentMode: false,
       timelineDragging: false,
       joinMutationInFlight: false,
     });
@@ -126,8 +124,6 @@ describe("ClipInspector presentation", () => {
   it("preserves placement after an invalid trim and cancels it for a valid fade", async () => {
     hydrateClipProject(sampleTrack({ speaker: "Host" }));
     useDawStore.setState({
-      toolMode: "select",
-      commentMode: false,
       timelineDragging: false,
       joinMutationInFlight: false,
     });

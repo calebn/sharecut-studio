@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -18,6 +18,8 @@ beforeEach(() => {
     openSheet: null,
     scriptCollapsed: false,
     zoomPxPerSec: 100,
+    pointerKind: "fine",
+    rangeArmed: false,
   });
 });
 
@@ -62,5 +64,39 @@ describe("EditCorner", () => {
     expect(
       screen.getByRole("button", { name: "Fit session width" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers no range toggle to a mouse or pen", () => {
+    render(<EditCorner />);
+    expect(screen.queryByRole("button", { name: "Select range" })).toBeNull();
+  });
+
+  it("arms and disarms a range through range.arm on a touch screen", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({ pointerKind: "coarse" });
+    render(<EditCorner />);
+    const range = screen.getByRole("button", { name: "Select range" });
+    expect(range).toHaveAttribute("aria-pressed", "false");
+    await user.click(range);
+    expect(useDawStore.getState().rangeArmed).toBe(true);
+    expect(range).toHaveAttribute("aria-pressed", "true");
+    await user.click(range);
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+  });
+
+  it("follows the pointer kind live, so a first touch brings the toggle", () => {
+    render(<EditCorner />);
+    expect(screen.queryByRole("button", { name: "Select range" })).toBeNull();
+    act(() => useDawStore.getState().setPointerKind("coarse"));
+    expect(
+      screen.getByRole("button", { name: "Select range" }),
+    ).toBeInTheDocument();
+  });
+
+  it("explains why the range toggle is unavailable without a project", () => {
+    useDawStore.setState({ pointerKind: "coarse", project: null });
+    render(<EditCorner />);
+    const range = screen.getByRole("button", { name: "Select range" });
+    expect(range).toBeDisabled();
   });
 });

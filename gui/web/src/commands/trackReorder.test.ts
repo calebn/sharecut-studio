@@ -145,7 +145,6 @@ describe("track.reorder / moveUp / moveDown", () => {
       shareCapabilities: null,
       project: threeTracks(),
       selection: { kind: "track", trackId: "b" },
-      commentMode: false,
       timelineFocused: true,
     });
   });

@@ -24,7 +24,6 @@ export type CommandContext = {
   timelineFocused: boolean;
   transcriptFocused: boolean;
   editorFocused: boolean;
-  commentMode: boolean;
   canSuggestStructural: boolean;
   canApplyPass12: boolean;
   canRefreshMix: boolean;
@@ -84,7 +83,6 @@ export function buildCommandContext(): CommandContext {
     timelineFocused: s.timelineFocused,
     transcriptFocused,
     editorFocused: s.timelineFocused || transcriptFocused,
-    commentMode: s.commentMode,
     canSuggestStructural: canSuggestStructural(
       s.projectPath,
       s.guestMode,
@@ -189,10 +187,6 @@ export function evaluateWhen(
       return ctx.timelineFocused
         ? { ok: true }
         : { ok: false, reason: "Timeline not focused" };
-    case "commentMode":
-      return ctx.commentMode
-        ? { ok: true }
-        : { ok: false, reason: "Not in comment mode" };
     case "canSuggestStructural":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
@@ -227,20 +221,6 @@ export function evaluateWhen(
       return requireEditStage(ctx, "canMoveSelectedTrackDown");
     case "editStageSplitSpeakers":
       return requireEditStage(ctx, "canSplitSpeakers");
-    case "timelineAndStructural":
-      if (ctx.stage !== "edit") {
-        return { ok: false, reason: "Open Edit to use the timeline" };
-      }
-      if (!ctx.timelineFocused) {
-        return { ok: false, reason: "Timeline not focused" };
-      }
-      if (!ctx.hasProject) {
-        return { ok: false, reason: "No project loaded" };
-      }
-      if (!ctx.canSuggestStructural) {
-        return { ok: false, reason: "Structural edits not allowed" };
-      }
-      return { ok: true };
     case "canUndo":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
@@ -348,9 +328,6 @@ export function evaluateWhen(
         ? { ok: true }
         : { ok: false, reason: ctx.splitSpeakersBlocker };
     case "hasInspectorSelection":
-      if (ctx.commentMode) {
-        return { ok: false, reason: "Comment mode owns Escape" };
-      }
       return ctx.hasInspectorSelection
         ? { ok: true }
         : { ok: false, reason: "Nothing selected" };

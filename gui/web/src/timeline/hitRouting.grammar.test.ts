@@ -43,10 +43,7 @@ function record(name: string, el: Element): void {
 }
 
 /** A router like the timeline's: 100 px/s, `boundaries` for every target. */
-function attach(
-  boundaries: SoftBoundary[] = [],
-  surfaceTaps: () => boolean = () => true,
-): void {
+function attach(boundaries: SoftBoundary[] = []): void {
   router?.dispose();
   router = attachHitRouting(root, {
     onArm: (target) => armed.push(target),
@@ -54,7 +51,6 @@ function attach(
     onDetent: (detent) => detents.push(detent),
     detents: () => boundaries,
     pxPerSec: () => 100,
-    surfaceTaps,
     snapshot: () => () => {
       restored += 1;
     },
@@ -512,16 +508,6 @@ describe("tap on a surface near an edit mark", () => {
     tap(el, 228, 104, "mouse");
 
     expect(marks("join")).toEqual([]);
-  });
-
-  it("leaves the tap to the surface in blade mode", () => {
-    attach([], () => false);
-    const el = lane();
-    mark();
-    tap(el, 228, 104);
-
-    expect(marks("join")).toEqual([]);
-    expect(seeks()).toHaveLength(2);
   });
 
   it("gives a press on a trim handle at the same seam to the handle", () => {

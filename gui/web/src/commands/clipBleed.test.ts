@@ -146,8 +146,6 @@ beforeEach(async () => {
     timelineDragging: false,
     rangeBusy: false,
     selection: null,
-    toolMode: "select",
-    commentMode: false,
     feedbackToast: null,
     statusAnnouncement: "",
   });

@@ -6,14 +6,13 @@ import { useDawStore } from "../../state/dawStore";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
 import { EditCorner } from "./EditCorner";
-import { EditToolStrip } from "./EditToolStrip";
 import { EditSurfaceSwitch } from "./PhoneEditSurfaceView";
 
 /**
  * The Edit controls behind the header's Tools button, for a frame too short for
- * their rows: on a phone the Timeline and Script switch and the tools, then the
- * corner (zoom, the eye, the Script toggle, which a short frame takes off the
- * lanes) and Mix.
+ * their rows: on a phone the Timeline and Script switch, then the corner (zoom,
+ * the eye, the Script toggle and, on touch, the range toggle, which a short
+ * frame takes off the lanes) and Mix.
  */
 export function ToolsSheet() {
   const { surface, setOpenSheet, mixAllowed } = useDawStore(
@@ -34,7 +33,6 @@ export function ToolsSheet() {
           }
         />
       ) : null}
-      {phone && surface === "lanes" ? <EditToolStrip /> : null}
       {surface === "lanes" || !phone ? (
         <EditCorner showScript={!phone} />
       ) : null}

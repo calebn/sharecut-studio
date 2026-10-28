@@ -61,8 +61,6 @@ function selectionKey(s: DawState): string {
 export function canPlaceClips(s: DawState): boolean {
   return (
     canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities) &&
-    s.toolMode === "select" &&
-    !s.commentMode &&
     !s.joinMutationInFlight &&
     s.heldTrim === null &&
     !s.timelineDragging
