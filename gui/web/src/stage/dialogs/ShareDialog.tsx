@@ -583,9 +583,9 @@ export function ShareDialog() {
       onRevoke={(token) => void onRevoke(token)}
       onEndRoom={(sessionId) => void onEndRoom(sessionId)}
       onReplaceRecordInvite={(token) => void onReplaceRecordInvite(token)}
-      onOpenRoomPanel={() => {
+      onOpenRecordStage={() => {
         setShareDialogOpen(false);
-        void execute("record.openPanel");
+        void execute("stage.record");
       }}
     />
   );

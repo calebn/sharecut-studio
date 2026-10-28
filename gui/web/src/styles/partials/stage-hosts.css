@@ -95,13 +95,32 @@
   list-style: none;
 }
 
-.stage-host-launcher {
-  flex-basis: auto;
+.stage-host--record {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.stage-host--record > .sys-room-view {
+  flex: 1 1 auto;
+}
+
+.stage-host-record-empty {
+  margin: var(--space-4);
   max-inline-size: 32rem;
 }
 
-.stage-host-launcher[data-record-state="live"] .stage-host-title {
-  color: var(--color-record);
+.stage-host-record-notices {
+  flex: none;
+}
+
+.stage-host-record-notices:not(:empty) {
+  padding: var(--space-3) var(--space-5);
+  border-block-end: 1px solid var(--color-border-subtle);
+}
+
+.stage-host-record-notices > .stage-host-note {
+  margin: 0;
 }
 
 .stage-host-tabs {

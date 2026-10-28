@@ -40,8 +40,6 @@ export interface ChromeFlags {
   exportDialogOpen: boolean;
   /** Host share management dialog. */
   shareDialogOpen: boolean;
-  /** Host record-room control panel. */
-  recordPanelOpen: boolean;
   /** Local host MCP connect dialog (Streamable HTTP URL). */
   hostMcpDialogOpen: boolean;
   /** Host Help → diagnostics bundle dialog. */
@@ -579,7 +577,6 @@ export interface DawState {
   setExportDialogOpen: (on: boolean) => void;
   setSplitSpeakersTrackId: (trackId: string | null) => void;
   setShareDialogOpen: (on: boolean) => void;
-  setRecordPanelOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;
   setModelsDialogOpen: (on: boolean) => void;

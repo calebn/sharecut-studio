@@ -1,4 +1,3 @@
-import type { RecordSnapshot } from "../../record";
 import { stagesForRole } from "../../state/stageRoutes";
 import {
   REVIEW_SECTIONS,
@@ -47,46 +46,6 @@ export function prepareHandoff(input: {
     };
   }
   return { label: "Edit", target: "edit", primary: !busy };
-}
-
-type RecordStatusKind = "idle" | "live" | "paused" | "saving";
-
-export type RecordStatus = {
-  kind: RecordStatusKind;
-  title: string;
-  detail: string;
-};
-
-/** What the launcher says about the room. A lobby or no room is idle. */
-export function recordStatusOf(snapshot: RecordSnapshot | null): RecordStatus {
-  switch (snapshot?.state) {
-    case "recording":
-      return {
-        kind: "live",
-        title: "Recording",
-        detail: "Take in progress. Switching stage does not stop it.",
-      };
-    case "paused":
-      return {
-        kind: "paused",
-        title: "Paused",
-        detail: "The take is paused. Open the room to resume or stop it.",
-      };
-    case "stopped":
-      return {
-        kind: "saving",
-        title: "Saving the take",
-        detail: "Uploads finish in the room. Open it to watch them land.",
-      };
-    default:
-      return {
-        kind: "idle",
-        title: snapshot ? "Room is open" : "No take yet",
-        detail: snapshot
-          ? "Guests can join. Open the room to start."
-          : "Open the room to invite guests or record this device.",
-      };
-  }
 }
 
 type ReadinessFix =

@@ -284,11 +284,6 @@ const refreshMixRow: Probe = async (user) => {
   );
 };
 
-const recordRoom: Probe = async (user) => {
-  mountStage("record");
-  await runs("record.openPanel", () => user.click(button("Open the room")));
-};
-
 const importAudio: Probe = async (user) => {
   mountStage("prepare");
   await runs("media.import", () => user.click(button(/Add audio/)));
@@ -383,7 +378,9 @@ const REMOVED_SURFACES: Entry[] = [
     deliverButton("Share a listen link", "share.manage"),
     headerInvite,
   ]),
-  entry("transport Menu", "Record room", "record.openPanel", [recordRoom]),
+  entry("transport Menu", "Record room", "stage.record", [
+    plusMenuRow(/Go to Record/, "stage.record"),
+  ]),
   entry("transport Menu", "Connect agent", "mcp.connect", [
     projectMenuRow("Connect agent", "mcp.connect"),
   ]),

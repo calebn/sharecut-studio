@@ -25,7 +25,6 @@ import {
   type MicPermissionStatus,
   micGrantFailed,
 } from "./micPermission";
-import type { RecordRoomLookup } from "./RecordPanelView";
 import {
   captureAttention,
   hostReconnectPauseCopyFromSnapshot,
@@ -41,6 +40,8 @@ import {
 } from "./upload/useRecordUpload";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import { useRoomToneCapture } from "./useRoomToneCapture";
+
+export type RecordRoomLookup = "checking" | "none" | "found" | "failed";
 
 const SHOWN_RESULTS = new Set(["record.createRoom", "record.copyGuestLink"]);
 
@@ -263,7 +264,10 @@ export function useHostRoom(
   const micFailed =
     micStatus && micStatus !== "lost" ? micGrantFailed(micStatus) : false;
 
-  const jumpFor = (region: TakeClipRegion): (() => void) | null => {
+  const jumpFor = (
+    region: TakeClipRegion,
+    takeIndex?: number,
+  ): (() => void) | null => {
     if (!snapshot) {
       return null;
     }
@@ -272,7 +276,7 @@ export function useHostRoom(
           project.clips.tracks,
           recordSourceId(
             snapshot.session_id,
-            snapshot.take_index,
+            takeIndex ?? snapshot.take_index,
             "p_host",
             region.segmentIndex,
           ),

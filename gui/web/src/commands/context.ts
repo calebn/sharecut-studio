@@ -55,7 +55,7 @@ export type CommandContext = {
   /** Any inspector selection (clip, track, comment, …). */
   hasInspectorSelection: boolean;
   following: boolean;
-  recordPanelOpen: boolean;
+  recordStageActive: boolean;
   tightenPanelOpen: boolean;
 };
 
@@ -137,7 +137,7 @@ export function buildCommandContext(): CommandContext {
     ),
     hasInspectorSelection: selection != null,
     following: s.followingClientId != null,
-    recordPanelOpen: s.chrome.recordPanelOpen,
+    recordStageActive: s.stage === "record",
     tightenPanelOpen: s.stage === "review" && s.reviewSection === "tighten",
   };
 }
@@ -358,10 +358,10 @@ export function evaluateWhen(
       return ctx.following
         ? { ok: true }
         : { ok: false, reason: "Not following" };
-    case "recordPanelOpen":
-      return ctx.recordPanelOpen
+    case "recordStageActive":
+      return ctx.recordStageActive
         ? { ok: true }
-        : { ok: false, reason: "Record panel is closed" };
+        : { ok: false, reason: "Record stage is not open" };
     case "tightenPanelOpen":
       return ctx.tightenPanelOpen
         ? { ok: true }

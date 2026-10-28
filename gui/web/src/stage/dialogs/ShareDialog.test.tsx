@@ -912,13 +912,13 @@ describe("ShareDialog", () => {
       record_role: "producer",
     };
     listHostShares.mockResolvedValue(listed([guestRow, producerRow]));
-    setChrome({ shareDialogOpen: true, recordPanelOpen: false });
+    setChrome({ shareDialogOpen: true });
     render(<ShareDialog />);
     fireEvent.click(
-      await screen.findByRole("button", { name: "Open room panel" }),
+      await screen.findByRole("button", { name: "Open Record stage" }),
     );
     expect(useDawStore.getState().chrome.shareDialogOpen).toBe(false);
-    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(true);
+    expect(useDawStore.getState().stage).toBe("record");
   });
 
   it("replaces a closed guest invite, copies the new link, and refreshes rows", async () => {

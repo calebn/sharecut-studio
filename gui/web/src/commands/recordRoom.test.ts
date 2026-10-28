@@ -58,7 +58,8 @@ describe("record room commands", () => {
     writeText.mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    setChrome({ recordPanelOpen: true, shareDialogOpen: false });
+    setChrome({ shareDialogOpen: false });
+    useDawStore.setState({ stage: "record" });
     useDawStore.setState({
       statusAnnouncement: "",
     });

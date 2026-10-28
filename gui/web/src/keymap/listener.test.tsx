@@ -60,8 +60,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.mocked(execute).mockImplementation(actualExecute);
-  setChrome({ recordPanelOpen: false });
-  useDawStore.setState({ selection: null });
+  useDawStore.setState({ selection: null, stage: "edit" });
   disposeHandle?.();
   disposeHandle = null;
   clearRegisteredCommands();
@@ -281,9 +280,9 @@ it("keeps native typing in a dialog's text field while the app shortcuts are hel
   expect(vi.mocked(execute)).not.toHaveBeenCalled();
 });
 
-it("lets through only the shortcuts the open modal hands on: M drops a marker in the Record room", async () => {
+it("lets through only the shortcuts the open modal hands on: M drops a marker", async () => {
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
-  useDawStore.getState().setRecordPanelOpen(true);
+  useDawStore.setState({ stage: "record" });
   const { rerender } = render(
     <>
       <KeymapHost />
@@ -458,11 +457,11 @@ it("runs the Tighten hit on Backspace while the panel is open, and the clip dele
   ]);
 });
 
-it("drops a marker on M while the record panel is open and mutes the track once it closes", async () => {
+it("drops a marker on M on the Record stage and mutes the track on any other stage", async () => {
   render(<KeymapHost />);
-  useDawStore.getState().setRecordPanelOpen(true);
+  useDawStore.setState({ stage: "record" });
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["record.marker"]);
-  useDawStore.getState().setRecordPanelOpen(false);
+  useDawStore.setState({ stage: "edit" });
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["track.muteToggle"]);
 });
 

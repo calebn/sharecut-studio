@@ -44,7 +44,7 @@ export type ContextPredicateId =
   | "canSplitSpeakers"
   | "hasInspectorSelection"
   | "following"
-  | "recordPanelOpen"
+  | "recordStageActive"
   | "tightenPanelOpen"
   | "canUndo"
   | "canRedo";

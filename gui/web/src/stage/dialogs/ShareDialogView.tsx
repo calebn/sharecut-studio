@@ -145,7 +145,7 @@ export type ShareDialogViewProps = {
   onRevoke: (token: string) => void;
   onEndRoom: (sessionId: string) => void;
   onReplaceRecordInvite: (sourceToken: string) => void;
-  onOpenRoomPanel: () => void;
+  onOpenRecordStage: () => void;
   /** Online sharing state; omitted when the `tunnel.status` feature is unavailable. */
   tunnel?: TunnelStatus | null;
 };
@@ -572,7 +572,7 @@ function ReviewLinkRow({
 function RecordRoomCard({
   room,
   busy,
-  onOpenRoomPanel,
+  onOpenRecordStage,
   confirming,
   onAskEnd,
   endRef,
@@ -636,9 +636,9 @@ function RecordRoomCard({
             type="button"
             disabledReason={busy ? BUSY_REASON : undefined}
             aria-describedby={labelId}
-            onClick={onOpenRoomPanel}
+            onClick={onOpenRecordStage}
           >
-            Open room panel
+            Open Record stage
           </Button>
           <Button
             ref={endRef}

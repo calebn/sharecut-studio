@@ -18,7 +18,6 @@ import { HostRoomProvider } from "./record/hostRoomContext";
 import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
 import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
-import { RecordPanel } from "./record/RecordPanel";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { useHostRoom } from "./record/useHostRoom";
 import { isShareProjectKey } from "./shareMode";
@@ -162,7 +161,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     send: (payload) => sendRecordHostCommand("Signal", payload),
   });
 
-  const recordPanelOpen = useDaw((s) => s.chrome.recordPanelOpen);
+  const recordStageActive = useDawStore((s) => s.stage === "record");
   const hostRoom = useHostRoom(
     {
       recordingLocally: hostKeeper.recordingLocally,
@@ -180,7 +179,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       onCheckMic: hostKeeper.checkMic,
       micCheckFailed: hostKeeper.micCheckFailed,
     },
-    { hydrate: syncEnabled && recordPanelOpen },
+    { hydrate: syncEnabled && recordStageActive },
   );
 
   useEffect(() => {
@@ -234,7 +233,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <ExportDialog />
       <SplitSpeakersDialog />
       <ShareDialog />
-      <RecordPanel />
       <HostMcpDialog
         open={hostMcpDialogOpen}
         onClose={() => setHostMcpDialogOpen(false)}

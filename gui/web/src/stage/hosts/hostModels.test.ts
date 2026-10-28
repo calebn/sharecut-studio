@@ -1,21 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { RecordSnapshot } from "../../record";
 import {
   deliverReadiness,
   effectiveSection,
   prepareHandoff,
-  recordStatusOf,
   reviewSectionsFor,
   stageAvailable,
 } from "./hostModels";
-
-const snap = (state: RecordSnapshot["state"]): RecordSnapshot => ({
-  session_id: "s",
-  state,
-  take_index: 0,
-  participants: [],
-  caps: { recorded: 0, producers: 0 },
-});
 
 describe("stageAvailable", () => {
   it.each([
@@ -73,20 +63,6 @@ describe("prepareHandoff", () => {
       target: "edit",
       primary: true,
     });
-  });
-});
-
-describe("recordStatusOf", () => {
-  it("separates idle, live, paused and saving", () => {
-    expect(recordStatusOf(null).kind).toBe("idle");
-    expect(recordStatusOf(snap("lobby")).kind).toBe("idle");
-    expect(recordStatusOf(snap("recording")).kind).toBe("live");
-    expect(recordStatusOf(snap("paused")).kind).toBe("paused");
-    expect(recordStatusOf(snap("stopped")).kind).toBe("saving");
-  });
-
-  it("says a take survives a stage switch", () => {
-    expect(recordStatusOf(snap("recording")).detail).toMatch(/does not stop/);
   });
 });
 
