@@ -72,7 +72,12 @@ function ReviewHostAdapter({
       active={active}
       waiting={waiting}
       onSection={(section) => runPointerCommand("stage.review", { section })}
-      panel={panelFor(active, guestShare, queue, role !== "host")}
+      panel={panelFor(
+        active,
+        guestShare,
+        queue,
+        role !== "host" && project?.meta.hydration?.transcript_words !== false,
+      )}
       onDeliver={
         role === "host" ? () => runPointerCommand("stage.deliver") : undefined
       }

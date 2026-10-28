@@ -55,3 +55,18 @@ for (const size of SIZES) {
     });
   });
 }
+
+test("a Viewer link shows no Script, because its guests are not sent word timings", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
+      await openHostShare(host, projectPath);
+      const token = await createReviewShare(host, projectPath, "viewer");
+      await openGuestShare(guest, token);
+      await expect(guest.locator(".comments-panel")).toBeVisible();
+      await expect(guest.locator(".stage-host-guest-script")).toHaveCount(0);
+      await expect(guest.getByText("Nothing to read yet")).toHaveCount(0);
+    });
+  });
+});

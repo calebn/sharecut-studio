@@ -213,6 +213,53 @@ describe("Review host", () => {
     ).toBeNull();
   });
 
+  it.each([
+    [false, false],
+    [true, true],
+  ])(
+    "with transcript_words %s a guest link shows the Script: %s",
+    (words, shown) => {
+      const project = minimalProject({
+        transcript: {
+          utterances: [
+            {
+              track_id: "t1",
+              source_id: "s1",
+              speaker: "Maya",
+              start: 0,
+              end: 0,
+              text: "",
+              ...(words
+                ? {
+                    words: [
+                      {
+                        text: "Welcome",
+                        start: 0,
+                        end: 0,
+                        timeline_start: 1,
+                        timeline_end: 2,
+                      },
+                    ],
+                  }
+                : {}),
+            },
+          ],
+        },
+      });
+      project.meta.hydration = { transcript_words: words };
+      useDawStore.getState().hydrate("share:abc", project);
+      useDawStore.setState({ stage: "review", guestMode: "view" });
+      mount(true);
+      expect(screen.getByText("guest comments panel")).toBeInTheDocument();
+      expect(document.querySelector(".stage-host-guest-script") !== null).toBe(
+        shown,
+      );
+      expect(
+        screen.queryByRole("heading", { name: "Nothing to read yet" }) !== null,
+      ).toBe(false);
+    },
+  );
+
   it("marks sections that wait on the person", () => {
     asHost("review");
     useDawStore.getState().hydrate(
