@@ -18,6 +18,7 @@ const KEEPALIVE_MS = 10_000;
 const UI_KEYS = [
   "stage",
   "reviewSection",
+  "guestMode",
   "editSurface",
   "shellBreakpoint",
   "pointerKind",
@@ -148,7 +149,8 @@ export function usePresencePublisher(
     const publishUi = (s: DawStore) => {
       push({
         ui: {
-          tab: tabForStage(s.stage, s.reviewSection),
+          // A guest sees Comments whatever the store holds.
+          tab: tabForStage(s.stage, s.guestMode ? "comments" : s.reviewSection),
           mobile_mode:
             s.shellBreakpoint === "phone" || s.pointerKind === "coarse"
               ? mobileModeForStage(s.stage, s.editSurface)

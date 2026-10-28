@@ -144,7 +144,12 @@ describe("Review host", () => {
     const tabs = within(
       screen.getByRole("tablist", { name: "Review sections" }),
     );
-    expect(tabs.getAllByRole("tab")).toHaveLength(3);
+    expect(
+      tabs
+        .getAllByRole("tab")
+        .map((t) => t.textContent)
+        .join(),
+    ).toMatch(/^Queue.*Comments.*Tighten/);
     await userEvent.click(tabs.getByRole("tab", { name: /Queue/ }));
     expect(useDawStore.getState().reviewSection).toBe("queue");
     expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();

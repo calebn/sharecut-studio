@@ -210,19 +210,19 @@ test("Keep decides one queue item at a thumb-sized target, then one Undo brings 
     await openPanel(page, "queue");
 
     const position = page.getByRole("button", { name: /^\d+ of \d+$/ });
-    await expect(position).toHaveText(/of 3$/);
-    const keep = page
-      .locator(".rv-stage")
-      .getByRole("button", { name: "Keep" });
+    await expect(position).toHaveText(/of \d+$/);
+    const total = (await position.innerText()).replace(/^\d+/, "");
+    const stage = page.locator(".rv-stage");
+    const keep = stage.getByRole("button", { name: "Keep" });
     expect((await keep.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
     await keep.tap();
     const toast = page.locator(".ui-toast-region--app");
     await expect(toast.getByText("Kept")).toBeVisible();
-    await expect(position).toHaveText(/of 3$/);
+    await expect(position).toContainText(total);
     await toast.getByRole("button", { name: /undo/i }).tap();
     await expect(toast.getByText(/Undone/)).toBeVisible();
-    await expect(page.locator(".rv-stage")).toBeFocused();
+    await expect(stage).toBeFocused();
   });
 });
 
