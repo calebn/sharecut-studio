@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useWriteBack } from "./useWriteBack";
 
@@ -13,6 +14,13 @@ describe("useWriteBack", () => {
     rerender({ value: [2] });
     rerender({ value: [3] });
     expect(onChange.mock.calls).toEqual([[[2]], [[3]]]);
+  });
+
+  it("stays quiet on mount when effects run twice", () => {
+    const onChange = vi.fn();
+    const value = [1];
+    renderHook(() => useWriteBack(value, onChange), { wrapper: StrictMode });
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("does not report a re-render with the same value", () => {

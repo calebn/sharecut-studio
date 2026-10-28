@@ -27,29 +27,33 @@ type Props = {
   /** Episode length in seconds. */
   total: number;
   /** Where files go, as a folder name. */
-  saveTo: string;
+  saveTo?: string;
   exportState: ExportState;
   env: DeliverEnv;
   state?: "ready" | "loading";
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
+  /** False when the host cannot honor the format, loudness and range choices. */
+  showSettings?: boolean;
   onSettings: (next: EpisodeSettings) => void;
-  onChangeFolder: () => void;
+  /** Without it the Saves to line is not shown. */
+  onChangeFolder?: () => void;
   onExport: () => void;
   onGetModel?: () => void;
-  onCancel: () => void;
-  onReveal: (file?: ExportFile) => void;
-  onDownload: (file?: ExportFile) => void;
+  onCancel?: () => void;
+  onReveal?: (file?: ExportFile) => void;
+  onDownload?: (file?: ExportFile) => void;
 };
 
 export function EpisodeFile({
   settings,
   total,
-  saveTo,
+  saveTo = "",
   exportState,
   env,
   state = "ready",
   dock = false,
+  showSettings = true,
   onSettings,
   onChangeFolder,
   onExport,
@@ -82,112 +86,126 @@ export function EpisodeFile({
 
   return (
     <DeliverSection title="Episode file">
-      <div className="dv-chips" role="group" aria-label="Formats">
-        {FORMATS.map((format) => (
-          <ToggleButton
-            key={format.id}
-            pressed={settings.formats.includes(format.id)}
-            onClick={() => toggleFormat(format.id)}
-          >
-            {format.label}
-            <span className="sys-mono dv-chip-size">
-              {formatBytes(estimateBytes(format.id, seconds))}
-            </span>
-          </ToggleButton>
-        ))}
-      </div>
-      <p className="dv-note">
-        Captions and transcript are written with every export.
-      </p>
+      {showSettings ? (
+        <>
+          <div className="dv-chips" role="group" aria-label="Formats">
+            {FORMATS.map((format) => (
+              <ToggleButton
+                key={format.id}
+                pressed={settings.formats.includes(format.id)}
+                onClick={() => toggleFormat(format.id)}
+              >
+                {format.label}
+                <span className="sys-mono dv-chip-size">
+                  {formatBytes(estimateBytes(format.id, seconds))}
+                </span>
+              </ToggleButton>
+            ))}
+          </div>
+          <p className="dv-note">
+            Captions and transcript are written with every export.
+          </p>
 
-      <div className="dv-field">
-        <span className="dv-field-label">Loudness</span>
-        <SegmentedControl label="Loudness">
-          {LOUDNESS.map((entry) => (
-            <ToggleButton
-              key={entry.id}
-              quiet
-              pressed={settings.loudness === entry.id}
-              onClick={() => onSettings({ ...settings, loudness: entry.id })}
-            >
-              {entry.label}
-              <span className="sys-mono dv-chip-size">
-                {String(entry.lufs).replace("-", "−")}
-              </span>
-            </ToggleButton>
-          ))}
-        </SegmentedControl>
-      </div>
+          <div className="dv-field">
+            <span className="dv-field-label">Loudness</span>
+            <SegmentedControl label="Loudness">
+              {LOUDNESS.map((entry) => (
+                <ToggleButton
+                  key={entry.id}
+                  quiet
+                  pressed={settings.loudness === entry.id}
+                  onClick={() =>
+                    onSettings({ ...settings, loudness: entry.id })
+                  }
+                >
+                  {entry.label}
+                  <span className="sys-mono dv-chip-size">
+                    {String(entry.lufs).replace("-", "−")}
+                  </span>
+                </ToggleButton>
+              ))}
+            </SegmentedControl>
+          </div>
 
-      <div className="dv-field">
-        <span className="dv-field-label">Range</span>
-        <SegmentedControl label="Range">
-          <ToggleButton
-            quiet
-            pressed={settings.part.mode === "whole"}
-            onClick={() => onSettings({ ...settings, part: { mode: "whole" } })}
-          >
-            Whole episode
-          </ToggleButton>
-          <ToggleButton
-            quiet
-            pressed={settings.part.mode === "part"}
-            onClick={() =>
-              settings.part.mode === "part"
-                ? undefined
-                : onSettings({
+          <div className="dv-field">
+            <span className="dv-field-label">Range</span>
+            <SegmentedControl label="Range">
+              <ToggleButton
+                quiet
+                pressed={settings.part.mode === "whole"}
+                onClick={() =>
+                  onSettings({ ...settings, part: { mode: "whole" } })
+                }
+              >
+                Whole episode
+              </ToggleButton>
+              <ToggleButton
+                quiet
+                pressed={settings.part.mode === "part"}
+                onClick={() =>
+                  settings.part.mode === "part"
+                    ? undefined
+                    : onSettings({
+                        ...settings,
+                        part: {
+                          mode: "part",
+                          start: 0,
+                          end: Math.min(total, 60),
+                        },
+                      })
+                }
+              >
+                Part…
+              </ToggleButton>
+            </SegmentedControl>
+          </div>
+          {settings.part.mode === "part" ? (
+            <div className="dv-part">
+              <TimeField
+                label="In"
+                value={settings.part.start}
+                min={0}
+                max={total}
+                step={0.1}
+                format={formatClock}
+                parse={parseClock}
+                onChange={(start) =>
+                  settings.part.mode === "part" &&
+                  onSettings({
                     ...settings,
-                    part: { mode: "part", start: 0, end: Math.min(total, 60) },
+                    part: clampPart({ start, end: settings.part.end }, total),
                   })
-            }
-          >
-            Part…
-          </ToggleButton>
-        </SegmentedControl>
-      </div>
-      {settings.part.mode === "part" ? (
-        <div className="dv-part">
-          <TimeField
-            label="In"
-            value={settings.part.start}
-            min={0}
-            max={total}
-            step={0.1}
-            format={formatClock}
-            parse={parseClock}
-            onChange={(start) =>
-              settings.part.mode === "part" &&
-              onSettings({
-                ...settings,
-                part: clampPart({ start, end: settings.part.end }, total),
-              })
-            }
-          />
-          <TimeField
-            label="Out"
-            value={settings.part.end}
-            min={0}
-            max={total}
-            step={0.1}
-            format={formatClock}
-            parse={parseClock}
-            onChange={(end) =>
-              settings.part.mode === "part" &&
-              onSettings({
-                ...settings,
-                part: clampPart({ start: settings.part.start, end }, total),
-              })
-            }
-          />
-        </div>
+                }
+              />
+              <TimeField
+                label="Out"
+                value={settings.part.end}
+                min={0}
+                max={total}
+                step={0.1}
+                format={formatClock}
+                parse={parseClock}
+                onChange={(end) =>
+                  settings.part.mode === "part" &&
+                  onSettings({
+                    ...settings,
+                    part: clampPart({ start: settings.part.start, end }, total),
+                  })
+                }
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
 
-      <p className="dv-save">
-        Saves to <span className="sys-mono">{saveTo}</span>
-        <Button variant="link" onClick={onChangeFolder}>
-          Change
-        </Button>
-      </p>
+      {onChangeFolder ? (
+        <p className="dv-save">
+          Saves to <span className="sys-mono">{saveTo}</span>
+          <Button variant="link" onClick={onChangeFolder}>
+            Change
+          </Button>
+        </p>
+      ) : null}
 
       {exportState.phase === "needs-model" ? (
         <StatusRow
@@ -211,7 +229,9 @@ export function EpisodeFile({
           title="Exporting"
           detail={exportState.detail}
           progress={exportState.progress}
-          action={{ label: "Cancel", onAction: onCancel }}
+          action={
+            onCancel ? { label: "Cancel", onAction: onCancel } : undefined
+          }
         />
       ) : null}
       {exportState.phase === "failed" ? (
@@ -241,8 +261,8 @@ export function EpisodeFile({
           action={action}
           blocker={blocker}
           onExport={onExport}
-          onReveal={() => onReveal()}
-          onDownload={() => onDownload()}
+          onReveal={() => onReveal?.()}
+          onDownload={() => onDownload?.()}
         />
       )}
 
@@ -257,7 +277,7 @@ export function EpisodeFile({
               <Button
                 variant="link"
                 onClick={() =>
-                  env === "app" ? onReveal(file) : onDownload(file)
+                  env === "app" ? onReveal?.(file) : onDownload?.(file)
                 }
               >
                 {env === "app" ? "Reveal" : "Download"}

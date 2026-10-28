@@ -51,19 +51,19 @@ export type DeliverStageProps = {
   initialSettings: EpisodeSettings;
   initialChapters: readonly Chapter[];
   initialClips: readonly Clip[];
-  saveTo: string;
+  saveTo?: string;
   exportState: ExportState;
   env?: DeliverEnv;
-  clock: { time: string; total: string };
-  /** Playhead in seconds, where Add at playhead puts a chapter. A function is read on click, so a host need not re-render every frame. */
-  playhead: number | (() => number);
+  clock?: { time: string; total: string };
+  /** Playhead in seconds, where Add at playhead puts a chapter. */
+  getPlayheadSec: () => number;
   /** A range selected in Edit; Mod+E exports it instead of the Deliver In and Out. */
   selection?: TimeSpan | null;
   /** Episode words in seconds, sorted by start; clip trim handles snap to them. Without them the handles move freely. */
   words?: readonly ClipWord[];
   /** Peaks spread evenly over the episode, 0 to 1, for the clip trim strip. */
   peaks?: readonly number[];
-  link: {
+  link?: {
     url: string | null;
     copyState?: LinkCopyState;
     openedBy?: readonly { name: string; colorIndex?: number }[];
@@ -72,26 +72,28 @@ export type DeliverStageProps = {
     reach?: "anywhere" | "network";
   };
   /** The exported version the listen link is pinned to. */
-  pinnedTo: string;
+  pinnedTo?: string;
   layout?: "desktop" | "phone";
   state?: "ready" | "loading" | "error";
   /** Guests get Review only; Deliver shows a Cover instead of controls. */
   guest?: boolean;
   toastMs?: number;
-  /** Each change to the settings, chapters or clips, after the first values. */
-  onSettings?: (settings: EpisodeSettings) => void;
+  /** Each change to the chapters or clips, after the first values. */
   onChapters?: (chapters: readonly Chapter[]) => void;
   onClips?: (clips: readonly Clip[]) => void;
   /** Without it the Listen link section is not shown. */
   showLink?: boolean;
   /** False when the app frame already carries the Player bar. */
   showPlayer?: boolean;
+  /** False when the host does not pass the format, loudness and range choices to Export. */
+  showSettings?: boolean;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
-  onCancel: () => void;
-  onReveal: (file?: ExportFile) => void;
-  onDownload: (file?: ExportFile) => void;
-  onChangeFolder: () => void;
+  onCancel?: () => void;
+  onReveal?: (file?: ExportFile) => void;
+  onDownload?: (file?: ExportFile) => void;
+  /** Without it the Saves to line is not shown. */
+  onChangeFolder?: () => void;
   onCopyLink: () => void;
   onRefreshMix: () => void;
   onPlayFrom: (seconds: number) => void;
@@ -106,6 +108,9 @@ const EXPORT_KEY = VERBS.find((verb) => verb.id === "export")?.keys[0];
 
 let nextChapter = 0;
 
+const NO_CLOCK = { time: "", total: "" };
+const NO_LINK = { url: null };
+
 const IN_FLIGHT_MS = 2000;
 
 export function DeliverStage({
@@ -117,20 +122,20 @@ export function DeliverStage({
   saveTo,
   exportState,
   env = "app",
-  clock,
-  playhead,
+  clock = NO_CLOCK,
+  getPlayheadSec,
   selection = null,
   words,
   peaks,
-  link,
-  pinnedTo,
+  link = NO_LINK,
+  pinnedTo = "",
   layout = "desktop",
   state = "ready",
   guest = false,
   toastMs = 6000,
   showLink = true,
   showPlayer = true,
-  onSettings,
+  showSettings = true,
   onChapters,
   onClips,
   onFix,
@@ -151,7 +156,6 @@ export function DeliverStage({
   const [settings, setSettings] = useState(initialSettings);
   const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
   const [clips, setClips] = useState<readonly Clip[]>(initialClips);
-  useWriteBack(settings, onSettings);
   useWriteBack(chapters, onChapters);
   useWriteBack(clips, onClips);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -279,10 +283,7 @@ export function DeliverStage({
         setChapters((now) =>
           addChapterAt(
             now,
-            Math.min(
-              typeof playhead === "function" ? playhead() : playhead,
-              total,
-            ),
+            Math.min(getPlayheadSec(), total),
             `new-${nextChapter++}`,
           ),
         )
@@ -331,6 +332,7 @@ export function DeliverStage({
               env={env}
               state={sharedState}
               dock={phone}
+              showSettings={showSettings}
               onSettings={setSettings}
               onChangeFolder={onChangeFolder}
               onExport={() => startExport()}
@@ -378,8 +380,8 @@ export function DeliverStage({
             action={action}
             blocker={blocker}
             onExport={() => startExport()}
-            onReveal={() => onReveal()}
-            onDownload={() => onDownload()}
+            onReveal={() => onReveal?.()}
+            onDownload={() => onDownload?.()}
           />
         ) : null}
         <Toast
