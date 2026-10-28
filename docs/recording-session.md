@@ -1037,7 +1037,7 @@ auto-consents). Host Start does **not** require any room tone. Producers skip
 consent, `getUserMedia` and room tone; they auto-satisfy the Start gate. Mute
 writes zeros on the keeper.
 
-Room tone is host-started only: a consented guest's browser records 3 seconds
+Room tone is started by the host: a consented guest's browser records 3 seconds
 when a new `RoomToneCountdown` round names them and uploads it as `kind=room_tone`
 (see [Room-tone countdown](#room-tone-countdown)). A consented guest the latest
 round did not name (they joined after it) gets an alert-slot row, "Record 3 seconds
@@ -1047,7 +1047,8 @@ encode and `kind=room_tone` upload as a host-started round, so the bed lands und
 the same paths with the same fields (#2490). No row shows while a take is live or
 paused, before any countdown, or once the guest recorded or skipped; both survive a reload (this device's
 `localStorage`, and the host's upload status for an acknowledged bed). A bed not yet
-acknowledged at reload is not asked for again, as for an on-time guest.
+acknowledged at reload is not asked for again, as for an on-time guest. Skip is stored
+only on this device, so a browser without `localStorage` asks again after a reload.
 
 Before a host can Start or a recorded guest can join, the client completes an
 OPFS preflight that creates, writes, closes, and removes a disposable file in
