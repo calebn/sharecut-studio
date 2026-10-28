@@ -7,8 +7,8 @@ the same for MCP. While a Studio serves the project, a tool call runs in that St
 own ``/mcp`` endpoint (single writer, the screen updates live) and the result comes back as
 Studio produced it. With no Studio serving the project, the call runs here. A Studio that was
 found serving the project but cannot take the call (it fails before the call is sent, or it
-mounts no ``/mcp`` because it listens on a wildcard address) stops it with an error and nothing
-runs, so the call never writes behind a live Studio.
+mounts no ``/mcp`` because it is bound to a non-loopback address) stops it with an error and
+nothing runs, so the call never writes behind a live Studio.
 
 Only the stdio entry point installs this. Studio runs the same tool registry, and its own copy
 must never forward to itself.
@@ -79,9 +79,9 @@ def _not_taken_result(host: StudioHost, name: str) -> CallToolResult:
 
 def _no_mcp_result(host: StudioHost, name: str) -> CallToolResult:
     text = (
-        f"Studio (pid {host.pid}) is serving the project but is listening on a wildcard "
-        f"address, so it does not serve MCP, and {name} was not sent. Nothing was run. "
-        "Restart Studio with `--host 127.0.0.1`, use Studio's own /mcp endpoint, or set "
+        f"Studio (pid {host.pid}) is serving the project but is bound to a non-loopback "
+        f"address, so it does not serve MCP. Nothing was run, and {name} was not sent. "
+        "Restart Studio with `--host 127.0.0.1`, or set "
         f"{DIRECT_ENV_VAR}=1 to write directly (this may overwrite what Studio is holding)."
     )
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)

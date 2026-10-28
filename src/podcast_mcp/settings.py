@@ -134,7 +134,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_NO_STUDIO_HANDOFF",
-            "Run CLI commands directly instead of through the Studio serving the project.",
+            "Run CLI commands and stdio MCP tool calls directly instead of through the Studio serving the project.",
         ),
         ("PODCAST_PACKAGED_CLI", "Set to 1 by the installed app's CLI shim."),
         ("PODCAST_GUEST_RENDER", "Allow guest render previews (1, true, yes, on)."),

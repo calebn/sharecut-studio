@@ -115,8 +115,7 @@ def test_a_studio_that_serves_no_mcp_refuses_the_call(wildcard_studio: Path) -> 
     text = result.content[0].text  # type: ignore[union-attr]
     assert f"pid {host.pid}" in text
     assert "list_clips_tool" in text
-    assert "--host 127.0.0.1" in text
-    assert "Nothing was run." in text
+    assert "PODCAST_NO_STUDIO_HANDOFF=1" in text
     assert server.calls == []
 
 

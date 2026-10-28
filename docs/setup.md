@@ -684,7 +684,7 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_PROGRESS` | `1` | Progress output; 0, false or no turns it off. |
 | `PODCAST_PROGRESS_COMPLIANCE` |  | Progress compliance checks (diagnostics only). |
 | `PODCAST_SPEAKER_BACKEND` |  | Set to mock to opt in to the development speaker mock (tests, development). |
-| `PODCAST_NO_STUDIO_HANDOFF` |  | Run CLI commands directly instead of through the Studio serving the project. |
+| `PODCAST_NO_STUDIO_HANDOFF` |  | Run CLI commands and stdio MCP tool calls directly instead of through the Studio serving the project. |
 | `PODCAST_PACKAGED_CLI` |  | Set to 1 by the installed app's CLI shim. |
 | `PODCAST_GUEST_RENDER` |  | Allow guest render previews (1, true, yes, on). |
 | `PODCAST_SHARE_ACCOUNTS` |  | Enable restricted shares with sign-in (1, true, yes, on). |
