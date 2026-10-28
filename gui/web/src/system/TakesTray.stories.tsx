@@ -24,6 +24,13 @@ const SAVED_TAKE: TakeInput = {
   people: [saved(MAYA), saved(JON), saved(ANNEKE)],
 };
 
+const SAVED_TAKE_2: TakeInput = {
+  id: "t2",
+  number: 2,
+  lengthSec: 300,
+  people: [saved(MAYA), saved(JON), saved(ANNEKE)],
+};
+
 const meta: Meta<typeof TakesTray> = {
   title: "Stages/Record/TakesTray",
   component: TakesTray,
@@ -200,7 +207,52 @@ export const WithClipping: Story = {
         people: [
           saved(MAYA),
           { ...saved(JON), clipTimes: ["02:14", "05:40", "09:02"] },
-          saved(ANNEKE),
+          {
+            ...saved(ANNEKE),
+            clipTimes: ["07:31"],
+          },
+        ],
+      },
+      SAVED_TAKE_2,
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "After Stop, a take that clipped names each person who clipped and how many times on its row, and the expanded row lists the times. Hear jumps to the first clipped span once the take is on the timeline. A clean take says nothing about clipping.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(
+        "14:32 · 3 people · Jon clipped 3 times, Anneke de Vries clipped 1 time",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText("Saved · Clipped 3 times · 02:14, 05:40, 09:02"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("5:00 · 3 people")).toBeInTheDocument();
+  },
+};
+
+export const ClippingTruncated: Story = {
+  args: {
+    defaultExpanded: ["t1"],
+    takes: [
+      {
+        id: "t1",
+        number: 1,
+        lengthSec: 3725,
+        people: [
+          saved(MAYA),
+          {
+            ...saved(JON),
+            clipTimes: ["02:14", "05:40", "09:02"],
+            clipTruncated: true,
+          },
         ],
       },
     ],
@@ -208,9 +260,45 @@ export const WithClipping: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText(
-        "Saved · Clipped 3 times · 02:14, 05:40, 09:02",
+        "Saved · Clipped 3 times · 02:14, 05:40, 09:02 · later clipping not recorded",
       ),
     ).toBeInTheDocument();
+  },
+};
+
+export const GuestOwnClipping: Story = {
+  args: {
+    defaultExpanded: ["t2"],
+    onHear: undefined,
+    takes: [
+      {
+        id: "t2",
+        number: 2,
+        lengthSec: 421,
+        people: [
+          {
+            person: JON,
+            line: { kind: "saving", done: 1, total: 4 },
+            clipTimes: ["01:05", "02:10"],
+          },
+        ],
+      },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A guest's tray after Stop: only their own line, with no Hear, because the take is not theirs to place. The summary is there while the take is still saving.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("7:01 · 1 person · Jon clipped 2 times"),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: /Hear/ })).toBeNull();
   },
 };
 

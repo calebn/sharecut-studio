@@ -84,13 +84,32 @@ export function trayTakes(
           colorIndex: colors.get(person.id) ?? 0,
         },
         line: lineOf(person.status, take.open, rows),
-        clipTimes:
-          person.id === "p_host" && take.clipTimes.length > 0
-            ? take.clipTimes.map(clockText)
-            : undefined,
+        clipTimes: person.clipping?.regions.map((region) =>
+          clockText(region.startMs / 1000),
+        ),
+        clipTruncated: person.clipping?.truncated,
       };
     }),
   }));
+}
+
+type ClipRegion = NonNullable<
+  TrayInput["people"][number]["clipping"]
+>["regions"][number];
+
+export function firstClipped(
+  inputs: readonly TrayInput[],
+  takeIndex: number,
+): { participantId: string; region: ClipRegion } | null {
+  let first: { participantId: string; region: ClipRegion } | null = null;
+  const take = inputs.find((input) => input.takeIndex === takeIndex);
+  for (const person of take?.people ?? []) {
+    const region = person.clipping?.regions[0];
+    if (region && (!first || region.startMs < first.region.startMs)) {
+      first = { participantId: person.id, region };
+    }
+  }
+  return first;
 }
 
 export function takeIndexOf(id: string): number {

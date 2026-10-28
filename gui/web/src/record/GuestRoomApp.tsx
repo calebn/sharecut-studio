@@ -9,6 +9,7 @@ import {
 import { useViewportClass } from "../hooks/useViewportClass";
 import { JoinSheet } from "../system/JoinSheet";
 import { RoomView } from "../system/RoomView";
+import { TakesTray } from "../system/TakesTray";
 import { LoadingScreen } from "../ui";
 import { dbToFraction } from "../ui/metering";
 import { GuestCovers } from "./GuestCovers";
@@ -17,6 +18,7 @@ import {
   guestHostName,
   guestRoomAlerts,
   guestRoomPhase,
+  guestTakes,
   guestViewerWidth,
   joinHere,
   joinMic,
@@ -103,6 +105,7 @@ function GuestRoomSession({
     monitor,
     upload,
     takeClipping,
+    takeClippings,
     keeperActions,
     roomTone,
     liveComments,
@@ -154,6 +157,12 @@ function GuestRoomSession({
   const saveLines = useMemo(
     () => ownSaveLines(upload.segments),
     [upload.segments],
+  );
+
+  const clippedTakes = useMemo(
+    () =>
+      producer ? [] : guestTakes(snapshot, me, upload.segments, takeClippings),
+    [producer, snapshot, me, upload.segments, takeClippings],
   );
 
   const micRef = useRef(mic);
@@ -342,6 +351,11 @@ function GuestRoomSession({
         leaveDisabledReason={heldLeave ? LEAVE_HELD_REASON : undefined}
         status={producer ? undefined : (savingStatus(upload) ?? undefined)}
         declined={declined}
+        takes={
+          clippedTakes.length > 0 ? (
+            <TakesTray takes={clippedTakes} />
+          ) : undefined
+        }
       />
       {sheetOpen ? (
         <JoinSheet

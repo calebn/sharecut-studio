@@ -362,12 +362,51 @@ describe("takeInputs", () => {
         { segmentIndex: 0, startMs: 2500, endMs: 3000, segmentStartMs: 2500 },
       ],
     });
-    expect(out[1]).toMatchObject({
-      open: true,
-      lengthSec: 4,
-      clipTimes: [2.5],
+    expect(out[1]).toMatchObject({ open: true, lengthSec: 4 });
+    expect(out[1]?.people[0]?.clipping?.regions[0]?.startMs).toBe(2500);
+    expect(out[0]?.people.some((person) => person.clipping)).toBe(false);
+  });
+
+  it("reads each guest's clipping from the uploaded segment rows", () => {
+    const out = takeInputs(snap, [
+      row({
+        clipping_regions: [
+          [1000, 2000],
+          [9000, 9500],
+        ],
+        join_offset_ms: 500,
+        clipping_truncated: true,
+      }),
+      row({ participant_id: "p_host" }),
+    ]);
+    const bo = out[0]?.people.find((person) => person.id === "p_g");
+    expect(bo?.clipping).toMatchObject({
+      takeIndex: 0,
+      truncated: true,
+      regions: [
+        { segmentIndex: 0, startMs: 1500, endMs: 2500, segmentStartMs: 1000 },
+        { segmentIndex: 0, startMs: 9500, endMs: 10_000, segmentStartMs: 9000 },
+      ],
     });
-    expect(out[0]?.clipTimes).toEqual([]);
+    expect(
+      out[0]?.people.find((person) => person.id === "p_host"),
+    ).not.toHaveProperty("clipping");
+    expect(out[1]?.people[0]).not.toHaveProperty("clipping");
+  });
+
+  it("prefers the host's own keeper clipping over its uploaded rows", () => {
+    const out = takeInputs(
+      snap,
+      [row({ participant_id: "p_host", clipping_regions: [[100, 200]] })],
+      {
+        takeIndex: 0,
+        known: true,
+        regions: [
+          { segmentIndex: 0, startMs: 700, endMs: 800, segmentStartMs: 700 },
+        ],
+      },
+    );
+    expect(out[0]?.people[0]?.clipping?.regions[0]?.startMs).toBe(700);
   });
 });
 

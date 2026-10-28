@@ -67,3 +67,61 @@ export function useTakeClipping({
   }
   return null;
 }
+
+const NO_TAKES: Record<number, TakeClipping> = {};
+
+/**
+ * Clipping of the takes before `beforeTake`, rebuilt from OPFS keeper metadata
+ * so a finished take's summary also survives a reload.
+ */
+export function usePastTakeClipping({
+  sink,
+  sessionId,
+  participantId,
+  beforeTake,
+}: {
+  sink: ByteSink | null;
+  sessionId: string | null;
+  participantId: string | null;
+  beforeTake: number;
+}): Record<number, TakeClipping> {
+  const [stored, setStored] = useState<{
+    scope: string;
+    byTake: Record<number, TakeClipping>;
+  }>({ scope: "", byTake: NO_TAKES });
+  const scope = `${sessionId}/${participantId}`;
+
+  useEffect(() => {
+    if (!sink || !sessionId || !participantId || beforeTake <= 0) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      for (let takeIndex = 0; takeIndex < beforeTake; takeIndex += 1) {
+        try {
+          const value = await readTakeClipping(
+            sink,
+            sessionId,
+            participantId,
+            takeIndex,
+          );
+          if (cancelled) return;
+          setStored((current) => ({
+            scope,
+            byTake: {
+              ...(current.scope === scope ? current.byTake : NO_TAKES),
+              [takeIndex]: value,
+            },
+          }));
+        } catch {
+          continue;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sink, sessionId, participantId, beforeTake, scope]);
+
+  return stored.scope === scope ? stored.byTake : NO_TAKES;
+}

@@ -35,6 +35,10 @@ export type RecordSegmentAck = {
   land_failed?: boolean;
   file_sha256?: string | null;
   byte_length?: number | null;
+  join_offset_ms?: number;
+  /** Segment-relative `[startMs, endMs]` spans the upload carried; null when none were sent. */
+  clipping_regions?: [number, number][] | null;
+  clipping_truncated?: boolean;
 };
 
 export type PauseEntry = {

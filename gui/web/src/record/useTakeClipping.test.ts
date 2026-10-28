@@ -2,7 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { TakeClipping } from "./keeper/clipRegions";
 import { keeperMetaPath, keeperWavPath, MemorySink } from "./keeper/store";
-import { useTakeClipping } from "./useTakeClipping";
+import { usePastTakeClipping, useTakeClipping } from "./useTakeClipping";
 
 const live: TakeClipping = {
   takeIndex: 0,
@@ -10,8 +10,8 @@ const live: TakeClipping = {
   regions: [{ segmentIndex: 0, startMs: 1, endMs: 5, segmentStartMs: 1 }],
 };
 
-async function seedStored(sink: MemorySink) {
-  const ids = { sessionId: "room", participantId: "p_g", takeIndex: 0 };
+async function seedStored(sink: MemorySink, takeIndex = 0) {
+  const ids = { sessionId: "room", participantId: "p_g", takeIndex };
   const wav = keeperWavPath({ ...ids, segmentIndex: 0 });
   await sink.write(wav, new Uint8Array(44));
   await sink.write(
@@ -104,5 +104,43 @@ describe("useTakeClipping", () => {
       }),
     );
     expect(result.current).toBeNull();
+  });
+});
+
+describe("usePastTakeClipping", () => {
+  const args = { sessionId: "room", participantId: "p_g", beforeTake: 2 };
+
+  it("rebuilds every earlier take from OPFS metadata after a reload", async () => {
+    const sink = new MemorySink();
+    await seedStored(sink, 0);
+    await seedStored(sink, 1);
+    const { result } = renderHook(() => usePastTakeClipping({ ...args, sink }));
+    await waitFor(() =>
+      expect(Object.keys(result.current)).toEqual(["0", "1"]),
+    );
+    expect(result.current[1]?.regions[0]?.startMs).toBe(200);
+    expect(result.current[1]?.takeIndex).toBe(1);
+  });
+
+  it("reads nothing without a sink or an earlier take", () => {
+    const none = renderHook(() => usePastTakeClipping({ ...args, sink: null }));
+    expect(none.result.current).toEqual({});
+    const first = renderHook(() =>
+      usePastTakeClipping({ ...args, sink: new MemorySink(), beforeTake: 0 }),
+    );
+    expect(first.result.current).toEqual({});
+  });
+
+  it("drops another session's takes", async () => {
+    const sink = new MemorySink();
+    await seedStored(sink, 0);
+    const { result, rerender } = renderHook(
+      (sessionId: string) =>
+        usePastTakeClipping({ ...args, sessionId, sink, beforeTake: 1 }),
+      { initialProps: "room" },
+    );
+    await waitFor(() => expect(result.current[0]).toBeDefined());
+    rerender("other");
+    expect(result.current[0]).toBeUndefined();
   });
 });

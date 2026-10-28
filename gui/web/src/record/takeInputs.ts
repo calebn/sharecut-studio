@@ -1,5 +1,7 @@
 import type { TakeClipping } from "./keeper/clipRegions";
+import { HOST_PARTICIPANT_ID } from "./roomPeople";
 import type { SegmentAckRow } from "./saveStatus";
+import { clippingFromRows } from "./takeClippingRows";
 import type { RecordSnapshot, TakeState } from "./types";
 
 export type TakePersonStatus = "waiting" | "saving" | "saved" | "failed";
@@ -9,8 +11,12 @@ export type TakeInput = {
   takeIndex: number;
   lengthSec: number;
   open: boolean;
-  people: { id: string; name: string; status: TakePersonStatus }[];
-  clipTimes: number[];
+  people: {
+    id: string;
+    name: string;
+    status: TakePersonStatus;
+    clipping?: TakeClipping;
+  }[];
   landed: boolean;
 };
 
@@ -61,7 +67,19 @@ export function takeInputs(
         (row) =>
           row.take_index === take.take_index && row.participant_id === id,
       );
-      return { id, name: names.get(id) ?? id, status: statusOf(rows) };
+      const own =
+        id === HOST_PARTICIPANT_ID &&
+        clipping?.takeIndex === take.take_index &&
+        clipping.regions.length > 0
+          ? clipping
+          : null;
+      const found = own ?? clippingFromRows(segments, take.take_index, id);
+      return {
+        id,
+        name: names.get(id) ?? id,
+        status: statusOf(rows),
+        ...(found ? { clipping: found } : {}),
+      };
     });
     const rows = segments.filter((row) => row.take_index === take.take_index);
     return {
@@ -70,10 +88,6 @@ export function takeInputs(
       lengthSec: lengthOf(take, snapshot),
       open,
       people,
-      clipTimes:
-        clipping && clipping.takeIndex === take.take_index
-          ? clipping.regions.map((region) => region.startMs / 1000)
-          : [],
       landed: rows.length > 0 && rows.every((row) => row.landed),
     };
   });

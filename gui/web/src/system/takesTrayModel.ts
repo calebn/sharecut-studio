@@ -13,6 +13,8 @@ export type TakePersonInput = {
   person: PersonData;
   line: TakeLineInput;
   clipTimes?: string[];
+  /** A segment hit the clip-region cap, so later clipping went unrecorded. */
+  clipTruncated?: boolean;
 };
 
 export type TakeInput = {
@@ -46,14 +48,26 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-function clipText(times: string[] | undefined): string | null {
+function clipText(entry: TakePersonInput): string | null {
+  const times = entry.clipTimes;
   if (!times || times.length === 0) return null;
-  return `Clipped ${plural(times.length, "time", "times")} · ${times.join(", ")}`;
+  const text = `Clipped ${plural(times.length, "time", "times")} · ${times.join(", ")}`;
+  return entry.clipTruncated ? `${text} · later clipping not recorded` : text;
+}
+
+function clipSummary(people: readonly TakePersonInput[]): string | null {
+  const names = people
+    .filter((entry) => (entry.clipTimes?.length ?? 0) > 0)
+    .map(
+      (entry) =>
+        `${entry.person.name} clipped ${plural(entry.clipTimes?.length ?? 0, "time", "times")}`,
+    );
+  return names.length > 0 ? names.join(", ") : null;
 }
 
 export function takeLine(entry: TakePersonInput): TakeLine {
   const { line } = entry;
-  const clips = clipText(entry.clipTimes);
+  const clips = clipText(entry);
   const base = { key: entry.person.name, name: entry.person.name };
   switch (line.kind) {
     case "saved":
@@ -114,12 +128,13 @@ export function takeRow(take: TakeInput): TakeRow {
   const { state, progress } = aggregate(lines, live);
   const length = clockText(take.lengthSec);
   const people = plural(take.people.length, "person", "people");
+  const clips = live ? null : clipSummary(take.people);
   return {
     id: take.id,
     title: `Take ${take.number}`,
     detail: live
       ? `Recording · ${length} · ${people}`
-      : `${length} · ${people}`,
+      : [length, people, clips].filter(Boolean).join(" · "),
     state,
     progress,
     hear: state === "done",

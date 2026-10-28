@@ -2,17 +2,20 @@ import type { ShellBreakpoint } from "../state/types";
 import type { CoverProps } from "../system/Cover";
 import type { JoinMic } from "../system/joinSheetModel";
 import type { RoomAlertInput } from "../system/roomAlertModel";
-import type { RoomPhase } from "../system/roomPhase";
+import { clockText, type RoomPhase } from "../system/roomPhase";
 import type { RoomSaving } from "../system/roomTileModel";
 import type { RoomRole, ViewerWidth } from "../system/roomViewModel";
+import type { TakeInput, TakeLineInput } from "../system/takesTrayModel";
 import { dbToFraction } from "../ui/metering";
 import { hostRoomPhase } from "./hostRoomPhase";
+import type { TakeClipping } from "./keeper/clipRegions";
 import type { MicPermissionStatus } from "./micPermission";
 import {
   type RoomAlertActions,
   type RoomAlertSource,
   roomAlerts,
 } from "./roomAlerts";
+import type { SegmentSave } from "./saveStatus";
 import type { RecordParticipant, RecordSnapshot } from "./types";
 import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
@@ -72,6 +75,78 @@ export function tookPart(
     snapshot.takes?.find((take) => take.take_index === snapshot.take_index)
       ?.consented_participant_ids ?? [];
   return roster.length === 0 || roster.includes(me.participant_id);
+}
+
+function ownLine(saves: readonly SegmentSave[]): TakeLineInput {
+  if (saves.length > 0 && saves.every((save) => save.state === "saved")) {
+    return { kind: "saved" };
+  }
+  const total = saves.reduce((sum, save) => sum + (save.chunks?.total ?? 0), 0);
+  const done = saves.reduce((sum, save) => sum + (save.chunks?.acked ?? 0), 0);
+  return total > 0
+    ? { kind: "saving", done, total }
+    : { kind: "saving", done: 0, total: 1 };
+}
+
+/**
+ * The guest's Takes tray: the finished takes in which their own mic clipped,
+ * each with only their own line. A clean take is not listed, and nobody
+ * else's clipping is ever read here.
+ */
+export function guestTakes(
+  snapshot: RecordSnapshot | null,
+  me: RecordParticipant | null,
+  saves: readonly SegmentSave[],
+  clippings: Readonly<Record<number, TakeClipping>>,
+): TakeInput[] {
+  if (!snapshot || me?.consented !== true) {
+    return [];
+  }
+  const colorIndex = Math.max(
+    0,
+    snapshot.participants.findIndex(
+      (person) => person.participant_id === me.participant_id,
+    ),
+  );
+  const takes: TakeInput[] = [];
+  for (const take of snapshot.takes ?? []) {
+    const clipping = clippings[take.take_index];
+    const open =
+      take.take_index === snapshot.take_index && snapshot.state !== "stopped";
+    if (
+      open ||
+      !clipping ||
+      clipping.regions.length === 0 ||
+      !take.consented_participant_ids.includes(me.participant_id)
+    ) {
+      continue;
+    }
+    const end = take.stopped_wall_ms ?? take.session_start_wall_ms;
+    const paused = take.pauses.reduce(
+      (sum, pause) =>
+        sum + Math.max(0, (pause.resume_wall_ms ?? end) - pause.pause_wall_ms),
+      0,
+    );
+    takes.push({
+      id: `take-${take.take_index}`,
+      number: take.take_index + 1,
+      lengthSec: Math.max(
+        0,
+        (end - take.session_start_wall_ms - paused) / 1000,
+      ),
+      people: [
+        {
+          person: { name: me.display_name, colorIndex },
+          line: ownLine(saves.filter((save) => save.take === take.take_index)),
+          clipTimes: clipping.regions.map((region) =>
+            clockText(region.startMs / 1000),
+          ),
+          clipTruncated: clipping.truncated,
+        },
+      ],
+    });
+  }
+  return takes;
 }
 
 export function guestRoomPhase(
