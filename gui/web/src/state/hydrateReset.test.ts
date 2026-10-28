@@ -10,6 +10,7 @@ const ALWAYS: Reset = {
   heldTrim: null,
   transcriptInlineEditRequest: null,
   ingestBusy: false,
+  ingestFileCount: 0,
   ingestDropTrackId: null,
 };
 
