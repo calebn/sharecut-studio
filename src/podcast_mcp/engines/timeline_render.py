@@ -264,7 +264,8 @@ def unfiltered_track_audio(
         return None
     curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
     clips = clips_for_track(project, track.id)
-    grid = track_grid(project, track, clips, FFmpegEngine())
+    # No engine: this runs on track_evidence cache hits, which must not resolve FFmpeg.
+    grid = track_grid(project, track, clips)
     return placed_track_audio(project, track, clips, grid=grid).audio, curve
 
 
