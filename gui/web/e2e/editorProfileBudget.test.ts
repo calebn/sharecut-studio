@@ -269,7 +269,7 @@ describe("predeclared frame percentile applicability", () => {
 });
 
 describe("frozen diagnostic budget application", () => {
-  it("rejects previous real-job budgets for the default passive protocol without changing frozen limits", () => {
+  it("rejects budgets frozen under a different protocol without changing frozen limits", () => {
     const { baseline, holdout } = cohort();
     for (const entry of [...baseline, ...holdout]) {
       entry.report.protocol.scenario = "progress-real";
@@ -287,12 +287,7 @@ describe("frozen diagnostic budget application", () => {
       id: "current-passive",
       startedAt: "2026-10-04T00:00:00Z",
     };
-    candidate.report.protocol.nativeObserver = {
-      id: "native-progress-passive-v2",
-      mode: "passive",
-      limits: { inputs: 4096 },
-      motion: "normal",
-    };
+    candidate.report.protocol.retries = 1;
     expect(
       budgetCompatibility(baseline[0]!.report, candidate.report),
     ).toContain("protocol differs");
