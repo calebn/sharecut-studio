@@ -160,9 +160,10 @@ checked against the episode after the land, which can change its length).
 "Saving" is bounded. For a guest who consented to the take the server expects one upload
 per recorded segment, inferred from Pause and Resume: one, plus one per Resume (the Resume that a Stop-while-paused writes records
 nothing and is not counted). A segment with no upload yet counts as saving for
-`UPLOAD_GRACE_MS` (10 minutes) after Stop; an upload that has started but not finished
-counts while its newest chunk is newer than that, and this partial-upload rule applies to
-the host's recording too. After the window it is stalled: reported ("N recordings never
+`UPLOAD_GRACE_MS` (10 minutes) after Stop. An upload that has started but not finished
+gets the full window from the later trusted time of Stop or its newest chunk, even when
+that chunk arrived before Stop. This partial-upload rule applies to the host's recording
+too. After the window it is stalled: reported ("N recordings never
 finished uploading and cannot be saved") but it no longer blocks. A partial upload of a
 guest the host removed is stalled at once; a removed guest with no upload row at all is not
 known and is not reported. A guest who consented and never recorded (left, lost the mic)

@@ -13,7 +13,7 @@ from podcast_mcp.services.record.service import RecordSessionService, _store_for
 from podcast_mcp.services.record.state import RecordSnapshot, TakeState
 from podcast_mcp.services.record.upload import RecordUploadService
 
-#: How long after Stop (or after a guest's last chunk) an upload still counts as "saving".
+#: How long after the latest trusted Stop or chunk time an upload still counts as "saving".
 #: Later than this it is "never finished": reported, but it no longer blocks land-first.
 UPLOAD_GRACE_MS = 10 * 60 * 1000
 #: Timestamps further ahead than this are not trusted (see ``_quiet_ms``).
@@ -57,15 +57,11 @@ def _expected_segments(take: TakeState) -> int:
 
 
 def _quiet_ms(now: int, *stamps: int | None) -> int | None:
-    """Milliseconds since the first usable timestamp; None when none can be trusted.
-
-    A timestamp more than ``CLOCK_SKEW_MS`` ahead of now (clock moved, odd file time) is
-    skipped, so skew cannot keep an upload "saving" past the grace window.
-    """
-    for stamp in stamps:
-        if stamp is not None and stamp <= now + CLOCK_SKEW_MS:
-            return max(0, now - stamp)
-    return None
+    latest = max(
+        (stamp for stamp in stamps if stamp is not None and stamp <= now + CLOCK_SKEW_MS),
+        default=None,
+    )
+    return max(0, now - latest) if latest is not None else None
 
 
 def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) -> Unsaved:

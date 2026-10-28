@@ -364,6 +364,8 @@ flowchart TD
    recording. A
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
+   An unfinished upload counts as saving for 10 minutes after the latest trusted
+   Stop or chunk time, unless the guest was removed.
    The host sees you disconnect after your last room tab closes. Closing one
    guest tab leaves another tab joined as the same guest connected.
    If the host removes a guest, that guest's live room connection closes and
