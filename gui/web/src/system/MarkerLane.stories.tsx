@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useRef, useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { clamp } from "../utils/math";
 import {
@@ -14,7 +14,7 @@ import {
 } from "./laneFixtures";
 import { LanesBelow, Measured } from "./laneStoryHost";
 import {
-  type AddingChapter,
+  type AddingChapter as AddingChapterAt,
   type LaneMarker,
   MARKER_MIN_SPAN,
   type MarkerGrip,
@@ -104,7 +104,7 @@ type LiveProps = {
   window?: { start: number; pxPerSecond: number };
   touch?: boolean;
   readOnly?: boolean;
-  adding?: AddingChapter | null;
+  adding?: AddingChapterAt | null;
   withRuler?: boolean;
 };
 
@@ -353,8 +353,9 @@ export const DoubleClickToAdd: Story = {
     const box = lane.getBoundingClientRect();
     const target = lane.querySelector(".sys-markers-track");
     if (!(target instanceof HTMLElement)) throw new Error("No track");
-    await userEvent.dblClick(target, {
-      pointerCoords: { clientX: box.left + 60 * 6 - 10, clientY: box.top + 12 },
+    fireEvent.dblClick(target, {
+      clientX: box.left + 60 * 6 - 10,
+      clientY: box.top + 12,
     });
     await expect(args.onAdd).toHaveBeenCalledTimes(1);
     await expect(
