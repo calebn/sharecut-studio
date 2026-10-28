@@ -20,6 +20,7 @@ import {
   exportResultCopy,
   isLossless,
   loudnessTargetCopy,
+  masterTargetKey,
 } from "./exportSettings";
 
 function exportFormatOptions(settings: ExportSettings): FormatOption[] {
@@ -46,6 +47,7 @@ export function exportOptionsOf(flow: ExportFlow): ExportOptions {
     loudnessNote:
       (settings && loudnessTargetCopy(settings.target)) ?? undefined,
     loudness: false,
+    target: settings ? masterTargetKey(settings.target) : undefined,
     range: false,
     gate: flow.gate,
     onExportAgain:

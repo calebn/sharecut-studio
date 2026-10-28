@@ -168,6 +168,17 @@ describe("the export flow over the server's routes", () => {
     });
   });
 
+  it("ignores a second start in the same tick", async () => {
+    mount();
+    await loaded();
+    act(() => {
+      flow.start(["mp3"], REQUEST);
+      flow.start(["mp3"], REQUEST);
+    });
+    await running();
+    expect(server.exportRequests).toHaveLength(1);
+  });
+
   it("ignores a second start while one runs", async () => {
     mount();
     await loaded();

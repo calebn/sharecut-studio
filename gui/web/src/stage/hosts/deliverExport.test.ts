@@ -111,6 +111,7 @@ describe("exportOptionsOf", () => {
       settingsError: undefined,
       loudnessNote: "Mastered to −16.0 LUFS, peaks under −1.5 dBTP.",
       loudness: false,
+      target: "-16/-1.5",
       range: false,
       gate: GATE,
       onExportAgain: undefined,

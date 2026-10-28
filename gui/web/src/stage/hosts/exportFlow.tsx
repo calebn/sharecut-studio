@@ -105,6 +105,12 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
     async (keys: readonly string[], asked: ExportRequest) => {
       const path = useDawStore.getState().projectPath;
       if (!path || runRef.current.kind === "running") return;
+      const running: ExportRun = {
+        kind: "running",
+        jobId: null,
+        cancelling: false,
+        cancelError: null,
+      };
       const current = settingsRef.current;
       const formats = current ? selectedFormats(current, keys) : null;
       if (current && formats?.length === 0 && !current.wav) return;
@@ -112,12 +118,8 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       setSelected(keys);
       setRequest(asked);
       const scope = projectScopedSignal(path);
-      setRun({
-        kind: "running",
-        jobId: null,
-        cancelling: false,
-        cancelError: null,
-      });
+      runRef.current = running;
+      setRun(running);
       try {
         const ran = await gate.run(async () => {
           try {

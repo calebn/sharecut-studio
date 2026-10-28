@@ -124,6 +124,12 @@ function db(value: number): string {
   return value < 0 ? `−${text}` : text;
 }
 
+export function masterTargetKey(
+  target: ExportSettings["target"],
+): string | undefined {
+  return target ? `${target.lufs}/${target.truePeakDb}` : undefined;
+}
+
 export function loudnessTargetCopy(
   target: ExportSettings["target"],
 ): string | null {
