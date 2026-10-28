@@ -384,7 +384,8 @@ flowchart TD
    again** for the full-quality recording kept on this device. A naturally expired lease can start a fresh
    guest identity in the still-open room, unless someone who joined through the
    same link was removed; then the guest sees "Invite link closed" and needs a
-   fresh link from the host. The Join lease check and host removal
+   fresh link from the host. When that guest still holds a finished take on this
+   device, the same Cover offers **Save my recording** and **Try saving again**. The Join lease check and host removal
    use one room decision so removal cannot look like ordinary lease expiry.
    The host Record stage points to Share through **Copy links…**. There the
    closed guest or producer invite cannot be copied for newcomers; **Replace
