@@ -113,7 +113,7 @@ file's bytes match the master. For tracked project audio, also inspect the `bala
 re-run `balance_tracks` when a dialogue entry's `stale` value is true. Run Export to refresh
 stale audio.
 
-Same `PipelineService.export_audio` / `render_final` path as Sharecut Studio **Menu → Export deliverables…** / `Mod+Shift+E` (a dialog that picks formats, shows progress with Cancel export, then lists the written files) and the Pipeline tab’s `export_deliverables` step.
+Same `PipelineService.export_audio` / `render_final` path as the **Export** button on Sharecut Studio's Deliver stage / `Mod+Shift+E` (formats chosen on the page, progress with Cancel, then the written files) and the Pipeline tab’s `export_deliverables` step.
 
 Studio, CLI `export-audio`, MCP `export_audio_tool`, and the pipeline export step
 refresh the current edited-timeline SRT and Markdown whenever transcripts exist.
