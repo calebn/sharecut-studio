@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from contextlib import suppress
 from dataclasses import asdict
 from pathlib import Path
 
@@ -28,10 +29,10 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.routes.handoff import set_served_project
-from podcast_mcp.project.io import require_episode_project_file
+from podcast_mcp.project.io import require_episode_project_file, resolve_project_path
 from podcast_mcp.project.merge import ProjectMergeConflict
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.app.recent_projects import (
+from podcast_mcp.services.app import (
+    ProjectWorkspace,
     default_workspace_dir,
     forget_recent,
     recent_project_cards,
@@ -108,10 +109,20 @@ def create_project(
             403, "project create not allowed from this client", code="project_create_not_allowed"
         )
     name = body.name.strip() or "episode"
-    workspace_dir = body.workspace_dir.strip() or str(default_workspace_dir(name))
+    reserved: Path | None = None
+    if body.workspace_dir.strip():
+        workspace_dir = body.workspace_dir.strip()
+    else:
+        reserved = default_workspace_dir(name)
+        workspace_dir = str(reserved)
     try:
+        if reserved is not None and resolve_project_path(reserved).exists():
+            raise FileExistsError(f"{reserved} already holds an episode")
         ws = ProjectWorkspace.create(workspace_dir, name=name)
     except Exception as exc:
+        if reserved is not None:
+            with suppress(OSError):
+                reserved.rmdir()
         raise coded_exception_error(400, exc, code="project_create_failed") from exc
     pin_served_if_allowed(request, ws.path)
     record_recent(ws.path)
