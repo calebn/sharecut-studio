@@ -22,6 +22,7 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
 from podcast_mcp.services.media import (
+    TranscriptChangedSinceReviewError,
     TranscriptPrecorrectService,
     TranscriptRefineService,
     VocabularyConflictError,
@@ -88,8 +89,10 @@ def transcript_refine_done(
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptRefineService(ProjectWorkspace.open(project_path)).mark_checked(
-            notes=req.notes, source="user"
+            notes=req.notes, source="user", expected_fingerprint=req.expected_fingerprint
         )
+    except TranscriptChangedSinceReviewError as exc:
+        raise coded_exception_error(409, exc, code="transcript_changed") from exc
     except ValueError as exc:
         raise bad_request_error(exc) from exc
 

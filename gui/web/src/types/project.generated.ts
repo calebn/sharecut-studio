@@ -275,6 +275,7 @@ export interface TrackView {
 export interface TranscriptRefineDoneRequest {
   path: string;
   notes?: string | null;
+  expected_fingerprint?: string | null;
 }
 
 /** The transcript check as the Review stage reads it (host only). */
@@ -283,6 +284,7 @@ export interface TranscriptRefineStatusView {
   clear: boolean;
   stale: boolean;
   mode: "require" | "waive_unattended" | "off";
+  fingerprint: string;
   source?: string | null;
   notes?: string;
   updated_at?: string | null;

@@ -66,6 +66,7 @@ class TranscriptRefineWaiveRequest(BaseModel):
 class TranscriptRefineDoneRequest(BaseModel):
     path: str
     notes: str | None = None
+    expected_fingerprint: str | None = None
 
 
 class TranscriptRefineStatusView(BaseModel):
@@ -75,6 +76,7 @@ class TranscriptRefineStatusView(BaseModel):
     clear: bool
     stale: bool
     mode: Literal["require", "waive_unattended", "off"]
+    fingerprint: str
     source: str | None = None
     notes: str = ""
     updated_at: str | None = None
