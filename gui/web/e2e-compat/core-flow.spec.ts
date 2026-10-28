@@ -17,6 +17,7 @@ import {
   markSharecutE2e,
   openHostRecordRoom,
   recordParticipantId,
+  roomPill,
   stopHostTake,
   waitForSegmentsAcked,
 } from "../e2e/recordRoom";
@@ -99,16 +100,14 @@ test.describe("core flow", () => {
               "Start",
               "recording",
             );
-            await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+            await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
 
             await expect
               .poll(() => keeperWavBytes(guest), { timeout: 30_000 })
               .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
 
             await stopHostTake(host, roomDlg, projectPath);
-            await expect(guest.locator(".record-rec-label")).toHaveText(
-              "Stopped",
-            );
+            await expect(roomPill(guest)).toHaveText(/^(Saving · |Saved$)/);
 
             const guestId = await recordParticipantId(host, projectPath, "Ava");
             await waitForSegmentsAcked(host, projectPath, [
@@ -118,11 +117,9 @@ test.describe("core flow", () => {
 
             await landParticipant(roomDlg, "Ava");
             await closeHostMore(host);
-            await expect(
-              guest.getByText(
-                "Saved to project and on the timeline. This device's copy clears automatically.",
-              ),
-            ).toBeVisible({ timeout: 30_000 });
+            await expect(roomPill(guest)).toHaveText("Saved", {
+              timeout: 30_000,
+            });
 
             // Landing commits the project (ProjectWorkspace.mutate, atomic
             // save_project) before mark_landed drives the landed UI, but no test

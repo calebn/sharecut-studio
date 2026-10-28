@@ -332,6 +332,26 @@ describe("GuestRoomApp", () => {
     expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
   });
 
+  it("asks for the microphone again from How to allow after a denial", async () => {
+    stubBootstrap();
+    const denied = new Error("denied");
+    denied.name = "NotAllowedError";
+    getUserMedia.mockRejectedValueOnce(denied);
+    render(<GuestRoomApp token="guest-tok" />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "How to allow the microphone",
+      }),
+    );
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByRole("button", { name: "I'm wearing headphones" }),
+    ).toBeInTheDocument();
+  });
+
   it("falls back from a stale saved microphone and forgets it", async () => {
     localStorage.setItem("record:guest-tok:mic", "dead-id");
     stubBootstrap();

@@ -1,6 +1,6 @@
 import { type Browser, expect, test } from "@playwright/test";
-import { expectReadingSurfaceAxeClean } from "./axe";
-import { createRecordRoom } from "./recordRoom";
+import { expectSurfaceAxeClean } from "./axe";
+import { createRecordRoom, joinNameField } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
@@ -37,18 +37,28 @@ test.describe("record links", () => {
             }
           });
           await pageA.goto(`/rec/${guest}`);
+          await expect(pageA.getByRole("dialog")).toBeVisible();
+          await expect(joinNameField(pageA)).toBeVisible();
           await expect(
-            pageA.getByRole("heading", { name: "Join the recording" }),
+            pageA.getByRole("button", { name: "Allow microphone" }),
           ).toBeVisible();
+          await expect(
+            pageA.getByRole("button", { name: "Join and record" }),
+          ).toBeVisible();
+          await expect(pageA.getByRole("heading", { level: 1 })).toHaveCount(1);
+          await expect(pageA.getByRole("main")).toHaveCount(1);
           await expect(pageA.locator(".stage-frame")).toHaveCount(0);
 
           await pageB.goto(`/rec/${producer}`);
+          await expect(pageB.getByRole("dialog")).toBeVisible();
+          await expect(joinNameField(pageB)).toBeVisible();
           await expect(
-            pageB.getByRole("heading", { name: "Producer (not recorded)" }),
+            pageB.getByRole("button", { name: "Join to listen" }),
           ).toBeVisible();
+          await expect(pageB.getByText("You won't be recorded.")).toBeVisible();
           await expect(
-            pageB.getByRole("heading", { name: "Not recorded", exact: true }),
-          ).toBeVisible();
+            pageB.getByRole("button", { name: "Allow microphone" }),
+          ).toHaveCount(0);
           await expect(pageB.locator(".stage-frame")).toHaveCount(0);
           expect(
             await pageB.evaluate(
@@ -64,8 +74,8 @@ test.describe("record links", () => {
           const reviewAsRec = await pageA.request.get(`/rec/${reviewToken}`);
           expect(reviewAsRec.status()).toBe(200);
 
-          await expectReadingSurfaceAxeClean(pageA);
-          await expectReadingSurfaceAxeClean(pageB);
+          await expectSurfaceAxeClean(pageA, "body");
+          await expectSurfaceAxeClean(pageB, "body");
 
           await pageA.goto(`/r/${guest}`);
           await expect(pageA.locator("body")).toContainText(

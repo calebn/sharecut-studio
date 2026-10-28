@@ -11,7 +11,7 @@ import {
 } from "../e2e/queuedComment";
 import {
   createRecordRoom,
-  fillGuestDisplayName,
+  fillDisplayNameField,
   markSharecutE2e,
   openRecordLink,
 } from "../e2e/recordRoom";
@@ -244,9 +244,7 @@ test.describe("browser compatibility matrix", () => {
           removePermissionsApi: browserName === "webkit",
         });
         await openRecordLink(guest, room.guest.token);
-        await expect(
-          guest.getByRole("heading", { name: "Join the recording" }),
-        ).toBeVisible();
+        await expect(guest.getByRole("dialog")).toBeVisible();
         expect(
           await guest.evaluate(
             () =>
@@ -257,28 +255,33 @@ test.describe("browser compatibility matrix", () => {
               ).permissions?.query === "function",
           ),
         ).toBe(browserName !== "webkit");
-        await fillGuestDisplayName(guest, "Ava");
-        await guest.getByLabel("I am wearing headphones").check();
-        await expect(
-          guest.getByRole("heading", {
-            name: "Record 3 seconds of room tone",
-          }),
-        ).toBeVisible();
+        await fillDisplayNameField(guest, "Ava");
+        const headphones = guest.getByRole("button", {
+          name: "I'm wearing headphones",
+        });
+        await headphones.click();
+        await expect(headphones).toHaveAttribute("aria-pressed", "true");
+        const join = guest.getByRole("button", { name: "Join and record" });
+        await expect(join).toBeDisabled();
         const allow = guest.getByRole("button", { name: "Allow microphone" });
         await expect(allow).toBeVisible();
         await allow.click();
         await expect.poll(() => syntheticMicrophoneRequested(guest)).toBe(true);
-        const level = guest.getByLabel("Level");
-        await expect(level).toBeVisible();
-        // LevelMeter is a div role="meter"; silence reports aria-valuenow == aria-valuemin.
+        await expect(join).toBeEnabled();
+        // The sheet's meter is decorative; its fill carries the level in a
+        // custom property, which stays 0 for silence.
+        const fill = guest.locator(".sys-join-meter .sys-room-meter-fill");
+        await expect(fill).toBeAttached();
         await expect
-          .poll(async () => {
-            const [now, min] = await Promise.all([
-              level.getAttribute("aria-valuenow"),
-              level.getAttribute("aria-valuemin"),
-            ]);
-            return Number(now) - Number(min);
-          })
+          .poll(() =>
+            fill.evaluate((element) =>
+              Number.parseFloat(
+                (element as HTMLElement).style.getPropertyValue(
+                  "--sys-room-level",
+                ),
+              ),
+            ),
+          )
           .toBeGreaterThan(0);
       });
     });

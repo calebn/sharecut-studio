@@ -9,7 +9,7 @@ import {
 } from "@playwright/test";
 import { PCM_WAV_HEADER_BYTES } from "../src/audio/wavHeader";
 import { KEEPER_OPFS_ROOT } from "../src/record/keeper/opfsPath";
-import { expectReadingSurfaceAxeClean } from "./axe";
+import { expectSurfaceAxeClean } from "./axe";
 import {
   keeperWavBytes,
   ONE_SECOND_KEEPER_PCM_BYTES,
@@ -23,24 +23,30 @@ import {
   createRecordRoom,
   ensureHostRecordCommand,
   fillDisplayNameField,
-  fillGuestDisplayName,
   HOST_PARTICIPANT_ID,
   hostRecordSnapshot,
   joinAsGuest,
   joinAsProducer,
+  joinNameField,
   landParticipant,
   markSharecutE2e,
   openHostMore,
   openHostRecordRoom,
   openRecordLink,
+  openRoomNotes,
   readSavedProject,
   recordParticipantId,
+  roomPill,
+  roomTile,
   stopHostTake,
   waitForSegmentsAcked,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { goToStage, openPanel, openProject, phone, stageTab } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
+
+const LIVE_PILL = /^\d+:\d{2} · Take \d+$/;
+const SAVING_OR_SAVED_PILL = /^(Saving · |Saved$)/;
 
 async function enableRoomTonePcmHarness(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -119,7 +125,16 @@ async function seedSparseRecoveryKeepers(
   );
 }
 
-async function expectRecoveryDownloads(page: Page): Promise<void> {
+/**
+ * Click `trigger` and check the zip it downloads. `revealNotice` opens the
+ * place the "Downloaded N …; 1 missing segment" line lands: the host's More
+ * sheet already shows it, the guest's room keeps it behind the alert chip.
+ */
+async function expectRecoveryDownloads(
+  page: Page,
+  trigger: Locator,
+  revealNotice?: () => Promise<void>,
+): Promise<void> {
   const downloads: Array<{ name: string; path: Promise<string> }> = [];
   page.on("download", (download) =>
     downloads.push({
@@ -127,9 +142,7 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
       path: download.path(),
     }),
   );
-  await page
-    .getByRole("button", { name: "Download full-quality recording" })
-    .click();
+  await trigger.click();
   await expect.poll(() => downloads.length).toBe(1);
   expect(downloads[0]?.name).toMatch(/^full-quality-recordings-p_.*\.zip$/);
   const archive = await readFile(await downloads[0]!.path);
@@ -142,6 +155,7 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
   ).toBe(true);
   // Segment 0 is exported if still local or skipped if reclaimed after
   // landing; either way only the never-written segment 2 is missing.
+  await revealNotice?.();
   await expect(
     page.getByText(
       /Downloaded [23] full-quality recordings; 1 missing segment /,
@@ -173,7 +187,7 @@ test.describe("record lobby", () => {
         await joinAsGuest(guest, room.guest.token, "Ava");
         await ensureHostRecordCommand(host, projectPath, "Start", "recording");
         await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
-        await expect(guest.locator(".record-rec-label")).toHaveText("Stopped");
+        await expect(roomPill(guest)).toHaveText(/^Saving|^Saved/);
 
         const state = await hostRecordSnapshot(host, projectPath);
         const guestId = await recordParticipantId(host, projectPath, "Ava");
@@ -191,8 +205,20 @@ test.describe("record lobby", () => {
         );
         await guest.reload();
         await openHostMore(await openHostRecordRoom(host));
-        await expectRecoveryDownloads(guest);
-        await expectRecoveryDownloads(host);
+        // The seeded partial segments leave the guest on "Saving stopped",
+        // whose second action saves a copy.
+        await expect(roomPill(guest)).toHaveText("Saving stopped");
+        await expectRecoveryDownloads(
+          guest,
+          guest.getByRole("button", { name: "Save a copy" }),
+          async () => {
+            await guest.getByRole("button", { name: "1 more alert" }).click();
+          },
+        );
+        await expectRecoveryDownloads(
+          host,
+          host.getByRole("button", { name: "Download full-quality recording" }),
+        );
       } finally {
         await hostCtx.close();
         await guestCtx.close();
@@ -264,67 +290,48 @@ test.describe("record lobby", () => {
           });
           await guest.setViewportSize({ width: 360, height: 740 });
           await openRecordLink(guest, room.guest.token);
-          await expect(
-            guest.getByRole("heading", { name: "Join the recording" }),
-          ).toBeVisible();
-          await expect(
-            guest.getByText("Connecting to the room…"),
-          ).toBeVisible();
-          await expect(guest.locator(".record-shell .ui-control")).toHaveCount(
-            0,
-          );
+          // The sheet opens before the room's first frames arrive; a name typed
+          // now must survive them.
+          const allow = guest.getByRole("button", { name: "Allow microphone" });
+          await expect(allow).toBeVisible();
+          await fillDisplayNameField(guest, "Ava");
           releaseRoomFrames();
-          await expect(
-            guest.getByRole("button", { name: "Allow microphone" }),
-          ).toBeVisible();
-          const readingControls = await guest
-            .locator(".record-shell .ui-control")
+          await expect(joinNameField(guest)).toHaveValue("Ava");
+          const sheetControls = await guest
+            .locator(".sys-join-sheet .ui-control:not(.linkish)")
             .evaluateAll((elements) =>
               elements.map((element) => element.getBoundingClientRect().height),
             );
-          expect(readingControls.length).toBeGreaterThan(0);
-          for (const height of readingControls)
+          expect(sheetControls.length).toBeGreaterThan(0);
+          for (const height of sheetControls)
             expect(height).toBeGreaterThanOrEqual(44);
-          expect(
-            await guest
-              .locator(".ui-field-label")
-              .first()
-              .evaluate((element) => getComputedStyle(element).fontSize),
-          ).toBe("14px");
-          await fillGuestDisplayName(guest, "Ava");
-          await guest.getByLabel("I am wearing headphones").check();
-          await expect(
-            guest.getByRole("heading", {
-              name: "Record 3 seconds of room tone",
-            }),
-          ).toBeVisible();
-          await expect(
-            guest.getByText("Record or skip room tone before accepting."),
-          ).toBeVisible();
+          const join = guest.getByRole("button", { name: "Join and record" });
           await expect(
             roomDlg.getByText("Ava", { exact: true }).first(),
           ).toBeVisible();
           await expect(
             roomDlg.getByRole("button", { name: "Record", exact: true }),
           ).toBeDisabled();
-          await expect(
-            guest.getByRole("button", { name: "Accept" }),
-          ).toBeDisabled();
+          await expect(join).toBeDisabled();
           expect(
             await guest.evaluate(
               () =>
                 (window as unknown as { __gumCalled?: boolean }).__gumCalled,
             ),
           ).toBe(false);
-          await guest.getByRole("button", { name: "Allow microphone" }).click();
-          await expect(guest.getByLabel("Level")).toBeVisible();
-          await expect(guest.getByLabel("Input")).toBeVisible();
-          await guest.getByRole("button", { name: "Skip" }).click();
-          await expect(
-            guest.getByRole("button", { name: "Accept" }),
-          ).toBeEnabled();
-          await guest.getByRole("button", { name: "Accept" }).click();
-          await expect(guest.getByText("Waiting for host")).toBeVisible();
+          await allow.click();
+          await expect(guest.locator(".sys-join-meter")).toBeAttached();
+          await expect(join).toBeDisabled();
+          const headphones = guest.getByRole("button", {
+            name: "I'm wearing headphones",
+          });
+          await headphones.click();
+          await expect(headphones).toHaveAttribute("aria-pressed", "true");
+          await expect(join).toBeEnabled();
+          await join.click();
+          await expect(join).toBeHidden();
+          await expect(roomPill(guest)).toHaveText(/^Waiting for .+ to start$/);
+          await expect(roomTile(guest, "Ava")).toBeVisible();
           await expect(
             roomDlg.getByRole("button", { name: "Record", exact: true }),
           ).toBeEnabled();
@@ -347,16 +354,18 @@ test.describe("record lobby", () => {
           });
           await openRecordLink(producer, room.producer.token);
           await expect(
-            producer.getByRole("heading", { name: "Producer (not recorded)" }),
+            producer.getByRole("button", { name: "Join to listen" }),
           ).toBeVisible();
           await expect(
-            producer.getByRole("heading", {
-              name: "Record 3 seconds of room tone",
-            }),
+            producer.getByRole("button", { name: "Allow microphone" }),
           ).toHaveCount(0);
           await fillDisplayNameField(producer, "Pat");
-          await producer.getByRole("button", { name: "Join" }).click();
-          await expect(producer.getByText("Waiting for host")).toBeVisible();
+          await producer
+            .getByRole("button", { name: "Join to listen" })
+            .click();
+          await expect(roomPill(producer)).toHaveText(
+            /^Waiting for .+ to start$/,
+          );
           await expect(
             host.getByRole("list", { name: "Listening" }).getByText("Pat"),
           ).toBeVisible();
@@ -396,8 +405,8 @@ test.describe("record lobby", () => {
           await expect(
             roomDlg.getByText(/^\d+:\d{2} · Take \d+$/),
           ).toBeVisible();
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
-          await expect(producer.locator(".record-rec-label")).toHaveText("REC");
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
+          await expect(roomPill(producer)).toHaveText(LIVE_PILL);
           await expect(
             guest.getByText("Recording in full quality on this device."),
           ).toBeVisible();
@@ -420,7 +429,7 @@ test.describe("record lobby", () => {
           await dialog.dismiss();
           await reload;
           expect(guest.url()).toBe(guestUrl);
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
           await expect(
             guest.getByText("Recording in full quality on this device."),
           ).toBeVisible();
@@ -428,10 +437,10 @@ test.describe("record lobby", () => {
             producer.getByText("Recording in full quality on this device."),
           ).toHaveCount(0);
           await expect
-            .poll(async () => guest.locator(".record-clock").innerText(), {
+            .poll(async () => roomPill(guest).innerText(), {
               timeout: 8_000,
             })
-            .not.toBe("0:00");
+            .not.toBe("0:00 · Take 1");
 
           await clickHostTransport(
             host,
@@ -440,7 +449,7 @@ test.describe("record lobby", () => {
             "Pause",
             "paused",
           );
-          await expect(guest.locator(".record-rec-label")).toHaveText("PAUSED");
+          await expect(roomPill(guest)).toHaveText(/^Paused · \d+:\d{2}$/);
           await expect.poll(() => beforeUnloadIsBlocked(guest)).toBe(false);
           await expect(guest.getByText("Hearing the room.")).toBeVisible();
           await expect
@@ -456,12 +465,10 @@ test.describe("record lobby", () => {
             "Resume",
             "recording",
           );
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
           await expect(guest.getByText("Hearing the room.")).toBeVisible();
           await stopHostTake(host, roomDlg, projectPath);
-          await expect(guest.locator(".record-rec-label")).toHaveText(
-            "Stopped",
-          );
+          await expect(roomPill(guest)).toHaveText(SAVING_OR_SAVED_PILL);
 
           await expect.poll(() => beforeUnloadIsBlocked(guest)).toBe(false);
           const unexpectedUnloadDialog = guest
@@ -470,32 +477,22 @@ test.describe("record lobby", () => {
             .catch(() => false);
           await guest.reload();
           expect(await unexpectedUnloadDialog).toBe(false);
-          await expect(guest.locator(".record-rec-label")).toHaveText(
-            "Stopped",
-          );
+          // Consent lives in the room, so a guest back after Stop sees the
+          // saved take, not the Join sheet.
+          await expect(roomPill(guest)).toHaveText("Saved", {
+            timeout: 30_000,
+          });
           await expect(
-            guest.getByRole("button", { name: "Accept" }),
-          ).toBeVisible();
-          await expect(
-            roomDlg.getByRole("button", { name: "Record", exact: true }),
-          ).toBeDisabled();
-
-          // RecordApp changes views through FocusPull. Visible text assertions
-          // can pass while the incoming view is still fading in over the outgoing
-          // view, so wait for all transient layers to be removed before contrast.
-          await expect(
-            guest.locator(
-              ".focus-pull-exit, .focus-pull-pending, .focus-pull-enter",
-            ),
+            guest.getByRole("button", { name: "Join and record" }),
           ).toHaveCount(0);
-          await expectReadingSurfaceAxeClean(guest);
-          await expectReadingSurfaceAxeClean(producer);
+          await expectSurfaceAxeClean(guest, "body");
+          await expectSurfaceAxeClean(producer, "body");
         },
       );
     });
   });
 
-  test("guest cannot accept after mic loss and can reconnect", async ({
+  test("guest cannot join after mic loss and can reconnect", async ({
     browser,
   }: {
     browser: Browser;
@@ -523,14 +520,13 @@ test.describe("record lobby", () => {
           };
         });
         await openRecordLink(guest, room.guest.token);
-        await fillGuestDisplayName(guest, "Ava");
-        await guest.getByLabel("I am wearing headphones").check();
+        await fillDisplayNameField(guest, "Ava");
         await guest.getByRole("button", { name: "Allow microphone" }).click();
-        await expect(guest.getByLabel("Level")).toBeVisible();
-        await guest.getByRole("button", { name: "Skip" }).click();
-        await expect(
-          guest.getByRole("button", { name: "Accept" }),
-        ).toBeEnabled();
+        await guest
+          .getByRole("button", { name: "I'm wearing headphones" })
+          .click();
+        const join = guest.getByRole("button", { name: "Join and record" });
+        await expect(join).toBeEnabled();
 
         await guest.evaluate(() => {
           const track = (
@@ -543,14 +539,13 @@ test.describe("record lobby", () => {
           // Browser stop() is intentional and does not itself emit ended.
           track.dispatchEvent(new Event("ended"));
         });
+        await expect(
+          guest.getByText("Your microphone isn't available."),
+        ).toBeVisible();
         await expect(guest.getByText("Microphone disconnected.")).toBeVisible();
-        await expect(
-          guest.getByRole("button", { name: "Accept" }),
-        ).toBeDisabled();
-        await guest.getByRole("button", { name: "Retry" }).click();
-        await expect(
-          guest.getByRole("button", { name: "Accept" }),
-        ).toBeEnabled();
+        await expect(join).toBeDisabled();
+        await guest.getByRole("button", { name: "Retry microphone" }).click();
+        await expect(join).toBeEnabled();
       } finally {
         await hostCtx.close();
         await guestCtx.close();
@@ -677,7 +672,7 @@ test.describe("record lobby", () => {
     });
   });
 
-  test("guest REC reflects mic loss, retry, recovery, and Stop", async ({
+  test("guest room reflects mic loss, retry, recovery, and Stop", async ({
     browser,
   }: {
     browser: Browser;
@@ -726,9 +721,9 @@ test.describe("record lobby", () => {
           "Start",
           "recording",
         );
-        const indicator = guest.locator(".record-indicator");
-        await expect(indicator).toContainText("REC");
-        await expect(indicator.locator(".record-rec-dot")).toHaveCount(1);
+        await expect(roomPill(guest)).toHaveText(LIVE_PILL);
+        const micLost = guest.getByText("Your mic stopped.");
+        await expect(micLost).toBeHidden();
 
         await guest.evaluate(() => {
           const state = window as unknown as {
@@ -743,12 +738,11 @@ test.describe("record lobby", () => {
           track.stop();
           track.dispatchEvent(new Event("ended"));
         });
-        await expect(indicator).toContainText("REC: local capture failed");
-        await expect(indicator.locator(".record-rec-dot")).toHaveCount(0);
-        await guest
-          .getByRole("button", { name: "Reconnect microphone" })
-          .click();
-        await expect(indicator).toContainText("REC: waiting for microphone");
+        await expect(micLost).toBeVisible();
+        const reconnect = guest.getByRole("button", { name: "Reconnect mic" });
+        await reconnect.click();
+        // The request is pending until the page releases it; the alert stays.
+        await expect(micLost).toBeVisible();
         await guest.evaluate(() => {
           const release = (
             window as unknown as { __releaseGuestRetry?: () => void }
@@ -758,25 +752,13 @@ test.describe("record lobby", () => {
           }
           release();
         });
-        await expect(indicator).toContainText("REC: local capture failed");
-        await guest
-          .getByRole("button", { name: "Reconnect microphone" })
-          .click();
-        await expect(
-          guest.getByText(
-            "Microphone disconnected. Full-quality recording is paused.",
-          ),
-        ).toHaveCount(0);
-        await expect(indicator).toContainText("REC", { timeout: 5_000 });
-        await expect(indicator.locator(".record-rec-dot")).toHaveCount(1);
-        await expect(
-          guest.getByText(
-            "Microphone disconnected. Full-quality recording is paused.",
-          ),
-        ).toHaveCount(0);
+        await expect(micLost).toBeVisible();
+        await reconnect.click();
+        await expect(micLost).toBeHidden({ timeout: 5_000 });
+        await expect(roomPill(guest)).toHaveText(LIVE_PILL);
 
         await stopHostTake(host, roomDlg, projectPath);
-        await expect(indicator).toContainText("Stopped");
+        await expect(roomPill(guest)).toHaveText(SAVING_OR_SAVED_PILL);
       });
     });
   });
@@ -806,7 +788,7 @@ test.describe("record lobby", () => {
           "Start",
           "recording",
         );
-        await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+        await expect(roomPill(guest)).toHaveText(LIVE_PILL);
         // Wait for about 1.5 s of PCM written in place before killing the tab;
         // this clears the 1 s post-kill check without waiting on a later flush.
         await expect
@@ -828,12 +810,13 @@ test.describe("record lobby", () => {
         await expect
           .poll(async () => keeperWavBytes(reopened), { timeout: 15_000 })
           .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
-        const recover = reopened.getByRole("button", {
-          name: "Recover partial take",
-        });
+        const recover = reopened.getByRole("button", { name: "Finish saving" });
         await expect(recover).toBeVisible({ timeout: 15_000 });
         await recover.click();
         await expect(recover).toBeHidden({ timeout: 15_000 });
+        await expect(roomPill(reopened)).toHaveText("Saved", {
+          timeout: 30_000,
+        });
       });
     });
   });
@@ -875,36 +858,36 @@ test.describe("record lobby", () => {
           });
           await openRecordLink(guest, guestToken);
           await expect(
-            guest.getByRole("heading", { name: "Join the recording" }),
+            guest.getByRole("button", { name: "Allow microphone" }),
           ).toBeVisible({ timeout: 15_000 });
         });
         await test.step("show the denied microphone recovery", async () => {
-          await fillGuestDisplayName(guest, "Ava");
-          await guest.getByLabel("I am wearing headphones").check();
+          await fillDisplayNameField(guest, "Ava");
           await guest
             .getByRole("button", { name: "Allow microphone" })
             .click({ timeout: 15_000 });
+          await expect(guest.getByText("Microphone blocked")).toBeVisible({
+            timeout: 15_000,
+          });
           await expect(
             guest.getByText(/Microphone is blocked for this site/),
           ).toBeVisible({ timeout: 15_000 });
           await expect(
-            guest.getByRole("button", { name: "Retry" }),
-          ).toBeEnabled({ timeout: 15_000 });
+            guest.getByRole("button", { name: "Join and record" }),
+          ).toBeDisabled();
         });
-        await test.step("retry microphone and enter room-tone check", async () => {
+        await test.step("retry the microphone and enable joining", async () => {
           await guest
-            .getByRole("button", { name: "Retry" })
+            .getByRole("button", { name: "How to allow the microphone" })
             .click({ timeout: 15_000 });
-          await expect(guest.getByLabel("Level")).toBeVisible({
+          await expect(guest.locator(".sys-join-meter")).toBeAttached({
             timeout: 15_000,
           });
-        });
-        await test.step("skip room tone and enable acceptance", async () => {
           await guest
-            .getByRole("button", { name: "Skip" })
-            .click({ timeout: 15_000 });
+            .getByRole("button", { name: "I'm wearing headphones" })
+            .click();
           await expect(
-            guest.getByRole("button", { name: "Accept" }),
+            guest.getByRole("button", { name: "Join and record" }),
           ).toBeEnabled({ timeout: 15_000 });
         });
       });
@@ -968,7 +951,7 @@ test.describe("record lobby", () => {
     });
   });
 
-  test("guest can record room tone then Accept", async ({
+  test("guest captures the room tone the host starts", async ({
     browser,
   }: {
     browser: Browser;
@@ -982,34 +965,8 @@ test.describe("record lobby", () => {
         const room = await createRecordRoom(host, projectPath);
         await markSharecutE2e(guest);
         await enableRoomTonePcmHarness(guest);
-        await openRecordLink(guest, room.guest.token);
-        await fillGuestDisplayName(guest, "Ava");
-        await guest.getByLabel("I am wearing headphones").check();
-        await expect(
-          guest.getByRole("button", { name: "Accept" }),
-        ).toBeDisabled();
-        await expect(
-          guest.getByText("Record or skip room tone before accepting."),
-        ).toBeVisible();
-        await guest.getByRole("button", { name: "Allow microphone" }).click();
-        await expect(guest.getByLabel("Level")).toBeVisible();
-        await guest.getByRole("button", { name: "Record room tone" }).click();
-        await expect(
-          guest.getByText(
-            /^Room tone (sent to the host|saved on this device)$/,
-          ),
-        ).toBeVisible({
-          timeout: 15_000,
-        });
-        await expect
-          .poll(() => roomToneWav(guest))
-          .toEqual({
-            header: [82, 73, 70, 70, 36, 101, 4, 0, 87, 65, 86, 69],
-            size: 288_044,
-          });
-        await expect(
-          guest.getByRole("button", { name: "Accept" }),
-        ).toBeEnabled();
+        await joinAsGuest(guest, room.guest.token, "Ava");
+
         const roomToneUpload = guest.waitForResponse((response) => {
           const url = new URL(response.url());
           return (
@@ -1019,10 +976,15 @@ test.describe("record lobby", () => {
             url.searchParams.get("kind") === "room_tone"
           );
         });
-        const [roomToneResponse] = await Promise.all([
-          roomToneUpload,
-          guest.getByRole("button", { name: "Accept" }).click(),
-        ]);
+        const started = await host.request.post("/api/record/command", {
+          data: {
+            path: projectPath,
+            command_type: "RoomToneCountdown",
+            payload: {},
+          },
+        });
+        expect(started.ok(), await started.text()).toBeTruthy();
+        const roomToneResponse = await roomToneUpload;
         expect(
           roomToneResponse.ok(),
           await roomToneResponse.text(),
@@ -1030,7 +992,12 @@ test.describe("record lobby", () => {
         expect(
           (await roomToneResponse.json()) as { file_ack?: boolean },
         ).toMatchObject({ file_ack: true });
-        await expect(guest.getByText("Waiting for host")).toBeVisible();
+        await expect
+          .poll(() => roomToneWav(guest))
+          .toEqual({
+            header: [82, 73, 70, 70, 36, 101, 4, 0, 87, 65, 86, 69],
+            size: 288_044,
+          });
       });
     });
   });
@@ -1071,7 +1038,7 @@ test.describe("record lobby", () => {
             "Start",
             "recording",
           );
-          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
           await expect(
             guest.getByText("Recording in full quality on this device."),
           ).toBeVisible();
@@ -1079,11 +1046,18 @@ test.describe("record lobby", () => {
             timeout: 15_000,
           });
 
-          // The list, not the live region that also reads new comments out.
-          const commentsOf = (scope: Page | Locator) =>
+          // The Notes rail's list, not the live region that also reads new notes out.
+          const notesOf = (scope: Page) =>
             scope
-              .getByRole("region", { name: "Live comments" })
+              .getByRole("region", { name: "Notes", exact: true })
               .getByRole("listitem");
+          const noteWith = (scope: Page, text: string) =>
+            notesOf(scope).filter({ hasText: text });
+          const addNote = async (scope: Page, text: string) => {
+            await scope.getByRole("textbox", { name: "Add a note" }).fill(text);
+            await scope.getByRole("button", { name: "Send note" }).click();
+          };
+          await openRoomNotes(guest);
           await guest.evaluate(() => {
             (document.activeElement as HTMLElement | null)?.blur();
           });
@@ -1095,29 +1069,20 @@ test.describe("record lobby", () => {
           const markerFrom = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
           await guest.keyboard.press("m");
-          await expect(
-            commentsOf(guest).getByText("You: Marker"),
-          ).toBeVisible();
+          await expect(noteWith(guest, "Marker")).toBeVisible();
           const markerTo = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
-          await guest.getByLabel("Note", { exact: true }).fill("Great answer");
           const noteFrom = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
-          await guest.getByRole("button", { name: "Add note" }).click();
-          await expect(
-            commentsOf(guest).getByText("You: Great answer"),
-          ).toBeVisible();
+          await addNote(guest, "Great answer");
+          await expect(noteWith(guest, "Great answer")).toBeVisible();
           const noteTo = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
-          await producer
-            .getByLabel("Note", { exact: true })
-            .fill("Producer note");
+          await openRoomNotes(producer);
           const producerFrom = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
-          await producer.getByRole("button", { name: "Add note" }).click();
-          await expect(
-            commentsOf(producer).getByText("You: Producer note"),
-          ).toBeVisible();
+          await addNote(producer, "Producer note");
+          await expect(noteWith(producer, "Producer note")).toBeVisible();
           const producerTo = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
 
@@ -1129,21 +1094,17 @@ test.describe("record lobby", () => {
           await expect(hostNote("Marker")).toBeVisible();
           await expect(hostNote("Great answer")).toBeVisible();
           await expect(hostNote("Producer note")).toBeVisible();
-          await expect(
-            commentsOf(producer).getByText("Ava: Marker"),
-          ).toBeVisible();
-          await expect(
-            commentsOf(guest).getByText(/Producer note/),
-          ).toHaveCount(0);
+          await expect(noteWith(producer, "Marker")).toBeVisible();
+          await expect(notesOf(guest).getByText(/Producer note/)).toHaveCount(
+            0,
+          );
 
           await expect
             .poll(() => keeperWavBytes(guest), { timeout: 30_000 })
             .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
 
           await stopHostTake(host, roomDlg, projectPath);
-          await expect(guest.locator(".record-rec-label")).toHaveText(
-            "Stopped",
-          );
+          await expect(roomPill(guest)).toHaveText(SAVING_OR_SAVED_PILL);
           const guestId = await recordParticipantId(host, projectPath, "Ava");
           const producerId = await recordParticipantId(
             host,
@@ -1156,7 +1117,7 @@ test.describe("record lobby", () => {
             HOST_PARTICIPANT_ID,
           ]);
           await expect(
-            guest.getByRole("button", { name: "Leave" }),
+            guest.getByRole("button", { name: "Leave room" }),
           ).toBeEnabled();
 
           // Producers never open a local keeper, so the recordings dir never exists.
@@ -1177,11 +1138,9 @@ test.describe("record lobby", () => {
           ).toEqual([]);
 
           await landParticipant(roomDlg, "Ava");
-          await expect(
-            guest.getByText(
-              "Saved to project and on the timeline. This device's copy clears automatically.",
-            ),
-          ).toBeVisible({ timeout: 30_000 });
+          await expect(roomPill(guest)).toHaveText("Saved", {
+            timeout: 30_000,
+          });
           await expect(
             producer.getByText(/Saving to project|Saved to project/),
           ).toHaveCount(0);
