@@ -195,3 +195,14 @@ def test_relay_record_upload_uses_part_cap(monkeypatch):
         headers={"content-type": "application/octet-stream"},
     )
     assert resp.status_code != 413
+
+
+def test_relay_forwards_the_pending_preview_placement_headers_and_drops_cookies():
+    from podcast_mcp.gui.audio import PENDING_PREVIEW_HEADER_NAMES
+    from podcast_relay.routes.proxy import _PENDING_PREVIEW_RESP_HEADERS, _response_headers
+
+    assert {n.lower() for n in PENDING_PREVIEW_HEADER_NAMES} == _PENDING_PREVIEW_RESP_HEADERS
+    upstream = {name: "1.000" for name in PENDING_PREVIEW_HEADER_NAMES}
+    upstream["Set-Cookie"] = "a=b"
+    forwarded = _response_headers(upstream)
+    assert set(forwarded) == set(PENDING_PREVIEW_HEADER_NAMES)
