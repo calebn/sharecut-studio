@@ -630,12 +630,12 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
    through the lane's current clips (`timeline/appliedEditTicks.ts`, #527), so
    later ripples, trims and splits move a tick to the post-edit join instead of
    drawing the record's stale pre-edit range. Records that no longer map to a
-   clip appear only in **Impact → Applied edits**. A removal binds to the adjacent
+   clip appear only in the History sheet. A removal binds to the adjacent
    clip pair whose join carries its source clocks, and ties between clips that
    share a source edge go to the record's stored `timeline_*`. Every server
    `operation` has an explicit case (pinned by `tests/test_gui_readiness.py`).
    Ticks carry no hover title (the layer is `pointer-events: none`); labels live
-   in Impact. The layer clips to the canvas, so a tick can never widen the
+   in the History sheet. The layer clips to the canvas, so a tick can never widen the
    scroll range. Pending `remove` regions stay hatched and `mute` regions stay
    solid (toggle). Each pending region fills its lane, while the minimum hit
    target stays inside the canvas and the visible hatch remains on its true

@@ -64,6 +64,17 @@ export const Default: Story = {
   },
 };
 
+const queuePlay: Story["play"] = async ({ canvasElement }) => {
+  await waitFor(() =>
+    expect(canvasElement.querySelector(".sys-queue-main")).not.toBeNull(),
+  );
+  await expect(canvasElement.querySelector(".rv-stage")).not.toBeNull();
+};
+
+export const Queue: Story = { play: queuePlay };
+
+export const QueuePhone: Story = { ...phone, play: queuePlay };
+
 export const SwitchSection: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
