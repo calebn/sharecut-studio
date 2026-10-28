@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import shutil
 import threading
-from contextlib import suppress
 from dataclasses import asdict
 from pathlib import Path
 
@@ -110,19 +110,19 @@ def create_project(
         )
     name = body.name.strip() or "episode"
     reserved: Path | None = None
-    if body.workspace_dir.strip():
-        workspace_dir = body.workspace_dir.strip()
-    else:
-        reserved = default_workspace_dir(name)
-        workspace_dir = str(reserved)
     try:
-        if reserved is not None and resolve_project_path(reserved).exists():
-            raise FileExistsError(f"{reserved} already holds an episode")
+        if body.workspace_dir.strip():
+            workspace_dir = body.workspace_dir.strip()
+        else:
+            reserved = default_workspace_dir(name)
+            workspace_dir = str(reserved)
+            if resolve_project_path(reserved).exists():
+                reserved = None
+                raise FileExistsError(f"{workspace_dir} already holds an episode")
         ws = ProjectWorkspace.create(workspace_dir, name=name)
     except Exception as exc:
         if reserved is not None:
-            with suppress(OSError):
-                reserved.rmdir()
+            shutil.rmtree(reserved, ignore_errors=True)
         raise coded_exception_error(400, exc, code="project_create_failed") from exc
     pin_served_if_allowed(request, ws.path)
     record_recent(ws.path)
