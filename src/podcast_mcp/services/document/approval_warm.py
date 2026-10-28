@@ -5,10 +5,34 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from podcast_mcp.services.app import ProjectWorkspace
 
 log = logging.getLogger(__name__)
 _warming: set[str] = set()
 _warming_lock = threading.Lock()
+
+
+def warm_pending_checks(ws: ProjectWorkspace) -> int:
+    """Check the pending cuts now, as the host's Approve all will, so that approval reuses them.
+
+    Nothing is saved. Uses the interactive intent the host approves with, which is part of
+    the check; returns how many cuts were checked, 0 while the verdict cache is off (#1958).
+    """
+    from podcast_mcp.edits.cut_application import precompute_verdicts
+    from podcast_mcp.edits.decisions import list_edit_decisions
+    from podcast_mcp.models import CutIntent
+
+    ids = [e.id for e in list_edit_decisions(ws.project, applied=False, review_required=True)]
+    return precompute_verdicts(
+        ws.project,
+        ids,
+        defaults=ws.effective_config(),
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
+        yield_to_approval=True,
+    )
 
 
 def warm_in_background(project_path: Path) -> None:
