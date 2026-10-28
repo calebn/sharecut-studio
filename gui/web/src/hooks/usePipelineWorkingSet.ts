@@ -8,7 +8,7 @@ export type PipelineWorkingSetPatch = Partial<
   Pick<PipelineConfigResponse, "config" | "enabled_steps" | "unattended">
 >;
 
-export type PipelineWorkingSetRecipe = (
+type PipelineWorkingSetRecipe = (
   current: Readonly<PipelineConfigResponse>,
 ) => PipelineWorkingSetPatch;
 

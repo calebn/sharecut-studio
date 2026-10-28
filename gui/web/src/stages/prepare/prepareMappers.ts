@@ -9,18 +9,11 @@ import type { PreparePhase } from "./prepareAnnouncement";
 import type { PrepareSession, PrepareSource } from "./prepareTypes";
 import type { ReadyRowData, ReadyRowId } from "./ReadyList";
 
-/**
- * Pure mappers from the project and the pipeline job onto the props of the
- * presentational Prepare view. The hook that reads the store and runs the
- * actions lives in `usePrepareModel.ts`; nothing here touches a store, a
- * clock or the network, so each mapper is a plain function of its input.
- */
-
 export const TIGHTEN_INTENSITY_PATH = "tighten.intensity";
-export const MASTER_LUFS_PATH = "master.integrated_lufs";
+const MASTER_LUFS_PATH = "master.integrated_lufs";
 
 /** The row each pipeline step belongs to (spec INT-PREPARE-RUN). */
-export const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
+const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
   add: ["ingest_tracks"],
   transcribe: ["transcribe_tracks"],
   align: [
@@ -69,7 +62,6 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** The tracks that are voices to prepare: dialogue, in project order. */
 export function sourceTracks(tracks: readonly TrackView[]): TrackView[] {
   return tracks.filter((track) => track.role === "dialogue");
 }
@@ -78,14 +70,13 @@ export function hasMedia(track: Pick<TrackView, "media_path">): boolean {
   return Boolean(track.media_path);
 }
 
-export function mediaName(track: TrackView): string {
+function mediaName(track: TrackView): string {
   const path = track.media_path;
   if (!path) return track.id;
   const parts = path.split(/[\\/]/);
   return parts[parts.length - 1] || track.id;
 }
 
-/** Track ids that have at least one utterance, and how many voices each holds. */
 export function transcriptIndex(
   utterances: readonly { track_id: string; speaker: string }[] | undefined,
 ): { transcribed: ReadonlySet<string>; voices: ReadonlyMap<string, number> } {
@@ -103,30 +94,26 @@ export function transcriptIndex(
 
 export type SplitProgress = { detail?: string; progress?: number };
 
-export type SessionsInput = {
+type SessionsInput = {
   tracks: readonly TrackView[];
   transcribed: ReadonlySet<string>;
-  /** Distinct speakers in each track's transcript. */
   voicesIn: ReadonlyMap<string, number>;
   /** A host may split; a review guest may not. */
   mayManage: boolean;
   ingestBusy: boolean;
   playingId: string | null;
-  /** Voice count the person chose on a split prompt, by track id. */
   chosenVoices: Readonly<Record<string, number>>;
-  /** Tracks being split now. */
   splitting: Readonly<Record<string, SplitProgress>>;
-  /** Plain cause of a split that failed, by track id. */
   splitFailed: Readonly<Record<string, string>>;
   job: PipelineJobSnapshot | null;
   /** A track the person asked to split ("Split speakers…"); its prompt shows. */
   focusTrackId?: string | null;
 };
 
-const MIN_VOICES = 2;
+export const MIN_VOICES = 2;
 
 /** Whether a track offers the split prompt: one file that holds several voices, or the only file. */
-export function offersSplit(
+function offersSplit(
   track: TrackView,
   input: Pick<SessionsInput, "mayManage" | "voicesIn" | "focusTrackId"> & {
     sources: number;
@@ -166,7 +153,7 @@ function sourceState(
   return { state: track.speaker?.trim() ? "ready" : "needs-name" };
 }
 
-export function prepareSource(
+function prepareSource(
   track: TrackView,
   input: SessionsInput,
   sources: number,
@@ -250,7 +237,6 @@ export type ModelAsk = {
 export type ReadyInput = {
   sourceCount: number;
   ingestBusy: boolean;
-  /** Every source has a transcript. */
   transcribed: boolean;
   /** A run is being started (auto-run waiting on the slot, or the POST in flight). */
   starting: boolean;
@@ -259,7 +245,6 @@ export type ReadyInput = {
   job: PipelineJobSnapshot | null;
   pendingSuggestions: number;
   model: ModelAsk | null;
-  /** Transcription finished without the word-timing model. */
   approximateTiming: { size: string; downloading: boolean } | null;
   /** A re-transcribe waits on whether to keep hand fixes. */
   keepFixes: { names: readonly string[] } | null;
@@ -274,7 +259,6 @@ function isLive(job: PipelineJobSnapshot | null): boolean {
   return job?.status === "running" || job?.status === "queued";
 }
 
-/** What a job says about the steps one row stands for. */
 export function rowOutcome(
   job: PipelineJobSnapshot | null,
   row: ReadyRowId,
@@ -337,7 +321,6 @@ function failedRow(
   };
 }
 
-/** The five Getting ready rows. */
 export function readyRows(input: ReadyInput): ReadyRowData[] {
   if (input.sourceCount === 0) return [];
   const { job } = input;
@@ -496,7 +479,6 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   return rows;
 }
 
-/** The one line the phone shows first. */
 export function readySummary(rows: readonly ReadyRowData[]): string {
   if (rows.length === 0) return "";
   const failed = rows.find((row) => row.state === "failed");
@@ -511,19 +493,17 @@ export function readySummary(rows: readonly ReadyRowData[]): string {
     : `${progress}, ${needs.length} need you`;
 }
 
-export type PhaseInput = {
+type PhaseInput = {
   sources: number;
   ingestBusy: boolean;
-  /** Sources whose audio is still being measured. */
   checking: boolean;
   /** The run is stopped on a missing model (asked, downloading or failed). */
   model?: ModelAsk | null;
-  /** The run was refused for a busy slot. */
   waiting?: boolean;
   rows: readonly ReadyRowData[];
 };
 
-export type PhaseResult = {
+type PhaseResult = {
   phase: PreparePhase;
   failure?: { step: string; cause: string };
 };
@@ -563,12 +543,11 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   return { phase: "transcribing" };
 }
 
-/** Whether the person can still leave for the next stage while work runs. */
 export function isWorking(phase: PreparePhase): boolean {
   return phase === "adding" || phase === "checking" || phase === "transcribing";
 }
 
-export type PrepareHandoff = { label: string; target: "review" | "edit" };
+type PrepareHandoff = { label: string; target: "review" | "edit" };
 
 /** Where Prepare sends the host next: decisions first, then the Edit. */
 export function prepareHandoff(input: {
@@ -607,12 +586,11 @@ const LUFS: Record<CleanupSettings["loudness"], number> = {
   streaming: -14,
 };
 
-export const DEFAULT_CLEANUP: CleanupSettings = {
+const DEFAULT_CLEANUP: CleanupSettings = {
   tight: "medium",
   loudness: "podcast",
 };
 
-/** The Cleanup segments from the project's pipeline settings. */
 export function cleanupFromConfig(
   config: Readonly<Record<string, unknown>> | null | undefined,
 ): CleanupSettings {
@@ -639,7 +617,6 @@ export function cleanupFromConfig(
   return { tight, loudness };
 }
 
-/** The config with the Cleanup choice written into it. */
 export function applyCleanup(
   config: Record<string, unknown>,
   next: CleanupSettings,
@@ -668,14 +645,6 @@ export function vocabularyFromChips(
     guest_names: chips.filter((chip) => guests.has(chip)),
     terms: chips.filter((chip) => !guests.has(chip)),
   };
-}
-
-/** Whether the transcribing model is installed and the run has to wait for it. */
-export function needsTranscribeModel(input: {
-  untranscribed: number;
-  whisperInstalled: boolean | null;
-}): boolean {
-  return input.untranscribed > 0 && input.whisperInstalled === false;
 }
 
 export function trackLabel(track: Pick<TrackView, "label" | "id">): string {
