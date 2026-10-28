@@ -193,6 +193,7 @@ function Sections({ sections }: { sections: readonly InspectorSection[] }) {
 function closeOnEscape(onClose: () => void) {
   return (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape" || event.defaultPrevented) return;
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     event.stopPropagation();
     onClose();
   };
