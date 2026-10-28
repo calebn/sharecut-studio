@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -719,6 +720,48 @@ def test_a_skipped_session_answers_409_over_the_route(
         json={"path": str(minimal_project), "participant_id": pid, "track": "new"},
     )
     assert res.status_code == 409 and res.headers["X-Sharecut-Error-Code"] == "session_skipped"
+
+
+def test_accepting_before_assign_acquires_the_project_lock_refuses_the_move(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    _room(ws, ["Ava"], land=True)
+    room, [pid] = _room(ws, ["Ava"], target=INSERT, land=True)
+    suggestion_id = f"ss-{room['session_id']}"
+    accepting_ws = ProjectWorkspace.open(minimal_project)
+    transaction = ws.transaction
+    accepted = []
+
+    @contextmanager
+    def accept_before_lock(**kwargs):
+        if not accepted:
+            SessionSuggestionService(accepting_ws).accept(suggestion_id)
+            accepting_ws.reload()
+            suggestion = next(
+                s
+                for s in accepting_ws.project.editorial.session_suggestions
+                if s.id == suggestion_id
+            )
+            assert suggestion.status == "accepted"
+            accepted.append(
+                (
+                    accepting_ws.project.model_dump(mode="json"),
+                    HistoryService(accepting_ws).list_entries().model_dump(mode="json"),
+                )
+            )
+        with transaction(**kwargs) as project:
+            yield project
+
+    monkeypatch.setattr(ws, "transaction", accept_before_lock)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(pid, "new")
+    assert caught.value.code == "session_already_accepted"
+    assert len(accepted) == 1
+    ws.reload()
+    project_before, history_before = accepted[0]
+    assert ws.project.model_dump(mode="json") == project_before
+    assert HistoryService(ws).list_entries().model_dump(mode="json") == history_before
 
 
 def test_a_removed_person_with_no_takes_does_not_block_a_live_same_named_person() -> None:
