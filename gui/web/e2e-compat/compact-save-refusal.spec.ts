@@ -9,6 +9,7 @@ import {
   test,
 } from "../e2e/compactChromeFixture";
 import { newFinger } from "../e2e/finger";
+import { inspectSelection } from "../e2e/stageNav";
 
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
 
@@ -27,6 +28,7 @@ test.describe("pending save", () => {
     await finger.down(at);
     await page.waitForTimeout(60);
     await finger.up();
+    await inspectSelection(page);
     await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "32px";
