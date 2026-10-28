@@ -197,6 +197,17 @@ def test_looped_segments_count_windows_not_distinct_ratios() -> None:
     assert drop_looped_words(words[:3], [3.0] * 3).looped_segments == 1
 
 
+def test_window_gap_boundary_and_reset_between_same_ratio_words() -> None:
+    def count(second_start: float) -> int:
+        words = [*_words(["a"], 0.0, 0.0), *_words(["b"], second_start, 0.0)]
+        return drop_looped_words(words, [3.0, 3.0]).looped_segments
+
+    assert count(5.0) == 1
+    assert count(5.1) == 2
+    mixed = [*_words(["a"], 0.0, 0.0), *_words(["b"], 1.0, 0.0), *_words(["c"], 2.0, 0.0)]
+    assert drop_looped_words(mixed, [3.0, 1.0, 3.0]).looped_segments == 2
+
+
 def test_a_real_word_between_two_loop_runs_is_kept() -> None:
     first = _words(LOOP_TEXT[:20], 10.0, 0.03)
     stop = _words(["stop"], 10.8, 0.0)

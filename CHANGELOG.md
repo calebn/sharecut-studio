@@ -16,7 +16,7 @@
 
 ### Fixes
 
-* A looped final transcription window no longer adds hundreds of repeated words crammed into a fraction of a second to a transcript (#2424). A project that already holds such a window keeps it until Replace re-transcribes the track.
+* A looped final transcription window no longer adds hundreds of repeated words crammed into a fraction of a second to a transcript (#2424). A project that already holds such a window keeps it until Re-transcribe runs ASR on the track again.
 
 * A live Studio that answers the handoff check with an unreadable reply, or that fails before the call is sent (for example the MCP initialize fails), now stops the call or command with a message and nothing runs, instead of the call running here and writing directly (#2326).
 
