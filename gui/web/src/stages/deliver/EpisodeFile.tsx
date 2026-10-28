@@ -67,8 +67,11 @@ export function EpisodeFile({
   const gatePanel = useRef<HTMLDivElement>(null);
   const runningBlock = useRef<HTMLDivElement>(null);
   const running = exportState.phase === "running";
+  const wasRunning = useRef(running);
   useEffect(() => {
-    if (running) runningBlock.current?.scrollIntoView?.({ block: "center" });
+    if (running && !wasRunning.current)
+      runningBlock.current?.scrollIntoView?.({ block: "center" });
+    wasRunning.current = running;
   }, [running]);
   const askPhase =
     exportState.phase === "needs-model" ? options.gate?.prompt?.phase : null;

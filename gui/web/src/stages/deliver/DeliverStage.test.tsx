@@ -5178,16 +5178,19 @@ describe("host export options", () => {
     expect(screen.getByRole("button", { name: "Download" })).toHaveFocus();
   });
 
-  it("scrolls the running export into view when it starts", () => {
+  it("scrolls the running export into view when it starts, not when it is already running", () => {
     const scroll = vi.fn();
     Element.prototype.scrollIntoView = scroll;
-    setup({
-      exportState: {
-        phase: "running",
-        progress: null,
-        detail: "Starting export…",
-      },
-    });
+    const running = {
+      phase: "running" as const,
+      progress: null,
+      detail: "Starting export…",
+    };
+    const first = render(<DeliverStage {...props({ exportState: running })} />);
+    expect(scroll).not.toHaveBeenCalled();
+    first.unmount();
+    const view = render(<DeliverStage {...props()} />);
+    view.rerender(<DeliverStage {...props({ exportState: running })} />);
     expect(scroll).toHaveBeenCalledTimes(1);
     expect(scroll.mock.contexts[0]).toHaveTextContent("Starting export…");
     delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
