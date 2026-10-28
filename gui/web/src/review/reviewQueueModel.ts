@@ -37,6 +37,8 @@ export type ReviewGroup = {
   items: readonly ReviewItem[];
   /** Null when the kind has no bulk verb or nothing in it may be bulk-applied. */
   bulk: BulkAction | null;
+  /** Items in the group that stay for one-by-one decisions. */
+  held: number;
 };
 
 const kind = (
@@ -117,6 +119,7 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
         kind,
         label: QUEUE_KIND[kind].group,
         items: inKind,
+        held: inKind.length - eligible.length,
         bulk:
           eligible.length === 0
             ? null

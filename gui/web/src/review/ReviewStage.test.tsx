@@ -358,9 +358,11 @@ describe("ReviewStage", () => {
       initialItems: EXTRA_KIND_ITEMS,
       initialSelectedId: "r1",
     });
-    expect(screen.getAllByRole("button", { name: /^Cut all 1/ })).toHaveLength(
-      2,
-    );
+    const heads = document.querySelectorAll(".rv-bulk");
+    expect([...heads].map((b) => b.textContent?.trim())).toEqual([
+      "Cut",
+      "Cut",
+    ]);
     expect(screen.getByText("Other suggestions")).toBeInTheDocument();
   });
 

@@ -74,10 +74,17 @@ describe("reviewEntriesOf", () => {
     expect(order.map((i) => i.id)).toEqual(["edit:p", "edit:u"]);
   });
 
-  it("keeps harsh and listen_one_by_one edits out of group verbs", () => {
-    expect(itemOf({ harsh: true }).oneByOne).toBe(true);
-    expect(itemOf({ listen_one_by_one: true }).oneByOne).toBe(true);
-    expect(itemOf({}).oneByOne).toBe(false);
+  it("holds join-risk and listen_one_by_one edits out of group verbs, not harsh ones", () => {
+    const real = {
+      review_required: true,
+      harsh: true,
+      listen_one_by_one: false,
+      join_risk: null,
+    };
+    expect(itemOf(real).oneByOne).toBe(false);
+    expect(itemOf({ ...real, listen_one_by_one: true }).oneByOne).toBe(true);
+    const join_risk = { verdict: "review" } as never;
+    expect(itemOf({ ...real, join_risk }).oneByOne).toBe(true);
   });
 
   it("passes the table action through", () => {

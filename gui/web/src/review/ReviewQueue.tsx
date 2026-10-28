@@ -130,11 +130,16 @@ function GroupHeader({
           <Button
             className="rv-bulk"
             onClick={() => onBulk?.(group)}
-            title={`${verb.label} all ${bulk.ids.length}${hintOf(verbOf("applyAll"))}`}
+            title={`${bulk.ids.length === 1 ? verb.label : `${verb.label} all ${bulk.ids.length}`}${hintOf(verbOf("applyAll"))}`}
           >
             <SystemIcon name={verb.icon} size={14} />
-            {verb.label} all {bulk.ids.length}
+            {bulk.ids.length === 1
+              ? verb.label
+              : `${verb.label} all ${bulk.ids.length}`}
           </Button>
+          {group.held > 0 ? (
+            <span className="sys-mono">{group.held} stay for you</span>
+          ) : null}
         </>
       ) : null}
     </div>

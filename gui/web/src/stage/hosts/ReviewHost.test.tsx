@@ -363,6 +363,31 @@ describe("Review host decisions", () => {
     expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 
+  it("offers Cut all for real-shape harsh fillers, keeps join-risk ones out, and sends skip_unsure", async () => {
+    const real = {
+      review_required: true,
+      harsh: true,
+      listen_one_by_one: false,
+      join_risk: null,
+    };
+    mount([
+      edit("f1", "filler", 10, real),
+      edit("f2", "filler", 20, real),
+      edit("f3", "filler", 30, {
+        ...real,
+        join_risk: { verdict: "review" } as never,
+      }),
+    ]);
+    expect(screen.getByText("1 stay for you")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 2" }));
+    await undoButton();
+    expect(sent("ApproveEdits")[0].payload).toEqual({
+      ids: ["f1", "f2"],
+      hold_blocked: true,
+      skip_unsure: true,
+    });
+  });
+
   it("words and routes Lower, Leave and Shorten by the suggested action, and gates only the cut", async () => {
     server.status = "pending";
     mount([
