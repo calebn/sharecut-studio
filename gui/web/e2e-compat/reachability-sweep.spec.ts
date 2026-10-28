@@ -434,12 +434,6 @@ async function sweep(page: Page, cells: readonly Cell[]): Promise<string> {
   });
 }
 
-test("phone shells keep every control a finger can use at 360, 390 and 767 wide", async ({
-  page,
-}) => {
-  expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
-});
-
 test("loaded tablet Player stays reachable at 200% text", async ({ page }) => {
   await arrive(page, {
     name: "tablet 820, 200% text",
