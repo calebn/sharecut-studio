@@ -17,14 +17,15 @@ import {
   type ModelNeeded,
 } from "../../utils/apiError";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
-import type { ModelAsk } from "./prepareMappers";
+import { type ModelAsk, OVERWRITE_REFUSED } from "./prepareMappers";
 
 const TRANSCRIBE_STEP = "transcribe_tracks";
 const WHISPER = "whisper";
 const WORD_ALIGNER = "word-aligner";
 const BUSY_CODE = "pipeline_busy";
 
-type RunMode = "run" | "retranscribe" | "retime";
+/** `update` redoes the transcripts whose audio changed, and only those. */
+type RunMode = "run" | "retranscribe" | "retime" | "update";
 
 /** Options for one run, from the project's saved pipeline settings. */
 export function runOptions(
@@ -194,6 +195,8 @@ export function usePrepareRun(input: PrepareRunInput) {
         if (code === BUSY_CODE) {
           busyRefused(mode);
         } else {
+          waitingRef.current = false;
+          setWaiting(false);
           useDawStore
             .getState()
             .announceStatus(`Could not start: ${errorMessage(error)}`, {
@@ -263,6 +266,14 @@ export function usePrepareRun(input: PrepareRunInput) {
         return;
       }
       if (edited.length === 0) {
+        if (mode === "update") {
+          useDawStore
+            .getState()
+            .announceStatus("Could not tell which tracks have hand fixes.", {
+              tone: "error",
+            });
+          return;
+        }
         await start(mode, false);
         return;
       }
@@ -270,6 +281,22 @@ export function usePrepareRun(input: PrepareRunInput) {
     },
     [start],
   );
+
+  // A run the server refused because the audio changed under hand fixes asks
+  // the same question as Re-transcribe. A refusal already there on arrival
+  // stays a failed row, and Try again asks.
+  const refusal = useDawStore((s) =>
+    s.pipelineJob?.status === "error" &&
+    s.pipelineJob.error_code === OVERWRITE_REFUSED
+      ? s.pipelineJob.id
+      : null,
+  );
+  const askedFor = useRef(refusal);
+  useEffect(() => {
+    if (!refusal || askedFor.current === refusal) return;
+    askedFor.current = refusal;
+    void askToReplace("update");
+  }, [refusal, askToReplace]);
 
   const alignerRow = models?.find((m) => m.id === WORD_ALIGNER) ?? null;
   const alignerIn = alignerRow?.state.kind === "installed";
@@ -297,7 +324,8 @@ export function usePrepareRun(input: PrepareRunInput) {
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: approximate,
     run: start,
-    tryAgain: () => void start("run"),
+    tryAgain: () =>
+      refusal ? void askToReplace("update") : void start("run"),
     retranscribe: () => void askToReplace("retranscribe"),
     keepMyFixes: () => setKeepFixes(null),
     replaceFixes: () => {
