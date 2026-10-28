@@ -115,8 +115,9 @@ const opaque = (element: Element | null): boolean => {
 };
 
 /**
- * The open sheet, once its ~150 ms fade-in has settled: toBeVisible reads
- * opacity, which jsdom never animates but a real browser does.
+ * The open sheet, once its ~150 ms fade-in has settled and its initial focus
+ * has landed (it moves on the next frame and would steal typed keys):
+ * toBeVisible reads opacity, which jsdom never animates but a real browser does.
  */
 const sheet = async () => {
   const dialog = await within(document.body).findByRole("dialog", {
@@ -125,6 +126,9 @@ const sheet = async () => {
   // The fade is on the panel inside the dialog root, so check from there up.
   const panel = dialog.querySelector(".sys-join-sheet") ?? dialog;
   await waitFor(() => expect(opaque(panel)).toBe(true));
+  await waitFor(() =>
+    expect(dialog.contains(document.activeElement)).toBe(true),
+  );
   return within(dialog);
 };
 
