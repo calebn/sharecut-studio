@@ -217,7 +217,7 @@ def _case_rows(clips: list[Clip], tmp_path: Path, measured: bool = True) -> list
         lane.sort(key=lambda c: c.timeline_start)
         starts: dict[str, tuple[float, float]] = {}
         track = next(t for t in project.tracks if t.id == track_id)
-        _leaf_starts(placed_track_audio(project, track, lane).audio, 0.0, starts)
+        _leaf_starts(placed_track_audio(project, track, lane, grid=None).audio, 0.0, starts)
         for index, clip in enumerate(lane):
             base, src_start = starts[clip.id]
             placed[clip.id] = base + clip.source_start - src_start
@@ -303,7 +303,7 @@ def test_a_blend_borrows_half_the_overlap_from_each_recording(tmp_path: Path) ->
     left = _clip("a", "host", 0, 5, fade_out=200)
     right = _clip("b", "host", 5, 9, _XFADE, 200, 0)
     assert crossfade_borrow_sec(project, left, right) == pytest.approx(0.1)
-    audio = placed_track_audio(project, project.tracks[0], [left, right]).audio
+    audio = placed_track_audio(project, project.tracks[0], [left, right], grid=None).audio
     leaves = {s.clip_id: s for s in sources(audio)}
     assert leaves["a"].src_end == pytest.approx(left.source_end + 0.1)
     assert leaves["b"].src_start == pytest.approx(right.source_start - 0.1)
@@ -328,7 +328,9 @@ def test_the_borrow_shrinks_to_the_room_the_recordings_have(tmp_path: Path) -> N
 def _join(project: EpisodeProject, window: tuple[float, float] | None):
     left = _clip("a", "host", 0, 5, fade_out=200)
     right = _clip("b", "host", 5, 9, _XFADE, 200, 0)
-    return placed_track_audio(project, project.tracks[0], [left, right], window=window).audio
+    return placed_track_audio(
+        project, project.tracks[0], [left, right], grid=None, window=window
+    ).audio
 
 
 def test_a_window_ending_at_the_seam_keeps_the_edge_fade_off(tmp_path: Path) -> None:
@@ -387,7 +389,7 @@ def test_the_played_spans_of_a_cut_never_overlap_inside_the_removed_span(
     project = _borrow_project(tmp_path)
     left = _clip("a", "host", 0, 5, fade_out=xf_ms)
     right = _clip("b", "host", 5, 9, _XFADE, xf_ms, 0, room=left.source_end + gap)
-    audio = placed_track_audio(project, project.tracks[0], [left, right]).audio
+    audio = placed_track_audio(project, project.tracks[0], [left, right], grid=None).audio
     leaves = {s.clip_id: s for s in sources(audio)}
     removed = (left.source_end, right.source_start)
     left_played = (max(leaves["a"].src_end, removed[0]), min(leaves["a"].src_end, removed[1]))
@@ -404,7 +406,7 @@ def test_a_contiguous_split_still_plays_its_full_borrow(tmp_path: Path) -> None:
     project = _borrow_project(tmp_path)
     left = _clip("a", "host", 0, 5, fade_out=400)
     right = _clip("b", "host", 5, 9, _XFADE, 400, 0, room=left.source_end)
-    audio = placed_track_audio(project, project.tracks[0], [left, right]).audio
+    audio = placed_track_audio(project, project.tracks[0], [left, right], grid=None).audio
     leaves = {s.clip_id: s for s in sources(audio)}
     assert leaves["a"].src_end == pytest.approx(left.source_end + 0.2)
     assert leaves["b"].src_start == pytest.approx(right.source_start - 0.2)

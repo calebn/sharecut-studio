@@ -42,7 +42,7 @@ from podcast_mcp.edits.edit_log import seam_source_by_track
 from podcast_mcp.engines import ffmpeg
 from podcast_mcp.engines.audio import placed_sources
 from podcast_mcp.engines.clips_ops import clip_split_origin, clips_for_track
-from podcast_mcp.engines.timeline_render import placed_track_audio
+from podcast_mcp.engines.timeline_render import placed_track_audio, track_grid
 from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.tracks import recording_audio_path
@@ -105,7 +105,12 @@ def completed_audio_effects(
         for project, clips in ((before, old_clips), (candidate, new_clips)):
             graphs.append(
                 placed_sources(
-                    placed_track_audio(project, track, clips).audio,
+                    placed_track_audio(
+                        project,
+                        track,
+                        clips,
+                        grid=track_grid(project, track, clips, ffmpeg.FFmpegEngine()),
+                    ).audio,
                     crossfade_curve=curve,
                 )
                 if clips

@@ -3,7 +3,12 @@ import wave
 from pathlib import Path
 
 from podcast_mcp.engines.audio import CrossfadeAudio, postorder
-from podcast_mcp.engines.timeline_render import placed_track_audio, render_track_from_timeline
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.timeline_render import (
+    placed_track_audio,
+    render_track_from_timeline,
+    track_grid,
+)
 from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
@@ -39,7 +44,9 @@ def test_saved_shared_source_native_crossfade_chain_keeps_all_samples(tmp_path: 
         for index in range(10)
     ]
     project = load_project(save_project(project))
-    placed = placed_track_audio(project, project.tracks[0], list(project.clips))
+    clips = list(project.clips)
+    grid = track_grid(project, project.tracks[0], clips, FFmpegEngine())
+    placed = placed_track_audio(project, project.tracks[0], clips, grid=grid)
     assert sum(isinstance(node, CrossfadeAudio) for node in postorder(placed.audio)) == 9
     output = tmp_path / "chain.wav"
     render_track_from_timeline(project, project.tracks[0], output, {})
