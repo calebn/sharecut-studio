@@ -91,6 +91,7 @@ export function HomeScreen() {
   const [now] = useState(() => new Date());
   const [notice, setNotice] = useState<string | undefined>();
   const [working, setWorking] = useState<string | undefined>();
+  const [busyId, setBusyId] = useState<string | undefined>();
   const [pathMode, setPathMode] = useState(wantsPathField);
   const [path, setPath] = useState("");
   const [pathError, setPathError] = useState<string | undefined>();
@@ -125,6 +126,7 @@ export function HomeScreen() {
       run: () => Promise<void>,
       onError: (error: unknown) => void,
       label?: string,
+      cardId?: string,
     ) => {
       if (busy.current) {
         setNotice(BUSY);
@@ -137,6 +139,7 @@ export function HomeScreen() {
       busy.current = true;
       setNotice(undefined);
       setWorking(label);
+      setBusyId(cardId);
       try {
         await run();
       } catch (error: unknown) {
@@ -144,6 +147,7 @@ export function HomeScreen() {
       } finally {
         busy.current = false;
         setWorking(undefined);
+        setBusyId(undefined);
         setNotice((now) => (now === BUSY ? undefined : now));
       }
     },
@@ -170,6 +174,7 @@ export function HomeScreen() {
           else setNotice(message);
         },
         OPENING,
+        fromField ? undefined : target,
       ),
     [guarded],
   );
@@ -317,6 +322,7 @@ export function HomeScreen() {
         autoFocusPrimary
         notice={notice}
         working={working}
+        busyId={busyId}
         openOther={openOther}
         onRetryLoad={() => setReload((n) => n + 1)}
         onOpenProject={(id, stage) => void open(id, stage)}
