@@ -414,6 +414,7 @@ export function PrepareView({
             label={handoff.label}
             variant={phase === "done" ? "primary" : "secondary"}
             size={40}
+            keyHint={false}
             disabledReason={handoff.disabledReason}
             onActivate={onHandoff}
           />
