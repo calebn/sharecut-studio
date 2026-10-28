@@ -116,6 +116,7 @@ export function usePrepareRun(input: PrepareRunInput) {
   const [starting, setStarting] = useState(false);
   const [need, setNeed] = useState<ModelNeeded | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const [keepFixes, setKeepFixes] = useState<KeepFixes | null>(null);
   const [wantRetime, setWantRetime] = useState(false);
   const latest = useRef(input);
@@ -165,6 +166,7 @@ export function usePrepareRun(input: PrepareRunInput) {
       }
       startingRef.current = true;
       setStarting(true);
+      setStartError(null);
       try {
         const { workingSet } = latest.current;
         const cfg = workingSet.cfg ?? (await workingSet.fetchFresh());
@@ -197,6 +199,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         } else {
           waitingRef.current = false;
           setWaiting(false);
+          setStartError(errorMessage(error));
           useDawStore
             .getState()
             .announceStatus(`Could not start: ${errorMessage(error)}`, {
@@ -233,6 +236,11 @@ export function usePrepareRun(input: PrepareRunInput) {
   useEffect(() => {
     if (waiting && !slotBusy && canRun) void start("run");
   }, [waiting, slotBusy, canRun, start]);
+
+  // A failed start is old news once any job holds the slot.
+  useEffect(() => {
+    if (slotBusy) setStartError(null);
+  }, [slotBusy]);
 
   // A run that stopped for a model goes on by itself once that model is in.
   const row = need ? (models?.find((m) => m.id === need.id) ?? null) : null;
@@ -319,6 +327,7 @@ export function usePrepareRun(input: PrepareRunInput) {
   return {
     starting,
     waiting,
+    startError,
     model: ask,
     keepFixes,
     /** Word timing is missing; null when the model is in or unknown. */
