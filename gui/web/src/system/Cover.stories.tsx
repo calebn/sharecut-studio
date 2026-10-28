@@ -23,7 +23,7 @@ const meta: Meta<typeof Cover> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The one "nothing to show here" layout: a 48 px case glyph, a 20/24 title, one sentence, at most one primary and one text button. Page size adds the 32 px symbol; on phone the text block starts at 30% of the height and the primary is pinned in the thumb zone. Renders a `<section>`, never `<main>`. Never server JSON. The Record covers (Invalid, Full, Ended, EndedWithLocalRecording, EndedDownloaded and their phone forms) speak plainly about a link that opens no room, a room that is full and a session that has ended.\n\n**Motion.** The block fades in with `--motion-state` after the Skeleton hands over; not implemented in this slice.',
+          'The one "nothing to show here" layout: a 48 px case glyph, a 20/24 title, one sentence, at most one primary and one text button. Page size adds the 32 px symbol; on phone the text block starts at 30% of the height and the primary is pinned in the thumb zone. Renders a `<section>`, never `<main>`. Never server JSON. The Record covers (Invalid, InviteClosed, Full, Ended, EndedWithLocalRecording, EndedDownloaded and their phone forms) speak plainly about a link that opens no room, a room that is full and a session that has ended.\n\n**Motion.** The block fades in with `--motion-state` after the Skeleton hands over; not implemented in this slice.',
       },
     },
   },
@@ -180,6 +180,26 @@ const RECORD_INVALID: Story = {
 export const Invalid: Story = { ...RECORD_INVALID };
 export const InvalidPhone: Story = { ...RECORD_INVALID };
 
+const RECORD_CLOSED: Story = {
+  args: {
+    glyph: "door-open",
+    title: "Invite link closed",
+    children:
+      "The host closed this invite link to new participants. Ask the host for a new link.",
+    secondary: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "Invite link closed" }),
+    ).toBeVisible();
+    await expect(canvas.queryAllByRole("button")).toHaveLength(0);
+  },
+};
+
+export const InviteClosed: Story = { ...RECORD_CLOSED };
+export const InviteClosedPhone: Story = { ...RECORD_CLOSED };
+
 const RECORD_FULL: Story = {
   args: {
     glyph: "user",
@@ -247,6 +267,20 @@ const RECORD_LOCAL: Story = {
 
 export const EndedWithLocalRecording: Story = { ...RECORD_LOCAL };
 export const EndedPhone: Story = { ...RECORD_LOCAL };
+
+export const EndedBusy: Story = {
+  args: {
+    ...RECORD_LOCAL.args,
+    primary: { label: "Save my recording", onClick: fn(), busy: true },
+  },
+  play: async ({ canvasElement }) => {
+    const save = within(canvasElement).getByRole("button", {
+      name: "Save my recording",
+    });
+    await expect(save).toBeDisabled();
+    await expect(save).toHaveAttribute("aria-busy", "true");
+  },
+};
 
 export const EndedDownloaded: Story = {
   args: {

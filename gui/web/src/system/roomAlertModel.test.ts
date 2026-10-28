@@ -4,6 +4,7 @@ import {
   ROOM_ALERT_TEXT,
   type RoomAlertKind,
   roomAlertAction,
+  roomAlertSecondary,
   roomAlertTitle,
   sortRoomAlerts,
 } from "./roomAlertModel";
@@ -91,6 +92,25 @@ describe("roomAlertAction", () => {
     const onAction = vi.fn();
     for (const kind of ["host-offline", "clipping", "muted"] as const) {
       expect(roomAlertAction({ kind, onAction })).toBeUndefined();
+    }
+  });
+});
+
+describe("roomAlertSecondary", () => {
+  it("offers Save a copy for saving-failed only with a handler", () => {
+    const onSecondaryAction = vi.fn();
+    expect(
+      roomAlertSecondary({ kind: "saving-failed", onSecondaryAction }),
+    ).toEqual({ label: "Save a copy", onAction: onSecondaryAction });
+    expect(roomAlertSecondary({ kind: "saving-failed" })).toBeUndefined();
+  });
+
+  it("has none for the other kinds", () => {
+    const onSecondaryAction = vi.fn();
+    for (const kind of ROOM_ALERT_PRIORITY.filter(
+      (kind) => kind !== "saving-failed",
+    )) {
+      expect(roomAlertSecondary({ kind, onSecondaryAction })).toBeUndefined();
     }
   });
 });

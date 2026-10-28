@@ -4,6 +4,7 @@ import {
   ROOM_ALERT_TEXT,
   type RoomAlertInput,
   roomAlertAction,
+  roomAlertSecondary,
   roomAlertTitle,
   sortRoomAlerts,
 } from "./roomAlertModel";
@@ -51,6 +52,7 @@ export function RoomAlert({ alerts }: RoomAlertProps) {
               title={roomAlertTitle(top)}
               density="alert"
               action={roomAlertAction(top)}
+              secondaryAction={roomAlertSecondary(top)}
             />
           ) : null}
         </div>
@@ -77,6 +79,7 @@ export function RoomAlert({ alerts }: RoomAlertProps) {
                 title={roomAlertTitle(alert)}
                 density="alert"
                 action={roomAlertAction(alert)}
+                secondaryAction={roomAlertSecondary(alert)}
               />
             ))}
           </StatusList>

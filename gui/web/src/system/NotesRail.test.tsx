@@ -214,6 +214,22 @@ describe("NotesRail", () => {
     expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
   });
 
+  it("disables the composer and names the reason when notes cannot be sent", async () => {
+    const user = userEvent.setup();
+    const { props } = setup({
+      draft: "A real note",
+      disabledReason: "Notes open when the take starts.",
+    });
+    expect(field()).toBeDisabled();
+    expect(field()).toHaveAccessibleDescription(
+      "Notes open when the take starts.",
+    );
+    expect(send()).toHaveAttribute("aria-disabled", "true");
+    expect(send()).toHaveAttribute("title", "Notes open when the take starts.");
+    await user.click(send());
+    expect(props.onSend).not.toHaveBeenCalled();
+  });
+
   it("keeps the composer label and placeholder on one field", () => {
     setup();
     expect(field()).toHaveAttribute("placeholder", "Add a note");

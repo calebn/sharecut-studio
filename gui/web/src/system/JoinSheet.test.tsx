@@ -185,6 +185,107 @@ describe("JoinSheet guest", () => {
   });
 });
 
+describe("JoinSheet input, storage and rejoin", () => {
+  const DEVICES = [
+    { id: "usb", label: "USB Condenser" },
+    { id: "built-in", label: "MacBook Mic" },
+  ];
+  const withDevices = (extra = {}) => ({
+    status: "ready" as const,
+    input: "MacBook Mic",
+    level: 0.3,
+    devices: DEVICES,
+    ...extra,
+  });
+
+  it("picks an input and reports its id", async () => {
+    const onInputChange = vi.fn();
+    render(
+      <Harness
+        {...READY}
+        mic={withDevices({ inputId: "built-in" })}
+        onInputChange={onInputChange}
+      />,
+    );
+    const picker = screen.getByRole("combobox", { name: "Input" });
+    expect(picker).toHaveValue("built-in");
+    await userEvent.selectOptions(picker, "usb");
+    expect(onInputChange).toHaveBeenCalledWith("usb");
+    await userEvent.selectOptions(picker, "Default");
+    expect(onInputChange).toHaveBeenLastCalledWith("");
+  });
+
+  it("locks the picker while a take runs and says why", () => {
+    render(<Harness {...READY} mic={withDevices({ inputLocked: true })} />);
+    expect(screen.getByRole("combobox", { name: "Input" })).toBeDisabled();
+    expect(
+      screen.getByText("Can't change while a take is running."),
+    ).toBeVisible();
+  });
+
+  it("shows no picker without devices or before the mic is ready", () => {
+    const { rerender } = render(<Harness {...READY} />);
+    expect(screen.queryByRole("combobox")).toBeNull();
+    rerender(<Harness {...READY} mic={{ status: "idle" }} />);
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("names the storage blocker first and offers its action", async () => {
+    const onBlockerAction = vi.fn();
+    render(
+      <Harness
+        {...READY}
+        blocker={{
+          text: "This browser can't save a recording here.",
+          action: { label: "Retry storage check" },
+        }}
+        onBlockerAction={onBlockerAction}
+      />,
+    );
+    expect(primary("Join and record")).toBeDisabled();
+    expect(primary("Join and record")).toHaveAccessibleDescription(
+      "Fix storage first",
+    );
+    const rows = [...document.querySelectorAll("[data-step]")];
+    expect(rows[0]).toHaveAttribute("data-step", "storage");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry storage check" }),
+    );
+    expect(onBlockerAction).toHaveBeenCalledOnce();
+  });
+
+  it("waits on a storage check that has no action yet", () => {
+    render(<Harness {...READY} blocker={{ text: "Checking this device…" }} />);
+    expect(screen.getByText("Wait for the storage check first")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /storage/i })).toBeNull();
+  });
+
+  it("shows the lost microphone's detail and the caller's notes", () => {
+    render(
+      <Harness
+        {...READY}
+        mic={{ status: "lost", detail: "Microphone disconnected." }}
+        micNotes={["Your saved microphone isn't available."]}
+      />,
+    );
+    expect(screen.getByText("Microphone disconnected.")).toBeVisible();
+    const region = within(
+      document.querySelector('[data-step="mic"]') as HTMLElement,
+    ).getByRole("status");
+    expect(region).toHaveTextContent("Your saved microphone isn't available.");
+  });
+
+  it("opens on the primary when rejoining, and on the name otherwise", async () => {
+    const { unmount } = render(<Harness {...READY} rejoin />);
+    await waitFor(() => expect(primary("Join and record")).toHaveFocus());
+    unmount();
+    render(<Harness {...READY} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Your name")).toHaveFocus(),
+    );
+  });
+});
+
 describe("JoinSheet producer", () => {
   it("has one name row, the listen line and Join to listen", async () => {
     const onJoin = vi.fn();

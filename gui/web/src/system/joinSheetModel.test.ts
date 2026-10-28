@@ -212,3 +212,72 @@ describe("declinedPeek", () => {
     expect(declinedPeek(phase).disabledReason).toBe(reason);
   });
 });
+
+describe("joinGuestModel blocker and notes", () => {
+  it("puts a storage blocker first, before a missing name and mic", () => {
+    const model = joinGuestModel({
+      name: "",
+      mic: { status: "idle" },
+      headphones: false,
+      blocker: { text: "Storage is off.", action: { label: "Retry" } },
+    });
+    expect(model.rows.map((row) => row.key)).toEqual([
+      "storage",
+      "name",
+      "mic",
+      "headphones",
+    ]);
+    expect(model.rows[0]).toMatchObject({
+      state: "failed",
+      detail: "Storage is off.",
+      action: { label: "Retry", name: "Retry", kind: "blocker" },
+    });
+    expect(model.next).toBe("storage");
+    expect(model.ready).toBe(false);
+    expect(model.primary.reason).toBe("Fix storage first");
+  });
+
+  it("runs a blocker without an action as a check in progress", () => {
+    const model = joinGuestModel({
+      ...ready,
+      blocker: { text: "Checking this device…" },
+    });
+    expect(model.rows[0]).toMatchObject({ state: "running" });
+    expect(model.rows[0].action).toBeUndefined();
+    expect(model.primary.reason).toBe("Wait for the storage check first");
+  });
+
+  it("adds no row without a blocker", () => {
+    expect(joinGuestModel(ready).rows.map((row) => row.key)).toEqual([
+      "name",
+      "mic",
+      "headphones",
+    ]);
+  });
+
+  it("carries the lost detail onto the mic row", () => {
+    const model = joinGuestModel({
+      ...ready,
+      mic: { status: "lost", detail: "Microphone disconnected." },
+    });
+    expect(model.rows[1]).toMatchObject({
+      state: "failed",
+      detail: "Microphone disconnected.",
+    });
+    expect(model.primary.reason).toBe("Reconnect your microphone first");
+  });
+
+  it("lists the caller's notes before too loud and low space", () => {
+    const model = joinGuestModel({
+      ...ready,
+      mic: { ...ready.mic, clipped: true },
+      lowStorage: true,
+      micNotes: ["Your saved microphone isn't available."],
+    });
+    expect(model.micNotes.map((note) => note.text)).toEqual([
+      "Your saved microphone isn't available.",
+      "Too loud. Move back a little.",
+      "Low space on this device. Close other tabs.",
+    ]);
+  });
+});

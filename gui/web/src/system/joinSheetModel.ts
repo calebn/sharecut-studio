@@ -8,7 +8,11 @@ export type JoinMic =
   | { status: "idle" }
   | { status: "prompting" }
   | { status: "denied" }
-  | { status: "lost" }
+  | {
+      status: "lost";
+      /** Why, in the caller's words: "Microphone disconnected." */
+      detail?: string;
+    }
   | {
       status: "ready";
       /** The input's name, as the browser reports it. */
@@ -17,18 +21,33 @@ export type JoinMic =
       level: number;
       /** A clip in the last 2 s. */
       clipped?: boolean;
+      /** The inputs to pick from; the picker shows when there are two or more. */
+      devices?: JoinInput[];
+      /** The picked input's id; empty is the default input. */
+      inputId?: string;
+      /** A take is running, so the input cannot change now. */
+      inputLocked?: boolean;
     };
 
-export type JoinStep = "name" | "mic" | "headphones";
+export type JoinInput = { id: string; label: string };
+
+export type JoinStep = "storage" | "name" | "mic" | "headphones";
 
 export type JoinMicAction = "allow" | "how-to" | "retry";
+
+/** What keeps the sheet from joining before any row: the device cannot keep a recording. */
+export type JoinBlocker = {
+  text: string;
+  /** Absent while the check is still running. */
+  action?: { label: string; name?: string };
+};
 
 export type JoinRow = {
   key: JoinStep;
   state: StatusRowState;
   title: string;
   detail?: string;
-  action?: { label: string; name: string; kind: JoinMicAction };
+  action?: { label: string; name: string; kind: JoinMicAction | "blocker" };
 };
 
 type JoinNote = { tone: "warning"; text: string };
@@ -39,6 +58,10 @@ type JoinGuestInput = {
   headphones: boolean;
   /** The device is short on space. */
   lowStorage?: boolean;
+  /** Lines the caller adds to the mic row, such as a missing saved input. */
+  micNotes?: string[];
+  /** Becomes the first unmet reason, before the name. */
+  blocker?: JoinBlocker;
   joining?: boolean;
 };
 
@@ -50,8 +73,9 @@ export type JoinPrimary = {
 };
 
 export type JoinGuestModel = {
+  /** The blocker row first when there is one, then name, mic and headphones. */
   rows: JoinRow[];
-  /** The mic row's lines under the meter: too loud, low space. */
+  /** The mic row's lines under the meter: the caller's, too loud, low space. */
   micNotes: JoinNote[];
   /** The first row still to do, so a ready sheet has none. */
   next: JoinStep | null;
@@ -74,10 +98,13 @@ export const JOIN_TEXT = {
   producerLine: "You'll listen and take notes. You won't be recorded.",
   headphones: "I'm wearing headphones",
   tooLoud: "Too loud. Move back a little.",
+  defaultInput: "Default",
+  inputLocked: "Can't change while a take is running.",
   lowStorage: "Low space on this device. Close other tabs.",
 } as const;
 
 const REASON: Record<JoinStep, string> = {
+  storage: "Fix storage first",
   name: "Add your name first",
   mic: "Allow your microphone first",
   headphones: "Put on headphones first",
@@ -89,6 +116,8 @@ const MIC_REASON: Record<Exclude<JoinMic["status"], "ready">, string> = {
   denied: "Unblock your microphone first",
   lost: "Reconnect your microphone first",
 };
+
+const STORAGE_PENDING_REASON = "Wait for the storage check first";
 
 /** "Maya Okafor" reads "Maya" in a sentence. */
 function firstName(name: string): string {
@@ -185,6 +214,7 @@ function micRow(mic: JoinMic): JoinRow {
         key: "mic",
         state: "failed",
         title: "Your microphone isn't available.",
+        detail: mic.detail,
         action: { label: "Retry", name: "Retry microphone", kind: "retry" },
       };
     case "ready":
@@ -195,6 +225,23 @@ function micRow(mic: JoinMic): JoinRow {
         detail: mic.input,
       };
   }
+}
+
+function storageRow(blocker: JoinBlocker): JoinRow {
+  const { action } = blocker;
+  return {
+    key: "storage",
+    state: action ? "failed" : "running",
+    title: "Storage",
+    detail: blocker.text,
+    action: action
+      ? {
+          label: action.label,
+          name: action.name ?? action.label,
+          kind: "blocker",
+        }
+      : undefined,
+  };
 }
 
 function headphonesRow(on: boolean): JoinRow {
@@ -216,6 +263,7 @@ function primaryFor(
 
 export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
   const rows = [
+    ...(input.blocker ? [storageRow(input.blocker)] : []),
     nameRow(input.name),
     micRow(input.mic),
     headphonesRow(input.headphones),
@@ -224,10 +272,17 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
   const reason =
     next === null
       ? null
-      : next === "mic" && input.mic.status !== "ready"
-        ? MIC_REASON[input.mic.status]
-        : REASON[next];
-  const micNotes: JoinNote[] = [];
+      : next === "storage"
+        ? input.blocker?.action
+          ? REASON.storage
+          : STORAGE_PENDING_REASON
+        : next === "mic" && input.mic.status !== "ready"
+          ? MIC_REASON[input.mic.status]
+          : REASON[next];
+  const micNotes: JoinNote[] = (input.micNotes ?? []).map((text) => ({
+    tone: "warning",
+    text,
+  }));
   if (input.mic.status === "ready" && input.mic.clipped) {
     micNotes.push({ tone: "warning", text: JOIN_TEXT.tooLoud });
   }
