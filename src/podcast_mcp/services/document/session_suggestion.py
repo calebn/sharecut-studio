@@ -6,7 +6,7 @@ import logging
 import math
 from typing import Any
 
-from podcast_mcp.edits.audio_check_override import audio_check_override
+from podcast_mcp.edits.audio_check_override import mcp_host_override
 from podcast_mcp.edits.cut_speech import APPLY_ANYWAY
 from podcast_mcp.edits.pending_preview import DEFAULT_AB_GAP_SEC, DEFAULT_SESSION_PAD_SEC
 from podcast_mcp.edits.session_suggestions import (
@@ -289,7 +289,7 @@ class SessionSuggestionService:
         A held replace's message also names how to apply it, so the person is not left
         guessing the parameter. The CLI and HTTP surfaces use ``accept`` and add their own.
         """
-        with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        with mcp_host_override(enabled=override_audio_checks):
             result = self.accept(
                 suggestion_id, take_index=take_index, override_audio_checks=override_audio_checks
             )

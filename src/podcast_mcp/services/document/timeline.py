@@ -42,6 +42,7 @@ from podcast_mcp.edits.join_modes import (
 )
 from podcast_mcp.edits.ripple import TrimEdge, plan_trim
 from podcast_mcp.edits.timeline_ops import (
+    DEFAULT_SHORTEN_GAP_SEC,
     copy_segment,
     duplicate_segment,
     fill_with_room_tone,
@@ -495,7 +496,7 @@ class TimelineService(CutMutatingService):
 
     def shorten_word_gaps(
         self,
-        max_gap_sec: float = 0.35,
+        max_gap_sec: float = DEFAULT_SHORTEN_GAP_SEC,
         *,
         use_inaudible_opt: bool | None = None,
     ) -> dict:

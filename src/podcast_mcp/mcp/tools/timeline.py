@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from mcp.server import MCPServer
 
-from podcast_mcp.edits.audio_check_override import audio_check_override
+from podcast_mcp.edits.timeline_ops import DEFAULT_SHORTEN_GAP_SEC
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
@@ -426,7 +426,7 @@ def roll_clip_join_tool(
 
 def shorten_gaps_tool(
     project_path: str,
-    max_gap_sec: float = 0.35,
+    max_gap_sec: float = DEFAULT_SHORTEN_GAP_SEC,
     use_inaudible_opt: bool | None = None,
     override_audio_checks: bool = False,
 ) -> str:
@@ -436,14 +436,17 @@ def shorten_gaps_tool(
     pause needs confirmation. A ripple that cuts another track's speech stays unchanged
     until you repeat with ``override_audio_checks=true`` (recorded).
     """
-    ws = ProjectWorkspace.open(project_path)
-    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
-        return to_json(
-            TimelineService(ws).shorten_word_gaps(
-                max_gap_sec,
-                use_inaudible_opt=use_inaudible_opt,
-            )
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "ShortenWordGaps",
+            {
+                "max_gap_sec": max_gap_sec,
+                "use_inaudible_opt": use_inaudible_opt,
+                "override_audio_checks": override_audio_checks,
+            },
         )
+    )
 
 
 def split_clip_tool(
@@ -1367,6 +1370,7 @@ def register(mcp: MCPServer) -> None:
         set_retained_bleed_alignment_mode_tool,
     }
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit
+    mutating.discard(shorten_gaps_tool)
     mutating.discard(move_clips_tool)
     mutating.discard(fade_joins_tool)
     mutating.discard(crossfade_joins_tool)

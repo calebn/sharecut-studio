@@ -59,6 +59,7 @@ export type DocumentCommandType =
   | "SetTranscriptWordSuppressed"
   | "SetTranscriptWordTiming"
   | "SetTranscriptWordsIgnored"
+  | "ShortenWordGaps"
   | "SplitAtTime"
   | "StageTextMatchCut"
   | "StageTimeRangeCut"
@@ -135,6 +136,7 @@ export const DocumentCommand = {
   SetTranscriptWordSuppressed: "SetTranscriptWordSuppressed",
   SetTranscriptWordTiming: "SetTranscriptWordTiming",
   SetTranscriptWordsIgnored: "SetTranscriptWordsIgnored",
+  ShortenWordGaps: "ShortenWordGaps",
   SplitAtTime: "SplitAtTime",
   StageTextMatchCut: "StageTextMatchCut",
   StageTimeRangeCut: "StageTimeRangeCut",

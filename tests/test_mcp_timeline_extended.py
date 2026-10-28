@@ -432,7 +432,6 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         svc.split_clip.return_value = {"operation": "split_clip"}
         svc.check_loudness.return_value = {"integrated_lufs": -14.0}
         svc.cut_range.return_value = {"operation": "ripple_delete"}
-        svc.shorten_word_gaps.return_value = {"operation": "shorten_word_gaps"}
         svc.preview_suppress_bleed.return_value = {"suppressed": 0}
 
         json.loads(
@@ -452,7 +451,8 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
             )
         )
         json.loads(mcp_timeline.ripple_delete_tool(path, 1.0, 2.0, use_inaudible_opt=False))
-        json.loads(mcp_timeline.shorten_gaps_tool(path, use_inaudible_opt=True))
+        shortened = json.loads(mcp_timeline.shorten_gaps_tool(path, use_inaudible_opt=True))
+        assert shortened["operation"] == "shorten_word_gaps"
         json.loads(
             mcp_timeline.reconcile_transcript_tool(
                 path,

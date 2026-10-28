@@ -64,6 +64,7 @@ HANDLERS: dict[str, Handler] = {
     "FillRoomTone": edits.fill_room_tone,
     "ApplyAutoEdits": edits.apply_auto_edits,
     "ApplyEditPlan": edits.apply_edit_plan,
+    "ShortenWordGaps": edits.shorten_word_gaps,
     "FadeJoins": edits.fade_joins,
     "CrossfadeJoins": edits.crossfade_joins,
     "MoveByText": edits.move_by_text,
