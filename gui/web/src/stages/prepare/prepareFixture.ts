@@ -151,6 +151,19 @@ export const ROWS = {
     { id: "clean", state: "running", title: "Clean and level", progress: 0.45 },
     SUGGEST,
   ],
+  modelDownloading: [
+    ADD_DONE,
+    {
+      id: "transcribe",
+      state: "running",
+      title: "Transcribe",
+      detail: "Downloading the transcription model",
+      progress: 0.4,
+    },
+    ALIGN,
+    { id: "clean", state: "running", title: "Clean and level", progress: 0.45 },
+    SUGGEST,
+  ],
   keepFixes: [
     ADD_DONE,
     {

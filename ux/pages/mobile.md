@@ -11,7 +11,7 @@ At the bottom of the screen you'll see five tabs, one for each stage of making a
 | Stage | What it's for |
 |-------|---------------|
 | **Record** | Start or join a recording and see a live take. |
-| **Prepare** | Add audio, see whether it is getting ready, and fix what it needs from you. The **Getting ready** summary comes first and opens like a disclosure; Sources, Help the transcriber, Cleanup and **Advanced** follow. **Advanced** is also where a running job is cancelled. The hand-off button to the next stage is secondary, with a reason, while work is running, and turns primary when everything is done. |
+| **Prepare** | Add audio, see whether it is getting ready, and fix what it needs from you. The **Getting ready** summary comes first and opens like a disclosure; Sources, Help the transcriber and Cleanup follow. **Advanced** sits inside the opened Getting ready summary and is also where a running job is cancelled. The hand-off button to the next stage is secondary, with a reason, while work is running, and turns primary when everything is done. |
 | **Edit** | Edit audio. A switch at the top flips between the **Timeline** (waveforms, split clips, fades and joins) and the **Script** (read the transcript; choose Correct to edit a word or ignore it, or Select to suggest a cut or ignore/restore a range). |
 | **Review** | Play through, read and leave comments, and approve or reject suggested edits (Comments, Impact and Tighten). This is where review links land. |
 | **Deliver** | Export, bounce, and share for review. |
