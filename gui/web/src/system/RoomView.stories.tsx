@@ -139,7 +139,7 @@ const meta: Meta<typeof RoomView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Record room for every seat: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host seat adds the Record button, Invite tiles for the empty seats and the saving line after Stop. The phone form puts the tiles in a square 2x2 grid, a Notes peek line (the latest note, one line) above the dock, and the Notes rail in a bottom Sheet; a landscape phone puts the tiles in one row with the dock as a vertical bar on the right edge.\n\nThe Declined phase (`declined`) dims the tiles to 40% under a light scrim and docks a 72 px peek bar: "You\'re not being recorded." and Join recording, held with "You can join after this take." until the room is waiting again; the rest of the room goes inert.\n\n**Motion.** None yet. Later: the level ring animates, the new note settles into the list, and the Declined scrim fades in with `--motion-state`.',
+          'The Record room for every seat: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host seat adds the Record button, Invite tiles for the empty seats and the saving line after Stop. The phone form puts the tiles in a square 2x2 grid, a Notes peek line (the latest note, one line) above the dock, and the Notes rail in a bottom Sheet; a landscape phone puts the tiles in one row with the dock as a vertical bar on the right edge.\n\nNotes can be held with a reason (`notesDisabledReason`), the Everyone toggle shows for a producer only with `noteVisibility`, a saving phase may carry a `percent` for the upload, tiles key on `RoomPerson.id`, and `page` makes a bare page fill 100dvh.\n\nThe Declined phase (`declined`) dims the tiles to 40% under a light scrim and docks a 72 px peek bar: "You\'re not being recorded." and Join recording, held with "You can join after this take." until the room is waiting again; the rest of the room goes inert.\n\n**Motion.** None yet. Later: the level ring animates, the new note settles into the list, and the Declined scrim fades in with `--motion-state`.',
       },
     },
   },
@@ -281,6 +281,51 @@ export const GuestLiveFourPeople: Story = {
   },
 };
 
+export const GuestSaving: Story = {
+  args: {
+    phase: { kind: "saving", savedPeople: 1, totalPeople: 3, percent: 64 },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Saving · 64%")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("Saving · 64% · keep this page open"),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Leave room" }),
+    ).toBeDisabled();
+  },
+};
+
+export const GuestNotesClosed: Story = {
+  args: {
+    phase: WAITING,
+    defaultNotesOpen: true,
+    notesDisabledReason: "Notes open when the take starts.",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByLabelText("Add a note")).toBeDisabled();
+    await expect(
+      canvas.getByText("Notes open when the take starts."),
+    ).toBeVisible();
+  },
+};
+
+export const GuestSameName: Story = {
+  args: {
+    people: [
+      HOST,
+      { ...JON_YOU, id: "p_1" },
+      { ...ANNEKE_GUEST, id: "p_2", person: JON },
+      { ...JOSS_GUEST, id: "p_3", person: JON },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(4);
+  },
+};
+
 export const ProducerWaiting: Story = {
   args: {
     seat: "producer",
@@ -312,6 +357,9 @@ export const ProducerLive: Story = {
     await expect(
       canvas.getByText("Jon's mic drops out here."),
     ).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Everyone" }),
+    ).not.toBeInTheDocument();
     await expect(dockNames(canvasElement)).toEqual([
       "Comment",
       "Notes",

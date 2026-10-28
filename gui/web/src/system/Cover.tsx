@@ -1,9 +1,15 @@
 import { type ReactNode, useId } from "react";
 import { BrandSymbol, Button } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 
-export type CoverAction = { label: string; onClick: () => void };
+export type CoverAction = {
+  label: string;
+  onClick: () => void;
+  /** Working on it: the button holds its place, disabled and aria-busy. */
+  busy?: boolean;
+};
 
 export type CoverProps = {
   /** `page`: whole screen with the wordmark symbol. `region`: inside a surface. */
@@ -50,7 +56,15 @@ export function Cover({
         {primary || secondary ? (
           <div className="sys-cover-actions">
             {primary ? (
-              <Button variant="primary" onClick={primary.onClick}>
+              <Button
+                variant="primary"
+                onClick={primary.onClick}
+                aria-busy={primary.busy || undefined}
+                disabledReason={primary.busy ? BUSY_REASON : undefined}
+              >
+                {primary.busy ? (
+                  <SystemIcon name="progress-ring" size={16} progress={0.3} />
+                ) : null}
                 {primary.label}
               </Button>
             ) : null}

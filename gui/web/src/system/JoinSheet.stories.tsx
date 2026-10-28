@@ -232,6 +232,74 @@ export const GuestLowStorage: Story = {
   },
 };
 
+export const GuestStorageBlocked: Story = {
+  args: {
+    mic: MIC_READY,
+    headphones: true,
+    blocker: {
+      text: "This browser can't keep a recording on this device.",
+      action: { label: "Retry storage check" },
+    },
+    onBlockerAction: fn(),
+  },
+  play: async ({ args, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(rowState("storage")).toBe("failed");
+    await expect(
+      dialog.getByRole("button", { name: "Join and record" }),
+    ).toBeDisabled();
+    await expect(dialog.getByText("Fix storage first")).toBeVisible();
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Retry storage check" }),
+    );
+    await expect(args.onBlockerAction).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const GuestStaleInput: Story = {
+  args: {
+    mic: {
+      ...MIC_READY,
+      devices: [
+        { id: "usb", label: "USB Condenser" },
+        { id: "built-in", label: "MacBook Pro Microphone" },
+      ],
+      inputId: "",
+    },
+    micNotes: [
+      "Your saved microphone isn't available, so the default input is in use.",
+    ],
+    headphones: true,
+    onInputChange: fn(),
+  },
+  play: async ({ args, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getByText(/saved microphone isn't available/),
+    ).toBeVisible();
+    await userEvent.selectOptions(
+      dialog.getByRole("combobox", { name: "Input" }),
+      "usb",
+    );
+    await expect(args.onInputChange).toHaveBeenCalledWith("usb");
+  },
+};
+
+export const GuestRejoin: Story = {
+  args: { mic: MIC_READY, headphones: true, rejoin: true },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await waitFor(() =>
+      expect(
+        dialog.getByRole("button", { name: "Join and record" }),
+      ).toHaveFocus(),
+    );
+  },
+};
+
 export const GuestJoining: Story = {
   args: { mic: MIC_READY, headphones: true, joining: true, phase: LIVE },
   play: async ({ viewMode }) => {

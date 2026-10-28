@@ -27,6 +27,8 @@ type RoomAlertText = {
   title: string;
   /** The one action's label. Absent when the alert has none. */
   action?: string;
+  /** A second action beside it, offered when the caller passes `onSecondaryAction`. */
+  secondary?: string;
 };
 
 export const ROOM_ALERT_TEXT: Record<RoomAlertKind, RoomAlertText> = {
@@ -49,6 +51,7 @@ export const ROOM_ALERT_TEXT: Record<RoomAlertKind, RoomAlertText> = {
     state: "failed",
     title: "Saving stopped.",
     action: "Resume saving",
+    secondary: "Save a copy",
   },
   recovery: {
     state: "needs-you",
@@ -92,6 +95,8 @@ export type RoomAlertInput = {
   message?: string;
   /** Without it the alert shows no action, even when its kind has one. */
   onAction?: () => void;
+  /** Without it the alert shows no second action, even when its kind has one. */
+  onSecondaryAction?: () => void;
 };
 
 function isRoomAlertKind(kind: string): kind is RoomAlertKind {
@@ -118,6 +123,15 @@ export function roomAlertAction(
   const label = ROOM_ALERT_TEXT[alert.kind].action;
   if (!label || !alert.onAction) return undefined;
   return { label, onAction: alert.onAction };
+}
+
+/** The second action an alert offers, or undefined when it has none to offer. */
+export function roomAlertSecondary(
+  alert: RoomAlertInput,
+): { label: string; onAction: () => void } | undefined {
+  const label = ROOM_ALERT_TEXT[alert.kind].secondary;
+  if (!label || !alert.onSecondaryAction) return undefined;
+  return { label, onAction: alert.onSecondaryAction };
 }
 
 /**

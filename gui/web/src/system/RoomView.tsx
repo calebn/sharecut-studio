@@ -61,6 +61,15 @@ export type RoomViewProps = {
    * Join recording, and the rest of the room goes inert.
    */
   declined?: { onJoin: () => void };
+  /** Why notes cannot be sent now (no take is open); the composer is disabled with this reason. */
+  notesDisabledReason?: string;
+  /**
+   * Whether the Everyone toggle shows. Defaults on for the host and off for a
+   * producer, whose notes carry no visibility on the wire until #2419 adds it.
+   */
+  noteVisibility?: boolean;
+  /** A bare page: the room fills 100dvh and clears the top safe area. */
+  page?: boolean;
 };
 
 /**
@@ -94,6 +103,9 @@ export function RoomView({
   onMore,
   onLeave,
   declined,
+  notesDisabledReason,
+  noteVisibility,
+  page = false,
 }: RoomViewProps) {
   const [notesChoice, setNotesChoice] = useState<boolean | undefined>(
     defaultNotesOpen,
@@ -125,6 +137,7 @@ export function RoomView({
   const paused = phase.kind === "paused";
 
   const closeSheet = useCallback(() => setNotesChoice(false), []);
+  const showEveryone = noteVisibility ?? seat === "host";
   const rail = (
     <NotesRail
       items={notes}
@@ -135,7 +148,8 @@ export function RoomView({
       draftTime={draftTime}
       onClearTime={() => setTimeCleared(phaseKey(phase))}
       everyone={everyone}
-      onEveryoneChange={seat === "guest" ? undefined : setEveryone}
+      onEveryoneChange={showEveryone ? setEveryone : undefined}
+      disabledReason={notesDisabledReason}
       onSend={(note) => {
         onSendNote(note);
         setDraft("");
@@ -157,6 +171,7 @@ export function RoomView({
       data-seat={seat}
       data-width={viewerWidth}
       data-declined={declined ? "" : undefined}
+      data-page={page ? "" : undefined}
     >
       <header className="sys-room-view-header">
         <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />

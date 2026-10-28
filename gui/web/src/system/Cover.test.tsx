@@ -42,6 +42,41 @@ describe("Cover", () => {
     expect(primary).toHaveBeenCalledOnce();
   });
 
+  it("holds a busy primary in place, disabled and aria-busy", async () => {
+    const onClick = vi.fn();
+    render(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Save", onClick, busy: true }}
+      >
+        Body.
+      </Cover>,
+    );
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(save);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("leaves a primary without busy enabled", () => {
+    render(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Save", onClick: vi.fn() }}
+      >
+        Body.
+      </Cover>,
+    );
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-busy");
+  });
+
   it("renders no action row without actions", () => {
     const { container } = render(
       <Cover size="region" glyph="eye-off" title="Title">

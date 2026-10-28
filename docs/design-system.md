@@ -623,6 +623,13 @@ jsdom visibility checks.
 
 ## Changelog
 
+- 2026-10-28 — The guest seat's system pieces (#2297): the Join sheet gained an
+  input picker, a storage blocker, a rejoin start and mic notes; the room view
+  gained a notes-disabled reason, an opt-in Everyone toggle, `RoomPerson.id`
+  keys, a saving percent and a full-height page mode; `RoomAlert` may offer a
+  second action, `Cover` a busy primary and an `InviteClosed` story;
+  `useRecordMonitor` returns per-peer `levels`.
+
 - 2026-10-27 — The stage frame replaced the Studio and Mobile shells (#2292).
   `Templates/MobileShell`, `StudioShell`, `Transport`, `TransportPlayControls`,
   `StatusBar`, `PipelineStatusChip`, `EditingToolRail` and `BottomTabsSplitter`

@@ -39,6 +39,8 @@ type StatusRowProps = {
     icon?: SystemIconName;
     onAction: () => void;
   };
+  /** A quieter action beside the main one, such as Save a copy next to Resume saving. */
+  secondaryAction?: { label: string; name?: string; onAction: () => void };
   /** The technical cause of a failed row, behind a Details button. */
   details?: string;
   /** `list` 48, `alert` 44, `inline` 32. */
@@ -58,6 +60,7 @@ export function StatusRow({
   valueText,
   barLabel,
   action,
+  secondaryAction,
   details,
   density = "list",
   children,
@@ -94,7 +97,7 @@ export function StatusRow({
         ) : (
           <span className="sys-status-text">{text}</span>
         )}
-        {action || showDetails ? (
+        {action || secondaryAction || showDetails ? (
           <div className="sys-status-actions">
             {showDetails ? (
               <Button
@@ -104,6 +107,14 @@ export function StatusRow({
                 onClick={() => setDetailsOpen((open) => !open)}
               >
                 Details
+              </Button>
+            ) : null}
+            {secondaryAction ? (
+              <Button
+                aria-label={secondaryAction.name}
+                onClick={secondaryAction.onAction}
+              >
+                {secondaryAction.label}
               </Button>
             ) : null}
             {action ? (
