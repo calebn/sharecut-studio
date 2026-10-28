@@ -5,16 +5,13 @@ export type LaneMarker =
   | {
       kind: "chapter";
       id: string;
-      /** Seconds. The flag's pole sits here. */
       start: number;
       title: string;
     }
   | {
       kind: "comment";
       id: string;
-      /** Seconds. A point comment's pin is centred here. */
       start: number;
-      /** A range comment ends here and draws a bar. */
       end?: number;
       author: string;
     }
@@ -24,31 +21,24 @@ export type LaneMarker =
       start: number;
       end: number;
       title: string;
-      /** Hatched while proposed, solid once approved. */
       proposed?: boolean;
     };
 
-/** A flag, a pin and the pair of brackets are all this wide at least. */
-export const MARKER_GLYPH_PX = 16;
-/** The "+N" chip's room, which sits just after the first marker of a stack. */
-export const STACK_CHIP_GAP_PX = 2;
-export const STACK_CHIP_PX = 40;
-/** How far a touch hit area reaches past a marker, where no neighbour is in the way. */
-export const MARKER_REACH_PX = 14;
-/** Markers further than this outside the window are not drawn. */
+const MARKER_GLYPH_PX = 16;
+const STACK_CHIP_GAP_PX = 2;
+const STACK_CHIP_PX = 40;
+const MARKER_REACH_PX = 14;
 const CULL_PX = 64;
-/** What a far-off edge is clamped to, so a clip that spans the episode does not become a 20000 px box. */
+/** Keeps a clip that spans the episode from becoming a 20000 px box. */
 const CLAMP_PX = 512;
 
 export type PlacedMarker = {
   type: "marker";
   marker: LaneMarker;
-  /** Pixels from the lane's left edge, held near the window. */
   left: number;
   right: number;
-  /** For a chapter, where its title is cut off: the next marker, or the end of the lane. */
+  /** Where a chapter's title is cut off. */
   titleEnd: number;
-  /** Whether each edge of a clip is on screen, so a handle that cannot be reached is not drawn. */
   startVisible: boolean;
   endVisible: boolean;
   reachStart: number;
@@ -57,7 +47,6 @@ export type PlacedMarker = {
 
 export type PlacedStack = {
   type: "stack";
-  /** The markers the first one hides, in time order. */
   hidden: readonly LaneMarker[];
   left: number;
   right: number;
@@ -65,11 +54,10 @@ export type PlacedStack = {
   reachEnd: number;
 };
 
-export type PlacedItem = PlacedMarker | PlacedStack;
+type PlacedItem = PlacedMarker | PlacedStack;
 
 type Footprint = {
   marker: LaneMarker;
-  /** Pixel extent of the marker's drawing, before it is clamped. */
   l: number;
   r: number;
   x0: number;
@@ -77,11 +65,12 @@ type Footprint = {
 };
 
 export function isRange(marker: LaneMarker): boolean {
-  return marker.kind === "clip" || (marker.kind === "comment" && spans(marker));
-}
-
-function spans(marker: LaneMarker & { kind: "comment" }): boolean {
-  return marker.end !== undefined && marker.end > marker.start;
+  return (
+    marker.kind === "clip" ||
+    (marker.kind === "comment" &&
+      marker.end !== undefined &&
+      marker.end > marker.start)
+  );
 }
 
 export function markerEnd(marker: LaneMarker): number {
@@ -101,7 +90,7 @@ function footprint(
     case "chapter":
       return { marker, l: x0, r: x0 + MARKER_GLYPH_PX, x0, x1 };
     case "comment":
-      return marker.end !== undefined && marker.end > marker.start
+      return isRange(marker)
         ? { marker, l: x0, r: Math.max(x1, x0 + MARKER_GLYPH_PX), x0, x1 }
         : {
             marker,
@@ -118,12 +107,10 @@ function footprint(
 const held = (x: number) => clamp(x, -CLAMP_PX, CLAMP_PX * 2);
 
 /**
- * Where each marker of the lane sits in a window that starts at `start`.
  * Markers whose drawings overlap fold into one: the earliest stays and a
- * "+N" chip right after it carries the rest, so every pixel of the lane is
- * one marker's and a press never lands on two. A touch hit area reaches
- * 14 px past a marker but only half the gap to its neighbour, so two hit
- * areas never overlap.
+ * "+N" chip right after it carries the rest, so a press never lands on two.
+ * A touch hit area reaches past a marker by half the gap to its neighbour at
+ * most, so two hit areas never overlap.
  */
 export function layoutMarkers(
   markers: readonly LaneMarker[],

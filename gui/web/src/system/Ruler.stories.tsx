@@ -61,7 +61,6 @@ type LiveProps = {
   sessions?: readonly RulerSession[];
   touch?: boolean;
   readOnly?: boolean;
-  /** Content drawn under the ruler at the same width. */
   below?: (
     width: number,
     start: number,

@@ -3,41 +3,29 @@ import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { useStableCallback } from "../utils/useStableCallback";
 import { capturePointer } from "./wavePointer";
 
-/** Where the pointer is and which keys are down. */
 export type GrabPointer = {
   clientX: number;
   clientY: number;
-  /** Shift is held. */
   shift: boolean;
-  /** Alt is held; the host turns snapping off. */
   alt: boolean;
 };
 
 export type GrabMove = GrabPointer & {
-  /** Pixels from where the press began. */
   dx: number;
   dy: number;
 };
 
 type GrabOptions<G> = {
-  /** Whether this press may start a grab: a finger on an unselected mark, a read-only view. */
   canGrab: (grip: G, event: PointerEvent<HTMLElement>) => boolean;
-  /** Pixels of travel that turn a press into a drag, 3 unless a grip says otherwise. */
   slop?: (grip: G, event: PointerEvent<HTMLElement>) => number;
-  /**
-   * The element that takes the pointer once the drag starts. The pressed mark
-   * may be moved in the DOM while it is dragged, and a moved node loses its
-   * capture, so a lasting ancestor holds it from then on.
-   */
+  /** A node moved in the DOM loses its pointer capture, so a lasting ancestor takes it when the drag starts. */
   captureOnStart?: () => HTMLElement | null;
-  /** First movement past the slop. Return `false` to refuse the drag. */
   onStart: (
     grip: G,
     pointer: GrabPointer,
     press: GrabPointer,
   ) => boolean | undefined;
   onMove: (grip: G, move: GrabMove) => void;
-  /** `committed` is false when Escape, a blur, the browser or a lost capture ended it. */
   onEnd: (grip: G, committed: boolean) => void;
 };
 
@@ -61,13 +49,7 @@ function pointerOf(
   };
 }
 
-/**
- * The pointer lifecycle every dragged mark shares. One pointer has hold at a
- * time and a second is ignored. The drag starts after the slop, and Escape from
- * the document, a window blur, `pointercancel`, a lost capture or the owner
- * unmounting all end it as not committed. A tap that never moves reports
- * nothing, so the click that follows is the owner's to read.
- */
+/** A tap that never passes the slop reports nothing, so the click that follows is the owner's to read. */
 export function useGrab<G>(options: GrabOptions<G>) {
   const held = useRef<Grab<G> | null>(null);
   const dragged = useRef(false);
@@ -80,9 +62,11 @@ export function useGrab<G>(options: GrabOptions<G>) {
   const onMove = useStableCallback(options.onMove);
   const onEnd = useStableCallback(options.onEnd);
 
+  const watching = useRef<AbortController | null>(null);
+
   const stopWatching = useStableCallback(() => {
-    document.removeEventListener("keydown", escapeDrag, true);
-    window.removeEventListener("blur", abort);
+    watching.current?.abort();
+    watching.current = null;
   });
   const abort = useStableCallback(() => {
     const grab = held.current;
@@ -115,8 +99,10 @@ export function useGrab<G>(options: GrabOptions<G>) {
       press: pointerOf(event),
       moved: false,
     };
-    document.addEventListener("keydown", escapeDrag, true);
-    window.addEventListener("blur", abort);
+    stopWatching();
+    const { signal } = (watching.current = new AbortController());
+    document.addEventListener("keydown", escapeDrag, { capture: true, signal });
+    window.addEventListener("blur", abort, { signal });
     capturePointer(event);
   };
   const move = (event: PointerEvent<HTMLElement>) => {
@@ -137,7 +123,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
       try {
         options.captureOnStart?.()?.setPointerCapture(event.pointerId);
       } catch {
-        // A synthetic pointer has nothing to capture.
+        // A synthetic pointer id has nothing to capture.
       }
     }
     onMove(grab.grip, { ...pointerOf(event), dx, dy });
@@ -156,7 +142,6 @@ export function useGrab<G>(options: GrabOptions<G>) {
   const cancel = finish(false);
 
   return {
-    /** The pointer handlers to spread on the element that starts `grip`. */
     handlers: (grip: G) => ({
       onPointerDown: down(grip),
       onPointerMove: move,
@@ -164,16 +149,12 @@ export function useGrab<G>(options: GrabOptions<G>) {
       onPointerCancel: cancel,
       onLostPointerCapture: cancel,
     }),
-    /** The same handlers one at a time, for an owner that routes many marks through one set of callbacks. */
     press: (grip: G, event: PointerEvent<HTMLElement>) => down(grip)(event),
     move,
     up,
     cancel,
-    /** The grip being dragged or pressed, if any. */
     active: (): G | null => held.current?.grip ?? null,
-    /** Ends a drag as not committed, for an owner whose grip went away. */
     abort,
-    /** True once after a drag, so the click the browser sends on release is not read as a tap. */
     consumeClick: (): boolean => {
       const was = dragged.current;
       dragged.current = false;

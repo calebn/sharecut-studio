@@ -23,7 +23,7 @@ import {
   type PlacedStack,
 } from "./markerLayout";
 import { ReadoutChip } from "./ReadoutChip";
-import { timeAtX } from "./rulerMath";
+import { round3, timeAtX } from "./rulerMath";
 import { SystemIcon } from "./SystemIcon";
 import { type GrabMove, type GrabPointer, useGrab } from "./useGrab";
 
@@ -31,86 +31,63 @@ export type { LaneMarker } from "./markerLayout";
 
 export type MarkerGrip = "move" | "start" | "end";
 
-export type MarkerPointer = GrabPointer;
-
-export type MarkerDrag = GrabMove & {
-  /** Seconds the pointer has moved since the press, to add to the marker's time at the press. */
+type MarkerDrag = GrabMove & {
+  /** Seconds moved since the press. */
   delta: number;
   /** The time under the pointer, held to the episode. */
   seconds: number;
 };
 
-export type MarkerNudge = {
-  /** The key is auto-repeating: the same press, held. */
-  repeat: boolean;
-};
+type MarkerNudge = { repeat: boolean };
 
-/** A chapter being named: its flag is drawn at `at` with a field for the title. */
 export type AddingChapter = { at: number };
 
 export type MarkerLaneProps = {
-  /** Every marker of the episode, in any order. Keep the array and its objects stable between renders. */
+  /** Keep the array and its objects stable between renders. */
   markers: readonly LaneMarker[];
-  /** Seconds at the lane's left edge. */
   start: number;
   pxPerSecond: number;
-  /** The lane's width in px: the same three numbers the ruler is given. */
+  /** In px. The same `start`, `pxPerSecond` and `width` as the ruler. */
   width: number;
-  /** The episode's length in seconds. Drags and nudges report times inside it. */
   duration: number;
-  /** Ids of the selected markers. */
   selected?: readonly string[];
   /** A guest selects markers and reads their tips but cannot move or add them. */
   readOnly?: boolean;
-  /** Edge and hit areas are 44 px; a coarse pointer does this by itself. */
+  /** 44 px edge and hit areas; a coarse pointer does this by itself. */
   touch?: boolean;
-  /** Names the lane's group. */
   label?: string;
-  /** Show the inline name field of a chapter just added at this time. */
+  /** Shows the inline name field of a chapter just added at this time. */
   adding?: AddingChapter | null;
-  /** Attributes for the lane's root, such as a presence anchor. */
   anchorProps?: MarkerAttrs;
   /** Attributes for a marker's button (`move`) and for a bracket's edges, such as `data-hit-*`. Keep it stable. */
   hitProps?: (id: string, grip: MarkerGrip) => MarkerAttrs | undefined;
-  /** A click or Enter. `additive` is Shift, Ctrl or Cmd. */
+  /** `additive` is Shift, Ctrl or Cmd. */
   onSelect: (id: string, additive: boolean) => void;
-  /**
-   * First movement of a drag on a chapter, a bracket or one of its edges,
-   * never on a tap. Return `false` to refuse it.
-   */
+  /** First movement of a drag, never a tap. Return `false` to refuse it. */
   onDragStart?: (
     id: string,
     grip: MarkerGrip,
-    pointer: MarkerPointer,
+    pointer: GrabPointer,
   ) => boolean | undefined;
   onDrag?: (id: string, grip: MarkerGrip, drag: MarkerDrag) => void;
-  /**
-   * `committed` is false when Escape, a window blur, the browser, a lost
-   * capture, or the marker leaving the lane ended it.
-   */
+  /** `committed` is false when Escape, a blur, the browser, a lost capture or unmounting ended it. */
   onDragEnd?: (id: string, grip: MarkerGrip, committed: boolean) => void;
-  /**
-   * Left or Right on a selected chapter or bracket, or on a bracket's edge:
-   * move it `seconds` earlier (negative) or later. 0.1 s, Shift 1 s. A held
-   * key calls this again with `repeat` set.
-   */
+  /** 0.1 s per press, Shift 1 s; a held key calls again with `repeat` set. */
   onNudge?: (
     id: string,
     grip: MarkerGrip,
     seconds: number,
     nudge: MarkerNudge,
   ) => void;
-  /** The arrow was released, or focus left the marker: close the undo step. */
+  /** The arrow was released or focus left: close the undo step. */
   onNudgeEnd?: (id: string, grip: MarkerGrip) => void;
-  /** A double-click on an empty part of the lane: add a chapter at `seconds`. The host then passes `adding`. */
+  /** A double-click on empty lane. The host then passes `adding`. */
   onAdd?: (seconds: number) => void;
-  /** Enter in the name field. */
   onAddCommit?: (seconds: number, title: string) => void;
   /** Escape in the name field, or leaving it empty. */
   onAddCancel?: () => void;
 };
 
-/** The shortest a bracket's edges let it get, in seconds. */
 export const MARKER_MIN_SPAN = 0.1;
 const NUDGE = 0.1;
 const NUDGE_BIG = 1;
@@ -119,7 +96,6 @@ type Held = { id: string; grip: MarkerGrip };
 type Dragged = Held & { x: number; from: number };
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
-const round3 = (value: number) => Number(value.toFixed(3));
 const fraction = (value: number, width: number) => value / Math.max(width, 1);
 
 function timeText(marker: LaneMarker): string {

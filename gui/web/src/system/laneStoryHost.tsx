@@ -9,10 +9,6 @@ import { useResizeObserver } from "../ui/useResizeObserver";
 
 const FALLBACK_WIDTH = 360;
 
-/**
- * Gives `children` the width of the box they sit in, the way the lanes host
- * measures its viewport and hands one width to the ruler and the marker lane.
- */
 export function Measured({
   children,
 }: {
@@ -41,7 +37,6 @@ const measured: CSSProperties = {
   padding: 0,
 };
 
-/** A stand-in for the lanes under the marker lane, so a stray hit area shows. */
 export function LanesBelow({ width }: { width: number }) {
   return (
     <div
