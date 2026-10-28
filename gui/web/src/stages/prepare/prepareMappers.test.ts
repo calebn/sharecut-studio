@@ -519,7 +519,7 @@ describe("preparePhase", () => {
     ).toEqual({ phase: "transcribing" });
   });
 
-  it("is waiting, not transcribing, when nothing runs and the rows offer Start", () => {
+  it("is not-started, not transcribing, when nothing runs and the rows offer Start", () => {
     const idle = rows();
     expect(idle[1]).toMatchObject({
       state: "queued",
@@ -531,11 +531,11 @@ describe("preparePhase", () => {
       checking: false,
       rows: idle,
     });
-    expect(phase).toBe("waiting");
+    expect(phase).toBe("not-started");
     expect(isWorking(phase)).toBe(false);
   });
 
-  it("is needs-model, with the hand-off open, while the model is asked for or downloading", () => {
+  it("is needs-model, with the hand-off open, while the model is asked for, downloading or failed", () => {
     for (const phase of ["ask", "downloading", "failed"] as const) {
       const model: ModelAsk = {
         phase,
@@ -549,7 +549,9 @@ describe("preparePhase", () => {
         model,
         rows: rows({ model }),
       });
-      expect(result.phase).toBe("needs-model");
+      expect(result.phase).toBe(
+        phase === "failed" ? "model-failed" : "needs-model",
+      );
       expect(handoffProps(result.phase, { label: "Edit" }).disabledReason).toBe(
         undefined,
       );
