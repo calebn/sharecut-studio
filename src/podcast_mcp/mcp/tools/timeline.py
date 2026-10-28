@@ -905,7 +905,7 @@ def low_confidence_words_tool(project_path: str, threshold: float | None = None)
 
     ``threshold`` defaults to the project's unsure-word line, the config key
     ``analysis.unsure_word_confidence`` (0.7 as shipped), the same line the mapped ``unsure`` flag,
-    the refine brief and bulk approve use.
+    the refine brief and bulk approve use. Suppressed words are no longer listed.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(TranscriptService(ws).low_confidence_words(threshold))

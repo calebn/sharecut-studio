@@ -338,7 +338,10 @@ def transcript_word_record(transcript: Transcript, index: int) -> dict[str, Any]
 
 
 def list_low_confidence(project: EpisodeProject, threshold: float) -> list[dict]:
-    """Unsure words (``is_unsure_word`` at ``threshold``, the ``analysis.unsure_word_confidence`` line)."""
+    """Unsure words (``is_unsure_word`` at ``threshold``, the ``analysis.unsure_word_confidence`` line).
+
+    Suppressed words are not listed.
+    """
     out: list[dict] = []
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
