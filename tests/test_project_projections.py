@@ -399,6 +399,7 @@ def test_projection_for_command() -> None:
     assert projection_for_command("SetJoinMode") is ViewProjection.CLIPS
     assert projection_for_command("ApplyFadeRecommendations") is ViewProjection.CLIPS
     assert projection_for_command("ApplyFadeRecommendationList") is ViewProjection.CLIPS
+    assert projection_for_command("ApplyAutoEdits") is ViewProjection.SHELL
     assert projection_for_command("SetEffectBypass") is ViewProjection.FX
     assert projection_for_command("SetEnvelope") is ViewProjection.ENVELOPES
     assert projection_for_command("UndoHistory") is ViewProjection.SHELL

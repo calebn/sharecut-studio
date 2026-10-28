@@ -326,6 +326,10 @@ def fill_room_tone(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def apply_auto_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return {"operation": "apply_auto_edits", "applied_count": EditService(ws).apply_auto()}
+
+
 def fade_joins(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).fade_joins(
         track_id=p.get("track_id"), speaker=p.get("speaker"), fade_ms=p.get("fade_ms")
