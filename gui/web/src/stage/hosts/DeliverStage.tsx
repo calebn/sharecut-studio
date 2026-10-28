@@ -146,15 +146,15 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     exportCmd.whenReason ??
     (draft.pending > 0 ? "Saving your changes first." : undefined);
   const chosenFormats = exportFlow.selected;
-  const askedRequest = exportRequest(
-    {
+  const episodeSettings = useMemo(
+    () => ({
       formats: chosenFormats,
-      loudness: "podcast",
-      part: { mode: "whole" },
-    },
-    page.clips,
-    page.chapters,
+      loudness: "podcast" as const,
+      part: { mode: "whole" as const },
+    }),
+    [chosenFormats],
   );
+  const edits = project?.history.head_id ?? undefined;
   useEffect(() => {
     if (
       !exportRequested ||
@@ -164,7 +164,16 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     )
       return;
     setExportRequested(false);
-    startExport(chosenFormats, askedRequest);
+    startExport(
+      chosenFormats,
+      exportRequest(
+        episodeSettings,
+        page.clips,
+        page.chapters,
+        undefined,
+        edits,
+      ),
+    );
   }, [
     exportRequested,
     state,
@@ -173,7 +182,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     setExportRequested,
     startExport,
     chosenFormats,
-    askedRequest,
+    episodeSettings,
+    page.clips,
+    page.chapters,
+    edits,
   ]);
   useEffect(() => {
     if (!projectPath || state !== "ready" || draft.page?.key === seedKey)
@@ -285,17 +297,15 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           key={`${projectPath}|${page.key}`}
           facts={facts}
           total={project.timeline_duration_sec}
-          initialSettings={{
-            formats: chosenFormats,
-            loudness: "podcast",
-            part: { mode: "whole" },
-          }}
+          initialSettings={episodeSettings}
           initialChapters={page.chapters}
           initialClips={page.clips}
           exportState={exportStateOf(exportFlow, nowSec)}
           exportOptions={{
             ...exportOptionsOf(exportFlow),
             blockedReason: exportBlockedReason,
+            edits,
+            onFormats: exportFlow.setSelected,
           }}
           env="none"
           getPlayheadSec={() => useDawStore.getState().playheadSec}

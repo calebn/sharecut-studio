@@ -11,11 +11,14 @@ export type FormatOption = {
   bytesPerSecond: number;
 };
 
+export const LOSSLESS_BYTES_PER_SECOND = 97_000;
+export const COMPRESSED_BYTES_PER_SECOND = 16_000;
+
 /** Bytes per second of the written file; the server gives exact sizes after export. */
 export const FORMATS: readonly FormatOption[] = [
-  { id: "mp3", label: "MP3", bytesPerSecond: 16_000 },
+  { id: "mp3", label: "MP3", bytesPerSecond: COMPRESSED_BYTES_PER_SECOND },
   { id: "wav", label: "WAV", bytesPerSecond: 176_400 },
-  { id: "flac", label: "FLAC", bytesPerSecond: 97_000 },
+  { id: "flac", label: "FLAC", bytesPerSecond: LOSSLESS_BYTES_PER_SECOND },
 ];
 
 export type LoudnessId = "podcast" | "broadcast" | "streaming";
@@ -207,6 +210,7 @@ export type ExportRequest = {
   clips: readonly Pick<Clip, "id" | "start" | "end" | "title">[];
   chapters: readonly Chapter[];
   range: TimeSpan | null;
+  edits?: string;
 };
 
 export type TimeSpan = { start: number; end: number };
@@ -277,6 +281,7 @@ export function exportRequest(
   clips: readonly Clip[],
   chapters: readonly Chapter[],
   selection?: TimeSpan | null,
+  edits?: string,
 ): ExportRequest {
   return {
     settings,
@@ -285,6 +290,7 @@ export function exportRequest(
       .map(({ id, start, end, title }) => ({ id, start, end, title })),
     chapters,
     range: planRange(settings.part, selection),
+    ...(edits === undefined ? {} : { edits }),
   };
 }
 
@@ -323,6 +329,7 @@ export function coversRequest(
         a.part.start === b.part.start &&
         a.part.end === b.part.end)) &&
     sameSpan(exported.range, now.range) &&
+    exported.edits === now.edits &&
     sameList(
       byId(exported.clips),
       byId(now.clips),
@@ -526,6 +533,8 @@ export type ExportOptions = {
   loudnessNote?: string;
   loudness?: boolean;
   range?: boolean;
+  edits?: string;
+  onFormats?: (keys: readonly FormatId[]) => void;
   gate?: ModelGate;
   onExportAgain?: () => void;
 };

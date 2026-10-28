@@ -5011,6 +5011,23 @@ describe("host export options", () => {
     expect(within(group).queryByRole("button", { name: /^MP3/ })).toBeNull();
   });
 
+  it("reports the formats the person toggles", async () => {
+    const onFormats = vi.fn();
+    setup({
+      initialSettings: { ...SETTINGS, formats: ["mp3"] },
+      exportOptions: {
+        formats: [
+          { id: "mp3", label: "MP3", bytesPerSecond: 16_000 },
+          { id: "flac", label: "FLAC", bytesPerSecond: 97_000 },
+        ],
+        selected: ["mp3"],
+        onFormats,
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    expect(onFormats).toHaveBeenLastCalledWith(["mp3", "flac"]);
+  });
+
   it("follows the formats the host chooses and keeps the person's own toggle", async () => {
     const view = render(
       <DeliverStage

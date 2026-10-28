@@ -169,6 +169,12 @@ export function DeliverStage({
       setSettings({ ...settings, formats: [...hostFormats] });
     }
   }
+  const onFormats = exportOptions?.onFormats;
+  const changeSettings = (next: EpisodeSettings) => {
+    setSettings(next);
+    if (next.formats.join("\n") !== settings.formats.join("\n"))
+      onFormats?.(next.formats);
+  };
   const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
   const [clips, setClips] = useState<readonly Clip[]>(initialClips);
   const liveChapters = useWriteBack(chapters, onChapters);
@@ -188,8 +194,9 @@ export function DeliverStage({
     ? "Still loading."
     : exportBlocker(settings, exportState, exportOptions);
   const pick = validSelection(selection, total);
-  const request = exportRequest(settings, clips, chapters);
-  const keyRequest = exportRequest(settings, clips, chapters, pick);
+  const edits = exportOptions?.edits;
+  const request = exportRequest(settings, clips, chapters, undefined, edits);
+  const keyRequest = exportRequest(settings, clips, chapters, pick, edits);
   const shownState = currentExportState(exportState, request, keyRequest);
   const action = primaryAction(shownState, env);
 
@@ -365,7 +372,7 @@ export function DeliverStage({
               state={sharedState}
               dock={phone}
               options={exportOptions}
-              onSettings={setSettings}
+              onSettings={changeSettings}
               onChangeFolder={onChangeFolder}
               onExport={() => startExport()}
               onGetModel={onGetModel}

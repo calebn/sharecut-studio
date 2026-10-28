@@ -26,6 +26,7 @@ import {
   renderWithModels,
 } from "../../test/renderWithModels";
 import { stubViewportShell } from "../../test/viewportShell";
+import type { HistoryEntryId } from "../../types/project";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 
@@ -118,6 +119,28 @@ describe("Export on the Deliver stage", () => {
       path: PATH,
       formats: [MP3, { ext: "flac", codec: "flac" }],
     });
+  });
+
+  it("marks Exported as edited after the document changes", async () => {
+    render(<Host />);
+    await pressExport();
+    await act(async () => server.settle(EXPORT_FINISHED));
+    expect(await screen.findByText("Exported")).toBeInTheDocument();
+    const project = useDawStore.getState().project;
+    if (!project) throw new Error("fixture");
+    act(() =>
+      useDawStore.setState({
+        project: {
+          ...project,
+          history: {
+            ...project.history,
+            head_id: "after-the-export" as HistoryEntryId,
+          },
+        },
+      }),
+    );
+    expect(await screen.findByText("Edited since export")).toBeInTheDocument();
+    expect(screen.queryByText("Exported")).toBeNull();
   });
 
   it("says Exporting with the job's progress while it runs", async () => {
@@ -239,6 +262,18 @@ describe("the export command", () => {
     await act(async () => server.settle(EXPORT_FINISHED));
     expect(await screen.findByText("Exported")).toBeInTheDocument();
     expect(server.exportRequests).toHaveLength(1);
+  });
+
+  it("exports the formats toggled on the page when the command runs", async () => {
+    render(<Host />);
+    await ready();
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    expect(await execute("export.deliverables", {})).toEqual({ status: "ok" });
+    await waitFor(() => expect(server.exportRequests).toHaveLength(1));
+    expect(server.exportRequests[0]).toEqual({
+      path: PATH,
+      formats: [MP3, { ext: "flac", codec: "flac" }],
+    });
   });
 
   it("waits for the settings before it starts", async () => {

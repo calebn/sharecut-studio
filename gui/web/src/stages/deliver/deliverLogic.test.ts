@@ -172,6 +172,18 @@ describe("export contract", () => {
     ).toBe("done");
   });
 
+  it("goes stale when the document changed after the export", () => {
+    const done = { ...DONE, exported: { ...DONE.exported, edits: "h1" } };
+    const at = (edits?: string) =>
+      currentExportState(
+        done,
+        exportRequest(SETTINGS, CLIPS, CHAPTERS, undefined, edits),
+      ).phase;
+    expect(at("h1")).toBe("done");
+    expect(at("h2")).toBe("stale");
+    expect(at(undefined)).toBe("stale");
+  });
+
   it("goes stale when a format, the loudness, the part or the clips change", () => {
     const stale = (request: ReturnType<typeof now>) =>
       currentExportState(DONE, request).phase === "stale";
