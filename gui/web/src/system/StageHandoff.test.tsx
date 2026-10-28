@@ -84,6 +84,12 @@ describe("StageHandoff", () => {
     expect(setup().button.querySelector(".sys-keys")).toHaveTextContent("⌘↵");
   });
 
+  it("drops the hint when asked to", () => {
+    expect(
+      setup({ keyHint: false }).button.querySelector(".sys-keys"),
+    ).toBeNull();
+  });
+
   it("drops the hint on the 48 px phone size", () => {
     expect(setup({ size: 48 }).button.querySelector(".sys-keys")).toBeNull();
   });
