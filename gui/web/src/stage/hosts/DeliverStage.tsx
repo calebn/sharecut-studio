@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   addChapter,
@@ -84,25 +84,30 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 
   // What the document holds, as the stage last saw it. Edits are diffed
   // against it and it moves forward once they are sent.
-  const saved = useRef<{
-    from: object;
-    chapters: Chapter[];
-    clips: Clip[];
-  } | null>(null);
+  const saved = useRef<{ chapters: Chapter[]; clips: Clip[] } | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const [saveError, setSaveError] = useState<string | null>(null);
   const [pending, setPending] = useState(0);
   const [epoch, setEpoch] = useState(0);
-  const seed = useMemo(
-    () => ({
+  // Seeded once per project (and again per epoch); later edits come from the
+  // stage itself. Re-derived during render when the key changes.
+  const seedKey = `${projectPath ?? ""}|${state === "ready"}|${epoch}`;
+  const [seeded, setSeeded] = useState(() => ({
+    key: seedKey,
+    chapters: chaptersOf(project?.chapters ?? []),
+    clips: clipsOf(project?.social_clips ?? []),
+  }));
+  if (seeded.key !== seedKey) {
+    setSeeded({
+      key: seedKey,
       chapters: chaptersOf(project?.chapters ?? []),
       clips: clipsOf(project?.social_clips ?? []),
-    }),
-    // Seeded once per project; later edits come from the stage itself.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: see above
-    [projectPath, state === "ready", epoch],
-  );
-  if (saved.current?.from !== seed) saved.current = { from: seed, ...seed };
+    });
+  }
+  const seed = seeded;
+  useEffect(() => {
+    saved.current = { chapters: seed.chapters, clips: seed.clips };
+  }, [seed]);
   const send = (work: (path: string) => Promise<void>) => {
     if (!projectPath) return;
     setPending((n) => n + 1);
@@ -117,13 +122,14 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   // A new history revision (Undo, Redo, an outside edit) that leaves the
   // chapters or clips different from what the page holds re-seeds the stage.
   // Never while a save is in flight, so an unsaved edit is not lost.
-  const revision = project?.history.head_id;
+  const docChapters = project?.chapters;
+  const docClips = project?.social_clips;
   useEffect(() => {
     const held = saved.current;
     if (pending > 0 || !held || state !== "ready") return;
     const now = {
-      chapters: chaptersOf(project?.chapters ?? []),
-      clips: clipsOf(project?.social_clips ?? []),
+      chapters: chaptersOf(docChapters ?? []),
+      clips: clipsOf(docClips ?? []),
     };
     if (
       !sameChapters(held.chapters, now.chapters) ||
@@ -131,13 +137,11 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     ) {
       setEpoch((n) => n + 1);
     }
-    // biome-ignore lint/correctness/useExhaustiveDependencies: runs per revision and when saves settle
-  }, [revision, pending, state]);
+  }, [docChapters, docClips, pending, state]);
   const onChapters = (next: readonly Chapter[]) => {
     const base = saved.current?.chapters ?? [];
     const ops = chapterOps(base, next);
     saved.current = {
-      from: seed,
       chapters: [...next],
       clips: saved.current?.clips ?? [],
     };
@@ -149,7 +153,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     const base = saved.current?.clips ?? [];
     const ops = clipOps(base, next);
     saved.current = {
-      from: seed,
       chapters: saved.current?.chapters ?? [],
       clips: [...next],
     };
