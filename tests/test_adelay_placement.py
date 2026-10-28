@@ -1,4 +1,4 @@
-"""A delayed slice lands on sample ``floor(seconds * rate + 0.5)``, as the evaluation places it (#2025, #2456)."""
+"""A delayed slice lands on sample ``floor(seconds * rate + 0.5)`` (#2025, #2456)."""
 
 from __future__ import annotations
 
