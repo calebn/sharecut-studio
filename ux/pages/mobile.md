@@ -13,7 +13,7 @@ At the bottom of the screen you'll see five tabs, one for each stage of making a
 | **Record** | Start or join a recording and see a live take. |
 | **Prepare** | Import audio, run the pipeline, and fix what it needs from you. |
 | **Edit** | Edit audio. A switch at the top flips between the **Timeline** (waveforms, split clips, fades and joins) and the **Script** (read the transcript; choose Correct to edit a word or ignore it, or Select to suggest a cut or ignore/restore a range). |
-| **Review** | Play through, read and leave comments, and approve or reject suggested edits (Comments, Impact and Tighten). This is where review links land. |
+| **Review** | Play through, read and leave comments, and approve or reject suggested edits (Queue, Comments and Tighten). This is where review links land. |
 | **Deliver** | Export, bounce, and share for review. |
 
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand. Timeline clip labels lead with the speaker name when one is set, then show a readable duration such as "Avery · 17m 26s"; narrow labels clip visually while their accessible names keep the full identity.
@@ -176,7 +176,7 @@ To stop following, scrub the timeline or tap **Stop following** in the banner.
 A few things live in different places on mobile:
 
 - **Comments** are in Review, and the player has a comment button at the playhead
-- **History** is a sheet in Edit; **Tighten** and **Impact** are in Review, and **Pipeline** is in Prepare
+- **History** is a sheet in Edit; **Tighten** and the **Queue** are in Review, and **Pipeline** is in Prepare
 - **Gestures** has a reference list behind the search button (Commands and shortcuts)
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
 - **Solo on · Clear solo** sits above every tab while a track is soloed, so you can see why other voices are silent and turn solo off in one tap
