@@ -74,7 +74,7 @@ describe("reviewEntriesOf", () => {
     expect(order.map((i) => i.id)).toEqual(["edit:p", "edit:u"]);
   });
 
-  it("holds join-risk and listen_one_by_one edits out of group verbs, not harsh ones", () => {
+  it("follows the server flag listen_one_by_one === true, holds non-pass join risk, not harsh ones", () => {
     const real = {
       review_required: true,
       harsh: true,
@@ -85,6 +85,9 @@ describe("reviewEntriesOf", () => {
     expect(itemOf({ ...real, listen_one_by_one: true }).oneByOne).toBe(true);
     const join_risk = { verdict: "review" } as never;
     expect(itemOf({ ...real, join_risk }).oneByOne).toBe(true);
+    const pass = { verdict: "pass" } as never;
+    expect(itemOf({ ...real, join_risk: pass }).oneByOne).toBe(false);
+    expect(itemOf({ harsh: false }).oneByOne).toBe(false);
   });
 
   it("passes the table action through", () => {

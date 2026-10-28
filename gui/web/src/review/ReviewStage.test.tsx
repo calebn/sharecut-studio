@@ -358,11 +358,9 @@ describe("ReviewStage", () => {
       initialItems: EXTRA_KIND_ITEMS,
       initialSelectedId: "r1",
     });
-    const heads = document.querySelectorAll(".rv-bulk");
-    expect([...heads].map((b) => b.textContent?.trim())).toEqual([
-      "Cut",
-      "Cut",
-    ]);
+    expect(
+      screen.getAllByRole("button", { name: "Cut this one" }),
+    ).toHaveLength(2);
     expect(screen.getByText("Other suggestions")).toBeInTheDocument();
   });
 

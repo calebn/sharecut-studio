@@ -51,6 +51,18 @@ describe("bulk eligibility", () => {
     expect(ids).toEqual(["a", "d"]);
   });
 
+  it("counts only one-by-one items as held, not keep or lower", () => {
+    const group = groupQueue([
+      item({ id: "a" }),
+      item({ id: "b", oneByOne: true }),
+      item({ id: "c", unsure: true }),
+      item({ id: "d", suggested: "leave" }),
+      item({ id: "e", suggested: "lower" }),
+    ])[0];
+    expect(group?.held).toBe(2);
+    expect(group?.bulk?.ids).toEqual(["a"]);
+  });
+
   it("gives other suggestions a group but no group verb", () => {
     const group = groupQueue([item({ id: "g", kind: "suggestion" })])[0];
     expect(group?.label).toBe("Other suggestions");

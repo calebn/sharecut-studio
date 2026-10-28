@@ -34,6 +34,8 @@ export type ReviewIntent = {
   ids: readonly string[];
   result: ReviewResult;
   waive?: { note?: string };
+  /** Sent by a group verb, which never cuts through unsure words. */
+  group?: true;
 };
 
 export type ReviewStageProps = {
@@ -68,7 +70,7 @@ export type ReviewStageProps = {
 const BLOCKED_WHY = "The server will not apply this yet.";
 const EMPTY_CARD: ReviewContent["card"] = { title: "", time: "" };
 
-type Pending = { ids: readonly string[] };
+type Pending = { ids: readonly string[]; group?: true };
 
 const openOf = (items: readonly ReviewItem[], kind: ReviewItem["kind"]) =>
   items.filter((item) => item.kind === kind && !item.result);
@@ -169,8 +171,8 @@ export function ReviewStage({
   const bulk = (all: readonly string[] | undefined) => {
     const ids = all?.filter(cuttable) ?? [];
     if (guest || bulkRunning || !ids.length) return;
-    if (holdsGate(ids)) setPending({ ids });
-    else void onDecide({ ids, result: "applied" });
+    if (holdsGate(ids)) setPending({ ids, group: true });
+    else void onDecide({ ids, result: "applied", group: true });
   };
   const applyGroup = () =>
     bulk(
@@ -181,7 +183,12 @@ export function ReviewStage({
   const confirmAnyway = (note?: string) => {
     const ids = armed?.ids.filter(cuttable) ?? [];
     if (guest || bulkRunning || !ids.length) return;
-    const done = onDecide({ ids, result: "applied", waive: { note } });
+    const done = onDecide({
+      ids,
+      result: "applied",
+      waive: { note },
+      ...(armed?.group && { group: true as const }),
+    });
     setWaived(true);
     void Promise.resolve(done)
       .catch(() => false)

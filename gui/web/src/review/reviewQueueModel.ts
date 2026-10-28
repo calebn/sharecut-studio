@@ -119,7 +119,14 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
         kind,
         label: QUEUE_KIND[kind].group,
         items: inKind,
-        held: inKind.length - eligible.length,
+        held: QUEUE_KIND[kind].bulk
+          ? inKind.filter(
+              (i) =>
+                !eligible.includes(i) &&
+                verbOf(i) !== "keep" &&
+                verbOf(i) !== "lower",
+            ).length
+          : 0,
         bulk:
           eligible.length === 0
             ? null

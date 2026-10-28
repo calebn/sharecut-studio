@@ -30,4 +30,37 @@ describe("ReviewQueue", () => {
     expect(onVerb).toHaveBeenCalled();
     expect(onVerb).not.toHaveBeenCalledWith("f1");
   });
+
+  const renderItems = (items: typeof QUEUE_WITHOUT_CHECKS) =>
+    render(
+      <ReviewQueue
+        items={items}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onVerb={vi.fn()}
+      />,
+    );
+  const fillers = QUEUE_WITHOUT_CHECKS.filter(
+    (i) => i.kind === "filler" && !i.result,
+  );
+
+  it("names a one-item group button apart from the item Cut", () => {
+    const { container } = renderItems(fillers.slice(0, 1));
+    const bulk = container.querySelector(".rv-bulk");
+    expect(bulk?.textContent?.trim()).toBe("Cut");
+    expect(bulk?.getAttribute("aria-label")).toBe("Cut this one");
+  });
+
+  it("says how many stay for one-by-one when nothing can be cut together", () => {
+    const { container, getByText } = renderItems(
+      fillers.map((i) => ({ ...i, oneByOne: true })),
+    );
+    expect(container.querySelector(".rv-bulk")).toBeNull();
+    expect(
+      getByText(`${fillers.length} to decide one by one`),
+    ).toBeInTheDocument();
+  });
 });

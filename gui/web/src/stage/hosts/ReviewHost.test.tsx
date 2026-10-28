@@ -378,7 +378,7 @@ describe("Review host decisions", () => {
         join_risk: { verdict: "review" } as never,
       }),
     ]);
-    expect(screen.getByText("1 stay for you")).toBeVisible();
+    expect(screen.getByText("1 to decide one by one")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Cut all 2" }));
     await undoButton();
     expect(sent("ApproveEdits")[0].payload).toEqual({
