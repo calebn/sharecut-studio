@@ -206,6 +206,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         page.chapters,
         undefined,
         edits,
+        exportOptions.target,
       ),
     );
   }, [
@@ -221,6 +222,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     page.clips,
     page.chapters,
     edits,
+    exportOptions.target,
   ]);
   useEffect(() => {
     if (!projectPath || state !== "ready" || draft.page?.key === seedKey)

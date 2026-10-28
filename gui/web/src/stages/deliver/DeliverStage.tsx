@@ -195,8 +195,23 @@ export function DeliverStage({
     : exportBlocker(settings, exportState, exportOptions);
   const pick = validSelection(selection, total);
   const edits = exportOptions?.edits;
-  const request = exportRequest(settings, clips, chapters, undefined, edits);
-  const keyRequest = exportRequest(settings, clips, chapters, pick, edits);
+  const target = exportOptions?.target;
+  const request = exportRequest(
+    settings,
+    clips,
+    chapters,
+    undefined,
+    edits,
+    target,
+  );
+  const keyRequest = exportRequest(
+    settings,
+    clips,
+    chapters,
+    pick,
+    edits,
+    target,
+  );
   const shownState = currentExportState(exportState, request, keyRequest);
   const action = primaryAction(shownState, env);
 

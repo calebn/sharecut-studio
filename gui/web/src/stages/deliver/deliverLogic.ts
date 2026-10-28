@@ -211,6 +211,7 @@ export type ExportRequest = {
   chapters: readonly Chapter[];
   range: TimeSpan | null;
   edits?: string;
+  target?: string;
 };
 
 export type TimeSpan = { start: number; end: number };
@@ -288,6 +289,7 @@ export function exportRequest(
   chapters: readonly Chapter[],
   selection?: TimeSpan | null,
   edits?: string,
+  target?: string,
 ): ExportRequest {
   return {
     settings,
@@ -297,6 +299,7 @@ export function exportRequest(
     chapters,
     range: planRange(settings.part, selection),
     ...(edits === undefined ? {} : { edits }),
+    ...(target === undefined ? {} : { target }),
   };
 }
 
@@ -336,6 +339,7 @@ export function coversRequest(
         a.part.end === b.part.end)) &&
     sameSpan(exported.range, now.range) &&
     exported.edits === now.edits &&
+    exported.target === now.target &&
     sameList(
       byId(exported.clips),
       byId(now.clips),
@@ -554,6 +558,7 @@ export type ExportOptions = {
   loudness?: boolean;
   range?: boolean;
   edits?: string;
+  target?: string;
   onFormats?: (keys: readonly FormatId[]) => void;
   gate?: ModelGate;
   onExportAgain?: () => void;

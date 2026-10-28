@@ -214,6 +214,23 @@ describe("Export on the Deliver stage", () => {
     expect(screen.queryByRole("button", { name: /Download/ })).toBeNull();
   });
 
+  it("marks Exported as edited when the loudness target changes afterwards", async () => {
+    render(<Host />);
+    await pressExport();
+    await act(async () => server.settle(EXPORT_FINISHED));
+    expect(await screen.findByText("Exported")).toBeInTheDocument();
+    server.config = {
+      config: {
+        export: { wav: true, formats: [MP3] },
+        master: { integrated_lufs: -23, true_peak_db: -1.5 },
+      },
+    };
+    act(() => useDawStore.setState({ stage: "edit" }));
+    act(() => useDawStore.setState({ stage: "deliver" }));
+    expect(await screen.findByText("Edited since export")).toBeInTheDocument();
+    expect(screen.queryByText("Exported")).toBeNull();
+  });
+
   it("keeps a late-cancelled export Exported until the project is edited", async () => {
     const setHead = (head: string) => {
       const project = useDawStore.getState().project;
