@@ -26,9 +26,6 @@ const meta: Meta<typeof TimeRulerView> = {
     playhead: <PlayheadNeedle xPx={192} height="100%" />,
     onSeek: fn(),
     onFit: fn(),
-    commentGesture: {
-      begin: () => ({ preview: fn(), finish: fn(), cancel: fn() }),
-    },
   },
   argTypes: {
     getPlayheadSec: { control: false, table: { disable: true } },
@@ -66,26 +63,5 @@ export const PhoneWidth: Story = {
       name: "Timeline position",
     });
     await expect(slider).toHaveStyle({ width: "360px" });
-  },
-};
-
-export const CommentAnchor: Story = {
-  args: {
-    commentMode: true,
-    valueSec: 5,
-    getPlayheadSec: () => 5,
-    playhead: <PlayheadNeedle xPx={120} height="100%" />,
-  },
-  play: async ({ canvasElement }) => {
-    const slider = within(canvasElement).getByRole("slider", {
-      name: "Comment time",
-    });
-    await expect(slider).toHaveAttribute(
-      "title",
-      "Tap to set the comment time, or drag for a span",
-    );
-    await expect(slider).toHaveAttribute("aria-valuenow", "5");
-    const needle = slider.querySelector<HTMLElement>(".playhead");
-    await expect(needle?.style.transform).toBe("translateX(120px)");
   },
 };

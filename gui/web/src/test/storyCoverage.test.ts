@@ -67,7 +67,7 @@ const COVERED: Record<string, string[]> = {
   "SCR-COVER": ["Organisms/CoverScreen"],
   "CMP-TRANSPORT-PILLS": ["Atoms/Pill"],
   "MENU-PEOPLE": ["Templates/AvatarStack"],
-  "CMP-TOOLRAIL": ["Stages/Edit/ToolStrip"],
+  "CMP-TOOLRAIL": ["Stages/Edit/Corner"],
   "CMP-TABS": ["Stages/Edit/Frame"],
   "CMP-SAVEDOT": ["System/SaveIndicator"],
   "CMP-RULER": ["Templates/TimeRuler", "System/Ruler"],

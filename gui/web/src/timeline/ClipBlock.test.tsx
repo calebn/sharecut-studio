@@ -115,7 +115,6 @@ describe("ClipBlock waveform", () => {
     rollPreview: null,
     onRollPreview: vi.fn(),
     onSelect: vi.fn(),
-    onHit: vi.fn(),
     onSelectClip: vi.fn(),
     onMovePreview: vi.fn(),
     onMoveCommit: vi.fn(),
@@ -911,7 +910,6 @@ describe("ClipBlock waveform", () => {
         }}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     expect(container.querySelector(".clip-waveform")).toBeTruthy();
@@ -942,7 +940,6 @@ describe("ClipBlock waveform", () => {
         }}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     expect(layers.at(-1)!.at(-1)).toMatchObject({
@@ -1435,12 +1432,7 @@ describe("ClipBlock waveform", () => {
 
   it("gives the trim ghost its own layer over the ghost source range", () => {
     const { container } = render(
-      <ClipBlock
-        {...base}
-        onRollPreview={vi.fn()}
-        onSelect={vi.fn()}
-        onHit={vi.fn()}
-      />,
+      <ClipBlock {...base} onRollPreview={vi.fn()} onSelect={vi.fn()} />,
     );
     const handle = container.querySelector(".trim-handle.out");
     expect(handle).toBeTruthy();
@@ -1479,7 +1471,6 @@ describe("ClipBlock waveform", () => {
         onMovePreview={onMovePreview}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     const hit = container.querySelector(".clip-hit") as HTMLElement;
@@ -1505,7 +1496,6 @@ describe("ClipBlock waveform", () => {
         onMoveCommit={onMoveCommit}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     const hit = container.querySelector(".clip-hit") as HTMLElement;
@@ -1650,26 +1640,38 @@ describe("ClipBlock waveform", () => {
     );
   });
 
-  it("does not body-move in blade mode", () => {
+  it("neither selects nor starts a move on an Alt press (Alt-click is a Split)", () => {
     const onMovePreview = vi.fn();
-    const onHit = vi.fn();
+    const onSelectClip = vi.fn();
+    const onSelect = vi.fn();
     const { container } = render(
       <ClipBlock
         {...base}
         canMove
-        bladeMode
         onMovePreview={onMovePreview}
         onRollPreview={vi.fn()}
-        onSelect={vi.fn()}
-        onHit={onHit}
+        onSelect={onSelect}
+        onSelectClip={onSelectClip}
       />,
     );
     const hit = container.querySelector(".clip-hit") as HTMLElement;
-    fireEvent.pointerDown(hit, { clientX: 40, clientY: 10, pointerId: 4 });
-    fireEvent.pointerMove(hit, { clientX: 90, clientY: 10, pointerId: 4 });
-    fireEvent.click(hit, { clientX: 90 });
+    fireEvent.pointerDown(hit, {
+      clientX: 40,
+      clientY: 10,
+      pointerId: 4,
+      pointerType: "mouse",
+      altKey: true,
+    });
+    fireEvent.pointerMove(hit, {
+      clientX: 90,
+      clientY: 10,
+      pointerId: 4,
+      pointerType: "mouse",
+      altKey: true,
+    });
     expect(onMovePreview).not.toHaveBeenCalled();
-    expect(onHit).toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelectClip).not.toHaveBeenCalled();
   });
 
   it("selects from a click when pointerdown never ran", () => {
@@ -1681,7 +1683,6 @@ describe("ClipBlock waveform", () => {
         onSelectClip={onSelectClip}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     const hit = container.querySelector(".clip-hit") as HTMLElement;
@@ -1836,7 +1837,6 @@ describe("ClipBlock waveform", () => {
           {...base}
           canMove
           onSelect={vi.fn()}
-          onHit={vi.fn()}
           onSelectClip={vi.fn()}
           onMovePreview={onMovePreview}
           onMoveCommit={onMoveCommit}
@@ -1869,7 +1869,6 @@ describe("ClipBlock waveform", () => {
         {...base}
         canMove
         onSelect={vi.fn()}
-        onHit={vi.fn()}
         onSelectClip={onSelectClip}
         onMovePreview={onMovePreview}
         onMoveCommit={onMoveCommit}
@@ -1908,7 +1907,7 @@ describe("ClipBlock waveform", () => {
     const remove = vi.spyOn(document, "removeEventListener");
     const { container } = render(
       <div role="presentation" onKeyDown={ancestorKeys}>
-        <ClipBlock {...base} canMove onSelect={vi.fn()} onHit={vi.fn()} />
+        <ClipBlock {...base} canMove onSelect={vi.fn()} />
       </div>,
     );
     const hit = container.querySelector(".clip-hit") as HTMLElement;
@@ -1942,7 +1941,6 @@ describe("ClipBlock waveform", () => {
         {...base}
         canMove
         onSelect={vi.fn()}
-        onHit={vi.fn()}
         onMovePreview={onMovePreview}
         onMoveCommit={onMoveCommit}
       />,
@@ -1963,7 +1961,6 @@ describe("ClipBlock waveform", () => {
       ...base,
       canMove: true,
       onSelect: vi.fn(),
-      onHit: vi.fn(),
       onMoveCancel,
       onMoveCommit,
     };
@@ -1996,7 +1993,6 @@ describe("ClipBlock waveform", () => {
         onMoveCancel={onMoveCancel}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     const hit = container.querySelector(".clip-hit") as HTMLElement;
@@ -2044,7 +2040,6 @@ describe("ClipBlock waveform", () => {
         prevClip={clip}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     expect(
@@ -2064,7 +2059,6 @@ describe("ClipBlock waveform", () => {
         }}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     expect(container.querySelector(".clip-mute-region")).toBeTruthy();
@@ -2085,7 +2079,6 @@ describe("ClipBlock waveform", () => {
         }}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     const tints = container.querySelectorAll(".clip-clipping-region");
@@ -2102,7 +2095,6 @@ describe("ClipBlock waveform", () => {
         onMovePreview={onMovePreview}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
-        onHit={vi.fn()}
       />,
     );
     const handle = container.querySelector(".trim-handle.out") as HTMLElement;
@@ -2327,7 +2319,6 @@ describe("ClipBlock snap points", () => {
     rollPreview: null,
     onRollPreview: vi.fn(),
     onSelect: vi.fn(),
-    onHit: vi.fn(),
     onSelectClip: vi.fn(),
     onMovePreview: vi.fn(),
     onMoveCommit: vi.fn(),
@@ -2341,12 +2332,12 @@ describe("ClipBlock snap points", () => {
       guestMode: null,
       isPlaying: false,
       playheadSec: 1,
-      bladeHoverSec: null,
+      splitHoverSec: null,
       layers: { ...useDawStore.getState().layers, showSnapPoints },
     });
   }
 
-  it("loads ticks for the paused playhead but does not draw them in select mode", async () => {
+  it("loads ticks for the paused playhead but does not draw them without the Split guide", async () => {
     setSnapStore();
     const { container } = render(<ClipBlock {...base} />);
     const { loadWaveformSnap } = await import("../api");
@@ -2354,17 +2345,19 @@ describe("ClipBlock snap points", () => {
     expect(container.querySelector(".clip-waveform-snap")).toBeNull();
   });
 
-  it("draws ticks in blade mode", async () => {
+  it("draws ticks while the Split guide rests on the clip", async () => {
     setSnapStore();
-    const { container } = render(<ClipBlock {...base} bladeMode />);
+    useDawStore.setState({ splitHoverSec: 1 });
+    const { container } = render(<ClipBlock {...base} />);
     await waitFor(() =>
       expect(container.querySelectorAll(".clip-waveform-snap").length).toBe(1),
     );
   });
 
-  it("does not draw ticks in blade mode when Snap points is off", async () => {
+  it("does not draw ticks under the Split guide when Snap points is off", async () => {
     setSnapStore({ showSnapPoints: false });
-    const { container } = render(<ClipBlock {...base} bladeMode />);
+    useDawStore.setState({ splitHoverSec: 1 });
+    const { container } = render(<ClipBlock {...base} />);
     const { loadWaveformSnap } = await import("../api");
     await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
     expect(container.querySelector(".clip-waveform-snap")).toBeNull();

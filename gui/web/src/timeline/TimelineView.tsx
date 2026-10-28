@@ -95,7 +95,7 @@ import { PrecisionLayer } from "./precision/PrecisionLayer";
 import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import { TargetChooser } from "./TargetChooser";
-import { BladeGuide, FollowPlayheadChip } from "./TimelineLeaves";
+import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
 import { TimeRuler } from "./TimeRuler";
 import { TrackLane } from "./TrackLane";
 import {
@@ -123,6 +123,7 @@ import {
   useFixedPlayheadScroll,
 } from "./useFixedPlayheadScroll";
 import { useRangeGesture } from "./useRangeGesture";
+import { useSplitAtPointer } from "./useSplitAtPointer";
 import { useTouchPress } from "./useTouchPress";
 
 type Props = {
@@ -145,15 +146,12 @@ const selectTimelineViewFields = pickDaw(
   "fitToWindow",
   "sessionRegion",
   "lastAgentQuery",
-  "commentMode",
   "isPlaying",
-  "toolMode",
   "selectClip",
   "guestMode",
   "shareCapabilities",
   "highlightStaleRender",
   "followingClientId",
-  "setBladeHoverSec",
   "setTimelineViewportWidth",
   "laneHeightMode",
   "laneHeightPx",
@@ -196,15 +194,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     fitToWindow,
     sessionRegion,
     lastAgentQuery,
-    commentMode,
     isPlaying,
-    toolMode,
     selectClip,
     guestMode,
     shareCapabilities,
     highlightStaleRender,
     followingClientId,
-    setBladeHoverSec,
     setTimelineViewportWidth,
     laneHeightMode,
     laneHeightPx,
@@ -294,11 +289,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         ),
       onTarget: (hit) => useDawStore.getState().setSelectionHit(hit),
       precision: precisionHandoff,
-      surfaceTaps: () => {
-        const { toolMode: tool, commentMode: commenting } =
-          useDawStore.getState();
-        return tool === "select" && !commenting;
-      },
       snapshot: () => {
         const { selection, selectionHit } = useDawStore.getState();
         const bleed = clipBleedSession.getSnapshot();
@@ -360,10 +350,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const movePlacements =
     dragMovePlacements ??
     (placement.kind !== "idle" ? placement.placements : null);
-  const canMoveClips =
-    toolMode === "select" &&
-    !commentMode &&
-    canApplyPass12(projectPath, guestMode, shareCapabilities);
+  const canMoveClips = canApplyPass12(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+  );
   const allClips = project ? allClipsFromTracks(project.clips.tracks) : [];
   const trackIds = project?.tracks.map((t) => t.id) ?? [];
   const bodyOwnerRef = useRef<string | null>(null);
@@ -687,14 +678,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     writeScroll,
   ]);
 
-  useEffect(() => {
-    if (toolMode !== "blade" || commentMode) {
-      setBladeHoverSec(null);
-    }
-  }, [toolMode, commentMode, setBladeHoverSec]);
-  // The hover belongs to this view's lanes; it goes when they do.
-  useEffect(() => () => setBladeHoverSec(null), [setBladeHoverSec]);
-
   // Stable context value: a new object would re-render the headers column and
   // every metrics reader too.
   const metrics = useMemo(
@@ -703,11 +686,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   );
 
   const sessionSec = project?.timeline_duration_sec ?? 0;
-  const bladeMode = toolMode === "blade" && !commentMode;
 
   // Lane callbacks: one stable function each, taking the track id first, so
   // memoized lanes and clips see equal props. Hot fields (playhead, scroll)
   // are read at call time.
+  const split = useSplitAtPointer(lanesRef, zoomPxPerSec, canvasSec);
   const rangeGesture = useRangeGesture(
     lanesRef,
     zoomPxPerSec,
@@ -733,11 +716,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       canvasSec,
     );
     void seekTransport(sec);
-    if (bladeMode) {
-      runPointerCommand("edit.bladeCut", { atTime: sec });
-    } else {
-      setSelection(null);
-    }
+    setSelection(null);
   });
   const onSelectClip = useStableCallback(
     (trackId: string, clipId: string, mods?: ClipSelectMods) => {
@@ -861,25 +840,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const laneStackHeight =
     markerLaneHeightPx + project.tracks.length * laneHeight;
 
-  const onBladePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!bladeMode || !lanesRef.current) {
-      return;
-    }
-    setBladeHoverSec(
-      clientXToTimelineSec(
-        e.clientX,
-        lanesRef.current,
-        useDawStore.getState().scrollLeft,
-        zoomPxPerSec,
-        canvasSec,
-      ),
-    );
-  };
-
-  const onBladePointerLeave = () => {
-    setBladeHoverSec(null);
-  };
-
   applyZoomAtRef.current = scroll.applyZoomAt;
 
   const onTimelinePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -955,16 +915,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
             >
               <div className={lockClass}>
                 {headerSlot}
-                <div
-                  className={
-                    toolMode === "blade" && !commentMode
-                      ? "timeline-time timeline-blade-mode"
-                      : commentMode
-                        ? "timeline-time timeline-comment-mode"
-                        : "timeline-time"
-                  }
-                  style={{ width }}
-                >
+                <div className="timeline-time" style={{ width }}>
                   <RecordingOverlay
                     zoomPxPerSec={zoomPxPerSec}
                     trailingPadPx={endLeadPx}
@@ -977,9 +928,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     onSeek={(sec) => {
                       void seekTransport(sec);
                       setSelection(null);
-                      if (toolMode === "blade" && !commentMode) {
-                        runPointerCommand("edit.bladeCut", { atTime: sec });
-                      }
                     }}
                     onFit={() => {
                       // fitToWindow sets the scroll; the sync effect writes it.
@@ -1032,16 +980,17 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       onPointerMoveCapture={rangeGesture.captureMove}
                       onPointerUpCapture={rangeGesture.captureUp}
                       onPointerCancelCapture={rangeGesture.captureCancel}
-                      onClickCapture={rangeGesture.captureClick}
+                      onClickCapture={(e) => {
+                        if (!split.onClickCapture(e))
+                          rangeGesture.captureClick(e);
+                      }}
                       data-range-armed={rangeArmed || undefined}
                       className={
                         movePlacements ? "timeline-clip-moving" : undefined
                       }
                       style={{ position: "relative" }}
-                      onPointerMove={bladeMode ? onBladePointerMove : undefined}
-                      onPointerLeave={
-                        bladeMode ? onBladePointerLeave : undefined
-                      }
+                      onPointerMove={split.onPointerMove}
+                      onPointerLeave={split.onPointerLeave}
                     >
                       {sessionRegion && (
                         <AuditionOverlay
@@ -1095,13 +1044,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           });
                         }}
                       />
-                      {bladeMode ? (
-                        <BladeGuide
-                          tracks={project.tracks}
-                          selectedTrackIds={selectedTrackIds}
-                          zoomPxPerSec={zoomPxPerSec}
-                        />
-                      ) : null}
+                      <SplitGuide
+                        tracks={project.tracks}
+                        selectedTrackIds={selectedTrackIds}
+                        zoomPxPerSec={zoomPxPerSec}
+                      />
                       {project.tracks.map((track, idx) => {
                         const laneClips =
                           project.clips.tracks[track.id] ?? EMPTY_CLIPS;
@@ -1133,7 +1080,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             }
                             onRangeGesture={rangeGesture.gesture}
                             onSeek={onSeek}
-                            bladeMode={bladeMode}
                             canMoveClips={canMoveClips}
                             selectedClipIds={selectedClipIds}
                             previewStartById={lanePreview.previewStartById}
@@ -1152,11 +1098,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             onSelectBleed={onSelectBleed}
                             onSelectClip={onSelectClip}
                             onSelectTrack={onSelectTrack}
-                            bladeHighlight={
-                              bladeMode &&
-                              (selectedTrackIds.length === 0 ||
-                                selectedTrackIds.includes(track.id))
-                            }
                             staleWholeTrack={Boolean(
                               showStaleInv && fallbackWhole.has(track.id),
                             )}

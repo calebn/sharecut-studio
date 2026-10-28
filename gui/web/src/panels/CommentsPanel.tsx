@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from "react";
-import { commandLabel } from "../commands/labels";
 import { seekTransport } from "../commands/seek";
 import {
   CommentAnchorChip,
@@ -32,9 +31,7 @@ export function CommentsPanel({
     project,
     projectPath,
     setSelection,
-    commentMode,
     commentDraft,
-    setCommentMode,
     selection,
     shareCapabilities,
     guestMode,
@@ -43,9 +40,7 @@ export function CommentsPanel({
     project: s.project,
     projectPath: s.projectPath,
     setSelection: s.setSelection,
-    commentMode: s.commentMode,
     commentDraft: s.commentDraft,
-    setCommentMode: s.setCommentMode,
     selection: s.selection,
     shareCapabilities: s.shareCapabilities,
     guestMode: s.guestMode,
@@ -178,14 +173,6 @@ export function CommentsPanel({
             </ToggleButton>
           ))}
         </SegmentedControl>
-        {mayComment ? (
-          <ToggleButton
-            pressed={commentMode}
-            onClick={() => setCommentMode(!commentMode)}
-          >
-            {commandLabel("review.toggleCommentMode")}
-          </ToggleButton>
-        ) : null}
       </div>
 
       {mayComment && (

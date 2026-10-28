@@ -96,9 +96,6 @@ export interface TranscriptInlineEditRequest {
 
 export type DawTab = PresenceTab;
 
-/** Timeline tool — select inspects; blade splits at click/playhead. */
-export type ToolMode = "select" | "blade";
-
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
 /**
@@ -284,8 +281,8 @@ export interface DawState {
   /** Draw waveforms scaled by each track's output gain (gain_db + fader_db). */
   waveformPostFader: boolean;
   pointerTrackId: string | null;
-  /** Blade-mode pointer time (s) over the lanes; null when not hovering. */
-  bladeHoverSec: number | null;
+  /** Split guide time (s) under the pointer while Alt is held over the lanes; null otherwise. */
+  splitHoverSec: number | null;
   scrollLeft: number;
   /** Visible time column (px) of the mounted timeline, from its observer; the shell estimate before it measures and after it unmounts. */
   timelineViewportWidth: number;
@@ -300,7 +297,6 @@ export interface DawState {
   setRangeBusy: (busy: boolean) => void;
   userZoomed: boolean;
   layers: LayerVisibility;
-  commentMode: boolean;
   commentDraft: CommentDraft | null;
   envelopeDraft: EnvelopeDraftEntry | null;
   envelopeSaving: EnvelopeSaving[];
@@ -331,7 +327,6 @@ export interface DawState {
   viewerMute: Record<string, boolean>;
   soloTracks: Record<string, boolean>;
   timelineFocused: boolean;
-  toolMode: ToolMode;
   /** Phone: pending blade cut time awaiting confirm sheet. */
   /** A ripple the host refused because it would cut other speech, awaiting the person's choice. */
   audioError: string | null;
@@ -543,20 +538,17 @@ export interface DawState {
   setWaveformScale: (mode: WaveformScaleMode) => void;
   setWaveformPostFader: (on: boolean) => void;
   setPointerTrackId: (trackId: string | null) => void;
-  setBladeHoverSec: (sec: number | null) => void;
+  setSplitHoverSec: (sec: number | null) => void;
   /** Stores a measured width; 0 or less stores the shell estimate instead. */
   setTimelineViewportWidth: (px: number) => void;
   /** Back to the current shell's estimate (the timeline unmounted). */
   resetTimelineViewportWidth: () => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
-  setCommentMode: (on: boolean) => void;
-  toggleCommentMode: () => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
   setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
   beginEnvelopeSave: (target: EnvelopeSaving) => void;
   endEnvelopeSave: (target: EnvelopeSaving) => void;
   setWordDraft: (entry: WordDraftEntry | null) => void;
-  setToolMode: (mode: ToolMode) => void;
   selectTracks: (trackIds: readonly string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
   fitToWindow: (viewportWidth: number) => void;

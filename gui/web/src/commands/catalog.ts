@@ -61,32 +61,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Stop following",
     when: "following",
   },
-  "tool.select": {
-    id: "tool.select",
-    category: "tools",
-    label: "Select tool",
-    when: "timelineFocused",
-  },
-  "tool.blade": {
-    id: "tool.blade",
-    category: "tools",
-    label: "Blade tool",
-    keywords: ["razor", "split", "knife"],
-    when: "timelineAndStructural",
-  },
-  "review.exitCommentMode": {
-    id: "review.exitCommentMode",
-    category: "review",
-    label: "Exit comment mode",
-    when: "commentMode",
-  },
-  "review.toggleCommentMode": {
-    id: "review.toggleCommentMode",
-    category: "review",
-    label: "Toggle comment mode",
-    keywords: ["note", "feedback", "annotate"],
-    when: "always",
-  },
   "comment.resolve": {
     id: "comment.resolve",
     mutates: true,
