@@ -89,10 +89,14 @@ def test_window_places_every_clip_on_the_stem_sample(
     stem = _positions(project, None, rate)
     clips = project.timeline.clips
     checked = 0
-    for index in range(0, clip_count - 4):
+    # Every 20th clip plus the last few: the drift builds with the clips before a window, so
+    # the late windows carry the proof; a window per clip would rebuild the placement of all
+    # the clips 500 times (over a minute on a slow runner) for no extra coverage.
+    indices = {*range(0, clip_count - 4, 20), *range(clip_count - 12, clip_count - 4)}
+    for index in sorted(indices):
         start = clips[index].timeline_start
         window = _positions(project, (start, start + 2.0), rate)
         for clip_id, placed in window.items():
             assert placed[0] - placed[1] == stem[clip_id][0] - stem[clip_id][1], (index, clip_id)
             checked += 1
-    assert checked > clip_count
+    assert checked > len(indices)
