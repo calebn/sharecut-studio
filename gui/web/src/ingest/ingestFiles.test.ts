@@ -116,9 +116,11 @@ describe("ingestFiles", () => {
     const slow = ingestFiles([new File(["a"], "a.wav")], { kind: "new" });
     await ingestFiles([new File(["b"], "b.wav")], { kind: "new" });
     expect(useDawStore.getState().ingestBusy).toBe(true);
+    expect(useDawStore.getState().ingestFileCount).toBe(1);
     release();
     await slow;
     expect(useDawStore.getState().ingestBusy).toBe(false);
+    expect(useDawStore.getState().ingestFileCount).toBe(0);
   });
 
   describe("onto a track that already has audio", () => {

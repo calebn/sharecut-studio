@@ -13,6 +13,7 @@ import { replaceAudioQuestion, trackHasMedia } from "./dropLabels";
 
 /** Imports under way: busy ends when the last one settles, not the first. */
 let imports = 0;
+let filesInFlight = 0;
 
 export type IngestTarget = { kind: "track"; id: string } | { kind: "new" };
 
@@ -105,7 +106,8 @@ export async function ingestFiles(
     }
   }
   imports += 1;
-  s.setIngestBusy(true);
+  filesInFlight += list.length;
+  s.setIngestBusy(true, filesInFlight);
   s.announceStatus(`Importing ${list.length} file(s)…`);
   let focusId: string | null = null;
   try {
@@ -144,7 +146,9 @@ export async function ingestFiles(
     }
   } finally {
     imports -= 1;
+    filesInFlight -= list.length;
     if (imports === 0) s.setIngestBusy(false);
+    else s.setIngestBusy(true, filesInFlight);
   }
 }
 
