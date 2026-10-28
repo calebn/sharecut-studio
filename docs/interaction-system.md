@@ -266,7 +266,7 @@ There are three overlay primitives.
 3. **Bottom zone for doing, top zone for context.** The Player bar, the tab bar,
    selection sheet and primary actions sit at the bottom on phone and tablet.
    Instructions for an armed gesture sit in the sheet, not in a card at the top.
-4. **Icon-only controls are named.** Every icon-only control in the tool strip
+4. **Icon-only controls are named.** Every icon-only control in the Edit corner
    and the Player bar has an accessible name and a tooltip, and its reason when
    it is unavailable. The touch long-press label peek (`useRailLabelPeek`,
    #1878) went with the tool rail. The long-press on Hear original opens the

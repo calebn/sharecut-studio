@@ -411,7 +411,7 @@ and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
 examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
 `GuestAttentionBannerView`, `ShareDialogView`, `BounceDialogView`,
-`ToolModeToggleView`, `EditToolStripView`, `CommandPaletteView`,
+`EditCornerView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
 `EditBoundaryMarkView` and `InspectorSeekFooterView`.
 
@@ -461,19 +461,17 @@ and 360px phone states. The live `TrackHeader` and `TrackMuteSoloButtons`
 adapters continue to read DAW state and dispatch commands; catalog stories do
 not mount that store or simulate command execution.
 
-`Stages/Edit/ToolStrip` and `Templates/CommandPalette` follow the same split.
-`ToolModeToggleView` and `EditToolStripView` render from fixed props with a
-local-state preview wrapper so a story's tool/comment/blade-confirm clicks feel
-live without touching the DAW store; `EditToolStripView` takes its
-`ToolModeToggle` as a `toolToggle` slot, the same pattern as
-`TrackHeaderView`'s `mixer` slot.
+`Stages/Edit/Corner` and `Templates/CommandPalette` follow the same split.
+`EditCornerView` renders from fixed props (the touch range toggle is its
+`range` prop) so a story's clicks feel live without touching the DAW store.
+(The Select/Blade tool strip and toggle were removed in #2294.)
 `CommandPaletteView` takes its rows (`PaletteCommand[]`) as a prop that the
 live adapter builds with `stage/dialogs/commandPaletteRows.ts`, a `.ts` helper that
 reads the command catalog, the keymap registry (and its remap overrides) and
 the `when` gates at runtime. The view searches and groups those rows with the
 store-free `stage/dialogs/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
 nothing store-bound.
-The live `ToolModeToggle`, `EditToolStrip` and `CommandPalette` adapters read
+The live `EditCorner` and `CommandPalette` adapters read
 DAW state and dispatch through `execute`.
 
 ## Adding a story

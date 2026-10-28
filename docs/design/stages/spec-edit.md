@@ -269,13 +269,14 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Today:** SCR-SHELL-TABLET--tablet-light.png, SCR-PHONE-TIMELINE--phone-light.png, SCR-SHELL-DESKTOP shots. Hierarchy: tools are split between the transport (desktop) and a second row (tablet/phone). Interaction cost: ten tools (Select, Blade, Comment mode, Range, Undo, Redo, Zoom ±, Add track, Import, Cut at playhead). Consistency: phone shows Select range as a dashed box, tablet as the words "Select range".
 - **Fate:** replace. Tools collapse to a two-state tool toggle; the rest become verbs, header buttons or the corner zoom cluster.
 - **Spec:**
-  - Tool toggle sits in the timeline corner box (above the track headers, 168 × 48 px): two icon buttons, Select (arrow) and Blade (blade), 32 px, segmented. V selects, B toggles Blade; holding B gives a spring-loaded Blade that returns to Select on release.
-  - Comment mode removed: Comment is a verb on any selection and at the playhead (C).
-  - Range tool removed on desktop: drag on empty lane area (or Shift-drag over clips) selects a range. Touch: long-press on a lane then drag selects a range; a range toggle (bracket icon) appears in the corner box on touch devices only.
+  - There is no tool toggle (W1a, #2294). The tool rail, the Select/Blade modes, V, C and the spring-loaded Blade are gone; the corner box keeps the zoom cluster, the Script toggle, the eye and, on touch, the range toggle. Split is Mod+K at the playhead, or Alt-click at the pointer (mouse only).
+  - Comment mode removed (W1a): the ruler no longer pins a comment, `Mod+Shift+C` and the Comments panel mode button are gone. Comment is a verb on any selection and at the playhead (C, bound by the action bar in W1b; until then the Player bar and the Comments panel compose).
+  - Range tool removed on desktop: drag on empty lane area (or Shift-drag over clips) selects a range. Touch: long-press on a lane then drag selects a range; a range toggle (bracket icon, `range.arm`, 44 px) sits in the corner box on touch devices only (W1a: moved from the old tool strip into `EditCorner`, story `Stages/Edit/Corner` `TouchWithRange`).
   - Undo/Redo move to the header. Zoom moves to the corner zoom cluster. Add track and Import move under the track headers ("+"). Cut at playhead is the Split verb at the playhead (Mod+K).
   - CMP-RAIL-PEEK is replaced by the standard tooltip: name + key, 500 ms delay, shown on hover and keyboard focus, and once on first touch use as a NEW: Coach tip.
 - **Shared elements used:** Icon language, NEW: Coach tip.
-- **Story to build:** `Edit/ToolToggle` stories `Select`, `Blade`, `SpringBlade`, `TouchWithRange`.
+- **Alt-click Split (W1a):** with Alt held a one-pixel guide follows the pointer over the lanes the split would cut (the targeted lanes, or every lane when none is targeted) and the cursor becomes a crosshair. Alt-click runs `edit.bladeCut` at that time, with the permission gate and the phone/tablet confirm unchanged. A plain click never splits, and a click on a control in the lane is left alone. Alt held while the pointer is outside the lanes shows nothing; releasing Alt, a window blur or a hidden tab clears the guide. Alt-press on a clip body does not start a drag or a range. The OS can intercept Alt-click (some Linux window managers use it to move windows); that is a note, not a fallback. Touch has no Alt, so the Split verb for touch arrives with the action bar in W1b; until then touch splits through the palette or the create menu.
+- **Story to build:** `Stages/Edit/Corner` stories `TouchWithRange`, `RangeArmed`, `RangeUnavailable` (built in W1a).
 
 ### CMP-STATUSBAR · Status bar
 
@@ -849,8 +850,8 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** CMP-TOOLRAIL shots; touch blade asks for confirmation.
 - **Fate:** restyle.
-- **Spec:** Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Blade tool (B, or hold B) click splits that lane, Shift-click splits all lanes. Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
-- **Story to build:** `Edit/ToolToggle` story `SpringBlade`; `Edit/PhoneEdit` story `WaveNothingSelected`.
+- **Spec:** Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Alt-click at the pointer splits at that time on the same targeted tracks (W1a; no Blade tool). Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
+- **Story to build:** `Edit/PhoneEdit` story `WaveNothingSelected`.
 
 ### INT-DELETE and INT-RIPPLE · Delete and ripple
 
@@ -983,9 +984,9 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 
 **NEW verb: Remove (trash).** Deletes a non-audio object (marker, comment, track, envelope point). Keeps "Cut" reserved for removing audio. Proposed addition to the shared verb list.
 
-**Icon language proposals (coordinate with all specs):** Cut = scissors; Split = blade (vertical blade glyph), so the Blade tool and Split verb share it; Keep = restore arrow; Hear = speaker-wave; Comment = speech bubble; Fix text = text cursor; Remove = trash; Mute = speaker-slash; Solo = headphones; Inspect = sliders; Hear original = A/B.
+**Icon language proposals (coordinate with all specs):** Cut = scissors; Split = blade (vertical blade glyph), so the Split verb and the Alt-click guide share it; Keep = restore arrow; Hear = speaker-wave; Comment = speech bubble; Fix text = text cursor; Remove = trash; Mute = speaker-slash; Solo = headphones; Inspect = sliders; Hear original = A/B.
 
-**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). Blade tool moves from C to B (hold for spring-loaded). C becomes Comment. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. O holds hear-original. Shift+M adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
+**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). The Blade tool is removed (W1a): C and V are unbound until W1b, and B is Hear after. C becomes Comment. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. O holds hear-original. Shift+M adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
 
 ---
 
