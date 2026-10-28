@@ -92,6 +92,9 @@ class AudioExportResult:
     # ``master_qc.json``: the configured target and ceiling, the measured master and the
     # verdict. None when the master has no QC report.
     master: dict[str, Any] | None
+    # ``ProjectHistory.edit_head_id()`` read at the export's checkpoint, the point the files
+    # are encoded from. None when the caller did not record it.
+    edit_head_id: str | None = None
 
     def master_summary(self) -> str:
         """One line naming the configured target and ceiling and what the master measured."""
@@ -110,7 +113,10 @@ class AudioExportResult:
         )
 
     def job_result(self) -> dict[str, Any]:
-        return {"paths": [str(p) for p in self.paths], "master": self.master}
+        result: dict[str, Any] = {"paths": [str(p) for p in self.paths], "master": self.master}
+        if self.edit_head_id is not None:
+            result["edit_head_id"] = self.edit_head_id
+        return result
 
 
 class PipelineService:
@@ -304,6 +310,7 @@ class PipelineService:
                 # Checkpoint after the wait: a render that held the lock may have committed
                 # edits and published hashes for them meanwhile (#482).
                 self.ws.checkpoint()
+                edit_head_id = self.ws.project.history.edit_head_id()
                 raise_if_cancel_requested(cancel_check, EXPORT_CANCELLED)
                 prog.set_phase("master", "Preparing mastered WAV…")
                 mastered = pipeline_steps.ensure_current_master(self.ws.project, defaults)
@@ -318,6 +325,8 @@ class PipelineService:
                     cancel_check=cancel_check,
                 )
             self.ws.save_merged()
-            result = AudioExportResult(paths, pipeline_steps.read_master_qc(self.ws.project))
+            result = AudioExportResult(
+                paths, pipeline_steps.read_master_qc(self.ws.project), edit_head_id
+            )
             prog.advance(1, message=f"Export complete. {result.master_summary()}")
             return result

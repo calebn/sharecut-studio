@@ -47,6 +47,18 @@ class ProjectHistory(BaseModel):
     def can_redo(self) -> bool:
         return self.cursor >= 0 and self.cursor < len(self.entries) - 1
 
+    def edit_head_id(self) -> str:
+        """Id of the latest entry at or below the cursor that is not an automatic
+        ``render_preview``, or ``head_id()`` when there is none.
+
+        A mix rebuild adds a preview entry after an edit without changing what the project
+        holds, so something that depends on the edits compares this, not ``head_id()``.
+        """
+        for i in range(min(self.cursor, len(self.entries) - 1), -1, -1):
+            if self.entries[i].operation != "render_preview":
+                return self.entries[i].id
+        return self.head_id()
+
     def head_id(self) -> str:
         """Id of the entry the project currently holds (the cursor's), or ``HISTORY_ROOT_ID``
         before any.

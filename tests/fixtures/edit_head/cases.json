@@ -1,0 +1,52 @@
+{
+  "note": "History entries, the cursor, and the edit head both ProjectHistory.edit_head_id (Python) and editHeadOf over the projection's groups (web) must report.",
+  "cases": [
+    { "name": "no entries", "entries": [], "cursor": -1, "expected": "root" },
+    {
+      "name": "edits then a mix rebuild",
+      "entries": [
+        { "id": "a", "label": "cut", "operation": "cut" },
+        { "id": "b", "label": "cut", "operation": "cut" },
+        { "id": "p", "label": "refresh", "operation": "render_preview" }
+      ],
+      "cursor": 2,
+      "expected": "b"
+    },
+    {
+      "name": "undone past the rebuild",
+      "entries": [
+        { "id": "a", "label": "cut", "operation": "cut" },
+        { "id": "b", "label": "cut", "operation": "cut" },
+        { "id": "p", "label": "refresh", "operation": "render_preview" }
+      ],
+      "cursor": 0,
+      "expected": "a"
+    },
+    {
+      "name": "a rebuild pair counts the state before it",
+      "entries": [
+        { "id": "before", "label": "before render_preview", "operation": null },
+        { "id": "after", "label": "after render_preview", "operation": "render_preview" }
+      ],
+      "cursor": 1,
+      "expected": "before"
+    },
+    {
+      "name": "an edit pair then a rebuild pair",
+      "entries": [
+        { "id": "b1", "label": "before cut", "operation": null },
+        { "id": "a1", "label": "after cut", "operation": "cut" },
+        { "id": "b2", "label": "before render_preview", "operation": null },
+        { "id": "a2", "label": "after render_preview", "operation": "render_preview" }
+      ],
+      "cursor": 3,
+      "expected": "b2"
+    },
+    {
+      "name": "only a rebuild entry",
+      "entries": [{ "id": "p", "label": "refresh", "operation": "render_preview" }],
+      "cursor": 0,
+      "expected": "p"
+    }
+  ]
+}
