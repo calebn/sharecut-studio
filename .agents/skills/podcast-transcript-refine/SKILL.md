@@ -24,7 +24,7 @@ Interactive / MCP sessions **must** clear the gate before narrative edits:
 |----------------|---------|
 | `transcript refine-status` / `transcript_refine_status_tool` | pending / done / waived + fingerprint |
 | `transcript refine-brief` / `transcript_refine_brief_tool` | Context pack for the episode pass |
-| `transcript refine-done` / `transcript_refine_done_tool` | Mark complete after refine (notes up to 2000 characters) |
+| `transcript refine-done` / `transcript_refine_done_tool` | Mark complete after refine (notes up to 2000 characters). Pass the `fingerprint` you reviewed (`--expected-fingerprint` / `expected_fingerprint`) to refuse with `transcript_changed` if the transcript changed since |
 | `transcript refine-waive --reason …` / `transcript_refine_waive_tool` | Explicit skip (user/agent); the reason may be up to 2000 characters |
 
 Precorrect `--apply` resets status to **pending**. After that, a done or waived status goes stale only when word text changes (a correction or re-transcription). Approved cuts, apply-all, and premix renders never stale it. See [docs/transcript-workflow.md § What stales a refine decision](../../../docs/transcript-workflow.md#what-stales-a-refine-decision). Unattended pipelines (`PODCAST_BATCH=1` or `podcast pipeline run --unattended`) auto-waive when `analysis.transcript_refine.mode` is `waive_unattended` (default). Agents must **not** set unattended flags — do the episode pass, then `refine-done`.
