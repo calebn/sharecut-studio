@@ -63,4 +63,20 @@ describe("ReviewQueue", () => {
       getByText(`${fillers.length} to decide one by one`),
     ).toBeInTheDocument();
   });
+
+  it("keeps the one-by-one line from a guest, who decides nothing", () => {
+    const { queryByText } = render(
+      <ReviewQueue
+        items={fillers.map((i) => ({ ...i, oneByOne: true }))}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onVerb={vi.fn()}
+      />,
+    );
+    expect(queryByText(/to decide one by one/)).toBeNull();
+  });
 });

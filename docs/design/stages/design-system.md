@@ -352,7 +352,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 **22. Review queue**
 - A list container.
   - Header: progress ("6 of 14 decided · saves 7.8 s"), filter icons with counts (All, `scissors`, `message-square`, `triangle-alert`), and Find more (`wand-sparkles`).
-  - Groups, each with a bulk primary in its header ("Cut all 11", Shift+Enter; the Find bar's Cut all is Mod+Shift+Enter).
+  - Groups, each with a bulk primary in its header ("Cut all 11", plain "Cut" for one item, Shift+Enter; held items add "N to decide one by one" for editors; the Find bar's Cut all is Mod+Shift+Enter).
   - Sorts: by kind (default) or chronological.
 - Placements: Review left 360 px; Record right rail (Comments filter, chronological, Composer at the bottom); guest Review left (Comments and Your suggestions); phone Queue sheet.
 - Used: SCR-REVIEW, PNL-IMPACT, PNL-TIGHTEN, PNL-COMMENTS, CMP-REC-LIVECOMMENTS, SCR-GUEST-COMMENTER.
