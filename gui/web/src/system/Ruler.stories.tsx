@@ -1,0 +1,393 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useRef, useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
+import { viewportStoryParameters } from "../storybook/storyLayout";
+import { clamp } from "../utils/math";
+import { ALL_KINDS, EPISODE_SECONDS, stage } from "./laneFixtures";
+import { LanesBelow, Measured } from "./laneStoryHost";
+import { MarkerLane } from "./MarkerLane";
+import {
+  RULER_MIN_SELECTION,
+  Ruler,
+  type RulerEdge,
+  type RulerProps,
+  type RulerSession,
+} from "./Ruler";
+import type { TimeRange } from "./seconds";
+
+const meta: Meta<typeof Ruler> = {
+  title: "System/Ruler",
+  component: Ruler,
+  tags: ["autodocs"],
+  args: {
+    start: 0,
+    pxPerSecond: 1,
+    width: 360,
+    duration: EPISODE_SECONDS,
+    playhead: 0,
+    onSeek: fn(),
+    onFit: fn(),
+    onScrubStart: fn(),
+    onScrub: fn(),
+    onScrubEnd: fn(),
+    onSelectionDragStart: fn(),
+    onSelectionDrag: fn(),
+    onSelectionDragEnd: fn(),
+    onSelectionNudge: fn(),
+    onSelectionNudgeEnd: fn(),
+  },
+  parameters: {
+    ...viewportStoryParameters,
+    docs: {
+      ...viewportStoryParameters.docs,
+      description: {
+        component:
+          "The time ruler (design-system element 17a), 24 px tall. It takes plain data: the window's `start` and `pxPerSecond`, its `width`, the `playhead`, and optionally the selection and the recording sessions. Labels are Plex Mono 11 px at the smallest nice interval that keeps them 64 px apart, so zooming picks a coarser or finer step by itself. The playhead is a 2 px accent line with a 10 px triangle. A selection is a 4 px accent band along the bottom with a 12 px knob at each end.\n\nA click seeks (`onSeek`). A drag scrubs: `onScrubStart` (return `false` to refuse), `onScrub` with the pointer's time and `onScrubEnd`, which reports `committed: false` for Escape, a window blur, `pointercancel`, a lost capture or the ruler leaving the page, so the host puts the playhead back. A double-click fits (`onFit`). The knobs resize the selection with `onSelectionDragStart`, `onSelectionDrag` and `onSelectionDragEnd`. A guest gets no knobs.\n\nOne finger swipes along the ruler to scrub it: the body sets `touch-action: pan-y`, so a horizontal move reaches the page as pointer events after 10 px and a vertical one is left to the browser. A tap seeks, and a tap on a knob's 44 px area seeks too. Pinch and pan belong to the lanes host, and a second finger is ignored.\n\nThe ruler is one tab stop and a slider named for the playhead: Left and Right move it one tick (Shift ten) with `onSeek`, Home and End go to the ends. Alt with Left or Right walks focus to the selection knobs, which are sliders that Left and Right nudge by 10 ms (Shift 100 ms) with `onSelectionNudge` and `onSelectionNudgeEnd`.\n\n**Motion.** None. The playhead and the band move with no easing.",
+      },
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof Ruler>;
+
+type View = "fit" | { start: number; pxPerSecond: number };
+
+type LiveProps = {
+  args: RulerProps;
+  view: View;
+  playhead?: number;
+  selection?: TimeRange;
+  sessions?: readonly RulerSession[];
+  touch?: boolean;
+  readOnly?: boolean;
+  /** Content drawn under the ruler at the same width. */
+  below?: (
+    width: number,
+    start: number,
+    pxPerSecond: number,
+  ) => React.ReactNode;
+};
+
+const around = (value: number, range: TimeRange, edge: RulerEdge) =>
+  edge === "start"
+    ? clamp(value, 0, range.end - RULER_MIN_SELECTION)
+    : clamp(value, range.start + RULER_MIN_SELECTION, EPISODE_SECONDS);
+
+function LiveRuler({
+  args,
+  view,
+  playhead: playheadAtStart = 0,
+  selection: selectionAtStart,
+  sessions,
+  touch,
+  readOnly,
+  below,
+}: LiveProps) {
+  const [playhead, setPlayhead] = useState(playheadAtStart);
+  const [selection, setSelection] = useState(selectionAtStart);
+  const before = useRef<{ playhead: number; selection?: TimeRange }>({
+    playhead,
+    selection,
+  });
+  return (
+    <div style={stage}>
+      <Measured>
+        {(width) => {
+          const start = view === "fit" ? 0 : view.start;
+          const pxPerSecond =
+            view === "fit" ? width / EPISODE_SECONDS : view.pxPerSecond;
+          return (
+            <>
+              <Ruler
+                {...args}
+                start={start}
+                pxPerSecond={pxPerSecond}
+                width={width}
+                playhead={playhead}
+                selection={selection}
+                sessions={sessions}
+                touch={touch}
+                readOnly={readOnly}
+                onSeek={(seconds) => {
+                  setPlayhead(seconds);
+                  args.onSeek(seconds);
+                }}
+                onScrubStart={(seconds, pointer) => {
+                  before.current = { playhead, selection };
+                  return args.onScrubStart?.(seconds, pointer);
+                }}
+                onScrub={(seconds, pointer) => {
+                  setPlayhead(seconds);
+                  args.onScrub?.(seconds, pointer);
+                }}
+                onScrubEnd={(committed) => {
+                  if (!committed) setPlayhead(before.current.playhead);
+                  args.onScrubEnd?.(committed);
+                }}
+                onSelectionDragStart={(edge, pointer) => {
+                  before.current = { playhead, selection };
+                  return args.onSelectionDragStart?.(edge, pointer);
+                }}
+                onSelectionDrag={(edge, drag) => {
+                  setSelection((now) =>
+                    now
+                      ? { ...now, [edge]: around(drag.seconds, now, edge) }
+                      : now,
+                  );
+                  args.onSelectionDrag?.(edge, drag);
+                }}
+                onSelectionDragEnd={(edge, committed) => {
+                  if (!committed) setSelection(before.current.selection);
+                  args.onSelectionDragEnd?.(edge, committed);
+                }}
+                onSelectionNudge={(edge, seconds, nudge) => {
+                  setSelection((now) =>
+                    now
+                      ? {
+                          ...now,
+                          [edge]: around(now[edge] + seconds, now, edge),
+                        }
+                      : now,
+                  );
+                  args.onSelectionNudge?.(edge, seconds, nudge);
+                }}
+              />
+              {below?.(width, start, pxPerSecond)}
+            </>
+          );
+        }}
+      </Measured>
+    </div>
+  );
+}
+
+const body = (canvas: ReturnType<typeof within>) =>
+  canvas.getByRole("slider", { name: "Timeline position" });
+
+const dragOn = async (target: HTMLElement, from: number, to: number) => {
+  const box = target.getBoundingClientRect();
+  const y = box.top + box.height / 2;
+  await userEvent.pointer([
+    { keys: "[MouseLeft>]", target, coords: { clientX: from, clientY: y } },
+    { target, coords: { clientX: (from + to) / 2, clientY: y } },
+    { target, coords: { clientX: to, clientY: y } },
+    { keys: "[/MouseLeft]", target },
+  ]);
+};
+
+export const Fit: Story = {
+  render: (args) => <LiveRuler args={args} view="fit" playhead={754} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(body(canvas)).toHaveAttribute("aria-valuemax", "3130");
+    await expect(body(canvas)).toHaveAttribute("aria-valuenow", "754");
+    await expect(canvas.getByText("0:00")).toBeVisible();
+  },
+};
+
+export const Zoomed: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 604, pxPerSecond: 40 }}
+      playhead={608.5}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("10:06")).toBeVisible();
+    await expect(body(canvas)).toHaveAttribute("aria-valuetext", "10:08.5");
+  },
+};
+
+export const WithSelection: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 604, pxPerSecond: 20 }}
+      playhead={606}
+      selection={{ start: 608, end: 614 }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("slider", { name: "Selection end" }),
+    ).toHaveAttribute("aria-valuenow", "614");
+    await expect(
+      canvas.getByRole("slider", { name: "Selection start" }),
+    ).toHaveAttribute("aria-valuetext", "10:08.000");
+  },
+};
+
+export const ResizingSelection: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 604, pxPerSecond: 20 }}
+      playhead={606}
+      selection={{ start: 608, end: 614 }}
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const end = canvas.getByRole("slider", { name: "Selection end" });
+    await expect(end).toHaveAttribute("aria-valuenow", "614");
+    await expect(
+      canvas.getByRole("slider", { name: "Selection start" }),
+    ).toHaveAttribute("aria-valuetext", "10:08.000");
+    const box = end.getBoundingClientRect();
+    await dragOn(end, box.left + box.width / 2, box.left + box.width / 2 + 40);
+    await expect(args.onSelectionDragEnd).toHaveBeenCalledWith("end", true);
+    await expect(end).toHaveAttribute("aria-valuenow", "616");
+  },
+};
+
+export const WithSessions: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view="fit"
+      playhead={1900}
+      sessions={[
+        { start: 0, end: 1500, label: "S1" },
+        { start: 1500, end: 2400, label: "S2" },
+        { start: 2400, end: 3130, label: "S3" },
+      ]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText("S2")).not.toBeNull();
+  },
+};
+
+export const Scrubbing: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 600, pxPerSecond: 12 }}
+      playhead={605}
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const ruler = body(canvas);
+    const box = ruler.getBoundingClientRect();
+    await dragOn(ruler, box.left + 60, box.left + 180);
+    await expect(args.onScrubStart).toHaveBeenCalledTimes(1);
+    await expect(args.onScrubEnd).toHaveBeenCalledWith(true);
+    await expect(args.onSeek).not.toHaveBeenCalled();
+    await expect(ruler).toHaveAttribute("aria-valuenow", "615");
+  },
+};
+
+export const Keyboard: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 600, pxPerSecond: 12 }}
+      playhead={605}
+      selection={{ start: 608, end: 614 }}
+    />
+  ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.tab();
+    await expect(body(canvas)).toHaveFocus();
+    await userEvent.keyboard("{ArrowRight}");
+    await expect(args.onSeek).toHaveBeenLastCalledWith(615);
+    await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}");
+    await expect(
+      canvas.getByRole("slider", { name: "Selection start" }),
+    ).toHaveFocus();
+    await userEvent.keyboard("{ArrowLeft}");
+    await expect(args.onSelectionNudge).toHaveBeenLastCalledWith(
+      "start",
+      -0.01,
+      { repeat: false },
+    );
+  },
+};
+
+export const ReadOnly: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 600, pxPerSecond: 12 }}
+      playhead={605}
+      selection={{ start: 608, end: 614 }}
+      readOnly
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(body(canvas)).toBeVisible();
+    await expect(
+      canvas.queryByRole("slider", { name: "Selection start" }),
+    ).toBeNull();
+  },
+};
+
+export const AboveMarkers: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 0, pxPerSecond: 6 }}
+      playhead={20}
+      selection={{ start: 12, end: 36 }}
+      below={(width, start, pxPerSecond) => (
+        <>
+          <MarkerLane
+            markers={ALL_KINDS}
+            start={start}
+            pxPerSecond={pxPerSecond}
+            width={width}
+            duration={EPISODE_SECONDS}
+            selected={["sc-joke"]}
+            onSelect={fn()}
+          />
+          <LanesBelow width={width} />
+        </>
+      )}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("group", { name: "Markers" }),
+    ).toBeVisible();
+  },
+};
+
+export const Phone: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 600, pxPerSecond: 24 }}
+      playhead={607.5}
+      selection={{ start: 605, end: 610 }}
+      touch
+      below={(width, start, pxPerSecond) => (
+        <MarkerLane
+          markers={[]}
+          start={start}
+          pxPerSecond={pxPerSecond}
+          width={width}
+          duration={EPISODE_SECONDS}
+          touch
+          onSelect={fn()}
+        />
+      )}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvasElement.querySelector(".sys-ruler")).toHaveAttribute(
+      "data-touch",
+      "true",
+    );
+    await expect(
+      canvas.getByRole("slider", { name: "Selection end" }),
+    ).toBeVisible();
+  },
+};

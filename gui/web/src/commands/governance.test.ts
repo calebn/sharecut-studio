@@ -55,6 +55,11 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "stages/deliver/DeliverStage.tsx",
   // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.
   "system/ScriptPane.select.test.tsx",
+  // A drag in progress on a ruler handle, the ruler body or a marker takes Escape from the document, wherever focus is, so the cancel does not depend on the grabbed element holding focus.
+  "system/useGrab.ts",
+  // The same window-level listener, to prove the keys the ruler and the marker lane handle never reach the keymap.
+  "system/Ruler.test.tsx",
+  "system/MarkerLane.test.tsx",
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
@@ -118,6 +123,10 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/TrackHeader.tsx",
   // A selection grip is a slider: arrows, Home and End move its edge one place on or back, or to the first or last place.
   "system/SelectionHandles.tsx",
+  // The ruler is one slider on the playhead: Left and Right move it one tick (Shift ten), Home and End go to the ends, and Alt with Left or Right walks focus to the selection handles, which nudge their edge 10 ms (Shift 100 ms) with Left and Right.
+  "system/Ruler.tsx",
+  // A marker's button and a bracket's edge sliders: Left and Right on a selected chapter or bracket, or on an edge, nudge it 0.1 s (Shift 1 s), and Alt with Left or Right walks focus along a bracket's edges. Every other key goes to the keymap.
+  "system/MarkerLane.tsx",
   // The inline Fix text field commits on Enter and Tab and puts the words back on Escape.
   // With apply on activate the person picker is a radiogroup of radio buttons: arrows, Home and End move the focus ring and pick nobody; click, Space and Enter pick.
   "system/PersonPicker.tsx",

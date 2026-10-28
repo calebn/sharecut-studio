@@ -4235,8 +4235,11 @@ button.sys-scope:hover {
   .sys-marker-hit::after {
     content: "";
     position: absolute;
-    inset-block: calc((100% - var(--touch-min)) / 2);
-    inset-inline: min(0rem, calc((100% - var(--touch-min)) / 2));
+    inset-block: 0;
+    inset-inline: var(
+      --sys-marker-reach-inline,
+      min(0rem, calc((100% - var(--touch-min)) / 2))
+    );
   }
 }
 
@@ -5293,5 +5296,372 @@ input.sys-edit-fix {
 
   .sys-track-meter {
     border: 1px solid var(--color-border);
+  }
+}
+
+/* Ruler (element 17a) */
+
+.sys-ruler {
+  --sys-ruler-hit: 0.75rem;
+  --sys-ruler-out: calc(var(--sys-ruler-hit) / 2);
+  --sys-ruler-in: min(var(--sys-ruler-out), calc(var(--sys-ruler-sel) / 2));
+  --sys-ruler-ink: var(--color-accent);
+  --sys-ruler-ring: var(--color-bg-raised);
+  --sys-ruler-band: color-mix(
+    in srgb,
+    var(--color-text-secondary) 12%,
+    transparent
+  );
+
+  position: relative;
+  box-sizing: border-box;
+  inline-size: var(--sys-ruler-width);
+  block-size: 1.5rem;
+  background: var(--color-timeline-well);
+  color: var(--color-timeline-text);
+  overflow: clip;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sys-ruler::before {
+  content: "";
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  block-size: 1px;
+  background: var(--color-timeline-border);
+  pointer-events: none;
+}
+
+.sys-ruler[data-touch] {
+  --sys-ruler-hit: var(--touch-min);
+}
+
+.sys-ruler-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sys-ruler-tick {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: var(--sys-ruler-x);
+  box-sizing: border-box;
+  padding-block-start: var(--space-0);
+  padding-inline-start: var(--space-1);
+  border-inline-start: 1px solid var(--color-timeline-border);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+.sys-ruler-session {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: var(--sys-ruler-x);
+  inline-size: var(--sys-ruler-w);
+}
+
+.sys-ruler-session[data-odd] {
+  background: var(--sys-ruler-band);
+}
+
+.sys-ruler-pill {
+  position: absolute;
+  inset-block-end: var(--space-1);
+  inset-inline-start: var(--space-0);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-micro);
+  font-weight: 600;
+  line-height: 0.875rem;
+}
+
+.sys-ruler-selection {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: var(--sys-ruler-x);
+  inline-size: var(--sys-ruler-w);
+  block-size: 0.25rem;
+  background: var(--sys-ruler-ink);
+  forced-color-adjust: none;
+}
+
+.sys-ruler-playhead {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--sys-ruler-x) - var(--space-0) / 2);
+  inline-size: var(--space-0);
+  background: var(--sys-ruler-ink);
+  forced-color-adjust: none;
+}
+
+.sys-ruler-playhead::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  border-inline: 0.3125rem solid transparent;
+  border-block-start: 0.375rem solid var(--sys-ruler-ink);
+}
+
+.sys-ruler-body {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.sys-ruler-body:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.sys-ruler[data-scrubbing] .sys-ruler-body {
+  cursor: ew-resize;
+}
+
+.sys-ruler-handle {
+  position: absolute;
+  inset-block: 0;
+  inline-size: calc(var(--sys-ruler-out) + var(--sys-ruler-in));
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.sys-ruler-handle[data-edge="start"] {
+  inset-inline-start: calc(var(--sys-ruler-x) - var(--sys-ruler-out));
+}
+
+.sys-ruler-handle[data-edge="end"] {
+  inset-inline-start: calc(var(--sys-ruler-x) - var(--sys-ruler-in));
+}
+
+.sys-ruler-grip {
+  position: absolute;
+  inset-block-end: 0;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  box-sizing: border-box;
+  translate: -50% 0;
+  border: var(--space-0) solid var(--sys-ruler-ring);
+  border-radius: 50%;
+  background: var(--sys-ruler-ink);
+  forced-color-adjust: none;
+  pointer-events: none;
+}
+
+.sys-ruler-handle[data-edge="start"] .sys-ruler-grip {
+  inset-inline-start: var(--sys-ruler-out);
+}
+
+.sys-ruler-handle[data-edge="end"] .sys-ruler-grip {
+  inset-inline-start: var(--sys-ruler-in);
+}
+
+.sys-ruler-handle:focus-visible {
+  outline: none;
+}
+
+.sys-ruler-handle:focus-visible .sys-ruler-grip,
+.sys-ruler-handle[data-dragging] .sys-ruler-grip {
+  outline: var(--focus-ring-width) solid var(--color-text-primary);
+  outline-offset: var(--space-0);
+}
+
+@media (pointer: coarse) {
+  .sys-ruler {
+    --sys-ruler-hit: var(--touch-min);
+  }
+}
+
+@media (forced-colors: active) {
+  .sys-ruler {
+    --sys-ruler-ink: Highlight;
+    --sys-ruler-ring: Canvas;
+  }
+}
+
+/* Marker lane (element 18a) */
+
+.sys-markers {
+  --sys-marker-hit: 0.5rem;
+  --sys-marker-ink: var(--color-accent);
+  --sys-marker-ring: var(--color-bg-raised);
+
+  position: relative;
+  box-sizing: border-box;
+  inline-size: var(--sys-markers-width);
+  block-size: 1.5rem;
+  background: var(--color-timeline-well);
+  touch-action: pan-x pan-y;
+}
+
+.sys-markers[data-touch] {
+  --sys-marker-hit: var(--touch-min);
+}
+
+.sys-markers-track {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+}
+
+.sys-markers .sys-marker-hit[data-movable] {
+  cursor: grab;
+}
+
+.sys-markers .sys-marker[data-dragging] .sys-marker-hit {
+  cursor: grabbing;
+}
+
+.sys-markers .sys-marker-hit[data-movable][aria-pressed="true"] {
+  touch-action: none;
+}
+
+.sys-markers .sys-marker-hit:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.sys-markers .sys-marker[data-kind="stack"] .sys-marker-hit::after {
+  inset-block: calc((100% - 1.5rem) / 2);
+}
+
+.sys-markers[data-touch] .sys-marker-hit::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline: var(--sys-marker-reach-inline, 0);
+}
+
+.sys-markers[data-touch] .sys-marker[data-kind="stack"] .sys-marker-hit::after {
+  inset-block: calc((100% - 1.5rem) / 2);
+}
+
+.sys-marker-menu {
+  display: contents;
+}
+
+.sys-marker-menu .ui-menu-popup {
+  pointer-events: auto;
+}
+
+.sys-marker-edge {
+  --sys-marker-zone: min(var(--sys-marker-hit), 34%);
+
+  position: absolute;
+  inset-block: 0;
+  inline-size: var(--sys-marker-zone);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.sys-marker-edge[data-edge="start"] {
+  inset-inline-start: 0;
+}
+
+.sys-marker-edge[data-edge="end"] {
+  inset-inline-end: 0;
+}
+
+.sys-marker[data-selected] .sys-marker-edge {
+  pointer-events: auto;
+}
+
+.sys-marker-grip {
+  box-sizing: border-box;
+  inline-size: 0.375rem;
+  block-size: 0.875rem;
+  border: 1px solid var(--sys-marker-ring);
+  border-radius: var(--radius-xl);
+  background: var(--sys-marker-ink);
+  forced-color-adjust: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sys-marker[data-selected] .sys-marker-grip,
+.sys-marker-edge[data-dragging] .sys-marker-grip,
+.sys-marker-edge:focus-visible .sys-marker-grip {
+  opacity: 1;
+}
+
+.sys-marker-edge:focus-visible {
+  outline: none;
+}
+
+.sys-marker-edge:focus-visible .sys-marker-grip {
+  outline: var(--focus-ring-width) solid var(--color-text-primary);
+  outline-offset: var(--space-0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sys-marker:hover .sys-marker-edge {
+    pointer-events: auto;
+  }
+
+  .sys-marker:hover .sys-marker-grip {
+    opacity: 1;
+  }
+}
+
+.sys-marker-add {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: min(
+    var(--sys-marker-add-at),
+    max(0rem, calc(100% - 10rem))
+  );
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  inline-size: 10rem;
+  color: var(--color-marker);
+}
+
+.sys-marker-add svg {
+  flex: none;
+}
+
+.sys-marker-add-field {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: 1.25rem;
+  box-sizing: border-box;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-field);
+}
+
+.sys-marker-add-field[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.sys-marker-add-field:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--space-0);
+}
+
+@media (forced-colors: active) {
+  .sys-markers {
+    --sys-marker-ink: Highlight;
+    --sys-marker-ring: Canvas;
   }
 }
