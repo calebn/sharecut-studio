@@ -2,8 +2,10 @@
 
 Checking a source remove for approval observes the neighbourhood of the cut (peer speech,
 acoustic edges, pauses) and then checks the written result. That is nearly all the cost of an
-approval, and it depends only on the audio, words, configuration and clips near the cut. An
-entry keeps the observation and the outcome under a key that hashes exactly those inputs.
+approval, and it depends on the audio, words, configuration and clips near the cut, and on
+each track's whole-track level profile before the batch, which the key does not hash (a cut
+applied far from this one moves that profile by hundredths of a dB). An entry keeps the
+observation and the outcome under a key that hashes the inputs near the cut.
 
 A hit never skips what depends on the live timeline: the placement and the cut itself are
 written again, and the written result and room-tone pads must equal what the entry recorded,
@@ -56,6 +58,11 @@ if TYPE_CHECKING:
 ENABLE_ENV = "PODCAST_VERDICT_CACHE"
 VERIFY_ENV = "PODCAST_VERDICT_VERIFY"
 READ_SEC = 6.0
+# What a stored verdict means, so a process that holds entries made under another meaning cannot
+# reuse them. "batch-base-profile": every check of a batch read each track's level profile as it
+# stood before the batch (#2357); before, a check after an applied cut read the profile of the
+# track as that cut left it.
+SEMANTICS = "batch-base-profile"
 PAUSE_REACH_FLOOR_SEC = 13.0
 LONG_FADE_NO_CACHE_SEC = 1.0
 _ENTRIES = 512
@@ -347,6 +354,7 @@ def _payload(
         "pad_records": _pad_records_seen(project, edit, s_lo, s_hi),
         "batch": chosen,
         "disk": _disk_stamps(project),
+        "semantics": SEMANTICS,
         "policy": [
             repr(sorted(cut_policy.CUT_ACTION_TABLE.items())),
             repr(cut_policy.CUT_EDGE_CHECKS),

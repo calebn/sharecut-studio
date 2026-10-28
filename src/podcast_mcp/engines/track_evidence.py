@@ -15,6 +15,7 @@ tree the evaluator cannot take, still uses the render. The module logs the reaso
 from __future__ import annotations
 
 import logging
+import math
 import tempfile
 import threading
 from collections import OrderedDict
@@ -32,10 +33,16 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines import timeline_render
 from podcast_mcp.engines.audio import Audio, sources
 from podcast_mcp.engines.audio_audit import TrackRmsCache
-from podcast_mcp.engines.audio_eval import common_rate, evaluate_resampled, single_layout
+from podcast_mcp.engines.audio_eval import (
+    common_rate,
+    evaluate_resampled,
+    plan_audio,
+    single_layout,
+)
 from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE, LevelProfile, track_profile
+from podcast_mcp.engines.windowed_rms import WindowedTrackRmsCache, resampled_window
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import shared_while_batching, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
@@ -58,6 +65,8 @@ _STORE_KEY = "track_evidence_store"
 JUMP_SAMPLE_RATE = 8000
 WAVEFORM_SAMPLE_RATE = PROFILE_SAMPLE_RATE
 _RATES = (JUMP_SAMPLE_RATE, WAVEFORM_SAMPLE_RATE)
+# 8 kHz samples a window holds beyond the seconds asked: the readers round each end to a sample.
+_WINDOW_SLACK = 4
 _store_creation = threading.Lock()
 
 
@@ -198,6 +207,73 @@ def rms_readers(
         return entry.cache(JUMP_SAMPLE_RATE)
 
     return {track_id: partial(read, track_id) for track_id in planned}
+
+
+def rms_window(
+    project: EpisodeProject,
+    track_id: str,
+    defaults: EffectiveConfig,
+    start_sec: float,
+    end_sec: float,
+    *,
+    profile: LevelProfile,
+    private: bool = False,
+) -> WindowedTrackRmsCache | None:
+    """The track as :func:`rms` gives it, held only over timeline ``[start_sec, end_sec]`` (#2357).
+
+    A read inside the window returns the samples :func:`rms` returns, bit for bit; a read outside
+    raises ``WindowMiss``. The cache reports ``profile`` (the batch's base profile) because the
+    profile of the whole track cannot be had from a window. The window is built from the
+    track's tree as it is now and is not stored: the store's keys name whole tracks.
+
+    ``None`` when the whole-track path has to serve the track: the evaluator declines its tree,
+    its sources are not at one rate and layout, the resampler is not local at that rate
+    (``resampler_locality``), the store already holds the whole track, or the tree evaluates to
+    nothing. With ``PODCAST_EVIDENCE_VERIFY=1`` the window is compared with the whole-track
+    evidence and raises ``AssertionError`` on a difference.
+    """
+    with project_state_lock(project) if not private else nullcontext():
+        planned = _plan(project, track_id, defaults)
+    if isinstance(planned, Declined):
+        return None
+    key, tree = planned
+    if _store().holds(key) or not single_layout(tree):
+        return None
+    rate = common_rate(tree)
+    if rate is None:
+        return None
+    with decoded_sources(rate) as reader:
+        piece = plan_audio(tree, crossfade_curve=key.curve, reader=reader, sample_rate=rate)
+        if piece is None or piece.size == 0:
+            return None
+        first = max(0, math.floor(start_sec * JUMP_SAMPLE_RATE) - _WINDOW_SLACK)
+        last = math.ceil(end_sec * JUMP_SAMPLE_RATE) + _WINDOW_SLACK
+        found = resampled_window(piece, rate, JUMP_SAMPLE_RATE, first, last)
+    if found is None or found[2] == 0:
+        return None
+    window, first, total = found
+    cache = WindowedTrackRmsCache(
+        window,
+        first_index=first,
+        total_size=total,
+        sample_rate=JUMP_SAMPLE_RATE,
+        profile=profile,
+    )
+    if settings.flag(VERIFY_ENV):
+        _verify_window(cache, _entry(project, track_id, defaults, locked=not private))
+    return cache
+
+
+def _verify_window(window: WindowedTrackRmsCache, whole: _Entry | Declined) -> None:
+    """Raise AssertionError unless the window is the whole-track evidence over its range."""
+    if isinstance(whole, Declined):
+        raise AssertionError("a window was built for a track whose evidence is the render")
+    samples = whole.samples[JUMP_SAMPLE_RATE]
+    first, last = window.coverage
+    if samples.size != window.total_size or not np.array_equal(
+        samples[first:last].view(np.uint32), window.held.view(np.uint32)
+    ):
+        raise AssertionError("a window differs from the whole-track evidence over its range")
 
 
 def _build_or_error(store: _Store, key: EvidenceKey, tree: Audio) -> _Entry | Declined | Exception:

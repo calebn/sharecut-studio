@@ -24,6 +24,8 @@ from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.cut_placement import CutScopeHold, pending_pad_source_spans
 from podcast_mcp.edits.cut_proof import (
     CarriedTimelineRms,
+    RebuiltTimelineRms,
+    TimelineRms,
     shared_source_audio_caches,
     shared_timeline_rms_caches,
 )
@@ -73,6 +75,7 @@ from podcast_mcp.edits.timeline_ops import (
     room_tone_pad,
     split_clips_at,
 )
+from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.engines.clips_ops import (
     abutting_pairs,
     clip_split_origin,
@@ -88,6 +91,7 @@ from podcast_mcp.engines.session_timeline import (
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.engines.transcript_sync import rebuild_combined
+from podcast_mcp.engines.windowed_rms import WindowMiss
 from podcast_mcp.models import (
     MUTE_FADE_MS,
     Clip,
@@ -524,7 +528,7 @@ def _apply_source_remove(
     record_log: bool = False,
     override_peer_holds: set[str] | None = None,
     measured: cut_safety.MeasuredSources | None = None,
-    timeline: CarriedTimelineRms | None = None,
+    timeline: TimelineRms | None = None,
 ) -> _Decided:
     """Assess and write an ordinary source removal against current playback.
 
@@ -583,6 +587,44 @@ def _apply_source_remove(
     return cast(_Decided, decided)  # only a reused check can return None
 
 
+def _observe(
+    project: EpisodeProject,
+    edit: EditDecision,
+    *,
+    defaults: EffectiveConfig,
+    manual: bool,
+    batch: Sequence[SourceExtent],
+    audio_caches: dict[str, TrackAudioCache],
+    timeline: TimelineRms | None,
+    placed: tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]],
+) -> cut_safety.SourceCutObservations:
+    """Observe the cut on the timeline caches ``timeline`` gives it, else on the project's own.
+
+    A check on a windowed cache that reads outside its window (a word longer than the margin)
+    is made again on caches built whole, never answered from a hole (#2357).
+    """
+
+    def observe(timeline_caches: TrackRmsCacheSet) -> cut_safety.SourceCutObservations:
+        return cut_safety.observe_source_cut(
+            project,
+            edit,
+            defaults=defaults,
+            manual=manual,
+            batch=batch,
+            audio_caches=audio_caches,
+            timeline_caches=timeline_caches,
+            placed=placed,
+        )
+
+    if timeline is None:
+        return observe(shared_timeline_rms_caches(project, defaults=defaults))
+    reach = verdict_cache.check_reach_sec(project, edit, placed[1], defaults)
+    try:
+        return observe(timeline.caches_for(project, placed[1], reach=reach, defaults=defaults))
+    except WindowMiss:
+        return observe(timeline.whole(project, defaults=defaults))
+
+
 def precompute_verdicts(
     project: EpisodeProject,
     ids: Iterable[str],
@@ -615,7 +657,7 @@ def precompute_verdicts(
     batch = _source_extents(removes)
     working = _cut_copy(project)
     measured: cut_safety.MeasuredSources = {}
-    timeline = CarriedTimelineRms()
+    timeline = CarriedTimelineRms(working)
     checked = 0
     # Its own scope, never the caller's: what a check parks there (a consumed room-tone bed,
     # pad origins) belongs to one batch and must not leak from a trial into the real one.
@@ -654,7 +696,7 @@ def _check_source_remove(
     record_log: bool,
     override_peer_holds: set[str] | None,
     measured: cut_safety.MeasuredSources | None,
-    timeline: CarriedTimelineRms | None,
+    timeline: TimelineRms | None,
     placed: tuple[CutScopeHold | None, tuple[TimelineSec, TimelineSec]],
     key: str | None,
     cached: verdict_cache.CachedVerdict | None,
@@ -678,23 +720,14 @@ def _check_source_remove(
         observation = (
             cached.observation
             if cached is not None
-            else cut_safety.observe_source_cut(
+            else _observe(
                 project,
                 edit,
                 defaults=defaults,
                 manual=manual,
                 batch=batch,
                 audio_caches=caches,
-                timeline_caches=(
-                    timeline.caches_for(
-                        project,
-                        placed[1],
-                        reach=verdict_cache.check_reach_sec(project, edit, placed[1], defaults),
-                        defaults=defaults,
-                    )
-                    if timeline is not None
-                    else shared_timeline_rms_caches(project, defaults=defaults)
-                ),
+                timeline=timeline,
                 placed=placed,
             )
         )
@@ -1167,7 +1200,7 @@ def approve_edits(
         newly_held: set[str] = set()
         # Cleared after each apply: the applied candidate is then written in place.
         measured: cut_safety.MeasuredSources = {}
-        timeline = CarriedTimelineRms()
+        timeline = CarriedTimelineRms(project)
         for edit in sorted(survivors, key=lambda e: e.start, reverse=True):
             previous = project
             applied = _apply_source_remove(
@@ -1304,6 +1337,7 @@ def _apply_auto_removes(
     """
     batch = _source_extents(removes)
     held: set[str] = set()
+    timeline = RebuiltTimelineRms(project)
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
         previous = project
         applied = _apply_source_remove(
@@ -1312,6 +1346,7 @@ def _apply_auto_removes(
             defaults=defaults,
             batch=tuple(batch.values()),
             record_log=False,
+            timeline=timeline,
         )
         if isinstance(applied, CutSpeechConfirmation | CutScopeHold):
             held.add(edit.id)
