@@ -13,6 +13,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from podcast_mcp.edits.decisions import UNSURE_WORD_REASON, HeldEdit
+from podcast_mcp.edits.source_removals import cut_label
 from podcast_mcp.engines.session_timeline import word_source_span
 from podcast_mcp.models import EditDecision, EditDecisionType, EpisodeProject, TranscriptWord
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
@@ -91,3 +93,23 @@ def unsure_words_by_edit(
                 }
             )
     return found
+
+
+def hold_unsure_cuts(
+    project: EpisodeProject, ids: list[str], threshold: float, held: list[HeldEdit]
+) -> list[str]:
+    """``ids`` without the pending cuts that cover an unsure word; those are added to ``held``.
+
+    Decided on ``project`` as it is now, never from a client's list: a stale client that
+    thinks a cut is clean still has it held. Held cuts keep their order in ``ids``.
+    """
+    wanted = set(ids)
+    pending = [e for e in project.edit_decisions if e.id in wanted and not e.applied]
+    found = unsure_words_by_edit(project, pending, threshold)
+    unsure = {e.id: e for e in pending if found[e.id]}
+    held.extend(
+        HeldEdit(i, cut_label(project, unsure[i]), UNSURE_WORD_REASON)
+        for i in dict.fromkeys(ids)
+        if i in unsure
+    )
+    return [i for i in ids if i not in unsure]

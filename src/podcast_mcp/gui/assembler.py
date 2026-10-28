@@ -223,7 +223,7 @@ def build_project_view(
         clips=clips,
         chapters=chapters,
         pending_edits=map_pending_edits_to_timeline(
-            project, pending, unsure_words=edit.unsure_words_for(pending)
+            project, pending, unsure_words=TranscriptService(ws).unsure_words_for(pending)
         ),
         edit_boundaries=map_edit_boundaries(project),
         applied_edits=map_applied_edits_to_timeline(project, applied),
