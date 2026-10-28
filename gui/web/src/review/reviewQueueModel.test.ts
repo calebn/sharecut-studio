@@ -6,6 +6,7 @@ import {
   filterCounts,
   filterItems,
   groupQueue,
+  KIND_ORDER,
   progressLine,
   type ReviewItem,
   resultText,
@@ -17,6 +18,43 @@ const item = (over: Partial<ReviewItem>): ReviewItem => ({
   at: 0,
   savedSeconds: 0.5,
   ...over,
+});
+
+describe("KIND_ORDER", () => {
+  it("is the queue order of every kind", () => {
+    expect(KIND_ORDER).toEqual([
+      "check",
+      "unsure-word",
+      "comment",
+      "filler",
+      "pause",
+      "repeat",
+      "false-start",
+      "sound",
+      "suggestion",
+    ]);
+  });
+});
+
+describe("bulk eligibility", () => {
+  const bulkIds = (items: ReviewItem[]) =>
+    groupQueue(items)[0]?.bulk?.ids ?? [];
+
+  it("leaves out one-by-one and leave-alone items", () => {
+    const ids = bulkIds([
+      item({ id: "a" }),
+      item({ id: "b", oneByOne: true }),
+      item({ id: "c", suggested: "leave" }),
+      item({ id: "d", suggested: "cut" }),
+    ]);
+    expect(ids).toEqual(["a", "d"]);
+  });
+
+  it("gives other suggestions a group but no group verb", () => {
+    const group = groupQueue([item({ id: "g", kind: "suggestion" })])[0];
+    expect(group?.label).toBe("Other suggestions");
+    expect(group?.bulk).toBeNull();
+  });
 });
 
 describe("groupQueue", () => {
