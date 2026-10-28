@@ -169,7 +169,17 @@ export async function reachFailures(
                   })(),
                 ]
                   .slice(0, 6)
-                  .join(">")}`,
+                  .join(">")} kids=${[
+                  ...(pl?.querySelectorAll(
+                    ".sys-player-right, .sys-player-right *",
+                  ) ?? []),
+                ]
+                  .filter((k) => !(k instanceof SVGElement))
+                  .map((k) => {
+                    const r = k.getBoundingClientRect();
+                    return `${(k.className?.toString?.() || k.tagName).slice(0, 18)}[${(k.getAttribute("aria-label") || k.textContent || "").slice(0, 14)}]@${Math.round(r.left)},${Math.round(r.width)}`;
+                  })
+                  .join(";")}`,
             });
           }
         }
