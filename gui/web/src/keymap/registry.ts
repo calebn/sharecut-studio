@@ -465,8 +465,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     when: "recordStageActive",
     notes:
       "M: live marker on the Record stage; on any other stage, M still mutes",
-    collision:
-      "M drops a marker only on the Record stage; otherwise M mutes",
+    collision: "M drops a marker only on the Record stage; otherwise M mutes",
   },
   {
     id: "track.soloToggle",
