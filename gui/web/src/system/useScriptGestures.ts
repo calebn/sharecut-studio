@@ -49,6 +49,9 @@ type Press = {
   scrolled: boolean;
 };
 
+/** How long after a release the click it causes can still arrive. */
+const CLICK_AFTER_RELEASE_MS = 100;
+
 const insideGrip = (target: EventTarget | null) =>
   target instanceof Element && target.closest(".sys-handle") !== null;
 
@@ -103,6 +106,45 @@ export function useScriptGestures(
       ctl.current.change(p.anchor, p.head, p.gesture);
     };
 
+    // Only the click that belongs to this gesture's own release is eaten:
+    // one that comes later, with no pointerdown of its own (assistive
+    // technology, switch or voice control), is a real click.
+    let swallowTimer: ReturnType<typeof setTimeout> | null = null;
+    let swallowWatch: AbortController | null = null;
+    const forgetSwallow = () => {
+      if (swallowTimer) clearTimeout(swallowTimer);
+      swallowTimer = null;
+      swallowWatch?.abort();
+      swallowWatch = null;
+      swallow.current = false;
+    };
+    const armSwallow = (id: number, released: boolean) => {
+      forgetSwallow();
+      swallow.current = true;
+      const soon = () => {
+        swallowTimer = setTimeout(forgetSwallow, CLICK_AFTER_RELEASE_MS);
+      };
+      if (released) {
+        soon();
+        return;
+      }
+      // Ended early (Esc, blur): the click, if any, comes at the real release.
+      swallowWatch = new AbortController();
+      const { signal } = swallowWatch;
+      const onEnd = (event: PointerEvent) => {
+        if (event.pointerId !== id) return;
+        swallowWatch?.abort();
+        swallowWatch = null;
+        if (event.type === "pointercancel") forgetSwallow();
+        else soon();
+      };
+      window.addEventListener("pointerup", onEnd, { capture: true, signal });
+      window.addEventListener("pointercancel", onEnd, {
+        capture: true,
+        signal,
+      });
+    };
+
     const finish = (committed: boolean, at?: { x: number; y: number }) => {
       const p = press;
       if (!p) return;
@@ -113,7 +155,7 @@ export function useScriptGestures(
       }
       release();
       if (!p.selecting) return;
-      swallow.current = true;
+      armSwallow(p.id, committed && at !== undefined);
       ctl.current.end(
         p.anchor,
         p.head < 0 ? p.anchor : p.head,
@@ -165,7 +207,7 @@ export function useScriptGestures(
     const onDown = (event: PointerEvent) => {
       const kind = pressKind(event.pointerType);
       lastKind.current = kind;
-      swallow.current = false;
+      forgetSwallow();
       if (insideGrip(event.target)) return;
       if (press) {
         // A second finger is a pinch or a mistake: the earlier selection stays.
@@ -254,6 +296,9 @@ export function useScriptGestures(
       if (press && event.pointerId === press.id) finish(false);
     };
     const onLost = (event: PointerEvent) => {
+      // lostpointercapture bubbles: the word losing Chrome's implicit touch
+      // capture to the body is the hand-over, not a lost gesture.
+      if (event.target !== body) return;
       if (press?.selecting && event.pointerId === press.id) finish(false);
     };
     const holdScroll = (event: TouchEvent) => {
@@ -289,6 +334,7 @@ export function useScriptGestures(
       body.removeEventListener("dragstart", holdText);
       finish(false);
       release();
+      forgetSwallow();
     };
   }, [bodyRef, active]);
 
