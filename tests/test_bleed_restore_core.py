@@ -528,8 +528,9 @@ def test_invalid_restore_clipboard_refuses_without_mutating_project(tmp_path: Pa
     assert project.model_dump_json() == before
 
 
+# delay is the clip edge on the track grid: round(0.10049 * 48000) = 4824 (not 100 ms = 4800).
 @pytest.mark.parametrize(
-    "window, source_first, delay", [(None, 504, 4800), ((0.13749, 0.73749), 2280, 0)]
+    "window, source_first, delay", [(None, 504, 4824), ((0.13749, 0.73749), 2280, 0)]
 )
 def test_fractional_restore_uses_prepared_sample_clock(
     tmp_path: Path,
@@ -890,7 +891,8 @@ def test_fractional_restore_at_44100_hz_uses_native_sample_origin(
     baseline = _render(project, tmp_path / "baseline.wav", None)
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.2, 0.6)])
     restored = _render(project, tmp_path / "restored.wav", None)
-    first, last = 4410 + 8820 - 463, 4410 + 26460 - 463
+    # Clip edge round(0.10049 * 44100) = 4432; the first played source sample is 463.
+    first, last = 4432 + 8820 - 463, 4432 + 26460 - 463
     positions = np.arange(last - first)
     h = np.minimum(1, np.minimum(positions / 882, (last - first - 1 - positions) / 882))
     expected = baseline.copy()
