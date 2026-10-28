@@ -48,9 +48,6 @@ vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../ingest/ingestFiles")>()),
   pickAudioFiles: vi.fn(async () => []),
 }));
-vi.mock("../../panels/ImpactPanel", () => ({
-  ImpactPanel: () => <div>impact panel</div>,
-}));
 vi.mock("../../panels/TightenPanel", () => ({
   TightenPanel: () => <div>tighten panel</div>,
 }));
@@ -305,7 +302,7 @@ const reviewSection =
       screen.getByRole("tablist", { name: "Review sections" }),
     );
     await user.click(tabs.getByRole("tab", { name: tab }));
-    expect(screen.getByText(panel)).toBeInTheDocument();
+    expect(screen.getAllByText(panel)[0]).toBeInTheDocument();
   };
 
 const plusMenuRow =
@@ -446,7 +443,7 @@ const REMOVED_SURFACES: Entry[] = [
   component("More hub", "Comments", [
     reviewSection(/Comments/, "comments panel"),
   ]),
-  component("More hub", "Impact", [reviewSection(/Queue/, "impact panel")]),
+  component("More hub", "Queue", [reviewSection(/Queue/, "Nothing to decide")]),
   component("More hub", "Tighten", [reviewSection(/Tighten/, "tighten panel")]),
   component("More hub", "Pipeline", [pipeline]),
   entry("More hub", "History", "edit.history", [historySheet]),
