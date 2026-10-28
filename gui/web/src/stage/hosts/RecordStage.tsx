@@ -32,6 +32,7 @@ import {
   RecordStageView,
 } from "./RecordStageView";
 import {
+  firstClipped,
   startDisabledReason,
   takeIndexOf,
   trayTakes,
@@ -115,10 +116,12 @@ function RecordStageBody({
   const inputs = takeInputs(snapshot, room.hostSegments, room.takeClipping);
   const hearTake = (id: string) => {
     const takeIndex = takeIndexOf(id);
-    const clipping = room.takeClipping;
-    const clipped =
-      clipping?.takeIndex === takeIndex ? clipping.regions[0] : undefined;
-    const jump = room.jumpFor(clipped ?? TAKE_START, takeIndex);
+    const first = firstClipped(inputs, takeIndex);
+    const jump = room.jumpFor(
+      first?.region ?? TAKE_START,
+      takeIndex,
+      first?.participantId,
+    );
     if (jump) {
       runPointerCommand("stage.edit");
       jump();

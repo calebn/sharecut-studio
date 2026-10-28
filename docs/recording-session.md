@@ -770,12 +770,29 @@ meter. Producers have no meter and no clipping alert.
 person's own tile shows a clipping badge and the room shows the alert "You're
 clipping. Move back a little." (guest and host; `useTakeClipping`). The Join
 sheet shows a clip indicator while the guest checks their mic. On the host
-Record stage a landed take's row in the Takes tray jumps to its first clipped
-span (source -> timeline via the landed source id
-`rec-{session}-{take}-p_host-{segment}`), disabled until the take lands. The
+Record stage a landed take's row in the Takes tray jumps (Hear) to the earliest clipped span of anyone in the take (source -> timeline via the landed source id
+`rec-{session}-{take}-{participant}-{segment}`), disabled until the take lands. The
 timeline shows a `clipping` marker-lane row (one flag per region per track) and a
-red tint on the affected span of each clip. There is no post-take clipping
-report listing every range; the guest room has no such list.
+red tint on the affected span of each clip.
+
+**Post-take summary.** After Stop, a take row in the Takes tray names each person
+who clipped and how many times ("Jon clipped 3 times"), and the expanded row lists
+the times per person ("Saved · Clipped 3 times · 02:14, 05:40, 09:02", plus "later
+clipping not recorded" when a segment hit the cap). A clean take says nothing about
+clipping. Nothing is held in component state, so it survives a reload during
+Saving:
+
+- *Host:* every person's spans come from the upload status rows the host already
+  polls (`clipping_regions`, `join_offset_ms`, `clipping_truncated` on each segment
+  row, shifted into take time), so each guest's clipping appears when their final
+  part is acknowledged and the host's own is read from its OPFS keeper metadata
+  at once. Until a guest's segment is acknowledged the host does not know whether
+  that guest clipped. Nothing is added to the record wire.
+- *Guest:* only their own clipping, read from their OPFS keeper metadata for every
+  finished take (`useTakeClipping` for the current take, `usePastTakeClipping` for
+  earlier ones). The guest room gets a Takes tab in its Notes rail only once one of
+  their takes clipped; it lists the clipped takes with their own line and no Hear.
+  A producer has none.
 
 **Limitations.** Recovered crash segments, older clients and consolidated
 sources carry no regions. A truncated clip with no

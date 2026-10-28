@@ -56,6 +56,14 @@ describe("TakesTray", () => {
     expect(screen.queryByText("Saved · Clipped 1 time · 02:14")).toBeNull();
   });
 
+  it("prints who clipped on the take row without expanding it", () => {
+    render(<TakesTray takes={TAKES} />);
+    expect(
+      screen.getByText("10:00 · 2 people · Jon clipped 1 time"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("5:00 · 2 people")).toBeInTheDocument();
+  });
+
   it("starts with the named takes expanded", () => {
     render(<TakesTray takes={TAKES} defaultExpanded={["t2"]} />);
     expect(

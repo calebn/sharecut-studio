@@ -1038,6 +1038,157 @@ describe("Record stage takes", () => {
     );
   });
 
+  describe("post-take clipping summary", () => {
+    const takes = [
+      {
+        take_index: 0,
+        session_start_wall_ms: 1000,
+        session_start_iso: "t",
+        stopped_wall_ms: 61_000,
+        pauses: [],
+        consented_participant_ids: ["p_host", "p_g"],
+      },
+      {
+        take_index: 1,
+        session_start_wall_ms: 100_000,
+        session_start_iso: "t",
+        stopped_wall_ms: 130_000,
+        pauses: [],
+        consented_participant_ids: ["p_host", "p_g"],
+      },
+    ];
+    const segment = (over: Record<string, unknown>) => ({
+      take_index: 0,
+      participant_id: "p_g",
+      segment_index: 0,
+      acked_parts: [0],
+      file_ack: true,
+      landed: true,
+      ...over,
+    });
+    const openTakes = async () => {
+      await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    };
+
+    it("names every clipped person on the take row, from the uploaded rows alone", async () => {
+      uploadStatus.mockResolvedValue({
+        segments: [
+          segment({
+            participant_id: "p_host",
+            clipping_regions: [[4000, 5000]],
+          }),
+          segment({
+            clipping_regions: [
+              [65_000, 66_000],
+              [130_000, 131_000],
+            ],
+            join_offset_ms: 500,
+          }),
+          segment({ take_index: 1 }),
+          segment({ take_index: 1, participant_id: "p_host" }),
+        ],
+      });
+      act(() => {
+        setRoom({
+          state: "stopped",
+          take_index: 1,
+          participants: [hostPerson(), avaGuest()],
+          takes,
+        });
+      });
+      mount();
+      await openTakes();
+      expect(
+        await screen.findByText(
+          "1:00 · 2 people · Host clipped 1 time, Ava clipped 2 times",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("0:30 · 2 people")).toBeInTheDocument();
+      await userEvent.click(
+        screen.getByRole("button", { name: /^Take 1/, expanded: false }),
+      );
+      expect(
+        screen.getByText("Saved · Clipped 2 times · 1:05, 2:10"),
+      ).toBeInTheDocument();
+    });
+
+    it("hears the earliest clipped span of anyone, here the guest's landed clip", async () => {
+      const project = minimalProject();
+      useDawStore.getState().hydrate("/tmp/p.json", {
+        ...project,
+        clips: {
+          ...project.clips,
+          tracks: {
+            t2: [
+              {
+                id: "c8",
+                track_id: "t2",
+                source_start: 0,
+                source_end: 30,
+                timeline_start: 200,
+                timeline_end: 230,
+                fade_in_ms: 0,
+                fade_out_ms: 0,
+                join_in_mode: "fade",
+                source_id: "rec-room1-0-p_g-0",
+                source_duration_sec: null,
+                recording_key: null,
+              },
+            ],
+          },
+        },
+      });
+      uploadStatus.mockResolvedValue({
+        segments: [
+          segment({
+            participant_id: "p_host",
+            clipping_regions: [[9000, 9500]],
+          }),
+          segment({ clipping_regions: [[3000, 3500]] }),
+        ],
+      });
+      act(() => {
+        setRoom({
+          state: "stopped",
+          take_index: 0,
+          participants: [hostPerson(), avaGuest()],
+          takes: takes.slice(0, 1),
+        });
+      });
+      mount();
+      await openTakes();
+      await userEvent.click(
+        await screen.findByRole("button", { name: /Hear/ }),
+      );
+      expect(exec).toHaveBeenCalledWith(
+        "transport.seek",
+        { sec: 203 },
+        { skipWhen: true },
+      );
+    });
+
+    it("lists nothing for a take nobody clipped", async () => {
+      uploadStatus.mockResolvedValue({
+        segments: [
+          segment({ participant_id: "p_host" }),
+          segment({ clipping_regions: null }),
+        ],
+      });
+      act(() => {
+        setRoom({
+          state: "stopped",
+          take_index: 0,
+          participants: [hostPerson(), avaGuest()],
+          takes: takes.slice(0, 1),
+        });
+      });
+      mount();
+      await openTakes();
+      expect(await screen.findByText("1:00 · 2 people")).toBeInTheDocument();
+      expect(screen.queryByText(/clipped/)).toBeNull();
+    });
+  });
+
   it("retries a failed past take through the project-wide land command", async () => {
     uploadStatus.mockResolvedValue({
       segments: [

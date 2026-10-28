@@ -5,6 +5,7 @@ import { urlOf } from "../test/urlOf";
 import {
   createOpfsSink,
   keeperMetaPath,
+  keeperWavPath,
   MemorySink,
   OpfsUnavailableError,
   parseKeeperMeta,
@@ -274,6 +275,48 @@ describe("useGuestRoom", () => {
     );
     await waitFor(() => expect(result.current.view).toBe("room"));
     expect(sockets[0]?.commands("Consent")).toHaveLength(1);
+  });
+
+  it("rebuilds every finished take's own clipping from the keeper after a reload", async () => {
+    stubFetch(guestBootstrap);
+    const sink = new MemorySink();
+    for (const takeIndex of [0, 1]) {
+      const ids = { sessionId: "room1", participantId: "p_g", takeIndex };
+      const wav = keeperWavPath({ ...ids, segmentIndex: 0 });
+      await sink.write(wav, new Uint8Array(44));
+      await sink.write(
+        keeperMetaPath(wav),
+        new TextEncoder().encode(
+          JSON.stringify({
+            ...ids,
+            segmentIndex: 0,
+            sampleRate: 48_000,
+            joinOffsetMs: 0,
+            samplesWritten: 4,
+            complete: true,
+            clippingRegions: [{ startMs: 1000 * (takeIndex + 1), endMs: 3000 }],
+          }),
+        ),
+      );
+    }
+    vi.mocked(createOpfsSink).mockResolvedValue(sink);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() =>
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          state: "stopped",
+          take_index: 1,
+          participants: [{ ...guest, consented: true }],
+        }),
+      }),
+    );
+    await waitFor(() =>
+      expect(Object.keys(result.current.takeClippings)).toEqual(["0", "1"]),
+    );
+    expect(result.current.takeClippings[0]?.regions[0]?.startMs).toBe(1000);
+    expect(result.current.takeClippings[1]?.regions[0]?.startMs).toBe(2000);
   });
 
   it("routes a declined guest while the room is recording", async () => {

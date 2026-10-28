@@ -4,6 +4,7 @@ import {
   guestCovers,
   guestRoomAlerts,
   guestRoomPhase,
+  guestTakes,
   guestViewerWidth,
   isNotFound,
   joinHere,
@@ -487,5 +488,107 @@ describe("guestCovers", () => {
     cover?.secondary?.onClick();
     expect(download).toHaveBeenCalledOnce();
     expect(recover).toHaveBeenCalledOnce();
+  });
+});
+
+describe("guestTakes", () => {
+  const take = (index: number, ids: string[]) => ({
+    take_index: index,
+    session_start_wall_ms: index * 100_000,
+    session_start_iso: "t",
+    stopped_wall_ms: index * 100_000 + 60_000,
+    pauses: [
+      {
+        seq: 0,
+        pause_wall_ms: index * 100_000 + 10_000,
+        resume_wall_ms: index * 100_000 + 20_000,
+      },
+    ],
+    consented_participant_ids: ids,
+  });
+  const snapshot = (state: "stopped" | "recording" = "stopped") =>
+    recordSnapshot({
+      state,
+      take_index: 2,
+      participants: [host, me],
+      takes: [
+        take(0, ["p_host", "p_g"]),
+        take(1, ["p_host", "p_g"]),
+        take(2, ["p_host", "p_g"]),
+      ],
+    });
+  const clip = (takeIndex: number, ...startMs: number[]) => ({
+    takeIndex,
+    known: true,
+    regions: startMs.map((ms) => ({
+      segmentIndex: 0,
+      startMs: ms,
+      endMs: ms + 500,
+      segmentStartMs: ms,
+    })),
+  });
+  const saved = (take: number) => ({
+    take,
+    segment: 0,
+    state: "saved" as const,
+    chunks: null,
+    landFailed: false,
+  });
+
+  it("lists only the takes where this guest clipped, with only their own line", () => {
+    const takes = guestTakes(snapshot(), me, [saved(0), saved(1)], {
+      0: clip(0, 134_000, 340_000),
+      1: clip(1),
+      2: clip(2, 5000),
+    });
+    expect(takes.map((t) => [t.number, t.lengthSec])).toEqual([
+      [1, 50],
+      [3, 50],
+    ]);
+    expect(takes[0]?.people).toEqual([
+      {
+        person: { name: "Bo", colorIndex: 1 },
+        line: { kind: "saved" },
+        clipTimes: ["2:14", "5:40"],
+        clipTruncated: undefined,
+      },
+    ]);
+    expect(takes[1]?.people[0]?.line).toEqual({
+      kind: "saving",
+      done: 0,
+      total: 1,
+    });
+  });
+
+  it("is empty for a clean room, a producer, a guest who sat the take out or an open take", () => {
+    expect(guestTakes(snapshot(), me, [], { 0: clip(0) })).toEqual([]);
+    expect(
+      guestTakes(snapshot(), { ...me, consented: null }, [], { 0: clip(0, 1) }),
+    ).toEqual([]);
+    expect(
+      guestTakes(snapshot(), { ...me, participant_id: "p_o" }, [], {
+        0: clip(0, 1),
+      }),
+    ).toEqual([]);
+    expect(
+      guestTakes(snapshot("recording"), me, [], { 2: clip(2, 1) }),
+    ).toEqual([]);
+    expect(guestTakes(null, me, [], { 0: clip(0, 1) })).toEqual([]);
+  });
+
+  it("shows saving progress from the chunks until every segment is saved", () => {
+    const [row] = guestTakes(
+      snapshot(),
+      me,
+      [
+        { ...saved(0), state: "saving", chunks: { acked: 1, total: 4 } },
+        { ...saved(0), segment: 1, state: "saved" },
+      ],
+      { 0: { ...clip(0, 1000), truncated: true } },
+    );
+    expect(row?.people[0]).toMatchObject({
+      line: { kind: "saving", done: 1, total: 4 },
+      clipTruncated: true,
+    });
   });
 });

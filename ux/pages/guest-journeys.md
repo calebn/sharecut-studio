@@ -205,6 +205,7 @@ flowchart TD
   rec --> clip[Mic clips: tile badge + alert]
   clip --> rec
   rec --> stop[Host Stop]
+  stop --> clipped[Takes tab: your clipped takes, if any]
   stop --> saving[Pill: Saving, or Saving stopped]
   saving --> recovery[Resume saving or Save a copy]
   recovery --> saving
@@ -260,7 +261,10 @@ flowchart TD
    note (other guests in the record room never see it; after land it is an
    ordinary timeline comment on the host). The recorder notes where your mic
    clipped (sample peak) with your full-quality recording, so the flags can
-   survive a reload. While your full-quality recording is being written, a refresh
+   survive a reload. After Stop, if your mic clipped in a take, the room's Notes
+   rail gains a **Takes** tab listing that take with "Ava clipped 2 times" and,
+   expanded, the times; a clean take adds nothing, and you never see anyone
+   else's clipping. While your full-quality recording is being written, a refresh
    or navigation asks for the browser's native leave confirmation; dismissing
    it keeps the guest in the live take. Browsers require prior page activation
    before they may show that prompt, and they control its wording. PAUSED does

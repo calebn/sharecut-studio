@@ -41,6 +41,7 @@ type Overrides = {
   keeper?: Partial<GuestRoom["keeper"]>;
   upload?: Partial<RecordUploadProgress>;
   takeClipping?: GuestRoom["takeClipping"];
+  takeClippings?: GuestRoom["takeClippings"];
   keeperActions?: Partial<GuestRoom["keeperActions"]>;
 };
 
@@ -96,6 +97,7 @@ function fakeRoom(over: Overrides = {}) {
     monitor: { hearing: false, remoteCount: 0, error: null, levels: {} },
     upload: { ...idleUpload, ...over.upload },
     takeClipping: over.takeClipping ?? null,
+    takeClippings: over.takeClippings ?? {},
     keeperActions: {
       busy: false,
       error: null,
@@ -362,6 +364,114 @@ describe("GuestRoomApp in the room", () => {
     });
     rerender(<GuestRoomApp token="t" />);
     expect(container.querySelector(".sys-room-clip")).toBeNull();
+  });
+
+  describe("post-take clipping summary", () => {
+    const takeOne = {
+      take_index: 0,
+      session_start_wall_ms: 1000,
+      session_start_iso: "t",
+      stopped_wall_ms: 61_000,
+      pauses: [],
+      consented_participant_ids: ["p_g"],
+    };
+    const clipped = {
+      takeIndex: 0,
+      known: true,
+      regions: [
+        {
+          segmentIndex: 0,
+          startMs: 65_000,
+          endMs: 66_000,
+          segmentStartMs: 65_000,
+        },
+        {
+          segmentIndex: 0,
+          startMs: 130_000,
+          endMs: 131_000,
+          segmentStartMs: 130_000,
+        },
+      ],
+    };
+    const stoppedTake = { ...stopped, takes: [takeOne] };
+    const openTakes = async () => {
+      await userEvent.click(screen.getByRole("button", { name: /^Notes/ }));
+      await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    };
+
+    it("names the guest and how many times they clipped, without a jump action", async () => {
+      fakeRoom({
+        snapshot: stoppedTake,
+        takeClipping: clipped,
+        takeClippings: { 0: clipped },
+        upload: {
+          fileAck: true,
+          total: 1,
+          acked: 1,
+          segments: [
+            {
+              take: 0,
+              segment: 0,
+              state: "saved",
+              chunks: null,
+              landFailed: false,
+            },
+          ],
+        },
+      });
+      const { container } = render(<GuestRoomApp token="t" />);
+      await openTakes();
+      expect(
+        screen.getByText("1:00 · 1 person · Ava clipped 2 times"),
+      ).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /Take 1/ }));
+      expect(
+        screen.getByText("Saved · Clipped 2 times · 1:05, 2:10"),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Hear/ })).toBeNull();
+      await expectNoA11yViolations(container);
+    });
+
+    it("shows nothing for a clean take", () => {
+      fakeRoom({
+        snapshot: stoppedTake,
+        takeClipping: { ...clipped, regions: [] },
+        takeClippings: { 0: { ...clipped, regions: [] } },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByRole("tab", { name: "Takes" })).toBeNull();
+      expect(screen.queryByText(/clipped/)).toBeNull();
+    });
+
+    it("rebuilds from the earlier takes' stored clipping after a reload", async () => {
+      fakeRoom({
+        snapshot: {
+          ...stopped,
+          state: "recording",
+          take_index: 1,
+          takes: [
+            takeOne,
+            { ...takeOne, take_index: 1, stopped_wall_ms: null },
+          ],
+        },
+        takeClippings: { 0: clipped },
+      });
+      render(<GuestRoomApp token="t" />);
+      await openTakes();
+      expect(screen.getByText(/Ava clipped 2 times/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Take 2/ })).toBeNull();
+    });
+
+    it("gives a producer no clipping summary", () => {
+      fakeRoom({
+        producer: true,
+        me: { ...me, role: "producer" },
+        snapshot: stoppedTake,
+        takeClippings: { 0: clipped },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByRole("tab", { name: "Takes" })).toBeNull();
+    });
   });
 
   it("speaks the keeper line and what a new comment says", () => {

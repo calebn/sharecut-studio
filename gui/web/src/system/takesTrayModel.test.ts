@@ -41,6 +41,17 @@ describe("takeLine", () => {
     ).toBe("Saved · Clipped 1 time · 02:14");
   });
 
+  it("says when later clipping went unrecorded", () => {
+    expect(
+      takeLine({
+        person: JON,
+        line: { kind: "saved" },
+        clipTimes: ["02:14"],
+        clipTruncated: true,
+      }).detail,
+    ).toBe("Saved · Clipped 1 time · 02:14 · later clipping not recorded");
+  });
+
   it("shows saving as a percent with a progress value", () => {
     expect(
       takeLine({ person: JON, line: { kind: "saving", done: 2, total: 5 } }),
@@ -85,6 +96,39 @@ describe("takeRow", () => {
       state: "done",
       hear: true,
     });
+  });
+
+  it("names each person who clipped on the row, and says nothing for a clean take", () => {
+    expect(
+      takeRow(
+        take({
+          people: [
+            { person: MAYA, line: { kind: "saved" }, clipTimes: ["00:05"] },
+            {
+              person: JON,
+              line: { kind: "saved" },
+              clipTimes: ["02:14", "05:40", "09:02"],
+            },
+          ],
+        }),
+      ).detail,
+    ).toBe(
+      "14:32 · 2 people · Maya Okafor clipped 1 time, Jon clipped 3 times",
+    );
+    expect(takeRow(take()).detail).toBe("14:32 · 2 people");
+  });
+
+  it("keeps the live take's row free of the clipping summary", () => {
+    expect(
+      takeRow(
+        take({
+          live: true,
+          people: [
+            { person: JON, line: { kind: "saved" }, clipTimes: ["00:05"] },
+          ],
+        }),
+      ).detail,
+    ).toBe("Recording · 14:32 · 1 person");
   });
 
   it("is running with the mean progress while anyone is saving", () => {

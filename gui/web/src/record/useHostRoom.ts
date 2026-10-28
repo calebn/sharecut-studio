@@ -20,6 +20,7 @@ import {
   type MicPermissionStatus,
   micGrantFailed,
 } from "./micPermission";
+import { HOST_PARTICIPANT_ID } from "./roomPeople";
 import {
   captureAttention,
   hostReconnectPauseCopyFromSnapshot,
@@ -264,6 +265,7 @@ export function useHostRoom(
   const jumpFor = (
     region: TakeClipRegion,
     takeIndex?: number,
+    participantId = HOST_PARTICIPANT_ID,
   ): (() => void) | null => {
     if (!snapshot) {
       return null;
@@ -274,7 +276,7 @@ export function useHostRoom(
           recordSourceId(
             snapshot.session_id,
             takeIndex ?? snapshot.take_index,
-            "p_host",
+            participantId,
             region.segmentIndex,
           ),
           region.segmentStartMs / 1000,

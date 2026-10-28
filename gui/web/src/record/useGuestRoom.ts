@@ -25,7 +25,7 @@ import {
   useRecordSync,
 } from "./useRecordSync";
 import { useRoomToneCapture } from "./useRoomToneCapture";
-import { useTakeClipping } from "./useTakeClipping";
+import { usePastTakeClipping, useTakeClipping } from "./useTakeClipping";
 
 function storageKey(token: string, suffix: string): string {
   return `record:${token}:${suffix}`;
@@ -234,6 +234,19 @@ export function useGuestRoom(
     captureSettled,
     live: keeper.clipping,
   });
+  const pastClipping = usePastTakeClipping({
+    sink,
+    sessionId: snapshot?.session_id ?? null,
+    participantId: me?.participant_id ?? null,
+    beforeTake: snapshot?.take_index ?? 0,
+  });
+  const takeClippings = useMemo(
+    () =>
+      takeClipping
+        ? { ...pastClipping, [takeClipping.takeIndex]: takeClipping }
+        : pastClipping,
+    [pastClipping, takeClipping],
+  );
   const keeperActions = useKeeperRecoveryActions({
     sink,
     sessionId: snapshot?.session_id ?? null,
@@ -315,6 +328,7 @@ export function useGuestRoom(
     upload,
     uploadTransport,
     takeClipping,
+    takeClippings,
     keeperActions,
     roomTone,
     liveComments,

@@ -617,6 +617,13 @@ jsdom visibility checks.
 
 ## Changelog
 
+- 2026-10-28 — The post-take clipping summary returns on the Takes tray
+  (#2554): a take row names who clipped and how many times, the expanded line
+  lists the times and says when later clipping went unrecorded, and a guest's
+  room shows its own clipped takes in a Takes tab. Stories:
+  `Stages/Record/TakesTray` `WithClipping`, `ClippingTruncated`,
+  `GuestOwnClipping`.
+
 - 2026-10-28 — The old guest room surface is deleted (#2297): `RecordApp`,
   `Lobby`, `ConsentGate`, `DeviceCheck`, `Room`, `Declined`, `FullRoom`,
   `AccessEndedView`, `RecordAlert`, the mic notices, `Roster`, `LiveComments`,
