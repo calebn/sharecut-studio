@@ -6,7 +6,7 @@ import type {
 
 export const EXPORT_PATH = "/tmp/ep/episode.project.json";
 
-export const EXPORT_CONFIG = {
+const EXPORT_CONFIG = {
   config: {
     export: {
       wav: true,

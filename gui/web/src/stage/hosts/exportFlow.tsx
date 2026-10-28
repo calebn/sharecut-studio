@@ -38,6 +38,13 @@ function sameSettings(a: ExportSettings | null, b: ExportSettings): boolean {
   return a !== null && JSON.stringify(a) === JSON.stringify(b);
 }
 
+function withEditHead(head: string) {
+  return (request: ExportRequest | null) =>
+    request && request.edits !== undefined
+      ? { ...request, edits: head }
+      : request;
+}
+
 export function ExportFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
   const activityJob = useDawStore((s) => s.activityJob);
@@ -121,10 +128,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
               onStart: (job) => {
                 const history = useDawStore.getState().project?.history;
                 const head = history ? editHeadOf(history) : undefined;
-                if (head !== undefined)
-                  setRequest((r) =>
-                    r && r.edits !== undefined ? { ...r, edits: head } : r,
-                  );
+                if (head !== undefined) setRequest(withEditHead(head));
                 setRun((r) =>
                   r.kind === "running" ? { ...r, jobId: job.id } : r,
                 );
@@ -151,9 +155,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
         const done = ran.value;
         const exportedHead = done.result?.edit_head_id;
         if (typeof exportedHead === "string")
-          setRequest((r) =>
-            r && r.edits !== undefined ? { ...r, edits: exportedHead } : r,
-          );
+          setRequest(withEditHead(exportedHead));
         setRun({
           kind: "done",
           paths: jobResultPaths(done),
@@ -166,9 +168,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
         } else if (err instanceof JobCancelledError) {
           const exportedHead = err.job.result?.edit_head_id;
           if (typeof exportedHead === "string")
-            setRequest((r) =>
-              r && r.edits !== undefined ? { ...r, edits: exportedHead } : r,
-            );
+            setRequest(withEditHead(exportedHead));
           setRun({
             kind: "cancelled",
             paths: jobResultPaths(err.job),
