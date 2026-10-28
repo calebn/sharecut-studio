@@ -1276,6 +1276,17 @@ def test_a_probe_that_cannot_tell_fails_closed(
     assert not isinstance(refusal.value, studio_host_module.StudioNotReachable)
 
 
+LONG_SCOPE_ADDRESS = "fe80::1%" + "a" * 80
+
+
+def test_an_address_that_cannot_be_dialed_fails_closed(project: Path) -> None:
+    announce_studio_host(project, _lan_host(LONG_SCOPE_ADDRESS))
+    with pytest.raises(StudioUnresponsive) as refusal:
+        locate_studio(project)
+    assert not isinstance(refusal.value, studio_host_module.StudioNotReachable)
+    assert str(studio_host_path(project)) in str(refusal.value)
+
+
 def test_a_probe_that_cannot_tell_names_the_file_to_delete(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

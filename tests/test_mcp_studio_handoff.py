@@ -199,6 +199,30 @@ def test_a_probe_that_fails_unexpectedly_never_runs_the_call_here(
     assert server.calls == []
 
 
+def test_an_undialable_announced_address_never_runs_the_call_here(
+    minimal_project: Path,
+) -> None:
+    announce_studio_host(
+        minimal_project,
+        StudioHost(
+            "a1",
+            os.getpid(),
+            "fe80::1%" + "a" * 80,
+            8765,
+            "tok",
+            "0.1.1",
+            hostname=socket.gethostname(),
+        ),
+    )
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("add_chapter_tool", {"project_path": str(minimal_project)})
+    )
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    assert server.calls == []
+
+
 def test_a_wildcard_studio_is_still_found_on_loopback(
     wildcard_studio: Path,
 ) -> None:
