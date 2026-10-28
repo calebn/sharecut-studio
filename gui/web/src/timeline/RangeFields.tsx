@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
-import { selectedTrackIdsOf } from "../state/selection";
+import { useDawStore } from "../state/dawStore";
+import { inspectorOpenFor, selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
@@ -202,7 +203,14 @@ export function RangeFields({
                   selectedTrackIds,
                 );
                 if (next) {
+                  // Adopting from an open Inspector keeps it open on the range.
+                  const held = useDawStore.getState();
+                  const wasOpen = inspectorOpenFor(
+                    held.selection,
+                    held.inspectorKey,
+                  );
                   state.setSelection({ kind: "range", target: next });
+                  if (wasOpen) held.setInspectorOpen(true);
                   state.setRangeScopeTrackIds(null);
                 }
               }}

@@ -57,7 +57,7 @@ for (const terminal of ["loss", "cancel"] as const)
       });
     });
   });
-test("F06 wrapped passage reversal and existing Mute action restores exact clips with Undo", async ({
+test("F06 wrapped passage reversal and the Mute verb on words ignores them and Undo takes it back", async ({
   page,
 }, info) => {
   await runAudit(page, info, false, async (p, c) => {
@@ -95,14 +95,22 @@ test("F06 wrapped passage reversal and existing Mute action restores exact clips
       reversed: r,
       wrapped: b.y !== a.y,
     });
-    const actions = page.getByRole("region", { name: "Range fields" });
+    const actions = page.getByRole("group", {
+      name: /^(Selection|Edit) actions$/,
+    });
     await expect(actions).toBeVisible();
-    await actions.getByRole("button", { name: "Mute", exact: true }).click();
+    await actions.getByRole("button", { name: "More" }).click();
+    await page.getByRole("menuitem", { name: "Mute", exact: true }).click();
     await expect
       .poll(() => c.filter((v) => v.type !== "UndoHistory").length)
       .toBe(1);
-    await expect.poll(() => snapshot(p).clips).not.toEqual(before.clips);
+    // Mute on selected words ignores them (transcript.ignoreWords): the clips
+    // keep their geometry, and Undo takes the one command back.
+    expect(snapshot(p).clips).toEqual(before.clips);
     await page.keyboard.press("ControlOrMeta+z");
-    await expect.poll(() => snapshot(p).clips).toEqual(before.clips);
+    await expect
+      .poll(() => c.filter((v) => v.type === "UndoHistory").length)
+      .toBe(1);
+    expect(snapshot(p).clips).toEqual(before.clips);
   });
 });

@@ -7,7 +7,12 @@ import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { describeReach, type Reach, reachFailures } from "../e2e/reachability";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
-import { armRange, openPanel, phone as stagePhone } from "../e2e/stageNav";
+import {
+  armRange,
+  inspectSelection,
+  openPanel,
+  phone as stagePhone,
+} from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
@@ -171,6 +176,7 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
     return { x: (left + right) / 2, y: (top + bottom) / 2 };
   });
   await page.touchscreen.tap(point.x, point.y);
+  await inspectSelection(page);
   // A phone selection opens the drawer at its strip; the body shows from half height.
   const expand = page.getByRole("button", { name: /^Expand to/ });
   while (await expand.isVisible()) {

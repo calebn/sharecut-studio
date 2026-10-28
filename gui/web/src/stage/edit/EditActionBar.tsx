@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { barModelOf, editRoleOf, runEditVerb } from "../../commands/editVerbs";
 import { getClipboard } from "../../edit/clipboard";
@@ -88,7 +88,9 @@ function EditActionBarImpl({
   );
   const narrow = useRef<readonly string[] | null>(null);
   const factsRef = useRef(facts);
-  factsRef.current = facts;
+  useEffect(() => {
+    factsRef.current = facts;
+  }, [facts]);
   const onVerb = useCallback((id: BarId, arg?: string) => {
     const live = factsRef.current;
     if (live) void runEditVerb(id, live, arg);
@@ -119,7 +121,13 @@ function EditActionBarImpl({
     <ActionBar
       placement={
         floating
-          ? { form: "floating", anchorRef: anchor.ref, moves: anchor.moves }
+          ? {
+              form: "floating",
+              anchorRef: anchor.ref,
+              moves: anchor.moves,
+              // Below, so the ruler above the first lane stays uncovered.
+              prefer: "below",
+            }
           : { form: "dock" }
       }
       ariaLabel={floating ? "Selection actions" : "Edit actions"}

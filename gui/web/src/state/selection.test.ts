@@ -3,6 +3,7 @@ import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { Selection } from "../types/project";
 import {
   clipClickSelection,
+  inspectKeyOf,
   selectedClipIdsOf,
   selectedTrackIdsOf,
   settleSelection,
@@ -161,5 +162,22 @@ describe("clicking a track header", () => {
 
   it("names no tracks as no selection", () => {
     expect(tracksSelection([])).toBeNull();
+  });
+});
+
+describe("what the Inspector is open for", () => {
+  it("keeps a track, its envelope and its points as one object", () => {
+    const track = inspectKeyOf({ kind: "track", trackId: "host" });
+    expect(inspectKeyOf({ kind: "envelope", trackId: "host" })).toBe(track);
+    expect(
+      inspectKeyOf({ kind: "envelopePoint", trackId: "host", pointId: "p1" }),
+    ).toBe(track);
+    expect(inspectKeyOf({ kind: "track", trackId: "guest" })).not.toBe(track);
+  });
+
+  it("gives another clip another object", () => {
+    expect(inspectKeyOf(clip("c1", "host"))).not.toBe(
+      inspectKeyOf(clip("c2", "host")),
+    );
   });
 });

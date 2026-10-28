@@ -8,7 +8,12 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { closeTools, openProject, openToolsIfFolded } from "../e2e/stageNav";
+import {
+  closeTools,
+  inspectSelection,
+  openProject,
+  openToolsIfFolded,
+} from "../e2e/stageNav";
 import {
   buildFixture,
   type CaseFixtures,
@@ -96,6 +101,7 @@ async function selectEnvelopePoint({
     ),
   );
   await finger.up();
+  await inspectSelection(page);
 }
 
 /**
@@ -264,6 +270,7 @@ for (const [name, view] of Object.entries(COLUMN)) {
       await open(page, view, false);
       const before = await geometry(page);
       await page.locator(".clip-hit").first().tap();
+      await inspectSelection(page);
       await expectColumn(page, view, name);
       // A toast centres over the timeline beside the column, not over it.
       const toastRight = await page.evaluate(() => {
@@ -375,6 +382,7 @@ for (const [name, view] of Object.entries(COLUMN)) {
       }
       await open(page, view, false);
       await page.locator(".clip-hit").first().tap();
+      await inspectSelection(page);
       await expectColumn(
         page,
         view,
@@ -447,6 +455,7 @@ test("with iOS's shrunk layout height the column is exactly the visible band, no
   const view = COLUMN["932x430 tablet shell"];
   await open(page, view, false);
   await page.locator(".clip-hit").first().tap();
+  await inspectSelection(page);
   await expectColumn(page, view, "932x430");
   await page.setViewportSize({ width: view.width, height: 249 });
   await page.waitForFunction(() => innerHeight === 249);
@@ -497,6 +506,7 @@ test("with Safari's chrome collapsed the column stops above the Player, not over
   }
   await open(page, view, false);
   await page.locator(".clip-hit").first().tap();
+  await inspectSelection(page);
   await expectColumn(
     page,
     view,
@@ -554,6 +564,7 @@ for (const [name, view] of Object.entries(COLUMN).filter(
     }) => {
       await open(page, view, false);
       await page.locator(".clip-hit").first().tap();
+      await inspectSelection(page);
       await expectColumn(page, view, name);
       const level = page
         .locator(".bottom-sheet--column")
@@ -601,6 +612,7 @@ for (const [name, view] of Object.entries(SHEET)) {
     test("the Inspector stays a bottom sheet", async ({ page }) => {
       await open(page, view, false);
       await page.locator(".clip-hit").first().tap();
+      await inspectSelection(page);
       await expect(page.locator(".bottom-sheet--inspector")).toBeVisible();
       const g = await geometry(page);
       expect(g.column).toBeNull();
@@ -616,6 +628,7 @@ test("rotating a phone from portrait to landscape moves the open Inspector into 
   const landscape = COLUMN["844x390 tablet shell"];
   await open(page, portrait, false);
   await page.locator(".clip-hit").first().tap();
+  await inspectSelection(page);
   await expect(page.locator(".bottom-sheet--inspector")).toBeVisible();
   await page.setViewportSize(landscape);
   await expect(page.locator(".bottom-sheet--column")).toBeVisible();

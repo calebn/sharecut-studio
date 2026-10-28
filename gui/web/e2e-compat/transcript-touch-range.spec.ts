@@ -41,7 +41,7 @@ async function touch(
   );
 }
 
-test("a long press then a drag selects a word range, and the sheet clears it", async ({
+test("a long press then a drag selects a word range, and the dock clears it", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 393, height: 852 });
@@ -66,7 +66,7 @@ test("a long press then a drag selects a word range, and the sheet clears it", a
     await expect(page.locator(".utterance-word.selected")).toHaveCount(4);
 
     const clear = await page.evaluate(() => {
-      const sheet = document.querySelector(".bottom-sheet--inspector");
+      const sheet = document.querySelector(".edit-dock");
       const last = [
         ...document.querySelectorAll(".utterance-word.selected"),
       ].at(-1);
