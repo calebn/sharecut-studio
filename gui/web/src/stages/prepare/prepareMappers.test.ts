@@ -4,6 +4,7 @@ import {
   applyCleanup,
   cleanupFromConfig,
   handoffProps,
+  isWorking,
   type ModelAsk,
   prepareHandoff,
   preparePhase,
@@ -456,6 +457,26 @@ describe("readySummary", () => {
       "Getting ready: all done",
     );
     expect(readySummary([])).toBe("");
+  });
+});
+
+describe("busy slot", () => {
+  it("shows a Run row and a waiting phase, not Not started, while the slot is taken", () => {
+    const rows = readyRows({ ...base, waiting: true });
+    expect(rows[1]).toMatchObject({
+      state: "needs-you",
+      action: { label: "Run", run: "try-again" },
+    });
+    expect(
+      preparePhase({
+        sources: 3,
+        ingestBusy: false,
+        checking: false,
+        waiting: true,
+        rows,
+      }).phase,
+    ).toBe("waiting");
+    expect(isWorking("waiting")).toBe(false);
   });
 });
 
