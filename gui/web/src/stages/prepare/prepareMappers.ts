@@ -12,7 +12,7 @@ import type { ReadyRowData, ReadyRowId } from "./ReadyList";
 /**
  * Pure mappers from the project and the pipeline job onto the props of the
  * presentational Prepare view. The hook that reads the store and runs the
- * actions lives in `usePrepareStage.ts`; nothing here touches a store, a
+ * actions lives in `usePrepareModel.ts`; nothing here touches a store, a
  * clock or the network, so each mapper is a plain function of its input.
  */
 

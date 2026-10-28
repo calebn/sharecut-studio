@@ -53,6 +53,20 @@ describe("ingestFiles", () => {
     expect(s.ingestBusy).toBe(false);
   });
 
+  it("refreshes the project after a failed import so files that landed show", async () => {
+    addTrackMock.mockResolvedValue({});
+    uploadMock.mockRejectedValue(new Error("unsupported audio format"));
+    refreshMock.mockResolvedValue(minimalProject());
+    const file = new File(["not audio"], "corrupt.wav", { type: "audio/wav" });
+
+    await ingestFiles([file], { kind: "new" });
+
+    expect(refreshMock).toHaveBeenCalledWith("/tmp/test/episode.project.json");
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Import failed: unsupported audio format",
+    );
+  });
+
   it("announces non-Error failures without crashing", async () => {
     addTrackMock.mockResolvedValue({});
     uploadMock.mockRejectedValue("network gone");

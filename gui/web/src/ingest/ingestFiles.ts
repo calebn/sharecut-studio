@@ -131,6 +131,13 @@ export async function ingestFiles(
     // error must surface here or the UI stalls on "Importing…" forever (#223).
     const reason = errorMessage(err);
     s.announceStatus(`Import failed: ${reason}`, { tone: "error" });
+    // Files before the failing one may have landed. Refresh so they show and
+    // the stage sees their audio (Prepare starts its run from that change).
+    try {
+      await refreshDocumentProject(projectPath);
+    } catch {
+      // The failure above is already announced.
+    }
   } finally {
     s.setIngestBusy(false);
   }
