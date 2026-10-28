@@ -396,7 +396,7 @@ def approve_edits_tool(
             "ids": edit_ids,
             "hold_blocked": True,
             "override_audio_checks": override_audio_checks,
-            "skip_unsure": len(set(edit_ids)) > 1,
+            "skip_unsure": all_pending or len(set(edit_ids)) > 1,
         },
         client_id="mcp:host",
     )
