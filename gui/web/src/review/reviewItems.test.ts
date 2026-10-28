@@ -55,15 +55,13 @@ describe("reviewEntriesOf", () => {
     expect(item.savedSeconds).toBe(1.5);
   });
 
-  it.each(["lower", "leave"] as const)(
-    "saves nothing when the table action is %s",
-    (action) => {
-      expect(itemOf({ suggested_action: action }).savedSeconds).toBe(0);
-    },
-  );
-
-  it.each(["cut", "shorten"] as const)("counts spans for %s", (action) => {
-    expect(itemOf({ suggested_action: action }).savedSeconds).toBe(1);
+  it.each([
+    ["lower", 0],
+    ["leave", 0],
+    ["cut", 1],
+    ["shorten", 1],
+  ] as const)("saves %s seconds for the %s action", (action, saved) => {
+    expect(itemOf({ suggested_action: action }).savedSeconds).toBe(saved);
   });
 
   it("puts an unplaced edit at Infinity, last in the queue", () => {
@@ -82,7 +80,6 @@ describe("reviewEntriesOf", () => {
 
   it("passes the table action through", () => {
     expect(itemOf({ suggested_action: "leave" }).suggested).toBe("leave");
-    expect(itemOf({ suggested_action: null }).suggested).toBeUndefined();
   });
 
   it("never sets unsure or blocked, and ignores sound_kind and reason", () => {

@@ -1,7 +1,7 @@
 import {
   type Ref,
-  useCallback,
   useEffectEvent,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
@@ -33,14 +33,12 @@ import {
 export type ReviewIntent = {
   ids: readonly string[];
   result: ReviewResult;
-  /** Cut anyway. The host records the waiver, then decides. */
+  /** Cut anyway. */
   waive?: { note?: string };
 };
 
 export type ReviewStageProps = {
-  /** The stage root. The host hands it to announceStatus as returnFocus. */
   ref?: Ref<HTMLDivElement>;
-  /** Merged open and decided items. */
   items: readonly ReviewItem[];
   content: (item: ReviewItem) => ReviewContent;
   selectedId: string | null;
@@ -103,16 +101,9 @@ export function ReviewStage({
   const [pending, setPending] = useState<Pending | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [seen, setSeen] = useState(selectedId);
-  const root = useRef<HTMLDivElement | null>(null);
+  const root = useRef<HTMLDivElement>(null);
   const engaged = useRef(false);
-  const setRoot = useCallback(
-    (el: HTMLDivElement | null) => {
-      root.current = el;
-      if (typeof ref === "function") ref(el);
-      else if (ref) ref.current = el;
-    },
-    [ref],
-  );
+  useImperativeHandle(ref, () => root.current as HTMLDivElement, []);
 
   if (seen !== selectedId) {
     setSeen(selectedId);
@@ -241,10 +232,7 @@ export function ReviewStage({
   const base = body?.card.waveform;
   const wave = base ? { ...base, ...range } : undefined;
   const adjust = (next: TimeRange) => {
-    if (selected && wave) {
-      const id = selected.id;
-      setRanges((current) => ({ ...current, [id]: next }));
-    }
+    if (selected) setRanges((current) => ({ ...current, [selected.id]: next }));
   };
   const savedSeconds =
     selected && base && wave
@@ -304,7 +292,7 @@ export function ReviewStage({
   );
 
   return (
-    <div ref={setRoot} className="rv-stage" data-layout={layout} tabIndex={-1}>
+    <div ref={root} className="rv-stage" data-layout={layout} tabIndex={-1}>
       <div className="rv-main">
         {phone ? (
           <div className="rv-phone-top">

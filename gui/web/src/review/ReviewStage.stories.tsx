@@ -191,10 +191,6 @@ export const OtherSuggestion: Story = {
   args: { initialItems: EXTRA_KIND_ITEMS, initialSelectedId: "g1" },
 };
 
-export const Unplaced: Story = {
-  args: { initialItems: EXTRA_KIND_ITEMS, initialSelectedId: "g2" },
-};
-
 export const Guest: Story = {
   args: { guest: true },
   play: playInCanvas(async ({ canvasElement }) => {
