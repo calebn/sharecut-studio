@@ -25,6 +25,7 @@ STAMPED = {
     "podcast_mcp/engines/waveform_media.py",
     "podcast_mcp/engines/word_align.py",
     "podcast_mcp/project/store.py",
+    "podcast_mcp/services/app/recent_projects.py",
     "podcast_mcp/services/collaboration/review_versions.py",
     "podcast_mcp/services/document/boundary.py",
     "podcast_mcp/services/document/golden_ear.py",

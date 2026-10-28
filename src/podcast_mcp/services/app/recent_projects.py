@@ -29,6 +29,7 @@ from typing import Any
 
 from podcast_mcp import settings
 from podcast_mcp.util.atomic_file import atomic_write
+from podcast_mcp.util.fingerprint import file_stamp
 
 log = logging.getLogger(__name__)
 
@@ -256,7 +257,7 @@ def _finite(value: object) -> float | None:
 
 def _summary_for(project_file: Path, stat: os.stat_result) -> _Summary | None:
     key = str(project_file)
-    signature = (stat.st_mtime_ns, stat.st_size)
+    signature = file_stamp(stat).content
     with _SUMMARIES_LOCK:
         cached = _SUMMARIES.get(key)
     if cached is not None and cached[0] == signature:
