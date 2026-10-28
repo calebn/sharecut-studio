@@ -20,9 +20,6 @@ const allScenes = [
   "boundary",
   "playback",
   "cold-waveform",
-  "progress-replay",
-  "progress-real",
-  "progress-reduced",
   "seek",
   "trim",
 ];
