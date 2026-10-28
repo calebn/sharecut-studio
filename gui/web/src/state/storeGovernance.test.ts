@@ -464,6 +464,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "the Player bar's time readout and overview position follow the live playhead; only the PlayerBar subtree renders it",
   },
   {
+    file: "stage/hosts/GuestScriptHost.tsx",
+    reason:
+      "the guest Script follows the live playhead; only this leaf adapter renders it",
+  },
+  {
     file: "state/presenceSlice.ts",
     reason:
       "the presence slice's own actions read the playhead/roster to publish state",
