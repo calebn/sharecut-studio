@@ -919,6 +919,8 @@ podcast review share --project episode.project.json \
   --role commenter --base-url http://YOUR_HOST:8765
 ```
 
+While a Studio bound off-loopback serves a project, the stdio MCP server refuses tool calls for it with a message instead of writing behind Studio; the CLI still hands off. Restart Studio with `--host 127.0.0.1` for MCP, or set `PODCAST_NO_STUDIO_HANDOFF=1` to write directly.
+
 The global share index / registry is written mode `0600` (see [share-tokens.md](share-tokens.md)).
 `podcast review backup-registry` creates a standalone backup with a new generated
 name. `--dest` requires an unused filename in an existing trusted private directory;

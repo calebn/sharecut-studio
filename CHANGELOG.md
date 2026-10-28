@@ -32,6 +32,8 @@
 * `load_profile` no longer falls back to a stale speaker profile (stem hash mismatch).
 
 * A CLI command or stdio MCP tool call no longer writes the project directly when the Studio serving it is slow to answer (#2318). The Studio ping now waits 5 s and is tried twice; a Studio that accepts the connection but stays silent stops the command with "Studio (pid N) is serving this project but did not answer in time" and writes nothing.
+
+* A stdio MCP tool call no longer runs in its own process when the live Studio serving the project is bound to a non-loopback address (such as `--host 0.0.0.0`) and so serves no `/mcp`. It stops with a message that names the Studio and offers `--host 127.0.0.1` or `PODCAST_NO_STUDIO_HANDOFF=1`, and writes nothing. The CLI is unchanged.
 * A `podcast review` command that names `--project` is now handed to the Studio serving the project instead of writing the project directly (#2325).
 
 ## [0.1.1](https://github.com/calebn/sharecut-studio/compare/v0.1.0...v0.1.1) (2026-10-18)
