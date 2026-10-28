@@ -3,8 +3,8 @@ import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { CommentsPanel } from "../../panels/CommentsPanel";
-import { ImpactPanel } from "../../panels/ImpactPanel";
 import { TightenPanel } from "../../panels/TightenPanel";
+import { ReviewStage } from "../../review/ReviewStage";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import type { ReviewSection } from "../../types/stage";
@@ -13,16 +13,21 @@ import { useStageScroll } from "../useStageScroll";
 
 import { effectiveSection, hostStateOf, reviewSectionsFor } from "./hostModels";
 import { ReviewStageView } from "./ReviewStageView";
+import { useReviewQueue } from "./useReviewQueue";
 
-export type ReviewStageProps = {
+export type ReviewHostProps = {
   guestShare?: boolean;
   loadFailure?: LoadFailure | null;
 };
 
-function panelFor(section: ReviewSection, guestShare: boolean) {
+function panelFor(
+  section: ReviewSection,
+  guestShare: boolean,
+  queue: ReturnType<typeof useReviewQueue>,
+) {
   switch (section) {
     case "queue":
-      return <ImpactPanel />;
+      return <ReviewStage {...queue.stageProps} />;
     case "tighten":
       return <TightenPanel />;
     case "comments":
@@ -30,10 +35,11 @@ function panelFor(section: ReviewSection, guestShare: boolean) {
   }
 }
 
-function ReviewStageAdapter({
+function ReviewHostAdapter({
   guestShare = false,
   loadFailure,
-}: ReviewStageProps) {
+}: ReviewHostProps) {
+  const queue = useReviewQueue();
   const { project, guestMode, reviewSection } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -59,7 +65,7 @@ function ReviewStageAdapter({
       active={active}
       waiting={waiting}
       onSection={(section) => runPointerCommand("stage.review", { section })}
-      panel={panelFor(active, guestShare)}
+      panel={panelFor(active, guestShare, queue)}
       onDeliver={
         role === "host" ? () => runPointerCommand("stage.deliver") : undefined
       }
@@ -72,4 +78,4 @@ function ReviewStageAdapter({
  * The Review stage host: Queue, Comments and Tighten sections. A guest sees
  * Comments only, because the others act on the project.
  */
-export const ReviewStage = memo(ReviewStageAdapter);
+export const ReviewHost = memo(ReviewHostAdapter);
