@@ -285,7 +285,10 @@ def transcript_review_cmd(
     threshold: float | None = typer.Option(
         None,
         "--threshold",
-        help="Confidence line (default: analysis.unsure_word_confidence, 0.7 as shipped).",
+        help=(
+            "Confidence line (default: analysis.unsure_word_confidence, 0.7 as shipped). "
+            "Suppressed words are not listed."
+        ),
     ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
