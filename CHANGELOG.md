@@ -16,6 +16,8 @@
 
 ### Fixes
 
+* The stdio MCP server and the CLI no longer write behind a live Studio bound to `127.0.0.2` or a LAN address; both now stop with a message naming the Studio and the two ways out (restart with `--host 127.0.0.1`, or `PODCAST_NO_STUDIO_HANDOFF=1`), and the CLI refuses reads for such a Studio too (#2515).
+
 * A live Studio that answers the handoff check with an unreadable reply, or that fails before the call is sent (for example the MCP initialize fails), now stops the call or command with a message and nothing runs, instead of the call running here and writing directly (#2326).
 
 * A Whisper GPU run that fails with a host out-of-memory error is no longer retried on the CPU (#2248). Only CUDA, cuBLAS, cuDNN and GPU errors, including ones named by an error's cause, trigger a retry after a failed run; a GPU model that fails to load is still retried on the CPU.

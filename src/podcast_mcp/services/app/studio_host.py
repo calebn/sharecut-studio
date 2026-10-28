@@ -7,9 +7,12 @@ writer, and the change shows on screen as it happens. With no Studio serving the
 the CLI writes directly.
 
 A serving Studio announces itself with ``artifacts/studio-host.json`` (mode 0600: pid,
-loopback address and a per-run token) and withdraws it on exit or when it stops serving
-the project. The file can outlive a crashed Studio, so it is only a pointer: ``locate_studio``
-asks the address named in it and accepts the answer only from the same run that wrote it.
+address and a per-run token) and withdraws it on exit or when it stops serving the project.
+The file can outlive a crashed Studio, so it is only a pointer: ``locate_studio`` asks the
+address named in it and accepts the answer only from the same run that wrote it. A Studio
+bound to an address no client may ping (127.0.0.2, a LAN address) announces that address
+and the machine's name; ``locate_studio`` then only checks that something listens there and
+refuses, since Studio cannot take the command.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 import errno
 import http.client
+import ipaddress
 import json
 import logging
 import os
@@ -51,6 +55,8 @@ DIRECT_ENV_VAR = "PODCAST_NO_STUDIO_HANDOFF"
 
 #: A ping that times out is retried once; a Studio still silent is never bypassed.
 PING_TIMEOUT_SEC = 5.0
+#: The bare connect to an address that cannot be pinged; a silence this long fails closed.
+PROBE_TIMEOUT_SEC = 1.0
 #: A Studio ping reply is a few dozen bytes; a longer body is not a Studio reply.
 PING_BODY_MAX_BYTES = 1 << 20
 #: Studio sends a heartbeat every few seconds; silence for this long means it is wedged.
@@ -87,6 +93,9 @@ class StudioHost:
     #: Whether the Studio mounts /mcp (a non-loopback bind does not). Stdio MCP refuses calls to a
     #: Studio that does not. Never written to the file.
     mcp: bool = True
+    #: This machine's name, written only for an address that cannot be pinged, so a file that
+    #: reached another computer (a shared folder) is not probed there.
+    hostname: str = ""
 
 
 class HandoffRefused(Exception):
@@ -134,6 +143,25 @@ class StudioBadReply(StudioUnresponsive):
         self.host = host
 
 
+class StudioNotReachable(StudioUnresponsive):
+    """A Studio serves the project on an address that cannot be pinged, so it cannot take work.
+
+    Nothing was run. The caller must not write the project directly, which could clobber
+    what Studio holds.
+    """
+
+    def __init__(self, host: StudioHost, announcement: Path) -> None:
+        Exception.__init__(
+            self,
+            f"Studio (pid {host.pid}) is serving this project, bound to {host.host}, an address "
+            "podcast commands and the stdio MCP server cannot hand work to. Nothing was run. "
+            f"Restart Studio with `--host 127.0.0.1`, or set {DIRECT_ENV_VAR}=1 to write "
+            "directly (this may overwrite what Studio is holding). If no Studio is running, "
+            f"delete {announcement}.",
+        )
+        self.host = host
+
+
 class HandoffLost(Exception):
     """A command attempt has no confirmed outcome, or its stream ended before completion.
 
@@ -160,16 +188,19 @@ def announce_studio_host(project_path: Path | str, host: StudioHost) -> None:
     """Write the announcement for ``project_path`` (private to the user, replaced atomically)."""
     path = studio_host_path(project_path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "instance": host.instance,
+        "pid": host.pid,
+        "host": host.host,
+        "port": host.port,
+        "token": host.token,
+        "version": host.version,
+    }
+    if host.hostname:
+        payload["hostname"] = host.hostname
     write_json_atomic(
         path,
-        {
-            "instance": host.instance,
-            "pid": host.pid,
-            "host": host.host,
-            "port": host.port,
-            "token": host.token,
-            "version": host.version,
-        },
+        payload,
         mode=stat.S_IRUSR | stat.S_IWUSR,
         compact=True,
     )
@@ -198,12 +229,24 @@ def read_studio_host(project_path: Path | str) -> StudioHost | None:
             port=int(raw["port"]),
             token=str(raw["token"]),
             version=str(raw.get("version", "")),
+            hostname=str(raw.get("hostname", "")),
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
-    if host.host not in _LOOPBACK_ADDRESSES or not 0 < host.port < 65536 or not host.token:
+    if not _is_address(host.host) or not 0 < host.port < 65536 or not host.token:
         return None
     return host
+
+
+def _is_address(name: str) -> bool:
+    """A loopback name a client may ping, or an IP literal (a name is never resolved from a file)."""
+    if name in _LOOPBACK_ADDRESSES:
+        return True
+    try:
+        ipaddress.ip_address(name)
+    except ValueError:
+        return False
+    return True
 
 
 def _owned_privately(path: Path) -> bool:
@@ -223,6 +266,7 @@ def _connection(host: StudioHost, timeout: float) -> http.client.HTTPConnection:
 
 
 _WSAETIMEDOUT = 10060
+_WSAECONNREFUSED = 10061
 
 
 def _is_timeout(exc: BaseException) -> bool:
@@ -340,16 +384,42 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
         conn.close()
 
 
+def _is_refused(exc: OSError) -> bool:
+    windows_code = getattr(exc, "winerror", None)
+    return exc.errno in (errno.ECONNREFUSED, _WSAECONNREFUSED) or windows_code == _WSAECONNREFUSED
+
+
+def _check_unpingable(host: StudioHost, project_path: Path | str) -> None:
+    """Refuse for a Studio that listens on an address no client may ping; None if it is gone.
+
+    A bare connect sends no bytes, so the token never leaves for an address Studio would
+    reject. Anything but a refusal fails closed.
+    """
+    try:
+        socket.create_connection((host.host, host.port), timeout=PROBE_TIMEOUT_SEC).close()
+    except Exception as exc:
+        if isinstance(exc, OSError) and _is_refused(exc):
+            return
+        raise StudioUnresponsive(host) from exc
+    raise StudioNotReachable(host, studio_host_path(project_path))
+
+
 def locate_studio(project_path: Path | str) -> StudioHost | None:
     """Find the Studio serving ``project_path``, or return None when it is absent.
 
-    Raises ``StudioUnresponsive`` when both discovery attempts time out, and
-    ``StudioBadReply`` when Studio answers with an invalid or unsupported reply.
+    Raises ``StudioUnresponsive`` when both discovery attempts time out,
+    ``StudioBadReply`` when Studio answers with an invalid or unsupported reply, and
+    ``StudioNotReachable`` when Studio listens on an address no client may ping.
     """
     if settings.flag(DIRECT_ENV_VAR):
         return None
     host = read_studio_host(project_path)
     if host is None:
+        return None
+    if host.host not in _LOOPBACK_ADDRESSES:
+        if host.hostname != socket.gethostname() or not pid_is_alive(host.pid):
+            return None
+        _check_unpingable(host, project_path)
         return None
     if not pid_is_alive(host.pid):
         return None
