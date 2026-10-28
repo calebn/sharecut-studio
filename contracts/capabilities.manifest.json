@@ -506,7 +506,8 @@
       "surfaces": {
         "command": "edit.delete",
         "gui": [
-          "clipInspector"
+          "clipInspector",
+          "actionBar"
         ],
         "keyboard": "Backspace",
         "mcp": [
@@ -795,7 +796,7 @@
       "label": "Toggle track mute",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
+      "industry_standard_key": false,
       "gates": [
         "hasProject"
       ],
@@ -805,13 +806,14 @@
           "trackHeader",
           "trackInspector"
         ],
-        "keyboard": "M",
         "mcp": [
           "track_set_mute_tool"
         ],
         "cli": "podcast episode set-track-mute"
       },
-      "omit": {},
+      "omit": {
+        "keyboard_reason": "M is edit.mute, which mutes the targeted track when nothing else is selected"
+      },
       "tooltip": "Toggle track mute",
       "presence": {
         "cursor": "anchor",
@@ -3042,7 +3044,8 @@
         "command": "edit.addChapter",
         "gui": [
           "timeline.createMenu",
-          "editPlusMenu"
+          "editPlusMenu",
+          "actionBar"
         ],
         "mcp": [
           "add_chapter_tool"
@@ -3050,10 +3053,10 @@
         "cli": "podcast edit add-chapter",
         "touch": [
           "long-press-empty"
-        ]
+        ],
+        "keyboard": "C"
       },
       "omit": {
-        "keyboard_reason": "no default shortcut; Menu \u203a Markers or the phone More action",
         "guest": true
       },
       "presence": {
@@ -3104,15 +3107,15 @@
       "surfaces": {
         "command": "comment.draftAt",
         "gui": [
-          "timeline.createMenu"
+          "timeline.createMenu",
+          "actionBar"
         ],
         "touch": [
           "long-press-empty"
-        ]
+        ],
+        "keyboard": "C"
       },
-      "omit": {
-        "keyboard_reason": "touch create menu; the pointer route is the comment panel"
-      },
+      "omit": {},
       "presence": {
         "cursor": "time",
         "follow": "none"
@@ -3479,6 +3482,201 @@
       "presence": {
         "cursor": "none",
         "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.split",
+      "label": "Split",
+      "effect": "project",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "editStageStructural"
+      ],
+      "surfaces": {
+        "command": "edit.split",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "S",
+        "mcp": [
+          "split_clip_tool"
+        ]
+      },
+      "omit": {},
+      "tooltip": "Split at the playhead, or at both edges of the selected words or range (S)",
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.hear",
+      "label": "Hear",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "edit.hear",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "Space"
+      },
+      "omit": {},
+      "tooltip": "Hear the selection (Shift+Space)",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.hearBefore",
+      "label": "Hear before",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "edit.hearBefore",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "A"
+      },
+      "omit": {},
+      "tooltip": "Hear the suggestion as it is now (A)",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.hearAfter",
+      "label": "Hear after",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "edit.hearAfter",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "B"
+      },
+      "omit": {},
+      "tooltip": "Hear the suggestion applied (B)",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.keep",
+      "label": "Keep",
+      "effect": "project",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "edit.keep",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "X"
+      },
+      "omit": {
+        "agent_reason": "Keep restores a mute or rejects a pending suggestion through the existing History and review commands; the verb is a GUI shortcut to them"
+      },
+      "tooltip": "Keep what is cut, or reject the selected suggestion (X)",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.inspect",
+      "label": "Inspect",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "edit.inspect",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "I"
+      },
+      "omit": {},
+      "tooltip": "Open the Inspector for the selection (I)",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.more",
+      "label": "More",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "edit.more",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "."
+      },
+      "omit": {},
+      "tooltip": "More actions for the selection (.)",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.mute",
+      "label": "Mute",
+      "effect": "project",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "edit.mute",
+        "gui": [
+          "actionBar"
+        ],
+        "keyboard": "M",
+        "mcp": [
+          "propose_range_mute_tool",
+          "track_set_mute_tool"
+        ],
+        "cli": "podcast episode set-track-mute"
+      },
+      "omit": {},
+      "tooltip": "Mute the selection, else the targeted track (M)",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "hear",
+        "anchor": "track:<id>:mute"
       }
     }
   ]
