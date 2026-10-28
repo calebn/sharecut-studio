@@ -108,6 +108,47 @@ describe("ReviewStage", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 
+  it("closes the prompt after Cut anyway when the selection stays put", async () => {
+    setup({ initialItems: QUEUE_ITEMS, initialSelectedId: "p1" });
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+  });
+
+  it("closes the prompt when a refresh decides its items", () => {
+    const props = {
+      content: reviewContent,
+      duration: 3000,
+      filter: "all" as const,
+      looksRight: new Set<string>(),
+      selectedId: "f1",
+      onSelect: vi.fn(),
+      onFilter: vi.fn(),
+      onLooksRight: vi.fn(),
+      onDecide: vi.fn(),
+    };
+    const view = render(<ReviewStage {...props} items={QUEUE_ITEMS} />);
+    const stage = view.container.querySelector(".rv-stage") as HTMLElement;
+    fireEvent.keyDown(stage, { key: "Enter" });
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+    const decided = QUEUE_ITEMS.map((i) =>
+      i.id === "f1" ? { ...i, result: "applied" as const } : i,
+    );
+    view.rerender(<ReviewStage {...props} items={decided} />);
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+  });
+
+  it("does not ask again after Cut anyway is undone", async () => {
+    const onDecide = vi.fn();
+    const { press } = setup({ initialItems: QUEUE_ITEMS, onDecide });
+    press("Enter");
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    press("Enter");
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+    expect(onDecide).toHaveBeenCalledTimes(2);
+  });
+
   it("words the prompt for the group's verb, not the selection's, when its header is clicked", async () => {
     setup({ initialItems: QUEUE_ITEMS, initialSelectedId: "p1" });
     await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));

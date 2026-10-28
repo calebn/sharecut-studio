@@ -119,3 +119,33 @@ describe("review ids", () => {
     expect(editIdOf("c1")).toBeNull();
   });
 });
+
+describe("reviewEntriesOf on odd payloads", () => {
+  it("tolerates missing spans and ignores negative or non-finite lengths", () => {
+    const none = { timeline_spans: undefined } as never;
+    expect(itemOf(none).savedSeconds).toBe(0);
+    const odd = itemOf({
+      timeline_spans: [
+        { start: 3, end: 1 },
+        { start: 0, end: Number.POSITIVE_INFINITY },
+        { start: 0, end: Number.NaN },
+        { start: 1, end: 1.5 },
+      ],
+    });
+    expect(odd.savedSeconds).toBe(0.5);
+  });
+
+  it.each([Number.NaN, undefined, Number.NEGATIVE_INFINITY])(
+    "puts an unplaced start (%s) last",
+    (start) => {
+      const item = itemOf({ timeline_start: start as never });
+      expect(item.at).toBe(Number.POSITIVE_INFINITY);
+    },
+  );
+
+  it("fails closed on an unknown suggested action", () => {
+    const item = itemOf({ suggested_action: "mute" as never });
+    expect(item.suggested).toBe("leave");
+    expect(item.savedSeconds).toBe(0);
+  });
+});
