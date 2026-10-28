@@ -59,8 +59,7 @@ export type MarkerProps = MarkerKindProps & {
     | "className"
     | "type"
     | "onClick"
-  > &
-    MarkerAttrs;
+  > & { [name in `data-${string}`]?: string };
   /** Siblings of the button inside the marker, such as the edge handles of a bracket. */
   children?: ReactNode;
 };
