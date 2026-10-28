@@ -36,7 +36,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Review stage host: Comments, Impact and Tighten as sections of one stage, with the open section kept in the stage slice. A Viewer or Commenter link gets Comments only and no Stage bar.\n\n**Motion.** Switching section swaps the panel in one frame. The saved scroll position of each section returns when it is reopened.",
+          "The Review stage host: Queue, Comments and Tighten as sections of one stage, with the open section kept in the stage slice. A Viewer or Commenter link gets Comments only and no Stage bar.\n\n**Motion.** Switching section swaps the panel in one frame. The saved scroll position of each section returns when it is reopened.",
       },
     },
   },
@@ -59,7 +59,7 @@ export const Default: Story = {
       await canvas.findByRole("tablist", { name: "Review sections" }),
     ).toBeVisible();
     await expect(
-      canvas.getAllByRole("tab", { name: /Comments|Impact|Tighten/ }).length,
+      canvas.getAllByRole("tab", { name: /Queue|Comments|Tighten/ }).length,
     ).toBeGreaterThanOrEqual(3);
   },
 };
@@ -67,9 +67,9 @@ export const Default: Story = {
 export const SwitchSection: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("tab", { name: /Impact/ }));
+    await userEvent.click(await canvas.findByRole("tab", { name: /Queue/ }));
     await waitFor(() =>
-      expect(useDawStore.getState().reviewSection).toBe("impact"),
+      expect(useDawStore.getState().reviewSection).toBe("queue"),
     );
   },
 };
@@ -155,7 +155,7 @@ export const GuestViewer: Story = {
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Deliver" })).toBeNull();
     await expect(
-      canvas.queryByRole("tab", { name: /Tighten|Impact/ }),
+      canvas.queryByRole("tab", { name: /Tighten|Queue/ }),
     ).toBeNull();
   },
 };

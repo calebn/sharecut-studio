@@ -1,5 +1,6 @@
 import type { ReactNode, Ref } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
+import { wireTabOf } from "../../state/stageRoutes";
 import type { ShellBreakpoint } from "../../state/types";
 import type { ReviewSection } from "../../types/stage";
 import { Button } from "../../ui";
@@ -28,7 +29,7 @@ export type ReviewStageViewProps = {
   scrollRef?: Ref<HTMLDivElement>;
 };
 
-/** Review: Impact, Comments and Tighten as sections of one stage. */
+/** Review: Queue, Comments and Tighten as sections of one stage. */
 export function ReviewStageView({
   shell,
   state,
@@ -54,7 +55,7 @@ export function ReviewStageView({
               {...presenceAnchorProps(presenceAnchor("tab", id))}
               onClick={() => onSection(id)}
             >
-              {TAB_LABELS[id]}
+              {TAB_LABELS[wireTabOf(id)]}
               {waiting[id] ? " ●" : ""}
             </Tab>
           ))}
@@ -68,7 +69,9 @@ export function ReviewStageView({
         aria-labelledby={
           sections.length > 1 ? `${TAB_ID}-${active}` : undefined
         }
-        aria-label={sections.length > 1 ? undefined : TAB_LABELS[active]}
+        aria-label={
+          sections.length > 1 ? undefined : TAB_LABELS[wireTabOf(active)]
+        }
       >
         {panel}
       </div>

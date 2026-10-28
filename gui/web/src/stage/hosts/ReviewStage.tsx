@@ -21,7 +21,7 @@ export type ReviewStageProps = {
 
 function panelFor(section: ReviewSection, guestShare: boolean) {
   switch (section) {
-    case "impact":
+    case "queue":
       return <ImpactPanel />;
     case "tighten":
       return <TightenPanel />;
@@ -47,7 +47,7 @@ function ReviewStageAdapter({
   const active = effectiveSection(reviewSection, sections);
   const scrollRef = useStageScroll("review", `section:${active}`);
   const waiting = {
-    impact: (project?.edit_impact.pending_review_count ?? 0) > 0,
+    queue: (project?.edit_impact.pending_review_count ?? 0) > 0,
     comments: project?.comments?.some((c) => !c.resolved) ?? false,
   };
   return (
@@ -69,7 +69,7 @@ function ReviewStageAdapter({
 }
 
 /**
- * The Review stage host: Impact, Comments and Tighten sections. A guest sees
+ * The Review stage host: Queue, Comments and Tighten sections. A guest sees
  * Comments only, because the others act on the project.
  */
 export const ReviewStage = memo(ReviewStageAdapter);

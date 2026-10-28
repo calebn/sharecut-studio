@@ -9,6 +9,7 @@ import {
   stageRoleOf,
   stagesForRole,
   tabForStage,
+  wireTabOf,
 } from "./stageRoutes";
 
 const TABS: PresenceTab[] = [
@@ -91,7 +92,7 @@ describe("tab and stage mapping", () => {
     expect(STAGE_FOR_TAB).toEqual({
       transcript: { stage: "edit" },
       history: { stage: "edit", sheet: "history" },
-      impact: { stage: "review", section: "impact" },
+      impact: { stage: "review", section: "queue" },
       tighten: { stage: "review", section: "tighten" },
       comments: { stage: "review", section: "comments" },
       pipeline: { stage: "prepare" },
@@ -108,13 +109,20 @@ describe("tab and stage mapping", () => {
   });
 
   it("gives Record and Deliver no tab", () => {
-    expect(tabForStage("record", "impact")).toBeNull();
+    expect(tabForStage("record", "queue")).toBeNull();
     expect(tabForStage("deliver", "tighten")).toBeNull();
   });
 
   it("follows the review section", () => {
-    expect(tabForStage("review", "impact")).toBe("impact");
+    expect(tabForStage("review", "queue")).toBe("impact");
+    expect(tabForStage("review", "comments")).toBe("comments");
     expect(tabForStage("review", "tighten")).toBe("tighten");
+  });
+
+  it("keeps the wire name impact for the Queue section only", () => {
+    expect(wireTabOf("queue")).toBe("impact");
+    expect(wireTabOf("comments")).toBe("comments");
+    expect(wireTabOf("tighten")).toBe("tighten");
   });
 
   it("derives the legacy phone mode", () => {
