@@ -1,5 +1,6 @@
 import type { PersonData } from "./Person";
 import { ROOM_TILE_TEXT } from "./personStates";
+import { percentOf } from "./progress";
 
 export type RoomConnection = "good" | "weak" | "lost";
 export type RoomSaving = { done: number; total: number } | "saved" | "failed";
@@ -65,10 +66,14 @@ export function effectiveLive(props: LiveProps) {
   };
 }
 
+export function savingPercentText(done: number, total: number): string {
+  return `Saving ${percentOf(savingFraction(done, total))}%`;
+}
+
 function savingText(saving: RoomSaving): string {
   if (saving === "saved") return ROOM_TILE_TEXT.saved;
   if (saving === "failed") return ROOM_TILE_TEXT.failed;
-  return `Saving ${Math.round(savingFraction(saving.done, saving.total) * 100)}%`;
+  return savingPercentText(saving.done, saving.total);
 }
 
 /** The one sentence a tile prints, or null when it is simply live or a placeholder. */

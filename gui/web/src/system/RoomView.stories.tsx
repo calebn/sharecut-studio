@@ -118,6 +118,8 @@ const meta: Meta<typeof RoomView> = {
     selfName: "Jon",
     onSendNote: fn(),
     onInvite: fn(),
+    onStartTake: fn(),
+    onStopTake: fn(),
     onMute: fn(),
     onComment: fn(),
     onPause: fn(),

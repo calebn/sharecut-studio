@@ -318,6 +318,23 @@ describe("RoomView as the host", () => {
     expect(screen.getAllByRole("button", { name: "Invite" })).toHaveLength(3);
   });
 
+  it("shows no Record button when the host has no take handlers", () => {
+    hostRoom({ onStartTake: undefined, onStopTake: undefined });
+    expect(screen.queryByRole("button", { name: "Record" })).toBeNull();
+  });
+
+  it("shows the Record button when the host has take handlers", () => {
+    hostRoom();
+    expect(screen.getByRole("button", { name: "Record" })).toBeEnabled();
+  });
+
+  it("disables Record while the room reconnects", () => {
+    hostRoom({ phase: { kind: "reconnecting" } });
+    const record = screen.getByRole("button", { name: "Record" });
+    expect(record).toBeDisabled();
+    expect(record).toHaveAttribute("title", "Reconnecting");
+  });
+
   it("starts a take from the Record button", async () => {
     const onStartTake = vi.fn();
     hostRoom({ onStartTake });
@@ -360,6 +377,8 @@ describe("RoomView as the host", () => {
         notes={[]}
         selfName="Maya Okafor"
         onSendNote={vi.fn()}
+        onStartTake={vi.fn()}
+        onStopTake={vi.fn()}
       />,
     );
     expect(names()).toContain("Resume recording");

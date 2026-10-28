@@ -1,5 +1,6 @@
 import type { PersonData } from "./Person";
 import { clockText } from "./roomPhase";
+import { savingFraction, savingPercentText } from "./roomTileModel";
 import type { StatusRowState } from "./StatusRow";
 
 export type TakeLineInput =
@@ -45,10 +46,6 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-function share(done: number, total: number): number {
-  return total > 0 ? Math.min(1, Math.max(0, done / total)) : 0;
-}
-
 function clipText(times: string[] | undefined): string | null {
   if (!times || times.length === 0) return null;
   return `Clipped ${plural(times.length, "time", "times")} · ${times.join(", ")}`;
@@ -67,11 +64,11 @@ export function takeLine(entry: TakePersonInput): TakeLine {
         retry: false,
       };
     case "saving": {
-      const fraction = share(line.done, line.total);
+      const fraction = savingFraction(line.done, line.total);
       return {
         ...base,
         state: "running",
-        detail: `Saving ${Math.round(fraction * 100)}%`,
+        detail: savingPercentText(line.done, line.total),
         progress: fraction,
         retry: false,
       };
@@ -105,7 +102,7 @@ function aggregate(
       (sum, line) => sum + (line.state === "done" ? 1 : (line.progress ?? 0)),
       0,
     );
-    return { state: "running", progress: share(total, lines.length) };
+    return { state: "running", progress: savingFraction(total, lines.length) };
   }
   if (lines.some((line) => line.state === "queued")) return { state: "queued" };
   return { state: "done" };
