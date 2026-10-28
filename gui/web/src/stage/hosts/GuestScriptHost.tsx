@@ -4,13 +4,10 @@ import { seekTransport } from "../../commands/seek";
 import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { GuestScript } from "../../stages/guest/GuestScript";
+import { lastStartedWordAt } from "../../stages/guest/guestLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
-import {
-  guestScriptOf,
-  lastStartedWordAt,
-  playingWordsAt,
-} from "./guestScript";
+import { guestScriptOf, playingWordsAt } from "./guestScript";
 
 function GuestScriptHostAdapter() {
   const { utterances, guestMode } = useDawStore(
@@ -22,7 +19,7 @@ function GuestScriptHostAdapter() {
   const shell = useViewportClass();
   const short = useShortViewport();
   const role = stageRoleOf(guestMode);
-  const { turns, wordStarts, words } = useMemo(
+  const { turns, wordStarts, words, unplaced } = useMemo(
     () => guestScriptOf(utterances),
     [utterances],
   );
@@ -50,6 +47,7 @@ function GuestScriptHostAdapter() {
         wordStarts={wordStarts}
         playing={playing}
         playheadWord={playheadWord}
+        unplaced={unplaced}
         hasTranscript={(utterances?.length ?? 0) > 0}
         onSeek={(seconds) => void seekTransport(seconds)}
       />

@@ -138,6 +138,21 @@ describe("GuestScriptHost", () => {
     ).toBeInTheDocument();
   });
 
+  it("says the words are not on the timeline when none has a place", () => {
+    as("view", 0, [
+      {
+        ...UTTERANCES[0],
+        words: [{ text: "lost", start: 0, end: 0 }],
+      } as CombinedUtterance,
+    ]);
+    render(<GuestScriptHost />);
+    expect(
+      screen.getByText(
+        "The words of this version are not on the timeline yet.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("says every word was cut when the transcript has no heard words", () => {
     as("view", 0, [
       {

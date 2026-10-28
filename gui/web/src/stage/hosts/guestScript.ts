@@ -10,6 +10,7 @@ export type GuestScriptModel = {
   turns: ScriptTurn[];
   wordStarts: number[];
   words: TranscriptWordView[];
+  unplaced: number;
 };
 
 type Heard = {
@@ -39,6 +40,15 @@ function heardWords(utterance: CombinedUtterance): Heard[] {
 export function guestScriptOf(
   utterances: readonly CombinedUtterance[] | undefined,
 ): GuestScriptModel {
+  const unplaced = (utterances ?? []).reduce(
+    (sum, utterance) =>
+      sum +
+      (utterance.words ?? []).filter(
+        (word) =>
+          !word.suppressed && !word.ignored && wordSeekSec(word) === null,
+      ).length,
+    0,
+  );
   const spoken = (utterances ?? [])
     .map((utterance) => {
       const heard = heardWords(utterance);
@@ -48,6 +58,7 @@ export function guestScriptOf(
     .sort((a, b) => a.first - b.first);
   const colors = new Map<string, number>();
   const turns: ScriptTurn[] = [];
+  const taken = new Set<string>();
   const wordStarts: number[] = [];
   const words: TranscriptWordView[] = [];
   let heardUntil: number | null = null;
@@ -64,8 +75,12 @@ export function guestScriptOf(
       words.push(item.word);
       return { index, key: item.key, text: item.text };
     });
+    const base = `${utterance.track_id}@${first}`;
+    let id = base;
+    for (let n = 2; taken.has(id); n += 1) id = `${base}#${n}`;
+    taken.add(id);
     turns.push({
-      id: `${utterance.track_id}@${first}`,
+      id,
       speakerId: speaker,
       speaker: { name: speaker, colorIndex },
       time: formatTimeShort(first),
@@ -78,7 +93,7 @@ export function guestScriptOf(
       ...heard.map(({ word }) => word.timeline_end ?? word.timeline_start ?? 0),
     );
   }
-  return { turns, wordStarts, words };
+  return { turns, wordStarts, words, unplaced };
 }
 
 export function playingWordsAt(
@@ -90,16 +105,4 @@ export function playingWordsAt(
     if (isWordActive(word, seconds)) playing.push(index);
   });
   return playing;
-}
-
-export function lastStartedWordAt(
-  wordStarts: readonly number[],
-  seconds: number,
-): number | undefined {
-  let best: number | undefined;
-  wordStarts.forEach((start, index) => {
-    if (start > seconds) return;
-    if (best === undefined || start >= (wordStarts[best] ?? 0)) best = index;
-  });
-  return best;
 }

@@ -12,6 +12,7 @@ export type GuestScriptProps = {
   playing: number | readonly number[] | undefined;
   playheadWord?: number;
   hasTranscript?: boolean;
+  unplaced?: number;
   onSeek: (seconds: number) => void;
   onUserScroll?: () => void;
 };
@@ -24,6 +25,7 @@ export function GuestScript({
   playing,
   playheadWord,
   hasTranscript = false,
+  unplaced = 0,
   onSeek,
   onUserScroll,
 }: GuestScriptProps) {
@@ -38,9 +40,11 @@ export function GuestScript({
   if (turns.length === 0) {
     return (
       <Cover size="region" glyph="inbox" title="Nothing to read yet">
-        {hasTranscript
-          ? "Every word of this version has been cut or ignored."
-          : "The host has not made a transcript of this version."}
+        {!hasTranscript
+          ? "The host has not made a transcript of this version."
+          : unplaced > 0
+            ? "The words of this version are not on the timeline yet."
+            : "Every word of this version has been cut or ignored."}
       </Cover>
     );
   }

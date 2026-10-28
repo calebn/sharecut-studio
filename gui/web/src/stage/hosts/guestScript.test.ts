@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { lastStartedWordAt } from "../../stages/guest/guestLogic";
 import type {
   CombinedUtterance,
   TranscriptWordView,
 } from "../../types/project";
-import {
-  guestScriptOf,
-  lastStartedWordAt,
-  playingWordsAt,
-} from "./guestScript";
+import { guestScriptOf, playingWordsAt } from "./guestScript";
 
 const word = (
   text: string,
@@ -36,15 +33,49 @@ const utterance = (
   words,
 });
 
+describe("guestScriptOf ids and unplaced words", () => {
+  it("gives two utterances on one track with the same first start different turn ids", () => {
+    const { turns } = guestScriptOf([
+      utterance("Maya", [word("one", 5)]),
+      utterance("Maya", [word("two", 5)]),
+    ]);
+    expect(turns.map((turn) => turn.id)).toEqual(["t1@5", "t1@5#2"]);
+  });
+
+  it("counts words that are neither cut nor ignored but have no place on the timeline", () => {
+    const model = guestScriptOf([
+      utterance("Maya", [
+        word("a", null),
+        word("b", null),
+        word("c", null, { suppressed: true }),
+        word("d", null, { ignored: true }),
+      ]),
+    ]);
+    expect(model.turns).toEqual([]);
+    expect(model.unplaced).toBe(2);
+    expect(guestScriptOf([utterance("Maya", [word("a", 1)])]).unplaced).toBe(0);
+  });
+});
+
 describe("guestScriptOf", () => {
   it("is empty for no utterances and for utterances with no heard words", () => {
-    expect(guestScriptOf([])).toEqual({ turns: [], wordStarts: [], words: [] });
+    expect(guestScriptOf([])).toEqual({
+      turns: [],
+      wordStarts: [],
+      words: [],
+      unplaced: 0,
+    });
     expect(
       guestScriptOf([
         utterance("Maya", [word("gone", 1, { suppressed: true })]),
         { ...utterance("Maya", []), words: undefined },
       ]),
-    ).toEqual({ turns: [], wordStarts: [], words: [] });
+    ).toEqual({
+      turns: [],
+      wordStarts: [],
+      words: [],
+      unplaced: 0,
+    });
   });
 
   it("orders turns by time and numbers words across them", () => {

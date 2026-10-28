@@ -11,3 +11,15 @@ export const ROLE_HINT: Record<GuestRole, string> = {
   commenter: "You can comment and suggest cuts. The host decides.",
   editor: "You can edit and comment. The host decides what ships.",
 };
+
+export function lastStartedWordAt(
+  wordStarts: readonly number[],
+  seconds: number,
+): number | undefined {
+  let best: number | undefined;
+  wordStarts.forEach((start, index) => {
+    if (start > seconds) return;
+    if (best === undefined || start >= (wordStarts[best] ?? 0)) best = index;
+  });
+  return best;
+}

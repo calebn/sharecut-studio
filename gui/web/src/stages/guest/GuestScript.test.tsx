@@ -252,4 +252,24 @@ describe("GuestScript following", () => {
     scrollAway(body);
     expect(onUserScroll).toHaveBeenCalledOnce();
   });
+
+  it("says the words are not on the timeline when they exist but have no place", () => {
+    render(
+      <GuestScript
+        access="viewer"
+        layout="desktop"
+        turns={[]}
+        wordStarts={[]}
+        playing={undefined}
+        hasTranscript
+        unplaced={3}
+        onSeek={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "The words of this version are not on the timeline yet.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
