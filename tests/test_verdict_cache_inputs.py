@@ -751,8 +751,8 @@ def test_a_pause_verdict_is_reused_after_an_unrelated_log_record(
     assert hits == [False, True]
 
 
-# Far samples the check rejects at any distance (#2439 review): invalid ranges on the pause's own
-# recording. Nothing about them is near the pause, so only the validity test puts them in the key.
+# Far samples the check rejects: invalid ranges on the pause's own recording, and recordings it
+# cannot resolve. Nothing about them is near the pause, so only the validity test puts them in the key.
 def _far_inverted(p: EpisodeProject) -> None:
     _pad(p, 500.0, 400.0)
 
@@ -932,3 +932,54 @@ def test_a_pad_record_key_hashes_every_sample_not_only_the_first(tmp_path: Path)
     assert base != _key_of(tmp_path, _nothing)
     assert base == _key_of(tmp_path, lambda p: _pad_record(p, [dict(s) for s in near]))
     assert base != _key_of(tmp_path, lambda p: _pad_record(p, moved))
+
+
+def _far_outside_workspace(p: EpisodeProject) -> None:
+    p.sources.append(SourceRecording(id="out", path="../outside.wav", duration_sec=DUR))
+    _pad(p, 1.0, 2.0, source_id="out")
+
+
+def test_a_far_pad_sample_on_a_recording_outside_the_workspace_moves_the_key(
+    tmp_path: Path,
+) -> None:
+    key = _key_of(tmp_path, _far_outside_workspace)
+    assert key is not None
+    assert key != _key_of(tmp_path, _far_pad)
+    assert key != _key_of(tmp_path, _nothing)
+
+
+@pytest.mark.parametrize("start", [float("nan"), float("-inf")], ids=["nan", "negative_infinity"])
+def test_a_far_pad_sample_with_a_non_finite_start_moves_the_key(
+    tmp_path: Path, start: float
+) -> None:
+    assert _key_of(tmp_path, lambda p: _pad(p, start, 2.0)) != _key_of(tmp_path, _far_pad)
+
+
+def test_a_far_pad_sample_starting_at_zero_is_valid_and_leaves_the_key_alone(
+    tmp_path: Path,
+) -> None:
+    assert _key_of(tmp_path, lambda p: _pad(p, 0.0, 2.0)) == _key_of(tmp_path, _nothing)
+
+
+@pytest.mark.parametrize(
+    "other", [{"track_id": "other"}, {"source_id": "alt"}], ids=["track_id", "source_id"]
+)
+def test_an_invalid_range_pad_sample_is_hashed_with_the_recording_it_names(
+    tmp_path: Path, other: dict[str, str]
+) -> None:
+    base = _key_of(tmp_path, _far_inverted)
+    assert base != _key_of(tmp_path, lambda p: _pad(p, 500.0, 400.0, **other))
+
+
+def test_an_unexpected_error_resolving_a_far_pad_sample_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, sourced=True, mutate=_far_pad)
+    edit = project.edit_decisions[0]
+
+    def broken(*_: Any) -> None:
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(verdict_cache, "pad_sample_recording", broken)
+    with pytest.raises(RuntimeError, match="bug"):
+        verdict_cache._pad_records_seen(project, edit, edit.start - 1.0, edit.end + 1.0)
