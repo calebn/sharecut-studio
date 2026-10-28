@@ -137,6 +137,18 @@ describe("useJobCoverage", () => {
     const grown = mediaKeyOf(useDawStore.getState().project?.tracks);
     expect(setup({ id: "c8", key: grown }).result.current).toBe(false);
   });
+
+  it("records nothing for an analyze-only job, so Find hits covers no audio", () => {
+    seedStudioJob(
+      pipelineJobSnapshot({
+        id: "c9",
+        status: "ok",
+        only_step: "analyze_fillers_pauses",
+      }),
+    );
+    const key = mediaKeyOf(useDawStore.getState().project?.tracks);
+    expect(setup({ id: "c9", key }).result.current).toBe(false);
+  });
 });
 
 describe("mediaKeyOf", () => {
@@ -173,6 +185,28 @@ describe("a finished job and a source with no transcript", () => {
   it("still reads Done for an old job when every source has utterances", () => {
     const { result } = setup({ id: "j1", key: AB });
     expect(screen(result.current, true).phase).toBe("done");
+  });
+
+  it("reads Not started with Start after an analyze-only job on an untranscribed source (N4)", () => {
+    seedStudioJob(
+      pipelineJobSnapshot({
+        id: "j1",
+        status: "ok",
+        only_step: "analyze_fillers_pauses",
+      }),
+    );
+    const key = mediaKeyOf(useDawStore.getState().project?.tracks);
+    const { result } = setup({ id: "j1", key });
+    const { rows, phase } = screen(result.current, false);
+    expect(phase).toBe("not-started");
+    expect(rows[1]).toMatchObject({ action: { label: "Start" } });
+  });
+
+  it("reads Done for a Prepare run seeded on this audio with a silent source", () => {
+    seedStudioJob(pipelineJobSnapshot({ id: "j1", status: "ok" }));
+    const key = mediaKeyOf(useDawStore.getState().project?.tracks);
+    const { result } = setup({ id: "j1", key });
+    expect(screen(result.current, false).phase).toBe("done");
   });
 
   it("reads Done for a job started on this audio with a silent source (R3)", () => {
