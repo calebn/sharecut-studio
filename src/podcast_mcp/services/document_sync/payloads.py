@@ -713,7 +713,7 @@ class ApplyAutoEditsPayload(BaseModel):
 def _whole_ms(value: Any) -> int:
     try:
         return int(value)
-    except (TypeError, OverflowError):
+    except (TypeError, OverflowError, ValueError):
         return value
 
 

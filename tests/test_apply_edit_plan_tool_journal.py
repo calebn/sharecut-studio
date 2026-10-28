@@ -188,6 +188,14 @@ def test_a_non_numeric_value_is_invalid_payload(episode, entry, field):
     assert "'a'" not in message
 
 
+@pytest.mark.parametrize("crossfade_ms", ["abc", "10.5", "1e3"])
+def test_a_text_crossfade_ms_is_refused_without_int_raw_text(episode, crossfade_ms):
+    message = str(_refused(episode, [_entry(2, 3, crossfade_ms=crossfade_ms)]))
+    assert "edits.0.crossfade_ms" in message
+    assert "invalid literal" not in message
+    assert crossfade_ms not in message
+
+
 @pytest.mark.parametrize(
     "entry",
     [
