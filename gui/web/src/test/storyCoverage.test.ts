@@ -70,13 +70,6 @@ const COVERED: Record<string, string[]> = {
   "CMP-TOOLRAIL": ["Stages/Edit/ToolStrip"],
   "CMP-TABS": ["Stages/Edit/Frame"],
   "CMP-SAVEDOT": ["System/SaveIndicator"],
-  "CMP-RULER": ["Templates/TimeRuler"],
-  "CMP-TOOLRAIL": ["Templates/EditingToolRail", "Templates/ToolModeToggle"],
-  "CMP-SPLITTER": ["Templates/BottomTabsSplitter"],
-  "CMP-TABS": ["Templates/StudioShell"],
-  "CMP-STATUSBAR": ["Templates/StatusBar"],
-  "CMP-SAVEDOT": ["Templates/SaveStateDotView"],
-  "CMP-PIPELINE-CHIP": ["Templates/PipelineStatusChip"],
   "CMP-RULER": ["Templates/TimeRuler", "System/Ruler"],
   "CMP-MARKERS": [
     "Templates/MarkerLane",
