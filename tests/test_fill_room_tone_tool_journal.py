@@ -131,3 +131,19 @@ def test_a_range_less_row_replays_idempotently(tmp_path):
     assert [row["type"] for row in rows] == ["FillRoomTone"]
     stored = {k: v for k, v in rows[0]["payload"].items() if k != "result"}
     assert validate_payload("FillRoomTone", stored)["speaker"] == "Host"
+
+
+def test_a_fill_with_no_target_keeps_missing_argument(tmp_path):
+    path = _gappy_path(tmp_path)
+    with pytest.raises(ValueError) as raised:
+        mcp_timeline.fill_with_room_tone_tool(path)
+    assert raised.value.code == "missing_argument"
+    assert _rows(path) == []
+
+
+def test_an_inverted_range_is_a_coded_invalid_payload(tmp_path):
+    path = _gappy_path(tmp_path)
+    with pytest.raises(ValueError) as raised:
+        mcp_timeline.fill_with_room_tone_tool(path, track_id="host", start_sec=5.0, end_sec=2.0)
+    assert raised.value.code == "invalid_payload"
+    assert _rows(path) == []

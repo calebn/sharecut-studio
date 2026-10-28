@@ -124,8 +124,8 @@ def authorize_document_payload(
 ) -> None:
     """Raise PermissionError if *caps* may run *command_type* but not this payload shape.
 
-    A room tone fill without a range covers a whole track, so only the host runs it.
-    ``caps is None`` means host / unrestricted (always allowed).
+    A room tone fill without a range (no ``start_sec``/``end_sec``) is host-only; a guest
+    Editor fills an explicit range. ``caps is None`` means host / unrestricted (always allowed).
     """
     if caps is None:
         return
@@ -133,6 +133,6 @@ def authorize_document_payload(
         payload.get("start_sec") is None or payload.get("end_sec") is None
     ):
         raise CodedPermissionError(
-            "a whole-track room tone fill is host-only; guests fill a selected range",
+            "a room tone fill without a range is host-only; guests fill a selected range",
             code="share_capability_required",
         )

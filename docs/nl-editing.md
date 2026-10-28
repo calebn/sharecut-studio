@@ -203,7 +203,7 @@ On a long raw session, cut content before tightening:
 Per-track-only tools (`strip_silence_tool`, track-local punch) do **not** ripple other tracks — use those when intentional single-track trimming is desired.
 
 
-**Fill a range with room tone** (#1136). `fill_with_room_tone_tool` with `track_id`, `start_sec` and `end_sec` fills only the gaps between clips inside that range; clips are untouched. With `track_id` or `speaker` and no range it fills the whole track's gaps; both forms submit one `FillRoomTone` document command, so each call is one history step and one journal row. A guest cannot run the whole-track form. It refuses with `nothing_to_fill`, `no_source` or `range_incomplete`; see [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from.
+**Fill a range with room tone** (#1136). `fill_with_room_tone_tool` with `track_id`, `start_sec` and `end_sec` fills only the gaps between clips inside that range; clips are untouched. With `track_id` or `speaker` and no range it fills the whole track's gaps; both forms submit one `FillRoomTone` document command, so each call is one history step and one journal row. A guest cannot run a fill without a range. It refuses with `nothing_to_fill`, `no_source` or `range_incomplete`; see [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from.
 
 ## Restore an applied edit
 

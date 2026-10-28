@@ -732,13 +732,13 @@ def history_total(minimal_project) -> int:
     return json.loads(history_status_tool(str(minimal_project)))["total"]
 
 
-WHOLE_TRACK = {"track_id": "host"}
+NO_RANGE = {"track_id": "host"}
 RANGE = {"track_id": "host", "start_sec": 1.0, "end_sec": 2.0}
 
 
 @pytest.mark.parametrize("caps", [EDITOR, [*EDITOR, "mcp"]], ids=["editor", "editor-mcp"])
-@pytest.mark.parametrize("payload", [WHOLE_TRACK, {"speaker": "Host"}])
-def test_editor_whole_track_room_tone_fill_is_host_only(
+@pytest.mark.parametrize("payload", [NO_RANGE, {"speaker": "Host"}])
+def test_editor_room_tone_fill_without_a_range_is_host_only(
     minimal_project, monkeypatch, caps, payload
 ):
     svc = gap_project(minimal_project, monkeypatch)
@@ -752,8 +752,8 @@ def test_editor_whole_track_room_tone_fill_is_host_only(
     assert journal_types(minimal_project) == []
 
 
-@pytest.mark.parametrize("payload", [{"track_id": "host", "start_sec": 1.0}, {"track_id": "host"}])
-def test_editor_half_or_no_range_room_tone_fill_is_refused_as_a_permission(
+@pytest.mark.parametrize("payload", [{"track_id": "host", "start_sec": 1.0}])
+def test_editor_half_a_range_room_tone_fill_is_refused_as_a_permission(
     minimal_project, monkeypatch, payload
 ):
     svc = gap_project(minimal_project, monkeypatch)
@@ -772,16 +772,16 @@ def test_editor_range_room_tone_fill_still_runs(minimal_project, monkeypatch, ca
     assert journal_types(minimal_project) == ["FillRoomTone"]
 
 
-def test_host_whole_track_room_tone_fill_passes(minimal_project, monkeypatch):
+def test_host_room_tone_fill_without_a_range_passes(minimal_project, monkeypatch):
     svc = gap_project(minimal_project, monkeypatch)
     before = deepcopy(svc.ws.project.clips)
-    svc.submit(fill_command(WHOLE_TRACK), capabilities=None)
+    svc.submit(fill_command(NO_RANGE), capabilities=None)
     assert load_project(minimal_project).clips != before
     assert journal_types(minimal_project) == ["FillRoomTone"]
 
 
 @pytest.mark.parametrize("caps", [VIEWER, COMMENTER], ids=["viewer", "commenter"])
-@pytest.mark.parametrize("payload", [WHOLE_TRACK, RANGE], ids=["whole-track", "range"])
+@pytest.mark.parametrize("payload", [NO_RANGE, RANGE], ids=["no-range", "range"])
 def test_commenter_and_viewer_room_tone_fill_is_refused(
     minimal_project, monkeypatch, caps, payload
 ):
@@ -800,7 +800,7 @@ def test_room_tone_fill_shape_gate_holds_on_every_guest_surface(
     token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
     total = history_total(minimal_project)
     submit = guest_submitter(surface)
-    assert not submit(token, "FillRoomTone", WHOLE_TRACK)
+    assert not submit(token, "FillRoomTone", NO_RANGE)
     assert load_project(minimal_project).clips == before
     assert history_total(minimal_project) == total
     assert journal_types(minimal_project) == []
