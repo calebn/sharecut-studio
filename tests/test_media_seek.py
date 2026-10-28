@@ -194,6 +194,25 @@ def test_media_seek_before_the_audio_starts_still_counts_from_the_audio() -> Non
     assert MediaSeek(0, seek.source_seek_us, 0).first_sample(0.25, SR) == 12_000
 
 
+@pytest.mark.parametrize("rate", [44_100, 48_000, 96_000])
+@pytest.mark.parametrize("lead_sec", [0.0, 11e-6, 0.02322])
+def test_sample_time_inverts_first_sample(rate: int, lead_sec: float) -> None:
+    seek = MediaSeek.at(0.0, lead_sec=lead_sec)
+    frames = [*range(rate, rate + 400), *range(0, 40 * rate, 4_999), 3 * 3600 * rate + 17]
+    wrong = [n for n in frames if seek.first_sample(seek.sample_time(n, rate), rate) != n]
+    assert wrong == []
+
+
+def test_sample_time_is_the_nearest_microsecond_on_the_container_clock() -> None:
+    assert MediaSeek.at(0.0, lead_sec=0.0).sample_time(48_001, SR) == 1.000021
+    led = MediaSeek.at(0.0, lead_sec=0.02322)
+    assert led.sample_time(48_000, SR) == 1.000009
+    assert led.first_sample(1.000009, SR) == 48_000
+    seeked = MediaSeek.at(3.2345678, lead_sec=0.0)
+    assert seeked.sample_time(155_259, SR) == 3.234563
+    assert seeked.first_sample(3.234563, SR) == 155_259
+
+
 LEAD_IN_CONTAINERS = ("wav", "m4a")
 LEAD_IN_SEC = 1.0
 LEAD_IN_SAMPLES = 48_000

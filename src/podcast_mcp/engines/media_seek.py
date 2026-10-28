@@ -95,3 +95,15 @@ class MediaSeek:
         return _rescale(self.source_seek_us, sample_rate) + _rescale(
             max(0, self._container_us(t_sec) - self.seek_us), sample_rate
         )
+
+    def sample_time(self, frame: int, sample_rate: int) -> float:
+        """Source time whose ``first_sample`` is ``frame``: the exact inverse for rates under 1 MHz.
+
+        Rounding start and end times to samples separately drifts a piece's length by up to
+        a sample. A time from here keeps ``first_sample(end) - first_sample(start)`` equal to
+        the frame difference, which plain ``frame / sample_rate`` does not once ``lead_us``
+        puts the sum of the two roundings off by one.
+        """
+        offset = frame - _rescale(self.source_seek_us, sample_rate)
+        us = (offset * _US_PER_SEC * 2 + sample_rate) // (2 * sample_rate)
+        return (us + self.seek_us - self.lead_us) / _US_PER_SEC
