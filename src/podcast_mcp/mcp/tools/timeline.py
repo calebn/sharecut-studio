@@ -594,23 +594,27 @@ def fill_with_room_tone_tool(
 ) -> str:
     """Fill a track's silences with its own room tone.
 
+    With ``track_id`` or ``speaker`` and no range the whole track's gaps are filled.
     With ``start_sec`` and ``end_sec`` (timeline seconds, plus ``track_id``) only the
     clip-free time inside that range is filled; clips are never touched.
     """
-    if start_sec is not None or end_sec is not None:
-        if track_id is None or start_sec is None or end_sec is None:
-            raise CodedValueError(
-                "a range fill needs track_id, start_sec and end_sec", code="range_incomplete"
-            )
-        return to_json(
-            submit_host_command_result(
-                project_path,
-                "FillRoomTone",
-                {"track_id": track_id, "start_sec": start_sec, "end_sec": end_sec},
-            )
+    if (start_sec is not None or end_sec is not None) and (
+        track_id is None or start_sec is None or end_sec is None
+    ):
+        raise CodedValueError(
+            "a range fill needs track_id, start_sec and end_sec", code="range_incomplete"
         )
-    ws = ProjectWorkspace.open(project_path)
-    return to_json(TimelineService(ws).fill_room_tone(track_id=track_id, speaker=speaker))
+    payload = {
+        key: value
+        for key, value in {
+            "track_id": track_id,
+            "speaker": speaker,
+            "start_sec": start_sec,
+            "end_sec": end_sec,
+        }.items()
+        if value is not None
+    }
+    return to_json(submit_host_command_result(project_path, "FillRoomTone", payload))
 
 
 def add_chapter_tool(project_path: str, at_time: float, title: str) -> str:
@@ -1364,6 +1368,7 @@ def register(mcp: MCPServer) -> None:
     mutating.discard(move_clips_tool)
     mutating.discard(fade_joins_tool)
     mutating.discard(crossfade_joins_tool)
+    mutating.discard(fill_with_room_tone_tool)
     mutating.discard(apply_fade_recommendations_tool)
     mutating.discard(ripple_delete_text_tool)
     for fn in (

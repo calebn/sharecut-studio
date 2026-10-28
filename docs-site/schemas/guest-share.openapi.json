@@ -3524,25 +3524,52 @@
       "FillRoomTonePayload": {
         "properties": {
           "end_sec": {
-            "minimum": 0.0,
-            "title": "End Sec",
-            "type": "number"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Sec"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
           },
           "start_sec": {
-            "minimum": 0.0,
-            "title": "Start Sec",
-            "type": "number"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Sec"
           },
           "track_id": {
-            "title": "Track Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
           }
         },
-        "required": [
-          "track_id",
-          "start_sec",
-          "end_sec"
-        ],
         "title": "FillRoomTonePayload",
         "type": "object"
       },

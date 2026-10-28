@@ -1029,7 +1029,7 @@ Lab (`aligned-ready`, refine waived; ripple proposal byte-identical throughout).
 
 **Where room tone comes from** (#1054, `engines/room_tone.py`). With `room_tone`, a ripple pad, an approved mute and `fill_with_room_tone` all ask one sampler for a stretch of the track's room near the cut. A recorded `track.room_tone` bed wins when its `sources[]` entry exists and it is not digital silence. Otherwise the sample comes from the track's own audio, read once per file version as 10 ms frame levels at 16 kHz. Word times are not consulted, because a transcript gap can hold speech the transcript missed (#979).
 
-**Fill a range** (#1136). The `FillRoomTone` document command (`fill_with_room_tone_tool` with `track_id`, `start_sec`, `end_sec`) runs the same fill over only the clip-free time inside `[start_sec, end_sec)` of one track; clips are never touched and it is an editor command only. It fails with `no_source` when no room tone can be sampled and `nothing_to_fill` when the range holds no gap wider than the join tolerance.
+**Fill a range** (#1136). The `FillRoomTone` document command (`fill_with_room_tone_tool` with `track_id`, `start_sec`, `end_sec`) runs the same fill over only the clip-free time inside `[start_sec, end_sec)` of one track; clips are never touched. The range form runs for editors and the host; the whole-track form (`track_id` or `speaker`, no range) is the same command without a range and is host-only. It fails with `no_source` when no room tone can be sampled and `nothing_to_fill` when the range holds no gap wider than the join tolerance.
 
 | Rule | Value | Why |
 |---|---|---|

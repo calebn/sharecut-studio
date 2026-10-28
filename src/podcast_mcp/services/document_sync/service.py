@@ -556,9 +556,11 @@ class DocumentSyncService:
         if capabilities is not None:
             from podcast_mcp.services.document_sync.capabilities import (
                 authorize_document_command,
+                authorize_document_payload,
             )
 
             authorize_document_command(capabilities, command.type)
+            authorize_document_payload(capabilities, command.type, command.payload)
 
         from podcast_mcp.services.document_sync.projections import projection_for_command
 
