@@ -1,6 +1,6 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { modelNeededOfJob, notDownloadedLine } from "./apiError";
-import { isAnalyzeJob, isPipelineKindJob, isPipelineRunning } from "./pipeline";
+import { isAnalyzeJob, isPipelineKindJob } from "./pipeline";
 import { plainError } from "./plainError";
 
 /** True when the job has an honest determinate total (no fake %). */
@@ -53,24 +53,6 @@ export function truncateHeadline(
     return trimmed;
   }
   return `${trimmed.slice(0, Math.max(0, maxLen - 1))}…`;
-}
-
-/** Distinct terminal / running labels for chrome (fail ≠ cancel). */
-export function pipelineStatusLabel(status: string): string {
-  switch (status) {
-    case "ok":
-      return "ok";
-    case "error":
-      return "failed";
-    case "cancelled":
-      return "cancelled";
-    case "queued":
-      return "queued";
-    case "running":
-      return "running";
-    default:
-      return status;
-  }
 }
 
 /**
@@ -127,13 +109,6 @@ export function pipelineChromeLabel(
     parts.push(units);
   }
   return parts.join(" · ");
-}
-
-/** True while the job is running — pulse for busy chrome; bar is separate. */
-export function showIndeterminatePulse(
-  job: PipelineJobSnapshot | null | undefined,
-): boolean {
-  return isPipelineRunning(job);
 }
 
 /** Seconds without a domain progress event before chrome shows stale copy. */

@@ -173,16 +173,7 @@ export function pipelineConfig(
       ffmpeg: { state: "installed", label: "ffmpeg" },
       whisper: { state: "installed", label: "Whisper" },
     },
-    forced_alignment: {
-      enabled: true,
-      model: "wav2vec2",
-      requested: null,
-      installed: true,
-      blocked: false,
-      reason: "",
-    },
     step_names: STEPS.map((s) => s.id),
-    whisper_models: [],
     ...overrides,
   };
 }
