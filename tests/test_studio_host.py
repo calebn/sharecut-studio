@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import http.client
 import io
 import json
@@ -12,7 +13,7 @@ import socketserver
 import struct
 import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -893,3 +894,75 @@ def test_a_ping_says_whether_the_studio_has_mcp(
         host = locate_studio(project)
     assert host is not None
     assert host.mcp is expected
+
+
+def _winsock_timeout() -> OSError:
+    exc = OSError(10060, "A connection attempt failed because the connected party did not respond")
+    exc.winerror = 10060  # type: ignore[attr-defined]
+    return exc
+
+
+_OS_TIMEOUTS = [
+    pytest.param(lambda: OSError(10060, "timed out"), id="errno-10060"),
+    pytest.param(_winsock_timeout, id="winerror-10060"),
+    pytest.param(lambda: OSError(errno.ETIMEDOUT, "timed out"), id="etimedout"),
+]
+
+
+@pytest.mark.parametrize("make_error", _OS_TIMEOUTS)
+def test_an_os_level_ping_timeout_is_a_wedged_studio(
+    project: Path, monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], OSError]
+) -> None:
+    announce_studio_host(project, _host())
+    pings: list[int] = []
+
+    def timeout(_host: StudioHost, _project: str) -> tuple[int, object]:
+        pings.append(1)
+        raise make_error()
+
+    monkeypatch.setattr(studio_host_module, "_ping", timeout)
+    with pytest.raises(StudioUnresponsive):
+        locate_studio(project)
+    assert len(pings) == 2
+
+
+@pytest.mark.parametrize("make_error", _OS_TIMEOUTS)
+def test_an_os_level_run_request_timeout_is_lost_not_bypassed(
+    project: Path, monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], OSError]
+) -> None:
+    class TimedOut:
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            raise make_error()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(studio_host_module, "_connection", lambda *_args: TimedOut())
+    with pytest.raises(HandoffLost, match="did not answer in time"):
+        hand_off(
+            _host(),
+            argv=["status"],
+            project=str(project),
+            cwd=str(project),
+            out=io.StringIO(),
+            err=io.StringIO(),
+        )
+
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        pytest.param(lambda: ConnectionRefusedError(errno.ECONNREFUSED, "refused"), id="refused"),
+        pytest.param(lambda: OSError(10061, "refused"), id="wsaeconnrefused"),
+    ],
+)
+def test_a_refused_ping_is_still_an_absent_studio(
+    project: Path, monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], OSError]
+) -> None:
+    announce_studio_host(project, _host())
+
+    def refused(_host: StudioHost, _project: str) -> tuple[int, object]:
+        raise make_error()
+
+    monkeypatch.setattr(studio_host_module, "_ping", refused)
+    assert locate_studio(project) is None
