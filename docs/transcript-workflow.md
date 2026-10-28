@@ -463,8 +463,8 @@ never flip `ignored` automatically. No `EditDecision`, cut, or `edit_log` record
 created either way, but ignore additionally creates none of the mute-region
 bookkeeping that a `tighten.edit_mode: mute` cut would.
 
-**Low-confidence walkthrough (#634):** it uses the same threshold (`analysis.unsure_word_confidence`, 0.7 as shipped) as
-`low_confidence_words_tool`; ShareCut Studio walks those words Next/Previous
+**Low-confidence walkthrough (#634):** it uses the same value (0.7 as shipped; Studio holds its own 0.7 constant in `transcript/lowConfidence.ts` until it reads the server's `unsure` flag) as
+`low_confidence_words_tool` (`analysis.unsure_word_confidence`); ShareCut Studio walks those words Next/Previous
 under Annotate; a corrected word (confidence set to 1.0) leaves the list and
 the walk continues with the nearest flagged word after (Next) or before
 (Previous) it in transcript order, even when an agent batch-corrects several.

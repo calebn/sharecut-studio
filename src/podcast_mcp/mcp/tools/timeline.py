@@ -898,7 +898,7 @@ def low_confidence_words_tool(project_path: str, threshold: float | None = None)
     """List words below a confidence threshold for human review.
 
     ``threshold`` defaults to the project's unsure-word line, the config key
-    ``analysis.unsure_word_confidence`` (0.7 as shipped), the same line Studio's ``unsure`` flag,
+    ``analysis.unsure_word_confidence`` (0.7 as shipped), the same line the mapped ``unsure`` flag,
     the refine brief and bulk approve use.
     """
     ws = ProjectWorkspace.open(project_path)
