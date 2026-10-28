@@ -324,8 +324,7 @@ export function usePrepareRun(input: PrepareRunInput) {
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: approximate,
     run: start,
-    tryAgain: () =>
-      refusal ? void askToReplace("update") : void start("run"),
+    tryAgain: () => (refusal ? void askToReplace("update") : void start("run")),
     retranscribe: () => void askToReplace("retranscribe"),
     keepMyFixes: () => setKeepFixes(null),
     replaceFixes: () => {

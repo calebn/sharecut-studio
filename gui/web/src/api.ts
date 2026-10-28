@@ -105,8 +105,6 @@ export {
 } from "./api/mediaSession";
 export type { TranscriptVocabulary } from "./api/pipeline";
 export {
-  ANALYZE_WAIT_MS,
-  analyzePipeline,
   cancelPipelineRun,
   followExportJob,
   followJobToOk,
@@ -119,7 +117,6 @@ export {
   pipelineEventsUrl,
   putPipelineConfig,
   saveTranscriptVocabulary,
-  startPipelineAnalyze,
   startPipelineRun,
   startRenderPreview,
   waitForPipelineJob,
@@ -154,11 +151,8 @@ export {
   revokeHostRoom,
   revokeHostShare,
 } from "./api/sharesRecord";
-export type {
-  SpeakerDoctorReport,
-  SplitSpeakersRequest,
-} from "./api/speakerSplit";
-export { getSpeakerDoctor, startSplitSpeakersJob } from "./api/speakerSplit";
+export type { SplitSpeakersRequest } from "./api/speakerSplit";
+export { startSplitSpeakersJob } from "./api/speakerSplit";
 export {
   loadTranscriptCheck,
   markTranscriptChecked,

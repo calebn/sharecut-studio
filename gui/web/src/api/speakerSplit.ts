@@ -1,17 +1,6 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { apiFetch } from "./http";
 
-export type SpeakerDoctorReport = {
-  available_backends: string[];
-  recommended: string | null;
-};
-
-/** Reports importable backends on the host; it does not check model downloads. */
-export async function getSpeakerDoctor(): Promise<SpeakerDoctorReport> {
-  const res = await apiFetch("", { host: "/api/speaker/doctor" });
-  return (await res.json()) as SpeakerDoctorReport;
-}
-
 export type SplitSpeakersRequest = {
   trackId: string;
   speakerCount: number;
