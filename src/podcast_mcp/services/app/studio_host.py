@@ -84,7 +84,8 @@ class StudioHost:
     port: int
     token: str
     version: str
-    #: Whether the Studio mounts /mcp (a non-loopback bind does not). Never written to the file.
+    #: Whether the Studio mounts /mcp (a non-loopback bind does not); stdio MCP refuses calls to one
+    #: that does not. Never written to the file.
     mcp: bool = True
 
 

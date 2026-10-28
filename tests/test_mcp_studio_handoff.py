@@ -100,12 +100,30 @@ def test_tool_call_runs_in_the_studio_serving_the_project(studio: Path) -> None:
     assert json.loads(result.content[0].text) is not None  # type: ignore[union-attr]
 
 
-def test_a_studio_with_no_mcp_leaves_the_call_to_run_here(wildcard_studio: Path) -> None:
+def test_a_studio_that_serves_no_mcp_refuses_the_call(wildcard_studio: Path) -> None:
     from podcast_mcp.services.app import locate_studio
 
     host = locate_studio(wildcard_studio)
     assert host is not None
     assert host.mcp is False
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("list_clips_tool", {"project_path": str(wildcard_studio)})
+    )
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    text = result.content[0].text  # type: ignore[union-attr]
+    assert f"pid {host.pid}" in text
+    assert "list_clips_tool" in text
+    assert "--host 127.0.0.1" in text
+    assert "Nothing was run." in text
+    assert server.calls == []
+
+
+def test_a_studio_that_serves_no_mcp_is_bypassed_when_handoff_is_off(
+    wildcard_studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_NO_STUDIO_HANDOFF", "1")
     server = _wrapped()
     result = asyncio.run(
         server.call_tool("list_clips_tool", {"project_path": str(wildcard_studio)})
