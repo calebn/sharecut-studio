@@ -51,72 +51,67 @@ class RecordTrackService:
         host's choice is kept. Refusals: ``unknown_participant``, ``unknown_track``,
         ``track_taken``, ``replace_target_track``, ``session_already_accepted``, ``session_skipped``.
         """
-        self.workspace.reload()
-        project = self.workspace.project
-        current = self._matches(project)
-        match = current.get(participant_id)
-        if match is None:
-            raise CodedKeyError(
-                f"Unknown participant: {participant_id}. Run `podcast record tracks` "
-                "(record_tracks_tool) to list the people in this session and their ids.",
-                code="unknown_participant",
+        with self.workspace.transaction() as project:
+            current = self._matches(project)
+            match = current.get(participant_id)
+            if match is None:
+                raise CodedKeyError(
+                    f"Unknown participant: {participant_id}. Run `podcast record tracks` "
+                    "(record_tracks_tool) to list the people in this session and their ids.",
+                    code="unknown_participant",
+                )
+            suggestion = suggestion_for_session(project, self.session_id)
+            self._require_open(project, suggestion, match)
+            target, label = self._target(project, current, match, track)
+            sources = _own_sources(project, self.session_id, participant_id, suggestion)
+            has_staged_recording = suggestion is not None and (
+                bool(sources) or _has_bed(suggestion, self.session_id, participant_id)
             )
-        suggestion = suggestion_for_session(project, self.session_id)
-        self._require_open(project, suggestion, match)
-        target, label = self._target(project, current, match, track)
-        sources = _own_sources(project, self.session_id, participant_id, suggestion)
-        staged = suggestion is not None and (
-            bool(sources) or _has_bed(suggestion, self.session_id, participant_id)
-        )
-        if target == match.track_id:
-            # Pin it: a name match stays put (or an ambiguous flag is dismissed) later on.
-            # Staged takes already say where the person is, so nothing needs storing then.
-            if not staged:
+            if target == match.track_id:
+                if not has_staged_recording:
+                    self._room.set_track_choice(participant_id, target)
+                    match = self._matches(self.workspace.project)[participant_id]
+                return {**match.as_dict(), "changed": False}
+            if not has_staged_recording:
+                self._require_target_stays(match)
+            follows = bool(
+                suggestion is not None
+                and has_staged_recording
+                and suggestion.kind == "replace"
+                and match.track_id in suggestion.track_ids
+            )
+            if suggestion is not None and has_staged_recording:
+                title = f"Moved {match.display_name} to {label}"
+                self.workspace.mutate(
+                    f"before {title}",
+                    f"after {title}",
+                    lambda p: remap_staged_participant(
+                        p,
+                        suggestion.id,
+                        source_ids=sources,
+                        bed_path=room_tone_raw_rel(self.session_id, participant_id),
+                        track_id=target,
+                        track_label=label,
+                        old_track_id=match.track_id,
+                    ),
+                    operation="remap_session_track",
+                    params={
+                        "session_id": self.session_id,
+                        "participant_id": participant_id,
+                        "track_id": target,
+                        "title": title,
+                    },
+                )
+            if not has_staged_recording:
                 self._room.set_track_choice(participant_id, target)
-                match = self._matches(self.workspace.project)[participant_id]
-            return {**match.as_dict(), "changed": False}
-        if not staged:
-            self._require_target_stays(match)
-        follows = bool(
-            suggestion is not None
-            and staged
-            and suggestion.kind == "replace"
-            and match.track_id in suggestion.track_ids
-        )
-        if suggestion is not None and staged:
-            title = f"Moved {match.display_name} to {label}"
-            self.workspace.mutate(
-                f"before {title}",
-                f"after {title}",
-                lambda p: remap_staged_participant(
-                    p,
-                    suggestion.id,
-                    source_ids=sources,
-                    bed_path=room_tone_raw_rel(self.session_id, participant_id),
-                    track_id=target,
-                    track_label=label,
-                    old_track_id=match.track_id,
-                ),
-                operation="remap_session_track",
-                params={
-                    "session_id": self.session_id,
-                    "participant_id": participant_id,
-                    "track_id": target,
-                    "title": title,
-                },
-            )
-        if not staged:
-            # Staged takes are the record of the move (it undoes with them); only a person who
-            # has nothing staged yet needs the choice remembered.
-            self._room.set_track_choice(participant_id, target)
-        after = self._matches(self.workspace.project)[participant_id]
-        out = {**after.as_dict(), "changed": True}
-        if follows:
-            out["note"] = (
-                f'This replace now covers "{label}" instead of "{match.track_label}"; '
-                f"it follows {match.display_name}."
-            )
-        return out
+            after = self._matches(self.workspace.project)[participant_id]
+            out = {**after.as_dict(), "changed": True}
+            if follows:
+                out["note"] = (
+                    f'This replace now covers "{label}" instead of "{match.track_label}"; '
+                    f"it follows {match.display_name}."
+                )
+            return out
 
     def _require_target_stays(self, match: TrackMatch) -> None:
         """A replace room names the tracks it covers; their person cannot leave before staging."""

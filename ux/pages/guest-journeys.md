@@ -440,6 +440,8 @@ moved off the stale file meanwhile. Overlapping lands (an ACK auto-land and a La
 
 **Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers. The Playwright US-2 scenario (`gui/web/e2e/record-host-reconnect.spec.ts`) drops the host mid-take: the guest keeps recording with the alert "{Host} dropped. You're still recording on this device.", and after a long drop the take returns PAUSED until the host resumes. The full-quality recording capture → saving → landing path also runs on Chromium and Playwright WebKit in the compat core flow ([browser acceptance matrix](../../docs/testing-ci.md#browser-acceptance-matrix)); Firefox is not covered.
 
+The host can correct a person's track before accepting a staged session. If Accept finishes first, a concurrent track correction refuses and leaves the accepted recordings unchanged. A correction that finishes first is included when the host accepts. See [Returning people](../../docs/recording-session.md#returning-people-which-track-a-person-lands-on).
+
 ---
 
 ## 7. Produce a recording session (Join sheet + silent mix-minus)
