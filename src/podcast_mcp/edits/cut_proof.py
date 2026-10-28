@@ -97,7 +97,7 @@ class BatchBase:
     def profiles(
         self, project: EpisodeProject, built: TrackRmsCacheSet, *, defaults: EffectiveConfig
     ) -> dict[str, LevelProfile]:
-        """The base profiles; ``built`` is a set made from ``project``, which they come from if it is the start."""
+        """The base profiles; ``built`` (made from ``project``) is their source for the start."""
         if self._profiles is None:
             source = (
                 built
@@ -110,21 +110,23 @@ class BatchBase:
     def stamp(self, *, defaults: EffectiveConfig) -> str:
         """A digest of what determines each track's base profile, for the verdict key.
 
-        It decodes and builds no audio, and starts no process. A track's timeline samples, and so
-        its profile, are a function of its clips (placement, fades, joins, mute regions, ignored
-        words), every file they read, its volume envelope, effects chain and gate, the render's
-        crossfade curve, and, when its stem is fresh, the stem file. ``track_render_hash``
-        fingerprints the clips, the recordings (path and file revision), the envelope, chain and
-        gate (with the gate fill's file stamp). The stamp adds what that hash leaves out: the
-        file revision of each room-tone bed a mute fill reads (the hash carries only its source
-        id), the crossfade curve, and the stem's file revision and hash sidecar. For a gated lane
-        the hash reads the cached ffprobe stream count of the recording. Equal digests are equal
-        inputs, so equal profiles, at the stat-based file identity the stem freshness check
-        uses (device, inode, size, mtime). A change to any input, such as a mute on the track,
-        changes the digest. It covers more than the profile reads (gain, chain parameters),
-        which can cost a hit and never a wrong one. The measuring code is versioned by
-        ``verdict_cache.SEMANTICS``. It is computed once, at the batch's first check and before
-        anything is applied.
+        It decodes and builds no audio. A track's timeline samples, and so its profile, are a
+        function of its clips (placement, fades, joins, mute regions, ignored words), every file
+        they read, its volume envelope, effects chain and gate, the render's crossfade curve, and,
+        when its stem is fresh, the stem file. ``track_render_hash`` fingerprints the clips, the
+        recordings (path and file revision), the envelope, chain and gate (with the gate fill's
+        file stamp). The stamp adds what that hash leaves out: the file revision of each
+        room-tone bed a mute fill reads (the hash carries only its source id), the crossfade
+        curve, and the stem's file revision and hash sidecar.
+
+        For a gated lane the hash reads the recordings' stream count through a cached probe,
+        which runs ffprobe once per file on a cold cache (and on each call while a probe fails).
+        Equal digests are equal inputs, so equal profiles, at the stat-based file identity the
+        stem freshness check uses (device, inode, size, mtime). A change to any input, such as a
+        mute on the track, changes the digest. It covers more than the profile reads (gain, chain
+        parameters), which can cost a hit and never a wrong one. The measuring code is versioned
+        by ``verdict_cache.SEMANTICS``. It is computed once, at the batch's first check and
+        before anything is applied.
         """
         if self._stamp is not None:
             return self._stamp

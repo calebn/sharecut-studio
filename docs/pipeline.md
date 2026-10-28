@@ -672,8 +672,11 @@ mute regions, the recordings' paths and file revisions, envelope, chain and gate
 file revision of each room-tone bed a mute fill reads, the render's crossfade curve, and the
 stem's file revision and hash sidecar. It decodes and builds no audio, so a batch whose checks
 all hit builds nothing. The same inputs give the same digest, so an unchanged project keeps every
-hit. Any change to a track's clips or files, such as a mute, a fade or a re-recorded file, changes
-it, even where the profile would not move; that costs a hit and never a wrong verdict. This is
+hit. Any change to a track's clips or files, such as a mute, a fade or a replaced file, changes
+it, even where the profile would not move; that costs a hit and never a wrong verdict. Files are identified by their stat (device,
+inode, size, mtime), as the stem freshness check identifies them, so a rewrite in place that keeps
+the size and restores the mtime is not seen by either. A gated lane's stream count comes from a
+cached ffprobe, which runs once per file on a cold cache. This is
 why the idle warm and the approve differ when pending mutes apply first: approve's base has the
 mutes applied and the warm's does not, so the warm's entries are not reused there.
 `PODCAST_VERDICT_VERIFY=1` also runs the full check on every hit and fails if it differs; the

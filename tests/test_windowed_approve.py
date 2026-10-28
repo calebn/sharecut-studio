@@ -5,21 +5,23 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import os
+import subprocess
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import cut_proof, cut_safety, verdict_cache
+from podcast_mcp.edits import cut_application, cut_proof, cut_safety, verdict_cache
 from podcast_mcp.edits.cut_application import apply_prefix_edits, approve_edits, precompute_verdicts
 from podcast_mcp.engines import track_evidence
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.mute_regions import add_source_mute
 from podcast_mcp.engines.play_audit import stem_path, write_stem_hash
-from podcast_mcp.engines.windowed_rms import WindowedTrackRmsCache
+from podcast_mcp.engines.windowed_rms import TimelineWindow, WindowedTrackRmsCache, WindowMiss
 from podcast_mcp.models import (
     Clip,
     ClipMuteRegion,
@@ -594,7 +596,6 @@ def _stamp(project: EpisodeProject, defaults: dict | None = None) -> str:
 def test_the_stamp_decodes_and_builds_no_audio_and_starts_no_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import subprocess
 
     from podcast_mcp.engines import audio_audit, level_profile, ungated_audio
 
@@ -727,3 +728,391 @@ def test_a_replaced_recording_is_part_of_the_stamp(tmp_path: Path) -> None:
     _rewrite(tmp_path / "raw" / "host.wav", 99)  # same ids, clips and path; other bytes
 
     assert _stamp(project) != before
+
+
+# --- the stem is part of the stamp --------------------------------------------------------
+
+
+def test_a_replaced_stem_a_changed_sidecar_and_a_removed_stem_each_change_the_stamp(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path, chained=("host",))
+    _with_a_fresh_guest_stem(project)
+    fresh = _stamp(project)
+    assert _stamp(project) == fresh
+    stem = stem_path(project, "guest")
+    sidecar = stem.with_suffix(".hash")
+    assert sidecar.is_file()
+    stats = stem.stat()
+
+    # the sidecar alone: the stem file and the render hash are as they were
+    original = sidecar.read_text()
+    sidecar.write_text(original.strip() + "x\n")
+    assert _stamp(project) != fresh
+    sidecar.write_text(original)
+    assert _stamp(project) == fresh
+
+    # the stem alone: other bytes of the same size at the same path, a later mtime
+    stem.write_bytes(bytes(reversed(stem.read_bytes())))
+    os.utime(stem, ns=(stats.st_atime_ns, stats.st_mtime_ns + 5_000_000_000))
+    assert _stamp(project) != fresh
+
+    stem.unlink()  # no stem at all
+    assert _stamp(project) != fresh
+
+
+def test_a_stem_whose_stat_fails_gives_a_stamp_without_a_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, chained=("host",))
+    _with_a_fresh_guest_stem(project)
+    fresh = _stamp(project)
+    real = cut_proof.file_revision
+    stem = stem_path(project, "guest")
+
+    def revision(path: Path):  # type: ignore[no-untyped-def]
+        if path == stem:
+            raise OSError("gone")
+        return real(path)
+
+    monkeypatch.setattr(cut_proof, "file_revision", revision)
+
+    unreadable = _stamp(project)
+
+    assert unreadable != fresh  # without the revision it is another input
+
+
+def test_the_stamp_is_computed_once_per_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    calls: list[str] = []
+    real = cut_proof.track_render_hash
+
+    def counted(p, tid, **kw):  # type: ignore[no-untyped-def]
+        calls.append(tid)
+        return real(p, tid, **kw)
+
+    monkeypatch.setattr(cut_proof, "track_render_hash", counted)
+    base = cut_proof.BatchBase(project)
+
+    first = base.stamp(defaults=load_defaults())
+    count = len(calls)
+
+    assert count == 2 and base.stamp(defaults=load_defaults()) == first
+    assert len(calls) == count
+
+
+# --- the core property: what changes the whole-track profile changes the stamp ------------
+
+
+def _mute_the_words(project: EpisodeProject) -> None:
+    for clip in project.clips:
+        if clip.track_id == "host" and clip.source_start == 55.0:
+            add_source_mute(clip, ClipMuteRegion(start_s=57.0, end_s=70.0, fill=None))
+
+
+def _replace_the_host(project: EpisodeProject) -> None:
+    raw = Path(project.workspace_dir) / "raw" / "host.wav"
+    raw.unlink()
+    _write(raw, 41, [float(s) for s in range(30, 60)])
+
+
+def _drop_a_clip(project: EpisodeProject) -> None:
+    project.clips = [c for c in project.clips if c.id != "host2"]
+
+
+@pytest.mark.parametrize("mutate", [_mute_the_words, _replace_the_host, _drop_a_clip])
+def test_what_moves_the_whole_track_profile_moves_the_stamp(
+    tmp_path: Path, mutate: Callable[[EpisodeProject], None]
+) -> None:
+    project = _project(tmp_path)
+    twin = project.model_copy(deep=True)
+    before, stamp = _profile_of_whole_track(project), _stamp(project)
+    # equal inputs: the same stamp and the same profiles
+    assert _stamp(twin) == stamp and _profile_of_whole_track(twin) == before
+
+    mutate(project)
+
+    assert _profile_of_whole_track(project)["host"] != before["host"]
+    assert _stamp(project) != stamp
+
+
+# --- a stamp that cannot be had, and a window the check overruns --------------------------
+
+
+def test_a_stamp_that_cannot_be_measured_gives_no_key_and_the_cut_is_still_checked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected = _approve(_project(tmp_path / "expected"))
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    verdict_cache._STORE.clear()
+
+    def unreadable(self, *, defaults):  # type: ignore[no-untyped-def]
+        raise OSError("a recording is unreadable")
+
+    monkeypatch.setattr(cut_proof.BatchBase, "stamp", unreadable)
+
+    outcome = _approve(_project(tmp_path / "unstamped"))
+
+    assert outcome == expected
+    assert len(verdict_cache._STORE) == 0  # nothing was stored under a key
+
+
+def test_a_window_miss_in_observe_is_made_again_on_whole_caches_with_the_same_verdict(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    defaults = load_defaults()
+    placed = cut_safety.source_cut_placement(project, edit)
+    caches = cut_application.shared_source_audio_caches(project)
+    wholes: list[int] = []
+
+    class Overrun:
+        def caches_for(self, project, span, *, reach, defaults):  # type: ignore[no-untyped-def]
+            raise WindowMiss("a read left the window")
+
+        def whole(self, project, *, defaults):  # type: ignore[no-untyped-def]
+            wholes.append(1)
+            return cut_application.shared_timeline_rms_caches(project, defaults=defaults)
+
+    def observe(timeline):  # type: ignore[no-untyped-def]
+        return cut_application._observe(
+            project,
+            edit,
+            defaults=defaults,
+            manual=False,
+            batch=(),
+            audio_caches=caches,
+            timeline=timeline,
+            placed=placed,
+        )
+
+    assert observe(Overrun()) == observe(None)
+    assert wholes == [1]
+
+
+# --- build_track_rms_caches(window=...) ----------------------------------------------------
+
+
+def _window_over(profiles: dict[str, LevelProfile]) -> TimelineWindow:
+    return TimelineWindow(38.0, 44.0, profiles)
+
+
+def test_each_windowed_track_reports_its_own_profile_and_a_track_without_one_is_built_whole(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    defaults = load_defaults()
+    host = LevelProfile(room_db=-70.0, speech_db=-20.0, loud_db=-15.0)
+    guest = LevelProfile(room_db=-65.0, speech_db=-25.0, loud_db=-18.0)
+
+    both = build_track_rms_caches(
+        project,
+        track_ids=["host", "guest"],
+        unprocessed=True,
+        window=_window_over({"host": host, "guest": guest}),
+        defaults=defaults,
+    )
+    assert both.caches["host"].profile == host and both.caches["guest"].profile == guest
+    assert all(isinstance(c, WindowedTrackRmsCache) for c in both.caches.values())
+
+    only_host = build_track_rms_caches(
+        project,
+        track_ids=["host", "guest"],
+        unprocessed=True,
+        window=_window_over({"host": host}),
+        defaults=defaults,
+    )
+    assert isinstance(only_host.caches["host"], WindowedTrackRmsCache)
+    assert not isinstance(only_host.caches["guest"], WindowedTrackRmsCache)
+
+    processed = build_track_rms_caches(
+        project,
+        track_ids=["host"],
+        unprocessed=False,
+        window=_window_over({"host": host}),
+        defaults=defaults,
+    )
+    assert not isinstance(processed.caches["host"], WindowedTrackRmsCache)
+
+
+@pytest.mark.parametrize(
+    "error", [OSError("gone"), ValueError("bad"), subprocess.CalledProcessError(1, "x")]
+)
+def test_a_window_that_cannot_be_built_is_left_to_the_whole_track_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    project = _project(tmp_path)
+
+    def broken(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise error
+
+    monkeypatch.setattr(track_evidence, "rms_window", broken)
+    host = LevelProfile(room_db=-70.0, speech_db=-20.0, loud_db=-15.0)
+
+    built = build_track_rms_caches(
+        project,
+        track_ids=["host"],
+        unprocessed=True,
+        window=_window_over({"host": host}),
+        defaults=load_defaults(),
+    )
+
+    assert not isinstance(built.caches["host"], WindowedTrackRmsCache)
+    assert built.caches["host"].profile != host  # its own, from its samples
+
+
+def test_a_window_that_raises_something_else_is_not_swallowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise KeyError("a bug")
+
+    monkeypatch.setattr(track_evidence, "rms_window", broken)
+    with pytest.raises(KeyError):
+        build_track_rms_caches(
+            _project(tmp_path),
+            track_ids=["host"],
+            unprocessed=True,
+            window=_window_over({"host": BASE_PROFILE}),
+            defaults=load_defaults(),
+        )
+
+
+BASE_PROFILE = LevelProfile(room_db=-70.0, speech_db=-20.0, loud_db=-15.0)
+
+
+# --- BatchBase.adopt and CarriedTimelineRms ------------------------------------------------
+
+
+def test_adopt_reports_base_profiles_off_the_start_and_returns_the_start_set_itself(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    defaults = load_defaults()
+    base = cut_proof.BatchBase(project)
+    own = cut_proof.shared_timeline_rms_caches(project, defaults=defaults)
+    assert base.adopt(project, own, defaults=defaults) is own
+
+    shorter = project.model_copy(deep=True)
+    shorter.clips = [c for c in shorter.clips if c.id != "host2"]
+    rebuilt = build_track_rms_caches(
+        shorter, track_ids=["host", "guest"], unprocessed=True, defaults=defaults
+    )
+    assert rebuilt.caches["host"].profile != own.caches["host"].profile
+
+    adopted = base.adopt(shorter, rebuilt, defaults=defaults)
+
+    assert {t: c.profile for t, c in adopted.caches.items()} == {
+        t: c.profile for t, c in own.caches.items()
+    }
+    assert adopted.caches["host"].samples is rebuilt.caches["host"].samples  # no copy of audio
+
+
+def test_the_profiles_come_from_the_start_when_a_later_project_asks_first(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    defaults = load_defaults()
+    later = project.model_copy(deep=True)
+    later.clips = [c for c in later.clips if c.id != "host2"]
+    built = build_track_rms_caches(
+        later, track_ids=["host", "guest"], unprocessed=True, defaults=defaults
+    )
+
+    profiles = cut_proof.BatchBase(project).profiles(later, built, defaults=defaults)
+
+    assert profiles == _profile_of_whole_track(project)
+
+
+def test_a_check_ending_exactly_at_the_applied_cut_is_not_served_from_the_carried_set(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    defaults = load_defaults()
+    timeline = cut_proof.CarriedTimelineRms(project)
+    first = timeline.caches_for(project, (40.0, 40.35), reach=6.0, defaults=defaults)
+    timeline.applied(50.0)
+
+    assert timeline.caches_for(project, (40.0, 43.99), reach=6.0, defaults=defaults) is first
+    at_the_boundary = timeline.caches_for(project, (40.0, 44.0), reach=6.0, defaults=defaults)
+    assert at_the_boundary is not first
+
+
+def test_a_window_near_the_start_of_the_timeline_begins_at_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    defaults = load_defaults()
+    timeline = cut_proof.CarriedTimelineRms(project)
+    timeline.caches_for(project, (40.0, 40.35), reach=6.0, defaults=defaults)
+    timeline.applied(0.0)
+    starts: list[float] = []
+    real = track_evidence.rms_window
+
+    def spy(p, t, d, start, end, **kw):  # type: ignore[no-untyped-def]
+        starts.append(start)
+        return real(p, t, d, start, end, **kw)
+
+    monkeypatch.setattr(track_evidence, "rms_window", spy)
+
+    timeline.caches_for(project, (1.0, 1.35), reach=6.0, defaults=defaults)
+
+    assert starts and min(starts) == 0.0
+
+
+def test_a_rebuild_records_the_stems_so_the_next_check_does_not_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, chained=("host",))
+    _with_a_fresh_guest_stem(project)
+    defaults = load_defaults()
+    builds: list[int] = []
+    real = cut_proof.shared_timeline_rms_caches
+
+    def counted(p, **kw):  # type: ignore[no-untyped-def]
+        builds.append(1)
+        return real(p, **kw)
+
+    monkeypatch.setattr(cut_proof, "shared_timeline_rms_caches", counted)
+    timeline = cut_proof.CarriedTimelineRms(project)
+
+    timeline.caches_for(project, (40.0, 40.35), reach=6.0, defaults=defaults)
+    timeline.caches_for(project, (60.0, 60.35), reach=6.0, defaults=defaults)
+
+    assert len(builds) == 1
+
+
+# --- gated lanes and the ffprobe they may use ---------------------------------------------
+
+
+def test_a_gated_lane_stamp_may_probe_but_a_second_stamp_finds_the_probe_cached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+
+    project = _project(tmp_path)
+    for track in project.tracks:
+        track.transcript_gate = True
+    spawned: list[object] = []
+    real_run, real_popen = subprocess.run, subprocess.Popen
+
+    def run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        spawned.append(args[:1])
+        return real_run(*args, **kwargs)
+
+    class Popen(real_popen):  # type: ignore[valid-type, misc]
+        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            spawned.append(args[:1])
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "Popen", Popen)
+
+    first = _stamp(project)
+    after_first = len(spawned)
+    second = _stamp(project)
+
+    assert first == second
+    assert len(spawned) == after_first  # a probe made once is not made again
