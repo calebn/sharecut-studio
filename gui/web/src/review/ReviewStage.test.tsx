@@ -358,9 +358,9 @@ describe("ReviewStage", () => {
       initialItems: EXTRA_KIND_ITEMS,
       initialSelectedId: "r1",
     });
-    expect(screen.getAllByRole("button", { name: /^Cut all 1/ })).toHaveLength(
-      2,
-    );
+    expect(
+      screen.getAllByRole("button", { name: "Cut this one" }),
+    ).toHaveLength(2);
     expect(screen.getByText("Other suggestions")).toBeInTheDocument();
   });
 
