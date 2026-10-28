@@ -792,6 +792,16 @@
     display: none;
   }
 
+  .sys-player-pill-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .sys-player-time {
     min-block-size: var(--touch-min);
   }
@@ -819,7 +829,7 @@
    tech: the right-hand controls and the pill's text do not fit the side column
    of a wide phone, and the A and B toggles slid under the skip buttons. */
 @container sys-player (max-width: 50rem) {
-  /* During an audio error the Comment button and the mix status give their
+  /* During an audio error the Comment button and the status text give their
      room to the error pill and Retry: with all of them, the right-hand
      controls outgrow the side column and slide under Play. The A and B toggles
      stay, since switching what you hear can clear the error. */
@@ -828,7 +838,7 @@
     display: none;
   }
 
-  .sys-player-pill-text {
+  .sys-player-host .sys-player-pill-text {
     position: absolute;
     inline-size: 1px;
     block-size: 1px;
@@ -843,15 +853,15 @@
    usual spacing: tighter gaps and a smaller clock keep every 44 px target clear
    of the next. */
 @container sys-player (max-width: 23.5rem) {
-  .sys-player {
+  .sys-player-host .sys-player {
     gap: var(--space-1);
   }
 
-  .sys-player-right {
+  .sys-player-host .sys-player-right {
     gap: var(--space-1);
   }
 
-  .sys-player-now {
+  .sys-player-host .sys-player-now {
     font-size: var(--font-size-ui);
   }
 }

@@ -6,7 +6,7 @@ ShareCut Studio works on your phone, not just your desktop. The mobile version i
 
 ## Five stages, one job each
 
-At the bottom of the screen you'll see five tabs, one for each stage of making an episode. The player sits just above them on every stage. On a narrow phone the player keeps Play and the clock clear of the other controls; if the audio fails, Comment and the mix status step aside so Retry fits.
+At the bottom of the screen you'll see five tabs, one for each stage of making an episode. The player sits just above them on every stage. On a narrow phone the player keeps Play and the clock clear of the other controls; if the audio fails, Comment and the status text step aside so Retry fits.
 
 | Stage | What it's for |
 |-------|---------------|
