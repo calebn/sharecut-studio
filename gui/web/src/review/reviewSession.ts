@@ -105,26 +105,19 @@ export function reviewSession(
         ? s
         : { ...s, looksRight: new Set(s.looksRight).add(a.id) };
     case "decided": {
-      const fresh = a.plan.decidedIds.filter(
-        (id) =>
-          !s.decided.has(id) &&
-          a.snapshot.some((e) => e.item.id === id && !e.item.result),
-      );
-      if (fresh.length === 0) return s;
       const decided = new Map(s.decided);
       let seq = s.seq;
-      for (const id of fresh) {
+      for (const id of a.plan.decidedIds) {
         const entry = a.snapshot.find((e) => e.item.id === id);
         const result = a.plan.items.find((i) => i.id === id)?.result;
-        if (!entry || !result) continue;
+        if (!entry || !result || entry.item.result || decided.has(id)) continue;
         seq += 1;
-        decided.set(id, {
-          entry: { ...entry, item: { ...entry.item, result } },
-          seq,
-          left: false,
-        });
+        const item = { ...entry.item, result };
+        decided.set(id, { entry: { ...entry, item }, seq, left: false });
       }
-      return { ...s, decided, seq, selectedId: a.plan.selectedId };
+      return decided.size === s.decided.size
+        ? s
+        : { ...s, decided, seq, selectedId: a.plan.selectedId };
     }
     case "revert": {
       const hit = a.ids.filter((id) => s.decided.has(id));
