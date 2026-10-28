@@ -10,7 +10,6 @@ import {
   writeLaneHeightPref,
 } from "../utils/laneHeightPref";
 import { plainError } from "../utils/plainError";
-import { inspectKeyOf } from "./selection";
 import {
   fixedLineOffsetPx,
   maxLogicalScrollLeft,
@@ -37,6 +36,7 @@ import {
   noteZoomPointerClientX,
   peekZoomPointerClientX,
 } from "../utils/zoomPointer";
+import { inspectKeyOf } from "./selection";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
   ChromeFlags,

@@ -38,23 +38,27 @@ import { inspectorOpenFor, selectedClipIdsOf } from "../state/selection";
 import { transportAvailability } from "../state/transportAvailability";
 import type { BarItem } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
-import { BUSY_REASON } from "../ui/disabledReason";
-import { siblingSplitLanes, speakerLaneMoveTarget } from "../utils/speakerSplit";
 import type { ProjectView, Selection } from "../types/project";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { findVolumeEnvelope } from "../utils/envelopes";
-import { oneWordOf } from "../utils/rangeSelect";
-import { playTimelineRange } from "../utils/playRange";
 import {
   capturePendingReview,
   finishPendingReview,
 } from "../utils/pendingReviewPass";
+import { playTimelineRange } from "../utils/playRange";
+import { oneWordOf } from "../utils/rangeSelect";
+import {
+  siblingSplitLanes,
+  speakerLaneMoveTarget,
+} from "../utils/speakerSplit";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { runDeleteClips } from "./editing";
 import { registerCommand } from "./execute";
 import { executePointerCommand } from "./pointer";
 import {
   PLAY_DENIED_REASON,
+  PLAY_FULL_MIX_LABEL,
   PLAY_STALE_REASON,
   rangeActionDescriptors,
   runRangeAction,
@@ -157,11 +161,7 @@ async function hearSide(
   const s = useDawStore.getState();
   if (facts.kind !== "suggestion" || s.selection?.kind !== "pending")
     return disabled("Select a suggestion to hear it");
-  const outcome = await playPendingPreview(
-    s.projectPath,
-    s.selection.id,
-    mode,
-  );
+  const outcome = await playPendingPreview(s.projectPath, s.selection.id, mode);
   if (outcome.status === "ok") return OK;
   if (outcome.status === "superseded") return OK;
   return disabled(outcome.reason);
@@ -247,7 +247,9 @@ export async function runCutSelection(
       return removeMarker(selection);
     default:
       return disabled(
-        selection ? "There is nothing to cut in this selection" : "No clip selected",
+        selection
+          ? "There is nothing to cut in this selection"
+          : "No clip selected",
       );
   }
 }
@@ -392,7 +394,9 @@ export async function runMute(): Promise<ExecuteResult> {
     case "range":
       return executePointerCommand("range.mute");
     case "clip": {
-      const target = s.project ? singleClipTarget(s.project, s.selection) : null;
+      const target = s.project
+        ? singleClipTarget(s.project, s.selection)
+        : null;
       if (!target)
         return disabled(
           selectedClipIdsOf(s.selection).length > 1
@@ -506,14 +510,7 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   clip: ["hear", "split", "comment", "cut", "more", "inspect"],
   seam: ["hear", "keep", "comment", "inspect"],
   appliedEdge: ["hear", "comment", "inspect"],
-  suggestion: [
-    "hearBefore",
-    "hearAfter",
-    "keep",
-    "comment",
-    "more",
-    "inspect",
-  ],
+  suggestion: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
   chapter: ["hear", "remove", "inspect"],
   social: ["inspect"],
   comment: ["inspect"],
@@ -553,10 +550,13 @@ export function registerEditVerbCommands(): void {
   registerCommand("edit.keep", () => withFacts((facts) => keep(facts)));
   registerCommand("edit.split", () => withFacts((facts) => split(facts)));
   registerCommand("edit.mute", () => runMute());
-  registerCommand("edit.inspect", () => {
+  registerCommand("edit.inspect", (args) => {
     const s = useDawStore.getState();
     if (!s.selection) return disabled("Select something to inspect");
-    s.setInspectorOpen(!inspectorOpenFor(s.selection, s.inspectorKey));
+    // `open: true` is a double-click: it opens and never closes.
+    s.setInspectorOpen(
+      args.open === true || !inspectorOpenFor(s.selection, s.inspectorKey),
+    );
     return OK;
   });
   registerCommand("edit.more", () => {
@@ -605,7 +605,8 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
       : { targets: [], reason: null };
   const target =
     resolution.targets.length === 1 ? resolution.targets[0]! : null;
-  const descriptors = project && rangeLike ? rangeActionDescriptors(s, target) : [];
+  const descriptors =
+    project && rangeLike ? rangeActionDescriptors(s, target) : [];
   const descriptor = (action: string) =>
     descriptors.find((d) => d.action === action);
   const readOnly = facts.role === "readOnly";
@@ -614,8 +615,10 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
     .filter((id) => readOnly || wired.includes(id))
     .filter((id) => id !== "fixText" || oneWordOf(s.selection) !== null)
     .map((id): BarItem => {
-      const label = id === "hear" ? descriptor("play")?.label : undefined;
-      return label ? { id, label } : { id };
+      // Only a guest's Hear is worded differently: it plays the full mix.
+      const guestMix =
+        id === "hear" && descriptor("play")?.label === PLAY_FULL_MIX_LABEL;
+      return guestMix ? { id, label: PLAY_FULL_MIX_LABEL } : { id };
     });
 
   const more: BarItem[] = [];

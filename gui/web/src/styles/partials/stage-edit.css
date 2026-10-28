@@ -98,6 +98,15 @@
   border-inline-start: 1px solid var(--color-border);
 }
 
+.edit-inspector > .edit-inspector-close {
+  position: sticky;
+  inset-block-start: var(--space-2);
+  align-self: flex-end;
+  flex: 0 0 auto;
+  margin: var(--space-2) var(--space-2) calc(var(--space-2) * -1) 0;
+  z-index: 1;
+}
+
 /* The slot only carries the divider's focus region. */
 .edit-divider-slot {
   display: contents;
@@ -234,6 +243,16 @@
 /* The phone's Edit: a bar with the surface switch, then lanes or Script. */
 .edit-workspace--phone {
   flex-direction: column;
+}
+
+/* The phone's Action bar dock: above the Player, below the lanes or Script. */
+.edit-dock {
+  flex: 0 0 auto;
+  background: var(--color-bg-base);
+}
+
+.edit-dock:empty {
+  display: none;
 }
 
 .phone-edit {

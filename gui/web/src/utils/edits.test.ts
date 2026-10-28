@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PendingEditView } from "../types/project";
-import { selectUnmappedPending, unmappedPendingLabel } from "./edits";
+import { selectUnmappedPending } from "./edits";
 
 function pending(overrides: Partial<PendingEditView>): PendingEditView {
   return {
@@ -33,12 +33,6 @@ function pending(overrides: Partial<PendingEditView>): PendingEditView {
         : overrides.source_end_timeline,
   };
 }
-
-describe("unmappedPendingLabel", () => {
-  it("names the count", () => {
-    expect(unmappedPendingLabel(3)).toBe("Edits in removed audio (3)");
-  });
-});
 
 describe("selectUnmappedPending", () => {
   it("returns an empty array for empty, null, and undefined input", () => {

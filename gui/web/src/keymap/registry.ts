@@ -117,7 +117,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Escape"],
     bareKey: true,
     when: "following",
-    notes: "After the selection: Esc clears what is selected, then stops following",
+    notes:
+      "After the selection: Esc clears what is selected, then stops following",
   },
   {
     id: "stage.record",
@@ -482,7 +483,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     when: "editStageStructural",
     notes:
       "S: split at the playhead, or at both edges of the selected words or range, as one undo step",
-    collision: "S splits; Shift+S solos the targeted track; Mod+K splits at the playhead",
+    collision:
+      "S splits; Shift+S solos the targeted track; Mod+K splits at the playhead",
   },
   {
     id: "edit.hear",
@@ -523,7 +525,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     noRepeat: true,
     when: "editStage",
-    notes: "X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard",
+    notes:
+      "X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard",
   },
   {
     id: "edit.inspect",

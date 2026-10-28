@@ -36,7 +36,7 @@ const COMMANDS: PaletteCommand[] = [
   },
   {
     id: "edit.bladeCut",
-    label: "Blade cut",
+    label: "Split at playhead",
     category: "edit",
     shortcut: "Mod+K",
     defaultKey: "K",
@@ -153,7 +153,7 @@ export const Search: Story = {
     await expect(within(dialog).getByRole("status")).toHaveTextContent(
       "2 commands. Enter runs Export deliverables…",
     );
-    await expect(within(dialog).queryByText("Blade cut")).toBeNull();
+    await expect(within(dialog).queryByText("Split at playhead")).toBeNull();
     await userEvent.keyboard("{Enter}");
     await expect(args.onRun).toHaveBeenCalledWith("export.deliverables");
   },
@@ -186,7 +186,7 @@ export const ShowRemaps: Story = {
       ).toBeChecked(),
     );
     const input = await within(dialog).findByRole("textbox", {
-      name: "Remap Blade cut",
+      name: "Remap Split at playhead",
     });
     await userEvent.click(input);
     await waitFor(() => expect(input).toHaveFocus());

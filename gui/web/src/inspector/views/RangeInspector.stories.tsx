@@ -15,18 +15,18 @@ const meta: Meta<typeof InspectorRailStory> = {
 export default meta;
 type Story = StoryObj<typeof InspectorRailStory>;
 
-const rangeActionsPlay: Story["play"] = async ({ canvasElement }) => {
+const rangeFieldsPlay: Story["play"] = async ({ canvasElement }) => {
   await expect(
-    await within(canvasElement).findByRole("region", { name: "Range actions" }),
+    await within(canvasElement).findByRole("region", { name: "Range fields" }),
   ).toBeVisible();
 };
 
 export const ExactRange: Story = {
   parameters: { episode: { selection: selections.exactRange } },
-  play: rangeActionsPlay,
+  play: rangeFieldsPlay,
 };
 
 export const WordRange: Story = {
   parameters: { episode: { selection: selections.range } },
-  play: rangeActionsPlay,
+  play: rangeFieldsPlay,
 };

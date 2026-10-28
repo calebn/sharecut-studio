@@ -86,13 +86,27 @@ describe("EditWorkspace regions", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the Inspector column only for a selection that has one", () => {
+  it("opens the Inspector column on Inspect, never because something is selected", () => {
     const { container } = render(<EditWorkspace />);
     expect(container.querySelector(".edit-inspector")).toBeNull();
     act(() =>
       useDawStore.getState().setSelection({ kind: "track", trackId: "host" }),
     );
+    expect(container.querySelector(".edit-inspector")).toBeNull();
+    act(() => useDawStore.getState().setInspectorOpen(true));
     expect(container.querySelector(".edit-inspector")).not.toBeNull();
+    // A new selection shuts it; Close shuts it and keeps the selection.
+    act(() =>
+      useDawStore.getState().setSelection({ kind: "track", trackId: "guest" }),
+    );
+    expect(container.querySelector(".edit-inspector")).toBeNull();
+    act(() => useDawStore.getState().setInspectorOpen(true));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(container.querySelector(".edit-inspector")).toBeNull();
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "track",
+      trackId: "guest",
+    });
   });
 });
 
@@ -205,9 +219,10 @@ describe("EditWorkspace focus regions", () => {
   });
 
   it("treats the divider and the Inspector as outside the timeline", () => {
-    act(() =>
-      useDawStore.getState().setSelection({ kind: "track", trackId: "host" }),
-    );
+    act(() => {
+      useDawStore.getState().setSelection({ kind: "track", trackId: "host" });
+      useDawStore.getState().setInspectorOpen(true);
+    });
     const { container } = render(<EditWorkspace />);
     for (const target of [
       screen.getByRole("separator", { name: "Resize Script" }),

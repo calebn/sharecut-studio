@@ -209,7 +209,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["listen", "play selection"],
     when: "editStage",
     announcesRefusal: true,
-    notes: "Shift+Space: play the selection (a range, words, a clip, a seam or a marker)",
+    notes:
+      "Shift+Space: play the selection (a range, words, a clip, a seam or a marker)",
   },
   "edit.hearBefore": {
     id: "edit.hearBefore",
@@ -247,7 +248,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "editStage",
     announcesRefusal: true,
     notes:
-      "I: open (or close) the Inspector for the selection. Selecting alone never opens it; Esc, Close or another selection shuts it",
+      "I: open (or close) the Inspector for the selection; a double-click on a clip opens it ({ open: true }). Selecting alone never opens it; Esc, Close or another selection shuts it",
   },
   "edit.more": {
     id: "edit.more",
@@ -283,7 +284,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     mutates: true,
     category: "edit",
     label: "Cut selection",
-    shortLabel: "Cut",
+    shortLabel: "Delete",
     keywords: ["remove", "delete"],
     when: "editStageStructural",
     notes:

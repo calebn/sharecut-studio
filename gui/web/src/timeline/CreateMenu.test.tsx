@@ -78,10 +78,10 @@ describe("CreateMenu", () => {
         el.textContent?.trim(),
       ),
     ).toEqual([
-      "Add envelope point0.80×",
-      "Blade cutCuts all dialogue tracks",
+      "Split hereCuts all dialogue tracks",
       "Add chapter",
       "Add comment",
+      "Add envelope point0.80×",
     ]);
     expect(useDawStore.getState().statusAnnouncement).toMatch(
       /^Create at .+ on Avery, 4 actions$/,
@@ -103,24 +103,24 @@ describe("CreateMenu", () => {
     hide.mockRestore();
   });
 
-  it("says Blade cut cuts the selected tracks, not the held lane, and sets it apart from the lane's entry", () => {
+  it("says Split here cuts the selected tracks, not the held lane, and sets it apart from the lane's entry", () => {
     useDawStore.getState().selectTracks(["guest", "host"]);
     const { container } = open("/tmp/ep.project.json", null, [
       sampleTrack({ id: "host" }),
       sampleTrack({ id: "guest", label: "Blair" }),
     ]);
     expect(
-      screen.getByRole("menuitem", { name: /Blade cut/ }),
+      screen.getByRole("menuitem", { name: /Split here/ }),
     ).toHaveAccessibleDescription("Cuts Blair, host");
     const groups = [
       ...container.ownerDocument.querySelectorAll('[role="menu"] > *'),
     ].map((el) => el.textContent?.trim() || "separator");
     expect(groups).toEqual([
-      "Add envelope point0.80×",
-      "separator",
-      "Blade cutCuts Blair, host",
+      "Split hereCuts Blair, host",
       "Add chapter",
       "Add comment",
+      "separator",
+      "Add envelope point0.80×",
     ]);
   });
 
@@ -177,9 +177,9 @@ describe("CreateMenu", () => {
   });
 
   it("marks the item under a sliding finger, and closes from its scrim", () => {
-    view = { ...view, fingerDown: true, over: 1 };
+    view = { ...view, fingerDown: true, over: 0 };
     const { container } = open("/tmp/ep.project.json");
-    expect(screen.getByRole("menuitem", { name: /^Blade cut/ })).toHaveClass(
+    expect(screen.getByRole("menuitem", { name: /^Split here/ })).toHaveClass(
       "is-over",
     );
     fireEvent.pointerDown(
