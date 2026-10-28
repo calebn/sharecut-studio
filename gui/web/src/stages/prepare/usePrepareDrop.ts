@@ -16,7 +16,7 @@ function carriesFiles(event: DragEvent): boolean {
  */
 export function usePrepareDrop(enabled: boolean): {
   active: boolean;
-  count: number | undefined;
+  count?: number;
 } {
   const [state, setState] = useState<{ active: boolean; count?: number }>({
     active: false,
@@ -65,5 +65,5 @@ export function usePrepareDrop(enabled: boolean): {
       end();
     };
   }, [enabled]);
-  return { active: state.active, count: state.count };
+  return state;
 }
