@@ -326,7 +326,7 @@ for (const viewport of VIEWPORTS) {
 
         await expect(getAction(page)).toBeVisible();
         await expect(
-          page.getByText(/Waiting for the transcription model/),
+          page.getByText(/Needs the transcription model before it can start/),
         ).toBeVisible();
         expect(mock.runs).toEqual([]);
         expect(run.posts()).toBe(1);
