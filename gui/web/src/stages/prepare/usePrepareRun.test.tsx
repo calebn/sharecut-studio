@@ -322,6 +322,87 @@ describe("usePrepareRun keep my fixes", () => {
   });
 });
 
+describe("usePrepareRun after a model download", () => {
+  function setupWithArrival() {
+    const api = { current: modelsFor("missing") };
+    const ws = workingSet();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ModelsContext.Provider value={api.current}>
+        {children}
+      </ModelsContext.Provider>
+    );
+    const view = renderHook(
+      () =>
+        usePrepareRun({
+          projectPath: "/tmp/p/episode.project.json",
+          workingSet: ws,
+          untranscribed: 1,
+          mediaKey: "a:/a.wav",
+          ingestBusy: false,
+          canRun: true,
+          nameOf: (id) => id,
+        }),
+      { wrapper },
+    );
+    return {
+      ...view,
+      arrive: () => {
+        api.current = modelsFor("installed");
+        view.rerender();
+      },
+    };
+  }
+
+  it.each([
+    ["Re-transcribe", "retranscribe", { forceTranscribe: true }],
+    ["Re-time words", "retime", { retimeWords: true }],
+  ] as const)(
+    "%s keeps its mode and Replace choice",
+    async (_name, mode, flag) => {
+      start.mockRejectedValueOnce(WHISPER_NEEDED);
+      const { result, arrive } = setupWithArrival();
+      await act(async () => result.current.run(mode, true));
+      await waitFor(() => expect(result.current.model?.phase).toBe("ask"));
+      arrive();
+      await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+      expect(start.mock.calls[1][1]).toMatchObject({
+        fromStep: "transcribe_tracks",
+        overwriteEdited: true,
+        ...flag,
+      });
+    },
+  );
+
+  it("Run from here keeps the step it was asked from", async () => {
+    start.mockRejectedValueOnce(WHISPER_NEEDED);
+    const { result, arrive } = setupWithArrival();
+    await act(async () => result.current.run("run", false, "tighten_tracks"));
+    await waitFor(() => expect(result.current.model?.phase).toBe("ask"));
+    arrive();
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect(start.mock.calls[1][1]).toMatchObject({
+      fromStep: "tighten_tracks",
+      forceTranscribe: false,
+      retimeWords: false,
+    });
+  });
+});
+
+describe("usePrepareRun Run while waiting", () => {
+  it("says another job is running and stays waiting when the slot is still busy", async () => {
+    start.mockRejectedValue(new ApiError("busy", "pipeline_busy", 409));
+    const { result, rerender } = setup();
+    rerender({ ingestBusy: true, mediaKey: "" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(result.current.waiting).toBe(true));
+    await act(async () => result.current.tryAgain());
+    expect(result.current.waiting).toBe(true);
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
+      /Another job is running/,
+    );
+  });
+});
+
 describe("usePrepareRun cancel", () => {
   it("cancels the job the slot holds and records the answer", async () => {
     const job = pipelineJobSnapshot({ id: "j9", status: "running" });
