@@ -5,7 +5,12 @@ import { currentMediaKey, recordJobMedia } from "./jobMedia";
 
 /** Seed chrome immediately from a start-job snapshot (pipeline vs Activity). */
 export function seedStudioJob(job: PipelineJobSnapshot): void {
-  recordJobMedia(job.id, currentMediaKey());
+  if (
+    isPipelineKindJob(job) &&
+    (job.only_step ?? "transcribe_tracks") === "transcribe_tracks"
+  ) {
+    recordJobMedia(job.id, currentMediaKey());
+  }
   const s = useDawStore.getState();
   s.setActivityJob(job);
   s.setPipelineJob(isPipelineKindJob(job) ? job : null);
