@@ -100,7 +100,7 @@ export const KeepMyFixes: Story = {
     const canvas = within(canvasElement);
     await expect(
       canvas.getByRole("button", { name: "Keep my fixes" }),
-    ).not.toHaveFocus();
+    ).toHaveFocus();
     await expect(canvas.getByRole("button", { name: "Replace" })).toBeVisible();
     const row = canvas.getByRole("button", { name: /Transcribe/ });
     await userEvent.click(row);
