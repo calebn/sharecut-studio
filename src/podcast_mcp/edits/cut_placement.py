@@ -9,7 +9,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.ripple import ripple_track_ids
@@ -316,6 +316,40 @@ def is_pad_record(record: AppliedEditRecord) -> bool:
     )
 
 
+PAD_SAMPLE_UNRESOLVED_ERRORS = (CodedError, OSError, ValueError)
+
+
+def pad_sample_well_formed(sample: object) -> bool:
+    """Whether a pad sample names its recording as ``original_pause_support`` requires."""
+    return (
+        isinstance(sample, dict)
+        and isinstance(sample.get("track_id"), str)
+        and bool(sample["track_id"])
+        and "source_id" in sample
+        and (
+            sample["source_id"] is None
+            or (isinstance(sample["source_id"], str) and bool(sample["source_id"]))
+        )
+    )
+
+
+def pad_sample_range(sample: dict[str, Any]) -> tuple[float, float] | None:
+    """A pad sample's source range, or ``None`` when the check rejects it (non-finite, lo < 0, hi <= lo)."""
+    lo, hi = sample.get("source_start"), sample.get("source_end")
+    if (
+        not isinstance(lo, (int, float))
+        or isinstance(lo, bool)
+        or not isinstance(hi, (int, float))
+        or isinstance(hi, bool)
+        or not math.isfinite(lo)
+        or not math.isfinite(hi)
+        or lo < 0
+        or hi <= lo
+    ):
+        return None
+    return lo, hi
+
+
 def original_pause_support(
     project: EpisodeProject,
     track_id: str,
@@ -388,37 +422,20 @@ def original_pause_support(
         if not isinstance(samples, (list, tuple)):
             return CutRejected("source_geometry")
         for sample in samples:
-            if (
-                not isinstance(sample, dict)
-                or not isinstance(sample.get("track_id"), str)
-                or not sample["track_id"]
-                or "source_id" not in sample
-                or (
-                    sample["source_id"] is not None
-                    and (not isinstance(sample["source_id"], str) or not sample["source_id"])
-                )
-            ):
+            if not pad_sample_well_formed(sample):
                 return CutRejected("source_geometry")
             try:
                 referenced = recording_audio_path(
                     project, sample["track_id"], sample["source_id"]
                 ).resolve(strict=True)
-            except (CodedError, OSError, ValueError):
+            except PAD_SAMPLE_UNRESOLVED_ERRORS:
                 return CutRejected("source_geometry")
             if not same_recording(referenced, media):
                 continue
-            lo, hi = sample.get("source_start"), sample.get("source_end")
-            if (
-                not isinstance(lo, (int, float))
-                or isinstance(lo, bool)
-                or not isinstance(hi, (int, float))
-                or isinstance(hi, bool)
-                or not math.isfinite(lo)
-                or not math.isfinite(hi)
-                or lo < 0
-                or hi <= lo
-            ):
+            pad_range = pad_sample_range(sample)
+            if pad_range is None:
                 return CutRejected("source_geometry")
+            lo, hi = pad_range
             known_pads.append((lo, hi))
     allowed = set(ripple_track_ids(project, [track_id]))
     ignored = IgnoredWordRegions(project)

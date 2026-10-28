@@ -7,7 +7,8 @@ entry keeps the observation and the outcome under a key that hashes exactly thos
 
 A hit never skips what depends on the live timeline: the placement and the cut itself are
 written again, and the written result and room-tone pads must equal what the entry recorded,
-or the full check runs. A key that cannot be built, or an outcome reached through an
+or the full check runs. A pause check also reads the edit log's pad records (#2439), which the
+key hashes (``_pad_records_seen``). A key that cannot be built, or an outcome reached through an
 unreadable file, is never stored. ``PODCAST_VERDICT_VERIFY=1`` rechecks every hit in full
 and fails if it differs.
 """
@@ -29,10 +30,13 @@ from typing import TYPE_CHECKING, Any, cast
 from podcast_mcp import settings
 from podcast_mcp.edits import cut_policy
 from podcast_mcp.edits.cut_placement import (
+    PAD_SAMPLE_UNRESOLVED_ERRORS,
     CutRejected,
     HeldPauseSpan,
     held_pause_observation_span,
     is_pad_record,
+    pad_sample_range,
+    pad_sample_well_formed,
     pause_neighbours,
     pause_words,
 )
@@ -40,7 +44,6 @@ from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
 from podcast_mcp.models import ClipJoinMode
 from podcast_mcp.util.bounded_cache import BoundedCache
-from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
 
 if TYPE_CHECKING:
@@ -340,7 +343,7 @@ def _payload(
         # hits. The gap between the words needs no entry: each word is hashed in ``pause`` and
         # placed by the clips in the window, or else by its end of the span.
         "pause_span": None if seen is None else [seen.lo, seen.hi],
-        "pads": _pad_records_seen(project, edit, reach),
+        "pad_records": _pad_records_seen(project, edit, s_lo, s_hi),
         "batch": chosen,
         "disk": _disk_stamps(project),
         "policy": [
@@ -373,21 +376,22 @@ def _pause_words_seen(
 
 
 def _pad_records_seen(
-    project: EpisodeProject, edit: EditDecision, reach: float
+    project: EpisodeProject, edit: EditDecision, lo: float, hi: float
 ) -> list[Any] | None:
     """What a pause reads from the edit log: its pad records (#2439).
 
-    ``original_pause_support`` treats a pad-purpose record with no ``pad_samples`` or a
-    malformed one as a rejection, and takes each well-formed sample's source range as a pad
-    whose tiles are not original quiet. Only those records are hashed: a record that is not a
-    pad and carries no samples is skipped by the check, and a sample whose range lies past
-    ``reach`` of the pause cannot hold a clip heard near it.
+    ``original_pause_support`` rejects a pad-purpose record with no ``pad_samples``, any record
+    whose ``pad_samples`` is not a list, a malformed sample, a sample on a recording it cannot
+    resolve, and (on the pause's own recording) a sample with an invalid range, at any distance.
+    A valid sample's range marks tiles that are not original quiet. A record is hashed for what
+    the check reads of it. Skipped: a non-pad record without samples, and a valid, resolvable
+    sample whose range lies outside ``[lo, hi]`` (the window around the pause, which no clip
+    heard near it can reach). The validity tests are the check's own (``pad_sample_range``).
     """
     from podcast_mcp.util.tracks import recording_audio_path
 
     if not _is_pause(edit):
         return None
-    lo, hi = edit.start - reach, edit.end + reach
     seen: list[Any] = []
     for record in project.editorial.edit_log:
         pad = is_pad_record(record)
@@ -401,21 +405,21 @@ def _pad_records_seen(
             continue
         kept: list[Any] = []
         for sample in samples:
-            if not isinstance(sample, dict):
+            if not pad_sample_well_formed(sample):
                 kept.append("malformed")
                 continue
-            start, end = sample.get("source_start"), sample.get("source_end")
-            numeric = all(
-                isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
-                for v in (start, end)
-            )
-            if numeric and (cast("float", end) < lo or cast("float", start) > hi):
+            pad_range = pad_sample_range(sample)
+            if pad_range is None:
+                # Rejected on the pause's recording at any distance; this one is not known.
+                kept.append(sample)
+                continue
+            if pad_range[1] < lo or pad_range[0] > hi:
                 # Far away, but a recording the check cannot resolve rejects wherever it lies.
                 try:
                     recording_audio_path(project, sample["track_id"], sample["source_id"]).resolve(
                         strict=True
                     )
-                except (CodedError, OSError, ValueError, KeyError, TypeError):
+                except PAD_SAMPLE_UNRESOLVED_ERRORS:
                     kept.append([sample, "unresolved"])
                 continue
             kept.append(sample)
