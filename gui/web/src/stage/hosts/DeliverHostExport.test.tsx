@@ -214,6 +214,59 @@ describe("Export on the Deliver stage", () => {
     expect(screen.queryByRole("button", { name: /Download/ })).toBeNull();
   });
 
+  it("asks again with the target the page has now, not the failed attempt's", async () => {
+    const target = (lufs: number) => {
+      server.config = {
+        config: {
+          export: { wav: true, formats: [MP3] },
+          master: { integrated_lufs: lufs, true_peak_db: -1.5 },
+        },
+      };
+    };
+    const revisit = () => {
+      act(() => useDawStore.setState({ stage: "edit" }));
+      act(() => useDawStore.setState({ stage: "deliver" }));
+    };
+    render(<Host />);
+    await pressExport();
+    await act(async () =>
+      server.settle({ ...EXPORT_STARTED, status: "error", error: "ffmpeg" }),
+    );
+    expect(await screen.findByText("Export failed")).toBeInTheDocument();
+    target(-14);
+    revisit();
+    expect(
+      await screen.findByText(/Mastered to −14\.0 LUFS/),
+    ).toBeInTheDocument();
+    server.reopen();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(server.exportRequests).toHaveLength(2));
+    await act(async () => server.settle(EXPORT_FINISHED));
+    expect(await screen.findByText("Exported")).toBeInTheDocument();
+    target(-16);
+    revisit();
+    expect(await screen.findByText("Edited since export")).toBeInTheDocument();
+  });
+
+  it("asks again with the formats chosen since the failed attempt", async () => {
+    render(<Host />);
+    await pressExport();
+    await act(async () =>
+      server.settle({ ...EXPORT_STARTED, status: "error", error: "ffmpeg" }),
+    );
+    expect(await screen.findByText("Export failed")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    server.reopen();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(server.exportRequests).toHaveLength(2));
+    expect(server.exportRequests[1]).toEqual({
+      path: PATH,
+      formats: [MP3, { ext: "flac", codec: "flac" }],
+    });
+    await act(async () => server.settle(EXPORT_FINISHED));
+    expect(await screen.findByText("Exported")).toBeInTheDocument();
+  });
+
   it("marks Exported as edited when the loudness target changes afterwards", async () => {
     render(<Host />);
     await pressExport();

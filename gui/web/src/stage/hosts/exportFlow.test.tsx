@@ -274,18 +274,9 @@ describe("the export flow over the server's routes", () => {
       finishedAt: expect.any(Number),
     });
     expect(useDawStore.getState().pendingJobResults).toEqual({});
-    server.reopen();
-    act(() => flow.again());
-    await waitFor(() => expect(server.exportRequests).toHaveLength(2));
-    expect(server.exportRequests[1]).toEqual(server.exportRequests[0]);
-    await running();
-  });
-
-  it("goes back to idle on Export again when there is nothing to repeat", () => {
-    mount();
     act(() => flow.again());
     expect(flow.run).toEqual({ kind: "idle" });
-    expect(server.exportRequests).toEqual([]);
+    expect(server.exportRequests).toHaveLength(1);
   });
 
   it("never posts an empty format list, even after a reload failed", async () => {
