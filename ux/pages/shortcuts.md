@@ -158,7 +158,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Manage models… | `models.open` | Host project management | Host-only dialog listing every model with its state, size and a download |
 | Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; paste path fallback |
-| Split speakers… | `track.splitSpeakers` | editStageSplitSpeakers | Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
+| Split speakers… | `track.splitSpeakers` | editStageSplitSpeakers | Opens Prepare at the split prompt for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
 | Reorder track | `track.reorder` | editStageIngest | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |
 | Adjust word timing | `transcript.adjustTiming` | Loaded host project | Source-clock boundaries for the selected transcript word |
