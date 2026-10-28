@@ -33,7 +33,7 @@ catalog boundary and [the stage specs](design/stages/spec-edit.md) for the desig
 **Vocabulary since #2292.** The sections below keep their history. Where they
 say transport bar, status bar, tool rail, bottom dock tabs, splitter, layout
 presets, Listen, Text, More hub, Menu or View menu, read the replacement in the
-[feature map](#feature--home-map) and [Player bar and Edit tool strip](#player-bar-and-edit-tool-strip):
+[feature map](#feature--home-map) and [Player bar and Edit corner](#player-bar-and-edit-corner):
 the old chrome and its `layout/` code were deleted. `.daw-shell*` classes are now
 `.stage-frame*`.
 See [shell chrome](design-system.md#shell-chrome) for the catalog boundary.
@@ -46,7 +46,7 @@ See [shell chrome](design-system.md#shell-chrome) for the catalog boundary.
 | Tablet | `768–1194px` | `data-shell="tablet"` / `.stage-frame` | Stage bar in the header, Edit with a peek inspector sheet (portrait); side inspector when wide enough |
 | Desktop | `> 1194px` | `data-shell="desktop"` | Stage bar in the header; Edit shows Timeline, Script and an Inspector column |
 
-iPad 11″ landscape is 1180 CSS px wide on the Air and 1194 on the Pro. The tablet band used to end at 1100px, which put that orientation on the desktop shell and hid Select, Blade, and Select range behind collapsed transport chrome (the transport is gone; the Edit tool strip now holds them on every shell) (#1632). It then ended at 1180, which still left the Pro on the desktop shell (#1674). `TABLET_MAX_PX` now includes 1194 so both keep the tablet frame.
+iPad 11″ landscape is 1180 CSS px wide on the Air and 1194 on the Pro. The tablet band used to end at 1100px, which put that orientation on the desktop shell and hid the editing tools behind collapsed transport chrome (the transport and the tool strip are gone; the Edit corner holds Select range on touch) (#1632). It then ended at 1180, which still left the Pro on the desktop shell (#1674). `TABLET_MAX_PX` now includes 1194 so both keep the tablet frame.
 
 Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewportClass.ts) reads a first-render snapshot through the shared media-query subscription in `useMediaQueryStore.ts` (`matchMedia` + `visualViewport` resize). Pointer capability and Storybook docs theme use that subscription too; pointer events still select the last used device. Store mirrors `shellBreakpoint`. CSS class stem is `.stage-frame*` (`StageFrame`).
 
@@ -145,7 +145,7 @@ held sideways) compact the editor:
   Phone navigation returns. It has the title, **Close**, Escape and focus
   restore of any sheet, and none of the sheet's other parts: no scrim, no
   drawer or detents, no Expand or Collapse, no slide-up, and no compact strip
-  (the strip and its Undo and Redo header belong to the sheet; the tool strip
+  (the strip and its Undo and Redo header belong to the sheet; the corner
   stays usable beside the column). The panel carries
   none of `bottom-sheet--inspector`, `--compact` or `--lane-band`, so
   `inspectorSheetPanel`, `keepTargetClear`, `useKeepSelectionClear`,
@@ -736,7 +736,7 @@ and phone shells; see [design tokens](design-tokens.md#elevation).
 ┌─ Project  save  Undo Redo │ Record Prepare Edit Review Deliver │ people ─┐
 ├───────────────────────────────────────────────────────────────┤
 │ Headers │ Timeline (moving playhead) │ Script ┊ │ Inspector column  │
-│         │ [tool strip]  [Fit − + Script 👁] │ (wide only)       │
+│         │ [Range] [Fit − + Script 👁]       │ (wide only)       │
 ├───────────────────────────────────────────────────────────────┤
 │ Player bar                                                        │
 └───────────────────────────────────────────────────────────────┘
@@ -758,9 +758,9 @@ The frame grid uses named rows (`header / banners / alerts / body inspector / pl
 7. Progressive complexity via `shareMode` capabilities.
 8. Waveforms paint at a DPR capped at 2 (`paintDpr`, on a 1/8 grid). The phone shell uses smaller waveform caches: 48 MB of bitmaps and 32 MB of data tiles, against 128 MB and 64 MB on desktop ([waveform.md § Renderer](waveform.md#renderer)). Guests on phones draw from pyramid tiles only, never raw PCM.
 
-## Player bar and Edit tool strip
+## Player bar and Edit corner
 
-The transport bar, status bar and tool rail are gone (#2292). Their jobs moved
+The transport bar, status bar and tool rail are gone (#2292), and the Edit tool strip followed in #2294 (W1a): touch has no Alt, so the Split verb for touch arrives with the action bar in W1b; until then a finger splits through the command palette (Blade cut) or the create menu. Alt-click Split is mouse only. Their jobs moved
 to three places, on every shell; there is no narrow or collapsed variant to
 test any more.
 
@@ -769,7 +769,7 @@ test any more.
 | App header | Top, 48px (phone: 44px under the safe area) | Project menu (All projects, Settings, Connect agent, Help, Appearance), save indicator, Undo and Redo (right-click Undo opens History), people (`AvatarStack`; phone: one avatar plus a count), Invite for hosts, search; the Stage bar sits centered on desktop and tablet |
 | Stage bar | Header (desktop, tablet) or the bottom tab bar (phone, 56px plus safe area) | Record, Prepare, Edit, Review, Deliver with badges, on Mod+1 to Mod+5 |
 | Player bar | Above the tab bar, 56px, every stage | Play and Pause, time, edited length, **Hear original**, the mix ring, the Solo chip, comment-at-playhead |
-| Edit tool strip and corner | Timeline corner (`EditToolStrip`, `EditCorner`) | Strip: Select and Blade, Comment mode, Range arm, Blade cut. Corner: Fit, Zoom out and Zoom in, the Script toggle, and the eye (View options), which opens the View sheet (layers, waveform scale, amplitude, track height, zoom) |
+| Edit corner | Timeline corner (`EditCorner`) | Range arm (touch only, 44 px; the Select/Blade tools, Comment mode and Cut at playhead buttons are gone, #2294), Fit, Zoom out and Zoom in, the Script toggle, and the eye (View options), which opens the View sheet (layers, waveform scale, amplitude, track height, zoom) |
 
 - **Hear menu.** Long-press (touch) or right-click the Hear original button for Full mix (default), Without mix processing and Original. Guests get the mix only. `render.refreshMix` is in the palette and Deliver.
 - **Zoom (#1028).** Zoom out and Zoom in (in the corner) run `view.zoomOut` and `view.zoomIn` on the command bus, the same steps as `-` and `=`. At a limit the button is `aria-disabled` with its reason, not `disabled`, so a finger can still tap it and focus stays. Zoom shows for everyone who can open the timeline.
@@ -835,7 +835,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 ## Testing
 - Vitest: `useViewportClass`, `BottomSheet`, `stage/frame/StageFrame.test.tsx` (phone tab bar, Script and Timeline surfaces, guest stages), follow live region, `stage/hosts/paletteCoverage.test.tsx` (every command that lived in the removed menus is still a catalog command, or its new home is rendered and runs it)
 - Playwright: phone viewport (`390×844`) asserts `.stage-frame--phone` and the Stage tab bar (`e2e/stage-shell.spec.ts`); `e2e/overlay-viewport.spec.ts` Project menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit. Specs reach chrome only through `e2e/stageNav.ts` ([testing-e2e.md](testing-e2e.md#stage-navigation-helpers))
-- Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, the tool strip, a page that never scrolls under the frame, and the once-per-browser Add to Home Screen banner, in Chromium and WebKit with touch emulation
+- Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, the Edit corner, a page that never scrolls under the frame, and the once-per-browser Add to Home Screen banner, in Chromium and WebKit with touch emulation
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 

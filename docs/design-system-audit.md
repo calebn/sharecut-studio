@@ -23,7 +23,7 @@ InspectorSeekFooter, InspectorSeekFooterView, LevelMeter, LoadingScreen, Menu
 ToggleButton, and UndoToast. Supporting hooks, exports, tokens, reading overrides,
 overlay styles, and inspector styles were included where they determine behavior.
 
-The domain composition inventory covered 42 story families. This is a snapshot from before #2292: BottomTabsSplitter, EditingToolRail, ListenHero, PipelineStatusChip, StatusBar, TransportFrame and TransportPlayControls were deleted with the old chrome, and EditingToolRail became `Stages/Edit/ToolStrip`.
+The domain composition inventory covered 42 story families. This is a snapshot from before #2292: BottomTabsSplitter, ListenHero, PipelineStatusChip, StatusBar, TransportFrame and TransportPlayControls were deleted with the old chrome, and EditingToolRail became `Stages/Edit/ToolStrip`.
 
 
 | Area | Story families |

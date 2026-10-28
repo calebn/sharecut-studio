@@ -55,7 +55,7 @@ On a lane with multiple takes, transcript selection starts from the take shown.
 Two takes can both have word zero. A session-scoped cut can still ripple across
 matching timeline clips under the existing session policy.
 
-Phone users open Timeline and arm **Select range** in the Edit tool strip for a touch
+Phone users open Timeline and arm **Select range** in the Edit corner for a touch
 drag, or use numeric In/Out and lanes (on a phone or tablet the fields sit at
 the top of the selection sheet, with **Cancel range selection** in that same
 sheet scroll). Viewers can select a timeline range and
