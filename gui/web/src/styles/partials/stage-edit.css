@@ -255,6 +255,12 @@
   display: none;
 }
 
+/* The dock's Inspect grip is a touch target reaching up over the lanes' foot;
+   the floating corner steps above it so a touch there is the grip's. */
+.edit-workspace:has(.edit-dock:not(:empty)) .edit-corner {
+  inset-block-end: calc(var(--space-3) + var(--touch-min) - var(--space-4));
+}
+
 .phone-edit {
   display: flex;
   flex: 1 1 auto;

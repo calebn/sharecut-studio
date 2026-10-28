@@ -453,7 +453,7 @@ async function emptyLanePoint(page: Page, track: string, seconds: number) {
 
 async function rangeBounds(page: Page) {
   const summary = await page
-    .getByRole("region", { name: "Range actions" })
+    .getByRole("region", { name: "Range fields" })
     .locator(".range-summary")
     .textContent();
   const match = summary!.match(/([\d.]+)–([\d.]+) s/);
@@ -538,7 +538,7 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
         expect(initialCapture).toHaveLength(1);
         await page.mouse.move(start.x + 6, start.y);
         await expect(
-          page.getByRole("region", { name: "Range actions" }),
+          page.getByRole("region", { name: "Range fields" }),
         ).toBeVisible();
         const previewLanes = await lanes();
         const oldEndpointHit = await page.evaluate((point) => {
@@ -549,7 +549,7 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
           };
         }, originalEnd);
         const toolbar = await page
-          .getByRole("region", { name: "Range actions" })
+          .getByRole("region", { name: "Range fields" })
           .boundingBox();
         receipts.push({
           checkpoint: "range-toolbar-insertion",
@@ -583,7 +583,7 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
         await page.mouse.move(end.x, end.y, { steps: 6 });
         expect(await ownership()).toHaveLength(1);
         await expect(
-          page.getByRole("region", { name: "Range actions" }),
+          page.getByRole("region", { name: "Range fields" }),
         ).toContainText("reference, guest");
         const forward = await rangeBounds(page);
         expect(Math.abs(forward.start - 15.2)).toBeLessThanOrEqual(
@@ -595,7 +595,7 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
         const reverse = await emptyLanePoint(page, "reference", 10.2);
         await page.mouse.move(reverse.x, reverse.y, { steps: 6 });
         await expect(
-          page.getByRole("region", { name: "Range actions" }),
+          page.getByRole("region", { name: "Range fields" }),
         ).not.toContainText("guest");
         const reversed = await rangeBounds(page);
         expect(Math.abs(reversed.start - 10.2)).toBeLessThanOrEqual(
@@ -664,7 +664,7 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
       };
       try {
         await armRange(page);
-        const range = page.getByRole("region", { name: "Range actions" });
+        const range = page.getByRole("region", { name: "Range fields" });
         await range
           .getByRole("spinbutton", { name: "In", exact: true })
           .fill("");
