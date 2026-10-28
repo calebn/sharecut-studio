@@ -2,12 +2,13 @@
  * Test support: watches the Script body's own scrolling. Every word reports a
  * rect far below a 200px view, so a "nearest" follow lands on `NEAREST` and a
  * "center" follow on `CENTER`, and the word scrolled to is the last element
- * measured before the body's scrollTop was set.
+ * measured before the body's scrollTop was set. Pass `wordTop` to place the
+ * words elsewhere in the viewport (default far below).
  */
 export const NEAREST = 820;
 export const CENTER = 910;
 
-export function probeScript(body: HTMLElement) {
+export function probeScript(body: HTMLElement, wordTop = 1000) {
   const calls: [string | null, number][] = [];
   let measured: Element | undefined;
   let scrollTop = 0;
@@ -27,7 +28,7 @@ export function probeScript(body: HTMLElement) {
   Element.prototype.getBoundingClientRect = function (this: Element) {
     if (this === body) return new DOMRect(0, 0, 100, 200);
     measured = this;
-    return new DOMRect(0, 1000, 100, 20);
+    return new DOMRect(0, wordTop, 100, 20);
   };
   return {
     calls,

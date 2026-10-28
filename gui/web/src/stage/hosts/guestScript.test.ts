@@ -3,7 +3,11 @@ import type {
   CombinedUtterance,
   TranscriptWordView,
 } from "../../types/project";
-import { guestScriptOf, playingWordsAt } from "./guestScript";
+import {
+  guestScriptOf,
+  lastStartedWordAt,
+  playingWordsAt,
+} from "./guestScript";
 
 const word = (
   text: string,
@@ -146,5 +150,41 @@ describe("guestScriptOf", () => {
       ["Anneke", 1],
       ["Maya", 0],
     ]);
+  });
+});
+
+describe("turn ids", () => {
+  it("name the track and the turn's first heard start", () => {
+    const { turns } = guestScriptOf([
+      utterance("Maya", [word("a", 4), word("b", 5)], "t1"),
+      utterance("Anneke", [word("c", 1.5)], "t2"),
+    ]);
+    expect(turns.map((t) => t.id)).toEqual(["t2@1.5", "t1@4"]);
+  });
+});
+
+describe("lastStartedWordAt", () => {
+  it("is undefined before the first word starts", () => {
+    expect(lastStartedWordAt([2, 4], 1.9)).toBeUndefined();
+    expect(lastStartedWordAt([], 5)).toBeUndefined();
+  });
+
+  it("counts a word that starts exactly at the time", () => {
+    expect(lastStartedWordAt([2, 4, 6], 4)).toBe(1);
+    expect(lastStartedWordAt([2, 4, 6], 3.999)).toBe(0);
+  });
+
+  it("lets the later index win when two words start together", () => {
+    expect(lastStartedWordAt([2, 4, 4], 5)).toBe(2);
+    expect(lastStartedWordAt([4, 4], 4)).toBe(1);
+  });
+
+  it("picks the latest started word among ascending starts", () => {
+    expect(lastStartedWordAt([1, 3, 5], 4)).toBe(1);
+    expect(lastStartedWordAt([1, 3, 5], 99)).toBe(2);
+  });
+
+  it("goes by start time, not index, when overlapping speech reorders starts", () => {
+    expect(lastStartedWordAt([10, 14, 12], 13)).toBe(2);
   });
 });

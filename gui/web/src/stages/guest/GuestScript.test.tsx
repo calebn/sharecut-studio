@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
+import { NEAREST, probeScript } from "../../system/scriptScrollProbe";
 import { GuestScript, type GuestScriptProps } from "./GuestScript";
 import { WORD_STARTS } from "./guestFixture";
 
@@ -166,5 +167,91 @@ describe("GuestScript", () => {
     expect(
       screen.getByText("The host has not made a transcript of this version."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("GuestScript following", () => {
+  let probe: ReturnType<typeof probeScript> | undefined;
+  afterEach(() => probe?.restore());
+  const textOf = (index: number) =>
+    SCRIPT_TURNS.flatMap((turn) => turn.words).find((w) => w.index === index)
+      ?.text;
+  const view = (props: Partial<GuestScriptProps> = {}) => {
+    const rendered = (extra: Partial<GuestScriptProps>) => (
+      <GuestScript
+        access="commenter"
+        layout="desktop"
+        turns={SCRIPT_TURNS}
+        wordStarts={WORD_STARTS}
+        playing={1}
+        onSeek={vi.fn()}
+        {...props}
+        {...extra}
+      />
+    );
+    const { rerender } = render(rendered({}));
+    const body = document.querySelector(".sys-script-body") as HTMLElement;
+    probe = probeScript(body);
+    return {
+      body,
+      rerender: (extra: Partial<GuestScriptProps>) => rerender(rendered(extra)),
+    };
+  };
+  const scrollAway = (body: HTMLElement) => {
+    fireEvent.wheel(body);
+    fireEvent.scroll(body);
+  };
+
+  it("follows the lowest-indexed word when two overlapping words play", () => {
+    expect(textOf(1)).not.toBe(textOf(3));
+    const { rerender } = view({ playing: undefined });
+    probe?.clear();
+    rerender({ playing: [1, 3] });
+    expect(probe?.calls).toEqual([[textOf(1), NEAREST]]);
+  });
+
+  it("follows a lone playing number the same way", () => {
+    const { rerender } = view({ playing: undefined });
+    probe?.clear();
+    rerender({ playing: 3 });
+    expect(probe?.calls).toEqual([[textOf(3), NEAREST]]);
+  });
+
+  it("follows the playhead word when nothing is playing", () => {
+    const { rerender } = view({ playing: undefined });
+    probe?.clear();
+    rerender({ playing: undefined, playheadWord: 3 });
+    expect(probe?.calls).toEqual([[textOf(3), NEAREST]]);
+  });
+
+  it("neither scrolls to word 0 nor offers Back to playhead before the first word", () => {
+    const { rerender, body } = view();
+    probe?.clear();
+    rerender({ playing: undefined, playheadWord: undefined });
+    expect(probe?.calls).toEqual([]);
+    scrollAway(body);
+    expect(
+      screen.queryByRole("button", { name: /Back to playhead/ }),
+    ).toBeNull();
+  });
+
+  it("scrolls to the playing word when Follow is switched back on, playhead unchanged", async () => {
+    const { body } = view();
+    scrollAway(body);
+    const toggle = screen.getByRole("button", { name: "Follow the playhead" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    probe?.clear();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(probe?.calls).toEqual([[textOf(1), NEAREST]]);
+  });
+
+  it("tells its host when the guest scrolls the Script themselves", () => {
+    const onUserScroll = vi.fn();
+    const { body } = view({ onUserScroll });
+    fireEvent.scroll(body);
+    expect(onUserScroll).not.toHaveBeenCalled();
+    scrollAway(body);
+    expect(onUserScroll).toHaveBeenCalledOnce();
   });
 });

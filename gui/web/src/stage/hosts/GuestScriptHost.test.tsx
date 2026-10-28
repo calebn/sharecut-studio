@@ -220,6 +220,75 @@ describe("GuestScriptHost", () => {
     expect(colors.at(-1)).toBe("var(--color-presence-0)");
   });
 
+  it("colours each turn's margin by its speaker's colour index", () => {
+    as(
+      "view",
+      0,
+      ["Maya", "Anneke", "Maya"].map((speaker, i) => ({
+        ...UTTERANCES[0],
+        track_id: `t${i}`,
+        speaker,
+        words: [
+          {
+            text: `w${i}`,
+            start: 0,
+            end: 0,
+            timeline_start: i + 1,
+            timeline_end: i + 1.5,
+          },
+        ],
+      })) as CombinedUtterance[],
+    );
+    const { container } = render(<GuestScriptHost />);
+    const margins = [
+      ...container.querySelectorAll<HTMLElement>(".sys-script-margin"),
+    ].map((el) => el.style.getPropertyValue("--sys-person-color"));
+    expect(margins).toEqual([
+      "var(--color-presence-0)",
+      "var(--color-presence-1)",
+      "var(--color-presence-0)",
+    ]);
+  });
+
+  it("follows the store when its utterances change after mount", () => {
+    as("view", 20.2);
+    render(<GuestScriptHost />);
+    expect(screen.queryByRole("button", { name: "Later" })).toBeNull();
+    expect(document.querySelector(".sys-script-word[data-playing]")).toBeNull();
+    act(() => {
+      useDawStore.getState().hydrate(
+        "share:abc",
+        minimalProject({
+          transcript: {
+            utterances: [
+              ...UTTERANCES,
+              {
+                ...UTTERANCES[0],
+                track_id: "t2",
+                speaker: "Anneke",
+                words: [
+                  {
+                    text: "Later",
+                    start: 0,
+                    end: 0,
+                    timeline_start: 20,
+                    timeline_end: 21,
+                  },
+                ],
+              } as CombinedUtterance,
+            ],
+          },
+        }),
+      );
+      useDawStore.setState({ guestMode: "view", playheadSec: 20.2 });
+    });
+    expect(screen.getByRole("button", { name: "Later" })).toBeInTheDocument();
+    expect(
+      document.querySelector(".sys-script-word[data-playing]")?.textContent,
+    ).toBe("Later");
+    expect(document.querySelectorAll(".sys-script-margin").length).toBe(2);
+  });
+
   it("re-renders only when the playing word changes", () => {
     as("view", 10.1);
     render(<GuestScriptHost />);
