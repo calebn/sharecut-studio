@@ -48,7 +48,9 @@ export function hostRoomPhase(
     recordingClockMs(snapshot, options.elapsedSinceSnapshotMs ?? 0) / 1000;
   switch (snapshot.state) {
     case "lobby": {
-      const left = snapshot.countdown_left_ms ?? 0;
+      const left =
+        (snapshot.countdown_left_ms ?? 0) -
+        Math.max(0, options.elapsedSinceSnapshotMs ?? 0);
       if (snapshot.room_tone && left > 0) {
         const secondsLeft = Math.min(3, Math.max(1, Math.ceil(left / 1000)));
         return { kind: "countdown", secondsLeft: secondsLeft as 3 | 2 | 1 };
@@ -60,7 +62,7 @@ export function hostRoomPhase(
     case "paused":
       return { kind: "paused", clockSec };
     case "stopped": {
-      if (snapshot.take_index < 0) {
+      if (snapshot.take_index < 0 || !snapshot.takes?.length) {
         return { kind: "waiting" };
       }
       const { saved, total } = takeSaveCounts(snapshot, options.segments ?? []);

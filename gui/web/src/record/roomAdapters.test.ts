@@ -116,6 +116,13 @@ describe("hostRoomPhase", () => {
       countdown_left_ms: 1200,
     });
     expect(hostRoomPhase(snap)).toEqual({ kind: "countdown", secondsLeft: 2 });
+    expect(hostRoomPhase(snap, { elapsedSinceSnapshotMs: 300 })).toEqual({
+      kind: "countdown",
+      secondsLeft: 1,
+    });
+    expect(hostRoomPhase(snap, { elapsedSinceSnapshotMs: 1200 })).toEqual({
+      kind: "waiting",
+    });
   });
 
   it("ticks the clock while recording and holds it while paused", () => {
@@ -143,6 +150,12 @@ describe("hostRoomPhase", () => {
     ).toEqual({ kind: "reconnecting" });
     expect(
       hostRoomPhase(recordSnapshot({ state: "lobby" }), { dropped: true }),
+    ).toEqual({ kind: "waiting" });
+  });
+
+  it("waits after stop when there are no takes", () => {
+    expect(
+      hostRoomPhase(recordSnapshot({ state: "stopped", take_index: 0 })),
     ).toEqual({ kind: "waiting" });
   });
 
@@ -339,6 +352,38 @@ describe("noteItems", () => {
     expect(noteItems(recordSnapshot())).toEqual([]);
   });
 
+  it("resolves authors by participant id, even with duplicate names", () => {
+    const items = noteItems(
+      recordSnapshot({
+        participants: [
+          host,
+          recordParticipant({ participant_id: "a", display_name: "Bo" }),
+          recordParticipant({ participant_id: "b", display_name: "Bo" }),
+        ],
+        comments: [
+          {
+            id: "1",
+            take_index: 0,
+            recording_ms: 0,
+            pressed_wall_ms: 0,
+            author: "b",
+            body: "x",
+          },
+          {
+            id: "2",
+            take_index: 0,
+            recording_ms: 0,
+            pressed_wall_ms: 0,
+            author: "gone",
+            body: "y",
+          },
+        ],
+      }),
+    );
+    expect(items[0]?.author).toEqual({ name: "Bo", colorIndex: 2 });
+    expect(items[1]?.author).toEqual({ name: "gone" });
+  });
+
   it("maps markers and notes onto the recording clock", () => {
     const items = noteItems(
       recordSnapshot({
@@ -349,7 +394,7 @@ describe("noteItems", () => {
             take_index: 0,
             recording_ms: 724_000,
             pressed_wall_ms: 0,
-            author: "Bo",
+            author: "p_g",
             body: "Marker",
           },
           {
@@ -357,7 +402,7 @@ describe("noteItems", () => {
             take_index: 0,
             recording_ms: 5000,
             pressed_wall_ms: 0,
-            author: "Hana",
+            author: "p_host",
             body: "Retake this",
           },
         ],
