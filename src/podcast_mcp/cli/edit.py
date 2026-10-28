@@ -210,7 +210,7 @@ def edit_approve_cmd(
     asked: list[AskedEdits] = []
     # More than one edit is a bulk approve: cuts over an unsure word stay pending (name one with --ids).
     unsure: list[HeldEdit] = []
-    bulk = len(set(edit_ids)) > 1
+    bulk = all_pending or len(set(edit_ids)) > 1
 
     def approve() -> int | CutSpeechConfirmation:
         with cli_override(override):

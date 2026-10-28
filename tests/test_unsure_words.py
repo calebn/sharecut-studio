@@ -421,3 +421,52 @@ def test_the_tool_descriptions_cite_the_config_key_not_a_number():
 
     assert "analysis.unsure_word_confidence" in (low_confidence_words_tool.__doc__ or "")
     assert "analysis.unsure_word_confidence" in (approve_edits_tool.__doc__ or "")
+
+
+# --- review fixes: guest word text, single-cut bulk ---------------------------------------
+
+
+def _view_with_unsure_edit(tmp_path):
+    return build_project_view(_open(tmp_path)).model_dump()
+
+
+def test_a_guest_without_the_word_grant_gets_the_count_but_not_the_words(tmp_path):
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    view = _view_with_unsure_edit(tmp_path)
+    assert any(r["unsure_words"] for r in view["pending_edits"])
+    shown = sanitize_guest_project_view(view)
+    rows = {r["id"]: r for r in shown["pending_edits"]}
+    assert all("unsure_words" not in r for r in rows.values())
+    assert rows["uncle"]["unsure_count"] == 1
+    patch = sanitize_guest_project_view({"pending_edits": view["pending_edits"]})
+    assert all("unsure_words" not in r for r in patch["pending_edits"])
+    assert "uncle" not in str(shown["pending_edits"])
+
+
+def test_a_guest_with_the_word_grant_keeps_the_per_cut_words(tmp_path):
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    view = _view_with_unsure_edit(tmp_path)
+    shown = sanitize_guest_project_view(view, transcript_words=True)
+    rows = {r["id"]: r for r in shown["pending_edits"]}
+    assert rows["uncle"]["unsure_words"][0]["text"] == "uncle"
+
+
+def test_cli_all_with_one_pending_unsure_cut_holds_it(tmp_path):
+    ws = _open(tmp_path, cuts=[_cut("only", 3.0, 3.2, review_required=True)])
+    done = CliRunner().invoke(app, ["edit", "approve", "--project", str(ws.path), "--all"])
+    assert done.exit_code == 0, done.output
+    assert "Approved 0 edit(s)." in done.output and "Held only:" in done.output
+    assert [e.id for e in load_project(ws.path).edit_decisions] == ["only"]
+
+
+def test_mcp_all_pending_with_one_pending_unsure_cut_holds_it(tmp_path):
+    import json
+
+    from podcast_mcp.mcp.tools.edits import approve_edits_tool
+
+    ws = _open(tmp_path, cuts=[_cut("only", 3.0, 3.2, review_required=True)])
+    out = json.loads(approve_edits_tool(str(ws.path), all_pending=True))
+    assert out["approved_count"] == 0
+    assert [h["reason"] for h in out["held"]] == ["unsure_word"]

@@ -911,6 +911,13 @@ def sanitize_guest_project_view(
             hydra["transcript_words"] = False
             meta["hydration"] = hydra
             out["meta"] = meta
+    if not transcript_words and isinstance(out.get("pending_edits"), list):
+        # Word text, indices and scores follow the same grant as the transcript's words;
+        # the count alone says a cut needs a look.
+        out["pending_edits"] = [
+            {k: v for k, v in row.items() if k != "unsure_words"} if isinstance(row, dict) else row
+            for row in out["pending_edits"]
+        ]
     if "render_status" in out:
         out["render_status"] = _sanitize_guest_render_status(out.get("render_status"))
     return _drop_absolute_path_strings(out)
