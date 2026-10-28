@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from heapq import heappop, heappush
 from pathlib import Path
@@ -36,6 +37,8 @@ from podcast_mcp.engines.clips_ops import (
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.gate_fill import current_gate_fill_path
+from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.mute_regions import (
     IgnoredWordRegions,
     mute_spans_for_source_window,
@@ -53,7 +56,8 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 21
+RENDER_SEMANTICS_REV = 22
+_MAX_GRID_RATE = 192_000
 
 
 def resolve_clip_audio_path(
@@ -259,7 +263,82 @@ def unfiltered_track_audio(
     if unfiltered_audio_decline(project, track) is not None:
         return None
     curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
-    return placed_track_audio(project, track, clips_for_track(project, track.id)).audio, curve
+    clips = clips_for_track(project, track.id)
+    grid = track_grid(project, track, clips, FFmpegEngine())
+    return placed_track_audio(project, track, clips, grid=grid).audio, curve
+
+
+@dataclass(frozen=True)
+class TrackGrid:
+    """One integer sample grid for every clip of a track, so a window and the stem agree (#2456).
+
+    ``atrim`` rounds a piece's start and end separately, so pieces cut from float seconds
+    drift from ``timeline_start * rate`` and drift differently in a window. Placing every
+    clip on whole samples, with source times from ``MediaSeek.sample_time``, makes a joined
+    run's pieces sum to the clip edges exactly, whichever clip the render starts at.
+    """
+
+    rate: int
+    seeks: Mapping[Path, MediaSeek]
+
+    def frame(self, seconds: float) -> int:
+        return math.floor(seconds * self.rate + 0.5)
+
+    def source_frame(self, path: Path, seconds: float) -> int:
+        return self.seeks[path].first_sample(seconds, self.rate)
+
+    def source_time(self, path: Path, frame: int) -> float:
+        return self.seeks[path].sample_time(frame, self.rate)
+
+
+def track_grid(
+    project: EpisodeProject,
+    track: Track,
+    clips: list[Clip],
+    eng: FFmpegEngine,
+    *,
+    window: tuple[float, float] | None = None,
+) -> TrackGrid | None:
+    """The grid for ``clips``, or None when their recordings do not share one sample rate.
+
+    A recording that cannot be probed has no rate either; the render reports it.
+    ``atrim`` runs at each recording's own rate and ``concat`` resamples to a negotiated
+    one, so a single integer grid only exists for one rate. Such a track keeps float
+    placement.
+    """
+    placed = [
+        clip
+        for clip in clips
+        if window is None or (clip.timeline_end > window[0] and clip.timeline_start < window[1])
+    ]
+    recordings: dict[Path, None] = {}
+    others: dict[Path, None] = {}
+    for clip in placed:
+        path = resolve_clip_audio_path(project, track, clip)
+        recordings[path] = None
+        if (fill := gate_fill_paths(project, track, [path])[0]) is not None:
+            others[fill] = None
+        for region in clip.mute_regions:
+            if region.fill is not None:
+                owner = f"clip {clip.id} fill"
+                others[_source_audio_path(project, track, region.fill.source_id, owner=owner)] = (
+                    None
+                )
+    rates = set()
+    for path in (*recordings, *others):
+        probe = probe_media(path)
+        if probe is None:
+            return None
+        rates.add(probe.sample_rate)
+    if len(rates) != 1:
+        return None
+    rate = rates.pop()
+    if rate > _MAX_GRID_RATE:
+        return None
+    return TrackGrid(
+        rate,
+        {path: MediaSeek.at(0.0, lead_sec=eng.audio_start_sec(path)) for path in recordings},
+    )
 
 
 @dataclass(frozen=True)
@@ -349,6 +428,7 @@ def placed_track_audio(
     track: Track,
     sorted_clips: list[Clip],
     *,
+    grid: TrackGrid | None,
     window: tuple[float, float] | None = None,
     removed_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
     mask_clocks: dict[str, tuple[BoundaryClock, int, int, tuple[FrameTransform, ...]]]
@@ -360,16 +440,38 @@ def placed_track_audio(
     ignored_lookup = IgnoredWordRegions(project)
     clock_origin = window[0] if window else 0.0
     spans: list[tuple[float, float, tuple[float, float] | None]] = []
+    cells: list[tuple[int, int, int] | None] = []
+    origin_frame = grid.frame(window[0]) if grid and window else 0
     for clip in sorted_clips:
-        timeline_start = max(window[0], clip.timeline_start) if window else clip.timeline_start
-        timeline_end = min(window[1], clip.timeline_end) if window else clip.timeline_end
+        if grid is None:
+            timeline_start = max(window[0], clip.timeline_start) if window else clip.timeline_start
+            timeline_end = min(window[1], clip.timeline_end) if window else clip.timeline_end
+            spans.append(
+                (
+                    timeline_start,
+                    timeline_end,
+                    clip_timeline_overlap_to_source(clip, timeline_start, timeline_end)
+                    if window
+                    else (clip.source_start, clip.source_end),
+                )
+            )
+            continue
+        first, last = grid.frame(clip.timeline_start), grid.frame(clip.timeline_end)
+        start, end = first, last
+        if window:
+            start, end = max(first, origin_frame), min(last, grid.frame(window[1]))
+        if end <= start:
+            spans.append((start / grid.rate, end / grid.rate, None))
+            cells.append(None)
+            continue
+        path = resolve_clip_audio_path(project, track, clip)
+        origin = grid.source_frame(path, clip.source_start) + start - first
+        cells.append((start, end, origin))
         spans.append(
             (
-                timeline_start,
-                timeline_end,
-                clip_timeline_overlap_to_source(clip, timeline_start, timeline_end)
-                if window
-                else (clip.source_start, clip.source_end),
+                start / grid.rate,
+                end / grid.rate,
+                (grid.source_time(path, origin), grid.source_time(path, origin + end - start)),
             )
         )
     blends = [0.0] * len(sorted_clips)
@@ -389,6 +491,8 @@ def placed_track_audio(
             borrow[index] = min(
                 blends[index], left_span[1] - left_span[0], right_span[1] - right_span[0]
             )
+            if grid:
+                borrow[index] = grid.frame(borrow[index]) / grid.rate
     for index, clip in enumerate(sorted_clips):
         timeline_start, timeline_end, source_bounds = spans[index]
         if source_bounds is None:
@@ -396,10 +500,18 @@ def placed_track_audio(
             continue
         borrow_in = borrow[index]
         borrow_out = borrow[index + 1] if index + 1 < len(sorted_clips) else 0.0
-        source_start, source_end = source_bounds
-        source_start -= borrow_in
-        source_end += borrow_out
         src = resolve_clip_audio_path(project, track, clip)
+        if grid and (cell := cells[index]):
+            start, end, origin = cell
+            source_start = grid.source_time(src, origin - grid.frame(borrow_in))
+            source_end = grid.source_time(src, origin + end - start + grid.frame(borrow_out))
+            placed_start = (start - origin_frame) / grid.rate
+            placed_end = (end - origin_frame) / grid.rate
+        else:
+            source_start, source_end = source_bounds
+            source_start -= borrow_in
+            source_end += borrow_out
+            placed_start, placed_end = timeline_start - clock_origin, timeline_end - clock_origin
         fill = gate_fill_paths(project, track, [src])[0]
         ignored = ignored_lookup.for_clip(clip)
         prev = sorted_clips[index - 1] if index else None
@@ -455,15 +567,16 @@ def placed_track_audio(
         prepared.append(
             _PreparedClip(
                 clip,
-                _ClipContent(
-                    timeline_start - clock_origin,
-                    timeline_end - clock_origin,
-                    body,
-                ),
+                _ClipContent(placed_start, placed_end, body),
                 borrow_in,
             )
         )
-    return _place_clips(prepared, window_length=window[1] - window[0] if window else None)
+    window_length = None
+    if window:
+        window_length = (
+            (grid.frame(window[1]) - origin_frame) / grid.rate if grid else window[1] - window[0]
+        )
+    return _place_clips(prepared, window_length=window_length)
 
 
 def _render_placed_track(
@@ -480,12 +593,8 @@ def _render_placed_track(
     dependencies=None,
     defaults: EffectiveConfig,
 ) -> Path:
-    placed = placed_track_audio(
-        project,
-        track,
-        sorted_clips,
-        window=window,
-    )
+    grid = track_grid(project, track, sorted_clips, eng, window=window)
+    placed = placed_track_audio(project, track, sorted_clips, grid=grid, window=window)
     start, end = window or (0.0, timeline_duration_sec(project))
     removed: dict[str, tuple[tuple[float, float], ...]] = {}
     clips = {clip.id: clip for clip in sorted_clips}
@@ -549,7 +658,7 @@ def _render_placed_track(
             if automatic:
                 dependencies.validate(project, track.id, defaults=defaults)
                 bypassed = placed_track_audio(
-                    project, track, sorted_clips, window=window, bypass_regions=removed
+                    project, track, sorted_clips, grid=grid, window=window, bypass_regions=removed
                 )
                 bypass_clock_path = Path(directory) / "bypass-clock.json"
                 render(bypassed.audio, whole, bypass_clock_path)
@@ -650,6 +759,7 @@ def _render_placed_track(
                     project,
                     track,
                     sorted_clips,
+                    grid=grid,
                     window=window,
                     removed_regions=removed,
                     mask_clocks=mask_clocks,

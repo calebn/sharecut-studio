@@ -1901,7 +1901,9 @@ def test_a_placed_leaf_reports_the_clips_own_source_bounds(tmp_path, mode, windo
         fade_in_ms=200,
         join_in_mode=mode,
     )
-    audio = placed_track_audio(project, project.tracks[0], [left, right], window=window).audio
+    audio = placed_track_audio(
+        project, project.tracks[0], [left, right], grid=None, window=window
+    ).audio
     leaves = {leaf.clip_id: leaf for leaf in sources(audio) if not leaf.is_fill}
     assert leaves.keys() == expected.keys()
     for clip_id, (start, end) in expected.items():

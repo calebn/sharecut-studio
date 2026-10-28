@@ -25,6 +25,7 @@ from podcast_mcp.engines.timeline_render import (
     render_track_segment,
     resolve_clip_audio_path,
     timeline_duration_sec,
+    track_grid,
 )
 from podcast_mcp.models import (
     Clip,
@@ -969,7 +970,12 @@ def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tm
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    expected_graph = placed_track_audio(project, project.tracks[0], project.clips)
+    expected_graph = placed_track_audio(
+        project,
+        project.tracks[0],
+        project.clips,
+        grid=track_grid(project, project.tracks[0], project.clips, eng),
+    )
     assert [(leaf.fade_in_sec, leaf.fade_out_sec) for leaf in sources(expected_graph.audio)] == [
         (0, 0.025),
         (0.025, 0),
