@@ -197,7 +197,7 @@ function answer(body: { type: string; payload: Record<string, unknown> }) {
 
 const fetchStub = vi.fn(
   async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
+    const url = String(input instanceof Request ? input.url : input);
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status });
     if (url.includes("/refine/status")) return json(statusBody());
