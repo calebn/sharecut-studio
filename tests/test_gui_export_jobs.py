@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.pipeline import AudioExportResult
 
@@ -63,6 +65,7 @@ def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(
     result = job.snapshot()["result"]
     assert result["paths"][0].endswith("demo.wav")
     assert result["master"] == master
+    assert result["edit_head_id"] == "root"
 
 
 def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, monkeypatch) -> None:
@@ -289,7 +292,8 @@ class _OrderedSlotService:
 
 def _wire_ordered_slot(monkeypatch, order: list[str], release: threading.Event) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open", lambda _p: object()
+        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open",
+        lambda _p: SimpleNamespace(project=SimpleNamespace(history=ProjectHistory())),
     )
     monkeypatch.setattr(
         "podcast_mcp.services.jobs.manager.PipelineService",
