@@ -551,6 +551,51 @@ describe("Deliver host edits still being made when the page goes away", () => {
   });
 });
 
+describe("Deliver host time text typed but not yet entered", () => {
+  const renamed = { chapters: [{ time: 0, title: "Opening" }, MIDDLE] };
+
+  it("sends a chapter time once when the document changes under it", async () => {
+    render(<DeliverStage />);
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Time of Middle" }),
+      "{Control>}a{/Control}2:30",
+    );
+    expect(wire.post).not.toHaveBeenCalled();
+    setProject(projectAt("h2", renamed));
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()[0]).toEqual([
+      "UpdateChapter",
+      { old_time: 120, old_title: "Middle", time: 150, title: "Middle" },
+    ]);
+  });
+
+  it.each([
+    { edge: "In", start: 12, end: 40 },
+    { edge: "Out", start: 10, end: 42 },
+  ])(
+    "sends a clip $edge once when the document changes under it",
+    async ({ edge, start, end }) => {
+      render(<DeliverStage />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "More for A line" }),
+      );
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: "Trim" }),
+      );
+      await userEvent.type(
+        screen.getByRole("textbox", { name: `${edge} of A line` }),
+        `{Control>}a{/Control}0:${edge === "In" ? "12" : "42"}`,
+      );
+      expect(wire.post).not.toHaveBeenCalled();
+      setProject(projectAt("h2", renamed));
+      await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+      expect(sent()[0]?.[0]).toBe("UpdateSocialClip");
+      expect(JSON.stringify(sent()[0])).toContain(`"start":${start}`);
+      expect(JSON.stringify(sent()[0])).toContain(`"end":${end}`);
+    },
+  );
+});
+
 describe("Deliver host clip trims", () => {
   it("sends one command for a burst of arrow presses", async () => {
     render(<DeliverStage />);
