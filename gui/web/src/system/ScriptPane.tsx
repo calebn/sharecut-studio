@@ -101,6 +101,8 @@ export type ScriptPaneProps = {
   layout?: "desktop" | "phone";
   /** The words under the playhead. Two tracks can speak at once. */
   playing?: number | readonly number[];
+  /** The word the playhead has most recently passed; keeps Back to playhead on offer between words. */
+  playheadWord?: number;
   selection?: ScriptSelection | null;
   carets?: readonly ScriptCaret[];
   /** Find hits, by word span, and which one is current. */
@@ -303,6 +305,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       status = READY,
       layout = "desktop",
       playing,
+      playheadWord,
       selection: selectionProp = null,
       carets = NO_CARETS,
       matches = NO_MATCHES,
@@ -1040,7 +1043,9 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         <div className="sr-only" role="status" aria-live="polite">
           {spoken}
         </div>
-        {!following && playingList.length > 0 && onBackToPlayhead ? (
+        {!following &&
+        (playingList.length > 0 || playheadWord !== undefined) &&
+        onBackToPlayhead ? (
           <button
             type="button"
             className="sys-script-back"
