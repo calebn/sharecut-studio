@@ -109,7 +109,7 @@ def completed_audio_effects(
                         project,
                         track,
                         clips,
-                        grid=track_grid(project, track, clips, ffmpeg.FFmpegEngine()),
+                        grid=track_grid(project, track, clips),
                     ).audio,
                     crossfade_curve=curve,
                 )
