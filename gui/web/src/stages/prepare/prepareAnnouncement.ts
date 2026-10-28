@@ -11,6 +11,9 @@ export type PreparePhase =
   | "transcribing"
   | "needs-model"
   | "waiting"
+  | "not-started"
+  | "model-failed"
+  | "keep-fixes"
   | "done"
   | "failed";
 
@@ -57,7 +60,13 @@ export function prepareAnnouncement({
       return "Transcribing started.";
     case "needs-model":
       return "Transcribing needs a download first.";
+    case "model-failed":
+      return "The download did not finish. Try again.";
+    case "keep-fixes":
+      return "You fixed words by hand. Keep my fixes or replace them.";
     case "waiting":
+      return "Transcribing starts when the other job finishes.";
+    case "not-started":
       return "Transcribing has not started. Run it when you are ready.";
     case "done":
       return `Done. ${handoffLabel}.`;

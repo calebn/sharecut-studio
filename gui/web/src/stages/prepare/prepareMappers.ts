@@ -394,7 +394,8 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
       id: "transcribe",
       state: "needs-you",
       title: ROW_TITLE.transcribe,
-      detail: "Waiting for the other job to finish. It starts by itself.",
+      detail:
+        "Another job is running. This starts when it finishes, or press Run to try now.",
       action: { label: "Run", run: "try-again" },
     });
   } else if (transcribe?.state === "failed") {
@@ -523,14 +524,20 @@ export function preparePhase(input: PhaseInput): PhaseResult {
     };
   }
   // The run was refused, so no work runs while the model asks or downloads.
-  if (input.model) return { phase: "needs-model" };
-  // Refused for a busy slot, or never started (a row offers Start): nothing
-  // runs until the slot frees or Run is tapped, so this is not "transcribing".
-  if (
-    input.waiting ||
-    input.rows.some((row) => row.state === "queued" && row.action)
-  ) {
-    return { phase: "waiting" };
+  if (input.model) {
+    return {
+      phase: input.model.phase === "failed" ? "model-failed" : "needs-model",
+    };
+  }
+  // Hand fixes would be replaced: the row asks, so the question is spoken.
+  if (input.rows.some((row) => row.body?.kind === "keep-fixes")) {
+    return { phase: "keep-fixes" };
+  }
+  // Refused for a busy slot: it starts by itself when the slot frees.
+  if (input.waiting) return { phase: "waiting" };
+  // Never started (a row offers Start): nothing runs until Start is tapped.
+  if (input.rows.some((row) => row.state === "queued" && row.action)) {
+    return { phase: "not-started" };
   }
   // A row that waits on the person (word timing to download, hand fixes to
   // keep) is not work in progress: nothing runs, so the hand-off is not held.
