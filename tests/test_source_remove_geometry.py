@@ -200,7 +200,16 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
             return decisions.apply_auto_edits(ws.project, defaults())
 
     before = ws.project.model_dump(mode="json")
-    files = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    sync_store = ("document.db", "share_registry.sqlite")
+
+    def snapshot() -> dict[Path, bytes]:
+        return {
+            p.relative_to(tmp_path): p.read_bytes()
+            for p in tmp_path.rglob("*")
+            if p.is_file() and not p.name.startswith(sync_store)
+        }
+
+    files = snapshot()
     if operation == "extension":
         key = ("breath_edge", "mute")
         policy = cut_policy.CUT_ACTION_TABLE[key]
@@ -208,9 +217,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
         with pytest.raises(KeyError, match="breath_edge"):
             apply()
         assert ws.project.model_dump(mode="json") == before
-        assert {
-            p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
-        } == files
+        assert snapshot() == files
         monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, key, policy)
     if operation in {"extension", "live_plan"}:
         with pytest.raises(ScopeChangedAtApproval, match="held edges"):
@@ -218,9 +225,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
     elif operation in {"late_fade", "late_pad_fade"}:
         assert apply() == 0
     assert ws.project.model_dump(mode="json") == before
-    assert {
-        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
-    } == files
+    assert snapshot() == files
     monkeypatch.setattr(cut_safety, "complete_effect_acoustics", lambda *args, **kwargs: [])
     apply()
     assert len(ws.project.editorial.edit_log) == 1

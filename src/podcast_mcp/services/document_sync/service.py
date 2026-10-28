@@ -813,6 +813,7 @@ class DocumentSyncService:
             "ApproveEdits",
             "RejectEdits",
             "ApplySuggestedActions",
+            "ApplyEditPlan",
             "UndoHistory",
             "RedoHistory",
         }:

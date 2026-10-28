@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     Field,
     SerializerFunctionWrapHandler,
     TypeAdapter,
@@ -709,6 +710,35 @@ class ApplyAutoEditsPayload(BaseModel):
     pass
 
 
+def _whole_ms(value: Any) -> int:
+    try:
+        return int(value)
+    except TypeError as exc:
+        raise ValueError("crossfade_ms must be a number") from exc
+
+
+class EditPlanEntry(BaseModel):
+    track_id: str
+    start: float = Field(allow_inf_nan=False)
+    end: float = Field(allow_inf_nan=False)
+    reason: str = "agent:plan"
+    review_required: bool | None = None
+    crossfade_ms: Annotated[int, BeforeValidator(_whole_ms)] = 10
+    use_inaudible_opt: bool | None = None
+    applied: bool = False
+
+    @model_serializer(mode="wrap")
+    def _keep_only_set_keys(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        out = handler(self)
+        return {key: value for key, value in out.items() if key in self.model_fields_set}
+
+
+class ApplyEditPlanPayload(BaseModel):
+    edits: list[EditPlanEntry]
+    review_required: bool = True
+    use_inaudible_opt: bool | None = None
+
+
 class FadeJoinsPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
@@ -1129,6 +1159,11 @@ class ApplyAutoEditsCommand(DocumentCommandEnvelope):
     payload: ApplyAutoEditsPayload = Field(default_factory=ApplyAutoEditsPayload)
 
 
+class ApplyEditPlanCommand(DocumentCommandEnvelope):
+    type: Literal["ApplyEditPlan"] = "ApplyEditPlan"
+    payload: ApplyEditPlanPayload
+
+
 class FadeJoinsCommand(DocumentCommandEnvelope):
     type: Literal["FadeJoins"] = "FadeJoins"
     payload: FadeJoinsPayload
@@ -1248,6 +1283,7 @@ DocumentCommandBody = Annotated[
     | InsertGapCommand
     | FillRoomToneCommand
     | ApplyAutoEditsCommand
+    | ApplyEditPlanCommand
     | FadeJoinsCommand
     | CrossfadeJoinsCommand
     | MoveByTextCommand
@@ -1378,6 +1414,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "InsertGap": InsertGapPayload,
     "FillRoomTone": FillRoomTonePayload,
     "ApplyAutoEdits": ApplyAutoEditsPayload,
+    "ApplyEditPlan": ApplyEditPlanPayload,
     "FadeJoins": FadeJoinsPayload,
     "CrossfadeJoins": CrossfadeJoinsPayload,
     "MoveByText": MoveByTextPayload,
@@ -1396,7 +1433,13 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
 
 
 _CODED_PAYLOAD_TYPES = frozenset(
-    {"SuppressBleed", "SuppressLowAudibility", "SetBleedAlignmentMode", "FillRoomTone"}
+    {
+        "SuppressBleed",
+        "SuppressLowAudibility",
+        "SetBleedAlignmentMode",
+        "FillRoomTone",
+        "ApplyEditPlan",
+    }
 )
 
 

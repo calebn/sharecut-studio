@@ -306,38 +306,28 @@ def test_a_bad_later_entry_discards_the_earlier_ones(episode):
         ({"track_id": "host", "start": 1}, "end"),
     ],
 )
-def test_a_missing_key_raises_a_raw_key_error_today(episode, entry, missing):
+def test_a_missing_key_is_a_coded_invalid_payload(episode, entry, missing):
     before = episode.read_bytes()
-    with pytest.raises(KeyError) as raised:
+    with pytest.raises(CodedValueError) as raised:
         apply_edit_plan_tool(str(episode), [entry])
-    assert type(raised.value) is KeyError
-    assert raised.value.args == (missing,)
-    assert not hasattr(raised.value, "code")
+    assert raised.value.code == "invalid_payload"
+    assert f"edits.0.{missing}" in str(raised.value)
     _untouched(episode, before)
 
 
 @pytest.mark.parametrize(
-    "entry,message",
+    "entry,field",
     [
-        (
-            {"track_id": "host", "start": "a", "end": 2},
-            "could not convert string to float: 'a'",
-        ),
-        (
-            {"track_id": "host", "start": 1, "end": "b"},
-            "could not convert string to float: 'b'",
-        ),
-        (
-            {"track_id": "host", "start": 1, "end": 2, "crossfade_ms": "x"},
-            "invalid literal for int() with base 10: 'x'",
-        ),
+        ({"track_id": "host", "start": "a", "end": 2}, "start"),
+        ({"track_id": "host", "start": 1, "end": "b"}, "end"),
+        ({"track_id": "host", "start": 1, "end": 2, "crossfade_ms": "x"}, "crossfade_ms"),
     ],
 )
-def test_a_non_numeric_value_raises_a_raw_value_error_today(episode, entry, message):
+def test_a_non_numeric_value_is_a_coded_invalid_payload(episode, entry, field):
     before = episode.read_bytes()
-    with pytest.raises(ValueError) as raised:
+    with pytest.raises(CodedValueError) as raised:
         apply_edit_plan_tool(str(episode), [entry])
-    assert type(raised.value) is ValueError
-    assert str(raised.value) == message
-    assert not hasattr(raised.value, "code")
+    assert raised.value.code == "invalid_payload"
+    assert f"edits.0.{field}" in str(raised.value)
+    assert "could not convert" not in str(raised.value)
     _untouched(episode, before)
