@@ -24,6 +24,7 @@ import {
   type ModelNeeded,
   notDownloadedLine,
 } from "../../utils/apiError";
+import { plainError } from "../../utils/plainError";
 import {
   parseSplitSpeakersResult,
   splitSpeakersDoneCopy,
@@ -186,7 +187,7 @@ export function usePrepareSources(input: {
       } else {
         setSplitFailed((current) => ({
           ...current,
-          [trackId]: errorMessage(error),
+          [trackId]: plainError(errorMessage(error)),
         }));
       }
     } finally {
