@@ -297,6 +297,19 @@ describe("the export flow over the server's routes", () => {
     );
   });
 
+  it("forgets a finished export when the project changes", async () => {
+    mount();
+    await loaded();
+    act(() => flow.start(["mp3"], REQUEST));
+    await running();
+    await act(async () => server.settle(EXPORT_FINISHED));
+    await waitFor(() => expect(flow.run.kind).toBe("done"));
+
+    act(() => useDawStore.setState({ projectPath: "/tmp/other.project.json" }));
+    await waitFor(() => expect(flow.run).toEqual({ kind: "idle" }));
+    expect(flow.request).toBeNull();
+  });
+
   describe("model gate", () => {
     const downloadModel = vi.fn();
     const mountGated = () =>
