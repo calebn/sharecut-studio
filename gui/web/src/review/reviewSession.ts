@@ -46,8 +46,9 @@ export function mergeOpen(
   ];
 }
 
-const without = <T>(set: ReadonlySet<T>, drop: readonly T[]) =>
-  new Set([...set].filter((v) => !drop.includes(v)));
+function without<T>(set: ReadonlySet<T>, drop: readonly T[]) {
+  return new Set([...set].filter((v) => !drop.includes(v)));
+}
 
 function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
   const openIds = new Set(open.map((e) => e.item.id));
