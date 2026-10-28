@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { ROWS } from "./prepareFixture";
 import { ReadyList } from "./ReadyList";
@@ -98,16 +98,20 @@ export const KeepMyFixes: Story = {
   args: { rows: ROWS.keepFixes },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("button", { name: "Keep my fixes" }),
-    ).toHaveFocus();
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Keep my fixes" }),
+      ).toHaveFocus(),
+    );
     await expect(canvas.getByRole("button", { name: "Replace" })).toBeVisible();
     const row = canvas.getByRole("button", { name: /Transcribe/ });
     await userEvent.click(row);
     await userEvent.click(row);
-    await expect(
-      canvas.getByRole("button", { name: "Keep my fixes" }),
-    ).toHaveFocus();
+    await waitFor(() =>
+      expect(
+        canvas.getByRole("button", { name: "Keep my fixes" }),
+      ).toHaveFocus(),
+    );
     await userEvent.keyboard("{Enter}");
     await expect(args.onAction).toHaveBeenCalledWith(
       "transcribe",
