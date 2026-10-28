@@ -48,7 +48,7 @@ describe("walkTsFiles", () => {
 });
 
 it("srcRelative is forward-slashed and relative to src", () => {
-  expect(srcRelative(join(SRC_ROOT, "record", "Declined.tsx"))).toBe(
-    "record/Declined.tsx",
+  expect(srcRelative(join(SRC_ROOT, "record", "GuestRoomApp.tsx"))).toBe(
+    "record/GuestRoomApp.tsx",
   );
 });

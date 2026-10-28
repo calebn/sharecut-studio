@@ -8,7 +8,6 @@
 .loading-screen,
 .error-screen,
 .review-shell,
-.record-shell,
 .bootstrap-wizard {
   font-size: var(--font-size-review);
   line-height: 1.5;
@@ -20,13 +19,13 @@
   padding-inline: var(--s1);
 }
 
-:is(.home-screen, .review-shell, .record-shell, .bootstrap-wizard)
+:is(.home-screen, .review-shell, .bootstrap-wizard)
   .ui-control:not(.dialog-close) {
   min-block-size: var(--touch-min);
   font-size: var(--font-size-review);
 }
 
-:is(.home-screen, .review-shell, .record-shell, .bootstrap-wizard)
+:is(.home-screen, .review-shell, .bootstrap-wizard)
   :is(.ui-field-label, .ui-field-hint, .inline-error) {
   font-size: var(--font-size-body);
 }
@@ -38,8 +37,6 @@
 
 .home-screen input:not([type="checkbox"], [type="radio"], [type="range"]),
 .home-screen select,
-.record-shell input:not([type="checkbox"], [type="radio"], [type="range"]),
-.record-shell select,
 .bootstrap-wizard select {
   font: inherit;
   font-size: var(--font-size-field-current);
@@ -53,7 +50,6 @@
 }
 
 .home-screen select:disabled,
-.record-shell select:disabled,
 .bootstrap-wizard select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -63,7 +59,7 @@
   margin-bottom: 0;
 }
 
-:is(.home-screen, .record-shell, .bootstrap-wizard)
+:is(.home-screen, .bootstrap-wizard)
   label:has(input[type="checkbox"], input[type="radio"]) {
   min-block-size: var(--touch-min);
 }

@@ -10,7 +10,7 @@ type RoomToneControls = {
  * A guest records room tone only when the host starts a round that names them.
  * The round already in the first snapshot (a reload or a late join) is left
  * alone: its quiet window is gone. Capture and upload are the same path the
- * lobby used, through `useRoomToneCapture`.
+ * old lobby used, through `useRoomToneCapture`.
  */
 export function useGuestRoomTone({
   snapshot,

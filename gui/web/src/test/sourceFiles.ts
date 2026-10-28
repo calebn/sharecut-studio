@@ -33,7 +33,7 @@ export function walkTsFiles(
   return out;
 }
 
-/** `file` relative to `SRC_ROOT` with forward slashes, e.g. `record/Declined.tsx`. */
+/** `file` relative to `SRC_ROOT` with forward slashes, e.g. `record/GuestRoomApp.tsx`. */
 export function srcRelative(file: string): string {
   return relative(SRC_ROOT, file).replace(/\\/g, "/");
 }

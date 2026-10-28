@@ -1,5 +1,4 @@
 import { plural } from "../utils/format";
-import { MAX_CLIP_REGIONS } from "./keeper/clipRegions";
 import type { LiveComment } from "./liveCommentQueue";
 import { SAVE_STATE_COPY } from "./saveStatus";
 
@@ -101,19 +100,6 @@ export type RecordSnapshot = {
   host_offline_gap_ms?: number | null;
 };
 
-export const CONSENT_COPY =
-  "This session will be recorded in full quality on your device. After you Accept, your full-quality recording stays in this browser until it finishes saving to the host's project. Producers/listeners may be present and are shown in the roster.";
-
-export const FULL_ROOM_COPY = "This room is full (4 recorded / 2 producers).";
-
-export const DECLINED_COPY =
-  "You declined recording. You can wait in the lobby, or the host can invite you as a producer (listen only).";
-
-export const SPEAKERS_WARNING =
-  "Use headphones. Playing the room on speakers will echo into every mic.";
-
-export const HOST_OFFLINE_COPY = "Host offline: still recording locally.";
-
 export function hostReconnectPauseCopy(offlineGapMs: number): string {
   const seconds = Math.max(0, Math.round(offlineGapMs / 1000));
   return `Paused: the host was offline for ${seconds}s. Resume when everyone is ready.`;
@@ -179,11 +165,6 @@ export function shouldApplyRecordSnapshot(
 export const LOCAL_KEEPER_COPY = "Recording in full quality on this device.";
 export const KEEPER_RECLAIM_MISMATCH_COPY =
   "This device's copy could not be checked against the file saved to the project, so it was kept. Download your full-quality recording before leaving.";
-export const RECONNECT_MIC_COPY = "Reconnect microphone";
-export const NO_AUDIO_COPY = "No audio is reaching the recorder.";
-export const CHECK_MIC_COPY = "Check mic";
-export const MIC_CHECK_FAILED_COPY =
-  "Still no audio: unmute or reconnect your microphone, then Check mic again.";
 
 export const HEARING_COPY = "Hearing the room.";
 
@@ -228,31 +209,19 @@ export const ROOM_TONE_TOO_LOUD_COPY = "Too loud: is something playing?";
 export const ROOM_TONE_DEVICE_COPY = "Room tone saved on this device";
 export const ROOM_TONE_HOST_COPY = "Room tone sent to the host";
 export const ROOM_TONE_CAPTURING_COPY = "Recording room tone…";
-/** Guest Accept requires record or skip. Host Start does not: idle is an implicit skip. */
-export const ROOM_TONE_GATE_COPY = "Record or skip room tone before accepting.";
 export const ROOM_TONE_NOT_READY_COPY = "Room tone capture is not ready yet.";
 
 /** The capture problem a REC surface shows while recording. */
 export type CaptureHealth = "pending" | "failed" | "silent" | null;
-
-/** REC indicator label per capture problem. */
-export const REC_CAPTURE_LABEL = {
-  failed: "REC: local capture failed",
-  pending: "REC: waiting for microphone",
-  silent: "REC: no audio",
-} as const satisfies Record<NonNullable<CaptureHealth>, string>;
-
-/** Appended to the REC label while the host record socket is down. */
-export const REC_OFFLINE_SUFFIX = "(reconnecting)";
 
 /** Record stage notice while the host record socket is down mid-take. */
 export const RECORD_ROOM_RECONNECTING_COPY =
   "Lost connection to the record room. Reconnecting…";
 
 /**
- * Resolves the capture problem a REC surface shows while recording. A keeper
- * error outranks everything and mic trouble outranks no audio, so the REC
- * label and the notice beneath it never disagree.
+ * Resolves the capture problem a record surface shows while recording. A
+ * keeper error outranks everything and mic trouble outranks no audio, so the
+ * alerts never disagree.
  */
 export function resolveCaptureHealth(
   keeperError: boolean,
@@ -267,7 +236,7 @@ export function resolveCaptureHealth(
 /**
  * What a REC surface shows for a resolved capture problem: the label to use
  * and whether the no-audio notice is due. `suppressSilent` drops a silent
- * result (for example while mic loss is already shown), so Room and
+ * result (for example while mic loss is already shown), so the guest room and
  * the Record stage gate the no-audio alert the same way.
  */
 export function captureAttention(
@@ -277,31 +246,6 @@ export function captureAttention(
 ): { capture: CaptureHealth; noAudio: boolean } {
   const capture = health === "silent" && suppressSilent ? null : health;
   return { capture, noAudio: state === "recording" && capture === "silent" };
-}
-
-export const HEADROOM_HINT_COPY =
-  "Peaks should stay in the green. Record with headroom: you can always turn it up later, you cannot unclip.";
-export const METER_CLIPPED_COPY =
-  "Your mic clipped. Move back or lower your input gain.";
-
-export const NO_CLIPPING_COPY = "No clipping detected on your mic.";
-export const CLIPPING_RECOVERY_COPY =
-  "Clipping cannot be undone in the recording. Lower your input gain and re-record any section that matters.";
-export const CLIPPING_TRUNCATED_COPY = `Only the first ${MAX_CLIP_REGIONS} clipped spans of each recording segment are listed. Your mic clipped again after that.`;
-export const CLIPPING_JUNCTION_HINT =
-  "Available after the take lands on the timeline";
-
-/** Live notice while a take is recording and the encoder has seen clipping. */
-export function clippingLiveCopy(count: number): string {
-  return count === 1
-    ? "Your mic clipped during this take. Move back or lower your input gain."
-    : `Your mic has clipped ${count} times during this take. Move back or lower your input gain.`;
-}
-
-/** Post-take summary line. */
-export function clippingReportCopy(count: number, take: number): string {
-  const places = count === 1 ? "1 place" : `${count} places`;
-  return `Your mic clipped in ${places} in take ${take + 1}.`;
 }
 
 /** Mirrors Python `record_source_id`: the source id a landed keeper gets. */

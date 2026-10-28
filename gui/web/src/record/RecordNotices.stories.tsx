@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ReactNode, useLayoutEffect, useState } from "react";
-import { expect, fn, waitFor, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
-import { MicLossNotice } from "./MicLossNotice";
-import { NoAudioNotice } from "./NoAudioNotice";
-import { recordStoryDecorator } from "./recordStoryDecorator";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 
 function StorageEstimate({
@@ -33,34 +30,11 @@ function StorageEstimate({
 
 const meta: Meta = {
   title: "Templates/Record · Notices",
-  decorators: [recordStoryDecorator],
   parameters: { ...isolatedStoryParameters, layout: "padded" },
 };
 
 export default meta;
 type Story = StoryObj;
-
-export const MicrophoneLost: Story = {
-  render: () => <MicLossNotice onRetry={fn()} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole("alert")).toHaveTextContent(
-      "Full-quality recording is paused.",
-    );
-    await expect(canvas.getByRole("button")).toBeVisible();
-  },
-};
-
-export const NoAudio: Story = {
-  render: () => <NoAudioNotice onCheck={fn()} />,
-  play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("alert")).toBeVisible();
-  },
-};
-
-export const NoAudioCheckFailed: Story = {
-  render: () => <NoAudioNotice onCheck={fn()} checkFailed />,
-};
 
 export const StorageLow: Story = {
   render: () => (

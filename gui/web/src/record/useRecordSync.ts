@@ -50,12 +50,12 @@ type RecordMsg = {
   snapshot?: RecordSnapshot;
 };
 
-/** Guest was removed (or forbidden before joining); RecordApp shows "Recording access ended". */
+/** Guest was removed (or forbidden before joining); GuestRoomApp shows "Recording access ended". */
 export const RECORD_ACCESS_REMOVED = "access_removed";
-/** Removed participant's invite link is closed to new identities; RecordApp shows "Invite link closed". */
+/** Removed participant's invite link is closed to new identities; GuestRoomApp shows "Invite link closed". */
 export const RECORD_INVITE_CLOSED = "invite_closed";
 
-/** Record errors after which the hook stops reconnecting and RecordApp shows an ended screen. */
+/** Record errors after which the hook stops reconnecting and GuestRoomApp shows an ended screen. */
 export const RECORD_ACCESS_ENDED_REASONS = [
   RECORD_ACCESS_REMOVED,
   RECORD_INVITE_CLOSED,

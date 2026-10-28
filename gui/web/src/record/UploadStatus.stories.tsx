@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
-import { recordStoryDecorator } from "./recordStoryDecorator";
 import { UploadStatus } from "./UploadStatus";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
 
@@ -28,7 +27,6 @@ const meta: Meta<typeof UploadStatus> = {
   component: UploadStatus,
   tags: ["autodocs"],
   parameters: isolatedStoryParameters,
-  decorators: [recordStoryDecorator],
   args: {
     stopped: true,
     progress: progress(),

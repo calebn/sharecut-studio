@@ -166,8 +166,8 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 | Apply cuts directly, approve cuts | Editor | ShareCut Studio guest (transcript Select, Timeline, inspector) |
 | Hear Suggested (agent) | `play` + `view` + `mcp` | `guest_pending_preview` (optional `pad_sec`, 0 to 10 s of audio either side of the edit) → share HTTP WAV/PNG |
 | Hear a span (agent) | `play` + `view` + `mcp` | `guest_audition_context` → captions + windowed hum/clip warnings; optional wave/spec |
-| Join a record session | record `join` + `monitor` + `comment` | Record lobby / room (`/rec/{token}`) |
-| Produce a record session | record `monitor` + `comment` | Record lobby / room (not recorded) |
+| Join a record session | record `join` + `monitor` + `comment` | Join sheet / room (`/rec/{token}`) |
+| Produce a record session | record `monitor` + `comment` | Join sheet / room (not recorded) |
 | Reply / check off actions | Commenter or Editor (`reply` / `action`) | ShareCut Studio guest (same HTTP as the agent) |
 | Agent tools | Any role + `mcp` (`--with-mcp`) | External client → `{base}/mcp/{token}/mcp` (SSE `notifications/progress` when `progressToken` is set + guest WS chip) |
 
@@ -190,26 +190,23 @@ on a laptop with headphones. Spec:
 
 ```mermaid
 flowchart TD
-  open[Open record link] --> lobby[Lobby: name, headphones]
-  lobby --> devices[Allow microphone]
-  devices --> mic[Mic test, device picker]
-  mic --> meter[Own peak meter + clip LED]
-  meter --> roomTone[Record or skip 3s room tone]
-  roomTone --> consent[Accept recording notice]
-  consent --> wait[Wait for host Start]
-  wait --> rec[REC: full-quality recording + mix-minus]
-  rec --> lost[Mic disconnected: full-quality recording paused]
-  lost --> reconnect[Reconnect microphone]
+  open[Open record link] --> sheet[Join sheet over the room: name]
+  sheet --> devices[Allow microphone, device picker, own level]
+  devices --> phones[Headphones toggle + storage check]
+  phones --> join[Join and record = consent]
+  join --> wait[Pill: Waiting for host to start]
+  wait --> rec[Live pill: full-quality recording + mix-minus]
+  rec --> lost[Alert: Your mic stopped]
+  lost --> reconnect[Reconnect mic]
   reconnect --> rec
-  rec --> silent[No audio reaching the recorder]
+  rec --> silent[Alert: No sound is reaching the recorder]
   silent --> check[Check mic]
   check --> rec
-  rec --> clip[Mic clips: live notice + REC clip LED]
+  rec --> clip[Mic clips: tile badge + alert]
   clip --> rec
   rec --> stop[Host Stop]
-  stop --> report[Clipping report]
-  report --> saving[Saving to project… N of M, or stalled]
-  saving --> recovery[Resume saving or Download full-quality recording]
+  stop --> saving[Pill: Saving, or Saving stopped]
+  saving --> recovery[Resume saving or Save a copy]
   recovery --> saving
   saving --> staged[Saved to project; this device keeps its copy]
   staged --> opfs[This device's copy clears automatically after confirmed landing]
@@ -218,79 +215,87 @@ flowchart TD
   opfs --> done[Tracks on host timeline]
 ```
 
-1. Guest lands on the record lobby.
-2. Name and headphones check, then browser **Allow microphone** (explicit
-   grant; Consent stays disabled until granted **and** headphones are checked),
-   then mic test and device picker. Your own peak meter (sample peak only)
-   has a clip light and a headroom hint; nobody else's meter is shown.
+1. Guest lands on the shared room with the **Join sheet** over it ("Join the
+   room", or "Ava is here" once others are in).
+2. **Your name**, then browser **Allow microphone** (explicit grant, a direct
+   click), then the device picker and your own level with a clip light; nobody
+   else's meter is shown. A blocked microphone reads "Microphone blocked" with
+   **How to allow**, which retries; a lost device offers **Retry**. Then the
+   **Storage** check and the **I'm wearing headphones** toggle. **Join and record**
+   stays disabled and names the first open row ("Add your name first", "Allow your
+   microphone first", "Put on headphones first", "Fix storage first").
    The desktop host's **Record room** panel also shows microphone permission
    status and **Retry** after denial. macOS and Windows point to system
    microphone privacy settings; Linux identifies its WebKit prompt and directs
    blocked users to the supported browser recording path.
-3. Optional **Record 3 seconds of room tone** (skip allowed). Too-loud beds warn
-   if RMS is above −35 dBFS and stay off the host. The bed stays on your
-   device; nothing is sent to the host until Accept, and the lobby says
-   "Room tone saved on this device" until the host acknowledges the upload
-   ("Room tone sent to the host"). Producers never see this step.
-4. Separate **recording consent** step. The recorder is armed on Accept and
-   writes **no full-quality recording audio** until host Start. The room-tone
-   upload waits for Accept (lobby capture on your device is allowed;
-   Skip/Decline discards it). The host re-checks consent server-side, per
+3. Room tone is started by the host, not by the guest: when the host fires the
+   countdown ("Quiet please · 3"), a guest who has joined records 3 seconds
+   automatically and the bed is sent to the host. There is no guest record or
+   skip step, and a guest who joins after the countdown is not asked (#2490).
+   Producers never record it.
+4. **Join and record is the consent.** The sheet says "You'll be recorded in full
+   quality on this device. It saves to Ava's project when the take ends." and its
+   **Details** explain that joining means you agree to be recorded. **Not now**
+   declines: the room dims under "You're not being recorded." with **Join
+   recording**, available while the room waits for a take. The recorder is armed on
+   joining and writes **no full-quality recording audio** until host Start. The
+   room-tone upload waits for consent. The host re-checks consent server-side, per
    take: a full-quality recording chunk needs the guest in that take's
    consented roster, room tone needs current consent, and either miss returns
    `403 consent required` — never trust the client alone.
 5. Host Start requires a passed device storage check for the host and
-   is enabled when every **recorded guest** currently in the lobby has consented
+   is enabled when every **recorded guest** currently in the room has consented
    (producers skip this gate). The host's Start lists what it waits for right
    under it: "Waiting for Ava to accept recording." per guest. The host can
    start a solo take with nobody else in the room. A host
    with no room yet sees "No record room yet." with **Create record room**,
    which creates it in place and copies the guest link. A
    guest who rejoins before a new take must pass the device storage check again
-   and Accept again. Saving and download recovery for the previous take stay
-   available in the lobby. A failed storage check offers **Retry storage
+   and join again. Saving and download recovery for the previous take stay
+   available from the room's alerts. A failed storage check offers **Retry storage
    check**.
-6. While REC is on, guest sees the roster, clock, "Recording in full quality
-   on this device," and **Hearing the room.** Press **M** for a Marker or type a
+6. While a take is live, the guest sees the pill (`m:ss · Take N`), a tile per
+   person, and hears "Recording in full quality on this device." and **Hearing the
+   room.** from the screen-reader lines. Press **M** for a Marker or type a
    note (other guests in the record room never see it; after land it is an
    ordinary timeline comment on the host). The recorder notes where your mic
-   clipped (sample peak) with your full-quality recording, so the report can
+   clipped (sample peak) with your full-quality recording, so the flags can
    survive a reload. While your full-quality recording is being written, a refresh
    or navigation asks for the browser's native leave confirmation; dismissing
    it keeps the guest in the live take. Browsers require prior page activation
    before they may show that prompt, and they control its wording. PAUSED does
    not show this native prompt. If the tab is closed or crashes during REC,
    audio already written stays on this device (at most the last couple of
-   seconds are lost); after Stop, reopen the room link and use **Recover
-   partial take**.
+   seconds are lost); after Stop, reopen the room link: the room shows the
+   saving pill and the alert "We found part of your recording." with **Finish
+   saving** (no Join sheet).
 7. If the room reports a non-terminal error (for example an action that is not
    possible in the current state), a persistent alert explains it and offers
-   **Dismiss**; ended and full-room screens are unchanged, and a later room
-   error never replaces the full-room screen.
-   If the saved microphone is no longer available, the lobby falls back to the
+   **Dismiss**; ended and full-room Covers are unchanged, and a later room
+   error never replaces the full-room Cover.
+   If the saved microphone is no longer available, the Join sheet falls back to the
    default input, shows a notice, and resets the saved choice to Default.
    Retry then goes straight to the default input while the saved microphone is
    still missing, and the notice stays even if that Retry fails. Declining or
    leaving the room never restores the dead choice, and a microphone that is
    plugged back in is tried again on the next Retry.
    If the microphone ends involuntarily, your full-quality recording closes its
-   current segment and a persistent warning offers **Reconnect microphone**. The room
-   clock follows the shared take while REC says local capture failed and has no
-   healthy dot. Reconnect changes the local label to waiting for microphone;
-   failed retry returns to failed, and a live stream restores healthy REC.
-   Revoking browser mic permission also shows failed local capture and a
-   reconnect action, even if the stream hook clears its loss flag.
-   Stop clears the mic-loss warning but keeps recovery for an incomplete
+   current segment and the alert "Your mic stopped." offers **Reconnect mic**. The room
+   clock follows the shared take while the alert shows; a failed retry keeps it
+   and a live stream clears it.
+   Revoking browser mic permission also shows the alert,
+   even if the stream hook clears its loss flag.
+   Stop clears the mic-loss alert but keeps recovery for an incomplete
    full-quality recording.
    If the microphone stays connected but about 5 seconds of silence or no
    audio reach the recorder while recording (not paused or muted), a persistent
-   "No audio is reaching the recorder." alert with **Check mic** appears and REC
-   reads "REC: no audio". Real audio, or a Check mic that finds a running,
+   "No sound is reaching the recorder." alert with **Check mic** appears.
+   Real audio, or a Check mic that finds a running,
    unmuted microphone, clears it. A sleeping or throttled tab restarts the
-   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. The host can close the record dialog while the alert shows; the transport chip keeps saying no audio. Hardware checks for this alert are listed in the recording-session golden-ear checklist.
+   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. The host can close the record dialog while the alert shows; the host's transport chip keeps the same capture state. Hardware checks for this alert are listed in the recording-session golden-ear checklist.
    Reconnect opens a new segment at the current room clock; if a selected device was
-   unplugged, recovery can use the default available input. In the lobby,
-   microphone loss disables Accept until recovery.
+   unplugged, recovery can use the default available input. In the Join sheet,
+   microphone loss disables Join and record until recovery.
    If the host microphone is denied or missing during REC, the Record room
    panel reopens and stays open with an actionable Retry. Both the panel and
    transport chip show local capture as failed, or waiting while a retry is
@@ -319,16 +324,15 @@ flowchart TD
    **Keep recording** or **Stop take**). Land stays disabled with its reason
    beside it until there is something to land. The native leave warning stays
    until your full-quality recording finishes writing its final file, then
-   clears. The saving panel reads "Saving to project… N of M chunks" where all
-   totals are known, then "Saved to project" once the host holds the verified
-   file. It warns the guest to keep the tab open until then, lists each segment
-   ("Take 1 segment 2: Saving to project…") when there are several, each line
-   appearing as its upload starts and flipping to "Saved to project" as it
-   finishes (a screen reader hears each start and finish politely, not each
-   chunk), and offers
-   **Resume saving** and **Download full-quality recording** for an incomplete
-   or stalled take. The host's panel shows the same two states for every
-   recorded participant and segment. Download produces one ZIP containing all
+   clears. The guest's pill reads "Saving · N%" while the file uploads and "Saved"
+   once the host holds the verified file; their own tile shows the same state. The
+   room asks the guest to keep the tab open (Leave is held until then). A screen
+   reader hears each segment start and finish politely, not each chunk; the guest
+   room shows no chunk counts. For an incomplete or stalled take the alerts offer
+   **Resume saving** and **Save a copy** ("Saving stopped."), or **Finish saving**
+   ("We found part of your recording."). The host's panel shows "Saving to
+   project…" then "Saved to project" for every recorded participant and segment.
+   Download produces one ZIP containing all
    retained segments, plus `room-tone.wav` when this device still holds
    your room-tone bed. This device's copy stays in browser storage
    (`Sharecut Recordings/`) until a fresh host status confirms the segment is
@@ -341,10 +345,10 @@ flowchart TD
    small completion marker remains to preserve segment numbering; recovery
    downloads skip cleared segments rather than reporting them missing. If
    landing fails, the guest sees "Saved to project, but not on the timeline
-   yet." and keeps this device's copy while the host uses **Retry land**. The lobby and host Start panel warn when browser storage
+   yet." and keeps this device's copy while the host uses **Retry land**. The Join sheet and host Start panel warn when browser storage
    headroom is low or cannot be estimated; this advisory never blocks recording.
    If a rejoin finds a readable pending PCM segment, the panel also offers
-   **Recover partial take** before saving and announces what it recovered;
+   **Finish saving** before saving and announces what it recovered;
    zero-byte or malformed files explain that uncommitted PCM cannot be
    reconstructed and remain available for export.
 9. If the host laptop drops during REC: reconnect the same link (lease reuse);
@@ -369,8 +373,9 @@ flowchart TD
    consent roster. A guest can save a full-quality recording only for a take
    whose roster includes them. The host should wait for
    "Saved to project" before removal when those parts matter.
-   Removal during REC stops microphone capture and saving, then offers recovery
-   or download of the full-quality recording kept on this device. A naturally expired lease can start a fresh
+   Removal during REC stops microphone capture and saving, then shows the Cover
+   "Your recording didn't finish saving" with **Save my recording** and **Try saving
+   again** for the full-quality recording kept on this device. A naturally expired lease can start a fresh
    guest identity in the still-open room, unless someone who joined through the
    same link was removed; then the guest sees "Invite link closed" and needs a
    fresh link from the host. The Join lease check and host removal
@@ -389,13 +394,14 @@ flowchart TD
    and remain best-effort paths.
 
    If this device can't keep writing the full-quality recording, the client
-   stops claiming that REC is safely saved on the device, preserves finalized
-   segments, and shows **Retry full-quality recording**.
+   stops claiming that it is safely saved on the device, preserves finalized
+   segments, and shows the alert "This device couldn't save the recording." with
+   **Retry recording**.
    The host resumes or starts a take before Retry when needed. Retry starts a
    new segment only after the failed writable closes or its bounded close
    deadline passes, so the leave guard holds until then; a failed open segment
    is not treated as durable and exports as a `-partial` WAV. A storage stall
-   reads "Full-quality recording stopped: this device's storage couldn't keep up."
+   says this device's storage couldn't keep up.
    Retry places the new segment at the current recording clock. After Stop, an incomplete segment stays on this device
    for recovery but does not hold Leave once complete segments are saved.
    A metadata-free partial is eligible for cleanup seven days after its last
@@ -408,7 +414,7 @@ flowchart TD
    Pending metadata and finalized WAVs follow their separate recovery and
    landed-file rules.
 
-**Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears
+**Success:** Guest joins (consents), appears on the host roster, sees the live and paused pill, hears
 the mix-minus, records a full-quality recording on their device, and sees
 "Saving to project…" turn into "Saved to project" for each segment. Timeline
 landing copies the saved recordings into `raw/` as one clip per segment and
@@ -425,11 +431,11 @@ never reported landed; its earlier project registration is rolled back instead. 
 write itself fails, it is saved and retried automatically on the next land, and the track's media is
 moved off the stale file meanwhile. Overlapping lands (an ACK auto-land and a Land click) each re-read the saved project first, so neither drops the clips or live comments the other landed.
 
-**Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers. The Playwright US-2 scenario (`gui/web/e2e/record-host-reconnect.spec.ts`) drops the host mid-take: the guest keeps recording with "Host offline: still recording locally.", and after a long drop the take returns PAUSED until the host resumes. The full-quality recording capture → saving → landing path also runs on Chromium and Playwright WebKit in the compat core flow ([browser acceptance matrix](../../docs/testing-ci.md#browser-acceptance-matrix)); Firefox is not covered.
+**Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers. The Playwright US-2 scenario (`gui/web/e2e/record-host-reconnect.spec.ts`) drops the host mid-take: the guest keeps recording with the alert "{Host} dropped. You're still recording on this device.", and after a long drop the take returns PAUSED until the host resumes. The full-quality recording capture → saving → landing path also runs on Chromium and Playwright WebKit in the compat core flow ([browser acceptance matrix](../../docs/testing-ci.md#browser-acceptance-matrix)); Firefox is not covered.
 
 ---
 
-## 7. Produce a recording session (lobby + silent mix-minus)
+## 7. Produce a recording session (Join sheet + silent mix-minus)
 
 **Setup:** Host mints the **producer** `/rec/{token}` for the same room
 (`session_id`). Producer opens it on a laptop. Spec:
@@ -437,23 +443,23 @@ moved off the stale file meanwhile. Overlapping lands (an ACK auto-land and a La
 
 ```mermaid
 flowchart TD
-  open[Open producer record link] --> lobby[Lobby: name; no mic]
-  lobby --> wait[Wait for host Start]
+  open[Open producer record link] --> sheet[Join sheet: name]
+  sheet --> wait[Join to listen; wait for host Start]
   wait --> rec[Listen to mix-minus of all recorded peers]
   rec --> note[Leave a live comment or Marker]
   note --> stop[Host Stop]
 ```
 
-1. Producer lands on the same record lobby, listed under **Not recorded**.
+1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and take notes. You won't be recorded."); the Join sheet lists them as listening.
 2. No `getUserMedia`, no consent, no room tone, no full-quality recording, no saving panel,
-   no mic meter or clip LED.
+   no mic meter or clip alert.
 3. Host Start does not wait on the producer.
-4. During REC/PAUSED they see the roster and clock and **Hearing the room.**
+4. During REC/PAUSED they see the tiles and pill and **Hearing the room.**
    Press **M** for a Marker comment, or type a note — the host and producer see
    all live comments; other guests do not.
 5. If the host drops, they reconnect — they are not recording.
 
-**Success:** Talent sees the producer in the roster; the producer never appears
+**Success:** Talent sees the producer among the people in the room; the producer never appears
 as a recorded track. Live comments from the producer are visible to the host
 and stay hidden from guests until landing.
 

@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditToolStrip, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -111,33 +111,30 @@ their integration. A domain screen that
 renders fully state-local — per the rules under [Adding a story](#adding-a-story):
 state in the story, no app providers, no network, no store — belongs under **Templates**,
 with its story colocated in the feature folder (for example
-`src/record/Declined.stories.tsx` → `Templates/Declined`,
-`src/record/ConsentGate.stories.tsx` → `Templates/ConsentGate`,
-`src/record/LiveComments.stories.tsx` → `Templates/LiveComments`).
+`src/record/UploadStatus.stories.tsx` → `Templates/UploadStatus`,
+`src/record/RecordNotices.stories.tsx` → `Templates/Record · Notices`).
 
 - Render the surface in its production shell and stylesheet so the story
-  renders what ships. Record-room stories use `recordStoryDecorator`
-  (`src/record/recordStoryDecorator.tsx`), which wraps the story in
-  `cover review-shell record-shell` and loads
-  `styles/partials/record-entry.css` (as `RecordApp.tsx` does); its
-  `recordMobileViewport` gives a 360px phone view. Frame banners use
+  renders what ships. Storybook loads the full app stylesheet
+  (`.storybook/preview.ts` imports `styles/daw.css`, as `App.tsx` does), so a
+  record surface needs no shell decorator; `recordMobileViewport`
+  (`src/record/recordStoryDecorator.tsx`) gives a 360px phone view. Frame banners use
   `frameStoryDecorator` (`src/stage/frame/frameStoryDecorator.tsx`), which
   renders the story inside a real `.stage-frame` (or
   `.stage-frame--phone` at 360px with `parameters.framePhone`) at a
   fixed `20rem` height, since `.stage-frame` is `container: app / size` and size
   containment collapses at `height: auto`, plus an empty
   `<main aria-label="Stage" />` sibling so the banner isn't the story's only
-  landmark. A standalone full-screen surface may import the entry stylesheet
-  directly instead.
+  landmark.
 - Full-viewport screens (`.cover`, `min-block-size: 100dvh`) set
   `parameters: { layout: "fullscreen" }`.
 - Use made-up fixtures only — never real share tokens, guest names, or relay
   URLs. Build them from the shared factories in `src/test/fixtures.ts`
   (`recordParticipant`, `recordSnapshot`, `sampleComment`, …), not new literals.
-- Record previews keep hardware and time fixed: `DeviceCheck` and `Lobby` pass
-  `stream: null`, `Lobby` supplies a static `storageHeadroomNotice` instead of
-  querying browser storage, and `RecIndicator` supplies `clockNowMs` instead of
-  running its wall clock. The live components use their normal defaults.
+- Record previews keep hardware and time fixed: the Join sheet and room
+  stories take static models (no stream, no storage query, a fixed clock), and
+  `RecordNotices.stories` stubs `navigator.storage.estimate` for
+  `StorageHeadroomWarning`. The live components use their normal defaults.
 - If a surface starts reading session or sync context, it needs a decorator
   that provides that context before its story can stay standalone.
 - The story does not replace the component's own Vitest + axe test.
@@ -531,7 +528,7 @@ jsdom visibility checks.
    updating it and this doc.
 3. Library stories import from `./index` (the public API), not deep paths.
    Feature folders without a barrel (for example `src/record/`) import the
-   component module directly (`./ConsentGate`, `./Declined`).
+   component module directly (`./UploadStatus`, `./StorageHeadroomWarning`).
 4. Keep stories state-local (`useState` in the story) — no app providers, no
    network. Components that need DAW context don't get stories until they can
    render standalone. For interactive stories, a small story-local controlled
@@ -541,7 +538,7 @@ jsdom visibility checks.
    if a fourth story needs the same "local state + forward to spy" wiring,
    extract a helper and register it in `STORY_SUPPORT_MODULES`.
 5. Render in production context: if the app mounts the component inside a
-   shell class (e.g. `review-shell record-shell`), use a decorator with those
+   shell class (e.g. `review-shell`), use a decorator with those
    classes so shell-scoped type and heading styles apply. For Templates, follow
    the shell, stylesheet, layout and fixture rules under
    [Domain surfaces (Templates)](#domain-surfaces-templates).
@@ -621,6 +618,16 @@ jsdom visibility checks.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-10-28 — The old guest room surface is deleted (#2297): `RecordApp`,
+  `Lobby`, `ConsentGate`, `DeviceCheck`, `Room`, `Declined`, `FullRoom`,
+  `AccessEndedView`, `RecordAlert`, the mic notices, `Roster`, `LiveComments`,
+  `TakeClippingReport`, `RecIndicator`, `MicMeter` and `RoomToneCapture` with
+  their stories, plus `record.css` and `record-entry.css`. Guests now see the
+  shared room (`Stages/Record/Room`) with the Join sheet
+  (`Stages/Record/JoinSheet`) and `System/Cover`; `recordStoryDecorator`
+  keeps only `recordMobileViewport`. Entries below that name the deleted
+  stories are history.
 
 - 2026-10-28 — The guest seat's system pieces (#2297): the Join sheet gained an
   input picker, a storage blocker, a rejoin start and mic notes; the room view

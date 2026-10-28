@@ -100,7 +100,7 @@ def test_coverage_cells_cite_only_existing_repo_paths() -> None:
 def test_path_regex_accepts_only_full_repo_relative_paths() -> None:
     for path in (
         "tests/test_history.py",
-        "gui/web/src/record/Room.test.tsx",
+        "gui/web/src/record/GuestRoomApp.test.tsx",
         "gui/web/e2e/record-lobby.spec.ts",
         "src/podcast_mcp/services/collaboration/share.py",
         "scripts/check_ux_pack_sync.py",

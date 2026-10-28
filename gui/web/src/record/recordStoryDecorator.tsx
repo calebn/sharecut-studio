@@ -1,16 +1,4 @@
-import type { Decorator } from "@storybook/react-vite";
-import "../styles/partials/record-entry.css";
-
-/**
- * Wrap a record-surface story in the production shell classes so
- * `.record-shell` / `.review-shell` styles apply as they do in `RecordApp`.
- * A `div` (not `main`) avoids a second main landmark in the Storybook canvas.
- */
-export const recordStoryDecorator: Decorator = (Story) => (
-  <div className="cover review-shell record-shell">
-    <Story />
-  </div>
-);
+import type { Meta } from "@storybook/react-vite";
 
 /** Phone-width viewport for guest record surfaces (360px, per #173). */
 export const recordMobileViewport = {
@@ -26,4 +14,4 @@ export const recordMobileViewport = {
     },
   },
   globals: { viewport: { value: "mobile360", isRotated: false } },
-} as const;
+} as const satisfies Pick<Meta, "parameters" | "globals">;
