@@ -94,13 +94,13 @@ def test_a_long_repeated_word_is_capped_and_control_characters_are_dropped() -> 
     "reason",
     [None, "", "guest:cut this", "nl:remove the intro", "manual", "filler", "playful:phrase"],
 )
-def test_no_line_for_guest_agent_and_manual_edits(reason: str | None) -> None:
+def test_no_line_for_unreadable_reasons(reason: str | None) -> None:
     assert _line(reason) is None
 
 
 @pytest.mark.parametrize("reason", ["repetition:word:the", "filler:um", "pause:3.8"])
-def test_no_line_when_an_author_chose_the_reason(reason: str) -> None:
-    decision = _decision(reason).model_copy(update={"author": "share_abc"})
+def test_no_line_on_a_share_guests_suggestion(reason: str) -> None:
+    decision = _decision(reason).model_copy(update={"author": "share:abc"})
     assert why_line(decision, speaker_name="Jon") is None
 
 
