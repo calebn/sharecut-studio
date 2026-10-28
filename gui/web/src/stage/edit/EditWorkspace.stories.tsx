@@ -138,7 +138,6 @@ export const WithInspector: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason: WIDE_ONLY_REASON,
-    // Inspect opened it: a selection alone never does.
     episode: {
       selection: selections.track,
       state: { inspectorKey: inspectKeyOf(selections.track) },
@@ -163,7 +162,6 @@ export const WithActionBar: Story = {
       name: "Selection actions",
     });
     await expect(bar).toBeVisible();
-    // Selecting alone verbs the object, but opens no Inspector.
     await expect(
       within(bar).getByRole("button", { name: "Cut" }),
     ).toBeVisible();

@@ -1,8 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { barModelOf, editRoleOf, runEditVerb } from "../../commands/editVerbs";
-import { getClipboard } from "../../edit/clipboard";
-import { editFacts } from "../../edit/editSelection";
+import { barModelOf, editFactsOf, runEditVerb } from "../../commands/editVerbs";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
 import { ActionBar, SelectionCount } from "../../system/ActionBar";
@@ -12,12 +10,8 @@ import { dialogueTrackIds } from "../../utils/bladeTracks";
 import { scopeOf } from "./barScope";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
-export type EditActionBarForm = "floating" | "dock";
+type EditActionBarForm = "floating" | "dock";
 
-/**
- * Widen a range to every dialogue track, or narrow it back to the track it
- * began on. A words selection is one track's and has no toggle.
- */
 function toggleRangeScope(narrow: { current: readonly string[] | null }) {
   const s = useDawStore.getState();
   const selection = s.selection;
@@ -42,7 +36,6 @@ function EditActionBarImpl({
   root,
 }: {
   form: EditActionBarForm;
-  /** The workspace the selection's marks live in: the anchor is found inside it. */
   root: HTMLElement | null;
 }) {
   const { selection, project, projectPath, shareCapabilities, moreRequest } =
@@ -55,7 +48,6 @@ function EditActionBarImpl({
         moreRequest: s.moreRequest,
       })),
     );
-  // What the verbs' gates read besides the selection and the project.
   const gates = useDawStore(
     useShallow((s) => ({
       guestMode: s.guestMode,
@@ -67,13 +59,7 @@ function EditActionBarImpl({
   );
   const floating = form === "floating";
   const facts = useMemo(
-    () =>
-      project
-        ? editFacts(selection, project, {
-            role: editRoleOf({ projectPath, shareCapabilities }),
-            clipboardHasAudio: getClipboard() != null,
-          })
-        : null,
+    () => editFactsOf({ selection, project, projectPath, shareCapabilities }),
     [selection, project, projectPath, shareCapabilities],
   );
   const model = useMemo(
@@ -125,7 +111,7 @@ function EditActionBarImpl({
               form: "floating",
               anchorRef: anchor.ref,
               moves: anchor.moves,
-              // Below, so the ruler above the first lane stays uncovered.
+              // below, so the ruler above the first lane stays uncovered
               prefer: "below",
             }
           : { form: "dock" }
@@ -141,9 +127,4 @@ function EditActionBarImpl({
   );
 }
 
-/**
- * The Edit stage's Action bar (design-system element 7): the selection's verbs,
- * floating beside it on desktop and tablet and docked above the Player on a
- * phone. `barModelOf` words and gates the verbs; `runEditVerb` runs them.
- */
 export const EditActionBar = memo(EditActionBarImpl);

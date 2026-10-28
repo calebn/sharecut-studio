@@ -254,7 +254,6 @@ export type BarDisplay = {
   readonly icon: SystemIconName | null;
   /** The first key as a tooltip suffix: ` (X)`, or empty. */
   readonly hint: string;
-  /** For `aria-keyshortcuts`; absent for a command with no key. */
   readonly shortcut?: string;
 };
 

@@ -452,7 +452,6 @@ test.describe("a phone with a touch screen", () => {
         await range
           .getByRole("button", { name: "Select range", exact: true })
           .click();
-        // No gap, no row: Fill room tone is offered only where there is one.
         await actionBar(page).getByRole("button", { name: "More" }).click();
         await expect(
           page.getByRole("menuitem", { name: "Fill room tone", exact: true }),

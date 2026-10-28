@@ -161,7 +161,6 @@ export function TrackHeadersColumn({
           selected={selectedTrackIds.includes(track.id)}
           onSelect={(additive) => {
             toggleTrackSelected(track.id, additive);
-            // The header is named "Open track details": pressing it is an Inspect.
             const held = useDawStore.getState();
             if (
               !additive &&

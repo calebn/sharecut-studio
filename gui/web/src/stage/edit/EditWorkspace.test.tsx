@@ -95,7 +95,6 @@ describe("EditWorkspace regions", () => {
     expect(container.querySelector(".edit-inspector")).toBeNull();
     act(() => useDawStore.getState().setInspectorOpen(true));
     expect(container.querySelector(".edit-inspector")).not.toBeNull();
-    // A new selection shuts it; Close shuts it and keeps the selection.
     act(() =>
       useDawStore.getState().setSelection({ kind: "track", trackId: "guest" }),
     );
