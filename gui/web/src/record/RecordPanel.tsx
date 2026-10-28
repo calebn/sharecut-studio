@@ -83,20 +83,23 @@ export function RecordPanel({
   const {
     recordPanelOpen,
     setRecordPanelOpen,
-    shareDialogOpen,
     projectPath,
-    setShareDialogOpen,
     project,
     selectClip,
   } = useDaw((s) => ({
     recordPanelOpen: s.chrome.recordPanelOpen,
     setRecordPanelOpen: s.setRecordPanelOpen,
-    shareDialogOpen: s.chrome.shareDialogOpen,
     projectPath: s.projectPath,
-    setShareDialogOpen: s.setShareDialogOpen,
     project: s.project,
     selectClip: s.selectClip,
   }));
+  const stage = useDawStore((s) => s.stage);
+  // Copy links leaves for Share in Deliver; a held panel waits there instead
+  // of covering it, and comes back once the host leaves Deliver.
+  const [heldForShare, setHeldForShare] = useState(false);
+  if (heldForShare && stage !== "deliver") {
+    setHeldForShare(false);
+  }
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const takeClipping = useRecordHostStore((s) => s.takeClipping);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
@@ -119,7 +122,7 @@ export function RecordPanel({
     if (
       (micLossNeedsAttention || captureUnavailable) &&
       !recordPanelOpen &&
-      !shareDialogOpen
+      !heldForShare
     ) {
       setRecordPanelOpen(true);
     }
@@ -128,15 +131,15 @@ export function RecordPanel({
     micLossNeedsAttention,
     recordPanelOpen,
     setRecordPanelOpen,
-    shareDialogOpen,
+    heldForShare,
   ]);
   const noAudioShown = useRef(false);
   useEffect(() => {
-    if (noAudioNeedsAttention && !noAudioShown.current && !shareDialogOpen) {
+    if (noAudioNeedsAttention && !noAudioShown.current && !heldForShare) {
       setRecordPanelOpen(true);
     }
     noAudioShown.current = noAudioNeedsAttention;
-  }, [noAudioNeedsAttention, setRecordPanelOpen, shareDialogOpen]);
+  }, [noAudioNeedsAttention, setRecordPanelOpen, heldForShare]);
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
@@ -409,8 +412,13 @@ export function RecordPanel({
       hasRemovedParticipant={hasRemovedParticipant}
       liveComments={liveComments}
       onCopyLinks={() => {
-        setRecordPanelOpen(false);
-        setShareDialogOpen(true);
+        void executePointerCommand("stage.deliver", {}).then((result) => {
+          if (result.status !== "ok") return;
+          const daw = useDawStore.getState();
+          setHeldForShare(true);
+          setRecordPanelOpen(false);
+          daw.setShareRequested(true);
+        });
       }}
       onMuteChange={(muted) => sendRecordHostCommand("SetMuted", { muted })}
     />

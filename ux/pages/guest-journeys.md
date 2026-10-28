@@ -311,7 +311,7 @@ flowchart TD
    the host never captured a full-quality recording warns "No full-quality
    recording was captured", even if the mic never became available. If a host record command (Start, Pause, Resume, Stop,
    Land) fails, the Record room panel opens and shows the error; over the
-   Share dialog the failure is only announced, and an already open panel shows it
+   Share section the failure is only announced, and an already open panel shows it
    without announcing it a second time. Closing the panel clears it.
 8. Host Stop. The host panel shows one take control (Pause while recording,
    Resume while paused) and keeps Stop alone at the end behind a divider; Stop

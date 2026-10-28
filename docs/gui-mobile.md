@@ -6,13 +6,13 @@ Phone- and tablet-first shells for ShareCut Studio, plus desktop polish shared w
 
 Canonical strategy and feature map for agents/contributors. Implementation lives under `gui/web/`.
 
-Reading-room actions and Share dialog actions/checkbox labels use the shared
-`--touch-min` target floor. On phones the Share dialog is a modal bottom sheet
-(`Dialog`, a sheet by default on phone and tablet): it rises full width from the bottom edge, and its
-footer pins **Create review link**, the just-created link's **Copy link** and
-the status line in the thumb zone while the body scrolls. Stop sharing and
-End room confirm in place (`ui/InlineConfirm`) rather than stacking a second
-sheet. Dialog and sheet close buttons use the same square
+Reading-room actions and the Share section's actions and checkbox labels use
+the shared `--touch-min` target floor. On phones Share is a section of the
+Deliver page (one column, after the episode file and Bounce), not a sheet:
+**Create review link**, the just-created link's **Copy link** and the status
+line sit together under the options, and the role chip on each link is an icon.
+Stop sharing and End room confirm in place (`ui/InlineConfirm`) rather than
+stacking a dialog. Dialog and sheet close buttons use the same square
 target. Reading form labels, hints, and errors use `--font-size-body`, while
 actions use reading-body type. Compact timeline/inspector controls retain their
 editor density. See the [component recipes](../gui/web/docs/ui-library.md#composition-recipes)
@@ -834,7 +834,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 
 ## Testing
 - Vitest: `useViewportClass`, `BottomSheet`, `stage/frame/StageFrame.test.tsx` (phone tab bar, Script and Timeline surfaces, guest stages), follow live region, `stage/hosts/paletteCoverage.test.tsx` (every command that lived in the removed menus is still a catalog command, or its new home is rendered and runs it)
-- Playwright: phone viewport (`390×844`) asserts `.stage-frame--phone` and the Stage tab bar (`e2e/stage-shell.spec.ts`); `e2e/overlay-viewport.spec.ts` Project menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit. Specs reach chrome only through `e2e/stageNav.ts` ([testing-e2e.md](testing-e2e.md#stage-navigation-helpers))
+- Playwright: phone viewport (`390×844`) asserts `.stage-frame--phone` and the Stage tab bar (`e2e/stage-shell.spec.ts`); `e2e/overlay-viewport.spec.ts` Project menu + Share section reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit. Specs reach chrome only through `e2e/stageNav.ts` ([testing-e2e.md](testing-e2e.md#stage-navigation-helpers))
 - Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, the tool strip, a page that never scrolls under the frame, and the once-per-browser Add to Home Screen banner, in Chromium and WebKit with touch emulation
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)

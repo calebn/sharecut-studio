@@ -32,7 +32,7 @@ ShareCut's story in Direction C is "the app suggests, you decide, then you publi
 - **Home** is the first impression and the project switcher. It answers "what was I working on?" and "start something new" in one screen, and it absorbs the setup wizard so a new user never sees a model list before their first project.
 - **Prepare** turns raw audio into an editable episode: sources, speakers, transcript, cleanup. It runs by itself after import. The user's job here is to watch it finish, name speakers, and add names and terms the transcriber should know. Today's Pipeline tab (24 steps, gates, raw ids) collapses into a five-row progress list with an "Advanced" door.
 - **Review** is one queue of everything that needs a human decision: suggested cuts, comments, and checks (unsure words, transcript gate, sync conflicts). The user works it one item at a time with before/after listening, keyboard or thumb. Guests land in a reduced Review.
-- **Deliver** replaces the Export, Bounce and Share dialogs with one page: a readiness check, the episode files, chapters, clips, and a listen link for the final.
+- **Deliver** replaces the Export, Bounce and Share dialogs with one page: a readiness check, the episode files, chapters, clips, and Share for review links and record rooms.
 
 ### The stage frame (shared with Record and Edit)
 

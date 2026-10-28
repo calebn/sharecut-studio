@@ -26,7 +26,7 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Components, overlays, banners, toasts, status items, empty states (CMP- 48, OVL- 11, BAN- 6, TOAST/STAT/EMPTY/CHIP 4) | 69 |
 | Interactions (INT-) | 46 |
 | Total catalogued items | 200 |
-| Story files / exported stories | 89 files / 446 stories |
+| Story files / exported stories | 88 files / 445 stories |
 
 Of the 154 non-interaction items: 67 have a story (yes), 32 partial, 55 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
@@ -169,11 +169,11 @@ Dialogs launched from Home are listed in section 7: DLG-MCP, DLG-MODELS, DLG-HEL
 
 ## 7. Dialogs, sheets and popovers
 
-All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Export deliverables and Bounce are not dialogs any more: they are the Episode file and Bounce sections of the Deliver stage (`stages/deliver/EpisodeFile.tsx`, `stages/deliver/BounceSection.tsx`, host `stage/hosts/DeliverStage.tsx`, run by `stage/hosts/exportFlow.tsx` and `stage/hosts/bounceFlow.tsx`). Stories for dialogs open the dialog by launcher (`test/storyDialog.ts`).
+All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Export deliverables, Bounce and Share are not dialogs any more: they are the Episode file, Bounce and Share sections of the Deliver stage (`stages/deliver/EpisodeFile.tsx`, `stages/deliver/BounceSection.tsx`, `stages/deliver/ShareSection.tsx`, host `stage/hosts/DeliverStage.tsx`, run by `stage/hosts/exportFlow.tsx`, `stage/hosts/bounceFlow.tsx` and `stage/hosts/shareFlow.ts`). Stories for dialogs open the dialog by launcher (`test/storyDialog.ts`).
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
-| DLG-SHARE | "Share": review links (role, create, copy, Stop sharing confirm), record rooms (guest/producer links, End room confirm), online sharing/tunnel status, MCP URL | Menu > Project > Share… | `layout/ShareDialog.tsx`, `layout/ShareDialogView.tsx`, `layout/TunnelStatusLine.tsx`, `layout/shareCopyKey.ts` | `layout/ShareDialogView.stories.tsx` (Empty, LiveLinks, RecordRoom, MissingProducer, Busy, JustCreated, ClipboardError, OnlineSharingOn, OnlineSharingReconnecting, OnlineSharingNotReachable, OnlineSharingOff, Phone) | View | Invite reviewers and recorders |
+| DLG-SHARE | "Share" section of Deliver (no longer a dialog): review links (role, MCP, freeze, create, copy, Stop sharing confirm), record rooms (guest/producer links, Replace invite, End room confirm), online sharing/tunnel status and whether links reach this network only, Refresh mix recovery | Header Invite, Share… in the palette, Record room > Copy links, or Deliver | `stages/deliver/ShareSection.tsx`, `stages/deliver/shareLogic.ts`, `stages/deliver/TunnelStatusLine.tsx`, `stage/hosts/shareFlow.ts`, `stage/hosts/deliverShare.ts` | `stages/deliver/ShareSection.stories.tsx` (Links, StopSharing, EndRoom, NoLinks, Copied, ThisNetworkOnly, Offline, NeedsMix, Refreshing, Failed, Busy, ClosedInvite, Loading, Phone) | Props | Invite reviewers and recorders |
 | DLG-MCP | "Connect agent": MCP URL and Cursor snippet, copy buttons, no-episode warning | Home > Connect agent…; Menu > Project > Connect agent… | `layout/HostMcpDialog.tsx`, `layout/hostMcp.ts` | `layout/HostMcpDialog.stories.tsx` (Ready, NoEpisode, Phone) | Props | Wire an AI agent to the project |
 | DLG-HELP | "Help": create diagnostics bundle, description, consent checkbox, Submit report, publication status, Open support | Home > Help; Menu > Help > Export diagnostics… | `home/HelpDialog.tsx` | NONE | Hook (api) | Report a problem with a sanitized bundle |
 | DLG-MODELS | "Models": every model with Download, Update, Retry, Cancel; tool status | Home > Models; command palette "Manage models…" | `models/ModelsDialog.tsx`, `models/ModelRow.tsx`, `models/VariantPicker.tsx` | Row only (`models/ModelRow.stories.tsx`) | Hook (useModels) | Manage local models |
@@ -270,7 +270,7 @@ Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), 
 | BAN-LOADFAIL | "Could not load transcript and history. Retry" / "Still loading…" banner | Bootstrap failure | `layout/LoadFailureBanner.tsx` | NONE | Props | Recoverable load error |
 | EMPTY-STATES | Empty states: comments none, tighten no hits, pipeline "Analyze to load the pipeline steps", history loading, empty session drop, inspector empty, mix empty | various | `ui/EmptyState.tsx` | `ui/EmptyState.stories.tsx` (Default, BesideAField, WithAction) | Props | Teach the next action |
 | CMP-INLINE-ERROR | Inline error | many | `ui/InlineError.tsx` | `ui/InlineError.stories.tsx` (Default, Empty, Inline) | Props | Show errors in place |
-| CMP-TUNNEL | Online sharing / tunnel status line | Share dialog | `layout/TunnelStatusLine.tsx`, `layout/tunnelStatusCopy.ts`, `layout/useTunnelStatus.ts` | `layout/ShareDialogView.stories.tsx` OnlineSharing* | Props | Is the host reachable |
+| CMP-TUNNEL | Online sharing / tunnel status line | Share section of Deliver | `stages/deliver/TunnelStatusLine.tsx`, `stages/deliver/tunnelStatusCopy.ts`, `stage/hosts/useTunnelStatus.ts` | `stages/deliver/ShareSection.stories.tsx` Links, ThisNetworkOnly, Offline | Props | Is the host reachable |
 | CMP-PRESENCE-STATUS | Presence summary in status bar | Status bar | `layout/PresenceStatus.tsx`, `layout/PresenceStatusView.tsx` | `layout/StatusBarView.stories.tsx` GuestActivity | View | Who is here |
 | CMP-RAIL-PEEK | Rail label peek tooltip on first use | Tool rail hover/focus | `layout/RailLabelPeek.tsx` | NONE | Props | Name a tool |
 | CMP-DESKTOP-GUARD | Desktop wrapper close guard (not a React surface) | Closing the Electron window during recording | `desktop/useDesktopCloseGuard.ts` | NONE | n/a | Prevent data loss |
@@ -330,7 +330,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-INSPECT-LONGPRESS | Open inspector by long-press; compact inspector detents | Long-press on touch | SHEET-INSPECTOR | long-press | partial |
 | INT-PALETTE | Open command palette, search, run, remap | `?` | DLG-PALETTE | ? | yes |
 | INT-RECORD | Create room, start, pause, resume, stop, land; marker | Record room panel | DLG-RECORD, CMP-REC-* | M (marker while panel open) | partial |
-| INT-SHARE | Create and copy review or record links; stop sharing | Share dialog | DLG-SHARE | none | yes |
+| INT-SHARE | Create and copy review or record links; stop sharing | Share section of Deliver | DLG-SHARE | none | yes |
 
 ---
 
@@ -376,7 +376,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | PNL-HISTORY, PNL-IMPACT, PNL-TIGHTEN, PNL-PIPELINE | Tab by name. Pipeline needs `/api/pipeline/config`; Tighten needs hits (see `e2e/gui-surfaces.spec.ts`, `e2e/pipeline-*.spec.ts`). |
 | DLG-STEP-PARAMS | Phone: More > Pipeline > tap a step. |
 | INS-* | Click the object: clip (`.clip-block`), pending region, track header, chapter marker, comment pin, word, envelope point. Tablet: `.bottom-sheet[role=dialog]`; phone: compact inspector at the remembered detent. |
-| DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-dialog.spec.ts`). |
+| DLG-SHARE | Deliver stage > region "Share" (exact), or header `Invite`. Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-deliver.spec.ts`). |
 | DLG-MCP | Home or Menu > `Connect agent…`; dialog "Connect agent". |
 | DLG-HELP | Home > `Help`, or Menu > Help > `Export diagnostics…`; dialog "Help"; button `Create diagnostics bundle`. |
 | DLG-MODELS | Home > `Models`, or command palette "Manage models…"; dialog "Models" (mock `/api/bootstrap/*`). |

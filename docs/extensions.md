@@ -61,7 +61,7 @@ share minting, guest routes, or remote MCP.
 | `share.ui.banner` | Guest/host share banner |
 | `share.ui.routes` | Guest `/r/{token}` SPA |
 | `share.remote_mcp` | Remote MCP bridge (`/mcp/{token}/mcp`). `collaboration` contributes it; each link opts in with `--with-mcp` and revoking the link ends it. |
-| `tunnel.status` | Online sharing indicator: `GET /api/tunnel/status` and the Share dialog's status line ("Guests can open your links", "Reconnecting…", "Not reachable online", "Online sharing is off") ([host-online-relay.md § Tunnel status](host-online-relay.md#tunnel-status)) |
+| `tunnel.status` | Online sharing indicator: `GET /api/tunnel/status` and the Share section's status line ("Guests can open your links", "Reconnecting…", "Not reachable online", "Online sharing is off") ([host-online-relay.md § Tunnel status](host-online-relay.md#tunnel-status)) |
 | `online.account` | Provider account/auth surface |
 
 Experimental: `extension.more.0`, `extension.status.0` (may change in minors).

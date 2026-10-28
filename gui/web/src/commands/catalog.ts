@@ -509,7 +509,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Share…",
     keywords: ["review link", "invite", "collaborate", "guest"],
     when: "hostProjectLoaded",
-    notes: "Open host share dialog: live links, create, revoke",
+    notes: "Go to Deliver and focus Share: live links, create, revoke",
   },
   "record.createRoom": {
     id: "record.createRoom",

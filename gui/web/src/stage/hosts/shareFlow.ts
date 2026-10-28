@@ -33,7 +33,7 @@ import {
   type ShareRole,
 } from "../../types/shares";
 import { ApiError, errorMessage } from "../../utils/apiError";
-import { useTunnelStatus } from "../dialogs/useTunnelStatus";
+import { useTunnelStatus } from "./useTunnelStatus";
 
 const COPIED_MS = 2000;
 
@@ -576,3 +576,5 @@ export function useShareFlow(active: boolean) {
     openRoomPanel: () => void execute("record.openPanel"),
   };
 }
+
+export type ShareFlow = ReturnType<typeof useShareFlow>;

@@ -34,7 +34,9 @@ import {
 } from "./types";
 
 const { exec, roomTone } = vi.hoisted(() => ({
-  exec: vi.fn(async () => ({ status: "ok" as const })),
+  exec: vi.fn(async (_id: string, ..._rest: unknown[]) => ({
+    status: "ok" as const,
+  })),
   roomTone: {
     status: "idle" as string,
     error: null as string | null,
@@ -165,7 +167,7 @@ describe("RecordPanel", () => {
     vi.mocked(createOpfsSink).mockReset();
     vi.mocked(createOpfsSink).mockResolvedValue(new MemorySink());
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    setChrome({ recordPanelOpen: true, shareDialogOpen: false });
+    setChrome({ recordPanelOpen: true, shareRequested: false });
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setTransportError(null);
     useRecordHostStore.getState().setConnected(true);
@@ -373,20 +375,31 @@ describe("RecordPanel", () => {
     );
   });
 
-  it("lets Copy links replace the held record panel and reopens it afterward", async () => {
+  it("lets Copy links leave the held record panel for Share in Deliver, and brings it back after Deliver", async () => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
     useRecordHostStore.getState().setCaptureHealth("failed");
+    exec.mockImplementation(async (id) => {
+      if (id === "stage.deliver") useDawStore.getState().openStage("deliver");
+      return { status: "ok" as const };
+    });
     render(<RecordPanel micStatus="denied" />);
     await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
-    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(true);
-    expect(screen.queryByRole("dialog", { name: "Record room" })).toBeNull();
-    act(() => useDawStore.getState().setShareDialogOpen(false));
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.shareRequested).toBe(true),
+    );
+    expect(exec).toHaveBeenCalledWith("stage.deliver", {}, { skipWhen: true });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Record room" })).toBeNull(),
+    );
+    act(() => useDawStore.getState().openStage("record"));
     expect(screen.getByRole("dialog", { name: "Record room" })).toBeVisible();
   });
 
   it("guides the host to replace a removed participant's invite", async () => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       participants: [
@@ -405,8 +418,15 @@ describe("RecordPanel", () => {
         /A removed participant’s invite is closed to new participants/,
       ),
     ).toBeVisible();
+    exec.mockImplementation(async (id) => {
+      if (id === "stage.deliver") useDawStore.getState().openStage("deliver");
+      return { status: "ok" as const };
+    });
     await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
-    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(true);
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.shareRequested).toBe(true),
+    );
+    expect(exec).toHaveBeenCalledWith("stage.deliver", {}, { skipWhen: true });
     await expectNoA11yViolations(container);
   });
 

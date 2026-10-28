@@ -8,7 +8,7 @@ const FLAGS = [
   "gesturesSheetOpen",
   "bounceRequested",
   "exportRequested",
-  "shareDialogOpen",
+  "shareRequested",
   "recordPanelOpen",
   "hostMcpDialogOpen",
   "helpDialogOpen",
@@ -22,7 +22,7 @@ const SETTERS: Record<Flag, string> = {
   gesturesSheetOpen: "setGesturesSheetOpen",
   bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
-  shareDialogOpen: "setShareDialogOpen",
+  shareRequested: "setShareRequested",
   recordPanelOpen: "setRecordPanelOpen",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
@@ -112,11 +112,11 @@ describe("dawStore chrome flags", () => {
     expect(read("gesturesSheetOpen")).toBe(true);
   });
 
-  it("allows the share dialog and record panel open together", () => {
+  it("allows a share request and the record panel open together", () => {
     const s = () => useDawStore.getState();
-    s().setShareDialogOpen(true);
+    s().setShareRequested(true);
     s().setRecordPanelOpen(true);
-    expect(read("shareDialogOpen")).toBe(true);
+    expect(read("shareRequested")).toBe(true);
     expect(read("recordPanelOpen")).toBe(true);
   });
 
@@ -124,7 +124,6 @@ describe("dawStore chrome flags", () => {
     const OTHER = [
       "commandPaletteOpen",
       "gesturesSheetOpen",
-      "shareDialogOpen",
       "recordPanelOpen",
       "hostMcpDialogOpen",
       "helpDialogOpen",
@@ -141,10 +140,11 @@ describe("dawStore chrome flags", () => {
       expect(read("transcriptFindReplaceOpen")).toBe(true);
       expect(read("bounceRequested")).toBe(true);
       expect(read("exportRequested")).toBe(true);
+      expect(read("shareRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes find/replace on a path change and leaves the untouched six open", () => {
+    it("closes find/replace on a path change and leaves the untouched five open", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
@@ -152,12 +152,13 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("forgets a bounce and an export asked for when the project switches", () => {
+    it("forgets a bounce, an export and a share asked for when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
       expect(read("bounceRequested")).toBe(false);
       expect(read("exportRequested")).toBe(false);
+      expect(read("shareRequested")).toBe(false);
     });
   });
 });

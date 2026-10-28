@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from "react";
+import type { Ref } from "react";
 import type { ShellBreakpoint } from "../../state/types";
 import { StatusRow } from "../../system/StatusRow";
 import { Button } from "../../ui";
@@ -22,10 +22,6 @@ export type DeliverStageViewProps = {
   onFix: (row: ReadinessRow) => void;
   /** The one filled button on the page. */
   exportAction: DeliverAction;
-  /** Absent when the link feature is not on offer. */
-  share?: DeliverAction;
-  /** Rendered inside the share feature's slot. */
-  shareSlot?: (content: ReactNode) => ReactNode;
   scrollRef?: Ref<HTMLDivElement>;
 };
 
@@ -38,8 +34,6 @@ export function DeliverStageView({
   rows,
   onFix,
   exportAction,
-  share,
-  shareSlot = (content) => content,
   scrollRef,
 }: DeliverStageViewProps) {
   return (
@@ -92,26 +86,6 @@ export function DeliverStageView({
             </Button>
           </div>
         </section>
-        {share
-          ? shareSlot(
-              <section
-                className="stage-host-section"
-                aria-labelledby="deliver-listen"
-              >
-                <h2 id="deliver-listen" className="stage-host-title">
-                  Listen link
-                </h2>
-                <div className="stage-host-actions">
-                  <Button
-                    disabledReason={share.disabledReason}
-                    onClick={share.onClick}
-                  >
-                    {share.label}
-                  </Button>
-                </div>
-              </section>,
-            )
-          : null}
       </div>
     </HostBody>
   );

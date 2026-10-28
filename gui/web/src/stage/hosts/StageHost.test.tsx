@@ -1,8 +1,8 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { startExportJob } from "../../api";
-import { clearRegisteredCommands } from "../../commands/execute";
+import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
@@ -22,6 +22,7 @@ vi.mock("../../api", async (importOriginal) => ({
   })),
   startExportJob: vi.fn(),
   followJobToOk: vi.fn(() => new Promise(() => undefined)),
+  listHostShares: vi.fn(async () => ({ shares: [], public_origin: "" })),
 }));
 vi.mock("../../panels/PipelinePanel", () => ({
   PipelinePanel: () => <div>pipeline panel</div>,
@@ -255,23 +256,31 @@ describe("Prepare host", () => {
 });
 
 describe("Deliver host", () => {
-  it("starts the export and opens the share dialog through their commands", async () => {
+  it("starts the export through its command", async () => {
     asHost("deliver");
     mount();
     const exportButton = await screen.findByRole("button", { name: "Export" });
     await waitFor(() => expect(exportButton).toBeEnabled());
     await userEvent.click(exportButton);
     await waitFor(() => expect(startExportJob).toHaveBeenCalledOnce());
-    await userEvent.click(
-      screen.getByRole("button", { name: "Share a listen link" }),
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.exportRequested).toBe(false),
     );
-    await waitFor(() => {
-      const { chrome } = useDawStore.getState();
-      expect([chrome.exportRequested, chrome.shareDialogOpen]).toEqual([
-        false,
-        true,
-      ]);
+  });
+
+  it("lists the share links on Deliver, and Share goes there and focuses Create review link", async () => {
+    asHost("edit");
+    mount();
+    await act(async () => {
+      await execute("share.manage");
     });
+    expect(useDawStore.getState().stage).toBe("deliver");
+    const create = await screen.findByRole("button", {
+      name: "Create review link",
+    });
+    await waitFor(() => expect(create).toHaveFocus());
+    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
+    expect(await screen.findByText("No review links yet.")).toBeInTheDocument();
   });
 
   it("sends an open row to the stage that fixes it", async () => {
@@ -294,7 +303,7 @@ describe("Deliver host", () => {
     expect(useDawStore.getState().reviewSection).toBe("impact");
   });
 
-  it("hides the listen link when the share feature is off", () => {
+  it("hides Share when the share feature is off", () => {
     asHost("deliver");
     render(
       <FeaturesContext.Provider
@@ -307,8 +316,9 @@ describe("Deliver host", () => {
         </ExportFlowProvider>
       </FeaturesContext.Provider>,
     );
+    expect(screen.queryByRole("region", { name: "Share" })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Share a listen link" }),
+      screen.queryByRole("button", { name: "Create review link" }),
     ).toBeNull();
   });
 });

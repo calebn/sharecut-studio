@@ -119,13 +119,14 @@ describe("hydrate resets", () => {
     expect(pick(Object.keys(RESET_ON_SWITCH))).toEqual(RESET_ON_SWITCH);
   });
 
-  it("resets the three project-bound chrome flags only on a project switch", () => {
+  it("resets the four project-bound chrome flags only on a project switch", () => {
     const flags = {
       bounceRequested: true,
       exportRequested: true,
+      shareRequested: true,
       transcriptFindReplaceOpen: true,
     };
-    const other = { shareDialogOpen: true };
+    const other = { recordPanelOpen: true };
     useDawStore.setState({
       chrome: { ...useDawStore.getState().chrome, ...flags, ...other },
     });
@@ -135,6 +136,7 @@ describe("hydrate resets", () => {
     expect(useDawStore.getState().chrome).toMatchObject({
       bounceRequested: false,
       exportRequested: false,
+      shareRequested: false,
       transcriptFindReplaceOpen: false,
       ...other,
     });

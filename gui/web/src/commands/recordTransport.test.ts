@@ -33,7 +33,7 @@ describe("record transport command failures", () => {
     submit.mockReset();
     land.mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    setChrome({ recordPanelOpen: false, shareDialogOpen: false });
+    setChrome({ recordPanelOpen: false });
     useDawStore.setState({
       statusAnnouncement: "",
     });
@@ -81,15 +81,6 @@ describe("record transport command failures", () => {
     useRecordHostStore.getState().setTransportError("old");
     submit.mockResolvedValue(undefined);
     expect(await execute("record.start")).toEqual({ status: "ok" });
-    expect(useRecordHostStore.getState().transportError).toBeNull();
-    expect(useDawStore.getState().chrome.recordPanelOpen).toBe(false);
-  });
-
-  it("only announces a failure over the Share dialog", async () => {
-    useDawStore.getState().setShareDialogOpen(true);
-    submit.mockRejectedValue(new Error("nope"));
-    await execute("record.stop");
-    expect(useDawStore.getState().statusAnnouncement).toBe("nope");
     expect(useRecordHostStore.getState().transportError).toBeNull();
     expect(useDawStore.getState().chrome.recordPanelOpen).toBe(false);
   });

@@ -394,10 +394,7 @@ const REMOVED_SURFACES: Entry[] = [
   entry("transport Menu", "Export deliverables", "export.deliverables", [
     deliverButton("Export", "export.deliverables"),
   ]),
-  entry("transport Menu", "Share", "share.manage", [
-    deliverButton("Share a listen link", "share.manage"),
-    headerInvite,
-  ]),
+  entry("transport Menu", "Share", "share.manage", [headerInvite]),
   entry("transport Menu", "Record room", "record.openPanel", [recordRoom]),
   entry("transport Menu", "Connect agent", "mcp.connect", [
     projectMenuRow("Connect agent", "mcp.connect"),

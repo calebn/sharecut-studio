@@ -176,11 +176,10 @@ them against the registry and catalog so the copy cannot drift; the live
 `ToolModeToggle`, `EditToolStrip` and `CommandPalette` adapters keep reading
 DAW state and dispatching through `execute`.
 
-`Templates/ShareDialog` renders the production `ShareDialogView`, the same
-view the live `ShareDialog` adapter renders. Stories use fictional
-`hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
-clipboard and the record-panel handoff, and the view owns the in-place Stop
-sharing and End room confirmations.
+`Stages/Deliver/Share` renders the props-only `ShareSection`; the Deliver host
+keeps the API calls, clipboard and the record-panel handoff in
+`stage/hosts/shareFlow.ts`, and the section owns the in-place Stop sharing and
+End room confirmations.
 `Stages/Deliver/Bounce` renders the props-only `BounceSection`; the Deliver host
 keeps the DAW selection state and `stage/hosts/bounceFlow.tsx` keeps the bounce
 job start/follow above the stages.

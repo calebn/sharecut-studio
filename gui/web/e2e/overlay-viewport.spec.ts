@@ -8,6 +8,7 @@ import {
   openHostProject,
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
+import { openShare } from "./stageNav";
 
 function expectTouchHeight(height: number, layoutHeight: number): void {
   expect(layoutHeight).toBeGreaterThanOrEqual(44);
@@ -43,15 +44,14 @@ test.describe("overlay viewport scroll", () => {
       await expectMenuLastItemReachable(page);
     });
 
-    test(`Share dialog Record rooms is reachable at ${label}`, async ({
+    test(`Share on Deliver keeps touch-sized controls and Record rooms reachable at ${label}`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
       await openHostProject(page);
-      await openDialogFromMenu(page, "Share…");
-      const share = page.getByRole("dialog", { name: "Share", exact: true });
+      const share = await openShare(page);
       const targets = await share
-        .locator(".ui-control, .share-dialog-check")
+        .locator(".ui-control, .dv-share-option-name")
         .evaluateAll((elements) =>
           elements.map((element) => ({
             height: element.getBoundingClientRect().height,
@@ -63,7 +63,6 @@ test.describe("overlay viewport scroll", () => {
       for (const target of targets) {
         expectTouchHeight(target.height, target.layoutHeight);
       }
-      await share.getByRole("button", { name: "Close", exact: true }).click();
       await expectShareRecordRoomsReachable(page);
     });
   }

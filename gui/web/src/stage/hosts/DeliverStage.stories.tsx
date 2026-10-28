@@ -42,7 +42,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Deliver stage host: Readiness (what is still open, each with the fix), the episode file, Bounce, Chapters and Clips, then the Listen link entry point. Removing or retiming a chapter, and trimming or removing a clip, are saved to the project; approving or retitling a clip stays on the page for now. Export runs here: the project's formats, progress with Cancel, then the written files; it keeps going if you leave Deliver. Bounce runs here the same way, from the tracks selected or soloed. Share opens its dialog, which stays mounted in the app, so closing it returns here. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
+          "The Deliver stage host: Readiness (what is still open, each with the fix), the episode file, Bounce, Chapters and Clips, then Share. Removing or retiming a chapter, and trimming or removing a clip, are saved to the project; approving or retitling a clip stays on the page for now. Export runs here: the project's formats, progress with Cancel, then the written files; it keeps going if you leave Deliver. Bounce runs here the same way, from the tracks selected or soloed. Share lists, creates and ends the project's review links and record rooms here. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
       },
     },
   },
@@ -147,8 +147,6 @@ export const GuestCommenter: Story = {
       await canvas.findByText("This link can't open that"),
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Export" })).toBeNull();
-    await expect(
-      canvas.queryByRole("button", { name: "Share a listen link" }),
-    ).toBeNull();
+    await expect(canvas.queryByRole("region", { name: "Share" })).toBeNull();
   },
 };

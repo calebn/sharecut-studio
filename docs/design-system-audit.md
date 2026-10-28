@@ -28,7 +28,7 @@ The domain composition inventory covered 42 story families. This is a snapshot f
 
 | Area | Story families |
 | --- | --- |
-| Layout (15) | AvatarStack, BottomTabsSplitter, CommandPalette, EditingToolRail, FollowBanner, GuestAttentionBanner, HostMcpDialog, ListenHero, OverlayLegend, PipelineStatusChip, ShareDialog, StatusBar, ToolModeToggle, TransportFrame, TransportPlayControls |
+| Layout (14) | AvatarStack, BottomTabsSplitter, CommandPalette, EditingToolRail, FollowBanner, GuestAttentionBanner, HostMcpDialog, ListenHero, OverlayLegend, PipelineStatusChip, StatusBar, ToolModeToggle, TransportFrame, TransportPlayControls |
 | Timeline (12) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EditMarkerLayer, EnvelopeOverlay, JoinPopover, MarkerLane, PendingEditOverlay, PresenceOverlay, StaleInvalidationOverlay, TimeRuler, TimelineRange |
 | Transcript (3) | EditBoundaryMark, GhostWordChips, TranscriptTurn |
 | Comments (2) | CommentCard, CommentCompose |
@@ -37,7 +37,7 @@ The domain composition inventory covered 42 story families. This is a snapshot f
 
 Domain coverage was a source/composition review, with deeper inspection of forms,
 dialogs, recording screens, and control consumers. Representative browser checks
-covered quiet ToggleButton, DefinitionList, phone ShareDialog, and mobile Lobby.
+covered quiet ToggleButton, DefinitionList, phone Share section, and mobile Lobby.
 The new guide was checked at 360px and 1200px in light and dark themes, including
 catalog links, horizontal overflow, and axe WCAG A/AA checks with contrast enabled.
 This is not an interactive certification of every domain state or browser.

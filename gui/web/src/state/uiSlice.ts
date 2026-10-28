@@ -249,7 +249,7 @@ type UiSlice = Pick<
   | "setSplitSpeakersReview"
   | "splitSpeakersTrackId"
   | "setSplitSpeakersTrackId"
-  | "setShareDialogOpen"
+  | "setShareRequested"
   | "setRecordPanelOpen"
   | "tightenApplyScope"
   | "setTightenApplyScope"
@@ -310,7 +310,7 @@ export function chromeInitial(): ChromeFlags {
     gesturesSheetOpen: false,
     bounceRequested: false,
     exportRequested: false,
-    shareDialogOpen: false,
+    shareRequested: false,
     recordPanelOpen: false,
     hostMcpDialogOpen: false,
     helpDialogOpen: false,
@@ -756,8 +756,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ splitSpeakersReview }),
     setSplitSpeakersTrackId: (splitSpeakersTrackId) =>
       set({ splitSpeakersTrackId }),
-    setShareDialogOpen: (on) =>
-      set((s) => ({ chrome: { ...s.chrome, shareDialogOpen: on } })),
+    setShareRequested: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, shareRequested: on } })),
     setRecordPanelOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, recordPanelOpen: on } })),
     tightenApplyScope: { ids: [] },

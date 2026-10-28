@@ -108,7 +108,7 @@ const COVERED: Record<string, string[]> = {
     "System/ScrubField",
   ],
   "CMP-SEEK-FOOTER": ["Templates/InspectorSeekFooter"],
-  "DLG-SHARE": ["Templates/ShareDialog"],
+  "DLG-SHARE": ["Stages/Deliver/Share"],
   "DLG-MCP": ["Templates/HostMcpDialog"],
   "DLG-SPLIT": [
     "Templates/SplitSpeakersDialog",
@@ -149,7 +149,7 @@ const COVERED: Record<string, string[]> = {
   "EMPTY-STATES": ["Atoms/EmptyState"],
   "CMP-INLINE-ERROR": ["Atoms/InlineError"],
   "DLG-HELP": ["Templates/HelpDialog"],
-  "CMP-TUNNEL": ["Templates/ShareDialog"],
+  "CMP-TUNNEL": ["Stages/Deliver/Share"],
   "SCR-SETUP": ["Templates/Home · Setup wizard", "Stages/Home/SetupCard"],
   "SCR-SETUP-CHECKING": [
     "Templates/Home · Setup wizard",

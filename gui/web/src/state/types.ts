@@ -38,8 +38,8 @@ export interface ChromeFlags {
   bounceRequested: boolean;
   /** An export asked for by a command; the Deliver stage starts it and clears this. */
   exportRequested: boolean;
-  /** Host share management dialog. */
-  shareDialogOpen: boolean;
+  /** Share asked for by a command; the Deliver stage focuses its Share section and clears this. */
+  shareRequested: boolean;
   /** Host record-room control panel. */
   recordPanelOpen: boolean;
   /** Local host MCP connect dialog (Streamable HTTP URL). */
@@ -578,7 +578,7 @@ export interface DawState {
   setTranscriptFindReplaceOpen: (on: boolean) => void;
   setExportRequested: (on: boolean) => void;
   setSplitSpeakersTrackId: (trackId: string | null) => void;
-  setShareDialogOpen: (on: boolean) => void;
+  setShareRequested: (on: boolean) => void;
   setRecordPanelOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;

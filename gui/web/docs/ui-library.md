@@ -77,7 +77,7 @@ use `Button variant="link"`, including the shortcut/gesture cross-links.
 | Script resize (ArrowLeft/Right)         | [`stage/edit/ScriptDivider.tsx`](../src/stage/edit/ScriptDivider.tsx) — allowlisted separator widget |
 | Pointer → same actions as keys          | **Command bridge** (`CommandButton`, `CommandMenuItem`) → `execute`                                  |
 
-Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`commandPaletteOpen` / `bounceDialogOpen` / `shareDialogOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
+Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`commandPaletteOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
 
 ## Command bridge (SOLID / DRY)
 
@@ -137,6 +137,6 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 
 ## Overlays
 
-- **Modal** (`Dialog`, CommandPalette, Bounce): shared Dialog portals to `document.body`, outside inert application chrome; `aria-modal`, focus trap, `inert` on `[data-daw-app-chrome]`, focus restore. Open one modal at a time; phone Pipeline parameters suspend while the model-download dialog is open. Panels cap to `max-height: min(90dvh, 40rem)`; the header stays pinned and `.command-palette-body` is the only overlay scroller (`.share-dialog-body` is layout-only). The scrolling body is a named keyboard-focusable region, including while every form control is disabled.
+- **Modal** (`Dialog`, CommandPalette): shared Dialog portals to `document.body`, outside inert application chrome; `aria-modal`, focus trap, `inert` on `[data-daw-app-chrome]`, focus restore. Open one modal at a time; phone Pipeline parameters suspend while the model-download dialog is open. Panels cap to `max-height: min(90dvh, 40rem)`; the header stays pinned and `.command-palette-body` is the only overlay scroller (the Share section is a Deliver column, not an overlay). The scrolling body is a named keyboard-focusable region, including while every form control is disabled.
 - **Sheet** (`BottomSheet`): peek / non-modal — Escape + initial focus + restore; no chrome `inert`, no Tab trap.
 - **Menu:** Escape, outside click, arrow keys, focus restore; Tab or Shift+Tab leaves the menu and closes it without moving focus back; sections (`role="group"`) for non-menuitem content (layer checkboxes, notes). The panel is a `popover="manual"` shown in the browser's top layer and `position: fixed`, so no sheet overflow, size container or stacking context can clip or bury it, and it stays in its DOM place (tab order, container queries, landmarks). `ui/anchoredPlacement.ts` `placeAnchored` (shared with the join popover) places it against the visual viewport: below the trigger, flipped above when that side has more room, clamped `--menu-edge-margin` inside every edge, and capped by `--menu-available-height` / `--menu-available-width` so a tall or wide panel scrolls or wraps rather than leaving the screen. It scrolls the focused item into view. jsdom has no Popover API; `src/test/setup.ts` stubs it.

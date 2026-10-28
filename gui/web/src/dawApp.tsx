@@ -22,7 +22,6 @@ import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { isShareProjectKey } from "./shareMode";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
-import { ShareDialog } from "./stage/dialogs/ShareDialog";
 import { SplitSpeakersDialog } from "./stage/dialogs/SplitSpeakersDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
@@ -209,7 +208,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
         </div>
         <CheatsheetDialogs />
         <SplitSpeakersDialog />
-        <ShareDialog />
         <RecordPanel
           recordingLocally={hostKeeper.recordingLocally}
           keeperFinalizing={hostKeeper.finalizing}

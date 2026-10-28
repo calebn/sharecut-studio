@@ -142,7 +142,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in an input) | Toggle: fill the stage height, or a fixed track height |
-| Share… | `share.manage` | Loaded host project | Open host share dialog: live links, create, revoke |
+| Share… | `share.manage` | Loaded host project | Go to Deliver and focus Share: live links, create, revoke |
 | Create record room | `record.createRoom` | Loaded host project | Mint guest + producer links in place and copy the guest link |
 | Copy guest link | `record.copyGuestLink` | Loaded host project | Copy the open record room's guest link |
 | Start recording | `record.start` | Host project management |  |

@@ -51,6 +51,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "review/ReviewStage.tsx",
   // Mod+E exports from anywhere on the Deliver page, including a focused chip or field.
   "stages/deliver/DeliverStage.tsx",
+  // Escape keeps a Share link or room from anywhere in the section, including a focused confirm button.
+  "stages/deliver/ShareSection.tsx",
   // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.
   "system/ScriptPane.select.test.tsx",
 ]);

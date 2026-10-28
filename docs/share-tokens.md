@@ -100,7 +100,7 @@ no link gets one by default. Once it passes, the link stops working as if it
 were revoked. There is no per-link Extend. Product copy says links do not
 expire and calls revoking **Stop sharing**
 ([communication philosophy](communication-philosophy.md#terminology)). The
-Share dialog has no expiry control (owner decision in #1027): `expires_at` stays
+Share section has no expiry control (owner decision in #1027): `expires_at` stays
 opt-in on the CLI and MCP, and the dialog shows a date only on a link that has
 one. Its copy says links don't expire, and Stop sharing or End room turns them
 off.
@@ -280,7 +280,7 @@ The host's share list (`ShareService.list` / `list_presented`, `GET /api/shares`
 `podcast review list-shares`) joins each row's token from the registry's active
 rows for that workspace (`list_active_for_workspace`), and Copy link uses the URL
 built from it. A revoked or demoted share has no active row, so it has no token or
-link; the Share dialog lists only live links. Revoke and drop map a token to its
+link; the Share section lists only live links. Revoke and drop map a token to its
 `id` through the registry before touching the sidecar.
 
 ## Record sessions
@@ -291,7 +291,7 @@ share the link, an unaffected guest who loses their lease also needs the
 replacement. Re-invite by minting a replacement for the same role with
 `podcast review share --kind record --session-id <id> --role guest` (or
 `--role producer`).
-The host Share dialog also identifies closed record invites, prevents copying
+The host Share section also identifies closed record invites, prevents copying
 them for new participants, and replaces one from its source token. The new link
 keeps the same room, role, and expiry; established leases on the old token keep
 working.
@@ -499,7 +499,7 @@ passkeys, and agent credentials when accounts are enabled. See
   secrets (forwardable, same threat model as Docs link sharing).
   `view` includes the live presence roster and canvas ghosts (cursor, selection,
   playhead, viewport). `play` is required to follow-with-audio. Anyone with
-  `view` can see the host's cursor and viewport — the Share dialog states this.
+  `view` can see the host's cursor and viewport — the Share section states this.
 - On **restricted** leftovers the coolname alone does not grant powers; identity
   middleware keeps them 401 until accounts ship.
 - Links do not expire unless the host chose a date

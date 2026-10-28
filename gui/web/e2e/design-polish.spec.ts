@@ -271,7 +271,7 @@ test("compact light Player keeps Comment readable", async ({ page }) => {
   expect(contrastRatio(colors.ink, colors.fill)).toBeGreaterThanOrEqual(4.5);
 });
 
-test("Share dialog floats on the overlay rung over a dark scrim", async ({
+test("the commands dialog floats on the overlay rung over a dark scrim", async ({
   page,
 }) => {
   await openProject(page, e2eProjectPath);
@@ -280,8 +280,8 @@ test("Share dialog floats on the overlay rung over a dark scrim", async ({
     .focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".inspector")).toBeVisible();
-  // Share lives on Deliver, which hides the Inspector: read its raised
-  // surface in each theme first.
+  // The dialog covers the Inspector: read its raised surface in each theme
+  // first.
   const raisedBy: Record<string, string> = {};
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
@@ -289,8 +289,8 @@ test("Share dialog floats on the overlay rung over a dark scrim", async ({
       .locator(".inspector")
       .evaluate((element) => getComputedStyle(element).backgroundColor);
   }
-  await openProjectDialog(page, "share");
-  const dialog = page.getByRole("dialog", { name: "Share" });
+  await openProjectDialog(page, "palette");
+  const dialog = page.getByRole("dialog", { name: "Commands and shortcuts" });
   await expect(dialog).toBeVisible();
 
   for (const theme of ["light", "dark"] as const) {

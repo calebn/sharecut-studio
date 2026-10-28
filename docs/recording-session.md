@@ -3,7 +3,7 @@
 Status: **links + lobby/consent + local keepers + mix-minus + chunk upload +
 timeline landing + live comments + host live-room reconnect + room-tone beds shipped**. Owner row: [Beta plan § Journeys](../docs/beta-plan.md#journeys).
 Audio-first MVP; beta still requires a **host laptop online**. Mint `/rec/`
-URLs with `podcast review share --kind record` (or Share dialog / MCP
+URLs with `podcast review share --kind record` (or Share section / MCP
 `create_record_room_tool`). `build.capture`, `build.monitor`, and `build.upload`
 are on. After file ACK, keepers copy into `raw/` as one clip per segment.
 Optional 3 s room-tone beds land at `raw/room-tone/{session}/{participant}.wav`

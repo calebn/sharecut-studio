@@ -9,8 +9,8 @@ import {
 } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
-import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
-import { Slot } from "../../extensions/Slot";
+import { useFeaturesState } from "../../extensions/FeaturesContext";
+import { FEATURE_SHARE_UI_MENU, hasFeature } from "../../extensions/features";
 import { useNowSec } from "../../hooks/useNowSec";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -24,7 +24,6 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { selectedTrackIdsOf } from "../../state/selection";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
-import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
@@ -44,8 +43,10 @@ import {
   sameChapters,
   sameClipBounds,
 } from "./deliverModel";
+import { shareOptionsOf } from "./deliverShare";
 import { useExportFlow } from "./exportFlowContext";
 import { deliverReadiness, hostStateOf, type ReadinessRow } from "./hostModels";
+import { useShareFlow } from "./shareFlow";
 
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
@@ -72,6 +73,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     setExportRequested,
     bounceRequested,
     setBounceRequested,
+    shareRequested,
+    setShareRequested,
     selection,
     soloTracks,
     sessionRegion,
@@ -87,6 +90,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       setExportRequested: s.setExportRequested,
       bounceRequested: s.chrome.bounceRequested,
       setBounceRequested: s.setBounceRequested,
+      shareRequested: s.chrome.shareRequested,
+      setShareRequested: s.setShareRequested,
       selection: s.selection,
       soloTracks: s.soloTracks,
       sessionRegion: s.sessionRegion,
@@ -104,7 +109,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const scrollRef = useStageScroll("deliver", "body");
   const breakdown = useStaleRenderBreakdown(project);
   const exportCmd = useCommand("export.deliverables");
-  const shareCmd = useCommand("share.manage");
   const mayRefreshMix = canRefreshMix(
     projectPath,
     guestMode,
@@ -113,6 +117,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const mixStale = project != null && breakdown.stale;
   const mixMissing = project != null && breakdown.premixMissing;
   const state = hostStateOf(project, loadFailure);
+  const features = useFeaturesState();
+  const shareOn =
+    features.ready && hasFeature(features.manifest, FEATURE_SHARE_UI_MENU);
+  const shareFlow = useShareFlow(shareOn && state === "ready");
 
   // What the document holds, as the stage last saw it. Edits are diffed
   // against it and it moves forward once they are sent.
@@ -257,10 +265,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         rows={rows}
         onFix={onFix}
         exportAction={action("Export", exportCmd, "export.deliverables")}
-        share={action("Share a listen link", shareCmd, "share.manage")}
-        shareSlot={(content) => (
-          <Slot id={FEATURE_SHARE_UI_MENU}>{content}</Slot>
-        )}
         scrollRef={scrollRef}
       />
     );
@@ -321,6 +325,14 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           focusRequested: bounceRequested,
           onFocused: () => setBounceRequested(false),
         })}
+        share={
+          shareOn
+            ? shareOptionsOf(shareFlow, {
+                focusRequested: shareRequested,
+                onFocused: () => setShareRequested(false),
+              })
+            : undefined
+        }
         env="none"
         clock={{ time: "", total: "" }}
         playhead={() => useDawStore.getState().playheadSec}
@@ -351,16 +363,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           runPointerCommand("stage.edit");
         }}
       />
-      <div className="stage-host-actions">
-        <Slot id={FEATURE_SHARE_UI_MENU}>
-          <Button
-            disabledReason={shareCmd.whenReason}
-            onClick={() => runPointerCommand("share.manage")}
-          >
-            Share a listen link
-          </Button>
-        </Slot>
-      </div>
     </div>
   );
 }
@@ -368,6 +370,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
  * and clip edits written back to the document, and the export and bounce run
- * by the flows in `DawApp`. Share still opens its dialog. Host only.
+ * by the flows in `DawApp`; Share lists, creates and ends the links itself.
+ * Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);

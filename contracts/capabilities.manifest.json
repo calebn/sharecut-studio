@@ -1463,7 +1463,7 @@
       "surfaces": {
         "command": "render.refreshMix",
         "gui": [
-          "ShareDialog"
+          "deliverShare"
         ],
         "keyboard": "Mod+B",
         "mcp": [
@@ -1521,12 +1521,12 @@
       "surfaces": {
         "command": "share.manage",
         "gui": [
-          "ShareDialog"
+          "deliverShare"
         ],
         "cli": "podcast review share"
       },
       "omit": {
-        "keyboard_reason": "dialog from Menu",
+        "keyboard_reason": "Share section on Deliver; Invite in the header",
         "guest": true
       },
       "tooltip": "Share\u2026",

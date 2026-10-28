@@ -340,14 +340,14 @@ open episode, the no-episode warning, the gesture sheet's callback handoff
 to Commands and shortcuts, and a 360px phone viewport without app or network
 context.
 
-`Templates/ShareDialog` renders the production `ShareDialogView` that the live
-`ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
-links (`../api`), clipboard writes, the copied-flash timer and the
-`record.openPanel` handoff; the view owns the in-place Stop sharing and End
-room confirmations (`InlineConfirm`). Stories pass fictional `hostShareRow`
-fixtures and local callbacks, covering empty, live review links with and
-without an MCP URL, a record room, a missing producer link, a just-created
-link, busy, clipboard error, and a 360px phone.
+`Stages/Deliver/Share` renders the props-only `ShareSection`. The Deliver host
+keeps listing, minting and revoking links (`../api`), clipboard writes, the
+copied-flash timer and the `record.openPanel` handoff in
+`stage/hosts/shareFlow.ts`; the section owns the in-place Stop sharing and End
+room confirmations (`InlineConfirm`). Stories pass fictional share rows and
+local callbacks, covering live review links, no links, a record room, a
+just-copied link, a network-only tunnel, offline, a missing mix, busy, a
+closed invite, loading, and a 360px phone.
 
 Bounce is the props-only `stages/deliver/BounceSection`, shown by
 `Stages/Deliver/Bounce`. The host keeps selection and solo resolution, and
@@ -413,7 +413,7 @@ one page and the stories would overwrite each other's hydration.
 and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
 examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
-`GuestAttentionBannerView`, `ShareDialogView`,
+`GuestAttentionBannerView`,
 `ToolModeToggleView`, `EditToolStripView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
 `EditBoundaryMarkView` and `InspectorSeekFooterView`.
@@ -685,7 +685,8 @@ jsdom visibility checks.
 
 - 2026-09-27 — Added `Templates/ShareDialog` and `Templates/BounceDialog`
   with the props-only `ShareDialogView` and `BounceDialogView` rendered by
-  their live adapters, closing #608. Dialog stories (including
+  their live adapters, closing #608. `Templates/ShareDialog` has since moved
+  into the Deliver stage as `Stages/Deliver/Share`. Dialog stories (including
   `Organisms/Dialog` and `Organisms/BottomSheet`) now share `DialogLauncher`,
   and their play functions open the dialog through `openDialogByLauncher`
   outside autodocs. `Templates/BounceDialog` has since moved into the Deliver

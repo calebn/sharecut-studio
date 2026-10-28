@@ -345,7 +345,6 @@ it("lets through only the shortcuts the open modal hands on: M drops a marker in
 
 const GATED_DIALOGS = [
   { title: "Commands and shortcuts", flag: "commandPaletteOpen" },
-  { title: "Share", flag: "shareDialogOpen" },
 ] as const;
 
 it.each(GATED_DIALOGS)(
@@ -390,14 +389,12 @@ it("ignores the dialog open flags in the store: only a mounted overlay holds the
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
   setChrome({
     commandPaletteOpen: true,
-    shareDialogOpen: true,
   });
   render(<KeymapHost />);
   fireEvent.keyDown(screen.getByTestId("canvas"), { key: " ", code: "Space" });
   await waitFor(() => expect(vi.mocked(execute)).toHaveBeenCalled());
   setChrome({
     commandPaletteOpen: false,
-    shareDialogOpen: false,
   });
 });
 

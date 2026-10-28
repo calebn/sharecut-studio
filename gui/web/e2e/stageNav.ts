@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Stage-level navigation for specs. Every helper here says what the spec wants
- * (open the Comments panel, open the Share dialog) and none of them names the
+ * (open the Comments panel, open the Record room) and none of them names the
  * chrome that gets there. It drives the stage frame: the Stage bar in
  * the App header (the tab bar on a phone), the Project menu, the Edit stage's
  * eye sheet and tool strip, and the Player's hear menu.
@@ -21,7 +21,7 @@ export type Panel =
   | "pipeline"
   | "comments";
 
-export type ProjectDialog = "share" | "record" | "palette" | "gestures";
+export type ProjectDialog = "record" | "palette" | "gestures";
 
 export type Audition = "mix" | "fx" | "raw";
 
@@ -273,7 +273,6 @@ export async function openProjectMenu(page: Page): Promise<Locator> {
 
 /** Dialog rows and the Project menu item that opens each. */
 const MOVED_MENU_ITEMS: Record<string, ProjectDialog> = {
-  "Share…": "share",
   "Record room…": "record",
   "Commands and shortcuts": "palette",
 };
@@ -291,6 +290,17 @@ export async function startExport(page: Page): Promise<void> {
     .click();
 }
 
+/** Go to Deliver and return its Share section: the review links and record rooms. */
+export async function openShare(page: Page): Promise<Locator> {
+  await goToStage(page, "deliver");
+  const share = deliverPage(page).getByRole("region", {
+    name: "Share",
+    exact: true,
+  });
+  await expect(share).toBeVisible();
+  return share;
+}
+
 /** Go to Deliver and bounce with the choices there. */
 export async function startBounce(page: Page): Promise<void> {
   await goToStage(page, "deliver");
@@ -304,7 +314,7 @@ const PALETTE_ONLY_ITEMS = new Set(["Export diagnostics…"]);
 
 /**
  * Open the Project menu and choose the entry named `item`. A name the old
- * transport Menu carried (Share…) goes to where it
+ * transport Menu carried (Record room…) goes to where it
  * lives now, so the specs that still say it keep working until they are
  * rewritten.
  */
@@ -331,17 +341,13 @@ export async function openProjectMenuItem(
 }
 
 /**
- * Open the dialog `dialog` from where it lives now: Share on Deliver, the Record room on Record, the palette on the header's search.
+ * Open the dialog `dialog` from where it lives now: the Record room on Record, the palette on the header's search.
  */
 export async function openProjectDialog(
   page: Page,
   dialog: ProjectDialog,
 ): Promise<void> {
   switch (dialog) {
-    case "share":
-      await goToStage(page, "deliver");
-      await page.getByRole("button", { name: "Share a listen link" }).click();
-      return;
     case "record":
       await goToStage(page, "record");
       await page
