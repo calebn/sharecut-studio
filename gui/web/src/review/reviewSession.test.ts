@@ -183,6 +183,20 @@ describe("useReviewSession", () => {
     );
   });
 
+  it("reselects when reverting an entry that already left", () => {
+    const { result, rerender } = renderHook(
+      ({ open }) => useReviewSession(open),
+      { initialProps: { open: OPEN } },
+    );
+    act(() => {
+      result.current.decide({ ids: ["a"], result: "applied" });
+    });
+    rerender({ open: [B, C] });
+    act(() => result.current.props.onSelect("a"));
+    act(() => result.current.revert(["a"]));
+    expect(result.current.props.selectedId).toBe("b");
+  });
+
   it("serves the snapshot content of a decided entry", () => {
     const { result, rerender } = renderHook(
       ({ open }) => useReviewSession(open),

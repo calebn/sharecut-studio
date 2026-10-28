@@ -99,6 +99,7 @@ export function ReviewStage({
   const [side, setSide] = useState<AuditionSide>("B");
   const [ranges, setRanges] = useState<Record<string, TimeRange>>({});
   const [pending, setPending] = useState<Pending | null>(null);
+  const [waived, setWaived] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [seen, setSeen] = useState(selectedId);
   const root = useRef<HTMLDivElement>(null);
@@ -113,17 +114,13 @@ export function ReviewStage({
 
   const phone = layout === "phone";
   const selected = items.find((item) => item.id === selectedId) ?? null;
-  const gate = openOf(items, "check").some((i) => i.transcript);
+  const gate = !waived && openOf(items, "check").some((i) => i.transcript);
   const holdsGate = (ids: readonly string[]) =>
     gate &&
     ids.some((id) => {
       const item = items.find((i) => i.id === id);
       return item !== undefined && holdsGateKind(item);
     });
-
-  const pendingKind = pending
-    ? items.find((i) => i.id === pending.ids[0])?.kind
-    : undefined;
 
   const step = (direction: "forward" | "backward") =>
     onSelect(stepUndecided(items, selectedId, direction, filter));
@@ -137,6 +134,11 @@ export function ReviewStage({
       !(item.unsure && !looksRight.has(id))
     );
   };
+
+  const armed = pending?.ids.some(cuttable) ? pending : null;
+  const pendingKind = armed
+    ? items.find((i) => i.id === armed.ids[0])?.kind
+    : undefined;
 
   const verb = (id: string) => {
     if (guest || !cuttable(id)) return;
@@ -162,9 +164,11 @@ export function ReviewStage({
     );
 
   const confirmAnyway = (note?: string) => {
-    const ids = pending?.ids.filter(cuttable) ?? [];
+    const ids = armed?.ids.filter(cuttable) ?? [];
     if (guest || bulkRunning || !ids.length) return;
     onDecide({ ids, result: "applied", waive: { note } });
+    setWaived(true);
+    setPending(null);
   };
 
   const checkWords = () => {
@@ -318,7 +322,7 @@ export function ReviewStage({
             audition={wave ? { side, onSide: setSide } : undefined}
             unsure={unsure}
             prompt={
-              pending && pendingKind
+              armed && pendingKind
                 ? {
                     verb: KIND_META[pendingKind].verb,
                     checkLabel: `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`,

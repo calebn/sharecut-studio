@@ -32,14 +32,29 @@ export const reviewIdOf = (editId: string) => `${PREFIX}${editId}`;
 export const editIdOf = (reviewId: string): string | null =>
   reviewId.startsWith(PREFIX) ? reviewId.slice(PREFIX.length) : null;
 
-const savedSecondsOf = (edit: PendingEditView) =>
-  edit.suggested_action === "lower" || edit.suggested_action === "leave"
+const SUGGESTED = ["cut", "shorten", "lower", "leave"] as const;
+
+const suggestedOf = (action: string | null | undefined) =>
+  !action
+    ? undefined
+    : (SUGGESTED.find((a) => a === action) ?? ("leave" as const));
+
+const spanSeconds = (s: { start: number; end: number }) => {
+  const length = s.end - s.start;
+  return Number.isFinite(length) && length > 0 ? length : 0;
+};
+
+const savedSecondsOf = (edit: PendingEditView, suggested?: string) =>
+  suggested === "lower" || suggested === "leave"
     ? 0
-    : edit.timeline_spans.reduce((sum, s) => sum + (s.end - s.start), 0);
+    : (edit.timeline_spans ?? []).reduce((sum, s) => sum + spanSeconds(s), 0);
 
 function entryOf(edit: PendingEditView): ReviewEntry {
-  const at = edit.timeline_start ?? Number.POSITIVE_INFINITY;
-  const savedSeconds = savedSecondsOf(edit);
+  const at = Number.isFinite(edit.timeline_start)
+    ? (edit.timeline_start as number)
+    : Number.POSITIVE_INFINITY;
+  const suggested = suggestedOf(edit.suggested_action);
+  const savedSeconds = savedSecondsOf(edit, suggested);
   const title = edit.label ?? "Suggestion";
   const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
   return {
@@ -48,7 +63,7 @@ function entryOf(edit: PendingEditView): ReviewEntry {
       kind: decisionKindOf(edit.kind),
       at,
       savedSeconds,
-      suggested: edit.suggested_action ?? undefined,
+      suggested,
       oneByOne: edit.listen_one_by_one === true || edit.harsh,
     },
     content: {
