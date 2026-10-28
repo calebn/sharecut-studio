@@ -407,7 +407,7 @@ html[data-shell="phone"] .bottom-sheet-root {
 @container sheet-slot (max-height: 8rem) {
   .bottom-sheet-chrome--drawer .bottom-sheet-grabber {
     position: absolute;
-    inset-block-start: 0;
+    inset-block-start: calc(var(--focus-ring-width) + var(--focus-ring-offset));
     inset-inline: 0;
     margin: 0 auto;
     pointer-events: none;
