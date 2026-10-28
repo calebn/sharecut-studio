@@ -8,8 +8,10 @@ result can only have come from Studio. A project no Studio serves still runs her
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
+import socket
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -25,7 +27,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.server import mcp as real_mcp
 from podcast_mcp.mcp.studio_handoff import install_studio_handoff
 from podcast_mcp.models import EpisodeProject, save_project
-from podcast_mcp.services.app import StudioHost, announce_studio_host
+from podcast_mcp.services.app import StudioHost, announce_studio_host, studio_host_path
 from studio_ping_helpers import ping_answering
 
 pytestmark = pytest.mark.timeout(120)
@@ -58,10 +60,14 @@ def minimal_project(tmp_workspace: Path) -> Path:
     return save_project(project)
 
 
-def _serve(project: Path, bind_host: str) -> Iterator[Path]:
+def _serve(project: Path, bind_host: str, listen_on: str = "127.0.0.1") -> Iterator[Path]:
     run_app = create_app(served_project=project, bind_host=bind_host)
-    sock = exclusive_listen_socket("127.0.0.1", 0)
+    try:
+        sock = exclusive_listen_socket(listen_on, 0)
+    except OSError as exc:
+        pytest.skip(f"cannot bind {listen_on}: {exc}")
     run_app.state.listen_port = sock.getsockname()[1]
+    run_app.state.listen_host = sock.getsockname()[0]
     server = uvicorn.Server(uvicorn.Config(run_app, log_level="warning"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()
@@ -82,7 +88,13 @@ def studio(minimal_project: Path) -> Iterator[Path]:
 @pytest.fixture
 def wildcard_studio(minimal_project: Path) -> Iterator[Path]:
     """A Studio bound to 0.0.0.0: it announces 127.0.0.1 but mounts no /mcp."""
-    yield from _serve(minimal_project, "0.0.0.0")
+    yield from _serve(minimal_project, "0.0.0.0", "0.0.0.0")
+
+
+@pytest.fixture
+def alias_studio(minimal_project: Path) -> Iterator[Path]:
+    """A Studio bound to 127.0.0.2: loopback-range, but no address a client may ping."""
+    yield from _serve(minimal_project, "127.0.0.2", "127.0.0.2")
 
 
 def _wrapped() -> _Direct:
@@ -131,6 +143,75 @@ def test_a_studio_that_serves_no_mcp_is_bypassed_when_handoff_is_off(
     )
     assert result == "ran here"
     assert server.calls == [("list_clips_tool", {"project_path": str(wildcard_studio)})]
+
+
+def test_a_studio_on_127_0_0_2_refuses_the_call_and_nothing_runs(alias_studio: Path) -> None:
+    before = alias_studio.read_bytes()
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("add_chapter_tool", {"project_path": str(alias_studio)}))
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    text = result.content[0].text  # type: ignore[union-attr]
+    for needed in (
+        f"pid {os.getpid()}",
+        "127.0.0.2",
+        "cannot hand work to",
+        "Nothing was run",
+        "--host 127.0.0.1",
+        "PODCAST_NO_STUDIO_HANDOFF=1",
+        str(studio_host_path(alias_studio)),
+    ):
+        assert needed in text
+    assert "/mcp" not in text
+    assert server.calls == []
+    assert alias_studio.read_bytes() == before
+
+
+def test_a_studio_on_127_0_0_2_is_bypassed_when_handoff_is_off(
+    alias_studio: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_NO_STUDIO_HANDOFF", "1")
+    server = _wrapped()
+    result = asyncio.run(server.call_tool("add_chapter_tool", {"project_path": str(alias_studio)}))
+    assert result == "ran here"
+    assert [name for name, _ in server.calls] == ["add_chapter_tool"]
+
+
+@pytest.mark.parametrize(
+    "failure", [ValueError("bad scope id"), OSError(errno.ENETUNREACH, "unreachable")]
+)
+def test_a_probe_that_fails_unexpectedly_never_runs_the_call_here(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch, failure: BaseException
+) -> None:
+    announce_studio_host(
+        minimal_project,
+        StudioHost(
+            "a1", os.getpid(), "192.0.2.2", 8765, "tok", "0.1.1", hostname=socket.gethostname()
+        ),
+    )
+
+    def dial(*_args: Any, **_kwargs: Any) -> socket.socket:
+        raise failure
+
+    monkeypatch.setattr(socket, "create_connection", dial)
+    server = _wrapped()
+    result = asyncio.run(
+        server.call_tool("add_chapter_tool", {"project_path": str(minimal_project)})
+    )
+    assert isinstance(result, CallToolResult)
+    assert result.is_error
+    assert server.calls == []
+
+
+def test_a_wildcard_studio_is_still_found_and_keeps_its_own_refusal(
+    wildcard_studio: Path,
+) -> None:
+    from podcast_mcp.services.app import locate_studio
+
+    host = locate_studio(wildcard_studio)
+    assert host is not None
+    assert host.host == "127.0.0.1"
+    assert host.hostname == ""
 
 
 def test_a_loopback_studio_announces_its_mcp(studio: Path) -> None:

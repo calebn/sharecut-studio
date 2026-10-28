@@ -63,6 +63,58 @@ def _host(instance: str = "a1", host: str = "127.0.0.1", port: int = 8765) -> St
     return StudioHost(instance, os.getpid(), host, port, "tok", "0.1.1")
 
 
+LAN_ADDRESS = "192.0.2.2"
+
+
+def _lan_host(
+    host: str = LAN_ADDRESS, port: int = 8765, *, hostname: str | None = None
+) -> StudioHost:
+    name = socket.gethostname() if hostname is None else hostname
+    return StudioHost("a1", os.getpid(), host, port, "tok", "0.1.1", hostname=name)
+
+
+def _dial_loopback(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, int]]:
+    """Send a connect to any announced address to the same port on 127.0.0.1."""
+    real = socket.create_connection
+    dialed: list[tuple[str, int]] = []
+
+    def dial(address: tuple[str, int], *args: object, **kwargs: object) -> socket.socket:
+        dialed.append(address)
+        return real(("127.0.0.1", address[1]), *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(socket, "create_connection", dial)
+    return dialed
+
+
+def _dial_fails_with(monkeypatch: pytest.MonkeyPatch, error: BaseException) -> None:
+    def dial(*_args: object, **_kwargs: object) -> socket.socket:
+        raise error
+
+    monkeypatch.setattr(socket, "create_connection", dial)
+
+
+def _no_ping(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        studio_host_module,
+        "_ping",
+        lambda *_args: pytest.fail("an address that cannot be pinged must never be pinged"),
+    )
+
+
+@contextlib.contextmanager
+def _listening_port() -> Iterator[int]:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        yield int(listener.getsockname()[1])
+
+
+def _closed_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
 def test_a_withdrawal_removes_only_its_own_runs_announcement(project: Path) -> None:
     announce_studio_host(project, _host("first"))
     withdraw_studio_host(project, "someone-else")
@@ -1093,3 +1145,206 @@ def test_a_refused_first_ping_is_not_retried(
     )
     assert locate_studio(project) is None
     assert len(pings) == 1
+
+
+@pytest.mark.parametrize("address", ["127.0.0.2", LAN_ADDRESS, "fe80::1%eth0"])
+def test_an_announcement_for_a_bind_that_cannot_be_pinged_round_trips(
+    project: Path, address: str
+) -> None:
+    announce_studio_host(project, _lan_host(address))
+    assert read_studio_host(project) == _lan_host(address)
+    raw = json.loads(studio_host_path(project).read_text(encoding="utf-8"))
+    assert raw["host"] == address
+    assert raw["hostname"] == socket.gethostname()
+    assert "reachable" not in raw
+
+
+def test_a_loopback_announcement_is_byte_for_byte_what_it_was(project: Path) -> None:
+    announce_studio_host(project, _host())
+    raw = json.loads(studio_host_path(project).read_text(encoding="utf-8"))
+    assert set(raw) == {"instance", "pid", "host", "port", "token", "version"}
+
+
+@pytest.mark.parametrize(
+    "name", ["evil.example", "myhost.local", "localhost.evil", "", "999.1.1.1"]
+)
+def test_an_announcement_naming_a_host_instead_of_an_address_is_ignored(
+    project: Path, name: str
+) -> None:
+    announce_studio_host(project, _lan_host(name))
+    assert read_studio_host(project) is None
+
+
+@pytest.mark.skipif(not hasattr(os, "getuid"), reason="POSIX file modes")
+def test_an_unprivate_announcement_for_a_lan_address_is_not_trusted(project: Path) -> None:
+    announce_studio_host(project, _lan_host())
+    assert read_studio_host(project) is not None
+    studio_host_path(project).chmod(0o644)
+    assert read_studio_host(project) is None
+    assert locate_studio(project) is None
+
+
+def test_a_studio_on_an_address_that_cannot_be_pinged_refuses_without_a_ping(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _no_ping(monkeypatch)
+    with _listening_port() as port:
+        announce_studio_host(project, _lan_host(port=port))
+        dialed = _dial_loopback(monkeypatch)
+        with pytest.raises(studio_host_module.StudioNotReachable) as refusal:
+            locate_studio(project)
+    assert isinstance(refusal.value, StudioUnresponsive)
+    assert dialed == [(LAN_ADDRESS, port)]
+    text = str(refusal.value)
+    for needed in (
+        f"pid {os.getpid()}",
+        LAN_ADDRESS,
+        "cannot hand work to",
+        "Nothing was run",
+        "--host 127.0.0.1",
+        "PODCAST_NO_STUDIO_HANDOFF=1",
+        str(studio_host_path(project)),
+    ):
+        assert needed in text
+    assert "/mcp" not in text
+
+
+def test_a_probe_sends_nothing_to_the_studio(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    received: list[bytes] = []
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = int(listener.getsockname()[1])
+
+        def accept() -> None:
+            conn, _ = listener.accept()
+            with conn:
+                conn.settimeout(0.5)
+                with contextlib.suppress(OSError):
+                    received.append(conn.recv(4096))
+
+        thread = threading.Thread(target=accept)
+        thread.start()
+        announce_studio_host(project, _lan_host(port=port))
+        _dial_loopback(monkeypatch)
+        with pytest.raises(StudioUnresponsive):
+            locate_studio(project)
+        thread.join(10)
+    assert received in ([], [b""])
+
+
+def test_an_address_nobody_listens_on_is_a_stale_announcement(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    announce_studio_host(project, _lan_host(port=_closed_port()))
+    _dial_loopback(monkeypatch)
+    _no_ping(monkeypatch)
+    assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize(
+    "refused",
+    [
+        ConnectionRefusedError(errno.ECONNREFUSED, "refused"),
+        OSError(errno.ECONNREFUSED, "refused"),
+        OSError(10061, "WSAECONNREFUSED"),
+    ],
+)
+def test_a_refused_connect_reads_as_absent(
+    project: Path, monkeypatch: pytest.MonkeyPatch, refused: OSError
+) -> None:
+    announce_studio_host(project, _lan_host())
+    _dial_fails_with(monkeypatch, refused)
+    assert locate_studio(project) is None
+
+
+def test_a_windows_refusal_carried_in_winerror_reads_as_absent(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    refused = OSError(0, "refused")
+    refused.winerror = 10061  # type: ignore[attr-defined]
+    announce_studio_host(project, _lan_host())
+    _dial_fails_with(monkeypatch, refused)
+    assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        TimeoutError("timed out"),
+        OSError(errno.EADDRNOTAVAIL, "address not available"),
+        OSError(errno.ENETUNREACH, "network unreachable"),
+        OSError(errno.EHOSTUNREACH, "host unreachable"),
+        socket.gaierror(socket.EAI_NONAME, "no such scope"),
+        ValueError("bad scope id"),
+    ],
+)
+def test_a_probe_that_cannot_tell_fails_closed(
+    project: Path, monkeypatch: pytest.MonkeyPatch, failure: BaseException
+) -> None:
+    announce_studio_host(project, _lan_host())
+    _dial_fails_with(monkeypatch, failure)
+    with pytest.raises(StudioUnresponsive) as refusal:
+        locate_studio(project)
+    assert not isinstance(refusal.value, studio_host_module.StudioNotReachable)
+
+
+def test_an_announcement_from_another_machine_is_not_probed(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    announce_studio_host(project, _lan_host(hostname="some-other-machine"))
+    _dial_fails_with(monkeypatch, AssertionError("must not connect"))
+    assert locate_studio(project) is None
+
+
+def test_an_announcement_without_a_machine_name_is_not_probed(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    announce_studio_host(project, _lan_host(hostname=""))
+    _dial_fails_with(monkeypatch, AssertionError("must not connect"))
+    assert locate_studio(project) is None
+
+
+def test_opting_out_never_probes_a_studio_on_a_lan_address(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    announce_studio_host(project, _lan_host())
+    _dial_fails_with(monkeypatch, AssertionError("must not connect"))
+    monkeypatch.setenv(DIRECT_ENV_VAR, "1")
+    assert locate_studio(project) is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process absence requires os.kill(pid, 0)")
+def test_a_dead_studio_on_a_lan_address_is_absent_without_probing(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    child = process.popen([sys.executable, "-c", "pass"])
+    try:
+        assert child.wait(timeout=5) == 0
+        announce_studio_host(
+            project,
+            StudioHost(
+                "a1", child.pid, LAN_ADDRESS, 8765, "tok", "0.1.1", hostname=socket.gethostname()
+            ),
+        )
+        _dial_fails_with(monkeypatch, AssertionError("must not connect"))
+        assert locate_studio(project) is None
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait()
+
+
+@pytest.mark.parametrize("address", ["127.0.0.1", "::1", "localhost"])
+def test_loopback_names_are_pinged_and_never_probed(
+    project: Path, monkeypatch: pytest.MonkeyPatch, address: str
+) -> None:
+    announce_studio_host(project, _host(host=address))
+    _dial_fails_with(monkeypatch, AssertionError("a pingable address is not probed"))
+    reply = {"instance": "a1", "protocol": 1, "serves": True}
+    _scripted_pings(monkeypatch, [lambda: (200, reply)])
+    found = locate_studio(project)
+    assert found is not None
+    assert found.host == address
