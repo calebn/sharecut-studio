@@ -8,7 +8,7 @@ import {
   type ActionPromptProps,
 } from "./ActionBarInline";
 import type { AuditionSide } from "./auditionWindow";
-import { type DecisionKind, isWaveKind, KIND_META } from "./decisionKinds";
+import { type DecisionKind, KIND_META } from "./decisionKinds";
 import { Skeleton } from "./Skeleton";
 import { StatusRow } from "./StatusRow";
 import {
@@ -309,7 +309,7 @@ export function DecisionCard(props: DecisionCardProps) {
             ) : null}
           </blockquote>
         ) : null}
-        {waveform && isWaveKind(kind) ? (
+        {waveform && KIND_META[kind].wave ? (
           <>
             <SuggestionWaveform
               {...waveform}

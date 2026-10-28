@@ -15,7 +15,7 @@ export function ContextStrip({
   peaks?: readonly number[];
 }) {
   const ticks: OverviewTick[] = items
-    .filter((item) => item.result === undefined)
+    .filter((item) => item.result === undefined && Number.isFinite(item.at))
     .map((item) => ({
       at: duration > 0 ? item.at / duration : 0,
       kind: item.kind === "comment" ? "comment" : "suggestion",

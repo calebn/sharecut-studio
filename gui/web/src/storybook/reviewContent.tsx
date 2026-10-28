@@ -1,5 +1,6 @@
 import type { ReviewContent } from "../review/ReviewQueue";
-import { isCut, type ReviewItem } from "../review/reviewQueueModel";
+import type { ReviewItem } from "../review/reviewQueueModel";
+import { KIND_META } from "../system/decisionKinds";
 import type { SuggestionSegment } from "../system/Suggestion";
 import { Suggestion } from "../system/Suggestion";
 import { formatSeconds } from "../system/seconds";
@@ -123,6 +124,30 @@ const SPECS: readonly Spec[] = [
     why: "The laugh peaks over the next sentence.",
   },
   {
+    id: "r1",
+    time: "13:20",
+    title: "Remove a repeated “the”",
+    segments: around("We went to ", "the", " the river."),
+    speaker: "Jon",
+    why: "Jon says the word twice.",
+  },
+  {
+    id: "k1",
+    time: "31:40",
+    title: "Remove a false start",
+    segments: around("I think we ", "should, no,", " we will leave early."),
+    speaker: "Rosa",
+    why: "Rosa restarts the sentence.",
+  },
+  {
+    id: "g1",
+    time: "40:00",
+    title: "Remove a guest suggestion",
+    segments: [{ text: "A guest marked this stretch to cut." }],
+    why: "Suggested by a guest.",
+  },
+  { id: "g2", time: "Unplaced", title: "Remove an unplaced suggestion" },
+  {
     id: "f0",
     time: "1:30",
     title: "Remove “um,”",
@@ -197,7 +222,10 @@ export function reviewContent(item: ReviewItem): ReviewContent {
         <Suggestion segments={segments} />
       ) : undefined,
       why,
-      waveform: isCut(item) ? wave : undefined,
+      waveform:
+        KIND_META[item.kind].wave && Number.isFinite(item.at)
+          ? wave
+          : undefined,
       unsure: unsure ? { word: unsure, guess: unsure } : undefined,
       comment: comment
         ? {
