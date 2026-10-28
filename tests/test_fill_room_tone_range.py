@@ -99,3 +99,14 @@ def test_range_fill_on_an_unknown_track_is_track_not_found(tmp_path, monkeypatch
 def test_payload_rejects_an_inverted_range():
     with pytest.raises(ValueError):
         FillRoomTonePayload(track_id="host", start_sec=5, end_sec=2)
+
+
+def test_payload_accepts_a_range_less_payload():
+    assert FillRoomTonePayload(track_id="host").start_sec is None
+    assert FillRoomTonePayload(speaker="Host").end_sec is None
+
+
+@pytest.mark.parametrize("bound", [{"start_sec": 1.0}, {"end_sec": 2.0}])
+def test_payload_rejects_half_a_range(bound):
+    with pytest.raises(ValueError):
+        FillRoomTonePayload(track_id="host", **bound)

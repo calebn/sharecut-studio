@@ -686,14 +686,22 @@ class InsertGapPayload(BaseModel):
 
 
 class FillRoomTonePayload(BaseModel):
-    track_id: str
-    start_sec: float = Field(ge=0, allow_inf_nan=False)
-    end_sec: float = Field(ge=0, allow_inf_nan=False)
+    track_id: str | None = None
+    speaker: str | None = None
+    start_sec: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    end_sec: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
-    def _range_is_forward(self) -> FillRoomTonePayload:
-        if self.end_sec <= self.start_sec:
-            raise ValueError("end_sec must be after start_sec")
+    def _range_is_a_forward_pair(self) -> FillRoomTonePayload:
+        if self.track_id is None and self.speaker is None:
+            raise ValueError("a room tone fill needs track_id or speaker")
+        if (self.start_sec is None) != (self.end_sec is None):
+            raise ValueError("start_sec and end_sec go together")
+        if self.start_sec is not None and self.end_sec is not None:
+            if self.track_id is None:
+                raise ValueError("a range needs track_id")
+            if self.end_sec <= self.start_sec:
+                raise ValueError("end_sec must be after start_sec")
         return self
 
 
@@ -1377,7 +1385,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
 
 
 _CODED_PAYLOAD_TYPES = frozenset(
-    {"SuppressBleed", "SuppressLowAudibility", "SetBleedAlignmentMode"}
+    {"SuppressBleed", "SuppressLowAudibility", "SetBleedAlignmentMode", "FillRoomTone"}
 )
 
 
@@ -1410,7 +1418,7 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
         if command_type not in _CODED_PAYLOAD_TYPES:
             raise
         raise _coded_payload_error(command_type, exc) from exc
-    out = validated.model_dump(mode="python")
+    out = validated.model_dump(mode="python", exclude_none=command_type == "FillRoomTone")
     if "extracts" in out and isinstance(out["extracts"], list):
         out["extracts"] = [
             e if isinstance(e, dict) else e.model_dump() if hasattr(e, "model_dump") else dict(e)

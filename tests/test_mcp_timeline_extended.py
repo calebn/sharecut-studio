@@ -249,7 +249,6 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         svc = svc_cls.return_value
         svc.strip_silence.return_value = {"operation": "strip_silence", "removed_sec": 0.3}
         svc.split_clip.return_value = {"operation": "split_clip", "clip_id": "c1"}
-        svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone", "filled_sec": 0.2}
         svc.check_loudness.return_value = {"integrated_lufs": -16.0}
         svc.analyze_cleanup.return_value = {"tracks": ["host"], "issues": []}
         svc.audio_diagnostics.return_value = {
@@ -264,7 +263,11 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
                 path, track_id="host", over_voice_floor_db=3.0, min_duration_sec=0.4
             )
         )
-        fill = json.loads(mcp_timeline.fill_with_room_tone_tool(path, speaker="Host"))
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            return_value={"operation": "fill_with_room_tone", "filled_sec": 0.2},
+        ) as fill_submit:
+            fill = json.loads(mcp_timeline.fill_with_room_tone_tool(path, speaker="Host"))
         loud = json.loads(mcp_timeline.check_loudness_tool(path))
         verified = json.loads(
             mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 0, "text": "hi"}])
@@ -291,6 +294,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     assert strip["operation"] == "strip_silence"
     assert split["operation"] == "split_clips_at"
     assert fill["operation"] == "fill_with_room_tone"
+    fill_submit.assert_called_once_with(path, "FillRoomTone", {"speaker": "Host"})
     assert loud["integrated_lufs"] == pytest.approx(-16.0)
     assert verified["verified"] == 1
     assert removed["track_id"] == "host"
@@ -513,11 +517,14 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
-        svc.fill_room_tone.return_value = {"operation": "fill_with_room_tone"}
         svc.analyze_cleanup.return_value = {"tracks": ["host"]}
         svc.recommend_fades.return_value = []
 
-        json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            return_value={"operation": "fill_with_room_tone"},
+        ) as fill_submit:
+            json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
         json.loads(
             mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "text": "there"}])
         )
@@ -528,7 +535,7 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
     assert json.loads(mcp_timeline.apply_fade_recommendations_tool(path, [])) == {
         "applied_fade_updates": 0
     }
-    svc.fill_room_tone.assert_called_once_with(track_id="host", speaker=None)
+    fill_submit.assert_called_once_with(path, "FillRoomTone", {"track_id": "host"})
 
 
 def test_transcript_word_tools_journal_through_the_document_plane(tmp_path, sample_wav):

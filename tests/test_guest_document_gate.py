@@ -700,3 +700,110 @@ def guest_read_routes(minimal_project, sample_wav, published_share):
 )
 def test_guest_authoring_reads_follow_the_gate(guest_read_routes, route, caps, status):
     assert guest_read_routes(route, caps) == status
+
+
+def gap_project(minimal_project, monkeypatch) -> DocumentSyncService:
+    from pause_policy_public_helpers import add_bed, configure, defaults, project
+    from podcast_mcp.models import Clip
+
+    configure(monkeypatch, defaults())
+    root = minimal_project.parent
+    result = project(root)
+    add_bed(result, root)
+    result.clips = [
+        Clip(id="left", track_id="host", source_start=0, source_end=1, timeline_start=0),
+        Clip(id="right", track_id="host", source_start=2, source_end=6, timeline_start=2.0),
+    ]
+    save_project(result, minimal_project)
+    return DocumentSyncService.open(minimal_project)
+
+
+def fill_command(payload: dict) -> DocumentCommand:
+    return guest_command("FillRoomTone", payload)
+
+
+def journal_types(minimal_project) -> list[str]:
+    return [r["type"] for r in DocumentSyncService.open(minimal_project).store.commands_after(0)]
+
+
+def history_total(minimal_project) -> int:
+    from podcast_mcp.mcp.tools.history import history_status_tool
+
+    return json.loads(history_status_tool(str(minimal_project)))["total"]
+
+
+WHOLE_TRACK = {"track_id": "host"}
+RANGE = {"track_id": "host", "start_sec": 1.0, "end_sec": 2.0}
+
+
+@pytest.mark.parametrize("caps", [EDITOR, [*EDITOR, "mcp"]], ids=["editor", "editor-mcp"])
+@pytest.mark.parametrize("payload", [WHOLE_TRACK, {"speaker": "Host"}])
+def test_editor_whole_track_room_tone_fill_is_host_only(
+    minimal_project, monkeypatch, caps, payload
+):
+    svc = gap_project(minimal_project, monkeypatch)
+    before = deepcopy(svc.ws.project.clips)
+    total = history_total(minimal_project)
+    with pytest.raises(PermissionError) as raised:
+        svc.submit(fill_command(payload), capabilities=caps)
+    assert raised.value.code == "share_capability_required"
+    assert load_project(minimal_project).clips == before
+    assert history_total(minimal_project) == total
+    assert journal_types(minimal_project) == []
+
+
+@pytest.mark.parametrize("payload", [{"track_id": "host", "start_sec": 1.0}, {"track_id": "host"}])
+def test_editor_half_or_no_range_room_tone_fill_is_refused_as_a_permission(
+    minimal_project, monkeypatch, payload
+):
+    svc = gap_project(minimal_project, monkeypatch)
+    with pytest.raises(PermissionError) as raised:
+        svc.submit(fill_command(payload), capabilities=EDITOR)
+    assert raised.value.code == "share_capability_required"
+    assert journal_types(minimal_project) == []
+
+
+@pytest.mark.parametrize("caps", [EDITOR, [*EDITOR, "mcp"]], ids=["editor", "editor-mcp"])
+def test_editor_range_room_tone_fill_still_runs(minimal_project, monkeypatch, caps):
+    svc = gap_project(minimal_project, monkeypatch)
+    before = deepcopy(svc.ws.project.clips)
+    svc.submit(fill_command(RANGE), capabilities=caps)
+    assert load_project(minimal_project).clips != before
+    assert journal_types(minimal_project) == ["FillRoomTone"]
+
+
+def test_host_whole_track_room_tone_fill_passes(minimal_project, monkeypatch):
+    svc = gap_project(minimal_project, monkeypatch)
+    before = deepcopy(svc.ws.project.clips)
+    svc.submit(fill_command(WHOLE_TRACK), capabilities=None)
+    assert load_project(minimal_project).clips != before
+    assert journal_types(minimal_project) == ["FillRoomTone"]
+
+
+@pytest.mark.parametrize("caps", [VIEWER, COMMENTER], ids=["viewer", "commenter"])
+@pytest.mark.parametrize("payload", [WHOLE_TRACK, RANGE], ids=["whole-track", "range"])
+def test_commenter_and_viewer_room_tone_fill_is_refused(
+    minimal_project, monkeypatch, caps, payload
+):
+    svc = gap_project(minimal_project, monkeypatch)
+    with pytest.raises(PermissionError, match="FillRoomTone"):
+        svc.submit(fill_command(payload), capabilities=caps)
+    assert journal_types(minimal_project) == []
+
+
+@pytest.mark.parametrize("surface", ["browser", "mcp"])
+def test_room_tone_fill_shape_gate_holds_on_every_guest_surface(
+    minimal_project, sample_wav, monkeypatch, surface
+):
+    svc = gap_project(minimal_project, monkeypatch)
+    before = deepcopy(svc.ws.project.clips)
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
+    total = history_total(minimal_project)
+    submit = guest_submitter(surface)
+    assert not submit(token, "FillRoomTone", WHOLE_TRACK)
+    assert load_project(minimal_project).clips == before
+    assert history_total(minimal_project) == total
+    assert journal_types(minimal_project) == []
+    assert submit(token, "FillRoomTone", RANGE)
+    assert load_project(minimal_project).clips != before
+    assert journal_types(minimal_project) == ["FillRoomTone"]

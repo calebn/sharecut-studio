@@ -318,8 +318,11 @@ def insert_gap(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def fill_room_tone(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    start, end = p.get("start_sec"), p.get("end_sec")
     return TimelineService(ws).fill_room_tone(
-        track_id=str(p["track_id"]), within=(float(p["start_sec"]), float(p["end_sec"]))
+        track_id=p.get("track_id"),
+        speaker=p.get("speaker"),
+        within=(float(start), float(end)) if start is not None and end is not None else None,
     )
 
 

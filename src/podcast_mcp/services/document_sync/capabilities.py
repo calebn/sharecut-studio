@@ -9,6 +9,7 @@ runs none. ``policy`` asks these predicates whether a guest applies or proposes.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
 from podcast_mcp.services.collaboration import ReviewRole, review_role_for_capabilities
 from podcast_mcp.util.coded_error import CodedPermissionError
@@ -114,3 +115,24 @@ def authorize_document_command(
         f"share capabilities do not allow document command: {command_type}",
         code="share_capability_required",
     )
+
+
+def authorize_document_payload(
+    caps: list[str] | None,
+    command_type: str,
+    payload: dict[str, Any],
+) -> None:
+    """Raise PermissionError if *caps* may run *command_type* but not this payload shape.
+
+    A room tone fill without a range covers a whole track, so only the host runs it.
+    ``caps is None`` means host / unrestricted (always allowed).
+    """
+    if caps is None:
+        return
+    if command_type == "FillRoomTone" and (
+        payload.get("start_sec") is None or payload.get("end_sec") is None
+    ):
+        raise CodedPermissionError(
+            "a whole-track room tone fill is host-only; guests fill a selected range",
+            code="share_capability_required",
+        )
