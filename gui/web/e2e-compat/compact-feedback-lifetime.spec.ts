@@ -149,7 +149,7 @@ for (const width of [600, 636]) {
       const commands = watchCommands(page);
       const header = page.locator(".bottom-sheet-header");
       const checkHeader = async (stage: string) => {
-        for (const name of ["Undo", "Redo", "Expand to half height", "Close"]) {
+        for (const name of ["Undo", "Redo", "Expand to full height", "Close"]) {
           const geometry = await controlGeometry(
             header.getByRole("button", { name, exact: true }),
           );
