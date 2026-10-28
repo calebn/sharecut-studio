@@ -823,11 +823,22 @@
   }
 }
 
-/* Under 14 rem (a 360 px phone at 200% text) the clock drops to the UI size so
-   Play, the clock and the hear menu fit one row. */
+/* Under 14 rem (a phone at 200% text) the clock drops to the UI size, and Play,
+   the clock and the hear menu are the one row: the A and B toggles, Comment and
+   the status chips are in the expanded Player, as in a folded frame. */
 @container sys-player (max-width: 14rem) {
   .sys-player-now {
     font-size: var(--font-size-ui);
+  }
+
+  .sys-player {
+    gap: var(--space-1);
+    padding-inline: var(--space-1);
+  }
+
+  .sys-player-ab,
+  .sys-player-right > :not(.sys-player-hear) {
+    display: none;
   }
 }
 
