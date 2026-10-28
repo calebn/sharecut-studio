@@ -166,7 +166,7 @@ export function DeliverStage({
   const [trimming, setTrimming] = useState(false);
   const [settled, setSettled] = useState(clips);
   if (!trimming && settled !== clips) setSettled(clips);
-  useWriteBack(settled, onClips, clips);
+  const liveClips = useWriteBack(settled, onClips, clips);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -293,7 +293,10 @@ export function DeliverStage({
         liveChapters.current = retitleChapter(liveChapters.current, id, title);
         setChapters(liveChapters.current);
       }}
-      onRetime={(id, at) => setChapters((now) => retimeChapter(now, id, at))}
+      onRetime={(id, at) => {
+        liveChapters.current = retimeChapter(liveChapters.current, id, at);
+        setChapters(liveChapters.current);
+      }}
       onPlayFrom={onPlayFrom}
       onRemove={removeChapterWithUndo}
       onAdd={() =>
@@ -315,9 +318,10 @@ export function DeliverStage({
       words={words}
       peaks={peaks}
       onRetitle={(id, title) => setClips((now) => retitleClip(now, id, title))}
-      onTrim={(id, edge, at) =>
-        setClips((now) => trimClip(now, id, edge, at, total))
-      }
+      onTrim={(id, edge, at) => {
+        liveClips.current = trimClip(liveClips.current, id, edge, at, total);
+        setClips(liveClips.current);
+      }}
       onPlay={onPlayClip}
       onApprove={(id) => setClips((now) => approveClip(now, id))}
       onRemove={removeClipWithUndo}

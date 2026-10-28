@@ -1,4 +1,11 @@
-import { type KeyboardEvent, type PointerEvent, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 export type TimeFieldProps = {
   label: string;
@@ -32,13 +39,23 @@ export function TimeField({
   parse = parseNumber,
   onChange,
 }: TimeFieldProps) {
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraftState] = useState<string | null>(null);
+  const typed = useRef<string | null>(null);
+  const setDraft = (text: string | null) => {
+    typed.current = text;
+    setDraftState(text);
+  };
   const drag = useRef<{ x: number; from: number } | null>(null);
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
   const commit = (next: number) => {
     const clamped = clamp(next);
     if (clamped !== value) onChange(clamped);
   };
+  const release = useEffectEvent(() => {
+    const parsed = typed.current === null ? null : parse(typed.current);
+    if (parsed !== null) commit(parsed);
+  });
+  useEffect(() => () => release(), []);
   const multiplier = (event: { shiftKey: boolean; altKey: boolean }) =>
     event.shiftKey ? 10 : event.altKey ? 0.1 : 1;
 
