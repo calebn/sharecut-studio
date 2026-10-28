@@ -42,6 +42,7 @@ import { pickDaw, useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
+import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
 import { pendingEditTrackIds } from "../utils/edits";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
 import {
@@ -976,7 +977,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     />
                     <div
                       ref={lanesRef}
-                      onPointerDownCapture={rangeGesture.captureDown}
+                      onPointerDownCapture={(e) => {
+                        split.onPointerDownCapture(e);
+                        rangeGesture.captureDown(e);
+                      }}
                       onPointerMoveCapture={rangeGesture.captureMove}
                       onPointerUpCapture={rangeGesture.captureUp}
                       onPointerCancelCapture={rangeGesture.captureCancel}
@@ -1046,7 +1050,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       />
                       <SplitGuide
                         tracks={project.tracks}
-                        selectedTrackIds={selectedTrackIds}
+                        cutTrackIds={bladeTrackIds(
+                          selectedTrackIds,
+                          dialogueTrackIds(project.tracks),
+                        )}
                         zoomPxPerSec={zoomPxPerSec}
                       />
                       {project.tracks.map((track, idx) => {
