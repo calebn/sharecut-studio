@@ -172,15 +172,35 @@ describe("usePrepareRun auto-run", () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("leaves a busy pipeline slot alone", async () => {
+  it("waits out a busy pipeline slot, shows it, and runs when the slot frees", async () => {
     useDawStore.setState({
       pipelineJob: pipelineJobSnapshot({ status: "running" }),
     });
-    const { rerender } = setup();
+    const { result, rerender } = setup();
     rerender({ ingestBusy: true, mediaKey: "" });
     rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
-    await act(async () => undefined);
+    await waitFor(() => expect(result.current.waiting).toBe(true));
     expect(start).not.toHaveBeenCalled();
+    act(() => {
+      useDawStore.setState({ pipelineJob: null });
+    });
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    await waitFor(() => expect(result.current.waiting).toBe(false));
+  });
+
+  it("shows waiting, not silence, when the server refuses with pipeline_busy", async () => {
+    start.mockRejectedValue(new ApiError("busy", "pipeline_busy", 409));
+    const { result, rerender } = setup();
+    rerender({ ingestBusy: true, mediaKey: "" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(result.current.waiting).toBe(true));
+    expect(useDawStore.getState().pipelineJob).toBeNull();
+    start.mockResolvedValue(
+      pipelineJobSnapshot({ id: "j2", status: "running" }),
+    );
+    act(() => result.current.tryAgain());
+    await waitFor(() => expect(result.current.waiting).toBe(false));
+    expect(useDawStore.getState().pipelineJob?.id).toBe("j2");
   });
 
   it("asks for a missing model, never downloads it, and goes on after it arrives", async () => {
