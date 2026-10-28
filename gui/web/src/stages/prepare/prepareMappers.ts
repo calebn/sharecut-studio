@@ -238,6 +238,8 @@ export type ReadyInput = {
   sourceCount: number;
   ingestBusy: boolean;
   transcribed: boolean;
+  /** The job was seen with the audio on the tracks now, so it covered every source. */
+  jobCoversMedia?: boolean;
   /** A run is being started (auto-run waiting on the slot, or the POST in flight). */
   starting: boolean;
   /** A run was refused because another job holds the pipeline slot. */
@@ -328,9 +330,12 @@ export const OVERWRITE_REFUSED = "transcript_overwrite_refused";
 
 export function readyRows(input: ReadyInput): ReadyRowData[] {
   if (input.sourceCount === 0) return [];
-  // A finished run says nothing about audio that has no transcript yet.
+  // A finished run says nothing about audio that arrived after it, unless it
+  // ran on this audio and a source simply has no speech to show.
   const job =
-    input.job?.status === "ok" && !input.transcribed ? null : input.job;
+    input.job?.status === "ok" && !input.transcribed && !input.jobCoversMedia
+      ? null
+      : input.job;
   const live = isLive(job);
   const jobless = job === null;
   const settled = jobless && input.transcribed && !input.starting;

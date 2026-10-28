@@ -30,6 +30,7 @@ import {
 } from "./prepareMappers";
 import type { ReadyAction, ReadyRowId } from "./ReadyList";
 import { useCleanup } from "./useCleanup";
+import { useJobCoverage } from "./useJobCoverage";
 import { usePrepareDrop } from "./usePrepareDrop";
 import { usePrepareRun } from "./usePrepareRun";
 import { usePrepareSources } from "./usePrepareSources";
@@ -112,6 +113,8 @@ export function usePrepareModel(): PrepareModel {
     .map((t) => `${t.id}:${t.media_path}`)
     .join("|");
 
+  const jobCoversMedia = useJobCoverage(job?.id ?? null, mediaKey);
+
   const run = usePrepareRun({
     projectPath,
     workingSet,
@@ -164,6 +167,7 @@ export function usePrepareModel(): PrepareModel {
     sourceCount,
     ingestBusy,
     transcribed: sourceCount > 0 && untranscribed.length === 0,
+    jobCoversMedia,
     starting: run.starting,
     waiting: run.waiting,
     startError: run.startError,
