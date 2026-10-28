@@ -407,8 +407,9 @@ def _check_unpingable(host: StudioHost, project_path: Path | str) -> None:
     """
     try:
         socket.create_connection((host.host, host.port), timeout=PROBE_TIMEOUT_SEC).close()
-    except OSError as exc:
-        if _is_refused(exc):
+    except (OSError, ValueError) as exc:
+        # ValueError: a scoped literal the resolver cannot encode, which no connect can answer.
+        if isinstance(exc, OSError) and _is_refused(exc):
             return
         raise StudioUnresponsive(host, studio_host_path(project_path)) from exc
     raise StudioNotReachable(host, studio_host_path(project_path))
