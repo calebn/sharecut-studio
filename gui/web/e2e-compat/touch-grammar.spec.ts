@@ -17,7 +17,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { closeTools, openProject, openToolsIfFolded } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import {
@@ -800,7 +800,9 @@ test("a create menu taller than 90% of the screen, with room beside the finger, 
   });
   // The stacked tablet gives the lower half to the Script; hide it so the
   // timeline has the whole body.
+  const folded = await openToolsIfFolded(page);
   await page.getByRole("button", { name: "Show or hide Script" }).click();
+  if (folded) await closeTools(page);
   await expect(page.locator(".edit-script")).toHaveCount(0);
   const finger = await newFinger(context, page, browserName);
   const rows: MenuRow[] = [];
