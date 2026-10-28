@@ -177,7 +177,12 @@ class PlacedSource:
 
 
 def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
+    """Every source leaf with its timeline start and gain ramps, measuring each subtree once."""
     result: list[PlacedSource] = []
+    lengths = _durations(audio)
+
+    def duration(node: Audio) -> float:
+        return lengths[id(node)]
 
     def visit(node: Audio, at: float, ramps: tuple[GainRamp, ...]) -> None:
         match node:
@@ -258,6 +263,12 @@ def postorder(audio: Audio) -> Iterator[Audio]:
 
 
 def duration(audio: Audio) -> float:
+    return _durations(audio)[id(audio)]
+
+
+def _durations(audio: Audio) -> dict[int, float]:
+    """Duration of every node under ``audio``, keyed by node identity, in one bottom-up pass."""
+    lengths: dict[int, float] = {}
     durations: list[float] = []
     for node in postorder(audio):
         match node:
@@ -286,7 +297,8 @@ def duration(audio: Audio) -> float:
                 durations.append(node.duration_sec)
             case MaskAudio() | OffSpeakerAudio():
                 pass
-    return durations[0]
+        lengths[id(node)] = durations[-1]
+    return lengths
 
 
 def sources(audio: Audio) -> list[SourceAudio]:
