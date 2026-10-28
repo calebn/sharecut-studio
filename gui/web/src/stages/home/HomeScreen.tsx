@@ -35,7 +35,6 @@ import {
 } from "./homeModel";
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
 
-/** The first-run Setup card is dismissed for good once the person says "Not now". */
 export const SETUP_DISMISSED_KEY = "sharecut.bootstrap.skip";
 
 const SWITCH_BLOCKED =
@@ -47,7 +46,6 @@ const OPENING = "Opening…";
 const STARTING = "Starting an episode…";
 const NO_PICKER =
   "Choose the moved folder with Open other…, then it replaces this card.";
-/** Codes the server gives a folder that is not an episode, or is gone. */
 const NOT_AN_EPISODE_CODES = new Set([
   "project_path_invalid",
   "project_not_found",
@@ -60,10 +58,19 @@ function navigateToProject(path: string): void {
 
 /** Plain words with a fix for a failed open; the server's own text never shows. */
 function openFailure(error: unknown): string {
-  if (error instanceof ApiError && error.code) {
-    if (NOT_AN_EPISODE_CODES.has(error.code)) return NOT_AN_EPISODE;
+  if (error instanceof ApiError && NOT_AN_EPISODE_CODES.has(error.code ?? "")) {
+    return NOT_AN_EPISODE;
   }
   return NOT_OPENED;
+}
+
+async function forgetReplaced(
+  replaces: string | undefined,
+  opened: string,
+): Promise<void> {
+  if (replaces && replaces !== opened) {
+    await forgetRecentProject(replaces).catch(() => undefined);
+  }
 }
 
 function wantsPathField(): boolean {
@@ -73,11 +80,6 @@ function wantsPathField(): boolean {
   );
 }
 
-/**
- * Home, wired: the recent episodes, Setup from the models provider, Open other
- * through the OS folder picker (a path field where there is none), and the two
- * tiles that create an episode. Presentational work stays in `HomeView`.
- */
 export function HomeScreen() {
   const models = useModels();
   const [recents, setRecents] = useState<RecentProject[] | null>(null);
@@ -154,9 +156,7 @@ export function HomeScreen() {
       guarded(
         async () => {
           const out = await openEpisodeProject(target);
-          if (replaces && replaces !== out.project_path) {
-            await forgetRecentProject(replaces).catch(() => undefined);
-          }
+          await forgetReplaced(replaces, out.project_path);
           if (stage) writeOpenIntent(out.project_path, { stage });
           navigateToProject(out.project_path);
         },
@@ -177,9 +177,7 @@ export function HomeScreen() {
           const picked = await pickEpisodeProject();
           if ("project_path" in picked) {
             const out = await openEpisodeProject(picked.project_path);
-            if (replaces && replaces !== out.project_path) {
-              await forgetRecentProject(replaces).catch(() => undefined);
-            }
+            await forgetReplaced(replaces, out.project_path);
             navigateToProject(out.project_path);
             return;
           }
@@ -196,7 +194,6 @@ export function HomeScreen() {
     [guarded],
   );
 
-  /** A new episode from audio: create it, upload the files, and open Prepare to process them. */
   const startFromFiles = useCallback(
     (files: File[]) =>
       guarded(

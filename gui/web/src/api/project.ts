@@ -170,7 +170,6 @@ export async function openEpisodeProject(
   return res.json() as Promise<{ project_path: string; name: string }>;
 }
 
-/** One entry of Home's recent list, as `GET /api/projects/recent` sends it. */
 export type RecentProject = {
   /** Absolute path of episode.project.json. */
   path: string;
@@ -187,7 +186,6 @@ export type RecentProject = {
   folder_missing: boolean;
 };
 
-/** The last episodes opened on this machine, newest first (host only). */
 export async function listRecentProjects(
   signal?: AbortSignal,
 ): Promise<RecentProject[]> {
@@ -196,8 +194,8 @@ export async function listRecentProjects(
     { host: "/api/projects/recent" },
     { signal },
   );
-  const body = (await res.json()) as { projects?: RecentProject[] };
-  return Array.isArray(body.projects) ? body.projects : [];
+  const body = (await res.json()) as { projects: RecentProject[] };
+  return body.projects;
 }
 
 /** Drops one entry from the recent list; the episode itself is untouched. */

@@ -202,7 +202,6 @@ def _delivered_on(mastered: str | None, project_file: Path) -> datetime | None:
 
 
 def _job_progress(jobs: Any, project_file: Path) -> tuple[bool, int | None]:
-    """Whether a job runs on this project, and its percent when it reports a total."""
     if jobs is None:
         return False, None
     try:
@@ -253,7 +252,6 @@ def _finite(value: object) -> float | None:
 
 
 def _summary_for(project_file: Path, stat: os.stat_result) -> _Summary | None:
-    """The parsed card fields, or None when the file is not a readable project."""
     key = str(project_file)
     signature = (stat.st_mtime_ns, stat.st_size)
     with _SUMMARIES_LOCK:
