@@ -517,3 +517,105 @@ test("System/InspectorSheet in dark the sheet, the grip bar and the text come fr
   expect(luminance(colors.surface)).toBeLessThan(300);
   expect(luminance(colors.bar)).toBeGreaterThan(luminance(colors.surface));
 });
+
+const TRANSPARENT = "rgba(0, 0, 0, 0)";
+
+test("System/InspectorSheet and the Action bar phone dock both paint their grip bar", async ({
+  page,
+}) => {
+  const bar = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => getComputedStyle(el, "::before").backgroundColor);
+  await open(page, "system-actionbar--phone-dock", 390, 740);
+  expect(await bar(".sys-actions-grip")).not.toBe(TRANSPARENT);
+  await open(page, "system-actionbar--phone-dock-390", 390, 740);
+  expect(await bar(".sys-actions-grip")).not.toBe(TRANSPARENT);
+  await open(page, PHONE_DOCK, 360, 740);
+  expect(
+    await page
+      .locator(".sys-inspector-grip-bar")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).not.toBe(TRANSPARENT);
+});
+
+test("System/InspectorSheet a fast flick down from half lands on the dock and does not dismiss", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, PHONE_HALF);
+  const cdp = await context.newCDPSession(page);
+  const from = centre(await box(grip(page)));
+  const flick = async () => {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [from],
+    });
+    for (const dy of [20, 60, 120, 150]) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: from.x, y: from.y + dy }],
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  };
+  await flick();
+  await expect(sheet(page)).toHaveAttribute("data-detent", "dock");
+  await expect.poll(() => sheetHeight(page)).toBe(64);
+  await context.close();
+});
+
+test("System/InspectorSheet a finger tap on the grip that drifts 5 px still toggles", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, PHONE_DOCK);
+  const cdp = await context.newCDPSession(page);
+  const from = centre(await box(grip(page)));
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [from],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [{ x: from.x, y: from.y + 5 }],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect(grip(page)).toHaveAttribute("aria-valuetext", "Half height");
+  await context.close();
+});
+
+test("System/InspectorSheet the inline rename ignores Enter and Escape while an IME composition is open", async ({
+  page,
+}) => {
+  await open(page, CARD, 1280);
+  const cdp = await page.context().newCDPSession(page);
+  const name = page.getByRole("textbox", { name: "Name" });
+  await name.focus();
+  await name.selectText();
+  await cdp.send("Input.imeSetComposition", {
+    text: "にほん",
+    selectionStart: 3,
+    selectionEnd: 3,
+  });
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Enter",
+    windowsVirtualKeyCode: 229,
+  });
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    windowsVirtualKeyCode: 229,
+  });
+  await expect(name).toHaveValue("にほん");
+  await expect(sheet(page)).toHaveAccessibleName("Maya · 12:04 to 12:23");
+  await cdp.send("Input.insertText", { text: "にほん" });
+  await name.press("Enter");
+  await expect(sheet(page)).toHaveAccessibleName("にほん");
+});
