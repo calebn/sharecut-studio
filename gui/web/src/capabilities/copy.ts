@@ -537,6 +537,39 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Select a range",
     tooltip: "Select a range",
   },
+  "daw.edit.split": {
+    label: "Split",
+    tooltip:
+      "Split at the playhead, or at both edges of the selected words or range (S)",
+  },
+  "daw.edit.hear": {
+    label: "Hear",
+    tooltip: "Hear the selection (Shift+Space)",
+  },
+  "daw.edit.hearBefore": {
+    label: "Hear before",
+    tooltip: "Hear the suggestion as it is now (A)",
+  },
+  "daw.edit.hearAfter": {
+    label: "Hear after",
+    tooltip: "Hear the suggestion applied (B)",
+  },
+  "daw.edit.keep": {
+    label: "Keep",
+    tooltip: "Keep what is cut, or reject the selected suggestion (X)",
+  },
+  "daw.edit.inspect": {
+    label: "Inspect",
+    tooltip: "Open the Inspector for the selection (I)",
+  },
+  "daw.edit.more": {
+    label: "More",
+    tooltip: "More actions for the selection (.)",
+  },
+  "daw.edit.mute": {
+    label: "Mute",
+    tooltip: "Mute the selection, else the targeted track (M)",
+  },
 };
 
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
@@ -550,6 +583,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",
+  actionBar: "daw.edit.mute",
   trackInspector: "daw.track.setVolume",
   SourceCard: "daw.track.splitSpeakers",
   trackHeader: "daw.track.soloToggle",
@@ -600,7 +634,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
   "inspector.clip.joinMode": "daw.edit.setClipJoin",
   "timeline.join.badge": "daw.edit.setClipJoin",
-  actionBar: "daw.range.bounce",
 };
 
 export function capabilityTooltip(
