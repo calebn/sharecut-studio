@@ -218,7 +218,7 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
 | SCR-GUEST-VIEWER | Guest shell, Viewer: banner "Shared view…", listen/mix only, no comment tool | `/r/<viewer token>` | `layout/StudioShell.tsx` (`guestShare`), `shareMode.ts` | `layout/StudioShellView.stories.tsx` GuestFollowing (chrome); `layout/ToolModeToggleView.stories.tsx` CommentOnlyGuest | View | Read-only review |
-| SCR-GUEST-COMMENTER | Guest shell, Commenter: "You can comment and suggest edits", comment mode, Blade as suggestion, pending suggestions | `/r/<commenter token>` | same | partial (same stories) | View | Review with comments and suggestions |
+| SCR-GUEST-COMMENTER | Guest shell, Commenter: "You can comment and suggest edits", Blade as suggestion, pending suggestions | `/r/<commenter token>` | same | partial (same stories) | View | Review with comments and suggestions |
 | SCR-GUEST-EDITOR | Guest shell, Editor: "You can add tracks and audio", Import, approve/reject range proposals | `/r/<editor token>` | same | partial | View | Delegated editing |
 | SCR-GUEST-MOBILE | Guest on phone: Listen with comment composer, More without host-only tabs | `/r/<token>` at 390 px | `layout/MobileShell.tsx`, `layout/ListenCommentComposer.tsx` | `layout/MobileShellView.stories.tsx` GuestFollowing | Partial | Mobile reviewer |
 | SCR-GUEST-LINK-INVALID | "This link does not open the project." | `/r/<token without view>` | `App.tsx` + `ui/ErrorScreen.tsx` | `ui/ErrorScreen.stories.tsx` WithNextStep | Props | Dead link |
@@ -290,7 +290,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-PLAY | Play, pause, stop, seek, nudge, go to start/end | Space; K; arrows; Home/End; click ruler; Listen scrubber | CMP-TRANSPORT, CMP-RULER, SCR-PHONE-LISTEN | Space, K, ←/→ (Shift = 5 s), Home/End (or Mod+←/→) | partial (play controls, ruler) |
 | INT-AUDITION | Audition mode (Full mix / Edited stems / Original) | Segmented control or Menu > Audition | CMP-TRANSPORT, MENU-MAIN | none | partial |
 | INT-SCRUB | Scrub / seek by ruler tap or phone scrubber | Click or tap ruler; drag Listen scrubber | CMP-RULER, SCR-PHONE-LISTEN | none (double-click ruler fits) | partial |
-| INT-SELECT | Select clip, extend with modifier, select track, select all tracks | Click clip or header; modifier-click; Mod+A | CMP-CLIP, CMP-TRACK-HEADERS, INS-CLIP, INS-TRACK | V (Select tool), Mod+A / Mod+Shift+A | partial |
+| INT-SELECT | Select clip, extend with modifier, select track, select all tracks | Click clip or header; modifier-click; Mod+A | CMP-CLIP, CMP-TRACK-HEADERS, INS-CLIP, INS-TRACK | Mod+A / Mod+Shift+A | partial |
 | INT-MOVE | Move clips between times and tracks (drag, or Move clip form) | Drag clip body; Clip inspector Move clip | CMP-CLIP, INS-CLIP | none | partial (inspector placement yes) |
 | INT-TRIM | Trim clip edge (drag, arrows, exact fields) | Drag thin edge strip; focus handle then ←/→ (10 ms, Shift 100 ms) | CMP-CLIP, INS-CLIP | arrows | yes static (TrimPreview) |
 | INT-FADE | Set fade in/out; coupled crossfade | Drag corner; focus fade handle and ←/→ (1 ms, Shift 10 ms) | CMP-CLIP, POP-JOIN, INS-CLIP | arrows | yes static (FadeReadout) |
@@ -389,7 +389,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | DLG-SPLIT | Select a single long track, Track inspector > `Split speakers…`; dialog "Split speakers". |
 | DLG-PALETTE | Press `?` with focus on the page, or Menu > Help > Commands and shortcuts; dialog "Commands and shortcuts", search field "Search commands". |
 | DLG-GESTURES | Phone: More > `Gestures`; or palette > link. |
-| DLG-ASK-CONFIRM | Remove track: select a track, press Delete, or Track inspector > Remove; dialog title "Remove the <label> track?". Touch blade: phone, Blade tool, tap lane. Bulk review: Impact > `Approve all (n)`. |
+| DLG-ASK-CONFIRM | Remove track: select a track, press Delete, or Track inspector > Remove; dialog title "Remove the <label> track?". Touch blade: phone, Blade cut from the command palette. Bulk review: Impact > `Approve all (n)`. |
 | DLG-ASK-TEXT | Menu > `Open project…` when the OS file picker is unavailable (mock `pickEpisodeProject` to `{unavailable:true}`). |
 | DLG-RECORD | R-HOST; Menu > `Record room…`; dialog "Record room". |
 | SCR-PHONE-LISTEN/TIMELINE/TEXT/MORE | R-HOST at 390x844; `navigation "Primary"` buttons `Listen`, `Timeline`, `Text`, `More` (see `e2e/phoneTimeline.ts`). Timeline waits for `.timeline-scroll .track-headers:not([aria-busy=true])`. |

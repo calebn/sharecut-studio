@@ -12,16 +12,13 @@ import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 
-/** Set on the lanes while Alt is held over them with a mouse or pen. */
-export const SPLIT_ARMED_ATTR = "data-split-armed";
+const SPLIT_ARMED_ATTR = "data-split-armed";
 
 /** A finger has no Alt key; its Split arrives with the action bar. */
-const isTouch = (e: { pointerType?: string }) => e.pointerType === "touch";
+export const isSplitModifier = (e: { altKey: boolean; pointerType?: string }) =>
+  e.altKey && e.pointerType !== "touch";
 
-/**
- * Controls whose own click keeps its meaning under Alt: a chip, a seam, a
- * trim handle, a field. Only the clip body and the bare lane take the split.
- */
+/** Controls whose own click keeps its meaning under Alt. */
 const OWN_CLICK = "button:not(.clip-hit), a, input, select, [role='slider']";
 
 /**
@@ -45,7 +42,6 @@ export function useSplitAtPointer(
     inside: false,
   });
 
-  /** The guide is up: moves without Alt do nothing until it is. */
   const shown = useRef(false);
 
   const secAt = useCallback(
@@ -71,8 +67,7 @@ export function useSplitAtPointer(
         armed && pointer.current.inside && s.project
           ? secAt(pointer.current.clientX)
           : null;
-      // The guide promises a cut; without permission there is nothing to show
-      // (the click itself still explains why it did nothing).
+      // The click itself still explains why it did nothing.
       const allowed = canSuggestStructuralOnProject(
         s.projectPath,
         s.guestMode,
@@ -87,7 +82,7 @@ export function useSplitAtPointer(
     [lanesRef, secAt],
   );
 
-  // Always the latest closure, so the window listeners never go stale.
+  // The window listeners are bound once.
   const showRef = useRef(show);
   showRef.current = show;
 
@@ -109,14 +104,13 @@ export function useSplitAtPointer(
       window.removeEventListener("keyup", onKey);
       window.removeEventListener("blur", release);
       document.removeEventListener("visibilitychange", onVisibility);
-      // The hover belongs to these lanes; it goes when they do.
       useDawStore.getState().setSplitHoverSec(null);
     };
   }, []);
 
   const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
     pointer.current = { clientX: e.clientX, inside: true };
-    const armed = e.altKey && !isTouch(e);
+    const armed = isSplitModifier(e);
     if (armed || shown.current) showRef.current(armed);
   }, []);
 
@@ -125,14 +119,11 @@ export function useSplitAtPointer(
     showRef.current(false);
   }, []);
 
-  /**
-   * Capture-phase click on the lanes. True when the click was an Alt-click and
-   * is spent: it neither selects nor seeks nor ends a range gesture.
-   */
+  /** True when the click was an Alt-click and is spent: it neither selects, seeks nor ends a range gesture. */
   const onClickCapture = useCallback(
     (e: ReactMouseEvent<HTMLElement>): boolean => {
-      const native = e.nativeEvent as { pointerType?: string };
-      if (!e.altKey || isTouch(native)) return false;
+      const { pointerType } = e.nativeEvent as { pointerType?: string };
+      if (!isSplitModifier({ altKey: e.altKey, pointerType })) return false;
       if (e.target instanceof Element && e.target.closest(OWN_CLICK))
         return false;
       const sec = secAt(e.clientX);

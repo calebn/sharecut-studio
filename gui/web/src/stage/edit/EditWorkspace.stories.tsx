@@ -49,7 +49,7 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "The Edit stage host: the timeline with its track headers, the Script pane, the Inspector and the sheets that hang off them. The tool strip sits in the timeline corner; the eye opens the View sheet and the + row under the last track adds audio, a track or a chapter.\n\n**Motion.** Nothing in the workspace animates: the Script pane, the divider and the Inspector column change width in one frame. The View and Mix sheets use the system Sheet's own motion (`--motion-hover`, the phone detents).\n\n**Per-stage view.** Zoom and scroll belong to the stage: leaving Edit saves them, coming back restores them. The Script pane's scroll position is saved when the pane unmounts.",
+          "The Edit stage host: the timeline with its track headers, the Script pane, the Inspector and the sheets that hang off them. The corner holds fit, zoom and the Script toggle; the eye opens the View sheet and the + row under the last track adds audio, a track or a chapter.\n\n**Motion.** Nothing in the workspace animates: the Script pane, the divider and the Inspector column change width in one frame. The View and Mix sheets use the system Sheet's own motion (`--motion-hover`, the phone detents).\n\n**Per-stage view.** Zoom and scroll belong to the stage: leaving Edit saves them, coming back restores them. The Script pane's scroll position is saved when the pane unmounts.",
       },
     },
   },

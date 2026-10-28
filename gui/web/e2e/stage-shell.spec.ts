@@ -244,7 +244,6 @@ for (const width of [1024, 1440]) {
       const before = await clipCount();
       const clip = page.locator(".clip-hit").first();
       await clip.click();
-      // The press is done once the clip is selected; nothing was cut.
       await expect(clip).toHaveAttribute("aria-pressed", "true");
       await expect(page.locator(".split-guide")).toHaveCount(0);
       await expect(page.getByRole("dialog", { name: /^Cut at/ })).toHaveCount(
@@ -285,7 +284,6 @@ for (const width of [1024, 1440]) {
         await confirm.getByRole("button", { name: "Cut", exact: true }).click();
       }
       await expect.poll(clipCount).toBeGreaterThan(before);
-      // The press did not also select the clip it split.
       await expect(page.locator(".clip-hit").first()).toHaveAttribute(
         "aria-pressed",
         "false",

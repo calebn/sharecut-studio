@@ -45,6 +45,7 @@ import { useHitRouter } from "./hitRouterContext";
 import { HIT_KINDS } from "./inputContract";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
+import { isSplitModifier } from "./useSplitAtPointer";
 import { WaveformLayer } from "./WaveformLayer";
 
 export interface ClipBlockProps {
@@ -81,7 +82,7 @@ export interface ClipBlockProps {
   /** Select-only (e.g. fade drag start). Callbacks take the clip id first,
    *  so a lane passes one stable function to every clip. */
   onSelect: (clipId: string) => void;
-  /** Select-tool body click with Shift/Mod modifiers. */
+  /** Body click with Shift/Mod modifiers. */
   onSelectClip?: (clipId: string, mods: ClipSelectMods) => void;
   /** Host or share `edit` — not the host-only handle check. */
   canMove?: boolean;
@@ -451,9 +452,7 @@ export function ClipBlockLive({
     if (
       bodyRef.current ||
       rollDragRef.current ||
-      // Alt+click is a Split at the pointer (useSplitAtPointer): the press
-      // neither selects nor starts a move.
-      (e.altKey && e.pointerType !== "touch") ||
+      isSplitModifier(e) ||
       !interactive ||
       edgeHandles.active ||
       (e.pointerType === "mouse" && e.button !== 0)

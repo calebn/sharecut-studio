@@ -100,7 +100,6 @@ test("a phone in portrait keeps Undo and Redo in the header, the corner controls
     const buttons = ["Select range", "Zoom out", "Zoom in"].map((name) =>
       rail.getByRole("button", { name, exact: true }),
     );
-    // One row: the controls sit level, 44px squares, inside the corner.
     const toolBoxes = await Promise.all(buttons.map((b) => b.boundingBox()));
     for (const box of toolBoxes) {
       expect(box!.width).toBeGreaterThanOrEqual(44);
