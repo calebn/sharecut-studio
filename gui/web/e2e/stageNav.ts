@@ -5,7 +5,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * (open the Comments panel, open the Share dialog) and none of them names the
  * chrome that gets there. It drives the stage frame: the Stage bar in
  * the App header (the tab bar on a phone), the Project menu, the Edit stage's
- * eye sheet and tool strip, and the Player's hear menu.
+ * eye sheet, and the Player's hear menu.
  *
  * Browsers keep Mod+1 to Mod+9 for their own tabs, so stages are switched by
  * clicking the Stage bar, never by key.
@@ -420,11 +420,7 @@ export async function setLayer(
   await expect(sheet).toBeHidden();
 }
 
-/**
- * Alt-click Split: hold Alt and click `target` (a lane, a clip) at `position`
- * in its own box. It replaces the old Select/Blade toggle: a plain click only
- * selects or seeks.
- */
+/** Alt-click `target` (a lane, a clip) at `position` in its own box. */
 export async function altClickSplit(
   page: Page,
   target: Locator,
@@ -441,7 +437,6 @@ export async function addTrack(page: Page): Promise<void> {
   await page.getByRole("menuitem", { name: /^New track/ }).click();
 }
 
-/** Run a catalog command from the palette by its label. */
 export async function runPaletteCommand(
   page: Page,
   label: string,

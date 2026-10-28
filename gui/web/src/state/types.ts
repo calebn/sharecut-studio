@@ -324,7 +324,6 @@ export interface DawState {
   viewerMute: Record<string, boolean>;
   soloTracks: Record<string, boolean>;
   timelineFocused: boolean;
-  /** Phone: pending blade cut time awaiting confirm sheet. */
   /** A ripple the host refused because it would cut other speech, awaiting the person's choice. */
   audioError: string | null;
   sessionRegion: SessionRegion | null;
