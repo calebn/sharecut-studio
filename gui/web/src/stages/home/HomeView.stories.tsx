@@ -71,6 +71,9 @@ export const WithRecents: Story = {
 export const SetupNeeded: Story = {
   args: { setup: { state: "needed", sizeLabel: "about 2 GB" } },
 };
+export const SetupToolsMissing: Story = {
+  args: { setup: { state: "tools-missing", sizeLabel: "" } },
+};
 export const SetupDownloading: Story = {
   args: {
     setup: {

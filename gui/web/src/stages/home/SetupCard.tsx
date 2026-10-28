@@ -4,7 +4,12 @@ import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Menu, MenuItem } from "../../ui";
 
-export type SetupState = "needed" | "downloading" | "failed" | "check-error";
+export type SetupState =
+  | "needed"
+  | "downloading"
+  | "failed"
+  | "check-error"
+  | "tools-missing";
 
 export type SetupCardProps = {
   state: SetupState;
@@ -22,6 +27,8 @@ export type SetupCardProps = {
 };
 
 const TITLE = "Get ShareCut ready";
+const TOOLS_GUIDE =
+  "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair";
 
 function NotNowMenu({ onNotNow }: Pick<SetupCardProps, "onNotNow">) {
   const [open, setOpen] = useState(false);
@@ -57,8 +64,9 @@ function NotNowMenu({ onNotNow }: Pick<SetupCardProps, "onNotNow">) {
 
 /**
  * The Setup card on Home: one download that makes transcription work. Needed
- * offers Get ready and Choose…; the other states are one StatusRow. Raw error
- * text never shows: the caller logs it for the Help diagnostics bundle.
+ * offers Get ready and Choose…; the other states are one StatusRow. Missing audio
+ * tools offer no download: they say to reinstall and link the setup guide. Raw
+ * error text never shows: the caller logs it for the Help diagnostics bundle.
  */
 function SetupBody({
   state,
@@ -107,6 +115,23 @@ function SetupBody({
           progress={progress}
           action={{ label: "Cancel", onAction: onCancel }}
         />
+      </Card>
+    );
+  }
+  if (state === "tools-missing") {
+    return (
+      <Card title={TITLE}>
+        <StatusRow
+          state="needs-you"
+          title="Audio tools are missing."
+          detail="Reinstall ShareCut Studio to restore them."
+          action={{ label: "Check again", onAction: onRetry }}
+        />
+        <p className="sys-setup-line">
+          <a href={TOOLS_GUIDE} target="_blank" rel="noreferrer">
+            Setup guide for the audio tools
+          </a>
+        </p>
       </Card>
     );
   }
