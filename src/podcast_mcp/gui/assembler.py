@@ -23,6 +23,7 @@ from podcast_mcp.services.document import (
     HistoryListResult,
     HistoryService,
     TimelineService,
+    TranscriptService,
 )
 from podcast_mcp.services.document_sync import (
     VIEW_PROJECTION_QUERY_DESCRIPTION,
@@ -186,6 +187,7 @@ def build_project_view(
         project,
         _raw_transcript(ws),
         include_words=include_words,
+        is_unsure=TranscriptService(ws).unsure_predicate(),
     )
 
     duration = float(clips.get("timeline_duration_sec") or project.timeline.duration_sec or 0.0)
@@ -220,7 +222,9 @@ def build_project_view(
         tracks=track_views,
         clips=clips,
         chapters=chapters,
-        pending_edits=map_pending_edits_to_timeline(project, pending),
+        pending_edits=map_pending_edits_to_timeline(
+            project, pending, unsure_words=edit.unsure_words_for(pending)
+        ),
         edit_boundaries=map_edit_boundaries(project),
         applied_edits=map_applied_edits_to_timeline(project, applied),
         effects_by_track=effects_by_track,
@@ -292,6 +296,7 @@ def dump_project_projection(
                     ws.project,
                     _raw_transcript(ws),
                     include_words=True,
+                    is_unsure=TranscriptService(ws).unsure_predicate(),
                 )
             base = {
                 "transcript": transcript,

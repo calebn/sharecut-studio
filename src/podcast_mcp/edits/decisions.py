@@ -151,6 +151,10 @@ class AskedEdits:
     confirmation: CutSpeechConfirmation
 
 
+UNSURE_WORD_REASON = "unsure_word"
+"""``HeldEdit.reason`` of a cut the ``skip_unsure`` bulk guard left pending (`edits/unsure_words.py`)."""
+
+
 @dataclass(frozen=True)
 class HeldEdit:
     """A pending cut Approve all left in the list, with the reason the list shows."""

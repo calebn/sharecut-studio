@@ -112,6 +112,22 @@ def shipped_tighten_defaults() -> dict[str, Any]:
     return load_defaults().get("tighten") or {}
 
 
+def unsure_word_confidence(defaults: Mapping[str, Any] | None = None) -> float:
+    """The one ASR confidence below which a transcript word is unsure (``analysis.unsure_word_confidence``).
+
+    ``defaults`` is a pipeline config (a run's merged config); one without the key (or
+    ``None``) reads the shipped default, so there is no second copy of the number.
+    """
+    for source in (defaults or {}, bundled_defaults()):
+        value = (source.get("analysis") or {}).get("unsure_word_confidence")
+        if value is not None:
+            line = float(value)
+            if not 0.0 <= line <= 1.0:
+                raise ValueError(f"analysis.unsure_word_confidence must be 0..1, got {line}")
+            return line
+    raise ValueError("analysis.unsure_word_confidence is missing from the shipped defaults")
+
+
 DEFAULT_PREMIX_PEAK_CEILING_DB = -1.0
 
 

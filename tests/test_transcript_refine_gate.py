@@ -586,10 +586,10 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(
 
 @pytest.mark.refine_gate
 def test_one_unsure_line_for_list_brief_and_status(minimal_project):
-    from podcast_mcp.edits.transcript_correct import UNSURE_WORD_CONFIDENCE, list_low_confidence
+    from podcast_mcp.edits.transcript_correct import list_low_confidence
     from podcast_mcp.edits.transcript_refine_status import build_refine_brief
 
-    assert UNSURE_WORD_CONFIDENCE == 0.7
+    assert load_defaults()["analysis"]["unsure_word_confidence"] == 0.7
     proj = load_project(minimal_project)
     proj.transcripts = [
         Transcript(
@@ -605,7 +605,7 @@ def test_one_unsure_line_for_list_brief_and_status(minimal_project):
     ]
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
-    assert len(list_low_confidence(proj)) == 2
+    assert len(list_low_confidence(proj, 0.7)) == 2
     assert build_refine_brief(proj, load_defaults())["low_confidence_open_words"] == 2
     status = TranscriptRefineService(ProjectWorkspace.open(minimal_project)).gate_status()
     assert status["low_confidence_words"] == 2

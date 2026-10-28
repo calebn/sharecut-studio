@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,8 +43,15 @@ from podcast_mcp.util.timebase import SourceSec, TimelineSec
 def map_pending_edits_to_timeline(
     project: EpisodeProject,
     decisions: list[EditDecision],
+    *,
+    unsure_words: Mapping[str, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Map pending edit decisions from source clock to timeline intervals."""
+    """Map pending edit decisions from source clock to timeline intervals.
+
+    ``unsure_words`` maps an edit id to the unsure transcript words inside its cut (the
+    document layer decides which; ``EditService.unsure_words_for``). With it, each row
+    carries ``unsure_words`` and ``unsure_count``; without it, rows omit both.
+    """
     timeline = SessionTimeline(project)
     speaker_names = {t.id: t.speaker for t in project.tracks}
     rows: list[dict[str, Any]] = []
@@ -140,6 +147,7 @@ def map_pending_edits_to_timeline(
                 "join_risk": join_risk_from_decision(decision),
                 "harsh": is_harsh_tighten_hit(decision),
                 "listen_one_by_one": is_listen_one_by_one_hit(decision),
+                **_unsure_fields(unsure_words, decision.id),
                 "kind": review_kind(decision.reason),
                 "sound_kind": sound_kind(decision.reason),
                 "label": sound_info.label if sound_info else None,
@@ -148,6 +156,15 @@ def map_pending_edits_to_timeline(
             }
         )
     return rows
+
+
+def _unsure_fields(
+    unsure_words: Mapping[str, list[dict[str, Any]]] | None, edit_id: str
+) -> dict[str, Any]:
+    if unsure_words is None:
+        return {}
+    words = unsure_words.get(edit_id, [])
+    return {"unsure_words": words, "unsure_count": len(words)}
 
 
 @dataclass(frozen=True)
@@ -283,6 +300,7 @@ def _mapped_word_index(
     timeline: SessionTimeline,
     track_id: str,
     recording: _Recording | None = None,
+    is_unsure: Callable[[Any], bool] | None = None,
 ) -> _MappedWordIndex:
     recording = recording or _Recording(track_id, project.transcript_for_track(track_id))
     tr = recording.transcript
@@ -296,6 +314,7 @@ def _mapped_word_index(
             w,
             spans,
             source_id=tr.source_id if tr else None,
+            unsure=bool(is_unsure and is_unsure(w)),
         )
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
     ]
@@ -498,6 +517,7 @@ def _suppressed_only_rows(
     recordings: _LaneRecordings,
     *,
     include_words: bool,
+    is_unsure: Callable[[Any], bool] | None = None,
 ) -> list[dict[str, Any]]:
     """View-only rows for a track whose words are all suppressed (#758).
 
@@ -547,7 +567,7 @@ def _suppressed_only_rows(
             if include_words:
                 if recording.key not in word_indexes:
                     word_indexes[recording.key] = _mapped_word_index(
-                        project, timeline, track_id, recording
+                        project, timeline, track_id, recording, is_unsure
                     )
                 views = word_indexes[recording.key].views
                 row["words"] = [views[i] for i in run]
@@ -569,6 +589,7 @@ def _word_view(
     spans: list[tuple[Any, Any]] | None = None,
     *,
     source_id: str | None,
+    unsure: bool = False,
 ) -> dict[str, Any]:
     src_end = float(word_source_span(word.start, word.end)[1])
     if spans is None:
@@ -589,6 +610,7 @@ def _word_view(
         "word_index": word_index,
         "timing_target": {"track_id": track_id, "source_id": source_id, "word_index": word_index},
         "confidence": word.confidence,
+        "unsure": unsure,
         "suppressed": bool(word.suppressed),
         "ignored": bool(word.ignored),
         "suspect_hallucination": bool(word.suspect_hallucination),
@@ -657,8 +679,13 @@ def map_transcript_utterances_to_timeline(
     transcript: dict[str, Any] | None,
     *,
     include_words: bool = True,
+    is_unsure: Callable[[Any], bool] | None = None,
 ) -> dict[str, Any] | None:
-    """Attach timeline clocks (+ optional word timings) to combined transcript utterances."""
+    """Attach timeline clocks (+ optional word timings) to combined transcript utterances.
+
+    ``is_unsure`` decides each word's ``unsure`` flag (the document layer's one rule,
+    ``TranscriptService.unsure_predicate``); without it every word reads ``unsure: false``.
+    """
     if transcript is None:
         return None
     utterances = transcript.get("utterances")
@@ -698,7 +725,9 @@ def map_transcript_utterances_to_timeline(
             row["edge_suppressed_word_indices"] = sorted(extra_indices)
         if include_words:
             if key not in word_indexes:
-                word_indexes[key] = _mapped_word_index(project, timeline, track_id, recording)
+                word_indexes[key] = _mapped_word_index(
+                    project, timeline, track_id, recording, is_unsure
+                )
             row["words"] = _words_for_utterance(
                 project,
                 timeline,
@@ -735,6 +764,7 @@ def map_transcript_utterances_to_timeline(
         word_indexes,
         recordings,
         include_words=include_words,
+        is_unsure=is_unsure,
     )
     if synthetic:
         # Stable sort by source start: synthetic rows are ordered only within each

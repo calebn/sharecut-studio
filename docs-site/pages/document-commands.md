@@ -42,7 +42,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
 | `ApplySuggestedActions` | — | `ids` (array \| null), `override_audio_checks` (boolean), `overrides` (object), `revise` (boolean) |
 | `ApplyTranscriptCleanup` | `track_id` (string) | `phrases` (array \| null), `words` (array \| null) |
-| `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean) |
+| `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean), `skip_unsure` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CrossfadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |

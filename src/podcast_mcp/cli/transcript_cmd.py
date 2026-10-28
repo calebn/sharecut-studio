@@ -8,7 +8,7 @@ import typer
 import yaml
 
 from podcast_mcp.cli.context import get_progress
-from podcast_mcp.edits.transcript_correct import UNSURE_WORD_CONFIDENCE, TranscriptTextChangedError
+from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
@@ -282,7 +282,11 @@ def transcript_cleanup_batch_cmd(
 @transcript_app.command("review")
 def transcript_review_cmd(
     project: Path = typer.Option(..., "--project"),
-    threshold: float = typer.Option(UNSURE_WORD_CONFIDENCE, "--threshold"),
+    threshold: float | None = typer.Option(
+        None,
+        "--threshold",
+        help="Confidence line (default: analysis.unsure_word_confidence, 0.7 as shipped).",
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     words = TranscriptService(ws).low_confidence_words(threshold)

@@ -7,8 +7,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
+from podcast_mcp.config.defaults import unsure_word_confidence
 from podcast_mcp.edits.transcript_correct import (
-    UNSURE_WORD_CONFIDENCE,
     TranscriptTextChangedError,
     apply_transcript_corrections,
     correct_phrase,
@@ -35,12 +35,13 @@ from podcast_mcp.edits.transcript_timing import (
     validate_word_timing,
     word_timing_context,
 )
+from podcast_mcp.edits.unsure_words import unsure_predicate
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.models.registry import require_model
 from podcast_mcp.engines.models.whisper import resolve_whisper_model
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.transcript import CaptionLimits, write_combined_transcript_markdown
-from podcast_mcp.models import CombinedTranscript, EpisodeProject, Transcript
+from podcast_mcp.models import CombinedTranscript, EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import WorkspaceService
 from podcast_mcp.util.project_state import render_lock
@@ -383,10 +384,18 @@ class TranscriptService(WorkspaceService):
         )
 
     def low_confidence_words(self, threshold: float | None = None) -> list[dict]:
-        """Unsure words; ``None`` uses ``UNSURE_WORD_CONFIDENCE``."""
+        """Unsure words; ``None`` uses the project's ``analysis.unsure_word_confidence``."""
         return list_low_confidence(
-            self.ws.project, UNSURE_WORD_CONFIDENCE if threshold is None else threshold
+            self.ws.project, self.unsure_threshold() if threshold is None else threshold
         )
+
+    def unsure_threshold(self) -> float:
+        """The project's one unsure-word line (``analysis.unsure_word_confidence``)."""
+        return unsure_word_confidence(self.ws.effective_config())
+
+    def unsure_predicate(self) -> Callable[[TranscriptWord], bool]:
+        """Whether a word is unsure at :meth:`unsure_threshold`, for mapping many words."""
+        return unsure_predicate(self.unsure_threshold())
 
     def verify_transcript(
         self,

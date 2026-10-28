@@ -518,7 +518,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 |------|---------|---------|
 | `AddComment`, `UpdateComment`, `ResolveComment`, `DeleteComment`, `AddReply`, `SetActionDone`, `AddAction` | `CommentService` | Comment fields |
 | `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender`; required `expected_head_id`, the history head the client saw (`root` before any entry; refused as invalid when missing, 409 `history_stale` unless it is still the head; [history.md § Guarded undo and redo](history.md#guarded-undo-and-redo-expected-head)) |
-| `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; trusted interactive context, or `override_audio_checks` from a caller that may run the command, overrides the acoustic holds |
+| `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; `hold_blocked` reports held cuts instead of refusing the batch; `skip_unsure` (bulk guard) leaves every cut that covers an unsure word pending as `held` with reason `unsure_word`, forced on for a guest's multi-edit approve ([gui-integration.md § Unsure words](gui-integration.md#unsure-words)); trusted interactive context, or `override_audio_checks` from a caller that may run the command, overrides the acoustic holds (not the unsure hold) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (ordinary source MUTE log id). Clip removals and exact ranges refuse with `local_restore_requires_history`; choose guarded `UndoHistory` for the whole action |
 | `SetClipFade` | `TimelineService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |

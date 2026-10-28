@@ -17,7 +17,10 @@ from podcast_mcp.util.coded_error import CodedValueError
 def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = list(p["ids"])
     hold_blocked = p.get("hold_blocked") is True
+    skip_unsure = p.get("skip_unsure") is True
+    report = hold_blocked or skip_unsure
     held: list[HeldEdit] = []
+    unsure_held: list[HeldEdit] = []
     asked: list[AskedEdits] = []
     before = {e.id for e in ws.project.edit_decisions}
     outcome = EditService(ws).approve(
@@ -26,11 +29,13 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
         held_out=held if hold_blocked else None,
         asked_out=asked if hold_blocked else None,
+        unsure_out=unsure_held if skip_unsure else None,
     )
     if isinstance(outcome, CutSpeechConfirmation):
         return outcome.result("approve_edits")
-    if not hold_blocked:
+    if not report:
         return {"count": outcome}
+    held = [*held, *unsure_held]
     result: dict[str, Any] = {
         "count": outcome,
         "held": [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held],

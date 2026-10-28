@@ -6,6 +6,7 @@ import logging
 from dataclasses import asdict, replace
 from typing import Any, TypeVar
 
+from podcast_mcp.config.defaults import unsure_word_confidence
 from podcast_mcp.edits import (
     TightenProposal,
     apply_auto_edits,
@@ -31,6 +32,7 @@ from podcast_mcp.edits.cut_speech import (
     UnconfirmedCutSpeech,
 )
 from podcast_mcp.edits.decisions import (
+    UNSURE_WORD_REASON,
     AskedEdits,
     HeldEdit,
     PendingCutSuggestion,
@@ -60,8 +62,9 @@ from podcast_mcp.edits.timeline_ops import (
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.edits.transcript_search import TranscriptMatch
+from podcast_mcp.edits.unsure_words import unsure_words_by_edit
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.models import CutIntent, EditDecision, EditMode
+from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.history.manager import (
     apply_snapshot_to_project,
@@ -352,6 +355,35 @@ class EditService(CutMutatingService):
             yield_to_approval=True,
         )
 
+    def unsure_words_for(self, decisions: list[EditDecision]) -> dict[str, list[dict[str, Any]]]:
+        """Each pending cut's unsure transcript words (``analysis.unsure_word_confidence``), by edit id."""
+        return unsure_words_by_edit(
+            self.ws.project, decisions, unsure_word_confidence(self.ws.effective_config())
+        )
+
+    def _hold_unsure(
+        self, project: EpisodeProject, ids: list[str], unsure_out: list[HeldEdit]
+    ) -> list[str]:
+        """``ids`` without the pending cuts that cover an unsure word; those go to ``unsure_out``.
+
+        Decided on ``project`` as it is now, never from a client's list: a stale client that
+        thinks a cut is clean still has it held.
+        """
+        from podcast_mcp.edits.source_removals import cut_label
+
+        wanted = set(ids)
+        pending = [e for e in project.edit_decisions if e.id in wanted and not e.applied]
+        found = unsure_words_by_edit(
+            project, pending, unsure_word_confidence(self.ws.effective_config())
+        )
+        unsure = {e.id: e for e in pending if found[e.id]}
+        unsure_out.extend(
+            HeldEdit(i, cut_label(project, unsure[i]), UNSURE_WORD_REASON)
+            for i in dict.fromkeys(ids)
+            if i in unsure
+        )
+        return [i for i in ids if i not in unsure]
+
     def _all_unplayed(self, ids: list[str], held_out: list[HeldEdit]) -> bool:
         """True (after listing them as held) when every selected proposal's audio is cut away."""
         from podcast_mcp.edits.decisions import unplayed_pending_ids
@@ -380,15 +412,30 @@ class EditService(CutMutatingService):
         held_out: list[HeldEdit] | None = None,
         asked_out: list[AskedEdits] | None = None,
         override_peer_holds: set[str] | None = None,
+        unsure_out: list[HeldEdit] | None = None,
     ) -> int | CutSpeechConfirmation:
         """Apply pending edits with fresh complete-effect assessment.
 
         Trusted interactive intent overrides acoustic holds only. With ``held_out``,
         independent accepted edits may apply while held edits stay pending. ``asked_out``
         additionally carries removed-speech evidence for later interactive review.
+        ``unsure_out`` is the bulk guard (``skip_unsure``): a pending cut that covers an
+        unsure transcript word is not applied, stays pending and is listed there with
+        reason ``unsure_word``; the rest apply as one history step.
         """
+        if unsure_out is not None:
+            # Under the file lock: the saved words and cuts decide, not the caller's view.
+            with self.ws.transaction():
+                ids = self._hold_unsure(self.ws.project, ids, unsure_out)
+            if not ids:
+                # Nothing is left to apply, so there is nothing to save or undo.
+                return 0
 
         def mutate(p) -> int:
+            nonlocal ids
+            if unsure_out is not None:
+                # A save that landed since the check above can add an unsure word.
+                ids = self._hold_unsure(p, ids, unsure_out)
             selected = [e for e in p.edit_decisions if e.id in ids]
             if not selected or any(e.exact_range is None for e in selected):
                 self._require_refine_clear()
