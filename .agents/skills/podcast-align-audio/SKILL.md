@@ -34,7 +34,7 @@ Order: `transcribe_tracks` → **`align_tracks`** → **`require_align_accept`**
 | `podcast align status` / `align_status_tool` | pending / done / waived + fingerprint |
 | `podcast align brief` / `align_brief_tool` | Offsets, methods, clip geometry |
 | `podcast align done` / `align_done_tool` | Clear gate after listen |
-| `podcast align waive --reason …` / `align_waive_tool` | Explicit skip |
+| `podcast align waive --reason …` / `align_waive_tool` | Explicit skip; the reason may be up to 2000 characters |
 
 1. If pipeline stopped on the gate, read **`align brief`**.
 2. **`play --compare --start 0 --end 90`** (and opening windows).
