@@ -78,7 +78,9 @@ test("Prepare: importing audio starts the run by itself and shows a waiting Run 
 
   // The mock refuses the run (slot busy): Prepare says it is waiting and offers Run, not silence.
   await expect(
-    page.getByText("Waiting for the other job to finish."),
+    page
+      .getByText(/Another job is running\. This starts when it finishes/)
+      .first(),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^Run/ }).first(),
