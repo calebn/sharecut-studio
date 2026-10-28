@@ -1,4 +1,10 @@
-import { type KeyboardEvent, type PointerEvent, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  useEffect,
+  useEffectEvent,
+  useRef,
+} from "react";
 import { capturePointer, pointerRatio } from "../../system/wavePointer";
 import { PeakStrip } from "../../system/waveStrip";
 import { clamp } from "../../utils/math";
@@ -20,6 +26,8 @@ type Props = {
   /** Episode words; without them the handles move freely. */
   words?: readonly ClipWord[];
   onTrim: (edge: TrimEdge, at: number) => void;
+  /** True while a drag or arrow presses are moving a handle, false once they settle. */
+  onGesture?: (active: boolean) => void;
 };
 
 const EDGE_NAME: Record<TrimEdge, string> = { start: "In", end: "Out" };
@@ -35,7 +43,10 @@ export function ClipTrimWave({
   end,
   words = NO_WORDS,
   onTrim,
+  onGesture,
 }: Props) {
+  const release = useEffectEvent(() => onGesture?.(false));
+  useEffect(() => () => release(), []);
   const track = useRef<HTMLDivElement>(null);
   const dragging = useRef<TrimEdge | null>(null);
   const span = Math.max(window.end - window.start, 0.001);
@@ -52,10 +63,12 @@ export function ClipTrimWave({
     if (!edge || event.buttons === 0) return;
     const raw =
       window.start + pointerRatio(track.current, event.clientX) * span;
+    onGesture?.(true);
     onTrim(edge, inside(event.altKey ? raw : snapToWord(words, edge, raw)));
   };
   const onUp = () => {
     dragging.current = null;
+    onGesture?.(false);
   };
   const onKey = (edge: TrimEdge) => (event: KeyboardEvent<HTMLElement>) => {
     const direction =
@@ -64,6 +77,7 @@ export function ClipTrimWave({
     event.preventDefault();
     const current = edge === "start" ? start : end;
     const next = current + direction * (event.shiftKey ? 0.1 : 0.01);
+    onGesture?.(true);
     onTrim(edge, inside(next));
   };
 
@@ -88,6 +102,7 @@ export function ClipTrimWave({
         onPointerCancel={onUp}
         onLostPointerCapture={onUp}
         onKeyDown={onKey(edge)}
+        onBlur={() => onGesture?.(false)}
       >
         <span className="sys-wave-knob dv-trim-knob" />
       </span>

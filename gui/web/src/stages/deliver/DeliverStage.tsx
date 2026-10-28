@@ -160,7 +160,10 @@ export function DeliverStage({
   const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
   const [clips, setClips] = useState<readonly Clip[]>(initialClips);
   useWriteBack(chapters, onChapters);
-  useWriteBack(clips, onClips);
+  const [trimming, setTrimming] = useState(false);
+  const [settled, setSettled] = useState(clips);
+  if (!trimming && settled !== clips) setSettled(clips);
+  useWriteBack(settled, onClips);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -316,6 +319,7 @@ export function DeliverStage({
       onRemove={removeClipWithUndo}
       onOpenInEdit={onOpenClipInEdit}
       onFind={onFindClips}
+      onTrimGesture={setTrimming}
     />
   );
 

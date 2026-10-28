@@ -1,56 +1,72 @@
 import { useSyncExternalStore } from "react";
 import type { Chapter, Clip } from "../../stages/deliver/deliverLogic";
+import type { PageFields } from "./deliverModel";
 
 export type DeliverPage = { key: string; chapters: Chapter[]; clips: Clip[] };
 
 export type DeliverDraft = {
   page: DeliverPage | null;
-  reseed: { epoch: number; clips: Clip[] };
+  epoch: number;
+  fields: PageFields;
   pending: number;
   unsaved: boolean;
+  ackedAt: number;
+  since: number;
 };
+
+type Entry = { draft: DeliverDraft; queue: Promise<unknown> };
 
 const EMPTY: DeliverDraft = {
   page: null,
-  reseed: { epoch: 0, clips: [] },
+  epoch: 0,
+  fields: {},
   pending: 0,
   unsaved: false,
+  ackedAt: 0,
+  since: 0,
 };
 
-let slot = {
-  path: "",
-  draft: EMPTY,
-  queue: Promise.resolve() as Promise<unknown>,
-};
+const entries = new Map<string, Entry>();
 const listeners = new Set<() => void>();
 
-function emit() {
+function entryFor(path: string): Entry {
+  let entry = entries.get(path);
+  if (!entry) {
+    entry = {
+      draft: { ...EMPTY, since: Date.now() },
+      queue: Promise.resolve(),
+    };
+    entries.set(path, entry);
+  }
+  return entry;
+}
+
+function update(
+  entry: Entry,
+  change: (draft: DeliverDraft) => Partial<DeliverDraft>,
+) {
+  entry.draft = { ...entry.draft, ...change(entry.draft) };
   for (const listener of [...listeners]) listener();
 }
 
 export function patchDeliverDraft(
   path: string,
   change: (draft: DeliverDraft) => Partial<DeliverDraft>,
-  adopt = true,
 ) {
-  if (slot.path !== path) {
-    if (!adopt) return;
-    slot = { path, draft: EMPTY, queue: Promise.resolve() };
-  }
-  slot = { ...slot, draft: { ...slot.draft, ...change(slot.draft) } };
-  emit();
+  update(entryFor(path), change);
 }
 
 export function sendDeliverEdit(
   path: string,
   work: (path: string) => Promise<void>,
 ) {
-  patchDeliverDraft(path, (d) => ({ pending: d.pending + 1 }));
-  slot.queue = slot.queue
+  const entry = entryFor(path);
+  update(entry, (d) => ({ pending: d.pending + 1 }));
+  entry.queue = entry.queue
     .then(() => work(path))
-    .catch(() => patchDeliverDraft(path, () => ({ unsaved: true }), false))
+    .catch(() => update(entry, () => ({ unsaved: true })))
     .finally(() =>
-      patchDeliverDraft(path, (d) => ({ pending: d.pending - 1 }), false),
+      update(entry, (d) => ({ pending: Math.max(0, d.pending - 1) })),
     );
 }
 
@@ -63,6 +79,6 @@ function subscribe(listener: () => void) {
 
 export function useDeliverDraft(path: string | null): DeliverDraft {
   return useSyncExternalStore(subscribe, () =>
-    slot.path === path ? slot.draft : EMPTY,
+    path ? (entries.get(path)?.draft ?? EMPTY) : EMPTY,
   );
 }
