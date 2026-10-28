@@ -133,6 +133,60 @@ def test_split_at_time_apply_via_document(minimal_project, dialogue_wav):
     assert not any(e.type == EditDecisionType.SPLIT for e in svc.ws.project.edit_decisions)
 
 
+def test_split_at_time_extra_times_is_one_history_step(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    before = len([c for c in svc.ws.project.clips if c.track_id == "host"])
+    head = svc.ws.project.history.head_id()
+    cmd = DocumentCommand(
+        type="SplitAtTime",
+        payload={"at_time": 3.0, "extra_at_times": [6.0], "track_ids": ["host"]},
+        client_id="host",
+        role="viewer",
+        client_seq=1,
+    )
+    out = svc.submit(cmd, capabilities=None)
+    assert out["ok"]
+    host = sorted(
+        (c for c in svc.ws.project.clips if c.track_id == "host"),
+        key=lambda c: c.timeline_start,
+    )
+    assert len(host) == before + 2
+    assert [round(c.timeline_start, 3) for c in host][-3:] == [0.0, 3.0, 6.0][-3:]
+    undone = svc.ws.project.history.head_id()
+    assert undone != head
+    # One undo step returns to the state before both edges.
+    from podcast_mcp.services.document import HistoryService
+
+    HistoryService(svc.ws).undo(expected_head_id=undone)
+    assert len([c for c in svc.ws.project.clips if c.track_id == "host"]) == before
+
+
+def test_split_at_time_extra_time_without_clip_is_skipped(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    ws = ProjectWorkspace.open(minimal_project)
+    TimelineService(ws).split_at_time(4.0, ["host"], extra_at_times=[99.0])
+    assert len([c for c in ws.project.clips if c.track_id == "host"]) == 2
+    with pytest.raises(ValueError, match="no clip at timeline"):
+        TimelineService(ws).split_at_time(98.0, ["host"], extra_at_times=[99.0])
+
+
+def test_split_at_time_suggest_proposes_every_edge(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    cmd = DocumentCommand(
+        type="SplitAtTime",
+        payload={"at_time": 3.0, "extra_at_times": [6.0], "track_ids": ["host"]},
+        client_id="guest",
+        role="guest",
+        client_seq=1,
+    )
+    out = svc.submit(cmd, capabilities=capabilities_for_role("commenter"))
+    assert out["ok"]
+    pending = [e for e in svc.ws.project.edit_decisions if e.type == EditDecisionType.SPLIT]
+    assert sorted(e.start for e in pending) == [3.0, 6.0]
+
+
 def test_split_at_time_suggest_proposes(minimal_project, dialogue_wav):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
