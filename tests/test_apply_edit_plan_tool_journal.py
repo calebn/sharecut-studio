@@ -1,5 +1,3 @@
-"""apply_edit_plan_tool journals one ApplyEditPlan command per call (#1847)."""
-
 from __future__ import annotations
 
 import json
