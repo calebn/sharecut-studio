@@ -15,6 +15,8 @@ export type StageHandoffProps = {
   size?: 36 | 40 | 48;
   /** Why it cannot run, shown beside it. Present means `aria-disabled`. */
   disabledReason?: string;
+  /** Show the Cmd/Ctrl+Enter hint (default). Leave it off where no key is bound. */
+  keyHint?: boolean;
   onActivate: () => void;
 };
 
@@ -27,6 +29,7 @@ export function StageHandoff({
   variant = "secondary",
   size = 40,
   disabledReason,
+  keyHint = true,
   onActivate,
 }: StageHandoffProps) {
   const reasonId = useId();
@@ -44,7 +47,7 @@ export function StageHandoff({
         <SystemIcon name={icon} size={16} />
         <span className="sys-handoff-label">{label}</span>
         <SystemIcon name="arrow-right" size={16} />
-        {size === 48 ? null : <KeyCaps chords={[HINT]} />}
+        {size === 48 || !keyHint ? null : <KeyCaps chords={[HINT]} />}
       </Button>
       {disabled ? (
         <span id={reasonId} className="sys-handoff-reason">
