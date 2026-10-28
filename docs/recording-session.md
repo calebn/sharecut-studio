@@ -1039,8 +1039,15 @@ writes zeros on the keeper.
 
 Room tone is host-started only: a consented guest's browser records 3 seconds
 when a new `RoomToneCountdown` round names them and uploads it as `kind=room_tone`
-(see [Room-tone countdown](#room-tone-countdown)); there is no guest-side record
-or skip step, and a guest who joins after the countdown is not prompted (#2490).
+(see [Room-tone countdown](#room-tone-countdown)). A consented guest the latest
+round did not name (they joined after it) gets an alert-slot row, "Record 3 seconds
+of room tone" with **Record room tone** and **Skip**, in `lobby` or `stopped`
+once the countdown has run out. **Record room tone** runs the same capture, WAV
+encode and `kind=room_tone` upload as a host-started round, so the bed lands under
+the same paths with the same fields (#2490). No row shows while a take is live or
+paused, before any countdown, or once the guest recorded (the host acknowledged the
+file) or skipped; both survive a reload (this device's `localStorage`, and the
+host's upload status for a recorded bed).
 
 Before a host can Start or a recorded guest can join, the client completes an
 OPFS preflight that creates, writes, closes, and removes a disposable file in
@@ -1195,6 +1202,7 @@ stateDiagram-v2
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again** |
 | Room tone (host Record stage) | "Record 3 seconds of room tone" |
+| Room tone for a guest who joined late (alert row) | "Record 3 seconds of room tone." **Record room tone** / **Skip**; "Recording room tone…" while capturing |
 | Room tone too loud | "Too loud: is something playing?" |
 | Room tone saved on this device (not yet acknowledged by the host) | "Room tone saved on this device" |
 | Room tone acknowledged by the host (it joins the project when the session lands) | "Room tone sent to the host" |
