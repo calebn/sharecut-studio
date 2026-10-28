@@ -197,9 +197,12 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         await page.locator("html").evaluate((html, size) => {
           html.style.fontSize = `${size}px`;
         }, rootPx);
+        // A short frame folds the corner into the Tools sheet.
+        await openToolsIfFolded(page);
         const controls = page.locator(
           '[role="group"][aria-label="Timeline view"] button',
         );
+        await expect(controls.locator("visible=true").first()).toBeVisible();
         let visible = 0;
         for (const control of await controls.all()) {
           if (!(await control.isVisible())) continue;
