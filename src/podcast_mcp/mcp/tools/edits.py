@@ -370,6 +370,12 @@ def approve_edits_tool(
     left pending. When the user says to approve a held cut anyway, repeat with
     ``override_audio_checks=true``: it skips those checks for this call and records the
     override (actor and surface) in History and the edit log.
+
+    More than one edit (``all_pending`` or several ``ids``) is a bulk approve: a cut that
+    covers a word the transcript is unsure about (below ``analysis.unsure_word_confidence``,
+    0.7 as shipped) stays pending and comes back in ``held`` with reason ``unsure_word``.
+    Check those words (``low_confidence_words_tool``), then approve that one cut by passing
+    its single id; ``override_audio_checks`` does not apply to it.
     """
     if all_pending == bool(ids):
         raise CodedValueError("pass ids or all_pending=true", code="approve_needs_target")
@@ -390,6 +396,7 @@ def approve_edits_tool(
             "ids": edit_ids,
             "hold_blocked": True,
             "override_audio_checks": override_audio_checks,
+            "skip_unsure": len(set(edit_ids)) > 1,
         },
         client_id="mcp:host",
     )
@@ -404,7 +411,10 @@ def approve_edits_tool(
     if "needs_confirmation" in outcome:
         result["needs_confirmation"] = outcome["needs_confirmation"]
         result["confirm_ids"] = outcome["confirm_ids"]
-    if result["held"] or "needs_confirmation" in outcome:
+    # The wire value of edits.decisions.UNSURE_WORD_REASON (tests pin it); the audio-check
+    # override does not apply to an unsure-word hold, so it does not get the apply-anyway hint.
+    held_by_checks = [h for h in result["held"] if h["reason"] != "unsure_word"]
+    if held_by_checks or "needs_confirmation" in outcome:
         result["apply_anyway"] = APPLY_ANYWAY
     return to_json(result)
 

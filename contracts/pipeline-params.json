@@ -384,6 +384,7 @@
     "analysis.speaker_id.bleed_word_threshold",
     "analysis.speaker_id.mode",
     "analysis.transcript_mode",
+    "analysis.unsure_word_confidence",
     "effects",
     "export.captions.max_chars_per_line",
     "export.captions.max_duration_sec",

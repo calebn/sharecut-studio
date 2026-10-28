@@ -186,6 +186,10 @@ export interface PendingEditView {
   harsh: boolean;
   /** Server-computed (`edits/tighten_hits.is_listen_one_by_one_hit`): Apply suggested actions leaves it pending and names it. */
   listen_one_by_one?: boolean;
+  /** Unsure transcript words the cut covers, in word order (`edits/unsure_words.unsure_words_by_edit`); `[]` for a timeline-clock cut. */
+  unsure_words?: PendingUnsureWord[];
+  /** `unsure_words.length`; bulk approve (`skip_unsure`) leaves a cut with a non-zero count pending. */
+  unsure_count?: number;
   /** Server-computed queue group (`edits/cut_policy.py::review_kind`); the client groups on this, never on `reason`. */
   kind: PendingKind;
   /** Raw detector kind behind `kind` (laugh vs unclear vs possible word); null for `other`. */
@@ -315,6 +319,15 @@ export interface TranscriptTimingTarget {
   word_index: number;
 }
 
+/** One unsure word inside a pending cut; `{track_id, source_id, word_index}` is the transcript word's timing target. */
+export interface PendingUnsureWord {
+  track_id: string;
+  source_id: string | null;
+  word_index: number;
+  text: string;
+  confidence: number;
+}
+
 export interface TranscriptWordView {
   timing_target?: TranscriptTimingTarget;
   text: string;
@@ -325,6 +338,8 @@ export interface TranscriptWordView {
   mappable?: boolean;
   word_index?: number;
   confidence?: number | null;
+  /** Server-computed (`edits/unsure_words.is_unsure_word`): confidence is below `analysis.unsure_word_confidence` (0.7) and the word is not suppressed. Optional only so fixtures and old payloads type-check; the server always sends it. */
+  unsure?: boolean;
   suppressed?: boolean;
   /** Struck-through and muted at render, non-destructively (no cut/pending edit, #633). */
   ignored?: boolean;

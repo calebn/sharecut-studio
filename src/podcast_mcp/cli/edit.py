@@ -15,7 +15,7 @@ from podcast_mcp.cli.cut_speech import (
     require_cut_applied,
 )
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
-from podcast_mcp.edits.decisions import AskedEdits, HeldEdit
+from podcast_mcp.edits.decisions import UNSURE_WORD_REASON, AskedEdits, HeldEdit
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.source_removals import STALE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
@@ -208,6 +208,9 @@ def edit_approve_cmd(
 
     held: list[HeldEdit] = []
     asked: list[AskedEdits] = []
+    # More than one edit is a bulk approve: cuts over an unsure word stay pending (name one with --ids).
+    unsure: list[HeldEdit] = []
+    bulk = len(set(edit_ids)) > 1
 
     def approve() -> int | CutSpeechConfirmation:
         with cli_override(override):
@@ -216,20 +219,27 @@ def edit_approve_cmd(
                 allow_exact=True,
                 held_out=held,
                 asked_out=asked,
+                unsure_out=unsure if bulk else None,
             )
 
     n = require_cut_applied(lambda: apply_external_document_edit(ws, approve))
     typer.echo(f"Approved {n} edit(s).")
-    _echo_held(held, asked)
-    if asked or any(item.reason != STALE_REASON for item in held):
+    _echo_held([*held, *unsure], asked)
+    if unsure:
+        typer.echo(
+            "Edits over an unsure word stay pending. Check the words (`podcast transcript review`), "
+            "then approve one by name: --ids <id>.",
+            err=True,
+        )
+    if asked or any(item.reason not in (STALE_REASON, UNSURE_WORD_REASON) for item in held):
         typer.echo(
             "Held edits stay pending. Repeat with --ids <id,...> --override-audio-checks "
             "to apply them as they are.",
             err=True,
         )
-    if n == 0 and not (held or asked):
+    if n == 0 and not (held or asked or unsure):
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
-    if n == 0 and (held or asked) and not all_pending:
+    if n == 0 and (held or asked or unsure) and not all_pending:
         raise typer.Exit(1)
 
 

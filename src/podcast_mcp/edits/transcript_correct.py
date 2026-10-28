@@ -4,6 +4,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.unsure_words import is_unsure_word
 from podcast_mcp.engines.lane_words import lane_transcript
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
@@ -323,11 +324,6 @@ def set_words_ignored(
     }
 
 
-# The project's single "unsure word" line: a word below this ASR confidence is unsure.
-# list_low_confidence, the refine brief and the refine status count all read it.
-UNSURE_WORD_CONFIDENCE = 0.7
-
-
 def transcript_word_record(transcript: Transcript, index: int) -> dict[str, Any]:
     """Identity and timing of one word for review lists (source-media seconds)."""
     w = transcript.words[index]
@@ -341,18 +337,14 @@ def transcript_word_record(transcript: Transcript, index: int) -> dict[str, Any]
     }
 
 
-def list_low_confidence(
-    project: EpisodeProject,
-    threshold: float = UNSURE_WORD_CONFIDENCE,
-) -> list[dict]:
+def list_low_confidence(project: EpisodeProject, threshold: float) -> list[dict]:
+    """Unsure words (``is_unsure_word`` at ``threshold``, the ``analysis.unsure_word_confidence`` line)."""
     out: list[dict] = []
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
-            if w.suppressed:
+            if not is_unsure_word(w, threshold):
                 continue
-            conf = w.confidence if w.confidence is not None else 1.0
-            if conf >= threshold:
-                continue
+            conf = float(w.confidence or 0.0)
             ctx_before = " ".join(x.text for x in tr.words[max(0, i - 3) : i])
             ctx_after = " ".join(x.text for x in tr.words[i + 1 : min(len(tr.words), i + 4)])
             out.append(

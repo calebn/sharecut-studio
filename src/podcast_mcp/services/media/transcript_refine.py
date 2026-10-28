@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.config.defaults import load_defaults, unsure_word_confidence
 from podcast_mcp.edits.review_gate import ReviewSource
-from podcast_mcp.edits.transcript_correct import UNSURE_WORD_CONFIDENCE, list_low_confidence
+from podcast_mcp.edits.transcript_correct import list_low_confidence
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.services.app import ProjectWorkspace, ReviewGateService
 
@@ -18,10 +18,11 @@ class TranscriptRefineService(ReviewGateService):
     def gate_status(self) -> dict[str, Any]:
         """Gate report plus how many words sit below the unsure-word line."""
         report = self.status()
+        line = unsure_word_confidence(self.ws.effective_config())
         return {
             **report,
-            "low_confidence_words": len(list_low_confidence(self.ws.project)),
-            "low_confidence_threshold": UNSURE_WORD_CONFIDENCE,
+            "low_confidence_words": len(list_low_confidence(self.ws.project, line)),
+            "low_confidence_threshold": line,
         }
 
     def mark_checked(

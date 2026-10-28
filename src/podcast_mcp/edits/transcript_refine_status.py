@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.config.defaults import EffectiveConfig, unsure_word_confidence
 from podcast_mcp.edits.review_gate import ReviewGate, ReviewRequiredError
-from podcast_mcp.edits.transcript_correct import UNSURE_WORD_CONFIDENCE
+from podcast_mcp.edits.unsure_words import is_unsure_word
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.hashing import short_digest
@@ -63,18 +63,18 @@ def build_refine_brief(project: EpisodeProject, defaults: EffectiveConfig) -> di
 
     ctx = load_transcript_context(project.workspace_path())
     low_conf = 0
+    unsure_line = unsure_word_confidence(defaults)
     suspect_count = 0
     suspect_sample: list[dict[str, Any]] = []
     for tr in project.transcripts:
         for index, w in enumerate(tr.words or []):
-            if getattr(w, "suppressed", False):
+            if w.suppressed:
                 continue
             if w.suspect_hallucination:
                 suspect_count += 1
                 if len(suspect_sample) < 10:
                     suspect_sample.append(transcript_word_record(tr, index))
-            conf = getattr(w, "confidence", None)
-            if conf is not None and float(conf) < UNSURE_WORD_CONFIDENCE:
+            if is_unsure_word(w, unsure_line):
                 low_conf += 1
 
     combined = project.transcripts_dir() / "combined.json"

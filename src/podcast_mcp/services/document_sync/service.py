@@ -797,6 +797,7 @@ class DocumentSyncService:
             AUTHORED_COMMANDS,
             authorize_pending_update,
             may_decide_exact_range,
+            must_skip_unsure,
             range_reason,
             resolve_range_mode,
             resolve_structural_mode,
@@ -823,6 +824,10 @@ class DocumentSyncService:
         payload = dict(command.payload)
         if command.type in {"ApproveEdits", "RejectEdits"}:
             payload["_allow_exact"] = may_decide_exact_range(capabilities, range_policy)
+        if command.type == "ApproveEdits":
+            payload["skip_unsure"] = must_skip_unsure(
+                capabilities, payload.get("ids"), payload.get("skip_unsure") is True
+            )
         if command.type == "EditSelectedRange":
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
