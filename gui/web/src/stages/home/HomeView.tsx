@@ -28,7 +28,7 @@ import { OpenOther, type OpenOtherProps } from "./OpenOther";
 import { SetupCard, type SetupCardProps } from "./SetupCard";
 
 /** What the Setup card needs from the caller: state and numbers, no callbacks. */
-type SetupData = Pick<
+export type SetupData = Pick<
   SetupCardProps,
   "state" | "progress" | "detail" | "sizeLabel"
 >;
