@@ -9,8 +9,6 @@ export const FRAME_PERCENTILE_POLICY = {
     "clip-drag-preview",
     "boundary-drag-preview",
     "playback",
-    "synthetic-progress",
-    "real-progress",
     "scrub-endurance",
     "history-keyboard",
   ],
@@ -91,24 +89,6 @@ export type WorkloadObservation =
       tileResponses: number;
       painted: true;
       sourceDurationSec: number;
-    }
-  | {
-      kind: "progress";
-      source: "replay";
-      jobId: string;
-      values: number[];
-      widthsPx: number[];
-      minimumHeightPx: number;
-      updatesObserved: number;
-      updatesSent: Measurement<number>;
-      observationMethod: string;
-      payloadHash: string;
-    }
-  | {
-      kind: "native-progress-diagnostic";
-      jobId: string;
-      observerProtocol: string;
-      terminal: "ok";
     }
   | { kind: "existing"; contract: string };
 export type WorkloadResult =
@@ -210,12 +190,6 @@ export type EditorProfileReport = {
     framePercentiles: typeof FRAME_PERCENTILE_POLICY;
     scenario?: string;
     requiredCoverage?: string[];
-    nativeObserver?: {
-      id: string;
-      mode: "passive" | "control";
-      limits: Record<string, number>;
-      motion: "normal" | "reduce";
-    };
     preparation?: {
       kind: "native-timeline-zoom";
       minimumClipWidthPx: number;
@@ -235,11 +209,6 @@ export type EditorProfileReport = {
         auditionPrefixSec: number;
         sha256: string;
       }[];
-      progress?: {
-        source: "replay" | "real-job";
-        payloadHash: string;
-        cadenceMs: Measurement<number>;
-      };
     };
   };
   samples: WorkloadSample[];
