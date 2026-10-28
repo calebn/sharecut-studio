@@ -100,3 +100,16 @@ export function playingWordsAt(
   });
   return playing;
 }
+
+/** The word that started last at or before `seconds`, or undefined before the first. */
+export function lastStartedWordAt(
+  wordStarts: readonly number[],
+  seconds: number,
+): number | undefined {
+  let best: number | undefined;
+  wordStarts.forEach((start, index) => {
+    if (start > seconds) return;
+    if (best === undefined || start >= (wordStarts[best] ?? 0)) best = index;
+  });
+  return best;
+}

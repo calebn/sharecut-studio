@@ -5,7 +5,11 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { GuestScript } from "../../stages/guest/GuestScript";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
-import { guestScriptOf, playingWordsAt } from "./guestScript";
+import {
+  guestScriptOf,
+  lastStartedWordAt,
+  playingWordsAt,
+} from "./guestScript";
 
 function GuestScriptHostAdapter() {
   const { utterances, guestMode } = useDawStore(
@@ -20,17 +24,20 @@ function GuestScriptHostAdapter() {
     () => guestScriptOf(utterances),
     [utterances],
   );
-  const playingKey = useDawStore(
+  const positionKey = useDawStore(
     useCallback(
       (s: { playheadSec: number }) =>
-        playingWordsAt(words, s.playheadSec).join(","),
-      [words],
+        `${playingWordsAt(words, s.playheadSec).join(",")}|${lastStartedWordAt(wordStarts, s.playheadSec) ?? ""}`,
+      [words, wordStarts],
     ),
   );
-  const playing = useMemo(
-    () => (playingKey === "" ? [] : playingKey.split(",").map(Number)),
-    [playingKey],
-  );
+  const { playing, playheadWord } = useMemo(() => {
+    const [now = "", last = ""] = positionKey.split("|");
+    return {
+      playing: now === "" ? [] : now.split(",").map(Number),
+      playheadWord: last === "" ? undefined : Number(last),
+    };
+  }, [positionKey]);
   if (role === "host") return null;
   return (
     <div className="stage-host-guest-script">
@@ -40,6 +47,7 @@ function GuestScriptHostAdapter() {
         turns={turns}
         wordStarts={wordStarts}
         playing={playing}
+        playheadWord={playheadWord}
         hasTranscript={(utterances?.length ?? 0) > 0}
         onSeek={(seconds) => void seekTransport(seconds)}
       />

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
 import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
 import type { ScriptTurn } from "../../system/scriptPieces";
@@ -11,6 +11,8 @@ export type GuestScriptProps = {
   /** Start second of each word, by word index. */
   wordStarts: readonly number[];
   playing: number | readonly number[] | undefined;
+  /** The word the playhead last passed, for following through pauses. */
+  playheadWord?: number;
   /** The transcript has words, but none is left for a guest to read. */
   hasTranscript?: boolean;
   onSeek: (seconds: number) => void;
@@ -23,13 +25,19 @@ export function GuestScript({
   turns,
   wordStarts,
   playing,
+  playheadWord,
   hasTranscript = false,
   onSeek,
   onUserScroll,
 }: GuestScriptProps) {
   const [following, setFollowing] = useState(true);
   const pane = useRef<ScriptPaneHandle>(null);
-  const first = typeof playing === "number" ? playing : playing?.[0];
+  const first =
+    (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;
+  useEffect(() => {
+    if (following && first !== undefined)
+      pane.current?.scrollToWord(first, "nearest");
+  }, [following, first]);
   if (turns.length === 0) {
     return (
       <Cover size="region" glyph="inbox" title="Nothing to read yet">
@@ -46,6 +54,7 @@ export function GuestScript({
       layout={layout}
       guest={access === "viewer" ? "viewer" : "commenter"}
       playing={playing}
+      playheadWord={playheadWord}
       following={following}
       onSeek={(index) => {
         const start = wordStarts[index];

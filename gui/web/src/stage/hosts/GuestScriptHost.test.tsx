@@ -246,4 +246,69 @@ describe("GuestScriptHost", () => {
       screen.queryByRole("button", { name: /Back to playhead/ }),
     ).toBeNull();
   });
+
+  describe("following playback", () => {
+    const scroll = vi.fn();
+    const scrolledTo = () =>
+      scroll.mock.calls.map(([arg], i) => [
+        (scroll.mock.contexts[i] as HTMLElement).textContent,
+        arg,
+      ]);
+    const scrollAway = () => {
+      const body = document.querySelector(".sys-script-body") as HTMLElement;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+    };
+    const moveTo = (playheadSec: number) =>
+      act(() => useDawStore.setState({ playheadSec }));
+
+    beforeEach(() => {
+      scroll.mockClear();
+      window.HTMLElement.prototype.scrollIntoView = scroll;
+    });
+
+    it("scrolls to the playing word when it changes", () => {
+      as("view", 10.1);
+      render(<GuestScriptHost />);
+      scroll.mockClear();
+      moveTo(11.2);
+      expect(scrolledTo()).toEqual([["back", { block: "nearest" }]]);
+    });
+
+    it("does not scroll once the guest scrolls away", () => {
+      as("view", 10.1);
+      render(<GuestScriptHost />);
+      scrollAway();
+      scroll.mockClear();
+      moveTo(11.2);
+      expect(scroll).not.toHaveBeenCalled();
+    });
+
+    it("scrolls again after Back to playhead", async () => {
+      as("view", 10.1);
+      render(<GuestScriptHost />);
+      scrollAway();
+      await userEvent.click(
+        screen.getByRole("button", { name: /Back to playhead/ }),
+      );
+      scroll.mockClear();
+      moveTo(11.2);
+      expect(scrolledTo()).toEqual([["back", { block: "nearest" }]]);
+    });
+
+    it("offers Back to playhead in a pause and targets the last heard word", async () => {
+      as("view", 10.1);
+      render(<GuestScriptHost />);
+      scrollAway();
+      moveTo(10.8);
+      scroll.mockClear();
+      await userEvent.click(
+        screen.getByRole("button", { name: /Back to playhead/ }),
+      );
+      expect(scrolledTo()[0]).toEqual(["Welcome", { block: "center" }]);
+      expect(
+        document.querySelector(".sys-script-word[data-playing]"),
+      ).toBeNull();
+    });
+  });
 });
