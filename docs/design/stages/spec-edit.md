@@ -578,6 +578,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Spec:** Inspect on a word or word run shows a 120 px zoomed waveform of the word with one neighbor each side, start and end handles (drag), Start/End Scrub fields, and Hear. Changes save on release. No Apply or Cancel; Esc during a drag cancels.
 - **Shared elements used:** Inspector sheet, NEW: Scrub field.
 - **Story to build:** `Edit/InspectorSheet` story `WordTiming`.
+- **Built (design-system element 9a, `System/InspectorSheet`):** the story `WordTiming` shows the frame with Start and End Scrub fields and Hear under a static waveform. The waveform and its two draggable handles are not built: the handles move with the fields only.
 
 ### CMP-WORDRANGE · Words-in-range controls
 
@@ -600,6 +601,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** merge into the Seam Inspector sheet.
 - **Spec:** Seam inspector: Offset Scrub field (ms, drag 1 px = 1 ms, Shift 10 ms, Alt 0.1 ms), allowed range drawn as the field's track, A/B Hear before/after the change, join type and length. Applies live on release. No dialog.
 - **Story to build:** `Edit/InspectorSheet` story `Seam`.
+- **Built (design-system element 9a, `System/InspectorSheet`):** the story `Seam` has the Offset Scrub field (the track variant, 200 ms either way), the A/B Hear before and after, the join type and its length, each in a collapsible section. The allowed range is the field's track; Hear replaying after each change is the host's.
 
 ### Inspector
 
@@ -615,6 +617,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - CMP-SEEK-FOOTER's Seek/Play/A-B buttons are removed from the footer; Hear and A/B live in the action bar at the top, always visible.
 - **Shared elements used:** Inspector sheet, NEW: Scrub field, Action bar.
 - **Story to build:** `Edit/InspectorSheet` stories `DesktopCard`, `TabletCard`, `PhoneDock`, `PhoneHalf`, `PhoneFull`, `LongContent`.
+- **Built (design-system element 9a, `System/InspectorSheet`):** the stories are under `System/InspectorSheet`, not `Edit/InspectorSheet`, with the names above plus `WordTiming`, `Seam`, `Range` and `Closing`. The card takes an `anchor` rect and `bounds` as data and does not read the action bar; the phone sheet takes the host's dock as a slot. The header and sections sit under the dock and are inert at the dock detent. The grip's hit area (44 by 44 px) reaches 36 px above the sheet and 8 px into it. Drag below the dock calls `onDismiss`; the host clears the selection. The `Clip`, `ClipPhone`, `ClipReadOnly` and Track bodies are demos on the existing Scrub field, Time field and A/B audition, wired to nothing; the wiring and removing the old inspector are W3.
 
 ### SHEET-PHONE-INSPECTOR and INS-PEEK · Phone compact inspector and peek
 
