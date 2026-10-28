@@ -11,6 +11,8 @@ export type RoomPhase =
       totalPeople: number;
       /** 0 to 100, the viewer's own upload; the pill and dock then read it instead of the people count. */
       percent?: number;
+      /** The viewer's own upload stopped: the pill reads failed and Leave is not held. */
+      failed?: boolean;
     }
   | { kind: "saved" }
   | { kind: "reconnecting" };
@@ -61,6 +63,9 @@ export function roomPillRendering(phase: RoomPhase): Rendering {
         text: `Paused · ${clockText(phase.clockSec)}`,
       };
     case "saving": {
+      if (phase.failed) {
+        return { state: "failed", text: "Saving stopped" };
+      }
       const percent = savingPercent(phase);
       if (percent !== null) {
         return {

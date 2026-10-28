@@ -239,7 +239,7 @@ export function RoomView({
   const dockStatus = status ?? model.dockStatus ?? undefined;
   const leaveReason =
     leaveDisabledReason ??
-    (seat === "guest" && phase.kind === "saving"
+    (seat === "guest" && phase.kind === "saving" && !phase.failed
       ? "Your recording is still saving"
       : undefined);
 

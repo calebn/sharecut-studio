@@ -488,6 +488,15 @@ describe("RoomView as the host", () => {
     expect(leave).toHaveAttribute("title", "Your recording is still saving");
   });
 
+  it("lets a guest leave once saving has failed, with no saving line", () => {
+    renderRoom({
+      phase: { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true },
+    });
+    expect(screen.getByRole("button", { name: "Leave room" })).toBeEnabled();
+    expect(screen.getByText("Saving stopped")).toBeInTheDocument();
+    expect(screen.queryByText(/keep this page open/)).toBeNull();
+  });
+
   describe("declined", () => {
     it("shows the peek bar, dims the room and leaves it inert", () => {
       const { container } = renderRoom({
