@@ -13,9 +13,9 @@ faster-whisper's formula, at least ``COMPRESSION_RATIO_THRESHOLD``) or when the 
 window it came from reported a ``compression_ratio`` over that fixed threshold. The window
 test does not look at the text, so it also drops a dense run of ordinary words. Words
 outside the squeezed runs are kept, even inside the same window. A word whose start lies
-inside a run, or less than ``CROWDED_GAP_SEC`` before its first word, cannot be told from
-the loop and goes with it. Dense runs that are kept are counted, and so are over-threshold windows that dropped
-nothing.
+inside a run, or at most ``CROWDED_GAP_SEC`` before its first word, cannot be told from
+the loop and goes with it. Dense runs that are kept are counted, and so are
+over-threshold windows that dropped nothing.
 
 The guard is a post-process on the model's output, so it is not part of
 ``AsrOptions.decode_key()``. ``read_asr_cache`` runs it too, without window ratios (a
