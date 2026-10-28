@@ -154,10 +154,6 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
       page,
       browserName,
     }, testInfo) => {
-      test.fixme(
-        browserName === "webkit",
-        "Known failure on WebKit (#2462): the focused control loses its hit target after the resize to 1440",
-      );
       await withShareableProject(async (projectPath) => {
         await page.emulateMedia({
           reducedMotion: reducedMotion ? "reduce" : "no-preference",
