@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.services.jobs import Job, JobManager
 from podcast_mcp.services.pipeline import AudioExportResult
 
@@ -63,6 +65,55 @@ def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(
     result = job.snapshot()["result"]
     assert result["paths"][0].endswith("demo.wav")
     assert result["master"] == master
+    assert result["edit_head_id"] == "root"
+
+
+def _history_with_preview_pair(project_path: Path) -> None:
+    from podcast_mcp.models import load_project, save_project
+    from podcast_mcp.models.history import HistoryEntry
+
+    project = load_project(project_path)
+    project.history = ProjectHistory(
+        cursor=2,
+        entries=[
+            HistoryEntry(id="cut-1", label="cut", snapshot_file="s1.json", operation="cut"),
+            HistoryEntry(id="cut-2", label="cut", snapshot_file="s2.json", operation="cut"),
+            HistoryEntry(
+                id="preview-1",
+                label="refresh",
+                snapshot_file="s3.json",
+                operation="render_preview",
+            ),
+        ],
+    )
+    save_project(project)
+
+
+def test_start_export_samples_the_edit_head_past_preview_entries(
+    minimal_project, monkeypatch
+) -> None:
+    _history_with_preview_pair(Path(minimal_project))
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.export_audio",
+        lambda self, formats=None, **_k: AudioExportResult([Path("/tmp/demo.wav")], None),
+    )
+    mgr = JobManager()
+    job = mgr.start_export(Path(minimal_project))
+    mgr.wait(job, timeout=2.5)
+    assert job.status == "ok"
+    assert job.snapshot()["result"]["edit_head_id"] == "cut-2"
+
+
+def test_start_export_uses_the_head_the_export_checkpointed(minimal_project, monkeypatch) -> None:
+    _history_with_preview_pair(Path(minimal_project))
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.export_audio",
+        lambda self, formats=None, **_k: AudioExportResult([Path("/tmp/demo.wav")], None, "cut-3"),
+    )
+    mgr = JobManager()
+    job = mgr.start_export(Path(minimal_project))
+    mgr.wait(job, timeout=2.5)
+    assert job.snapshot()["result"]["edit_head_id"] == "cut-3"
 
 
 def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, monkeypatch) -> None:
@@ -289,7 +340,8 @@ class _OrderedSlotService:
 
 def _wire_ordered_slot(monkeypatch, order: list[str], release: threading.Event) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open", lambda _p: object()
+        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open",
+        lambda _p: SimpleNamespace(project=SimpleNamespace(history=ProjectHistory())),
     )
     monkeypatch.setattr(
         "podcast_mcp.services.jobs.manager.PipelineService",
