@@ -9,7 +9,12 @@ import {
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
-import { pipelineJobSnapshot } from "../../test/fixtures";
+import { jobMediaKey, mediaKeyOf } from "../../state/jobMedia";
+import {
+  minimalProject,
+  pipelineJobSnapshot,
+  sampleTrack,
+} from "../../test/fixtures";
 import { pipelineConfig } from "../../test/pipelineConfigFixture";
 import {
   modelRow,
@@ -160,6 +165,18 @@ describe("usePrepareRun auto-run", () => {
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
     expect(start.mock.calls[0][1]).toMatchObject({ useWorkingSet: true });
     expect(useDawStore.getState().pipelineJob?.id).toBe("j1");
+  });
+
+  it("remembers the audio it started on, past the end of this hook", async () => {
+    useDawStore.setState({
+      project: minimalProject({ tracks: [sampleTrack({ id: "a" })] }),
+    });
+    const { rerender, unmount } = setup();
+    rerender({ ingestBusy: true, mediaKey: "" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    unmount();
+    expect(jobMediaKey("j1")).toBe(mediaKeyOf([sampleTrack({ id: "a" })]));
   });
 
   it("does not start when the import added nothing, or the person may not run", async () => {

@@ -29,7 +29,7 @@ const meta: Meta<typeof ReadyList> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Getting ready rows: Add audio, Transcribe, Line up tracks, Clean and level, Find suggestions, each a Status row in a Status list. A row has one primary action in its line; any other button sits in the row\'s opened body as a labelled group (Hear it, Looks right, Undo move; Keep my fixes, Replace). A row that needs you comes first and starts open, but opening never moves focus, so a step that finishes while someone types does not pull them away. Keep my fixes is the filled default and Replace, which overwrites hand-fixed words, is the outlined danger button. Rows are 48 px at every width. The words say what to do: "Download 1.6 GB", "Download word timing (360 MB)".\n\n**Motion.** Bars grow with `--motion-state`; a row opens with `--motion-panel`. Not implemented in this slice.',
+          'The Getting ready rows: Add audio, Transcribe, Line up tracks, Clean and level, Find suggestions, each a Status row in a Status list. A row has one primary action in its line; any other button sits in the row\'s opened body as a labelled group (Hear it, Looks right, Undo move; Keep my fixes, Replace). A row that needs you comes first and starts open, but opening never moves focus, so a step that finishes while someone types does not pull them away. Keep my fixes is the filled default and Replace, which overwrites hand-fixed words, is the outlined danger button. Rows are 48 px at every width. The words say what to do: "Get (1.6 GB)", "Download word timing (360 MB)".\n\n**Motion.** Bars grow with `--motion-state`; a row opens with `--motion-panel`. Not implemented in this slice.',
       },
     },
   },
@@ -85,7 +85,7 @@ export const NeedsModel: Story = {
       "Transcribe",
     );
     await userEvent.click(
-      canvas.getByRole("button", { name: /^Download 1.6 GB/ }),
+      canvas.getByRole("button", { name: /^Get \(1.6 GB\)/ }),
     );
     await expect(args.onAction).toHaveBeenCalledWith(
       "transcribe",
