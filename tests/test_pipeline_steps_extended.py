@@ -2237,3 +2237,67 @@ def test_transcribe_tracks_retime_words_ignored_for_flag_off_config(
         summary = steps.transcribe_tracks(proj, defaults)
     eng_cls.assert_not_called()
     assert "0 transcribed, 1 reused" in summary
+
+
+def _loop_entry(**fields):
+    return {
+        "label": "Track vicky",
+        "track_id": "vicky",
+        "dropped": 221,
+        "start": 299.84,
+        "end": 299.96,
+        "dense_words": 0,
+        "looped_segments": 0,
+        **fields,
+    }
+
+
+def test_transcribe_tracks_reports_dropped_looped_words(minimal_project, sample_wav, tmp_workspace):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    entry = _loop_entry()
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [_asr_result()]
+        eng_cls.return_value.asr_loop_drops = [entry]
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "dropped 221 looped word(s) at 299.8-300.0s on vicky" in summary
+    data = json.loads((proj.artifacts_dir() / "transcript_timing.json").read_text("utf-8"))
+    assert data["asr_loops"] == [entry]
+
+
+def test_transcribe_tracks_collapses_looped_word_reports_past_three_tracks(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    entries = [_loop_entry(track_id=f"t{i}", dropped=10 * (i + 1)) for i in range(4)]
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [_asr_result()]
+        eng_cls.return_value.asr_loop_drops = entries
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "dropped 100 looped word(s) on 4 tracks, first at 299.8-300.0s on t0" in summary
+
+
+def test_transcribe_tracks_keeps_dense_words_out_of_the_summary_but_in_the_timing_file(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    entry = _loop_entry(dropped=0, start=None, end=None, dense_words=20)
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [_asr_result()]
+        eng_cls.return_value.asr_loop_drops = [entry]
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "looped word" not in summary
+    data = json.loads((proj.artifacts_dir() / "transcript_timing.json").read_text("utf-8"))
+    assert data["asr_loops"] == [entry]
+
+
+def test_transcribe_tracks_without_looped_words_says_nothing_of_them(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [_asr_result()]
+        eng_cls.return_value.asr_loop_drops = []
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "looped word" not in summary
+    data = json.loads((proj.artifacts_dir() / "transcript_timing.json").read_text("utf-8"))
+    assert data["asr_loops"] == []

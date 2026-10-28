@@ -597,3 +597,12 @@ def test_cache_publication_timeout_does_not_prune(
     finally:
         release.set()
         thread.join(timeout=5)
+
+
+def test_transcript_json_without_the_looped_word_fields_still_loads():
+    legacy = '{"track_id": "host", "words": [{"text": "hi", "start": 0.0, "end": 0.2}]}'
+    transcript = Transcript.model_validate_json(legacy)
+    assert transcript.asr_dropped_words == []
+    assert transcript.asr_dropped_count == 0
+    assert transcript.asr_dense_words == 0
+    assert transcript.asr_looped_segments == 0
