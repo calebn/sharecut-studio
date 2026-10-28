@@ -250,6 +250,12 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the script text's selection grips: a drag on either end moves an edge of the selected words by word with pointer capture, and a tap that never moves passes through to the word under it; the grips have no keys, because Shift and Alt+Shift with the arrows do the same from the words; it is a text selection, not a timeline target",
   "system/Clip.tsx":
     "the clip view: a press on its body or a handle is captured and reported as drag start, drag and drag end intents with the pointer, its keys and pixels from the press, and a finger only grabs a selected clip; it edits nothing and owns no timeline target, because the lane host that mounts it turns the intents into one edit",
+  "system/Ruler.tsx":
+    "the time ruler view: a press on its body is captured and reported as scrub start, scrub and scrub end intents with the pointer and its keys, a tap seeks, and a press on a selection handle reports drag start, drag and drag end intents for the host to turn into one range edit; a finger scrubs by a horizontal swipe because the body leaves vertical panning to the browser; it edits nothing and owns no timeline target, because the host that mounts it turns the intents into one seek or edit",
+  "system/MarkerLane.tsx":
+    "the marker lane view: a press on a chapter, a bracket or a bracket's edge is captured and reported as drag start, drag and drag end intents with the pointer, its keys and seconds from the press, and a finger only grabs a selected marker; a double-click on an empty part asks the host to add a chapter; it edits nothing and owns no timeline target, because the host that mounts it turns the intents into one edit",
+  "system/useGrab.ts":
+    "the pointer lifecycle the ruler and the marker lane share for a dragged mark: one pointer has hold, the drag starts after the slop, and Escape, a blur, a cancel, a lost capture or the owner leaving end it as not committed; it reports intents and owns no timeline target",
   "system/TrackHeader.tsx":
     "the track header is draggable except on its controls so the column can reorder it by HTML drag; Shift with Up or Down asks the host to do the same by key; it is not a timeline target",
   "system/SuggestionWaveform.tsx":
@@ -289,6 +295,10 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "the separator pattern: Left and Right move the divider between the timeline and the Script pane",
   "system/Clip.tsx":
     "a focused clip handle reports a nudge of its edge with the arrows, 10 ms and 100 ms with Shift, like a slider, and Alt with the arrows walks focus along the handles; the host applies the nudge",
+  "system/Ruler.tsx":
+    "a focused ruler moves the playhead one tick with the arrows, ten with Shift, and a focused selection handle reports a nudge of its edge, 10 ms and 100 ms with Shift, like a slider; Alt with the arrows walks focus to the handles; the host applies the seek or the nudge",
+  "system/MarkerLane.tsx":
+    "a focused selected chapter or bracket, and a bracket's edge, report a nudge with the arrows, 0.1 s and 1 s with Shift, like a slider, and Alt with the arrows walks focus along a bracket's edges; the host applies the nudge",
   "system/ScrubField.tsx":
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "system/scriptSelection.ts":

@@ -1,4 +1,9 @@
-import type { CSSProperties } from "react";
+import type {
+  ButtonHTMLAttributes,
+  CSSProperties,
+  MouseEvent,
+  ReactNode,
+} from "react";
 import { HoverTip } from "./HoverTip";
 import { SystemIcon } from "./SystemIcon";
 import { useHoverTip } from "./useHoverTip";
@@ -32,11 +37,31 @@ type MarkerKindProps =
       count: number;
     };
 
+/** `data-*` attributes the host wants on the marker's elements, such as a hit target. */
+export type MarkerAttrs = Readonly<Record<string, string>>;
+
 export type MarkerProps = MarkerKindProps & {
   /** Start, as a fraction of the lane from its inline start. The lane is the positioned parent. */
   at: number;
   selected?: boolean;
-  onSelect: () => void;
+  /** A drag has hold of the marker. */
+  dragging?: boolean;
+  onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
+  /** Custom properties for the root, such as the reach of a touch hit area. */
+  rootStyle?: CSSProperties;
+  /** Pointer, key and `data-*` props for the hit button; the lane that moves markers owns the gesture. */
+  buttonProps?: Omit<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    | "aria-label"
+    | "aria-pressed"
+    | "aria-describedby"
+    | "className"
+    | "type"
+    | "onClick"
+  > &
+    MarkerAttrs;
+  /** Siblings of the button inside the marker, such as the edge handles of a bracket. */
+  children?: ReactNode;
 };
 
 function initialOf(name: string): string {
@@ -105,7 +130,15 @@ function Glyph(props: MarkerProps) {
 }
 
 export function Marker(props: MarkerProps) {
-  const { at, selected = false, onSelect } = props;
+  const {
+    at,
+    selected = false,
+    dragging = false,
+    onSelect,
+    rootStyle,
+    buttonProps,
+    children,
+  } = props;
   const to = props.kind === "stack" ? undefined : props.to;
   const { open, id, anchor, setAnchor, handlers } =
     useHoverTip<HTMLButtonElement>();
@@ -113,12 +146,15 @@ export function Marker(props: MarkerProps) {
   const style = {
     "--sys-marker-at": at,
     ...(to === undefined ? {} : { "--sys-marker-to": to }),
+    ...rootStyle,
   } as CSSProperties;
   return (
     <span
       className="sys-marker"
       data-kind={props.kind}
       data-span={to === undefined ? undefined : "true"}
+      data-selected={selected || undefined}
+      data-dragging={dragging || undefined}
       data-proposed={
         props.kind === "clip" && props.proposed ? "true" : undefined
       }
@@ -133,10 +169,12 @@ export function Marker(props: MarkerProps) {
         aria-pressed={props.kind === "stack" ? undefined : selected}
         aria-haspopup={props.kind === "stack" ? "true" : undefined}
         aria-describedby={lines && open ? id : undefined}
+        {...buttonProps}
         onClick={onSelect}
       >
         <Glyph {...props} />
       </button>
+      {children}
       {lines && open && anchor ? (
         <HoverTip id={id} anchor={anchor}>
           <span className="sys-tip-title">{lines.title}</span>

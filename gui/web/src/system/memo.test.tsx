@@ -2,9 +2,39 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { Clip } from "./Clip";
+import { type LaneMarker, MarkerLane } from "./MarkerLane";
+import { Ruler } from "./Ruler";
 import { TrackHeader } from "./TrackHeader";
 
-const renders = vi.hoisted(() => ({ clips: 0, headers: 0 }));
+const renders = vi.hoisted(() => ({
+  clips: 0,
+  headers: 0,
+  rulers: 0,
+  markers: 0,
+}));
+
+vi.mock("./rulerMath", async (importActual) => {
+  const actual = await importActual<typeof import("./rulerMath")>();
+  return {
+    ...actual,
+    rulerTicks: (...args: Parameters<typeof actual.rulerTicks>) => {
+      renders.rulers += 1;
+      return actual.rulerTicks(...args);
+    },
+  };
+});
+vi.mock("./Marker", () => ({
+  Marker: (props: { onSelect: () => void; selected?: boolean }) => {
+    renders.markers += 1;
+    return (
+      <button
+        type="button"
+        aria-pressed={props.selected}
+        onClick={props.onSelect}
+      />
+    );
+  },
+}));
 
 vi.mock("./waveStrip", () => ({
   PeakStrip: () => {
@@ -90,5 +120,86 @@ describe("TrackHeader in a column", () => {
     expect(renders.headers).toBe(4);
     fireEvent.click(screen.getByRole("button", { name: "Solo Take 2" }));
     expect(renders.headers).toBe(6);
+  });
+});
+
+const chapters: LaneMarker[] = names.map((name, index) => ({
+  kind: "chapter",
+  id: name,
+  start: index * 10,
+  title: name,
+}));
+const selectedNone: readonly string[] = [];
+
+function Markers() {
+  const [picked, setPicked] = useState<readonly string[]>(selectedNone);
+  const [, setTick] = useState(0);
+  return (
+    <>
+      <button type="button" onClick={() => setTick((n) => n + 1)}>
+        Unrelated
+      </button>
+      <MarkerLane
+        markers={chapters}
+        start={0}
+        pxPerSecond={6}
+        width={360}
+        duration={100}
+        selected={picked}
+        onSelect={(id) => setPicked([id])}
+      />
+    </>
+  );
+}
+
+function Timeline() {
+  const [playhead, setPlayhead] = useState(5);
+  const [, setTick] = useState(0);
+  return (
+    <>
+      <button type="button" onClick={() => setTick((n) => n + 1)}>
+        Unrelated
+      </button>
+      <button type="button" onClick={() => setPlayhead((n) => n + 1)}>
+        Move
+      </button>
+      <Ruler
+        start={0}
+        pxPerSecond={6}
+        width={360}
+        duration={100}
+        playhead={playhead}
+        onSeek={setPlayhead}
+      />
+    </>
+  );
+}
+
+describe("Ruler in a timeline", () => {
+  it("draws again for its own playhead and not for a parent render that changes nothing", () => {
+    renders.rulers = 0;
+    render(<Timeline />);
+    expect(renders.rulers).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Unrelated" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unrelated" }));
+    expect(renders.rulers).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Move" }));
+    expect(renders.rulers).toBe(2);
+  });
+});
+
+describe("MarkerLane in a timeline", () => {
+  it("draws only the markers whose own props changed when a sibling is selected, and none for an unrelated parent render", () => {
+    renders.markers = 0;
+    render(<Markers />);
+    expect(renders.markers).toBe(3);
+    fireEvent.click(screen.getByRole("button", { name: "Unrelated" }));
+    expect(renders.markers).toBe(3);
+    const lane = screen.getByRole("group", { name: "Markers" });
+    const buttons = () => lane.querySelectorAll("button");
+    fireEvent.click(buttons()[1] as HTMLElement);
+    expect(renders.markers).toBe(4);
+    fireEvent.click(buttons()[2] as HTMLElement);
+    expect(renders.markers).toBe(6);
   });
 });
