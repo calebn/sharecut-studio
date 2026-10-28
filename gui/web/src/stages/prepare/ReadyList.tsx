@@ -110,8 +110,8 @@ function BodyButtons({
  * The Getting ready rows: what is done, what runs, what needs you. A thin map
  * onto the Status list, in the order given, so a row that changes state never
  * moves in the DOM and drops focus. A row with a body opens and closes with its
- * own button; a row that needs you starts open and never takes focus by
- * itself. Opening Keep my fixes by hand puts focus on Keep, never on Replace.
+ * own button; a row that needs you starts open. Keep my fixes takes focus when
+ * it opens (on arrival or by hand), never Replace.
  * A hand-made open or close lasts only while the row stays in the state that
  * it was made in.
  */
@@ -160,11 +160,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
             }
           >
             {row.body ? (
-              <BodyButtons
-                row={row}
-                focusKeep={toggled[row.id] === true}
-                onAction={onAction}
-              />
+              <BodyButtons row={row} focusKeep={expanded} onAction={onAction} />
             ) : undefined}
           </StatusRow>
         );

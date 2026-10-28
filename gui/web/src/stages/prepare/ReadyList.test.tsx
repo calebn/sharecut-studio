@@ -92,8 +92,7 @@ describe("ReadyList", () => {
     expect(screen.getByRole("button", { name: "Replace" })).not.toHaveFocus();
   });
 
-  it("never moves focus when a row appears, opens or changes", async () => {
-    const user = userEvent.setup();
+  it("focuses Keep my fixes, never Replace, when the question appears", () => {
     const { rerender } = render(
       <ReadyList rows={ROWS.running} onAction={vi.fn()} />,
     );
@@ -101,11 +100,8 @@ describe("ReadyList", () => {
     document.body.append(outside);
     outside.focus();
     rerender(<ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />);
-    expect(outside).toHaveFocus();
-    expect(
-      screen.getByRole("button", { name: "Keep my fixes" }),
-    ).not.toHaveFocus();
-    await user.click(screen.getByRole("button", { name: /Transcribe/ }));
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Replace" })).not.toHaveFocus();
     outside.remove();
   });
 
@@ -220,7 +216,7 @@ describe("ReadyList", () => {
     outside.remove();
   });
 
-  it("forgets a hand-made open when the row leaves the state, so a return does not steal focus", async () => {
+  it("focuses Keep again when the question returns after the row left the state", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
       <ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />,
@@ -236,8 +232,7 @@ describe("ReadyList", () => {
     document.body.append(outside);
     outside.focus();
     rerender(<ReadyList rows={ROWS.keepFixes} onAction={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Keep my fixes" })).toBeVisible();
-    expect(outside).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Keep my fixes" })).toHaveFocus();
     outside.remove();
   });
 
