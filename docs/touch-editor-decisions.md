@@ -341,7 +341,7 @@ group".
 
 A finger's tap that lands on no target (a bare lane or a non-movable clip) goes
 to a glyph or chip within 22 px beside it and 44 px down from its top. It
-never reaches the lane above, never applies in blade or comment mode, never applies to a pending region or the envelope lane (they own their tap), and a
+never reaches the lane above, never applies to a clip that cannot move, never applies to a pending region or the envelope lane (they own their tap), and a
 tap on any target (a trim handle, fade corner, roll seam or clip body) is
 ranked as before, with a focused glyph no longer counting as selected. The
 mark opens from the browser's own click, not from replayed pointer events
@@ -392,6 +392,7 @@ evidence:
 - #951: "familiar gestures paired with visible controls"
 - #958 and #963 (#961) shipped the repair; physical device acceptance stays in #960 and #301
 - docs/gui-audit-decisions.tsv: the 2026-09-30 audit trail for edit-boundary touch drag (reflow, cancel, precision)
+- #2294 (W1a): Alt-click Split is mouse only; touch has no Alt, so its visible Split equivalent is the palette and create menu until the action bar's Split verb (W1b)
 enforced-by:
 - gui/web/src/ui/GesturesSheet.test.tsx::describes two-finger Undo as an optional ShareCut shortcut
 - gui/web/src/ui/BottomSheet.test.tsx::keeps fixed sheets closable without a resize action or drag cue
@@ -419,6 +420,8 @@ Apple's [iPhone Undo and redo guide](https://support.apple.com/en-au/guide/iphon
 documents the three-finger text editing gesture. That system convention does
 not establish ShareCut's separate two-finger shortcut.
 
+Amended by #2294 (W1a): the Select/Blade tool strip and the ruler comment mode are gone. Alt-click at the pointer splits with a mouse and a touch user has no Alt, so the visible equivalent for touch is the command palette's Blade cut and the create menu now, and the Split verb in the action bar (W1b). The touch Select range toggle is a 44 px button in the Edit corner.
+
 Exact seek remains outside this patch. the transport timecode (now the Player bar's time, `System/Player`) uses
 `ui/Timecode.tsx` for the text readout. `commands/seek.ts` dispatches existing
 seek commands. Arbitrary timestamp entry remains a precision candidate for
@@ -434,8 +437,8 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Surface and owner | Gesture and visible equivalent | Initiation, preview, commit, cancel, failure, History, permission, responsive contract | Decision and evidence |
 |---|---|---|---|
 | Timeline navigation: `timelineZoomGestures.ts`, `TimelineView` | One-finger pan and pinch zoom; visible zoom controls and Fit | Timeline gesture handlers own navigation and focal zoom. Pan/zoom are view changes, not document commits; no document History. Existing navigation is shared by shell role policy. Phone keeps fixed-center playhead; tablet/desktop retain their timeline layout. | **Keep.** #878 documents tested bounds and known residual combinations. No global gesture rewrite. |
-| Ruler seek and comment-span draft: `TimeRulerView.tsx`, `commentAnchorSession.ts`, comment composer | Tap ruler to seek; visible time/playhead; comment span can be drafted by dragging | Tap seeks immediately. Comment-mode pointer capture previews an anchor draft; a span must reach 4 CSS pixels (`COMMENT_SPAN_MIN_PX`) at the current zoom to get an end time. Pointer cancel, capture loss, unmount, or leaving comment mode calls `cancelDrag`; project/comment-state invalidation is owned by `beginCommentAnchorSession`. Accepted release finishes the local draft. Explicit comment submission persists it. The existing comment composer owns submission failure and permission feedback; no new History entry occurs until comment creation. No new sheet or seek input. | **Keep.** `TimeRulerView.tsx`, `commentAnchorSession.ts`, and `ruler-recovery.spec.ts` identify these paths; #878 evidence covers only its named cases. Arbitrary exact seek remains an open precision gap, while ruler tap is an existing single-pointer navigation path. |
-| Select range: `useRangeGesture.ts`, `EditToolStrip` (was `EditingToolRail`) | Armed range drag; visible Select range mode, In/Out, lane controls and action card | Explicitly arm before drag. Draft is local until Cut/Mute/Comment/Bounce. Existing Cancel/Escape and permission paths own cancellation/failure; one accepted document operation uses existing History. The tool strip's Range arm and the numeric controls remain. | **Keep and clarify armed state through existing UI.** `contextual-range.spec.ts` covers exact targets and policy; phone dispatched events are synthetic as recorded in #878. |
+| Ruler seek: `TimeRulerView.tsx` (the comment-span draft by dragging and `commentAnchorSession.ts` were removed in #2294) | Tap ruler to seek; visible time/playhead | Tap seeks immediately. The ruler has no comment mode (removed in #2294), so there is no span draft; a comment is composed from the Comments panel or the Player bar. No new sheet or seek input. | **Keep.** `TimeRulerView.tsx` and `ruler-recovery.spec.ts` identify the seek path. Arbitrary exact seek remains an open precision gap, while ruler tap is an existing single-pointer navigation path. |
+| Select range: `useRangeGesture.ts`, `EditCorner` (was `EditToolStrip`, `EditingToolRail`) | Armed range drag; visible Select range mode, In/Out, lane controls and action card | Explicitly arm before drag. Draft is local until Cut/Mute/Comment/Bounce. Existing Cancel/Escape and permission paths own cancellation/failure; one accepted document operation uses existing History. The corner's Range arm (touch only, 44 px) and the numeric controls remain. | **Keep and clarify armed state through existing UI.** `contextual-range.spec.ts` covers exact targets and policy; phone dispatched events are synthetic as recorded in #878. |
 | Clip move: `ClipBlockView.tsx`, clip move owner | Drag visible clip body/grip; click selects and modifier click extends selection | Owner previews destination before `MoveClips`; accepted changed release commits once; Escape, capture loss, blur, unmount cancel. Existing command permission and Undo apply. Move clip in the inspector previews time and track placement through native fields and pointer step buttons before Apply move or Cancel. | **Keep drag and add inspector placement.** `ClipBlock.test.tsx`, `edit/clipMove.test.ts`, and `inventory-audit.spec.ts` are the cited coverage. Exact 7/27-second persistence remained failed in the #878 record. |
 | Trim, fade, roll and crossfade: clip handles, join controls, inspector | Drag visible edge/seam; native numeric/range fields and keyboard nudges | Local preview follows the active owner. Accepted changes use existing commands; Escape/cancel does not save. Save failures stay in current inspector error routes; accepted edits use document History. Touch and dense-target behavior vary by timeline width. | **Keep.** `fade-curves.spec.ts`, `crossfade-length.spec.ts`, `transitions-acceptance.spec.ts`, and `edit-boundary-precision.spec.ts` retain existing evidence. Do not add another gesture system. |
 | Pending range, chapter, social markers: `MarkerLane`, pending inspector | Drag eligible visible handles/body; inspector numeric timing and Edit timing | Draft remains local before the existing command. Escape, lost ownership, blur, and unmount cancel owned previews. Host/guest permissions remain at current command boundaries; accepted edits are undoable. Phone dense pending handles can give way to Edit timing. | **Keep.** `pending-edge-controls.spec.ts`, `MarkerLane.test.tsx`, and #878 inventory cover named paths; not every interruption combination. |
@@ -1139,8 +1142,8 @@ chooser lab until the owner made it the default (2026-10-07).
   and "Clip is at its limit" is read out. A tap on the body still selects
   the clip, but a target in reach takes the long press.
 - **Create menu.** A long press with no target in reach (an empty lane, the
-  envelope layer, the body of a clip that cannot move, as in blade mode or
-  on a view-only link) opens a menu above the finger (below it near the top
+  envelope layer, the body of a clip that cannot move, as on a
+  view-only link) opens a menu above the finger (below it near the top
   of the timeline, beside it in a short viewport such as a phone held
   sideways, where the timeline's box is shorter than the menu, so it uses the
   screen), never over it, beside the fixed playhead when there is room, with a

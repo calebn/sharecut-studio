@@ -175,7 +175,7 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
 
 for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
   test.describe(`root${rootPx} ${theme}`, () => {
-    test("the tool strip leaves its targets clear", async ({ page }) => {
+    test("the corner controls leave their targets clear", async ({ page }) => {
       const fixture = createRelocatedE2eProject(
         "sharecut-e2e-adaptive-rail-",
         undefined,

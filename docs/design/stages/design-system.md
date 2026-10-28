@@ -527,7 +527,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 ### Dropped as redundant
 
-- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a blade cursor while Alt is held over a clip.
+- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a crosshair cursor and a one-pixel guide while Alt is held over the lanes (W1a, #2294). Touch has no Alt; its Split verb arrives with the action bar in W1b.
 - The Edit surface switch as its own element. It is a Segmented control instance: lanes (`chart-gantt`) and text (`text`).
 - The Home New sheet (record FLOW-REC-NEW). Start tiles sit on Home directly, and name and folder default.
 - The Re-record verb. It is the Record verb with a Replace target.
