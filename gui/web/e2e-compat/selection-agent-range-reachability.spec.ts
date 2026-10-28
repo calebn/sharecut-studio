@@ -96,7 +96,7 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   const point = await clip.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
     return {
-      x: bounds.left + bounds.width / 2,
+      x: bounds.left + Math.min(40, bounds.width / 2),
       y: bounds.top + bounds.height / 2,
     };
   });
@@ -142,7 +142,7 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
   const point = await clip.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
     return {
-      x: bounds.left + bounds.width / 2,
+      x: bounds.left + Math.min(40, bounds.width / 2),
       y: bounds.top + bounds.height / 2,
     };
   });
@@ -230,7 +230,7 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
   const point = await clip.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
     return {
-      x: bounds.left + bounds.width / 2,
+      x: bounds.left + Math.min(40, bounds.width / 2),
       y: bounds.top + bounds.height / 2,
     };
   });
