@@ -4,7 +4,7 @@ export const TAB_LABELS: Record<PresenceTab, string> = {
   transcript: "Transcript",
   comments: "Comments",
   history: "History",
-  impact: "Impact",
+  impact: "Queue",
   tighten: "Tighten",
   pipeline: "Pipeline",
 };
