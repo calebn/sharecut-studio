@@ -441,15 +441,27 @@ describe("ReviewStage host seams", () => {
     expect(onHear).toHaveBeenLastCalledWith("f1", "B");
   });
 
-  it("offers no A/B without a waveform or a change", () => {
-    setup({ content: withoutWave() });
+  it("offers no A/B and reports no hear without a waveform or a change", () => {
+    const onHear = vi.fn();
+    const { press } = setup({ content: withoutWave(), onHear });
     expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+    press("a");
+    press("b");
+    expect(onHear).not.toHaveBeenCalled();
   });
 
   it("takes the primary verb from the item's suggested action", () => {
     const onDecide = vi.fn();
     const items: ReviewItem[] = [
       { id: "s1", kind: "sound", at: 5, savedSeconds: 0, suggested: "leave" },
+      {
+        id: "b1",
+        kind: "sound",
+        at: 6,
+        savedSeconds: 0,
+        suggested: "leave",
+        blocked: true,
+      },
       {
         id: "g1",
         kind: "suggestion",
@@ -466,6 +478,8 @@ describe("ReviewStage host seams", () => {
     expect(screen.getAllByRole("button", { name: /^Keep/ })).toHaveLength(1);
     press("Enter");
     expect(onDecide).toHaveBeenLastCalledWith({ ids: ["s1"], result: "kept" });
+    press("Enter");
+    expect(onDecide).toHaveBeenCalledTimes(1);
     press("ArrowDown");
     expect(screen.getByRole("button", { name: /^Shorten/ })).toBeVisible();
   });
@@ -506,6 +520,8 @@ describe("ReviewStage host seams", () => {
     view.rerender(
       <ReviewStage {...stageProps(QUEUE_ITEMS.filter((i) => i.id !== "c1"))} />,
     );
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+    view.rerender(<ReviewStage {...stageProps(QUEUE_ITEMS)} />);
     expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
   });
 
@@ -561,9 +577,12 @@ describe("ReviewStage host seams", () => {
     expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
   });
 
-  it("asks again after a Cut anyway whose decision failed", async () => {
+  it.each([
+    ["resolves false", async () => false],
+    ["rejects", () => Promise.reject(new Error("down"))],
+  ])("asks again after a Cut anyway whose decision %s", async (_, decide) => {
     const props = stageProps(QUEUE_ITEMS);
-    props.onDecide = vi.fn(async () => false);
+    props.onDecide = vi.fn(decide);
     const view = render(<ReviewStage {...props} />);
     press(view, "Enter");
     await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
@@ -573,11 +592,13 @@ describe("ReviewStage host seams", () => {
     ).toBeVisible();
   });
 
-  it("disables the primary of a blocked item", () => {
+  it("disables the primary of a blocked item and says why in view", () => {
     const items = QUEUE_WITHOUT_CHECKS.map((i) =>
       i.id === "f1" ? { ...i, blocked: true } : i,
     );
     setup({ initialItems: items });
-    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    const cut = screen.getByRole("button", { name: "Cut" });
+    expect(cut).toBeDisabled();
+    expect(screen.getByText("Open it in Edit to resolve.")).toBeVisible();
   });
 });
