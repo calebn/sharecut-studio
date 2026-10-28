@@ -179,7 +179,7 @@ class ApproveEditsPayload(BaseModel):
             "reported in `held` with reason `unsure_word`; every other edit applies as one "
             "history step. The server checks the saved words at approval time, not a list the "
             "client sends. The CLI and MCP approve-all send it; approving one cut by name does not. "
-            "The Studio client does not send it yet. A guest's multi-edit approve always behaves "
+            "The Studio Review Queue's Cut all sends it. A guest's multi-edit approve always behaves "
             "as if it were true."
         ),
     )
@@ -221,8 +221,8 @@ class ApplySuggestedActionsPayload(BaseModel):
             "named in `held` and `held_unsure`; every other sound is applied as one history "
             "step, and when all are held nothing is saved. The server checks the saved words "
             "at apply time, not a list the client sends. The CLI and MCP send it for the "
-            "all-suggested path and for several ids (not on revise); naming one id does not. The Studio "
-            "client does not send it yet. Every guest apply behaves as if it were true."
+            "all-suggested path and for several ids (not on revise); naming one id does not. "
+            "No Studio verb sends it yet. Every guest apply behaves as if it were true."
         ),
     )
 

@@ -96,6 +96,12 @@ export type ReviewOutcome = Readonly<
     }
 >;
 
+/** The server's held reason in plain words; one it has no copy for shows as sent. */
+export const heldReasonText = (reason: string) =>
+  reason === "unsure_word"
+    ? "It has a word we're not sure of. Open it in Edit."
+    : reason;
+
 /** "Applied 80, held 6" with the first two held cuts named; the rest stay in the list. */
 export function bulkReviewHeldMessage(
   count: number,
@@ -103,7 +109,9 @@ export function bulkReviewHeldMessage(
 ): string {
   const named = held
     .slice(0, 2)
-    .map((h) => `${h.label} is held: ${h.reason}.`)
+    .map((h) =>
+      `${h.label} is held: ${heldReasonText(h.reason)}`.replace(/\.?$/, "."),
+    )
     .join(" ");
   const more =
     held.length > 2 ? ` ${held.length - 2} more are held in the list.` : "";

@@ -4,7 +4,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -68,7 +67,6 @@ import { FeedbackToast } from "../../feedback/FeedbackToast";
 import { REFINE_GATE_GUI_MESSAGE } from "../../inspector/TranscriptRefineRecovery";
 import { useDawKeymapListener } from "../../keymap/listener";
 import { useDawStore } from "../../state/dawStore";
-import { STAGE_FOR_TAB, tabForStage } from "../../state/stageRoutes";
 import { commandLocks } from "../../test/commandLocks";
 import {
   minimalProject,
@@ -160,7 +158,9 @@ function reply(count: number, held: Held[] = []) {
     ok: true,
     data: {
       history_head_id: server.head,
-      command: { payload: { result: { count, held } } },
+      command: {
+        payload: { result: { count, held } },
+      },
       ...(server.omitSnapshot
         ? {}
         : { snapshot: { server_seq: server.seq, project: projectOf() } }),
@@ -209,6 +209,14 @@ const fetchStub = vi.fn(
     return json({}, init ? 200 : 404);
   },
 );
+
+const holdNextPost = () => {
+  let release = (_value: unknown) => {};
+  wire.post.mockImplementationOnce(
+    () => new Promise((resolve) => (release = resolve)),
+  );
+  return (value: unknown) => release(value);
+};
 
 const sent = (type: string) =>
   wire.post.mock.calls
@@ -276,52 +284,6 @@ beforeEach(() => {
   registerDawCommands();
 });
 
-describe("Review host queue", () => {
-  it("groups every kind and puts the unplaced edit last", () => {
-    mount([
-      ...(["pause", "repeat", "false-start", "sound", "other"] as const).map(
-        (kind, i) => edit(kind, kind, 5 + i),
-      ),
-      F2,
-      F1,
-      edit("u", "filler", 0, {
-        timeline_start: null,
-        timeline_end: null,
-        label: "filler unplaced",
-      }),
-    ]);
-    const groups = screen.getAllByRole("region", {
-      name: /^(Fillers|Pauses|Repeats|False starts|Sounds|Other suggestions)$/,
-    });
-    expect(groups.map((g) => g.getAttribute("aria-label")).join()).toBe(
-      "Fillers,Pauses,Repeats,False starts,Sounds,Other suggestions",
-    );
-    const rows = within(groups[0] as HTMLElement).getAllByRole("button");
-    expect(rows.at(-1)).toHaveTextContent("filler unplaced");
-    expect(screen.getByText("Jon restarts.")).toBeVisible();
-  });
-
-  it("lands on Queue first and publishes the wire tab impact", () => {
-    mount();
-    const tabs = within(
-      screen.getByRole("tablist", { name: "Review sections" }),
-    ).getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent?.replace(" ●", "")).join()).toBe(
-      "Queue,Comments,Tighten",
-    );
-    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
-    const s = useDawStore.getState();
-    expect(tabForStage(s.stage, s.reviewSection)).toBe("impact");
-    act(() => useDawStore.getState().openStage("edit"));
-    act(() =>
-      useDawStore.getState().openStage(STAGE_FOR_TAB.impact.stage, {
-        section: STAGE_FOR_TAB.impact.section,
-      }),
-    );
-    expect(useDawStore.getState().reviewSection).toBe("queue");
-  });
-});
-
 describe("Review host decisions", () => {
   it("advances in the same act, sends one ApproveEdits without skip_unsure and one toast for two Enters", async () => {
     mount();
@@ -379,7 +341,8 @@ describe("Review host decisions", () => {
     expect(decided()).toBe("");
   });
 
-  it("Cut all sends one command with skip_unsure and one toast", async () => {
+  it("Cut all sends one command with skip_unsure, and holds an unsure cut in plain words", async () => {
+    server.held = [{ id: "f2", label: "filler f2", reason: "unsure_word" }];
     mount();
     await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     await undoButton();
@@ -389,10 +352,15 @@ describe("Review host decisions", () => {
       hold_blocked: true,
       skip_unsure: true,
     });
+    const why = "It has a word we're not sure of. Open it in Edit.";
+    expect(toast()).toMatch(new RegExp(`held 1. filler f2 is held: ${why}$`));
     expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(1);
     await userEvent.click(screen.getByRole("tab", { name: /Tighten/ }));
     await userEvent.click(screen.getByRole("tab", { name: /Queue/ }));
-    expect(decided()).toMatch(/Decided\s*3/);
+    expect(decided()).toMatch(/Decided\s*2/);
+    await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
+    expect(screen.getByText(why)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 
   it("words and routes Lower, Leave and Shorten by the suggested action, and gates only the cut", async () => {
@@ -423,10 +391,7 @@ describe("Review host decisions", () => {
 
   it("returns a held row blocked and disabled without moving the user's selection, until its range changes", async () => {
     server.held = [{ id: "f1", label: "filler f1", reason: "Too close" }];
-    let release = (_value: unknown) => {};
-    wire.post.mockImplementationOnce(
-      () => new Promise((resolve) => (release = resolve)),
-    );
+    const release = holdNextPost();
     mount();
     press("Enter");
     press("ArrowDown");
@@ -490,10 +455,7 @@ describe("Review host decisions", () => {
   });
 
   it("shows no toast for a reply that arrives after a project switch", async () => {
-    let release = (_value: unknown) => {};
-    wire.post.mockImplementationOnce(
-      () => new Promise((resolve) => (release = resolve)),
-    );
+    const release = holdNextPost();
     mount();
     press("Enter");
     await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());

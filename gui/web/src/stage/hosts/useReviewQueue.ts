@@ -41,6 +41,7 @@ import { PENDING_REVIEW_QUEUED_MESSAGE } from "../../utils/pendingEditLabels";
 import {
   bulkReviewHeldMessage,
   type HeldCut,
+  heldReasonText,
 } from "../../utils/pendingReviewPass";
 import { useStableCallback } from "../../utils/useStableCallback";
 
@@ -102,7 +103,10 @@ export function useReviewQueue() {
         ? { item, content }
         : {
             item: { ...item, blocked: true },
-            content: { ...content, card: { ...content.card, why } },
+            content: {
+              ...content,
+              card: { ...content.card, why: heldReasonText(why) },
+            },
           };
     });
     const check = status && checkEntryOf(status);
