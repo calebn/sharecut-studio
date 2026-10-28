@@ -11,6 +11,7 @@ import { test } from "../e2e/interactionEvidence";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { closeTools, openToolsIfFolded } from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 for (const { cell: viewport, theme } of withAppearance([
@@ -29,6 +30,7 @@ for (const { cell: viewport, theme } of withAppearance([
           await rememberInspectorDetent(page, "full");
           await openHostShare(page, projectPath);
           if (viewport.width < 768) {
+            await openToolsIfFolded(page);
             await pointerControl(
               page,
               page
@@ -36,6 +38,7 @@ for (const { cell: viewport, theme } of withAppearance([
                 .getByRole("button", { name: "Timeline", exact: true }),
               receipts,
             );
+            await closeTools(page);
           }
           await expect(
             page.locator(
