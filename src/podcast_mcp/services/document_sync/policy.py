@@ -87,8 +87,9 @@ def must_skip_unsure(caps: list[str] | None, ids: object, requested: bool) -> bo
     """Whether ``ApproveEdits`` must hold the cuts that cover an unsure word.
 
     The host's CLI and MCP bulk approve ask for it (``skip_unsure``); the Studio client does not
-    send it yet. A guest never gets to choose: a guest approve of more than one edit always holds them, so a share link cannot
-    cut unsure words in bulk by leaving the flag off. One edit by name still cuts.
+    send it yet. A guest never gets to choose: a guest approve of more than one edit always
+    holds them, so a share link cannot cut unsure words in bulk by leaving the flag off. One
+    edit by name still cuts.
     """
     if requested:
         return True

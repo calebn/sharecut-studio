@@ -1323,7 +1323,7 @@
         },
         "skip_unsure": {
           "default": false,
-          "description": "Bulk guard: a cut or shorten over a transcript word below the unsure line (`analysis.unsure_word_confidence`) is not applied. It stays pending and is named in `held` and `held_unsure`; every other sound is applied as one history step, and when all are held nothing is saved. The server checks the saved words at apply time, not a list the client sends. The CLI and MCP send it for the all-suggested path and for several ids; naming one id does not. The Studio client does not send it yet. Every guest apply behaves as if it were true.",
+          "description": "Bulk guard: a cut or shorten over a transcript word below the unsure line (`analysis.unsure_word_confidence`) is not applied. It stays pending and is named in `held` and `held_unsure`; every other sound is applied as one history step, and when all are held nothing is saved. The server checks the saved words at apply time, not a list the client sends. The CLI and MCP send it for the all-suggested path and for several ids (not on revise); naming one id does not. The Studio client does not send it yet. Every guest apply behaves as if it were true.",
           "title": "Skip Unsure",
           "type": "boolean"
         }
