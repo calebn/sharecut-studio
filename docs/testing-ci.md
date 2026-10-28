@@ -364,7 +364,7 @@ with axe before the collected results are asserted.
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | actual sheet controls and help copy work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a phone held sideways keeps two whole compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo in the header, the tools on one row and four whole lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps the tools, Zoom, Undo and Redo whole and in reach, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an iPad Air 1180 wide in landscape keeps Select, Blade, Select range and the add-track button on the tool strip | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
