@@ -131,7 +131,7 @@ describe("StageHost gating", () => {
       ["record", "Looking for a record room…"],
       ["prepare", "Help the transcriber"],
       ["edit", "edit workspace"],
-      ["review", "comments panel"],
+      ["review", "impact panel"],
       ["deliver", "Episode file"],
     ] as const) {
       asHost(stage);
@@ -150,8 +150,8 @@ describe("Review host", () => {
       screen.getByRole("tablist", { name: "Review sections" }),
     );
     expect(tabs.getAllByRole("tab")).toHaveLength(3);
-    await userEvent.click(tabs.getByRole("tab", { name: /Impact/ }));
-    expect(useDawStore.getState().reviewSection).toBe("impact");
+    await userEvent.click(tabs.getByRole("tab", { name: /Queue/ }));
+    expect(useDawStore.getState().reviewSection).toBe("queue");
     expect(screen.getByText("impact panel")).toBeInTheDocument();
   });
 
@@ -327,7 +327,7 @@ describe("Deliver host", () => {
       within(readiness).getByRole("button", { name: "Review" }),
     );
     expect(useDawStore.getState().stage).toBe("review");
-    expect(useDawStore.getState().reviewSection).toBe("impact");
+    expect(useDawStore.getState().reviewSection).toBe("queue");
   });
 
   it("hides the listen link when the share feature is off", () => {

@@ -102,7 +102,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "stage.review",
     category: "navigation",
     label: "Go to Review",
-    keywords: ["comments", "suggestions", "impact", "tighten"],
+    keywords: ["queue", "comments", "suggestions", "impact", "tighten"],
     when: "hasProject",
     breaksFollow: true,
     notes: "Mod+4: the Review stage",

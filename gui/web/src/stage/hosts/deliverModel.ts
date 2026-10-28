@@ -105,13 +105,13 @@ export function deliverFacts(input: DeliverFactsInput): ReadinessFacts {
 
 export type FixRoute =
   | { kind: "refreshMix" }
-  | { kind: "stage"; stage: StageId; section?: "impact" | "comments" };
+  | { kind: "stage"; stage: StageId; section?: "queue" | "comments" };
 
 export function fixRoute(stage: StageId, target?: string): FixRoute {
   if (target === "mix") return { kind: "refreshMix" };
   if (stage === "review") {
     if (target === "suggestions")
-      return { kind: "stage", stage, section: "impact" };
+      return { kind: "stage", stage, section: "queue" };
     if (target === "comments")
       return { kind: "stage", stage, section: "comments" };
   }

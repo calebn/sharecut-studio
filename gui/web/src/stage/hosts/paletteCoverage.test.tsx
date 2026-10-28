@@ -443,7 +443,7 @@ const REMOVED_SURFACES: Entry[] = [
   component("More hub", "Comments", [
     reviewSection(/Comments/, "comments panel"),
   ]),
-  component("More hub", "Impact", [reviewSection(/Impact/, "impact panel")]),
+  component("More hub", "Impact", [reviewSection(/Queue/, "impact panel")]),
   component("More hub", "Tighten", [reviewSection(/Tighten/, "tighten panel")]),
   component("More hub", "Pipeline", [pipeline]),
   entry("More hub", "History", "edit.history", [historySheet]),

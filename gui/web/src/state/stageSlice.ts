@@ -107,7 +107,7 @@ export const createStageSlice: StateCreator<
 
   return {
     ...stageProjectInitial(),
-    reviewSection: "comments",
+    reviewSection: "queue",
     editSurface: "lanes",
     scriptCollapsed: readScriptCollapsed(),
     scriptFocus: readScriptFocus(),
