@@ -234,9 +234,10 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
     @staticmethod
     def _span(window: PendingPreviewWindow, kind: str, wav: Path) -> PendingPreviewSpan:
         end = window.play_end
-        if kind == "suggested":
+        if kind != "ab":
             # The edited timeline is shorter or longer than the current one by what the edit
-            # took out or paced in, so the file's own length says where it ends.
+            # took out or paced in, and a rendered file is whole samples: its own length says
+            # where it ends.
             with open_wav(wav) as audio:
                 end = window.play_start + audio.getnframes() / audio.getframerate()
         return PendingPreviewSpan(
@@ -329,8 +330,8 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
         edit = next(e for e in self.project.edit_decisions if e.id == window.edit_id)
         key = json.dumps(
             {
-                "window": [window.play_start, window.play_end],
-                "pad_sec": window.pad_sec,
+                "window": [round(window.play_start, 3), round(window.play_end, 3)],
+                "pad_sec": round(window.pad_sec, 3),
                 # Bump when a side renders differently for the same inputs.
                 "render_rev": 5,
                 # The Current side is cut from a fresh premix, else adaptive tracks from fresh stems.
