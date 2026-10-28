@@ -228,7 +228,8 @@ async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with host_mcp_lifespan(app):
             port = getattr(app.state, "listen_port", None)
             if port is not None:
-                await asyncio.to_thread(handoff.listening, app, port=port)
+                host = getattr(app.state, "listen_host", None)
+                await asyncio.to_thread(handoff.listening, app, port=port, host=host)
             yield
     finally:
         await asyncio.to_thread(handoff.stopped, app)
