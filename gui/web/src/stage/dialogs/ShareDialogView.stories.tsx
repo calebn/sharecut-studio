@@ -2,13 +2,16 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../../record/recordStoryDecorator";
+import {
+  type ShareCopiedKey,
+  shareCopyKey,
+} from "../../stages/deliver/shareLogic";
 import { isolatedStoryParameters } from "../../storybook/storyLayout";
 import { DialogLauncher } from "../../test/DialogLauncher";
 import { hostShareRow } from "../../test/fixtures";
 import { openDialogByLauncher, useArgState } from "../../test/storyDialog";
 import type { TunnelStatus } from "../../types/tunnel";
 import { ShareDialogView } from "./ShareDialogView";
-import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
 
 const reviewRow = hostShareRow();
 const agentRow = hostShareRow({

@@ -27,6 +27,7 @@
 .sys-link-main,
 .sys-link-side {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   min-inline-size: 0;

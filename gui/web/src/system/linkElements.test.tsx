@@ -270,6 +270,52 @@ describe("LinkRow", () => {
     expect(screen.queryByText(middleTruncate(LINK))).toBeNull();
   });
 
+  it("tells a link with no address from one made on Copy, and explains a disabled Copy", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={null}
+        emptyText="This link has no address to copy yet."
+        copyDisabledReason="This link has no address to copy yet."
+        onCopy={() => {}}
+      />,
+    );
+    expect(screen.queryByText("Made when you copy it")).toBeNull();
+    expect(
+      screen.getByText("This link has no address to copy yet."),
+    ).toBeInTheDocument();
+    const copy = screen.getByRole("button", { name: "Copy" });
+    expect(copy).toBeDisabled();
+    expect(copy).toHaveAttribute(
+      "title",
+      "This link has no address to copy yet.",
+    );
+  });
+
+  it("describes Copy by the element that names the link, and shows further actions beside it", () => {
+    render(
+      <>
+        <span id="who">Editor link</span>
+        <LinkRow
+          access="editor"
+          link={LINK}
+          describedBy="who"
+          actions={<button type="button">Stop sharing</button>}
+          onCopy={() => {}}
+        />
+      </>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy" }),
+    ).toHaveAccessibleDescription("Editor link");
+    const side = screen.getByRole("button", {
+      name: "Stop sharing",
+    }).parentElement;
+    expect(
+      [...(side?.querySelectorAll("button") ?? [])].map((b) => b.textContent),
+    ).toEqual(["Copy", "Stop sharing"]);
+  });
+
   it("cuts the middle of a long link", () => {
     expect(middleTruncate("a".repeat(60))).toBe(
       `${"a".repeat(14)}…${"a".repeat(14)}`,

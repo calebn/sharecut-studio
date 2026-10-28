@@ -24,6 +24,14 @@ export type LinkRowProps = {
   note?: ReactNode;
   compact?: boolean;
   reach?: "anywhere" | "network";
+  /** Id of the element that names this link, so Copy is told apart when a page lists several. */
+  describedBy?: string;
+  /** Shown instead of "Made when you copy it" when the link has no address. */
+  emptyText?: string;
+  /** Why Copy is unavailable; Copy stays visible and explains itself. */
+  copyDisabledReason?: string;
+  /** Further controls beside Copy. */
+  actions?: ReactNode;
   onCopy: () => void;
 };
 
@@ -38,6 +46,10 @@ export function LinkRow({
   note,
   compact = false,
   reach = "anywhere",
+  describedBy,
+  emptyText = "Made when you copy it",
+  copyDisabledReason,
+  actions,
   onCopy,
 }: LinkRowProps) {
   if (noMix) {
@@ -69,7 +81,7 @@ export function LinkRow({
           data-selected={copyState === "blocked" || undefined}
           title={link ?? undefined}
         >
-          {link ? middleTruncate(link) : "Made when you copy it"}
+          {link ? middleTruncate(link) : emptyText}
         </span>
       </div>
       {note ? <span className="sys-link-note">{note}</span> : null}
@@ -97,10 +109,17 @@ export function LinkRow({
             ))}
           </span>
         ) : null}
-        <Button variant="default" onClick={onCopy} aria-live="polite">
+        <Button
+          variant="default"
+          disabledReason={copyDisabledReason}
+          aria-describedby={describedBy}
+          onClick={onCopy}
+          aria-live="polite"
+        >
           <SystemIcon name={iconOf("copyLink")} size={14} />
           {label}
         </Button>
+        {actions}
       </div>
     </div>
   );

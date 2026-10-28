@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
+import { Button } from "../ui";
 import { LinkRow } from "./LinkRow";
 import { middleTruncate } from "./linkText";
 
@@ -64,6 +65,31 @@ export const WithViewers: Story = {
     await expect(
       within(canvasElement).getByRole("img", { name: "Opened by Rosa, Jon" }),
     ).toBeInTheDocument();
+  },
+};
+
+export const WithActions: Story = {
+  args: {
+    link: LINK,
+    note: "Follows latest: Share mix",
+    actions: <Button variant="danger">Stop sharing</Button>,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", { name: "Stop sharing" }),
+    ).toBeInTheDocument();
+  },
+};
+
+export const NoAddress: Story = {
+  args: {
+    emptyText: "This link has no address to copy yet.",
+    copyDisabledReason: "This link has no address to copy yet.",
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", { name: "Copy" }),
+    ).toBeDisabled();
   },
 };
 

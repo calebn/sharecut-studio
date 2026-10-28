@@ -324,10 +324,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         env="none"
         clock={{ time: "", total: "" }}
         playhead={() => useDawStore.getState().playheadSec}
-        link={{ url: null }}
-        pinnedTo="the latest export"
         layout={shell === "phone" ? "phone" : "desktop"}
-        showLink={false}
         onChapters={onChapters}
         onClips={onClips}
         onFix={(stage, target) => {
@@ -342,8 +339,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         }}
         onExport={() => runPointerCommand("export.deliverables")}
         onCancel={exportFlow.cancel}
-        onCopyLink={() => runPointerCommand("share.manage")}
-        onRefreshMix={() => runPointerCommand("render.refreshMix")}
         onPlayFrom={playFrom}
         onPlayClip={(id) => {
           const clip = seed.clips.find((c) => c.id === id);

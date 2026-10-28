@@ -1,5 +1,22 @@
 import { type RefCallback, useId, useRef, useState } from "react";
 import {
+  formatWhen,
+  groupRecordRooms,
+  type PendingEnd,
+  pendingKey,
+  type RecordRoomGroup,
+  reviewMeta,
+  SHARE_FREEZE_HELP,
+  SHARE_MCP_HELP,
+  type ShareCopiedKey,
+  type ShareCopyKind,
+  type ShareCreateRecovery,
+  type ShareLastCreated,
+  shareCopyKey,
+  shareRoleLabel,
+} from "../../stages/deliver/shareLogic";
+import { TunnelStatusLine } from "../../stages/deliver/TunnelStatusLine";
+import {
   type HostShareRow,
   REVIEW_ROLES,
   type ShareRole,
@@ -13,107 +30,6 @@ import {
   InlineError,
 } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
-import {
-  type ShareCopiedKey,
-  type ShareCopyKind,
-  shareCopyKey,
-} from "./shareCopyKey";
-import { TunnelStatusLine } from "./TunnelStatusLine";
-
-const MCP_HELP =
-  "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions.";
-
-const FREEZE_HELP =
-  "Guests keep hearing this version even after you publish a newer one. Off, the link follows the latest.";
-
-function formatWhen(iso: string | null | undefined): string {
-  if (!iso) {
-    return "";
-  }
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) {
-    return iso;
-  }
-  return d.toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-function roleLabel(row: HostShareRow): string {
-  return (
-    REVIEW_ROLES.find((r) => r.id === row.docs_role)?.label ??
-    row.docs_role ??
-    "Review"
-  );
-}
-
-function reviewMeta(row: HostShareRow): string {
-  const parts: string[] = [];
-  if (row.review_version_label) {
-    parts.push(
-      row.follow_latest
-        ? `Follows latest: ${row.review_version_label}`
-        : `Frozen on ${row.review_version_label}`,
-    );
-  }
-  if (row.mcp_url) {
-    parts.push("AI assistants allowed");
-  }
-  if (row.created_at) {
-    parts.push(`Created ${formatWhen(row.created_at)}`);
-  }
-  if (row.last_used_at && row.last_used_at !== row.created_at) {
-    parts.push(`Last opened ${formatWhen(row.last_used_at)}`);
-  }
-  if (row.expires_at) {
-    parts.push(`Expires ${formatWhen(row.expires_at)}`);
-  }
-  return parts.join(" · ");
-}
-
-type RecordRoomGroup = {
-  sessionId: string;
-  guests: HostShareRow[];
-  producers: HostShareRow[];
-};
-
-function groupRecordRooms(rows: readonly HostShareRow[]): RecordRoomGroup[] {
-  const map = new Map<string, RecordRoomGroup>();
-  for (const row of rows) {
-    const sid = row.session_id || row.token;
-    const existing = map.get(sid) ?? {
-      sessionId: sid,
-      guests: [],
-      producers: [],
-    };
-    if (row.record_role === "producer") {
-      existing.producers.push(row);
-    } else {
-      existing.guests.push(row);
-    }
-    map.set(sid, existing);
-  }
-  return [...map.values()];
-}
-
-/** The one link or room whose end the host is confirming. */
-type PendingEnd =
-  | { kind: "link"; token: string }
-  | { kind: "room"; sessionId: string };
-
-function pendingKey(pending: PendingEnd): string {
-  return pending.kind === "link"
-    ? `link:${pending.token}`
-    : `room:${pending.sessionId}`;
-}
-
-/** The link the host just created, offered again in the footer. */
-export type ShareLastCreated = {
-  token: string;
-  url: string;
-  kind: "review" | "guest";
-};
 
 export type ShareDialogViewProps = {
   open: boolean;
@@ -149,12 +65,6 @@ export type ShareDialogViewProps = {
   /** Online sharing state; omitted when the `tunnel.status` feature is unavailable. */
   tunnel?: TunnelStatus | null;
 };
-
-export type ShareCreateRecovery =
-  | { kind: "idle" }
-  | { kind: "needs_refresh"; message: string; refreshError: string | null }
-  | { kind: "refreshing" }
-  | { kind: "retrying" };
 
 /**
  * Production Share dialog paint, including the in-place Stop sharing and End
@@ -367,7 +277,7 @@ function ShareDialogBody(props: ShareDialogViewProps) {
           Allow AI assistants (MCP)
         </label>
         <p id={mcpHelpId} className="share-dialog-note share-dialog-mcp-help">
-          {MCP_HELP}
+          {SHARE_MCP_HELP}
         </p>
       </div>
       <div className="share-dialog-mcp">
@@ -386,7 +296,7 @@ function ShareDialogBody(props: ShareDialogViewProps) {
           id={freezeHelpId}
           className="share-dialog-note share-dialog-mcp-help"
         >
-          {FREEZE_HELP}
+          {SHARE_FREEZE_HELP}
         </p>
       </div>
       <section aria-labelledby={reviewLinksHeadingId}>
@@ -503,7 +413,7 @@ function ReviewLinkRow({
     stopRef: RefCallback<HTMLButtonElement>;
   }) {
   const labelId = useId();
-  const role = roleLabel(row);
+  const role = shareRoleLabel(row);
   return (
     <li className="share-dialog-row">
       <div className="share-dialog-row-main">

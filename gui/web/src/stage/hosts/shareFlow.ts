@@ -17,6 +17,14 @@ import type { ExecuteResult } from "../../commands/types";
 import { useHasFeature } from "../../extensions/FeaturesContext";
 import { FEATURE_TUNNEL_STATUS } from "../../extensions/features";
 import { copyText, createRecordRoomAndCopyGuestLink } from "../../record";
+import type {
+  ShareCreateRecovery,
+  ShareLastCreated,
+} from "../../stages/deliver/shareLogic";
+import {
+  type ShareCopiedKey,
+  shareCopyKey,
+} from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import {
@@ -25,11 +33,6 @@ import {
   type ShareRole,
 } from "../../types/shares";
 import { ApiError, errorMessage } from "../../utils/apiError";
-import type {
-  ShareCreateRecovery,
-  ShareLastCreated,
-} from "../dialogs/ShareDialogView";
-import { type ShareCopiedKey, shareCopyKey } from "../dialogs/shareCopyKey";
 import { useTunnelStatus } from "../dialogs/useTunnelStatus";
 
 const COPIED_MS = 2000;

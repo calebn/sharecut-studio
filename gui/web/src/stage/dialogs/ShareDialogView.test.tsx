@@ -3,11 +3,11 @@ import { join } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { shareCopyKey } from "../../stages/deliver/shareLogic";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { hostShareRow } from "../../test/fixtures";
 import { SRC_ROOT } from "../../test/sourceFiles";
 import { ShareDialogView } from "./ShareDialogView";
-import { shareCopyKey } from "./shareCopyKey";
 
 const reviewRow = hostShareRow();
 const agentRow = hostShareRow({

@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
-import type { LinkCopyState } from "../../system/LinkRow";
 import { Player } from "../../system/Player";
-import { Skeleton } from "../../system/Skeleton";
 import { VERBS } from "../../system/verbs";
 import type { StageId } from "../../types/stage";
 import { Toast, type ToastState } from "../../ui";
@@ -42,8 +40,9 @@ import {
 } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 import { ExportButton } from "./ExportButton";
-import { ListenLink } from "./ListenLink";
 import { Readiness } from "./Readiness";
+import { ShareSection } from "./ShareSection";
+import type { ShareOptions } from "./shareLogic";
 import { useFocusRecovery } from "./useFocusRecovery";
 import { useWriteBack } from "./useWriteBack";
 
@@ -66,16 +65,6 @@ export type DeliverStageProps = {
   words?: readonly ClipWord[];
   /** Peaks spread evenly over the episode, 0 to 1, for the clip trim strip. */
   peaks?: readonly number[];
-  link: {
-    url: string | null;
-    copyState?: LinkCopyState;
-    openedBy?: readonly { name: string; colorIndex?: number }[];
-    noMix?: boolean;
-    /** `network`: only people on this network can open the link. */
-    reach?: "anywhere" | "network";
-  };
-  /** The exported version the listen link is pinned to. */
-  pinnedTo: string;
   layout?: "desktop" | "phone";
   state?: "ready" | "loading" | "error";
   /** Guests get Review only; Deliver shows a Cover instead of controls. */
@@ -85,12 +74,12 @@ export type DeliverStageProps = {
   onSettings?: (settings: EpisodeSettings) => void;
   onChapters?: (chapters: readonly Chapter[]) => void;
   onClips?: (clips: readonly Clip[]) => void;
-  /** Without it the Listen link section is not shown. */
-  showLink?: boolean;
   /** Formats, notes and controls the host's export can honour. */
   exportOptions?: ExportOptions;
   /** Without it the Bounce section is not shown. */
   bounce?: BounceOptions;
+  /** The host's listen links. Without it the Share section is not shown. */
+  share?: ShareOptions;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel: () => void;
@@ -98,8 +87,6 @@ export type DeliverStageProps = {
   onReveal?: (file?: ExportFile) => void;
   onDownload?: (file?: ExportFile) => void;
   onChangeFolder?: () => void;
-  onCopyLink: () => void;
-  onRefreshMix: () => void;
   onPlayFrom: (seconds: number) => void;
   onPlayClip: (id: string) => void;
   onFindClips: () => void;
@@ -128,15 +115,13 @@ export function DeliverStage({
   selection = null,
   words,
   peaks,
-  link,
-  pinnedTo,
   layout = "desktop",
   state = "ready",
   guest = false,
   toastMs = 6000,
-  showLink = true,
   exportOptions,
   bounce,
+  share,
   onSettings,
   onChapters,
   onClips,
@@ -146,8 +131,6 @@ export function DeliverStage({
   onReveal,
   onDownload,
   onChangeFolder,
-  onCopyLink,
-  onRefreshMix,
   onPlayFrom,
   onPlayClip,
   onFindClips,
@@ -367,22 +350,14 @@ export function DeliverStage({
             )}
           </div>
           <div className="dv-col">
-            {!showLink ? null : state === "loading" ? (
-              <Skeleton layout="list" rows={2} />
-            ) : (
-              <ListenLink
-                pinnedTo={pinnedTo}
-                link={link.url}
-                copyState={link.copyState}
-                openedBy={link.openedBy}
-                reach={link.reach}
-                noMix={link.noMix ? { onRefresh: onRefreshMix } : undefined}
-                share={phone}
-                compact={phone}
+            {share ? (
+              <ShareSection
+                options={share}
+                state={sharedState}
+                layout={layout}
                 highlight={shownState.phase === "done"}
-                onCopy={onCopyLink}
               />
-            )}
+            ) : null}
           </div>
         </div>
         {phone ? (

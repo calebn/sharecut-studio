@@ -45,14 +45,14 @@ export function TunnelStatusLine({ status }: { status: TunnelStatus }) {
     return null;
   }
   return (
-    <div className="share-tunnel" data-tone={copy.tone}>
-      <p className="share-tunnel-headline" role="status">
-        <span className="share-tunnel-dot" aria-hidden="true" />
+    <div className="dv-tunnel" data-tone={copy.tone}>
+      <p className="dv-tunnel-headline" role="status">
+        <span className="dv-tunnel-dot" aria-hidden="true" />
         {copy.headline}
       </p>
-      {retry ? <p className="share-tunnel-retry">{retry}</p> : null}
+      {retry ? <p className="dv-tunnel-retry">{retry}</p> : null}
       {copy.fix ? (
-        <details className="share-tunnel-fix">
+        <details className="dv-tunnel-fix">
           <summary>{copy.fix.summary}</summary>
           <p>{copy.fix.body}</p>
           <a href={ONLINE_SHARING_GUIDE_URL} target="_blank" rel="noreferrer">

@@ -123,12 +123,6 @@ export const FAILED: ExportState = {
   cause: "The disk is full. Free some space and try again.",
 };
 
-export const LINK = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
-export const OPENED_BY = [
-  { name: "Rosa", colorIndex: 2 },
-  { name: "Jon", colorIndex: 1 },
-];
-
 const SAMPLE_TEXT = [
   "So",
   "nobody",

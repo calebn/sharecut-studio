@@ -6,7 +6,6 @@ import {
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
 import { playInCanvas } from "../../storybook/storyPlay";
-import type { LinkCopyState } from "../../system/LinkRow";
 import { isApplePlatform } from "../../utils/platform";
 import { BOUNCE_DEFAULTS } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
@@ -17,17 +16,23 @@ import {
   DONE,
   exportedState,
   FAILED,
-  LINK,
   MEASURED_FACTS,
   NEEDS_MODEL,
   NEVER,
   OPEN_FACTS,
-  OPENED_BY,
   RUNNING,
   SETTINGS,
   STALE,
   TOTAL,
 } from "./deliverFixture";
+import {
+  AGENT_ROW,
+  GUEST_ROW,
+  ONLINE,
+  PRODUCER_ROW,
+  REVIEW_ROW,
+  shareOptions,
+} from "./shareFixture";
 
 const MOD_E = isApplePlatform() ? "{Meta>}e{/Meta}" : "{Control>}e{/Control}";
 const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
@@ -35,21 +40,13 @@ const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
 /** Exports and copies in place, as the app will once it is wired. */
 function Live(props: DeliverStageProps) {
   const [exportState, setExportState] = useState(props.exportState);
-  const [copy, setCopy] = useState<LinkCopyState>("idle");
-  const [url, setUrl] = useState(props.link.url);
   return (
     <DeliverStage
       {...props}
       exportState={exportState}
-      link={{ ...props.link, url, copyState: copy }}
       onExport={(request) => {
         props.onExport(request);
         setExportState(exportedState(request));
-      }}
-      onCopyLink={() => {
-        props.onCopyLink();
-        setUrl(LINK);
-        setCopy("copied");
       }}
     />
   );
@@ -78,8 +75,6 @@ const meta: Meta<typeof DeliverStage> = {
     env: "app",
     clock: { time: "12:04", total: "52:00" },
     playhead: 724,
-    link: { url: null },
-    pinnedTo: "Rough cut",
     toastMs: 600_000,
     onFix: fn(),
     onExport: fn(),
@@ -87,8 +82,6 @@ const meta: Meta<typeof DeliverStage> = {
     onReveal: fn(),
     onDownload: fn(),
     onChangeFolder: fn(),
-    onCopyLink: fn(),
-    onRefreshMix: fn(),
     onPlayFrom: fn(),
     onPlayClip: fn(),
     onFindClips: fn(),
@@ -102,7 +95,7 @@ const meta: Meta<typeof DeliverStage> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Deliver: Readiness first, then the episode file, the listen link, chapters and clips. Export is the only filled button; after it, Reveal in Finder (app) or Download all (browser) takes its place and Copy link is the follow-up. Nothing in Readiness blocks Export. Mod+E exports. Presentational: the export job, the link and the data come in as props, and the buttons call back.\n\n**Motion.** Animations come later: the export progress and the Reveal swap use `--motion-panel`, the copied label holds for 2 s.",
+          "Deliver: Readiness first, then the episode file, Bounce, Share, chapters and clips. Export is the only filled button; after it, Reveal in Finder (app) or Download all (browser) takes its place and Copy on a listen link is the follow-up. Nothing in Readiness blocks Export. Mod+E exports. Presentational: the export job, the links and the data come in as props, and the buttons call back.\n\n**Motion.** Animations come later: the export progress and the Reveal swap use `--motion-panel`, the copied label holds for 2 s.",
       },
     },
   },
@@ -154,17 +147,14 @@ export const Exported: Story = {
   args: {
     exportState: DONE,
     facts: MEASURED_FACTS,
-    link: { url: null },
+    share: shareOptions(fn, { rows: [REVIEW_ROW] }),
   },
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await userEvent.click(view.getByRole("button", { name: REVEAL }));
     await expect(args.onReveal).toHaveBeenCalledOnce();
     await userEvent.click(view.getByRole("button", { name: "Copy" }));
-    await expect(
-      await view.findByRole("button", { name: "Copied" }),
-    ).toBeInTheDocument();
-    await expect(args.onCopyLink).toHaveBeenCalledOnce();
+    await expect(args.share?.onCopy).toHaveBeenCalledOnce();
   }),
 };
 
@@ -178,7 +168,7 @@ export const ExportedInBrowser: Story = {
 };
 
 export const Stale: Story = {
-  args: { exportState: STALE, link: { url: LINK, openedBy: OPENED_BY } },
+  args: { exportState: STALE },
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByText("Edited since export")).toBeInTheDocument();
@@ -221,9 +211,42 @@ export const NeedsModel: Story = {
 
 export const NoMix: Story = {
   args: {
-    link: { url: null, noMix: true },
     facts: { ...CLEAR_FACTS, mixUpToDate: false },
+    share: shareOptions(fn, {
+      createRecovery: {
+        kind: "needs_refresh",
+        message:
+          "This project has no mix yet. Refresh the mix to create the link.",
+        refreshError: null,
+      },
+    }),
   },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    await userEvent.click(
+      within(
+        within(canvasElement).getByRole("region", { name: "Share" }),
+      ).getByRole("button", { name: "Refresh mix" }),
+    );
+    await expect(args.share?.onRefreshMix).toHaveBeenCalledOnce();
+  }),
+};
+
+export const WithShare: Story = {
+  args: {
+    share: shareOptions(fn, {
+      rows: [REVIEW_ROW, AGENT_ROW, GUEST_ROW, PRODUCER_ROW],
+      tunnel: ONLINE,
+      reach: "anywhere",
+    }),
+  },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await expect(view.getByRole("heading", { name: "Share" })).toBeVisible();
+    await userEvent.click(
+      view.getByRole("button", { name: "Create review link" }),
+    );
+    await expect(args.share?.onCreate).toHaveBeenCalledOnce();
+  }),
 };
 
 export const WithBounce: Story = {
@@ -288,7 +311,7 @@ export const PhoneExported: Story = {
     exportState: DONE,
     env: "browser",
     facts: MEASURED_FACTS,
-    link: { url: LINK, openedBy: OPENED_BY },
+    share: shareOptions(fn, { rows: [REVIEW_ROW], reach: "network" }),
   },
   parameters: isolatedStoryParameters,
 };
