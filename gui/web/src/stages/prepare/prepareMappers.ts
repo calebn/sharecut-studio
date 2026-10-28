@@ -386,7 +386,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
             detail:
               model.phase === "failed"
                 ? `${model.failure ?? "The download did not finish."} Try again.`
-                : `Waiting for ${model.what}. Other steps keep going.`,
+                : `Needs ${model.what} before it can start.`,
             action: {
               label: `Get (${model.size})`,
               icon: "cloud-download",
@@ -516,6 +516,8 @@ export type PhaseInput = {
   ingestBusy: boolean;
   /** Sources whose audio is still being measured. */
   checking: boolean;
+  /** The run is stopped on a missing model (asked, downloading or failed). */
+  model?: ModelAsk | null;
   /** The run was refused for a busy slot. */
   waiting?: boolean;
   rows: readonly ReadyRowData[];
@@ -540,13 +542,8 @@ export function preparePhase(input: PhaseInput): PhaseResult {
       },
     };
   }
-  const transcribe = input.rows.find((row) => row.id === "transcribe");
-  if (
-    transcribe?.state === "needs-you" &&
-    transcribe.action?.run === "download-model"
-  ) {
-    return { phase: "needs-model" };
-  }
+  // The run was refused, so no work runs while the model asks or downloads.
+  if (input.model) return { phase: "needs-model" };
   // Refused for a busy slot: nothing runs until the slot frees or Run is tapped.
   if (input.waiting) return { phase: "waiting" };
   // A row that waits on the person (word timing to download, hand fixes to

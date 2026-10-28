@@ -140,7 +140,7 @@ export const ROWS = {
       id: "transcribe",
       state: "needs-you",
       title: "Transcribe",
-      detail: "Needs a 1.6 GB download first. Other steps keep going.",
+      detail: "Needs a 1.6 GB download first.",
       action: {
         label: "Download 1.6 GB",
         icon: "cloud-download",
