@@ -578,11 +578,8 @@ class JobManager:
         svc = PipelineService(ws)
         if job.kind == "export":
             cfg = job.config or {}
-            opened_head_id = ws.project.history.edit_head_id()
             export = svc.export_audio(cfg.get("formats"), cancel_check=cancel_check)
-            result = export.job_result()
-            result.setdefault("edit_head_id", opened_head_id)
-            return "Export complete", result
+            return "Export complete", export.job_result()
         if job.kind == "render_preview":
             if job.cancel_requested:
                 raise CancelledProgress(cancelled_copy(job.kind))

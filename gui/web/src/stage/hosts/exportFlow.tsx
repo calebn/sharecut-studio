@@ -164,7 +164,16 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
         if (isAbortError(err)) {
           setRun({ kind: "idle" });
         } else if (err instanceof JobCancelledError) {
-          setRun({ kind: "cancelled", paths: jobResultPaths(err.job) });
+          const exportedHead = err.job.result?.edit_head_id;
+          if (typeof exportedHead === "string")
+            setRequest((r) =>
+              r && r.edits !== undefined ? { ...r, edits: exportedHead } : r,
+            );
+          setRun({
+            kind: "cancelled",
+            paths: jobResultPaths(err.job),
+            finishedAt: Date.now(),
+          });
         } else {
           setRun({ kind: "failed", reason: errorMessage(err) });
         }

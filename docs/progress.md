@@ -16,10 +16,10 @@ Users should be able to answer:
 
 Narration must map to real work (no LLM filler). Brand: calm status chrome ([ux/pages/brand.md](../ux/pages/brand.md)).
 
-Export and Split speakers render their dialog progress through
-`gui/web/src/stage/dialogs/JobProgressView.tsx`. It owns the headline, honest bar,
-unit count, elapsed time, and stale status. Each dialog owns its starting and
-cancel copy, close guidance, errors, and outcomes.
+Export on the Deliver stage renders its progress as a `StatusRow` built in
+`gui/web/src/stage/hosts/deliverExport.ts` from the job's headline, honest bar,
+unit count, elapsed time, and stale status. The Episode file section owns its
+starting and cancel copy, errors, and outcomes.
 
 ## Reviewed edit batches
 

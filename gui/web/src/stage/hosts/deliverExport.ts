@@ -140,6 +140,9 @@ export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
         detail: run.paths.length
           ? lateCancelCopy(exportResultCopy(run.paths))
           : CANCELLED_NOTHING,
+        ...(run.paths.length > 0 && flow.request
+          ? { when: exportWhen(run.finishedAt), exported: flow.request }
+          : {}),
       };
   }
 }

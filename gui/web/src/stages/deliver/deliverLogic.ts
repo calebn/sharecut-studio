@@ -233,7 +233,13 @@ export type ExportState =
       summary?: string;
       measured?: string;
     }
-  | { phase: "cancelled"; files: readonly ExportFile[]; detail: string }
+  | {
+      phase: "cancelled";
+      files: readonly ExportFile[];
+      detail: string;
+      when?: string;
+      exported?: ExportRequest;
+    }
   | { phase: "failed"; cause: string };
 
 export type DeliverEnv = "app" | "browser" | "none";
@@ -352,10 +358,20 @@ export function currentExportState(
   state: ExportState,
   ...now: ExportRequest[]
 ): ExportState {
-  return state.phase === "done" &&
-    !now.some((request) => coversRequest(state.exported, request))
-    ? { ...state, phase: "stale" }
-    : state;
+  const covered = (exported: ExportRequest) =>
+    now.some((request) => coversRequest(exported, request));
+  if (state.phase === "done")
+    return covered(state.exported) ? state : { ...state, phase: "stale" };
+  if (state.phase === "cancelled" && state.exported && state.when)
+    return covered(state.exported)
+      ? state
+      : {
+          phase: "stale",
+          files: state.files,
+          when: state.when,
+          exported: state.exported,
+        };
+  return state;
 }
 
 /** Why Export cannot start: nothing is chosen, or the part is empty. */
