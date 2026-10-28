@@ -761,6 +761,7 @@ def test_apply_edit_plan_mcp(tmp_path):
     data = json.loads(out)
     assert data["operation"] == "apply_edit_plan"
     assert data["entries_added"] >= 1
+    assert set(data) == {"operation", "entries_added", "review_required", "use_inaudible_opt"}
 
 
 def test_export_transcript_mcp(tmp_path):

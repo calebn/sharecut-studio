@@ -55,13 +55,12 @@ _READ_ONLY = frozenset(
 # method into the document command catalog and shrinks this set and its size.
 _DIRECT_MUTATIONS = frozenset(
     {
-        "apply_plan",
         "propose_tighten",
         "shorten_word_gaps",
         "strip_silence",
     }
 )
-_DIRECT_MUTATIONS_SIZE = 4
+_DIRECT_MUTATIONS_SIZE = 3
 # TranscriptService also carries ASR and export entry points that predate the edit services.
 _ASR_AND_EXPORT = frozenset({"transcribe", "seed", "get", "export_markdown", "export_subtitles"})
 _EDIT_SERVICES = frozenset(

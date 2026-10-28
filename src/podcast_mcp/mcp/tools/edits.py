@@ -201,20 +201,16 @@ def apply_edit_plan_tool(
     use_inaudible_opt: bool | None = None,
 ) -> str:
     """Stage cuts from an edit-plan list; applied entries undergo fresh cut assessment."""
-    ws = ProjectWorkspace.open(project_path)
-    n = EditService(ws).apply_plan(
-        edits,
-        review_required=review_required,
-        use_inaudible_opt=use_inaudible_opt,
-    )
-    agent_mutated(ws)
     return to_json(
-        {
-            "operation": "apply_edit_plan",
-            "entries_added": n,
-            "review_required": review_required,
-            "use_inaudible_opt": use_inaudible_opt,
-        }
+        submit_host_command_result(
+            project_path,
+            "ApplyEditPlan",
+            {
+                "edits": edits,
+                "review_required": review_required,
+                "use_inaudible_opt": use_inaudible_opt,
+            },
+        )
     )
 
 

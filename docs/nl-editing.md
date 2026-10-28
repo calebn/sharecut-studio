@@ -13,7 +13,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `cut_text_match_tool` | Remove matching transcript; returns the last five pending decisions as that command saw them, so another writer's edits that land afterwards never replace its own |
 | `cut_utterance_tool` | Remove combined utterance by index |
 | `cut_words_tool` | Remove word index range on a track |
-| `apply_edit_plan_tool` | Bulk edit plan (`edits`: a list of cut objects) |
+| `apply_edit_plan_tool` | Bulk edit plan (`edits`: a list of cut objects, each with `track_id`, `start`, `end` and optionally `reason`, `review_required`, `crossfade_ms`, `use_inaudible_opt`, `applied`); host-only `ApplyEditPlan` command, one history step pair per call; a malformed entry is `invalid_payload` |
 | `preview_inaudible_cut_tool` | Dry-run boundary optimization metadata |
 | `suggest_handoff_cut_tool` | RMS silence-island OUT/IN for narrative handoffs (timeline); quiet means every lane is at or under its own voice floor, so there is no level argument; lock with `use_inaudible_opt=false` |
 | `join_quality_tool` / `join_qa_sweep_tool` | Perceptual join continuity (advisory; disclaimer on every report) |
