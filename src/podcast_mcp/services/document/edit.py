@@ -61,7 +61,11 @@ from podcast_mcp.edits.timeline_ops import (
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.edits.transcript_search import TranscriptMatch
-from podcast_mcp.edits.unsure_words import NothingLeftToApply, hold_unsure_cuts
+from podcast_mcp.edits.unsure_words import (
+    NothingLeftToApply,
+    hold_unsure_actions,
+    hold_unsure_cuts,
+)
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import CutIntent, EditDecision, EditMode
 from podcast_mcp.models.episode import ExactRangeTarget
@@ -451,6 +455,7 @@ class EditService(CutMutatingService):
         overrides: dict[str, str] | None = None,
         revise: bool = False,
         application_intent: CutIntent = CutIntent.PROGRAMMATIC,
+        skip_unsure: bool = False,
     ) -> dict[str, Any]:
         """Apply every pending sound's own suggested action in one undoable step.
 
@@ -464,6 +469,8 @@ class EditService(CutMutatingService):
         on top of the actions it used, so every other sound keeps its action and the result
         is again one undo step. A sound the new action cannot apply (a held cut) comes back
         pending and is named in ``held``; when none can apply the call refuses and keeps the batch.
+        ``skip_unsure`` is the bulk guard: a cut or shorten over an unsure transcript word stays
+        pending and is named in ``held`` and ``held_unsure``; when all are held nothing is saved.
         """
         from podcast_mcp.edits.cut_policy import SUGGESTED_ACTIONS, decision_policy
         from podcast_mcp.edits.suggested_actions import (
@@ -485,7 +492,9 @@ class EditService(CutMutatingService):
                     "revise re-applies the whole latest batch; give overrides, not ids",
                     code="revise_takes_no_ids",
                 )
-            return self._revise_suggested_actions(overrides, application_intent)
+            return revise_suggested_actions(
+                self.ws, self.apply_suggested_actions, overrides, application_intent, skip_unsure
+            )
 
         def pending(e: EditDecision) -> bool:
             return (
@@ -502,9 +511,16 @@ class EditService(CutMutatingService):
                 for e in listed
                 if (policy := decision_policy(e)) is not None
             }
+            if skip_unsure:
+                line = unsure_word_confidence(self.ws.effective_config())
+                result.held_unsure = hold_unsure_actions(project, actions, line)
+                result.held.extend(result.held_unsure)
+                listed = [e for e in listed if e.id in actions]
             cut_ids = [e.id for e in listed if actions[e.id] in ("cut", "shorten")]
             if cut_ids:
                 self._require_refine_clear()
+            if result.held_unsure and not actions:
+                return {"operation": "apply_suggested_actions", **result.to_payload()}
             with batch_scope():
                 self.ws.mutate(
                     "before apply suggested actions",
@@ -526,13 +542,6 @@ class EditService(CutMutatingService):
                     },
                 )
         return {"operation": "apply_suggested_actions", **result.to_payload()}
-
-    def _revise_suggested_actions(
-        self, overrides: dict[str, str], application_intent: CutIntent
-    ) -> dict[str, Any]:
-        return revise_suggested_actions(
-            self.ws, self.apply_suggested_actions, overrides, application_intent
-        )
 
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:

@@ -17,7 +17,7 @@ from podcast_mcp.cli.cut_speech import (
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import UNSURE_WORD_REASON, AskedEdits, HeldEdit
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
-from podcast_mcp.edits.source_removals import STALE_REASON
+from podcast_mcp.edits.source_removals import STALE_REASON, cut_label
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
@@ -310,7 +310,11 @@ def edit_apply_suggested_cmd(
     ),
     override_checks: bool = override_audio_checks_option(),
 ) -> None:
-    """Apply every pending sound's suggested action in one undo step."""
+    """Apply every pending sound's suggested action in one undo step.
+
+    All pending sounds, or several --ids, leave a cut over an unsure word pending; --ids <id>
+    for one cut applies it.
+    """
     overrides: dict[str, str] = {}
     for item in override:
         edit_id, _, action = item.partition("=")
@@ -319,14 +323,32 @@ def edit_apply_suggested_cmd(
         overrides[edit_id] = action
     ws = ProjectWorkspace.open(project)
     id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
+    # Every pending sound or several ids is a bulk apply: cuts over an unsure word stay pending
+    # (name one with --ids <id>). A revise re-applies the latest batch and keeps its own cuts.
+    bulk = not revise and (id_list is None or len(set(id_list)) > 1)
     with cli_override(override_checks):
         result = apply_external_document_edit(
             ws,
             lambda: EditService(ws).apply_suggested_actions(
-                id_list, overrides=overrides, revise=revise
+                id_list, overrides=overrides, revise=revise, skip_unsure=bulk
             ),
         )
     typer.echo(result["summary"])
+    if result["held_unsure"]:
+        pending = {e.id: e for e in ws.project.edit_decisions}
+        _echo_held(
+            [
+                HeldEdit(i, cut_label(ws.project, pending[i]), UNSURE_WORD_REASON)
+                for i in result["held_unsure"]
+                if i in pending
+            ],
+            [],
+        )
+        typer.echo(
+            "Edits over an unsure word stay pending. Check the words (`podcast transcript review`), "
+            "then apply one by name: --ids <id>.",
+            err=True,
+        )
 
 
 @edit_app.command("reject")

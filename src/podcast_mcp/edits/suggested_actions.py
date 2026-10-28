@@ -31,6 +31,7 @@ class SuggestedActionsResult:
     applied: dict[str, int] = field(default_factory=dict)
     cut_over_speaker: int = 0
     held: list[str] = field(default_factory=list)
+    held_unsure: list[str] = field(default_factory=list)
     left_no_overlap: int = 0
 
     def to_payload(self) -> dict[str, Any]:
@@ -39,6 +40,7 @@ class SuggestedActionsResult:
             "applied_count": sum(self.applied.values()),
             "cut_over_speaker": self.cut_over_speaker,
             "held": list(self.held),
+            "held_unsure": list(self.held_unsure),
             "lowered_to_leave": self.left_no_overlap,
             "summary": self.summary(),
         }
@@ -52,6 +54,8 @@ class SuggestedActionsResult:
             text += f"; {self.left_no_overlap} left (nobody talking over it)"
         if self.held:
             text += f"; {len(self.held)} still pending"
+            if self.held_unsure:
+                text += f" ({len(self.held_unsure)} over an unsure word)"
         return text + "."
 
 
