@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
-import { openProject } from "./stageNav";
+import { inspectSelection, openProject } from "./stageNav";
 
 test.describe("Clip inspector join control", () => {
   test("is axe-clean with a left neighbour and keeps focus order", async ({
@@ -20,6 +20,7 @@ test.describe("Clip inspector join control", () => {
     await expect(lanes.first().locator(".clip-block")).toHaveCount(2);
     try {
       await lanes.first().locator(".clip-block").nth(1).click();
+      await inspectSelection(page);
       const joinMode = page.getByLabel("Incoming transition");
       await expect(joinMode).toBeVisible();
       await expectPageAxeClean(page, ".inspector");
@@ -66,6 +67,7 @@ test.describe("Clip inspector fade controls", () => {
     if (clip === undefined)
       throw new Error("visible clip is missing from the project snapshot");
     await firstBlock.click();
+    await inspectSelection(page);
 
     const fadeIn = page.getByLabel("Fade in ms");
     await expect(fadeIn).toBeEnabled();

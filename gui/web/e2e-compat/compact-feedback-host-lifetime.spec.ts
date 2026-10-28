@@ -8,6 +8,7 @@ import {
 } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
+import { inspectSelectionByKey } from "../e2e/stageNav";
 import { setTheme } from "../e2e/theme";
 import {
   buildFixture,
@@ -76,6 +77,7 @@ test.describe("feedback host Close", () => {
       const point = page.locator(`${lane} [data-hit-id="env-c"]`);
       await point.focus();
       await point.press("Enter");
+      await inspectSelectionByKey(page);
       await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
       await page.locator("html").evaluate((html) => {
         html.style.fontSize = "32px";

@@ -1,7 +1,7 @@
 import { expect, type Route, test } from "@playwright/test";
 import { hostOfflineQueueCount } from "./offlineQueue";
 import { withShareableProject } from "./shareableProject";
-import { openProject } from "./stageNav";
+import { inspectSelection, openProject } from "./stageNav";
 
 type FadeCommand = { command_id: string; type: string };
 
@@ -23,6 +23,7 @@ test("a fade nudge that queues offline stays shown, then saves once online", asy
     await expect(block).toHaveCount(1);
     const clipId = await block.getAttribute("data-clip-id");
     await block.click();
+    await inspectSelection(page);
 
     const fadeIn = page.getByLabel("Fade in ms");
     await expect(fadeIn).toHaveValue("0");

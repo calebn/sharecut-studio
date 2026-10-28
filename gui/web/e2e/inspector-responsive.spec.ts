@@ -22,7 +22,7 @@ import { type InteractionReceipt, test } from "./interactionEvidence";
 import { rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
-import { closeTools, openToolsIfFolded } from "./stageNav";
+import { closeTools, inspectSelection, openToolsIfFolded } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 import { json } from "./touchTimeline";
 
@@ -117,6 +117,7 @@ async function openClip(page: Page, receipts: InteractionReceipt[]) {
   expect(geometry.hits).toBe(true);
   await page.screenshot();
   await page.mouse.click(geometry.point.x, geometry.point.y);
+  await inspectSelection(page);
   await expect(page.locator(".modifier-badge")).toHaveText("Clip");
 }
 
