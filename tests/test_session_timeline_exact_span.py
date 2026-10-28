@@ -26,7 +26,7 @@ _PROBES = 20
 
 
 def _frozen_exact_source_span(self, track_id, start, end):
-    """The list-scan implementation as it stood before the by-id index."""
+    """Reference list-scan implementation of exact_source_span."""
     import math
 
     if end <= start:
@@ -225,23 +225,34 @@ def test_exact_source_span_matches_list_scan_oracle(tmp_path):
     assert found > 300
 
 
-def test_equal_clips_on_another_lane_and_duplicates(tmp_path):
+def test_same_recording_clips_on_other_lanes_extend_the_span(tmp_path):
+    project = EpisodeProject.create("cross", str(tmp_path / "ws"))
+    project.timeline.tracks = [
+        Track(id=lane, label=lane, media=MediaAsset(path=path, duration_sec=30.0))
+        for lane, path in (("a", "raw/x.wav"), ("b", "raw/x.wav"), ("c", "raw/y.wav"))
+    ]
+    project.timeline.clips = [
+        Clip(id="k", track_id="a", source_start=0.0, source_end=4.0, timeline_start=0.0),
+        Clip(id="k", track_id="b", source_start=4.0, source_end=8.0, timeline_start=4.0),
+        Clip(id="k", track_id="c", source_start=0.0, source_end=4.0, timeline_start=0.0),
+    ]
+    timeline = SessionTimeline(project)
+    got = timeline.exact_source_span("a", SourceSec(0.0), SourceSec(8.0))
+    want = _frozen_exact_source_span(timeline, "a", SourceSec(0.0), SourceSec(8.0))
+    assert want == (0.0, 8.0)
+    assert got == want
+
+
+def test_equal_duplicate_clips_are_not_an_exact_span(tmp_path):
     project = EpisodeProject.create("dup", str(tmp_path / "ws"))
     project.timeline.tracks = [
         Track(id="a", label="a", media=MediaAsset(path="raw/x.wav", duration_sec=30.0)),
-        Track(id="b", label="b", media=MediaAsset(path="raw/x.wav", duration_sec=30.0)),
     ]
     first = Clip(id="k", track_id="a", source_start=0.0, source_end=4.0, timeline_start=0.0)
-    project.timeline.clips = [
-        first,
-        first.model_copy(deep=True),
-        Clip(id="k", track_id="b", source_start=0.0, source_end=4.0, timeline_start=0.0),
-    ]
+    project.timeline.clips = [first, first.model_copy(deep=True)]
     timeline = SessionTimeline(project)
-    for lane in ("a", "b"):
-        got = timeline.exact_source_span(lane, SourceSec(0.0), SourceSec(4.0))
-        want = _frozen_exact_source_span(timeline, lane, SourceSec(0.0), SourceSec(4.0))
-        assert got == want
+    assert timeline.exact_source_span("a", SourceSec(0.0), SourceSec(4.0)) is None
+    assert _frozen_exact_source_span(timeline, "a", SourceSec(0.0), SourceSec(4.0)) is None
 
 
 def test_exact_source_span_compares_clips_far_less_than_list_scan(tmp_path, monkeypatch):
@@ -277,7 +288,8 @@ def test_exact_source_span_compares_clips_far_less_than_list_scan(tmp_path, monk
     calls = 0
     want = _frozen_exact_source_span(timeline, "host", SourceSec(30.0), SourceSec(33.0))
     old_calls = calls
-    assert got == want is not None
+    assert want is not None
+    assert got == want
     assert old_calls > len(project.clips)
     assert new_calls < len(project.clips) // 10
 
