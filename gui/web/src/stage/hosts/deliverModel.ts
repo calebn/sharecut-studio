@@ -134,3 +134,38 @@ export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
     )
   );
 }
+
+export function editHeadOf(history: {
+  head_id: string;
+  groups: readonly {
+    operation?: string | null;
+    id?: string;
+    before_id?: string;
+    after_id?: string;
+  }[];
+}): string {
+  let latest: string | null = null;
+  for (const group of history.groups) {
+    const entries =
+      group.id !== undefined
+        ? [{ id: group.id, edit: group.operation !== "render_preview" }]
+        : [
+            ...(group.before_id === undefined
+              ? []
+              : [{ id: group.before_id, edit: true }]),
+            ...(group.after_id === undefined
+              ? []
+              : [
+                  {
+                    id: group.after_id,
+                    edit: group.operation !== "render_preview",
+                  },
+                ]),
+          ];
+    for (const entry of entries) {
+      if (entry.edit) latest = entry.id;
+      if (entry.id === history.head_id) return latest ?? history.head_id;
+    }
+  }
+  return history.head_id;
+}

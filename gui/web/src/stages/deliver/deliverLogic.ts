@@ -1,18 +1,24 @@
+import type { ModelGate } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
 import type { StageId } from "../../types/stage";
 
-export type FormatId = "mp3" | "wav" | "flac";
+export type FormatId = string;
 
-/** Bytes per second of the written file; the server gives exact sizes after export. */
-export const FORMATS: readonly {
+export type FormatOption = {
   id: FormatId;
   label: string;
   bytesPerSecond: number;
-}[] = [
-  { id: "mp3", label: "MP3", bytesPerSecond: 16_000 },
+};
+
+export const LOSSLESS_BYTES_PER_SECOND = 97_000;
+export const COMPRESSED_BYTES_PER_SECOND = 16_000;
+
+/** Bytes per second of the written file; the server gives exact sizes after export. */
+export const FORMATS: readonly FormatOption[] = [
+  { id: "mp3", label: "MP3", bytesPerSecond: COMPRESSED_BYTES_PER_SECOND },
   { id: "wav", label: "WAV", bytesPerSecond: 176_400 },
-  { id: "flac", label: "FLAC", bytesPerSecond: 97_000 },
+  { id: "flac", label: "FLAC", bytesPerSecond: LOSSLESS_BYTES_PER_SECOND },
 ];
 
 export type LoudnessId = "podcast" | "broadcast" | "streaming";
@@ -47,8 +53,12 @@ export function clampPart(
   return { mode: "part", start, end };
 }
 
-export function estimateBytes(format: FormatId, seconds: number): number {
-  const entry = FORMATS.find((f) => f.id === format);
+export function estimateBytes(
+  format: FormatId,
+  seconds: number,
+  formats: readonly FormatOption[] = FORMATS,
+): number {
+  const entry = formats.find((f) => f.id === format);
   return Math.round((entry?.bytesPerSecond ?? 0) * seconds);
 }
 
@@ -192,7 +202,7 @@ export function readinessSummary(rows: readonly ReadinessRow[]): string {
   return `${open} ${open === 1 ? "thing" : "things"} left. You can still export.`;
 }
 
-export type ExportFile = { name: string; bytes: number; format: FormatId };
+export type ExportFile = { name: string; bytes?: number; format: FormatId };
 
 /** What an export was asked to write; `range` is null for the whole episode. */
 export type ExportRequest = {
@@ -200,6 +210,7 @@ export type ExportRequest = {
   clips: readonly Pick<Clip, "id" | "start" | "end" | "title">[];
   chapters: readonly Chapter[];
   range: TimeSpan | null;
+  edits?: string;
 };
 
 export type TimeSpan = { start: number; end: number };
@@ -207,16 +218,25 @@ export type TimeSpan = { start: number; end: number };
 export type ExportState =
   | { phase: "never" }
   | { phase: "needs-model"; model: string; size: string }
-  | { phase: "running"; progress: number; detail: string }
+  | {
+      phase: "running";
+      progress: number | null;
+      detail: string;
+      cancelReason?: string;
+      cancelError?: string;
+    }
   | {
       phase: "done" | "stale";
       files: readonly ExportFile[];
       when: string;
       exported: ExportRequest;
+      summary?: string;
+      measured?: string;
     }
+  | { phase: "cancelled"; files: readonly ExportFile[]; detail: string }
   | { phase: "failed"; cause: string };
 
-export type DeliverEnv = "app" | "browser";
+export type DeliverEnv = "app" | "browser" | "none";
 
 /** Export until a current export exists; then Reveal in the app, Download in a browser. */
 export function primaryAction(
@@ -224,7 +244,8 @@ export function primaryAction(
   env: DeliverEnv,
 ): "export" | "exporting" | "reveal" | "download" {
   if (state.phase === "running") return "exporting";
-  if (state.phase === "done") return env === "app" ? "reveal" : "download";
+  if (state.phase === "done" && env !== "none")
+    return env === "app" ? "reveal" : "download";
   return "export";
 }
 
@@ -260,6 +281,7 @@ export function exportRequest(
   clips: readonly Clip[],
   chapters: readonly Chapter[],
   selection?: TimeSpan | null,
+  edits?: string,
 ): ExportRequest {
   return {
     settings,
@@ -268,6 +290,7 @@ export function exportRequest(
       .map(({ id, start, end, title }) => ({ id, start, end, title })),
     chapters,
     range: planRange(settings.part, selection),
+    ...(edits === undefined ? {} : { edits }),
   };
 }
 
@@ -306,6 +329,7 @@ export function coversRequest(
         a.part.start === b.part.start &&
         a.part.end === b.part.end)) &&
     sameSpan(exported.range, now.range) &&
+    exported.edits === now.edits &&
     sameList(
       byId(exported.clips),
       byId(now.clips),
@@ -338,9 +362,20 @@ export function currentExportState(
 export function exportBlocker(
   settings: EpisodeSettings,
   state?: ExportState,
+  host: Pick<
+    ExportOptions,
+    "wavAlwaysWritten" | "settingsError" | "loading" | "blockedReason"
+  > = {},
 ): string | undefined {
+  if (host.blockedReason) return host.blockedReason;
   if (state?.phase === "needs-model") return "Needs the transcription model.";
-  if (settings.formats.length === 0) return "Choose a format first.";
+  if (host.loading) return "Wait for the settings to load.";
+  if (
+    settings.formats.length === 0 &&
+    !host.wavAlwaysWritten &&
+    !host.settingsError
+  )
+    return "Choose a format first.";
   if (settings.part.mode === "part" && settings.part.end <= settings.part.start)
     return "Out must come after In.";
   return undefined;
@@ -487,3 +522,19 @@ export function itemNames(titles: readonly string[], noun: string): string[] {
       : name;
   });
 }
+
+export type ExportOptions = {
+  formats?: readonly FormatOption[];
+  wavAlwaysWritten?: boolean;
+  selected?: readonly FormatId[];
+  loading?: boolean;
+  settingsError?: string;
+  blockedReason?: string;
+  loudnessNote?: string;
+  loudness?: boolean;
+  range?: boolean;
+  edits?: string;
+  onFormats?: (keys: readonly FormatId[]) => void;
+  gate?: ModelGate;
+  onExportAgain?: () => void;
+};

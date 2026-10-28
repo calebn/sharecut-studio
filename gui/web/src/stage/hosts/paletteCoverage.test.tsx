@@ -18,6 +18,7 @@ import { pickAudioFiles } from "../../ingest/ingestFiles";
 import { useRecordHostStore } from "../../record/hostStore";
 import { useDawStore } from "../../state/dawStore";
 import { DawProvider } from "../../state/store";
+import { fakeExportServer } from "../../test/fakeExportServer";
 import {
   minimalProject,
   sampleTrack,
@@ -32,6 +33,7 @@ import { PlusMenu } from "../edit/PlusMenu";
 import { ViewSheet } from "../edit/ViewSheet";
 import { PlayerBar } from "../frame/PlayerBar";
 import { StageFrame } from "../frame/StageFrame";
+import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 
 /**
@@ -147,7 +149,9 @@ function mountStage(stage: "prepare" | "review" | "deliver" | "record") {
         manifest: { api_version: 1, features: [FEATURE_SHARE_UI_MENU] },
       }}
     >
-      <StageHost />
+      <ExportFlowProvider>
+        <StageHost />
+      </ExportFlowProvider>
     </FeaturesContext.Provider>,
   );
 }
@@ -275,10 +279,30 @@ const deliverButton =
     await runs(id, () => user.click(button(name)));
   };
 
+// Only this probe talks to the export endpoints; the Prepare probes read their
+// own pipeline config and must not get the export fake's.
+const exportButton: Probe = async (user) => {
+  const exportServer = fakeExportServer();
+  mountStage("deliver");
+  const press = await screen.findByRole("button", { name: "Export" });
+  await waitFor(() => expect(press).toBeEnabled());
+  await user.click(press);
+  await waitFor(() =>
+    expect(
+      exportServer.exportRequests,
+      "Export did not start a job",
+    ).toHaveLength(1),
+  );
+};
+
 const refreshMixRow: Probe = async (user) => {
   asHost("deliver");
   useDawStore.getState().setProject(staleProject());
-  render(<StageHost />);
+  render(
+    <ExportFlowProvider>
+      <StageHost />
+    </ExportFlowProvider>,
+  );
   await runs("render.refreshMix", () =>
     user.click(screen.getByRole("button", { name: "Refresh mix" })),
   );
@@ -372,7 +396,7 @@ const REMOVED_SURFACES: Entry[] = [
     deliverButton("Bounce…", "export.bounce"),
   ]),
   entry("transport Menu", "Export deliverables", "export.deliverables", [
-    deliverButton("Export", "export.deliverables"),
+    exportButton,
   ]),
   entry("transport Menu", "Share", "share.manage", [
     deliverButton("Share a listen link", "share.manage"),

@@ -374,30 +374,12 @@ html[data-shell="phone"]
   color: var(--color-text-secondary);
 }
 
-/* Lines up under a checkbox label, past the 1rem box and its gap, and sits
-   against the row it explains rather than midway to the next one. */
-.export-dialog-indent {
-  margin-block: calc(-1 * var(--space-3)) var(--space-3);
-  padding-inline-start: calc(1rem + var(--space-4));
-}
-
 .export-dialog-progress {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   min-block-size: var(--touch-min);
-}
-
-.export-dialog-files {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-caption);
-  overflow-wrap: anywhere;
 }
 
 .command-palette-panel.share-dialog-panel {

@@ -10,6 +10,7 @@ export {
   ModelGateDialog,
   ModelGateFooter,
   ModelGateHint,
+  ModelGatePanel,
 } from "./gate/ModelGate";
 export {
   type GatePrompt,

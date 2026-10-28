@@ -1,12 +1,13 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { useRecordHostStore } from "../../record/hostStore";
 import { useDawStore } from "../../state/dawStore";
+import { fakeExportServer } from "../../test/fakeExportServer";
 import {
   minimalProject,
   pipelineJobSnapshot,
@@ -14,6 +15,7 @@ import {
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { StageId } from "../../types/stage";
+import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 
 vi.mock("../../panels/ImpactPanel", () => ({
@@ -57,10 +59,18 @@ function mount(guestShare = false) {
         manifest: { api_version: 1, features: [FEATURE_SHARE_UI_MENU] },
       }}
     >
-      <StageHost guestShare={guestShare} />
+      <ExportFlowProvider>
+        <StageHost guestShare={guestShare} />
+      </ExportFlowProvider>
     </FeaturesContext.Provider>,
   );
 }
+
+let server: ReturnType<typeof fakeExportServer>;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 beforeEach(() => {
   stubViewportShell("desktop");
@@ -287,10 +297,19 @@ describe("Prepare host", () => {
 });
 
 describe("Deliver host", () => {
-  it("opens the export, bounce and share dialogs through their commands", async () => {
+  // Only Deliver talks to the export endpoints; the Prepare host reads its own
+  // pipeline config and must not get the export fake's.
+  beforeEach(() => {
+    server = fakeExportServer();
+  });
+
+  it("starts the export and opens the bounce and share dialogs through their commands", async () => {
     asHost("deliver");
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Export" }));
+    const exportButton = await screen.findByRole("button", { name: "Export" });
+    await waitFor(() => expect(exportButton).toBeEnabled());
+    await userEvent.click(exportButton);
+    await waitFor(() => expect(server.exportRequests).toHaveLength(1));
     await userEvent.click(screen.getByRole("button", { name: "Bounce…" }));
     await userEvent.click(
       screen.getByRole("button", { name: "Share a listen link" }),
@@ -298,10 +317,10 @@ describe("Deliver host", () => {
     await waitFor(() => {
       const { chrome } = useDawStore.getState();
       expect([
-        chrome.exportDialogOpen,
+        chrome.exportRequested,
         chrome.bounceDialogOpen,
         chrome.shareDialogOpen,
-      ]).toEqual([true, true, true]);
+      ]).toEqual([false, true, true]);
     });
   });
 
@@ -336,7 +355,9 @@ describe("Deliver host", () => {
       <FeaturesContext.Provider
         value={{ ready: true, manifest: { api_version: 1, features: [] } }}
       >
-        <StageHost />
+        <ExportFlowProvider>
+          <StageHost />
+        </ExportFlowProvider>
       </FeaturesContext.Provider>,
     );
     expect(

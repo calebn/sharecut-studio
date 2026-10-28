@@ -1,14 +1,16 @@
-import { formatBytes } from "../../models";
+import { useEffect, useId, useRef } from "react";
+import { formatBytes, ModelGateHint, ModelGatePanel } from "../../models";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
 import { TimeField } from "../../system/TimeField";
-import { Button, SegmentedControl, ToggleButton } from "../../ui";
+import { Button, InlineError, SegmentedControl, ToggleButton } from "../../ui";
 import { DeliverSection } from "./DeliverSection";
 import {
   clampPart,
   type DeliverEnv,
   type EpisodeSettings,
   type ExportFile,
+  type ExportOptions,
   type ExportState,
   estimateBytes,
   exportBlocker,
@@ -33,8 +35,7 @@ type Props = {
   state?: "ready" | "loading";
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
-  /** False when the host cannot honor the format, loudness and range choices. */
-  showSettings?: boolean;
+  options?: ExportOptions;
   onSettings: (next: EpisodeSettings) => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
@@ -53,7 +54,7 @@ export function EpisodeFile({
   env,
   state = "ready",
   dock = false,
-  showSettings = true,
+  options = {},
   onSettings,
   onChangeFolder,
   onExport,
@@ -62,6 +63,24 @@ export function EpisodeFile({
   onReveal,
   onDownload,
 }: Props) {
+  const wavNote = useId();
+  const gatePanel = useRef<HTMLDivElement>(null);
+  const runningBlock = useRef<HTMLDivElement>(null);
+  const running = exportState.phase === "running";
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (running && !wasRunning.current)
+      runningBlock.current?.scrollIntoView?.({ block: "center" });
+    wasRunning.current = running;
+  }, [running]);
+  const askPhase =
+    exportState.phase === "needs-model" ? options.gate?.prompt?.phase : null;
+  useEffect(() => {
+    if (!askPhase) return;
+    const first = gatePanel.current?.querySelector("button");
+    first?.scrollIntoView?.({ block: "center" });
+    first?.focus();
+  }, [askPhase]);
   if (state === "loading") {
     return (
       <DeliverSection title="Episode file">
@@ -70,7 +89,8 @@ export function EpisodeFile({
     );
   }
   const seconds = partSeconds(settings.part, total);
-  const blocker = exportBlocker(settings, exportState);
+  const formats = options.formats ?? FORMATS;
+  const blocker = exportBlocker(settings, exportState, options);
   const action = primaryAction(exportState, env);
   const toggleFormat = (id: FormatId) =>
     onSettings({
@@ -80,53 +100,85 @@ export function EpisodeFile({
         : [...settings.formats, id],
     });
   const files =
-    exportState.phase === "done" || exportState.phase === "stale"
+    exportState.phase === "done" ||
+    exportState.phase === "stale" ||
+    exportState.phase === "cancelled"
       ? exportState.files
       : [];
 
   return (
     <DeliverSection title="Episode file">
-      {showSettings ? (
-        <>
-          <div className="dv-chips" role="group" aria-label="Formats">
-            {FORMATS.map((format) => (
+      {options.loading ? (
+        <p className="dv-note" role="status">
+          Loading export settings…
+        </p>
+      ) : (
+        <div className="dv-chips" role="group" aria-label="Formats">
+          {options.wavAlwaysWritten ? (
+            <ToggleButton
+              pressed
+              disabledReason="Always written."
+              aria-describedby={wavNote}
+            >
+              WAV
+            </ToggleButton>
+          ) : null}
+          {formats.map((format) => (
+            <ToggleButton
+              key={format.id}
+              pressed={settings.formats.includes(format.id)}
+              onClick={() => toggleFormat(format.id)}
+            >
+              {format.label}
+              <span className="sys-mono dv-chip-size">
+                {formatBytes(estimateBytes(format.id, seconds, formats))}
+              </span>
+            </ToggleButton>
+          ))}
+        </div>
+      )}
+      {options.wavAlwaysWritten && !options.loading ? (
+        <p id={wavNote} className="dv-note">
+          WAV is the lossless master and is always written. Turn it off in the
+          Pipeline tab.
+        </p>
+      ) : null}
+      {options.settingsError ? (
+        <InlineError
+          message={`Export settings did not load: ${options.settingsError}. Export uses this project's saved formats.`}
+        />
+      ) : null}
+      <p className="dv-note">
+        Captions and transcript are written with every export.
+      </p>
+
+      {options.loudnessNote ? (
+        <p className="dv-note">
+          {options.loudnessNote} Change the target in the Pipeline tab.
+        </p>
+      ) : options.loudness === false ? null : (
+        <div className="dv-field">
+          <span className="dv-field-label">Loudness</span>
+          <SegmentedControl label="Loudness">
+            {LOUDNESS.map((entry) => (
               <ToggleButton
-                key={format.id}
-                pressed={settings.formats.includes(format.id)}
-                onClick={() => toggleFormat(format.id)}
+                key={entry.id}
+                quiet
+                pressed={settings.loudness === entry.id}
+                onClick={() => onSettings({ ...settings, loudness: entry.id })}
               >
-                {format.label}
+                {entry.label}
                 <span className="sys-mono dv-chip-size">
-                  {formatBytes(estimateBytes(format.id, seconds))}
+                  {String(entry.lufs).replace("-", "−")}
                 </span>
               </ToggleButton>
             ))}
-          </div>
-          <p className="dv-note">
-            Captions and transcript are written with every export.
-          </p>
+          </SegmentedControl>
+        </div>
+      )}
 
-          <div className="dv-field">
-            <span className="dv-field-label">Loudness</span>
-            <SegmentedControl label="Loudness">
-              {LOUDNESS.map((entry) => (
-                <ToggleButton
-                  key={entry.id}
-                  quiet
-                  pressed={settings.loudness === entry.id}
-                  onClick={() =>
-                    onSettings({ ...settings, loudness: entry.id })
-                  }
-                >
-                  {entry.label}
-                  <span className="sys-mono dv-chip-size">
-                    {String(entry.lufs).replace("-", "−")}
-                  </span>
-                </ToggleButton>
-              ))}
-            </SegmentedControl>
-          </div>
-
+      {options.range === false ? null : (
+        <>
           <div className="dv-field">
             <span className="dv-field-label">Range</span>
             <SegmentedControl label="Range">
@@ -196,7 +248,7 @@ export function EpisodeFile({
             </div>
           ) : null}
         </>
-      ) : null}
+      )}
 
       {onChangeFolder ? (
         <p className="dv-save">
@@ -207,7 +259,12 @@ export function EpisodeFile({
         </p>
       ) : null}
 
-      {exportState.phase === "needs-model" ? (
+      {exportState.phase === "needs-model" && options.gate ? (
+        <div ref={gatePanel}>
+          <ModelGatePanel gate={options.gate} />
+        </div>
+      ) : null}
+      {exportState.phase === "needs-model" && !options.gate ? (
         <StatusRow
           state="needs-you"
           title={`Needs the ${exportState.model}`}
@@ -224,21 +281,60 @@ export function EpisodeFile({
         />
       ) : null}
       {exportState.phase === "running" ? (
-        <StatusRow
-          state="running"
-          title="Exporting"
-          detail={exportState.detail}
-          progress={exportState.progress}
-          action={
-            onCancel ? { label: "Cancel", onAction: onCancel } : undefined
-          }
-        />
+        <div ref={runningBlock}>
+          <StatusRow
+            state="running"
+            title="Exporting"
+            detail={exportState.detail}
+            progress={exportState.progress ?? undefined}
+            action={
+              onCancel
+                ? {
+                    label: "Cancel",
+                    onAction: onCancel,
+                    disabledReason: exportState.cancelReason,
+                  }
+                : undefined
+            }
+          />
+          <p className="dv-note">
+            You can leave this page. The export keeps going and the status bar
+            shows its progress.
+          </p>
+          {exportState.cancelError ? (
+            <InlineError
+              message={`Cancel failed: ${exportState.cancelError}`}
+            />
+          ) : null}
+        </div>
       ) : null}
       {exportState.phase === "failed" ? (
+        <>
+          <StatusRow
+            state="failed"
+            title="Export failed"
+            detail={exportState.cause}
+            action={
+              options.onExportAgain
+                ? { label: "Try again", onAction: options.onExportAgain }
+                : undefined
+            }
+          />
+          {options.gate ? (
+            <ModelGateHint gate={options.gate} actionLabel="Export" />
+          ) : null}
+        </>
+      ) : null}
+      {exportState.phase === "cancelled" ? (
         <StatusRow
-          state="failed"
-          title="Export failed"
-          detail={exportState.cause}
+          state="needs-you"
+          title="Export cancelled"
+          detail={exportState.detail}
+          action={
+            options.onExportAgain
+              ? { label: "Export again", onAction: options.onExportAgain }
+              : undefined
+          }
         />
       ) : null}
       {exportState.phase === "stale" ? (
@@ -252,8 +348,11 @@ export function EpisodeFile({
         <StatusRow
           state="done"
           title="Exported"
-          detail={`Last export ${exportState.when}`}
+          detail={exportState.summary ?? `Last export ${exportState.when}`}
         />
+      ) : null}
+      {exportState.phase === "done" && exportState.measured ? (
+        <p className="dv-note">{exportState.measured}</p>
       ) : null}
 
       {dock ? null : (
@@ -271,17 +370,21 @@ export function EpisodeFile({
           {files.map((file) => (
             <li key={file.name} className="dv-file">
               <span className="dv-file-name sys-mono">{file.name}</span>
-              <span className="sys-mono dv-file-size">
-                {formatBytes(file.bytes)}
-              </span>
-              <Button
-                variant="link"
-                onClick={() =>
-                  env === "app" ? onReveal?.(file) : onDownload?.(file)
-                }
-              >
-                {env === "app" ? "Reveal" : "Download"}
-              </Button>
+              {file.bytes === undefined ? null : (
+                <span className="sys-mono dv-file-size">
+                  {formatBytes(file.bytes)}
+                </span>
+              )}
+              {env === "none" ? null : (
+                <Button
+                  variant="link"
+                  onClick={() =>
+                    env === "app" ? onReveal?.(file) : onDownload?.(file)
+                  }
+                >
+                  {env === "app" ? "Reveal" : "Download"}
+                </Button>
+              )}
             </li>
           ))}
         </ul>

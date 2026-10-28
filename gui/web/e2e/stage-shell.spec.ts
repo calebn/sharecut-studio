@@ -14,6 +14,7 @@ import {
 } from "./shareNavigation";
 import {
   altClickSplit,
+  deliverPage,
   goToStage,
   openProjectDialog,
   openProjectMenu,
@@ -171,15 +172,14 @@ test.describe("Stage shell on desktop", () => {
     await expect.poll(waiting).toBeGreaterThan(0);
   });
 
-  test("opens Export, Bounce and the Record stage from where they live", async ({
+  test("opens Bounce and the Record stage from where they live, and Export is on Deliver", async ({
     page,
   }) => {
     await openProject(page);
-    await openProjectDialog(page, "export");
+    await goToStage(page, "deliver");
     await expect(
-      page.getByRole("dialog", { name: "Export deliverables" }),
+      deliverPage(page).getByRole("button", { name: "Export", exact: true }),
     ).toBeVisible();
-    await page.keyboard.press("Escape");
     await openProjectDialog(page, "bounce");
     await expect(page.getByRole("dialog", { name: /Bounce/ })).toBeVisible();
     await page.keyboard.press("Escape");

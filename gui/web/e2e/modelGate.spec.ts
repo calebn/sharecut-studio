@@ -14,8 +14,8 @@ import {
   THEMES,
   VIEWPORTS,
 } from "./modelsMock";
-import { openDialogFromMenu, openHostProject } from "./overlayReachability";
-import { openPanel, phone } from "./stageNav";
+import { openHostProject } from "./overlayReachability";
+import { deliverPage, openPanel, phone, startExport } from "./stageNav";
 
 /**
  * The model gate against a mocked `/api/bootstrap/*` and a mocked 409 `model_needed` on the Run
@@ -421,7 +421,7 @@ for (const viewport of VIEWPORTS) {
         expect(mock.runs).toHaveLength(1);
       });
 
-      test("Export asks inside its own dialog, then exports once more", async ({
+      test("Export asks inside Deliver, then exports once more", async ({
         page,
       }) => {
         await prepare(page, theme, true);
@@ -438,16 +438,11 @@ for (const viewport of VIEWPORTS) {
           ready: () => downloaded,
         });
         await openHostProject(page);
-        await openDialogFromMenu(page, "Export deliverables…");
-        const dialog = page.getByRole("dialog", {
-          name: "Export deliverables",
-        });
-        await dialog
-          .getByRole("button", { name: "Export", exact: true })
-          .click();
+        await startExport(page);
+        const dialog = deliverPage(page);
 
         await expect(dialog.getByText(/stored on this computer/)).toBeVisible();
-        await expect(page.getByRole("dialog")).toHaveCount(1);
+        await expect(page.getByRole("dialog")).toHaveCount(0);
         const download = dialog.getByRole("button", {
           name: "Download",
           exact: true,
@@ -457,8 +452,8 @@ for (const viewport of VIEWPORTS) {
         expect(mock.runs).toEqual([]);
         expect(exports.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
-        await expectTouchTargets(dialog);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectTouchTargets(dialog.locator(".model-gate-panel"));
+        await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
         await shot(page, viewport.name, theme, "export-idle");
 
         await download.click();
@@ -471,13 +466,13 @@ for (const viewport of VIEWPORTS) {
           "aria-valuetext",
           "420 MB of 1.6 GB",
         );
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
         await shot(page, viewport.name, theme, "export-downloading");
         progress.finish();
 
-        await expect(dialog.getByRole("status")).toContainText(/exported/i);
+        await expect(dialog).toContainText(/Exported \d+ files? to export\//);
         expect(exports.posts()).toBe(2);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
       });
 
       test("Export declined leaves a hint, and Download waits in the banner", async ({
@@ -493,27 +488,20 @@ for (const viewport of VIEWPORTS) {
           ready: () => false,
         });
         await openHostProject(page);
-        await openDialogFromMenu(page, "Export deliverables…");
-        const dialog = page.getByRole("dialog", {
-          name: "Export deliverables",
-        });
-        await dialog
-          .getByRole("button", { name: "Export", exact: true })
-          .click();
+        await startExport(page);
+        const dialog = deliverPage(page);
         await dialog
           .getByRole("button", { name: "Not now", exact: true })
           .click();
 
-        await expect(dialog.getByRole("alert")).toHaveText(
-          "Export failed: Noise reduction (RNNoise) is not downloaded.",
+        await expect(dialog).toContainText(
+          "Noise reduction (RNNoise) is not downloaded.",
         );
         await expect(dialog.getByText(/Export will ask again/)).toBeVisible();
         await expectNoHorizontalScroll(page);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
+        await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
         await shot(page, viewport.name, theme, "export-declined");
 
-        await page.keyboard.press("Escape");
-        await expect(dialog).toBeHidden();
         const chipDownload = page.getByRole("button", {
           name: "Download Noise reduction (RNNoise)",
         });
