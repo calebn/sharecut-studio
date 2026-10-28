@@ -37,7 +37,7 @@ from podcast_mcp.engines.clips_ops import (
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.gate_fill import current_gate_fill_path
-from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.media_probe import audio_start_sec, probe_media
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.mute_regions import (
     IgnoredWordRegions,
@@ -295,7 +295,7 @@ def track_grid(
     project: EpisodeProject,
     track: Track,
     clips: list[Clip],
-    eng: FFmpegEngine,
+    eng: FFmpegEngine | None = None,
     *,
     window: tuple[float, float] | None = None,
 ) -> TrackGrid | None:
@@ -305,7 +305,11 @@ def track_grid(
     ``atrim`` runs at each recording's own rate and ``concat`` resamples to a negotiated
     one, so a single integer grid only exists for one rate. Such a track keeps float
     placement.
+
+    ``eng`` is optional: the container lead is read from the probe cache, not through the
+    engine, so a caller that must not resolve FFmpeg on a cache hit passes none.
     """
+    lead_of = eng.audio_start_sec if eng is not None else audio_start_sec
     placed = [
         clip
         for clip in clips
@@ -337,7 +341,7 @@ def track_grid(
         return None
     return TrackGrid(
         rate,
-        {path: MediaSeek.at(0.0, lead_sec=eng.audio_start_sec(path)) for path in recordings},
+        {path: MediaSeek.at(0.0, lead_sec=lead_of(path)) for path in recordings},
     )
 
 
