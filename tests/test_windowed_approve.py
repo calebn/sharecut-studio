@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import math
 import wave
 from pathlib import Path
 
@@ -209,7 +210,8 @@ def test_cuts_within_reach_of_each_other_evaluate_each_track_once_and_window_the
 def test_without_windows_the_same_batch_evaluates_a_track_again_for_every_close_cut(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    counts = _Counts(monkeypatch)  # first, so its spy wraps the real window
+    counts = _Counts(monkeypatch)
+    # after the counter, so every window is declined and none is counted
     monkeypatch.setattr(track_evidence, "rms_window", lambda *args, **kwargs: None)
 
     _approve(_project(tmp_path))
@@ -408,6 +410,7 @@ def test_the_verdict_key_names_the_semantics_of_the_profile(
         "manual": False,
         "batch": (),
         "span": (40.0, 40.35),
+        "base_profile": "test-base",
     }
     parts = verdict_cache.key_parts(project, edit, **kwargs)
     assert parts is not None and "semantics" in parts
@@ -581,3 +584,17 @@ def test_the_verdict_key_differs_with_the_base_profile(tmp_path: Path) -> None:
     assert verdict_cache.verdict_key(project, edit, base_profile="other", **kwargs) != key
     parts = verdict_cache.key_parts(project, edit, base_profile=base, **kwargs)
     assert parts is not None and "base_profile" in parts
+
+
+@pytest.mark.parametrize("field", ["room_db", "speech_db", "loud_db"])
+def test_a_one_ulp_change_of_a_base_profile_changes_its_stamp(field: str) -> None:
+    profile = LevelProfile(room_db=-60.0, speech_db=-20.0, loud_db=-12.0)
+    nudged = dataclasses.replace(profile, **{field: math.nextafter(getattr(profile, field), 0.0)})
+
+    def stamp(p: LevelProfile) -> str:
+        base = cut_proof.BatchBase(None)  # type: ignore[arg-type]  # profiles are preset
+        base._profiles = {"host": p, "guest": profile}
+        return base.stamp(defaults=load_defaults())
+
+    assert stamp(profile) == stamp(profile)
+    assert stamp(nudged) != stamp(profile)
