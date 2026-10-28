@@ -71,7 +71,9 @@ describe("JoinSheet guest", () => {
   it("joins on Enter in a ready name field", async () => {
     const onJoin = vi.fn();
     render(<Harness {...READY} onJoin={onJoin} />);
-    await userEvent.type(screen.getByLabelText("Your name"), "{Enter}");
+    const field = screen.getByLabelText("Your name");
+    await waitFor(() => expect(field).toHaveFocus());
+    await userEvent.type(field, "{Enter}");
     expect(onJoin).toHaveBeenCalledOnce();
   });
 
