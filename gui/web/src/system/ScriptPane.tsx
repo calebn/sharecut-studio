@@ -26,6 +26,12 @@ import { StatusRow } from "./StatusRow";
 import { Suggestion } from "./Suggestion";
 import { SystemIcon } from "./SystemIcon";
 import {
+  type FixTextVia,
+  isDoubleTap,
+  type ScriptGesture,
+  type ScriptGestureEnd,
+} from "./scriptGesture";
+import {
   continuesSpeaker,
   linkCuts,
   pieceEnd,
@@ -60,9 +66,11 @@ import {
   nearestStop,
   type StopRects,
   selectionSummary,
+  selectionText,
   spanOf,
   stepEdge,
 } from "./scriptSelection";
+import { type GestureControl, useScriptGestures } from "./useScriptGestures";
 
 export type ScriptPaneHandle = {
   /** Scroll the word into view. False when the pane does not show it, so the host should widen its window of turns. */
@@ -82,13 +90,19 @@ export type ScriptPaneHandle = {
  *
  * Keys. The pane owns the keys it handles on its words, cut pills, suggested
  * runs and margin controls: the arrows, Home and End (alone, with Shift, and
- * Alt+Shift+Left or Right), Enter, and Esc when something is selected and
- * `onClearSelection` is given. It calls `preventDefault()` and
+ * Alt+Shift+Left or Right), Enter, F2 on a word when `onFixText` is given, and
+ * Esc when something is selected and `onClearSelection` is given, or while a
+ * drag runs. Typing is never one of them: every letter reaches the keymap. It calls `preventDefault()` and
  * `stopPropagation()` on them, so the window keymap never sees them: no
  * playhead nudge on an arrow, no Home to the start, no second Esc. Every other
  * key, and any chord with Ctrl or Cmd, reaches the keymap untouched. The host
  * must not rebind a key in that list for a script-focused context; when the
  * list changes, the keymap rows stay as they are.
+ *
+ * Pointer gestures (design-system element 14, `useScriptGestures`). The body
+ * owns the browser's text selection (off) and the pointer: a mouse drag, a
+ * touch long press then drag, Shift-click, a click that selects a word and a
+ * double-click or double-tap that asks for Fix text. They need `onSelect`.
  *
  * Live region. The pane has the one polite region of the script. It says the
  * selection when it changes (once, on release, while a grip is dragged),
@@ -133,8 +147,46 @@ export type ScriptPaneProps = {
   unsureCount?: number;
   /** The caret moved: a click, or a plain arrow, Home or End. It sits before word `before`. */
   onCaret?: (before: number) => void;
-  /** The selection changed by Shift with a key or a click. */
+  /**
+   * The selection changed and is settled: a click, Shift with a key or a click,
+   * a grip, or a drag or long press let go. The one callback a host writes the
+   * store from. A drag cancelled by Esc calls nothing here.
+   */
   onSelect?: (selection: WordsSelection) => void;
+  /**
+   * A mouse or pen drag has moved past its slop, or a touch has held for the
+   * long-press time, from word `anchor` (a window index). Return `false` to
+   * refuse it. The pane draws the selection itself while the gesture runs and
+   * the `selection` prop stays as it was, so a refused or cancelled gesture
+   * needs no undoing.
+   */
+  onSelectionStart?: (
+    anchor: number,
+    gesture: ScriptGesture,
+  ) => boolean | undefined;
+  /** The head moved to another place: a preview, never a store write. */
+  onSelectionChange?: (
+    anchor: number,
+    head: number,
+    gesture: ScriptGesture,
+  ) => void;
+  /**
+   * The gesture is over. `committed` is false when Esc, a lost or cancelled
+   * pointer, a second finger, a blur or unmounting ended it; true on release,
+   * and `onSelect` follows with the same selection.
+   */
+  onSelectionEnd?: (
+    anchor: number,
+    head: number,
+    gesture: ScriptGestureEnd,
+  ) => void;
+  /**
+   * Fix text was asked for on `span`: Enter or F2 on a selected word, or a
+   * double-click or double-tap on a word. Typing never asks. Without this
+   * callback Enter on a selected word runs `onPrimary` and F2 reaches the
+   * keymap.
+   */
+  onFixText?: (span: ScriptSpan, via: FixTextVia) => void;
   /** The playhead should go to this word. */
   onSeek?: (index: number) => void;
   /** Enter on a word inside the selection: the selection's main verb. */
@@ -175,10 +227,17 @@ type Live = {
   marginAt: ReadonlyMap<number, string>;
   selection: ScriptSelection | null;
   ownCaret: number | undefined;
+  turns: readonly ScriptTurn[];
+  showCutText: boolean;
   props: Pick<
     ScriptPaneProps,
     | "onCaret"
     | "onSelect"
+    | "onSelectionStart"
+    | "onSelectionChange"
+    | "onSelectionEnd"
+    | "onFixText"
+    | "onUserScroll"
     | "onSeek"
     | "onPrimary"
     | "onClearSelection"
@@ -202,7 +261,7 @@ type Actions = {
     turnId: string,
     control: MarginControl,
   ) => void;
-  click: (index: number, shift: boolean) => void;
+  click: (index: number, event: { shiftKey: boolean; detail: number }) => void;
   key: (event: KeyboardEvent<HTMLElement>, start: number) => void;
   seam: (id: string) => void;
   suggestion: (id: string) => void;
@@ -269,7 +328,12 @@ function placeHandles(
     y: r.top - origin.top + body.scrollTop,
     height: r.height,
   });
-  return { start: at(first, first.left), end: at(last, last.right) };
+  // A right-to-left line starts at its right edge and ends at its left.
+  const rtl = (el: HTMLElement) => getComputedStyle(el).direction === "rtl";
+  return {
+    start: at(first, rtl(startEl) ? first.right : first.left),
+    end: at(last, rtl(endEl) ? last.left : last.right),
+  };
 }
 
 const samePlace = (a: HandlePlaces | null, b: HandlePlaces | null) =>
@@ -303,7 +367,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       status = READY,
       layout = "desktop",
       playing,
-      selection: selectionProp = null,
+      selection: selectionHost = null,
       carets = NO_CARETS,
       matches = NO_MATCHES,
       currentMatch,
@@ -318,6 +382,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       unsureCount,
       onCaret,
       onSelect,
+      onSelectionStart,
+      onSelectionChange,
+      onSelectionEnd,
+      onFixText,
       onSeek,
       onPrimary,
       onClearSelection,
@@ -349,7 +417,11 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const [dragging, setDragging] = useState(false);
     const [spoken, setSpoken] = useState("");
     const hadSelection = useRef(false);
+    const lastTap = useRef<{ index: number; at: number } | null>(null);
+    /** The selection a pointer gesture is making; it stands in for the prop until the gesture ends. */
+    const [draft, setDraft] = useState<WordsSelection | null>(null);
 
+    const selectionProp = draft ?? selectionHost;
     const selKind = selectionProp?.kind;
     const selAnchor =
       selectionProp?.kind === "words" ? selectionProp.anchor : -1;
@@ -523,6 +595,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       marginAt,
       selection,
       ownCaret,
+      turns,
+      showCutText,
       props: {},
     });
     useLayoutEffect(() => {
@@ -533,9 +607,16 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         marginAt,
         selection,
         ownCaret,
+        turns,
+        showCutText,
         props: {
           onCaret,
           onSelect,
+          onSelectionStart,
+          onSelectionChange,
+          onSelectionEnd,
+          onFixText,
+          onUserScroll,
           onSeek,
           onPrimary,
           onClearSelection,
@@ -560,11 +641,82 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       return rects;
     }, []);
 
+    const focusStop = useCallback((start: number, preventScroll = false) => {
+      setFocused(start);
+      focusable(registry.current.get(start))?.focus({ preventScroll });
+    }, []);
+
+    const control = useMemo<GestureControl>(
+      () => ({
+        wordAt: (target) => {
+          const el = target.closest<HTMLElement>("[data-stop]");
+          if (!el || !bodyRef.current?.contains(el)) return null;
+          const now = live.current;
+          const at = now.stopPos.get(Number(el.dataset.stop));
+          return at !== undefined && now.stops[at].kind === "word"
+            ? now.stops[at].start
+            : null;
+        },
+        stopAt: (x, y) => {
+          const body = bodyRef.current;
+          if (!body) return null;
+          const now = live.current;
+          const hit = document
+            .elementFromPoint?.(x, y)
+            ?.closest<HTMLElement>("[data-stop]");
+          if (hit && body.contains(hit)) {
+            const at = now.stopPos.get(Number(hit.dataset.stop));
+            if (at !== undefined) return now.stops[at];
+          }
+          const origin = body.getBoundingClientRect();
+          const at = nearestStop(
+            measure(),
+            x - origin.left + body.scrollLeft,
+            y - origin.top + body.scrollTop,
+          );
+          return at === null ? null : (now.stops[at] ?? null);
+        },
+        anchorFor: (index, shift) => {
+          const now = live.current;
+          if (!shift) return index;
+          return now.selection?.kind === "words"
+            ? now.selection.anchor
+            : (now.ownCaret ?? caretRef.current ?? index);
+        },
+        start: (anchor, gesture) =>
+          live.current.props.onSelectionStart?.(anchor, gesture) !== false,
+        draft: (next) =>
+          setDraft((prev) =>
+            prev?.anchor === next?.anchor && prev?.head === next?.head
+              ? prev
+              : next,
+          ),
+        change: (anchor, head, gesture) =>
+          live.current.props.onSelectionChange?.(anchor, head, gesture),
+        end: (anchor, head, gesture, committed) => {
+          setDraft(null);
+          const now = live.current;
+          now.props.onSelectionEnd?.(anchor, head, { ...gesture, committed });
+          if (!committed) return;
+          goalX.current = null;
+          caretRef.current = anchor;
+          const reached = stopContaining(now.stops, head);
+          if (reached) focusStop(reached.start, true);
+          now.props.onSelect?.({ kind: "words", anchor, head });
+        },
+        scrolled: () => live.current.props.onUserScroll?.(),
+      }),
+      [measure, focusStop],
+    );
+    const gestures = useScriptGestures(
+      bodyRef,
+      onSelect !== undefined &&
+        status.kind !== "empty" &&
+        status.kind !== "loading",
+      control,
+    );
+
     const actions = useMemo<Actions>(() => {
-      const focusStop = (start: number) => {
-        setFocused(start);
-        focusable(registry.current.get(start))?.focus({ preventScroll: false });
-      };
       const marginAtTop = (turnId: string, index: number) => {
         const entry = live.current.margin.get(turnId);
         const control = entry?.controls[index];
@@ -603,7 +755,9 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           else if (move.kind === "text") focusStop(entry.first);
           else if (entry.before !== undefined) focusStop(entry.before);
         },
-        click: (index, shift) => {
+        click: (index, event) => {
+          if (gestures.consumeClick()) return;
+          const shift = event.shiftKey;
           const now = live.current;
           goalX.current = null;
           setFocused(index);
@@ -629,6 +783,20 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           caretRef.current = index;
           now.props.onCaret?.(index);
           now.props.onSeek?.(index);
+          // A click selects the word at once; it never waits for a second click.
+          now.props.onSelect?.({ kind: "words", anchor: index, head: index });
+          const at = Date.now();
+          const touch = gestures.lastKind.current === "touch";
+          const double = touch
+            ? isDoubleTap(lastTap.current, index, at)
+            : event.detail === 2;
+          lastTap.current = double ? null : { index, at };
+          if (double) {
+            now.props.onFixText?.(
+              { start: index, end: index },
+              touch ? "double-tap" : "double-click",
+            );
+          }
         },
         key: (event, start) => {
           if (event.ctrlKey || event.metaKey) return;
@@ -647,12 +815,27 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             now.props.onClearSelection();
             return;
           }
+          if (event.key === "F2" && !event.shiftKey) {
+            if (!now.props.onFixText) return;
+            if (stopContaining(now.stops, start)?.kind !== "word") return;
+            handled(event);
+            const selected = spanOf(now.selection);
+            if (selected && within(selected, start)) {
+              now.props.onFixText(selected, "f2");
+              return;
+            }
+            caretRef.current = start;
+            now.props.onSelect?.({ kind: "words", anchor: start, head: start });
+            now.props.onFixText({ start, end: start }, "f2");
+            return;
+          }
           if (event.key === "Enter" && !event.shiftKey) {
             if (stopContaining(now.stops, start)?.kind !== "word") return;
             handled(event);
             const selected = spanOf(now.selection);
-            if (within(selected, start)) {
-              now.props.onPrimary?.();
+            if (selected && within(selected, start)) {
+              if (now.props.onFixText) now.props.onFixText(selected, "enter");
+              else now.props.onPrimary?.();
               return;
             }
             caretRef.current = start;
@@ -706,7 +889,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         speaker: (turnId, anchor) =>
           live.current.props.onSpeaker?.(turnId, anchor),
       };
-    }, [measure]);
+    }, [measure, focusStop, gestures]);
 
     useImperativeHandle(
       ref,
@@ -793,8 +976,9 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       return () => document.fonts?.removeEventListener("loadingdone", stale);
     }, [stale]);
 
+    const selecting = draft !== null;
     useEffect(() => {
-      if (dragging) return;
+      if (dragging || selecting) return;
       if (summary !== "") {
         hadSelection.current = true;
         setSpoken(summary);
@@ -802,13 +986,17 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         hadSelection.current = false;
         setSpoken("Selection cleared");
       }
-    }, [summary, dragging]);
+    }, [summary, dragging, selecting]);
     useEffect(() => {
       if (findStatus) setSpoken(findStatus);
     }, [findStatus]);
 
     const handlesShown =
-      handles && onSelect !== undefined && span !== null && bodyShown;
+      handles &&
+      onSelect !== undefined &&
+      span !== null &&
+      bodyShown &&
+      !selecting;
     // The grips can go while one is held (the selection is lost), and then no release comes.
     useEffect(() => {
       if (!handlesShown) setDragging(false);
@@ -980,7 +1168,18 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         ) : (
           <div
             className="sys-script-body"
+            data-selecting={selecting ? "" : undefined}
             ref={bodyRef}
+            onCopy={(event) => {
+              const text = selectionText(
+                live.current.turns,
+                live.current.selection,
+                live.current.showCutText,
+              );
+              if (text === "") return;
+              event.clipboardData.setData("text/plain", text);
+              event.preventDefault();
+            }}
             {...scrollIntent.handlers}
             onScroll={() => {
               if (scrollIntent.isUserScroll()) onUserScroll?.();
@@ -1174,6 +1373,7 @@ const TurnView = memo(function TurnView({
     <div
       role="group"
       className="sys-script-turn"
+      data-turn-id={turn.id}
       aria-label={`${firstName(turn.speaker.name)}, ${turn.time}`}
     >
       <div
@@ -1210,7 +1410,7 @@ const TurnView = memo(function TurnView({
           </>
         )}
       </div>
-      <p className="sys-script-text">
+      <p className="sys-script-text" dir="auto">
         {pieces.map((piece, at) => {
           const start = pieceStart(piece);
           const previous = pieces[at - 1];
@@ -1288,6 +1488,7 @@ const WordView = memo(function WordView({
       ref={(el) => actions.register(index, el)}
       className="sys-script-word"
       data-stop={index}
+      data-word-key={word.key}
       data-state={word.mark?.kind === "suggested" ? undefined : word.mark?.kind}
       data-playing={playing ? "" : undefined}
       data-selected={selected ? "" : undefined}
@@ -1297,7 +1498,7 @@ const WordView = memo(function WordView({
       tabIndex={tabbable ? 0 : -1}
       aria-label={wordLabel(word, { selected, found })}
       aria-current={playing ? "true" : undefined}
-      onClick={(event) => actions.click(index, event.shiftKey)}
+      onClick={(event) => actions.click(index, event)}
       onKeyDown={(event) => actions.key(event, index)}
     >
       {word.text}
