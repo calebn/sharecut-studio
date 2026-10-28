@@ -404,4 +404,50 @@ describe("RoomView as the host", () => {
     expect(leave).toBeDisabled();
     expect(leave).toHaveAttribute("title", "Your recording is still saving");
   });
+
+  describe("declined", () => {
+    it("shows the peek bar, dims the room and leaves it inert", () => {
+      const { container } = renderRoom({
+        phase: { kind: "waiting", host: "Maya" },
+        declined: { onJoin: vi.fn() },
+      });
+      expect(screen.getByText("You're not being recorded.")).toBeVisible();
+      expect(container.querySelector("[data-declined]")).not.toBeNull();
+      expect(container.querySelector(".sys-room-view-body")).toHaveAttribute(
+        "inert",
+      );
+      expect(container.querySelector(".sys-room-view-dock")).toHaveAttribute(
+        "inert",
+      );
+    });
+
+    it("opens the Join sheet through Join recording once the take ends", async () => {
+      const onJoin = vi.fn();
+      renderRoom({
+        phase: { kind: "waiting", host: "Maya" },
+        declined: { onJoin },
+      });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join recording" }),
+      );
+      expect(onJoin).toHaveBeenCalledOnce();
+    });
+
+    it.each([LIVE, { kind: "paused", clockSec: 30 }] as const)(
+      "holds Join recording during a %j take with the reason",
+      (phase) => {
+        renderRoom({ phase, declined: { onJoin: vi.fn() } });
+        expect(
+          screen.getByRole("button", { name: "Join recording" }),
+        ).toBeDisabled();
+        expect(screen.getByText("You can join after this take.")).toBeVisible();
+      },
+    );
+
+    it("adds nothing to a room that has not declined", () => {
+      const { container } = renderRoom();
+      expect(container.querySelector(".sys-declined")).toBeNull();
+      expect(container.querySelector("[inert]")).toBeNull();
+    });
+  });
 });

@@ -6,6 +6,7 @@ import {
 } from "react";
 import { BrandLockup } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
+import { DeclinedScrim } from "./DeclinedScrim";
 import { NotesRail } from "./NotesRail";
 import type { NoteDraft, NoteItem } from "./notesRailModel";
 import { RecordDock } from "./RecordDock";
@@ -55,6 +56,11 @@ export type RoomViewProps = {
   onPause?: () => void;
   onMore?: () => void;
   onLeave?: () => void;
+  /**
+   * The viewer declined to be recorded: the room dims behind a peek bar with
+   * Join recording, and the rest of the room goes inert.
+   */
+  declined?: { onJoin: () => void };
 };
 
 /**
@@ -87,6 +93,7 @@ export function RoomView({
   onPause,
   onMore,
   onLeave,
+  declined,
 }: RoomViewProps) {
   const [notesChoice, setNotesChoice] = useState<boolean | undefined>(
     defaultNotesOpen,
@@ -145,13 +152,18 @@ export function RoomView({
       : undefined);
 
   return (
-    <div className="sys-room-view" data-seat={seat} data-width={viewerWidth}>
+    <div
+      className="sys-room-view"
+      data-seat={seat}
+      data-width={viewerWidth}
+      data-declined={declined ? "" : undefined}
+    >
       <header className="sys-room-view-header">
         <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
         <h1 className="sys-room-view-title">{title}</h1>
         <RoomStatusPill phase={phase} />
       </header>
-      <div className="sys-room-view-body">
+      <div className="sys-room-view-body" inert={declined ? true : undefined}>
         <main className="sys-room-view-stage">
           <div className="sys-room-view-alert">
             <RoomAlert alerts={model.alerts} />
@@ -194,6 +206,7 @@ export function RoomView({
         <button
           type="button"
           className="sys-room-view-peek"
+          inert={declined ? true : undefined}
           aria-haspopup="dialog"
           aria-expanded={model.sheetOpen}
           onClick={() => setNotesChoice(true)}
@@ -212,7 +225,10 @@ export function RoomView({
           ) : null}
         </button>
       ) : null}
-      <footer className="sys-room-view-dock">
+      <footer
+        className="sys-room-view-dock"
+        inert={declined ? true : undefined}
+      >
         <RecordDock
           seat={model.dockSeat}
           record={
@@ -239,6 +255,9 @@ export function RoomView({
           onLeave={onLeave}
         />
       </footer>
+      {declined ? (
+        <DeclinedScrim phase={phase} onJoin={declined.onJoin} />
+      ) : null}
       {viewerWidth === "desktop" ? null : (
         <Sheet
           form="bottom"

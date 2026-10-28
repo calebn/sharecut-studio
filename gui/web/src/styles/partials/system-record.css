@@ -608,6 +608,7 @@
 /* Room view: a fixed-height column in the live phase. The header is 48 px, the
    dock 80 px; the alert slot is 0 px with no alert and one 44 px row with one. */
 .sys-room-view {
+  position: relative;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -823,4 +824,239 @@
 
 .sys-takes-tray .sys-status-children .sys-status[data-state="failed"] {
   background: transparent;
+}
+
+/* Join sheet: a 420 px card 96 px from the top on the desktop, the large
+   detent on the phone. Rows are Status rows with their control underneath,
+   inset to line up with the row's title. */
+html:not([data-shell="phone"], [data-shell="tablet"])
+  .sys-sheet-centered.sys-join-sheet {
+  inline-size: min(26.25rem, 100%);
+  --sys-join-top: 6rem;
+  align-self: start;
+  margin-block-start: var(--sys-join-top);
+}
+
+.sys-join {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sys-join-here {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.sys-join-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sys-join-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-inline: var(--space-4) 0;
+  margin-inline-start: var(--space-6);
+}
+
+.sys-join-control:empty {
+  display: none;
+}
+
+.sys-join-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-field);
+}
+
+.sys-join-input:focus-visible {
+  border-color: var(--color-accent);
+}
+
+.sys-join-meter {
+  position: relative;
+  inline-size: 100%;
+}
+
+/* The clip tick lights at the meter's right end and clears itself. */
+.sys-join-clip {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: var(--space-1);
+  background: var(--color-danger);
+  opacity: 0;
+}
+
+.sys-join-clip[data-lit] {
+  opacity: 1;
+}
+
+.sys-join-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sys-join-notes:empty {
+  display: none;
+}
+
+.sys-join-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-warning-on-surface);
+  font-size: var(--font-size-ui);
+}
+
+.sys-join-consent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+.sys-join-line {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-join-listen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+.sys-join-details {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-join-details > p {
+  margin: 0 0 var(--space-3);
+}
+
+.sys-join-footer {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  text-align: center;
+}
+
+/* The shared footer rule sizes the wrapper; the primary inside fills it. */
+.sys-join-footer > .primary {
+  inline-size: 100%;
+  min-block-size: var(--target-primary-desktop);
+}
+
+.sys-join-reason {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-join-reason:empty {
+  display: none;
+}
+
+.sys-sheet-bottom .sys-join-footer > .primary {
+  min-block-size: var(--target-primary-phone);
+}
+
+/* Declined: tiles dim to 40%, a light layer takes the pointer, and a 72 px
+   peek bar docks at the bottom edge above the safe area. */
+.sys-room-view[data-declined] .sys-room-view-grid,
+.sys-room-view[data-declined] .sys-room-listeners {
+  opacity: 0.4;
+}
+
+.sys-declined {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sys-declined-scrim {
+  position: absolute;
+  inset: 0;
+  --sys-declined-dim: color-mix(
+    in srgb,
+    var(--color-bg-canvas) 40%,
+    transparent
+  );
+  background: var(--sys-declined-dim);
+}
+
+.sys-declined-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  min-block-size: 4.5rem;
+  padding-block: var(--space-3);
+  padding-inline: var(--space-5);
+  padding-block-end: max(var(--space-3), env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.sys-declined-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.sys-declined-line,
+.sys-declined-reason {
+  margin: 0;
+}
+
+.sys-declined-line {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.sys-declined-reason {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-declined-bar .primary {
+  flex: none;
+  min-block-size: var(--touch-min);
+}
+
+/* Room full: the occupants' avatars under the line. */
+.sys-cover-people {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1);
 }
