@@ -81,6 +81,7 @@ def _trimmed_nested_project(tmp_path: Path) -> EpisodeProject:
 def test_single_source_nested_follower_has_independent_authored_placement(tmp_path: Path) -> None:
     project = _trimmed_nested_project(tmp_path)
     engine = MagicMock(spec=FFmpegEngine)
+    engine.build_track_filter.return_value = "anull"
 
     render_track_from_timeline(
         project, project.tracks[0], tmp_path / "render.wav", {}, engine=engine

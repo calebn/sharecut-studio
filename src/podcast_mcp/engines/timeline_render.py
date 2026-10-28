@@ -35,6 +35,7 @@ from podcast_mcp.engines.clips_ops import (
     clips_for_track,
     crossfade_borrow_sec,
 )
+from podcast_mcp.engines.effect_filters import graph_rate
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.gate_fill import current_gate_fill_path
 from podcast_mcp.engines.media_probe import audio_start_sec, probe_media
@@ -299,8 +300,15 @@ def track_grid(
     eng: FFmpegEngine | None = None,
     *,
     window: tuple[float, float] | None = None,
+    forced_rate: int | None = None,
 ) -> TrackGrid | None:
     """The grid for ``clips``, or None when their recordings do not share one sample rate.
+
+    ``forced_rate`` (from ``graph_rate``) is the rate the render's pieces run at when the chain
+    holds a one-rate filter such as ``arnndn``: FFmpeg then resamples every recording to it
+    before ``atrim`` (#2456), so the grid is on that rate whatever the recordings' own, and
+    mixed-rate recordings share it. Cutting on the recordings' rate instead leaves the pieces
+    to ``atrim`` at the forced rate, which rounds each start and end on its own again.
 
     A recording that cannot be probed has no rate either; the render reports it. None is only
     for rate reasons; ``audio_start_sec`` can raise ``LateMpegAudioError`` (MPEG-TS/PS) or
@@ -348,6 +356,12 @@ def track_grid(
             others.update({fill_path: None for fill_path in found if fill_path != path})
         else:
             optional.update(found)
+
+    def seeks() -> dict[Path, MediaSeek]:
+        return {path: MediaSeek.at(0.0, lead_sec=lead_of(path)) for path in recordings}
+
+    if forced_rate is not None:
+        return TrackGrid(forced_rate, seeks())
     rates = set()
     for path in (*recordings, *others, *optional):
         probe = probe_media(path)
@@ -361,10 +375,7 @@ def track_grid(
     rate = rates.pop()
     if rate > _MAX_GRID_RATE:
         return None
-    return TrackGrid(
-        rate,
-        {path: MediaSeek.at(0.0, lead_sec=lead_of(path)) for path in recordings},
-    )
+    return TrackGrid(rate, seeks())
 
 
 @dataclass(frozen=True)
@@ -637,7 +648,7 @@ def _render_placed_track(
     dependencies=None,
     defaults: EffectiveConfig,
 ) -> Path:
-    grid = track_grid(project, track, sorted_clips, eng, window=window)
+    grid = track_grid(project, track, sorted_clips, eng, window=window, forced_rate=graph_rate(af))
     placed = placed_track_audio(project, track, sorted_clips, grid=grid, window=window)
     start, end = window or (0.0, timeline_duration_sec(project))
     removed: dict[str, tuple[tuple[float, float], ...]] = {}

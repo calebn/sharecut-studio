@@ -1632,6 +1632,7 @@ def test_cut_join_drops_only_the_fades_at_that_join(tmp_path: Path) -> None:
         ),
     ]
     eng = MagicMock(spec=FFmpegEngine)
+    eng.build_track_filter.return_value = "anull"
     render_track_from_timeline(project, project.tracks[0], tmp_path / "out.wav", {}, engine=eng)
     placed = sources(eng.render_timeline.call_args.args[1])
     fades = [(s.fade_in_sec, s.fade_out_sec) for s in placed]
@@ -1671,6 +1672,7 @@ def test_first_clip_cut_mode_keeps_its_fade_in(tmp_path: Path) -> None:
         ),
     ]
     eng = MagicMock(spec=FFmpegEngine)
+    eng.build_track_filter.return_value = "anull"
     render_track_from_timeline(project, project.tracks[0], tmp_path / "out.wav", {}, engine=eng)
     placed = sources(eng.render_timeline.call_args.args[1])
     # The first clip has no join, so its leftover cut mode drops nothing.

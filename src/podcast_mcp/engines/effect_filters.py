@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import MappingProxyType
@@ -80,3 +81,18 @@ def format_effect(effect: str, params: Mapping[str, Any]) -> str | None:
     """Format a supported effect; unknown saved names remain render-skipped."""
     formatter = _EFFECT_FORMATTERS.get(effect)
     return formatter(params) if formatter is not None else None
+
+
+# Filters that run at one sample rate only and change what a window and the stem share. FFmpeg
+# negotiates that rate back through the whole graph, so a render resamples each recording to it
+# before ``atrim`` and every piece, fade and join runs at it (#2456). ``loudnorm`` (192 kHz) is
+# left out: a sample there is 5 microseconds, and its restore paths place the mix before the
+# final resample on purpose.
+_FORCED_RATE_FILTERS = {"arnndn": 48_000}
+_FORCED_RATE_FILTER = re.compile(rf"(?:^|,)({'|'.join(_FORCED_RATE_FILTERS)})(?:=|,|$)")
+
+
+def graph_rate(af: str) -> int | None:
+    """The rate a render's pieces run at when ``af`` holds a one-rate filter, else None."""
+    found = _FORCED_RATE_FILTER.search(af)
+    return _FORCED_RATE_FILTERS[found.group(1)] if found else None
