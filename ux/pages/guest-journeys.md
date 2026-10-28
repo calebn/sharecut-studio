@@ -230,9 +230,11 @@ flowchart TD
    blocked users to the supported browser recording path.
 3. Room tone is started by the host, not by the guest: when the host fires the
    countdown ("Quiet please · 3"), a guest who has joined records 3 seconds
-   automatically and the bed is sent to the host. There is no guest record or
-   skip step, and a guest who joins after the countdown is not asked (#2490).
-   Producers never record it.
+   automatically and the bed is sent to the host. A guest who joins after the
+   countdown sees one alert row before the next take, "Record 3 seconds of room
+   tone." with **Record room tone** and **Skip** (#2490); it records the same bed
+   through the same path, and it does not show during a take, after a skip, or
+   after the host has the bed, including after a reload. Producers never record it.
 4. **Join and record is the consent.** The sheet says "You'll be recorded in full
    quality on this device. It saves to Ava's project when the take ends." and its
    **Details** explain that joining means you agree to be recorded. **Not now**

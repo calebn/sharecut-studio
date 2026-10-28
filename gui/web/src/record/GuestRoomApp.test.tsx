@@ -807,6 +807,261 @@ describe("GuestRoomApp", () => {
     expect(await screen.findByText("Quiet please · 3")).toBeInTheDocument();
   });
 
+  describe("room tone for a guest who joins late", () => {
+    const uploadBootstrap = {
+      ...guestBootstrap,
+      build: { capture: true, monitor: false, upload: true },
+    };
+    const round = (ids: string[]) => ({
+      round: 1,
+      requested_wall_ms: 1000,
+      duration_ms: 3000,
+      participant_ids: ids,
+    });
+    const bed = new Uint8Array(44 + 8).fill(7);
+    type Put = { query: Record<string, string>; body: Uint8Array };
+
+    function stubUploadFetch(puts: Put[]) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = urlOf(input);
+          if (url.includes("/bootstrap")) {
+            return new Response(JSON.stringify(uploadBootstrap), {
+              status: 200,
+            });
+          }
+          if (url.includes("/upload") && init?.method === "POST") {
+            puts.push({
+              query: Object.fromEntries(new URL(url, "http://x").searchParams),
+              body: new Uint8Array(init.body as Uint8Array),
+            });
+            return new Response(
+              JSON.stringify({
+                acked: true,
+                take_index: 0,
+                participant_id: "p_g",
+                segment_index: 0,
+                part_seq: 0,
+                file_ack: true,
+              }),
+              { status: 200 },
+            );
+          }
+          if (url.includes("/upload")) {
+            return new Response(
+              JSON.stringify({ segments: [], room_tone_status: [] }),
+              { status: 200 },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        }),
+      );
+    }
+
+    async function joinRoom() {
+      const view = render(<GuestRoomApp token="guest-tok" />);
+      await readyToJoin(getUserMedia);
+      await userEvent.click(joinButton());
+      await screen.findByText("Waiting");
+      return view;
+    }
+
+    const recordButton = () =>
+      screen.queryByRole("button", { name: "Record room tone" });
+
+    beforeEach(() => {
+      encodeRoomTone.mockReset();
+      encodeRoomTone.mockResolvedValue({
+        wav: bed,
+        samples: new Float32Array(4).fill(0.001),
+      });
+    });
+
+    it("offers the late guest Record room tone and records it through the shared capture", async () => {
+      const puts: Put[] = [];
+      stubUploadFetch(puts);
+      await joinRoom();
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          room_tone: round(["p_other"]),
+          countdown_left_ms: 0,
+        }),
+      );
+      const action = await screen.findByRole("button", {
+        name: "Record room tone",
+      });
+      expect(
+        screen.getByText("Record 3 seconds of room tone."),
+      ).toBeInTheDocument();
+      await userEvent.click(action);
+      await waitFor(() => expect(puts).toHaveLength(1));
+      expect(encodeRoomTone).toHaveBeenCalledOnce();
+      await waitFor(() => expect(recordButton()).toBeNull());
+      expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    });
+
+    it("uploads exactly what a host-started round uploads", async () => {
+      const onTime: Put[] = [];
+      stubUploadFetch(onTime);
+      const first = await joinRoom();
+      sockets[0].onmessage?.(snapshotMessage({ room_tone: undefined }));
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          room_tone: round(["p_g"]),
+          countdown_left_ms: 3000,
+        }),
+      );
+      await waitFor(() => expect(onTime).toHaveLength(1));
+      expect(recordButton()).toBeNull();
+      first.unmount();
+      localStorage.clear();
+      sockets.length = 0;
+      encodeRoomTone.mockClear();
+
+      const late: Put[] = [];
+      stubUploadFetch(late);
+      await joinRoom();
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          room_tone: round(["p_other"]),
+          countdown_left_ms: 0,
+        }),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Record room tone" }),
+      );
+      await waitFor(() => expect(late).toHaveLength(1));
+      expect(late[0]).toEqual(onTime[0]);
+      expect(late[0]?.query).toMatchObject({
+        kind: "room_tone",
+        take_index: "0",
+        segment_index: "0",
+        part_seq: "0",
+        final: "true",
+      });
+    });
+
+    it.each([
+      ["a take is recording", { state: "recording", take_index: 0 }],
+      ["a take is paused", { state: "paused", take_index: 0 }],
+      ["the countdown named the guest", { room_tone: round(["p_g"]) }],
+    ])("shows no prompt when %s", async (_name, patch) => {
+      stubUploadFetch([]);
+      await joinRoom();
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          room_tone: round(["p_other"]),
+          countdown_left_ms: 0,
+          ...patch,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(recordButton()).toBeNull();
+    });
+
+    it("asks again after Stop when the guest joined during a take", async () => {
+      stubUploadFetch([]);
+      await joinRoom();
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          state: "recording",
+          take_index: 0,
+          room_tone: round(["p_other"]),
+          countdown_left_ms: 0,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(recordButton()).toBeNull();
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          state: "stopped",
+          take_index: 0,
+          room_tone: round(["p_other"]),
+          countdown_left_ms: 0,
+        }),
+      );
+      expect(
+        await screen.findByRole("button", { name: "Record room tone" }),
+      ).toBeInTheDocument();
+    });
+
+    it("leaves the guest as an on-time guest who skipped, and a reload does not ask again", async () => {
+      const puts: Put[] = [];
+      stubUploadFetch(puts);
+      const first = await joinRoom();
+      const late = snapshotMessage({
+        room_tone: round(["p_other"]),
+        countdown_left_ms: 0,
+      });
+      sockets[0].onmessage?.(late);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Skip" }),
+      );
+      await waitFor(() => expect(recordButton()).toBeNull());
+      expect(encodeRoomTone).not.toHaveBeenCalled();
+      expect(puts).toHaveLength(0);
+      first.unmount();
+      sockets.length = 0;
+
+      await joinRoom();
+      sockets[0].onmessage?.(late);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(recordButton()).toBeNull();
+    });
+
+    it("does not ask again after a reload or a landing once the host has the bed", async () => {
+      const puts: Put[] = [];
+      stubUploadFetch(puts);
+      const first = await joinRoom();
+      const late = snapshotMessage({
+        room_tone: round(["p_other"]),
+        countdown_left_ms: 0,
+      });
+      sockets[0].onmessage?.(late);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Record room tone" }),
+      );
+      await waitFor(() => expect(puts).toHaveLength(1));
+      first.unmount();
+      localStorage.clear();
+      sockets.length = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          const url = urlOf(input);
+          if (url.includes("/bootstrap")) {
+            return new Response(JSON.stringify(uploadBootstrap), {
+              status: 200,
+            });
+          }
+          return new Response(
+            JSON.stringify({
+              segments: [],
+              room_tone_status: [
+                { participant_id: "p_g", file_ack: true, landed: true },
+              ],
+            }),
+            { status: 200 },
+          );
+        }),
+      );
+
+      await joinRoom();
+      sockets[0].onmessage?.(late);
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          state: "stopped",
+          take_index: 0,
+          room_tone: round(["p_other"]),
+          countdown_left_ms: 0,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(recordButton()).toBeNull();
+    });
+  });
+
   it("shows a 404 as the invalid-link cover", async () => {
     vi.stubGlobal(
       "fetch",

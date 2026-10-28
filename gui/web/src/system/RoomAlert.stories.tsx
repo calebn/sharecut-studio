@@ -27,7 +27,7 @@ const meta: Meta<typeof RoomAlert> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The record alert slot: one 44 px Status row under the header with a 20 px glyph, one sentence and one action (saving failed may add Save a copy). The most urgent alert shows (mic lost, no audio, storage failed, saving failed, a notice, recovery, host offline, monitor failed, clipping, muted, connecting, generic). A "+N" chip opens the rest as Status rows. With no alert the live region stays mounted and empty, so the slot takes no height.\n\n**Motion.** None. Alerts appear and change without animation.',
+          'The record alert slot: one 44 px Status row under the header with a 20 px glyph, one sentence and one action (saving failed may add Save a copy; room tone adds Skip). The most urgent alert shows (mic lost, no audio, storage failed, saving failed, a notice, recovery, host offline, monitor failed, room tone for a late joiner, clipping, muted, connecting, generic). A "+N" chip opens the rest as Status rows. With no alert the live region stays mounted and empty, so the slot takes no height.\n\n**Motion.** None. Alerts appear and change without animation.',
       },
     },
   },
@@ -157,6 +157,23 @@ export const MonitorFailed: Story = {
       ),
     ).toBeVisible();
     await expectOneAction(canvasElement, "Retry", firstAction(args.alerts));
+  },
+};
+
+export const RoomTone: Story = {
+  args: ONE("room-tone", { onSecondaryAction: fn() }),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Record 3 seconds of room tone."),
+    ).toBeVisible();
+    await expect(canvas.getAllByRole("button")).toHaveLength(2);
+    await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
+    await expect(args.alerts?.[0]?.onSecondaryAction).toHaveBeenCalledOnce();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Record room tone" }),
+    );
+    await expect(args.alerts?.[0]?.onAction).toHaveBeenCalledOnce();
   },
 };
 

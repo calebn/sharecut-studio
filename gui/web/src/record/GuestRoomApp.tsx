@@ -44,6 +44,7 @@ import { leaveBlocked } from "./upload/useRecordUpload";
 import { useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
 import { useInputPeakDb } from "./useInputPeakDb";
+import { useLateRoomTone } from "./useLateRoomTone";
 import { recordSyncErrorCopy } from "./useRecordSync";
 import { useRosterAnnouncer } from "./useRosterAnnouncer";
 
@@ -102,6 +103,7 @@ function GuestRoomSession({
     keeper,
     monitor,
     upload,
+    uploadTransport,
     takeClipping,
     keeperActions,
     roomTone,
@@ -148,6 +150,13 @@ function GuestRoomSession({
     snapshot,
     participantId: me?.participant_id ?? null,
     consented,
+    roomTone,
+  });
+  const lateRoomTone = useLateRoomTone({
+    snapshot,
+    me,
+    producer,
+    transport: uploadTransport,
     roomTone,
   });
   const announcement = useRosterAnnouncer(snapshot, me?.participant_id ?? null);
@@ -252,6 +261,9 @@ function GuestRoomSession({
       ? { ...alert, onSecondaryAction: keeperActions.download }
       : alert,
   );
+  if (lateRoomTone) {
+    alerts.push(lateRoomTone);
+  }
   if (keeperActions.error) {
     alerts.push({ kind: "generic", message: keeperActions.error });
   }
