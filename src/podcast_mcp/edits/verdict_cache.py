@@ -382,12 +382,14 @@ def _pad_records_seen(
     """What a pause reads from the edit log: its pad records (#2439).
 
     ``original_pause_support`` rejects a pad-purpose record with no ``pad_samples``, any record
-    whose ``pad_samples`` is not a list, a malformed sample, a sample on a recording it cannot
-    resolve, and (on the pause's own recording) a sample with an invalid range, at any distance.
-    A valid sample's range marks tiles that are not original quiet. A record is hashed for what
-    the check reads of it. Skipped: a non-pad record without samples, and a valid, resolvable
-    sample whose range lies outside ``[lo, hi]`` (the window around the pause, which no clip
-    heard near it can reach). The validity tests are the check's own (``pad_sample_range``).
+    whose ``pad_samples`` is not a list, a malformed sample (``pad_sample_well_formed``), a sample
+    on a recording it cannot resolve (``pad_sample_recording``), and a sample on the pause's own
+    recording whose range is invalid (``pad_sample_range``). A valid sample's range marks tiles
+    that are not original quiet. A record is hashed for what the check reads of it. Skipped: a
+    non-pad record without samples, and a valid, resolvable sample whose range lies outside
+    ``[lo, hi]`` (the window around the pause, which no clip heard near it can reach). A sample
+    with an invalid range is hashed whole, whatever recording it names, since the recording is not
+    resolved for it.
     """
     if not _is_pause(edit):
         return None
@@ -409,7 +411,6 @@ def _pad_records_seen(
                 continue
             pad_range = pad_sample_range(sample)
             if pad_range is None:
-                # Rejected on the pause's recording at any distance; this one is not known.
                 kept.append(sample)
                 continue
             if pad_range[1] < lo or pad_range[0] > hi:

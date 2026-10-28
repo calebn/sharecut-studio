@@ -634,11 +634,12 @@ ends, which the longest fade of any clip, also one ending before the window, can
 log's pad records it reads (#2439). A pad-purpose record with no `pad_samples` is hashed. So is
 `pad_samples` that is not a list, on any record. For a record with a list, each sample is hashed if
 it is malformed, or if its range is invalid (non-finite, below 0 or not increasing). The check
-rejects an invalid range at any distance, so check and key share `pad_sample_range`. A sample is
-also hashed if its source range is within that reach, or if its recording does not resolve (also
-when far). Only a valid, resolvable, far sample is left out, and so is a record without samples
-that is not a pad. The key also hashes the
-recordings' file revisions, the policy tables and the speaker-profile files. The key also
+applies `pad_sample_range` to a sample only when it is on the pause's own recording, so the key
+hashes an invalid-range sample whole whatever recording it names (for another recording that is
+more than needed, and harmless). A sample is also hashed if its source range is within that reach,
+or if its recording does not resolve (also when far). Only a valid, resolvable, far sample is left
+out, and so is a record without samples that is not a pad. The key also hashes the recordings'
+file revisions, the policy tables and the speaker-profile files. The key also
 covers the fade ramp ends outside that window of the clips from the window start onward (a clip
 past it, or the far end of one straddling it), hashed on the source clock with the words around
 them, because the check assesses every ramp; clips ending before the window are excluded, since a

@@ -9,7 +9,6 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from podcast_mcp.edits.cut_quality import fade_reach_sec
@@ -42,6 +41,8 @@ from podcast_mcp.util.tracks import recording_audio_path
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from podcast_mcp.config.defaults import EffectiveConfig
     from podcast_mcp.edits.timeline_ops import LaneUnavailable
     from podcast_mcp.models import AppliedEditRecord
