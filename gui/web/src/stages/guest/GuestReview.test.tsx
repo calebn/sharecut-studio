@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ROLES } from "../../system/linkRoles";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
+import { CENTER, probeScript } from "../../system/scriptScrollProbe";
 import { formatTimeShort } from "../../utils/time";
 import { GuestReview, type GuestReviewProps } from "./GuestReview";
 import { DURATION, PEAKS, WORD_STARTS } from "./guestFixture";
@@ -244,6 +245,28 @@ describe("Comment and collapse controls", () => {
   });
 });
 
+describe("Back to playhead", () => {
+  it.each([0, 20, 45])(
+    "scrolls the playing word %i to the centre of the Script and follows again",
+    async (index) => {
+      setup({ layout: "phone", initialPlayhead: startOf(index) });
+      const body = document.querySelector(".sys-script-body") as HTMLElement;
+      const probe = probeScript(body);
+      scrollByHand();
+      expect(
+        screen.getByRole("button", { name: /Expand player/ }),
+      ).toBeInTheDocument();
+      probe.clear();
+      await userEvent.click(
+        screen.getByRole("button", { name: /Back to playhead/ }),
+      );
+      expect(probe.calls[0]).toEqual([textOf(index), CENTER]);
+      probe.restore();
+      expect(backToPlayhead()).toBeNull();
+    },
+  );
+});
+
 describe("Player and Script wiring", () => {
   it.each(ROLES)("a $id gets a Player without A/B", ({ id }) => {
     setup({ access: id });
@@ -327,25 +350,6 @@ describe("Player and Script wiring", () => {
 });
 
 describe("following", () => {
-  it.each([0, 20, 45])(
-    "Back to playhead scrolls the playing word %i to the centre",
-    async (index) => {
-      const scrolled: { text: string | null; block: unknown }[] = [];
-      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-        configurable: true,
-        value(this: HTMLElement, arg: ScrollIntoViewOptions) {
-          scrolled.push({ text: this.textContent, block: arg.block });
-        },
-      });
-      setup({ initialPlayhead: startOf(index) });
-      scrollByHand();
-      scrolled.length = 0;
-      await userEvent.click(backToPlayhead() as HTMLElement);
-      expect(scrolled).toEqual([{ text: textOf(index), block: "center" }]);
-      expect(backToPlayhead()).toBeNull();
-    },
-  );
-
   it("shows Back to playhead after a hand scroll", () => {
     setup();
     expect(backToPlayhead()).toBeNull();

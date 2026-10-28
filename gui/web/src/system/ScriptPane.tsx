@@ -72,42 +72,32 @@ import {
 } from "./scriptSelection";
 import { type GestureControl, useScriptGestures } from "./useScriptGestures";
 
+function scrollWithin(
+  body: HTMLElement,
+  el: HTMLElement,
+  block: ScrollLogicalPosition,
+) {
+  const box = body.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
+  const top = rect.top - box.top + body.scrollTop;
+  const bottom = top + rect.height;
+  const view = body.clientHeight;
+  const from = body.scrollTop;
+  let to = from;
+  if (block === "center") to = top - (view - rect.height) / 2;
+  else if (block === "start") to = top;
+  else if (block === "end") to = bottom - view;
+  else if (top < from) to = top;
+  else if (bottom > from + view) to = bottom - view;
+  if (to !== from) body.scrollTop = Math.max(0, to);
+}
+
 export type ScriptPaneHandle = {
-  /** Scroll the word into view. False when the pane does not show it, so the host should widen its window of turns. */
   scrollToWord: (index: number, block?: ScrollLogicalPosition) => boolean;
   /** Put focus on the header's Find button, where the Find bar's focus goes when it closes or finishes a bulk verb. False when the pane draws no such button. */
   focusFind: () => boolean;
 };
 
-/**
- * Every callback is optional. A pane without them reads, and a header control
- * whose callback is missing is not drawn, which is how a guest's pane is made.
- *
- * The pane draws the turns it is given and keeps nothing about the rest of the
- * episode, so a host that virtualizes passes a window of turns whose word
- * indices are the episode's. Keyboard moves stop at the window's edge; the
- * host widens the window and uses `scrollToWord` to land on a word.
- *
- * Keys. The pane owns the keys it handles on its words, cut pills, suggested
- * runs and margin controls: the arrows, Home and End (alone, with Shift, and
- * Alt+Shift+Left or Right), Enter, F2 on a word when `onFixText` is given, and
- * Esc when something is selected and `onClearSelection` is given, or while a
- * drag runs. It calls `preventDefault()` and `stopPropagation()` on them, so
- * the window keymap never sees them: no playhead nudge on an arrow, no Home to
- * the start, no second Esc. Every other key, typing included, and any chord
- * with Ctrl or Cmd, reaches the keymap untouched. The host must not rebind a
- * key in that list for a script-focused context; when the list changes, the
- * keymap rows stay as they are.
- *
- * Pointer gestures (design-system element 14, `useScriptGestures`). The body
- * owns the browser's text selection (off) and the pointer: a mouse drag, a
- * touch long press then drag, Shift-click, a click that selects a word and a
- * double-click or double-tap that asks for Fix text. They need `onSelect`.
- *
- * Live region. The pane has the one polite region of the script. It says the
- * selection when it changes (once, on release, while a grip is dragged),
- * says "Selection cleared" when it clears, and speaks `findStatus`.
- */
 export type ScriptPaneProps = {
   turns: readonly ScriptTurn[];
   status?: ScriptStatus;
@@ -115,6 +105,7 @@ export type ScriptPaneProps = {
   layout?: "desktop" | "phone";
   /** The words under the playhead. Two tracks can speak at once. */
   playing?: number | readonly number[];
+  playheadWord?: number;
   selection?: ScriptSelection | null;
   carets?: readonly ScriptCaret[];
   /** Find hits, by word span, and which one is current. */
@@ -366,6 +357,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       status = READY,
       layout = "desktop",
       playing,
+      playheadWord,
       selection: selectionHost = null,
       carets = NO_CARETS,
       matches = NO_MATCHES,
@@ -895,7 +887,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         scrollToWord: (index, block = "nearest") => {
           const stop = stopContaining(live.current.stops, index);
           const el = stop ? registry.current.get(stop.start) : undefined;
-          el?.scrollIntoView?.({ block });
+          const body = bodyRef.current;
+          if (el && body) scrollWithin(body, el, block);
           return el !== undefined;
         },
         focusFind: () => {
@@ -1237,7 +1230,9 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         <div className="sr-only" role="status" aria-live="polite">
           {spoken}
         </div>
-        {!following && playingList.length > 0 && onBackToPlayhead ? (
+        {!following &&
+        (playingList.length > 0 || playheadWord !== undefined) &&
+        onBackToPlayhead ? (
           <button
             type="button"
             className="sys-script-back"
