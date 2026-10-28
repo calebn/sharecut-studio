@@ -341,7 +341,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 ### PNL-IMPACT · Impact (incl. refine-gate state, PNL-IMPACT-REFINE-GATE)
 
 - **Today:** `PNL-IMPACT--*`, `PNL-IMPACT-REFINE-GATE--*`. Totals as a definition list ("Total removed 0.00 s"), Approve all / Reject all, links like "guest's cut at 0:20.0 · agent:suggest"; the refine gate shows "Transcript refinement is required before approval…" and a required Waiver reason textarea (desktop F03, narrow F04, phone F01, F03).
-- **Fate:** merge into SCR-REVIEW (queue header summary and groups) and Deliver's readiness check ("Edits"). The refine gate becomes a Check row and an in-card prompt.
+- **Fate:** merged into SCR-REVIEW (shipped in #2293 as the Queue tab) and Deliver's readiness check ("Edits"). The refine gate is a Check row and an in-card Cut anyway prompt.
 - **Spec (refine gate):**
   - What it is in user terms: cuts are placed by words, so someone should glance at the transcript before cut suggestions are applied.
   - When the gate is open, Checks holds a row "Check the transcript before cutting" with the count of unsure words ("3 unsure words"). Selecting it opens a Decision card that steps through the unsure words (each with Hear, Fix text, Looks right). Finishing the last word marks the transcript checked (records refine-done for the human). A text button on that card, "Mark as checked", marks it without stepping through.

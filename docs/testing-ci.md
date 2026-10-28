@@ -133,7 +133,7 @@ The case adds one Chromium run, alongside the existing desktop inline-edit tests
 Specs share one live project with `workers: 1`, so rows from earlier specs (for
 example `guest:suggest` pending edits) are still present. A spec that acts on a
 row it just created must wait for its own mutation's response and select the row by the id it returns
-(`e2e/pendingEdit.ts` `openSuggestedPendingEdit`, Impact rows carry `data-pending-id`)
+(`e2e/pendingEdit.ts` `openSuggestedPendingEdit`, the first Review queue row is selected, then Open in Edit)
 rather than trusting `.last()`.
 
 Specs that set up state through the API post it with `e2e/documentCommand.ts`

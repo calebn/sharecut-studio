@@ -16,7 +16,7 @@ export type Stage = "record" | "prepare" | "edit" | "review" | "deliver";
 export type Panel =
   | "transcript"
   | "history"
-  | "impact"
+  | "queue"
   | "tighten"
   | "pipeline"
   | "comments";
@@ -46,7 +46,7 @@ const PANEL_HOME: Record<
 > = {
   transcript: { stage: "edit" },
   history: { stage: "edit", sheet: "history" },
-  impact: { stage: "review", section: "Impact" },
+  queue: { stage: "review", section: "Queue" },
   tighten: { stage: "review", section: "Tighten" },
   pipeline: { stage: "prepare" },
   comments: { stage: "review", section: "Comments" },

@@ -18,7 +18,7 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 | US-2 | #9 | Automated | `tests/test_record_host_reconnect.py`, `gui/web/src/stage/hosts/RecordStage.test.tsx`, `gui/web/src/record/GuestRoomApp.test.tsx`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193), listening by ear |
 | US-3 | #10 | Automated | `tests/test_ingest_recorder_import_e2e.py` | Tauri recording (#193) |
 | US-4 | #4 | Automated | `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/e2e/transcript-ignore.spec.ts`, `gui/web/e2e/transcript-refine-recovery.spec.ts`, `gui/web/e2e/sharecut.mobile.spec.ts`, `gui/web/src/panels/TranscriptPanel.test.tsx`, `gui/web/src/transcript/TranscriptTurnView.test.tsx`, `gui/web/src/stage/frame/saveState.test.ts`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
-| US-5 | #5 | Automated | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `gui/web/src/inspector/views/PendingEditInspector.test.tsx`, `gui/web/src/panels/ImpactPanel.test.tsx`, `tests/test_tighten.py`, `tests/test_mute_in_place.py` | Listening by ear |
+| US-5 | #5 | Automated | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `gui/web/src/inspector/views/PendingEditInspector.test.tsx`, `gui/web/src/stage/hosts/ReviewHost.test.tsx`, `tests/test_tighten.py`, `tests/test_mute_in_place.py` | Listening by ear |
 | US-6 | #6 | Partial | `gui/web/e2e/fade-curves.spec.ts`, `gui/web/e2e/applied-edit-seams.spec.ts`, `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/src/panels/HistoryPanel.test.tsx`, `tests/test_history.py`, `tests/test_pending_preview.py` | Listening by ear, a mid-run Cancel |
 | US-7 | #7 | Partial | `gui/web/e2e/review-surface.spec.ts`, `tests/test_review_share.py`, `tests/test_relay_proxy.py` | Host visibility of time-anchored playback feedback and host-offline fallback |
 | US-8 | #11 | Partial | `gui/web/src/shareMode.test.ts`, `tests/test_share_pending_preview.py` | Two-browser suggest/approve |
@@ -116,7 +116,7 @@ hear menu and expanded form.
 |--------|------|
 | `goToStage(page, stage)` | Clicks the Stage bar tab for `record`, `prepare`, `edit`, `review` or `deliver`. Browsers keep Mod+1 to Mod+9 for their own tabs, so helpers click rather than press the stage keys |
 | `openProject(page, { stage? })` | Opens a project, waits for the save indicator (when the landing stage is picked), then goes to `edit` unless told otherwise |
-| `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `impact`, `tighten`, `comments` (Review sections) or `pipeline` (Prepare) |
+| `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `queue`, `tighten`, `comments` (Review sections) or `pipeline` (Prepare) |
 | `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
 | `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Export, Bounce, Record, palette, gestures), through the menu, header or palette as each lives |
 | `openViewSheet`, `setLayer`, `stepTrackHeight` | The Edit corner's eye sheet (layers, track height) |
@@ -630,7 +630,7 @@ reachability after inspector collapse, and desktop/phone action-surface axe.
 
 The Commenter scenarios mint a Commenter link through `POST /api/shares` with
 `role: "commenter"`. They check the guest banner, an unapplied proposal, denied
-approval, Suggested audio playback, host review in Impact, and the guest's
+approval, Suggested audio playback, host review in the Review queue, and the guest's
 refreshed clip geometry after approval. The Editor scenario remains separate
 because an Editor applies instead of proposing.
 

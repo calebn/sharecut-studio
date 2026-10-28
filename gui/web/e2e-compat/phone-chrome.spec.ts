@@ -192,7 +192,7 @@ async function suggestPendingEdits(page: Page, projectPath: string) {
     );
 }
 
-test("Reject all asks with the count, then one Undo brings the pending edits back", async ({
+test("Keep decides one queue item at a thumb-sized target, then one Undo brings it back", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -202,29 +202,22 @@ test("Reject all asks with the count, then one Undo brings the pending edits bac
     await suggestPendingEdits(page, projectPath);
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame")).toBeVisible();
-    await openPanel(page, "impact");
+    await openPanel(page, "queue");
 
-    const pending = page.locator(".impact-pending-select");
-    await expect(pending).toHaveCount(3);
-    const reject = page.getByRole("button", { name: "Reject all (3)" });
-    expect((await reject.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const position = page.getByRole("button", { name: /^\d+ of \d+$/ });
+    await expect(position).toHaveText(/of 3$/);
+    const keep = page
+      .locator(".rv-stage")
+      .getByRole("button", { name: "Keep" });
+    expect((await keep.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
-    await reject.tap();
-    const dialog = page.getByRole("dialog", {
-      name: "Reject 3 pending edits?",
-    });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Keep reviewing" }).tap();
-    await expect(dialog).toBeHidden();
-    await expect(pending).toHaveCount(3);
-
-    await reject.tap();
-    await dialog.getByRole("button", { name: "Reject 3", exact: true }).tap();
+    await keep.tap();
     const toast = page.locator(".ui-toast-region--app");
-    await expect(toast.getByText("Rejected 3 pending edits")).toBeVisible();
-    await expect(pending).toHaveCount(0);
+    await expect(toast.getByText("Kept")).toBeVisible();
+    await expect(position).toHaveText(/of 3$/);
     await toast.getByRole("button", { name: /undo/i }).tap();
-    await expect(pending).toHaveCount(3);
+    await expect(toast.getByText(/Undone/)).toBeVisible();
+    await expect(page.locator(".rv-stage")).toBeFocused();
   });
 });
 
