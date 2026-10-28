@@ -1,6 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
-import { viewportStoryParameters } from "../storybook/storyLayout";
+import type { ReactElement } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
+import {
+  isolatedStoryParameters,
+  viewportStoryParameters,
+} from "../storybook/storyLayout";
+import { openDialogByLauncher } from "../test/storyDialog";
 import type { NoteItem } from "./notesRailModel";
 import { RoomView } from "./RoomView";
 import type { RoomPerson } from "./roomViewModel";
@@ -49,6 +54,20 @@ const ROSA_PRODUCER: RoomPerson = {
   presence: "live",
 };
 const ROSA_YOU: RoomPerson = { ...ROSA_PRODUCER, you: true };
+const MAYA_YOU: RoomPerson = { ...HOST, you: true };
+const JON_JOINING: RoomPerson = {
+  role: "guest",
+  person: JON,
+  presence: "joining",
+};
+const ANNEKE_SAVING = (done: number): RoomPerson => ({
+  ...ANNEKE_GUEST,
+  saving: { done, total: 10 },
+});
+const SAVED_GUESTS: RoomPerson[] = [
+  { ...JON_YOU, you: false, saving: "saved" },
+  { ...ANNEKE_GUEST, saving: "saved" },
+];
 
 const NOTES: NoteItem[] = [
   {
@@ -118,7 +137,7 @@ const meta: Meta<typeof RoomView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Record room for guests and producers on the desktop: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host and the phone form follow in a later slice.\n\n**Motion.** None yet. Later: the level ring animates, and the new note settles into the list.",
+          "The Record room for every seat: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host seat adds the Record button, Invite tiles for the empty seats and the saving line after Stop. The phone form puts the tiles in a square 2x2 grid, a Notes peek line (the latest note, one line) above the dock, and the Notes rail in a bottom Sheet; a landscape phone puts the tiles in one row with the dock as a vertical bar on the right edge.\n\n**Motion.** None yet. Later: the level ring animates, and the new note settles into the list.",
       },
     },
   },
@@ -296,5 +315,382 @@ export const ProducerLive: Story = {
       "Notes",
       "Leave room",
     ]);
+  },
+};
+
+const hostDock = (root: HTMLElement) =>
+  dockNames(root).filter((name) => !name?.startsWith("Notes"));
+
+const peekText = (root: HTMLElement) =>
+  root.querySelector(".sys-room-view-peek")?.textContent ?? "";
+
+const phone = {
+  viewerWidth: "phone",
+  notes: NOTES,
+} as const;
+
+const landscapeFrame = (Story: () => ReactElement) => (
+  <div style={{ blockSize: "24rem", inlineSize: "46rem" }}>
+    <Story />
+  </div>
+);
+
+const landscapeParameters = {
+  ...viewportStoryParameters,
+  wideOnlyReason:
+    "The landscape phone layout needs more than 360 px of width for four tiles beside the dock bar.",
+} as const;
+
+export const GuestWaitingPhone: Story = {
+  args: { ...phone, people: [HOST, JON_YOU], phase: WAITING, notes: [] },
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(2);
+    await expect(peekText(canvasElement)).toContain("No notes yet");
+    await expect(dockNames(canvasElement)).toEqual([
+      "Mute",
+      "Notes",
+      "Leave room",
+    ]);
+  },
+};
+
+export const GuestLivePhone: Story = {
+  args: {
+    ...phone,
+    people: [HOST, JON_YOU, ANNEKE_GUEST, ROSA_PRODUCER],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(3);
+    await expect(canvasElement.querySelector(".sys-room-view-rail")).toBeNull();
+    await expect(peekText(canvasElement)).toContain(
+      "Jon: My own note, kept for me.",
+    );
+    await expect(dockNames(canvasElement)).toEqual([
+      "Mute",
+      "Comment",
+      "Notes",
+      "Leave room",
+    ]);
+  },
+};
+
+export const GuestLivePhoneNotesSheet: Story = {
+  args: { ...phone, people: [HOST, JON_YOU, ANNEKE_GUEST] },
+  parameters: isolatedStoryParameters,
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialogByLauncher(canvasElement, {
+      launcherName: "Notes",
+      dialogName: "Notes",
+    });
+    await expect(
+      within(dialog).getByText("Jon's mic drops out here."),
+    ).toBeVisible();
+    await expect(
+      within(dialog).getAllByRole("button", { name: "Send note" }),
+    ).toHaveLength(1);
+  },
+};
+
+export const ProducerPhone: Story = {
+  args: {
+    ...phone,
+    seat: "producer",
+    people: [HOST, JON_YOU, ANNEKE_GUEST, ROSA_YOU],
+    selfName: "Rosa Diaz",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("You, listening")).toBeInTheDocument();
+    await expect(tileCount(canvasElement)).toBe(3);
+    await expect(peekText(canvasElement)).toContain(
+      "Jon: My own note, kept for me.",
+    );
+    await expect(dockNames(canvasElement)).toEqual([
+      "Comment",
+      "Notes",
+      "Leave room",
+    ]);
+  },
+};
+
+export const GuestLandscape: Story = {
+  args: {
+    viewerWidth: "phone-landscape",
+    notes: NOTES,
+    people: [HOST, JON_YOU, ANNEKE_GUEST, JOSS_GUEST],
+  },
+  tags: ["wide-only"],
+  parameters: landscapeParameters,
+  decorators: [landscapeFrame],
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(4);
+    await expect(canvasElement.querySelector(".sys-room-view-peek")).toBeNull();
+    await expect(dockNames(canvasElement)).toEqual([
+      "Mute",
+      "Comment",
+      "Notes",
+      "Leave room",
+    ]);
+  },
+};
+
+export const HostEmpty: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU],
+    phase: { kind: "waiting" },
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByRole("button", { name: "Invite" }),
+    ).toHaveLength(3);
+    await expect(tileCount(canvasElement)).toBe(4);
+    await expect(canvas.getByRole("button", { name: "Record" })).toBeEnabled();
+    await expect(hostDock(canvasElement)).toEqual(["Mute", "Record", "More"]);
+  },
+};
+
+export const HostWaitingTwoGuests: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST],
+    phase: { kind: "waiting" },
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByRole("button", { name: "Invite" }),
+    ).toHaveLength(1);
+    await expect(canvas.getByRole("button", { name: "Record" })).toBeEnabled();
+    await expect(
+      canvas.queryByRole("button", { name: "Comment" }),
+    ).not.toBeInTheDocument();
+  },
+};
+
+export const HostWaitingConsentPending: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU, JON_JOINING, ANNEKE_GUEST],
+    phase: { kind: "waiting" },
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Joining…")).toBeInTheDocument();
+    const record = canvas.getByRole("button", { name: "Record" });
+    await expect(record).toBeDisabled();
+    await expect(record).toHaveAttribute("title", "Waiting for Jon to join");
+  },
+};
+
+export const HostCountdown: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST],
+    phase: { kind: "countdown", secondsLeft: 3 },
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Quiet please · 3"),
+    ).toBeInTheDocument();
+  },
+};
+
+export const HostLive: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST, JOSS_GUEST],
+    selfName: "Maya Okafor",
+    unreadNotes: 2,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("12:04 · Take 1")).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Invite" }),
+    ).not.toBeInTheDocument();
+    await expect(hostDock(canvasElement)).toEqual([
+      "Mute",
+      "Comment",
+      "Stop take",
+      "Pause take",
+      "More",
+    ]);
+  },
+};
+
+export const HostLiveNotesOpen: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST],
+    selfName: "Maya Okafor",
+    defaultNotesOpen: true,
+    notes: NOTES,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Lift Jon before the break."),
+    ).toBeInTheDocument();
+    await expect(
+      within(canvasElement).getByRole("button", { name: "Everyone" }),
+    ).toBeInTheDocument();
+  },
+};
+
+export const HostPaused: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST],
+    phase: { kind: "paused", clockSec: 1230 },
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Paused · 20:30")).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Resume recording" }),
+    ).toBeInTheDocument();
+  },
+};
+
+export const HostSaving: Story = {
+  args: {
+    seat: "host",
+    people: [
+      { ...MAYA_YOU, saving: "saved" },
+      { ...JON_YOU, saving: { done: 10, total: 10 } },
+      ANNEKE_SAVING(4),
+    ],
+    phase: { kind: "saving", savedPeople: 1, totalPeople: 3 },
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Saving · 1 of 3")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("Saving · 1 of 3 · keep this page open"),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Record" }),
+    ).not.toBeInTheDocument();
+  },
+};
+
+export const HostSaved: Story = {
+  args: {
+    seat: "host",
+    people: [{ ...MAYA_YOU, saving: "saved" }, ...SAVED_GUESTS],
+    phase: { kind: "saved" },
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText("Saved").length).toBeGreaterThan(0);
+    await expect(canvas.getByRole("button", { name: "Record" })).toBeEnabled();
+  },
+};
+
+export const HostSolo: Story = {
+  args: {
+    seat: "host",
+    people: [MAYA_YOU],
+    selfName: "Maya Okafor",
+    onInvite: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(1);
+    await expect(
+      within(canvasElement).queryByRole("button", { name: "Invite" }),
+    ).not.toBeInTheDocument();
+    await expect(hostDock(canvasElement)).toContain("Stop take");
+  },
+};
+
+export const HostPhone: Story = {
+  args: {
+    ...phone,
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU],
+    phase: { kind: "waiting" },
+    selfName: "Maya Okafor",
+    notes: [],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(4);
+    await expect(
+      within(canvasElement).getAllByRole("button", { name: "Invite" }),
+    ).toHaveLength(2);
+    await expect(hostDock(canvasElement)).toEqual(["Mute", "Record", "More"]);
+  },
+};
+
+export const HostPhoneLive: Story = {
+  args: {
+    ...phone,
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST, JOSS_GUEST],
+    selfName: "Maya Okafor",
+  },
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(4);
+    await expect(peekText(canvasElement)).toContain(
+      "Jon: My own note, kept for me.",
+    );
+    await expect(hostDock(canvasElement)).toEqual([
+      "Mute",
+      "Comment",
+      "Stop take",
+      "Pause take",
+      "More",
+    ]);
+  },
+};
+
+export const HostPhoneNotesSheet: Story = {
+  args: {
+    ...phone,
+    seat: "host",
+    people: [MAYA_YOU, JON_YOU],
+    selfName: "Maya Okafor",
+  },
+  parameters: isolatedStoryParameters,
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const peek = canvasElement.querySelector<HTMLElement>(
+      ".sys-room-view-peek",
+    );
+    await expect(peek).not.toBeNull();
+    await userEvent.click(peek as HTMLElement);
+    const dialog = await within(document.body).findByRole("dialog", {
+      name: "Notes",
+    });
+    await expect(
+      within(dialog).getByRole("button", { name: "Everyone" }),
+    ).toBeInTheDocument();
+  },
+};
+
+export const HostLandscape: Story = {
+  args: {
+    seat: "host",
+    viewerWidth: "phone-landscape",
+    notes: NOTES,
+    people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST],
+    selfName: "Maya Okafor",
+  },
+  tags: ["wide-only"],
+  parameters: landscapeParameters,
+  decorators: [landscapeFrame],
+  play: async ({ canvasElement }) => {
+    await expect(tileCount(canvasElement)).toBe(4);
+    await expect(
+      within(canvasElement).getByRole("button", { name: "Notes" }),
+    ).toBeInTheDocument();
   },
 };

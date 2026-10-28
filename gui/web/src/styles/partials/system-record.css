@@ -695,3 +695,132 @@
 .sys-room-view-dock > .sys-dock {
   flex: 1 1 auto;
 }
+
+.sys-room-view[data-width="phone"] .sys-room-view-header,
+.sys-room-view[data-width="phone-landscape"] .sys-room-view-header {
+  block-size: 2.75rem;
+  padding-inline: var(--space-4);
+}
+
+.sys-room-view[data-width="phone"] .sys-room-view-stage,
+.sys-room-view[data-width="phone-landscape"] .sys-room-view-stage {
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.sys-room-view[data-width="phone"] .sys-room-view-grid,
+.sys-room-view[data-width="phone-landscape"] .sys-room-view-grid {
+  gap: var(--space-3);
+  max-inline-size: none;
+}
+
+.sys-room-view[data-width="phone"] .sys-room-tile,
+.sys-room-view[data-width="phone-landscape"] .sys-room-tile {
+  aspect-ratio: 1;
+}
+
+.sys-room-view-peek {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-block-size: var(--touch-min);
+  padding-block: var(--space-3);
+  padding-inline: var(--space-5);
+  border: 0;
+  border-block-start: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-ui);
+  text-align: start;
+  cursor: pointer;
+}
+
+.sys-room-view-peek-label {
+  flex: none;
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.sys-room-view-peek-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-room-view-peek-time {
+  flex: none;
+}
+
+.sys-room-view[data-width="phone"] .sys-room-view-dock > .sys-dock {
+  min-block-size: 5.5rem;
+}
+
+.sys-room-view[data-width="phone-landscape"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-room-view-header {
+  grid-column: 1 / -1;
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-room-view-body {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-room-view-dock {
+  grid-column: 2;
+  grid-row: 2;
+  min-block-size: 0;
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-room-view-dock > .sys-dock {
+  flex-direction: column;
+  gap: var(--space-3);
+  min-block-size: 0;
+  padding: var(--space-3) var(--space-4);
+  padding-inline-end: max(var(--space-4), env(safe-area-inset-right));
+  overflow-y: auto;
+  border-block-start: 0;
+  border-inline-start: 1px solid var(--color-border);
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-dock-center {
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sys-room-view[data-width="phone-landscape"]
+  .sys-dock[data-seat="host"]
+  .sys-dock-notes {
+  display: inline-flex;
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-dock-far {
+  margin-inline-start: 0;
+}
+
+.sys-takes-tray {
+  box-sizing: border-box;
+  block-size: 100%;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+
+.sys-takes-empty {
+  margin: 0;
+  padding: var(--space-5);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-takes-tray .sys-status-children .sys-status[data-state="failed"] {
+  background: transparent;
+}
