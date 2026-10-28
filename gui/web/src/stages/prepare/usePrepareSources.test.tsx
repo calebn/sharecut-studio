@@ -126,6 +126,25 @@ describe("names", () => {
     }
   });
 
+  it("saves a name still waiting when Prepare closes", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result, unmount } = setup();
+      act(() => result.current.actions.onName("maya", "Maya"));
+      expect(setTrackMetaCommand).not.toHaveBeenCalled();
+      unmount();
+      expect(setTrackMetaCommand).toHaveBeenCalledOnce();
+      expect(setTrackMetaCommand).toHaveBeenCalledWith(PATH, "maya", {
+        label: "Maya",
+        speaker: "Maya",
+      });
+      await vi.advanceTimersByTimeAsync(700);
+      expect(setTrackMetaCommand).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not save an empty name", async () => {
     vi.useFakeTimers();
     try {
