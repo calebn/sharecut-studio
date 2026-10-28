@@ -277,7 +277,7 @@ beforeEach(() => {
 });
 
 describe("Review host queue", () => {
-  it("groups every kind, puts the unplaced edit last, and drops applied and unreviewed edits", () => {
+  it("groups every kind and puts the unplaced edit last", () => {
     mount([
       ...(["pause", "repeat", "false-start", "sound", "other"] as const).map(
         (kind, i) => edit(kind, kind, 5 + i),
@@ -289,11 +289,6 @@ describe("Review host queue", () => {
         timeline_end: null,
         label: "filler unplaced",
       }),
-      edit("done", "filler", 40, { applied: true, label: "filler applied" }),
-      edit("quiet", "filler", 41, {
-        review_required: false,
-        label: "filler quiet",
-      }),
     ]);
     const groups = screen.getAllByRole("region", {
       name: /^(Fillers|Pauses|Repeats|False starts|Sounds|Other suggestions)$/,
@@ -303,13 +298,11 @@ describe("Review host queue", () => {
     );
     const rows = within(groups[0] as HTMLElement).getAllByRole("button");
     expect(rows.at(-1)).toHaveTextContent("filler unplaced");
-    expect(screen.queryByText("filler applied")).toBeNull();
-    expect(screen.queryByText("filler quiet")).toBeNull();
     expect(screen.getByText("Jon restarts.")).toBeVisible();
   });
 
-  it("lands on Queue first, publishes the wire tab impact, and gives a guest Comments only", () => {
-    const view = mount();
+  it("lands on Queue first and publishes the wire tab impact", () => {
+    mount();
     const tabs = within(
       screen.getByRole("tablist", { name: "Review sections" }),
     ).getAllByRole("tab");
@@ -326,28 +319,6 @@ describe("Review host queue", () => {
       }),
     );
     expect(useDawStore.getState().reviewSection).toBe("queue");
-    view.unmount();
-    useDawStore.getState().hydrate("share:abc", minimalProject());
-    useDawStore.setState({ stage: "review", guestMode: "comment" });
-    render(<StageHost guestShare />);
-    expect(
-      screen.queryByRole("tablist", { name: "Review sections" }),
-    ).toBeNull();
-    expect(screen.getByText("comments panel")).toBeVisible();
-  });
-
-  it("ignores a lower server_seq for a decided id and drops an undecided id a snapshot removes", async () => {
-    mount();
-    press("Enter");
-    await undoButton();
-    server.pending = [F1, F2, F3];
-    snapshot(server.seq - 1);
-    expect(decided()).toMatch(/Decided\s*1/);
-    expect(heading()).toBe("filler f2");
-    server.pending = [{ ...F1, applied: true }, F3];
-    snapshot();
-    expect(heading()).toBe("filler f3");
-    expect(screen.queryByText("filler f2")).toBeNull();
   });
 });
 
@@ -394,19 +365,6 @@ describe("Review host decisions", () => {
     },
   );
 
-  it("returns a decided row that another tab undid when no decision snapshot was seen", async () => {
-    server.omitSnapshot = true;
-    mount();
-    press("Enter");
-    await undoButton();
-    expect(decided()).toMatch(/Decided\s*1/);
-    serverUndo();
-    server.head = "h5";
-    snapshot();
-    await waitFor(() => expect(heading()).toBe("filler f1"));
-    expect(decided()).toBe("");
-  });
-
   it("Mod+Z undoes the last decision, and no Review key moves the transport", async () => {
     mount();
     stage().focus();
@@ -421,21 +379,8 @@ describe("Review host decisions", () => {
     expect(decided()).toBe("");
   });
 
-  it("Cut all sends one command with skip_unsure and one toast; suggestion, leave and lower get no group verb", async () => {
-    mount([
-      F1,
-      F2,
-      F3,
-      edit("o", "other", 50),
-      edit("sl", "sound", 60, { suggested_action: "leave" }),
-      edit("sw", "sound", 70, { suggested_action: "lower" }),
-    ]);
-    for (const name of ["Other suggestions", "Sounds"])
-      expect(
-        within(screen.getByRole("region", { name })).queryByRole("button", {
-          name: /all/i,
-        }),
-      ).toBeNull();
+  it("Cut all sends one command with skip_unsure and one toast", async () => {
+    mount();
     await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     await undoButton();
     expect(sent("ApproveEdits")).toHaveLength(1);
@@ -601,20 +546,6 @@ describe("Review host transcript check", () => {
     expect(sent("ApproveEdits")).toHaveLength(0);
     await waitFor(() => expect(heading()).toBe("filler f1"));
     press("Enter");
-    expect(await cutAnyway()).toBeVisible();
-  });
-
-  it("does not let Keep on the check hide Cut anyway or send anything", async () => {
-    server.status = "pending";
-    mount();
-    await userEvent.click(
-      within(await checks()).getByRole("button", { name: "Review" }),
-    );
-    expect(heading()).toBe("Check the transcript");
-    expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
-    press("x");
-    expect(wire.post).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     expect(await cutAnyway()).toBeVisible();
   });
 

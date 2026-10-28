@@ -148,6 +148,7 @@ describe("verbOf", () => {
     [{ kind: "suggestion", suggested: "shorten" }, "shorten"],
     [{ kind: "sound", suggested: "cut" }, "cut"],
     [{ kind: "sound", suggested: "lower" }, "lower"],
+    [{ kind: "filler", suggested: "lower" }, "lower"],
     [{ kind: "sound", suggested: "leave" }, "keep"],
     [{ kind: "filler", suggested: undefined }, "cut"],
   ] as const)("gives %o the %s verb", (over, verb) => {
@@ -160,11 +161,22 @@ describe("verbOf", () => {
     expect(decisionMessage([shorten], ["s"], "applied")).toBe("Shorten 0.5 s");
   });
 
-  it("keeps lower items out of group verbs", () => {
-    const bulk = groupQueue([
-      item({ id: "a", kind: "sound", suggested: "cut" }),
-      item({ id: "b", kind: "sound", suggested: "lower" }),
-    ])[0]?.bulk;
-    expect(bulk?.ids).toEqual(["a"]);
-  });
+  it.each([
+    [["cut", "lower", undefined], "cut", ["a"]],
+    [["shorten", "shorten"], "shorten", ["a", "b"]],
+    [["cut", "shorten"], "approve", ["a", "b"]],
+  ] as const)(
+    "words a sound group of %j as %s over %j, never lowering",
+    (suggested, verb, ids) => {
+      const rows = suggested.map((s, i) =>
+        item({ id: "abc"[i] as string, kind: "sound", suggested: s }),
+      );
+      const bulk = groupQueue(rows)[0]?.bulk;
+      expect(bulk?.verb).toBe(verb);
+      expect(bulk?.ids).toEqual(ids);
+      expect(decisionMessage(rows, [...ids], "applied")).toMatch(
+        new RegExp(`^${verb}`, "i"),
+      );
+    },
+  );
 });

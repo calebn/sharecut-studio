@@ -75,6 +75,14 @@ export function verbOf(item: ReviewItem): VerbId {
   }
 }
 
+/** The verb the items share, or Approve when they differ (cut with shorten). */
+export function groupVerbOf(items: readonly ReviewItem[]): VerbId {
+  const first = items[0] && verbOf(items[0]);
+  return first && items.every((item) => verbOf(item) === first)
+    ? first
+    : "approve";
+}
+
 const isDecided = (item: ReviewItem) => item.result !== undefined;
 
 /** Unsure words, blocked cuts, one-by-one and leave-alone items are decided one at a time. */
@@ -84,8 +92,8 @@ function bulkEligible(item: ReviewItem): boolean {
     !item.unsure &&
     !item.blocked &&
     !item.oneByOne &&
-    item.suggested !== "leave" &&
-    item.suggested !== "lower" &&
+    verbOf(item) !== "keep" &&
+    verbOf(item) !== "lower" &&
     !isDecided(item)
   );
 }
@@ -113,7 +121,7 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
           eligible.length === 0
             ? null
             : {
-                verb: KIND_META[kind].verb,
+                verb: groupVerbOf(eligible),
                 ids: eligible.map((item) => item.id),
                 savedSeconds: sumSaved(eligible),
               },
@@ -190,5 +198,5 @@ export function decisionMessage(
   if (!first) return "Done";
   if (picked.length === 1) return resultText({ ...first, result });
   if (result === "kept") return `Kept ${picked.length}`;
-  return `${verbDefOf(verbOf(first)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
+  return `${verbDefOf(groupVerbOf(picked)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
 }

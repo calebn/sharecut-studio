@@ -336,6 +336,9 @@ export function DecisionCard(props: DecisionCardProps) {
           </>
         ) : null}
         {why ? <p className="sys-decision-why">{why}</p> : null}
+        {verbDisabledReason && !readOnly ? (
+          <p className="sys-decision-why">{verbDisabledReason}</p>
+        ) : null}
         {unsure && !readOnly ? (
           <UnsureWord
             unsure={unsure}

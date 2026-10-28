@@ -119,6 +119,7 @@ export function ReviewStage({
   if (hadCheck !== hasCheck) {
     setHadCheck(hasCheck);
     if (hasCheck) setWaived(false);
+    else setPending(null);
   }
 
   const phone = layout === "phone";
@@ -158,7 +159,8 @@ export function ReviewStage({
   const verb = (id: string) => {
     if (guest) return;
     const item = items.find((i) => i.id === id);
-    if (item && verbOf(item) === "keep") return keep(id);
+    if (item && verbOf(item) === "keep")
+      return item.blocked ? undefined : keep(id);
     if (!cuttable(id)) return;
     if (holdsGate([id])) setPending({ ids: [id] });
     else void onDecide({ ids: [id], result: "applied" });
@@ -181,7 +183,9 @@ export function ReviewStage({
     if (guest || bulkRunning || !ids.length) return;
     const done = onDecide({ ids, result: "applied", waive: { note } });
     setWaived(true);
-    void Promise.resolve(done).then((ok) => ok === false && setWaived(false));
+    void Promise.resolve(done)
+      .catch(() => false)
+      .then((ok) => ok === false && setWaived(false));
     setPending(null);
   };
 
@@ -192,7 +196,7 @@ export function ReviewStage({
 
   const hear = (next: AuditionSide) => {
     setSide(next);
-    if (selected) onHear?.(selected.id, next);
+    if (selected && (wave || card.change)) onHear?.(selected.id, next);
   };
 
   const handleKey = useEffectEvent((event: KeyboardEvent) => {

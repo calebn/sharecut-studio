@@ -205,7 +205,7 @@ describe("useReviewSession", () => {
     expect(result.current.props.selectedId).toBe("a");
   });
 
-  it("reverts and reselects an entry that has not left yet", () => {
+  it("reverts, reselects and lets a reverted entry be decided again", () => {
     const { result } = renderHook(() => useReviewSession(OPEN));
     act(() => {
       result.current.decide({ ids: ["b"], result: "applied" });
@@ -215,6 +215,11 @@ describe("useReviewSession", () => {
       undefined,
     );
     expect(result.current.props.selectedId).toBe("b");
+    let again: ReturnType<typeof result.current.decide> = null;
+    act(() => {
+      again = result.current.decide({ ids: ["b"], result: "applied" });
+    });
+    expect(again).not.toBeNull();
   });
 
   it("takes the reverted row's selection back only while the user is still where the decision moved", () => {
