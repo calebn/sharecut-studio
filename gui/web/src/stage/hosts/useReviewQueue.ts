@@ -138,7 +138,7 @@ export function useReviewQueue() {
       ids,
       true,
       true,
-      ids.length > 1 ? { skipUnsure: true } : undefined,
+      intent.group || ids.length > 1 ? { skipUnsure: true } : undefined,
     );
   };
 

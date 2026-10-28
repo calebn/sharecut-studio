@@ -119,6 +119,13 @@ function GroupHeader({
   }
   const bulk = guest ? null : group.bulk;
   const verb = bulk ? verbOf(bulk.verb) : null;
+  const heldId = `rv-held-${group.kind}`;
+  const bulkLabel =
+    bulk && verb
+      ? bulk.ids.length === 1
+        ? verb.label
+        : `${verb.label} all ${bulk.ids.length}`
+      : "";
   return (
     <div className="rv-group-head">
       <SystemIcon name={meta.icon} size={16} />
@@ -129,13 +136,22 @@ function GroupHeader({
           <span className="sys-mono">{formatSeconds(bulk.savedSeconds)}</span>
           <Button
             className="rv-bulk"
+            aria-label={
+              bulk.ids.length === 1 ? `${bulkLabel} this one` : bulkLabel
+            }
+            aria-describedby={group.held > 0 ? heldId : undefined}
             onClick={() => onBulk?.(group)}
-            title={`${verb.label} all ${bulk.ids.length}${hintOf(verbOf("applyAll"))}`}
+            title={`${bulkLabel}${hintOf(verbOf("applyAll"))}`}
           >
             <SystemIcon name={verb.icon} size={14} />
-            {verb.label} all {bulk.ids.length}
+            {bulkLabel}
           </Button>
         </>
+      ) : null}
+      {group.held > 0 ? (
+        <span id={heldId} className="sys-mono">
+          {group.held} to decide one by one
+        </span>
       ) : null}
     </div>
   );
