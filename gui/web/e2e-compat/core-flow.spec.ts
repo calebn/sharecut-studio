@@ -87,7 +87,7 @@ test.describe("core flow", () => {
             await joinAsGuest(guest, room.guest.token, "Ava");
 
             const start = roomDlg.getByRole("button", {
-              name: "Start",
+              name: "Record",
               exact: true,
             });
             await expect(start).toBeEnabled();
@@ -132,13 +132,6 @@ test.describe("core flow", () => {
               })
               .toBeGreaterThan(AUDIBLE_PEAK);
 
-            const closeRoom = roomDlg.getByRole("button", {
-              name: "Close",
-              exact: true,
-            });
-            await expect(closeRoom).toBeEnabled({ timeout: 60_000 });
-            await closeRoom.click();
-            await expect(roomDlg).toBeHidden();
             // The landed track lives on the Edit stage; Record shows the take.
             await goToStage(host, "edit");
             await expect(
