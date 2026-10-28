@@ -32,7 +32,7 @@ from podcast_mcp.engines.audio import (
     SourceAudio,
     SourceFrameMapping,
     SourceMuteEnvelope,
-    delay_milliseconds,
+    delay_frames,
     fade_duration,
     postorder,
     sources,
@@ -194,7 +194,7 @@ def _sample_frame_expression(offset: int, source_rate: int) -> str:
 def _delay_filter(delay_sec: float, sample_rate: int) -> str:
     """Silence of ``delay_sec`` in front of the audio, with timestamps renumbered by sample.
 
-    Placed on ``ms * rate // 1000`` samples, as the evaluation does (#2025). ``sample_rate``
+    Placed on ``round(delay_sec * rate)`` samples, as the evaluation does (#2025, #2456). ``sample_rate``
     is the rate the render graph negotiates at this delay: the leading ``aformat`` resamples
     the audio to it before ``adelay``, so the pin never moves the rate the mix runs at.
     The trailing ``aformat`` keeps ``adelay``'s out-link at that rate when a filter downstream
@@ -206,7 +206,7 @@ def _delay_filter(delay_sec: float, sample_rate: int) -> str:
     its sample count, so the silence keeps its length.
     """
     pin = f"aformat=sample_rates={sample_rate}"
-    frames = delay_milliseconds(delay_sec) * sample_rate // 1000
+    frames = delay_frames(delay_sec, sample_rate)
     return f"{pin},adelay=delays={frames}S:all=1,asetpts=N/SR/TB,{pin}"
 
 
@@ -1491,8 +1491,7 @@ class FFmpegEngine:
                                 inputs, observed = label, observer(delay_name)
                                 label = emit(
                                     inputs,
-                                    f"adelay@pin_{len(delays)}={delay_milliseconds(at.start_sec)}"
-                                    f":all=1,asetpts=N/SR/TB{observed}",
+                                    f"adelay@pin_{len(delays)}=1S:all=1,asetpts=N/SR/TB{observed}",
                                 )
                                 delays.append(
                                     (len(filters) - 1, inputs, at.start_sec, observed, label)

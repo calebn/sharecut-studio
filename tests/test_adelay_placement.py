@@ -1,8 +1,9 @@
-"""A delayed slice lands on sample ``ms * rate // 1000``, as the evaluation places it (#2025)."""
+"""A delayed slice lands on sample ``floor(seconds * rate + 0.5)``, as the evaluation places it (#2025, #2456)."""
 
 from __future__ import annotations
 
 import errno
+import math
 import os
 import subprocess
 import wave
@@ -68,10 +69,14 @@ def _filter_impulse_frame(tmp_path: Path, rate: int, chain: str) -> tuple[int, i
     return out_rate, int(np.argmax(np.abs(samples)))
 
 
-def _placed_frames(tmp_path: Path, rate: int, delays_ms: list[int]) -> list[int]:
+def _nearest_frame(seconds: float, rate: int) -> int:
+    return math.floor(seconds * rate + 0.5)
+
+
+def _placed_frames(tmp_path: Path, rate: int, delays: list[float]) -> list[int]:
     source = _impulse(tmp_path / f"impulse_{rate}.wav", rate)
     duration = _IMPULSE_FRAMES / rate
-    placed = [At(ms / 1000, SourceAudio(source, 0.0, duration)) for ms in sorted(delays_ms)]
+    placed = [At(start, SourceAudio(source, 0.0, duration)) for start in sorted(delays)]
     out = tmp_path / f"placed_{rate}.wav"
     FFmpegEngine().render_timeline(out, MixAudio(placed[0], tuple(placed[1:])), "anull")
     _, samples = _read_wav(out)
@@ -87,7 +92,7 @@ def test_delay_filter_places_an_impulse_on_the_exact_sample(tmp_path: Path) -> N
     assert rate == 44100
     assert frame == 480690
     rate, frame = _filter_impulse_frame(tmp_path, 44100, _delay_filter(10.875, 44100))
-    assert frame == 479587
+    assert frame == 479588
 
 
 def _zeros(path: Path, rate: int, seconds: float) -> SourceAudio:
@@ -167,7 +172,7 @@ _TRUNK_RATE_CASES = {
     "h44.1+d22.05+d48": (
         lambda p: _delayed(p, 44100, [(22050, 1.0009), (48000, 2.5)]),
         44100,
-        [44144, 110250],
+        [44140, 110250],
     ),
     "all-delayed": (_all_delayed, 44100, [22050, 110250]),
 }
@@ -216,7 +221,7 @@ def test_render_places_a_44k_source_on_the_forced_48k_output_exactly(
         At(0.0, _zeros(tmp_path / "quiet.wav", 44100, 0.2)),
         (At(ms / 1000, _impulse_at(tmp_path / "impulse.wav", 44100)),),
     )
-    expected = ms * 48000 // 1000
+    expected = _nearest_frame(ms / 1000, 48000)
     out = tmp_path / "out.wav"
     FFmpegEngine().render_timeline(
         out,
@@ -341,9 +346,10 @@ def test_negotiated_rates_refuses_a_missing_input(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("rate", [8000, 22050, 44100, 48000])
-def test_render_places_every_delay_on_ms_times_rate_floor_1000(tmp_path: Path, rate: int) -> None:
-    delays = [*_FLOAT32_SHORT_MS[rate], 10900, 15000]
-    expected = sorted({ms * rate // 1000 for ms in delays})
+def test_render_places_every_delay_on_the_nearest_sample(tmp_path: Path, rate: int) -> None:
+    delays = [ms / 1000 for ms in (*_FLOAT32_SHORT_MS[rate], 10900, 10875, 15000)]
+    delays += [12.3456789, 1.00009, 0.0123457]
+    expected = sorted({_nearest_frame(start, rate) for start in delays})
     assert _placed_frames(tmp_path, rate, delays) == expected
 
 
@@ -430,9 +436,9 @@ def test_multistream_head_renders_at_first_stream_rate(
     audio = MixAudio(At(0.0, head), (At(0.25, _zeros(tmp_path / "child.wav", 44100, 1.0)),))
     graphs = _captured_graphs(monkeypatch)
     plain = FFmpegEngine().render_timeline(tmp_path / "plain.wav", audio, "anull")
-    assert "aformat=sample_rates=22050,adelay=delays=5512S" in graphs[-1]
+    assert "aformat=sample_rates=22050,adelay=delays=5513S" in graphs[-1]
     rate, samples = _read_wav(plain)
-    assert (rate, len(samples)) == (22050, 27562)
+    assert (rate, len(samples)) == (22050, 27563)
     restored = FFmpegEngine().render_timeline(
         tmp_path / "restored.wav", audio, "anull", clock_path=tmp_path / "clock.json"
     )

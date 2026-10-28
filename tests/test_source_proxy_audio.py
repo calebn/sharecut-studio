@@ -689,7 +689,7 @@ def test_first_stream_fix_moves_render_and_proxy_identities(tmp_path, monkeypatc
     captured = proxy.SourceProxyInputs.capture_occurrence(
         p, clip.id, FFmpegEngine(), defaults=load_defaults()
     )
-    assert captured.identity_payload["revision"] == "source-proxy-inputs-v2"
+    assert captured.identity_payload["revision"] == "source-proxy-inputs-v3"
     payloads = []
 
     def spy(raw, *args, **kwargs):
