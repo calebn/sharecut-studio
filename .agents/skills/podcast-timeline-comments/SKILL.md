@@ -104,7 +104,7 @@ To let an **agent** use the same powers as the share recipient, add `--with-mcp`
 
 ## DAW
 
-Local viewer: Comments tab, hideable pins, comment mode. Same data via `POST /api/comments`. Docs: [docs/timeline-comments.md](../../docs/timeline-comments.md).
+Local viewer: Comments tab, hideable pins, a Comments tab with a comment field (no comment mode). Same data via `POST /api/comments`. Docs: [docs/timeline-comments.md](../../docs/timeline-comments.md).
 
 Studio range Comment opens a draft with exact timeline islands and destination
 lanes. Preserve stored `timeline_spans` when handling such a comment; its flat

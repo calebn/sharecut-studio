@@ -12,17 +12,17 @@ import { useTimelineMetrics } from "./timelineMetrics";
  */
 
 /**
- * Alt-click Split preview: one guide per target lane, at the pointer's time
- * while Alt is held over the lanes. Target lanes are the selected tracks, or
- * every lane when none is selected.
+ * Alt-click Split preview: one guide per lane the cut will land on, at the
+ * pointer's time while Alt is held over the lanes. `cutTrackIds` is what
+ * `edit.bladeCut` resolves: the selected tracks, else the dialogue tracks.
  */
 export function SplitGuide({
   tracks,
-  selectedTrackIds,
+  cutTrackIds,
   zoomPxPerSec,
 }: {
   tracks: readonly TrackView[];
-  selectedTrackIds: readonly string[];
+  cutTrackIds: readonly string[];
   zoomPxPerSec: number;
 }) {
   const splitHoverSec = useDawStore((s) => s.splitHoverSec);
@@ -32,7 +32,7 @@ export function SplitGuide({
   }
   const left = splitHoverSec * zoomPxPerSec;
   return tracks.map((track, idx) =>
-    selectedTrackIds.length === 0 || selectedTrackIds.includes(track.id) ? (
+    cutTrackIds.includes(track.id) ? (
       <div
         key={track.id}
         className="split-guide"

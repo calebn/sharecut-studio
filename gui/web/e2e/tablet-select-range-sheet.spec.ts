@@ -6,6 +6,9 @@ import { openHostProject } from "./overlayReachability";
  * sheet with In, Out, the track checkboxes, Select range and Cancel inside it, not a card at the top.
  */
 
+// The Select range toggle is a touch control in the Edit corner.
+test.use({ hasTouch: true });
+
 test("tablet Select range puts In, Out, Select range and Cancel in the sheet at the bottom", async ({
   page,
 }) => {
@@ -14,7 +17,7 @@ test("tablet Select range puts In, Out, Select range and Cancel in the sheet at 
   await page
     .getByRole("button", { name: "Select range", exact: true })
     .first()
-    .click();
+    .tap();
 
   const sheet = page.getByRole("dialog", { name: "Inspector", exact: true });
   const actions = sheet.getByRole("region", { name: "Range actions" });
