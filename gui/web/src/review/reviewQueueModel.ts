@@ -39,37 +39,23 @@ export type ReviewGroup = {
   bulk: BulkAction | null;
 };
 
-type QueueKind = {
-  readonly group: string;
-  readonly filter: Exclude<ReviewFilter, "all">;
-  readonly gated: boolean;
-  readonly bulk: boolean;
-};
+const kind = (
+  group: string,
+  filter: Exclude<ReviewFilter, "all">,
+  gated = false,
+  bulk = gated,
+) => ({ group, filter, gated, bulk });
 
-const held = (group: string, filter: QueueKind["filter"]): QueueKind => ({
-  group,
-  filter,
-  gated: false,
-  bulk: false,
-});
-
-const cut = (group: string, bulk = true): QueueKind => ({
-  group,
-  filter: "suggestions",
-  gated: true,
-  bulk,
-});
-
-const QUEUE_KIND: Readonly<Record<DecisionKind, QueueKind>> = {
-  check: held("Checks", "checks"),
-  "unsure-word": held("Unsure words", "checks"),
-  comment: held("Comments", "comments"),
-  filler: cut("Fillers"),
-  pause: cut("Pauses"),
-  repeat: cut("Repeats"),
-  "false-start": cut("False starts"),
-  sound: cut("Sounds"),
-  suggestion: cut("Other suggestions", false),
+const QUEUE_KIND: Readonly<Record<DecisionKind, ReturnType<typeof kind>>> = {
+  check: kind("Checks", "checks"),
+  "unsure-word": kind("Unsure words", "checks"),
+  comment: kind("Comments", "comments"),
+  filler: kind("Fillers", "suggestions", true),
+  pause: kind("Pauses", "suggestions", true),
+  repeat: kind("Repeats", "suggestions", true),
+  "false-start": kind("False starts", "suggestions", true),
+  sound: kind("Sounds", "suggestions", true),
+  suggestion: kind("Other suggestions", "suggestions", true, false),
 };
 
 export const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
