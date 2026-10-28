@@ -8,7 +8,6 @@ import {
 } from "react";
 import type { AuditionSide } from "../system/auditionWindow";
 import { DecisionCard } from "../system/DecisionCard";
-import { KIND_META } from "../system/decisionKinds";
 import { Sheet } from "../system/Sheet";
 import { SystemIcon } from "../system/SystemIcon";
 import type { TimeRange } from "../system/seconds";
@@ -28,6 +27,7 @@ import {
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
+  verbOf,
 } from "./reviewQueueModel";
 
 export type ReviewIntent = {
@@ -57,6 +57,7 @@ export type ReviewStageProps = {
   job?: { title: string; progress: number };
   bulkRunning?: BulkProgress;
   onOpenInEdit?: (id: string) => void;
+  onHear?: (id: string, side: AuditionSide) => void;
   onComment?: (id: string) => void;
   onFindMore?: () => void;
   onHandOff?: () => void;
@@ -90,6 +91,7 @@ export function ReviewStage({
   job,
   bulkRunning,
   onOpenInEdit,
+  onHear,
   onComment,
   onFindMore,
   onHandOff,
@@ -101,6 +103,8 @@ export function ReviewStage({
   const [waived, setWaived] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [seen, setSeen] = useState(selectedId);
+  const hasCheck = openOf(items, "check").some((i) => i.transcript);
+  const [hadCheck, setHadCheck] = useState(hasCheck);
   const root = useRef<HTMLDivElement>(null);
   const engaged = useRef(false);
   useImperativeHandle(ref, () => root.current as HTMLDivElement, []);
@@ -111,9 +115,14 @@ export function ReviewStage({
     setPending(null);
   }
 
+  if (hadCheck !== hasCheck) {
+    setHadCheck(hasCheck);
+    if (hasCheck) setWaived(false);
+  }
+
   const phone = layout === "phone";
   const selected = items.find((item) => item.id === selectedId) ?? null;
-  const gate = !waived && openOf(items, "check").some((i) => i.transcript);
+  const gate = !waived && hasCheck;
   const holdsGate = (ids: readonly string[]) =>
     gate &&
     ids.some((id) => items.some((i) => i.id === id && holdsGateKind(i)));
@@ -131,20 +140,23 @@ export function ReviewStage({
     );
   };
 
-  const armed = pending?.ids.some(cuttable) ? pending : null;
-  const pendingKind = armed
-    ? items.find((i) => i.id === armed.ids[0])?.kind
+  const armed = gate && pending?.ids.some(cuttable) ? pending : null;
+  const pendingItem = armed
+    ? items.find((i) => i.id === armed.ids[0])
     : undefined;
-
-  const verb = (id: string) => {
-    if (guest || !cuttable(id)) return;
-    if (holdsGate([id])) setPending({ ids: [id] });
-    else onDecide({ ids: [id], result: "applied" });
-  };
 
   const keep = (id: string) => {
     if (!guest && items.some((i) => i.id === id && !i.result))
       onDecide({ ids: [id], result: "kept" });
+  };
+
+  const verb = (id: string) => {
+    if (guest) return;
+    const item = items.find((i) => i.id === id);
+    if (item && verbOf(item) === "keep") return keep(id);
+    if (!cuttable(id)) return;
+    if (holdsGate([id])) setPending({ ids: [id] });
+    else onDecide({ ids: [id], result: "applied" });
   };
 
   const bulk = (all: readonly string[] | undefined) => {
@@ -172,17 +184,22 @@ export function ReviewStage({
     onSelect(target?.id ?? selectedId);
   };
 
+  const hear = (next: AuditionSide) => {
+    setSide(next);
+    if (selected) onHear?.(selected.id, next);
+  };
+
   const handleKey = useEffectEvent((event: KeyboardEvent) => {
     const action = stageActionFor(event, {
-      primary: selected ? KIND_META[selected.kind].verb : undefined,
+      primary: selected ? verbOf(selected) : undefined,
       root: root.current,
     });
     if (!action) return;
     event.preventDefault();
     if (action === "next") step("forward");
     else if (action === "previous") step("backward");
-    else if (action === "hearBefore") setSide("A");
-    else if (action === "hearAfter") setSide("B");
+    else if (action === "hearBefore") hear("A");
+    else if (action === "hearAfter") hear("B");
     else if (action === "applyAll") applyGroup();
     else if (!selected) return;
     else if (action === "verb") verb(selected.id);
@@ -309,15 +326,20 @@ export function ReviewStage({
               state !== "ready" ? state : selected && body ? "ready" : "empty"
             }
             {...card}
-            why={selected?.blocked ? BLOCKED_WHY : card.why}
+            verb={selected ? verbOf(selected) : undefined}
+            why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}
             waveform={wave && { ...wave, onAdjust: adjust }}
             savedSeconds={savedSeconds > 0 ? savedSeconds : undefined}
-            audition={wave ? { side, onSide: setSide } : undefined}
+            audition={
+              wave || card.change
+                ? { side, onSide: setSide, onHear: hear }
+                : undefined
+            }
             unsure={unsure}
             prompt={
-              armed && pendingKind
+              armed && pendingItem
                 ? {
-                    verb: KIND_META[pendingKind].verb,
+                    verb: verbOf(pendingItem),
                     checkLabel: `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`,
                     onConfirm: confirmAnyway,
                     onCheck: checkWords,

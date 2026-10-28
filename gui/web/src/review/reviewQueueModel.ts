@@ -1,7 +1,7 @@
 import type { DecisionKind } from "../system/decisionKinds";
 import { KIND_META } from "../system/decisionKinds";
 import { formatSeconds } from "../system/seconds";
-import { verbOf } from "../system/verbDisplay";
+import { verbOf as verbDefOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 
 export type ReviewResult = "applied" | "kept";
@@ -62,6 +62,19 @@ export const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
 
 export const holdsGateKind = (item: ReviewItem) => QUEUE_KIND[item.kind].gated;
 
+export function verbOf(item: ReviewItem): VerbId {
+  switch (item.suggested) {
+    case "cut":
+    case "shorten":
+    case "lower":
+      return item.suggested;
+    case "leave":
+      return "keep";
+    default:
+      return KIND_META[item.kind].verb;
+  }
+}
+
 const isDecided = (item: ReviewItem) => item.result !== undefined;
 
 /** Unsure words, blocked cuts, one-by-one and leave-alone items are decided one at a time. */
@@ -72,6 +85,7 @@ function bulkEligible(item: ReviewItem): boolean {
     !item.blocked &&
     !item.oneByOne &&
     item.suggested !== "leave" &&
+    item.suggested !== "lower" &&
     !isDecided(item)
   );
 }
@@ -155,8 +169,11 @@ export function progressLine(items: readonly ReviewItem[]): string {
 /** "Cut 0.8 s", "Looks right", "Kept". */
 export function resultText(item: ReviewItem): string {
   if (item.result === "kept") return "Kept";
-  const meta = KIND_META[item.kind];
-  const word = meta.verbLabel ?? verbOf(meta.verb).label;
+  const verb = verbOf(item);
+  const word =
+    verb === KIND_META[item.kind].verb
+      ? (KIND_META[item.kind].verbLabel ?? verbDefOf(verb).label)
+      : verbDefOf(verb).label;
   return item.savedSeconds > 0
     ? `${word} ${formatSeconds(item.savedSeconds)}`
     : word;
@@ -173,5 +190,5 @@ export function decisionMessage(
   if (!first) return "Done";
   if (picked.length === 1) return resultText({ ...first, result });
   if (result === "kept") return `Kept ${picked.length}`;
-  return `${verbOf(KIND_META[first.kind].verb).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
+  return `${verbDefOf(verbOf(first)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
 }

@@ -183,7 +183,7 @@ describe("useReviewSession", () => {
     );
   });
 
-  it("reselects when reverting an entry that already left", () => {
+  it("leaves an entry that already left to observed, which reselects it on return", () => {
     const { result, rerender } = renderHook(
       ({ open }) => useReviewSession(open),
       { initialProps: { open: OPEN } },
@@ -192,9 +192,39 @@ describe("useReviewSession", () => {
       result.current.decide({ ids: ["a"], result: "applied" });
     });
     rerender({ open: [B, C] });
-    act(() => result.current.props.onSelect("a"));
+    act(() => result.current.props.onSelect("c"));
     act(() => result.current.revert(["a"]));
+    expect(result.current.props.items.find((i) => i.id === "a")?.result).toBe(
+      "applied",
+    );
+    expect(result.current.props.selectedId).toBe("c");
+    rerender({ open: OPEN });
+    expect(result.current.props.items.find((i) => i.id === "a")?.result).toBe(
+      undefined,
+    );
+    expect(result.current.props.selectedId).toBe("a");
+  });
+
+  it("reverts and reselects an entry that has not left yet", () => {
+    const { result } = renderHook(() => useReviewSession(OPEN));
+    act(() => {
+      result.current.decide({ ids: ["b"], result: "applied" });
+    });
+    act(() => result.current.revert(["b"]));
+    expect(result.current.props.items.find((i) => i.id === "b")?.result).toBe(
+      undefined,
+    );
     expect(result.current.props.selectedId).toBe("b");
+  });
+
+  it("gives one plan for two decides inside one act", () => {
+    const { result } = renderHook(() => useReviewSession(OPEN));
+    const plans: unknown[] = [];
+    act(() => {
+      plans.push(result.current.decide({ ids: ["a"], result: "applied" }));
+      plans.push(result.current.decide({ ids: ["a"], result: "kept" }));
+    });
+    expect(plans.filter(Boolean)).toHaveLength(1);
   });
 
   it("serves the snapshot content of a decided entry", () => {

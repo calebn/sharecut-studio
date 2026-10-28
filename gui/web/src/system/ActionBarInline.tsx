@@ -84,6 +84,8 @@ export function ActionBarInline({
     else if (id === "comment") onComment?.();
   };
   const placement = { form: dock ? "dock" : "inline" } as const;
+  const keeps: readonly { id: BarId }[] =
+    verb === "keep" ? [] : [{ id: "keep" }];
   if (readOnly)
     return (
       <ActionBar
@@ -99,11 +101,7 @@ export function ActionBarInline({
     <ActionBar
       placement={placement}
       leading={dock ? undefined : openInEdit}
-      items={
-        dock
-          ? [{ id: "keep" }]
-          : [{ id: "keep" }, { id: "later", tone: "link" }]
-      }
+      items={dock ? keeps : [...keeps, { id: "later", tone: "link" }]}
       center={center}
       primary={primary}
       onVerb={onBarVerb}

@@ -140,6 +140,7 @@ export async function approveEdits(
   ids: string[],
   holdBlocked = false,
   refineRecoveryInline = false,
+  opts?: { skipUnsure?: true },
 ): Promise<ReviewOutcome> {
   const result = await submitDocumentCommand(
     projectPath,
@@ -147,6 +148,7 @@ export async function approveEdits(
     {
       ids,
       ...(holdBlocked ? { hold_blocked: true } : {}),
+      ...(opts?.skipUnsure ? { skip_unsure: true } : {}),
     },
     refineRecoveryInline ? { refineRecoveryInline } : undefined,
   );
