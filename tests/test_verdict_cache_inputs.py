@@ -500,6 +500,28 @@ def test_a_pause_key_moves_when_a_clip_outside_the_window_moves_the_far_word(
     assert keys[0] != keys[1]
 
 
+def test_the_same_far_fade_twice_is_a_hit_on_the_stored_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Equal inputs, equal stamp: the second approval is served the first one's check."""
+    hits: list[str] = []
+    real = verdict_cache.lookup
+
+    def lookup(key: str | None) -> verdict_cache.CachedVerdict | None:
+        found = real(key)
+        if found is not None and key is not None:
+            hits.append(key)
+        return found
+
+    monkeypatch.setattr(verdict_cache, "lookup", lookup)
+    keys, _ = _keys_and_spans(
+        tmp_path, monkeypatch, [_early_clip(400), _early_clip(400)], clear=False
+    )
+
+    assert keys[0] is not None and keys[0] == keys[1]
+    assert hits == [keys[0]]
+
+
 def test_a_far_fade_that_the_span_does_not_read_still_moves_the_key_through_the_base_profile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

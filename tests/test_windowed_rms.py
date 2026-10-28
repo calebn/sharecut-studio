@@ -318,6 +318,40 @@ def test_a_read_past_the_end_of_the_track_is_empty_as_it_is_whole() -> None:
     assert _same(window.window(55.0, 57.9), whole.window(55.0, 57.9))
 
 
+def test_a_profile_given_to_a_window_keeps_the_track_it_stands_for() -> None:
+    whole, window, _ = _cache_pair(RATE * 20, RATE * 20)
+    other = LevelProfile(room_db=-50.0, speech_db=-18.0, loud_db=-10.0)
+
+    rebased = window.with_profile(other)
+
+    assert isinstance(rebased, WindowedTrackRmsCache)
+    assert rebased.total_size == window.total_size == RATE * 60
+    assert rebased.coverage == window.coverage
+    with pytest.raises(WindowMiss):
+        rebased.window(10.0, 12.0)
+    assert rebased.window(60.0, 61.0).size == 0 == whole.window(60.0, 61.0).size  # the track's end
+    assert _same(rebased.window(25.0, 26.0), whole.window(25.0, 26.0))
+
+
+def test_a_read_that_starts_before_the_track_is_clipped_at_its_start_as_it_is_whole() -> None:
+    whole, window, _ = _cache_pair(0, RATE * 5)
+    for t0, t1 in [(-1.0, 2.0), (-3.0, 0.5), (-0.001, 1.0)]:
+        assert _same(window.window(t0, t1), whole.window(t0, t1))
+        assert window.rms_db(t0, t1) == whole.rms_db(t0, t1)
+
+
+def test_a_resampled_window_that_starts_before_the_track_is_the_start_of_it() -> None:
+    _ffmpeg_or_skip()
+    samples = _noise(3, 3.0)[: 3 * SOURCE_RATE - 1]
+    whole = _whole(samples)
+    for first, last in [(-5, 10), (-1, 1), (-100, 0)]:
+        got = resampled_window(_Array(samples), SOURCE_RATE, RATE, first, last)
+        assert got is not None
+        window, at, total = got
+        assert at == 0 and total == whole.size
+        assert _same(window, whole[0 : max(0, min(last, total))])
+
+
 def test_a_read_that_rounds_to_nothing_is_empty_as_it_is_whole() -> None:
     whole, window, _ = _cache_pair(RATE * 20, RATE * 20)
     assert window.window(25.0, 25.00001).size == whole.window(25.0, 25.00001).size
@@ -394,6 +428,17 @@ def test_the_window_is_not_kept_with_the_tracks_whole_evidence(tmp_path: Path) -
         planned = track_evidence._plan(project, "caleb", load_defaults())
         assert not isinstance(planned, Declined)
         assert not store.holds(planned[0])
+
+
+def test_a_window_holds_the_slack_either_side_of_the_seconds_asked(tmp_path: Path) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    with batch_scope():
+        found = track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 6.0, profile=BASE)
+    assert found is not None
+    first, last = found.coverage
+    assert first == 2 * RATE - track_evidence._WINDOW_SLACK
+    assert last >= 6 * RATE + track_evidence._WINDOW_SLACK or last == found.total_size
 
 
 def test_a_track_the_store_already_holds_is_read_whole(tmp_path: Path) -> None:
