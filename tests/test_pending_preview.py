@@ -955,12 +955,18 @@ def test_noise_reduction_gets_the_long_history_and_a_fresh_stem_is_cut_not_rende
     from podcast_mcp.services.document import PlayService, play_pending
 
     ws = _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.4))
+    service = PlayService(ws)
+    # The stem is rendered before the chain exists: the RNNoise model is not needed (or installed) in CI.
+    stem = play_pending.stem_path(ws.project, "host")
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    play_pending.render_track_segment(ws.project, "host", 0.0, 6.0, stem, service._defaults)
     ws.project.processing_chains = [
         ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="arnndn")])
     ]
     assert play_pending._warmup_sec(ws.project, "host") == play_pending.PENDING_HISTORY_SEC
-    service = PlayService(ws)
     monkeypatch.setattr(service, "_stem_window_tracks", lambda project: ["host"])
+    # Measuring the headroom trim would render the arnndn stem, which needs the RNNoise model.
+    monkeypatch.setattr(service, "mix_trim_db", lambda **kw: 0.0)
     rendered: list[str] = []
     real = play_pending.render_track_segment
 
@@ -969,8 +975,5 @@ def test_noise_reduction_gets_the_long_history_and_a_fresh_stem_is_cut_not_rende
         return real(project, track_id, start, end, out, defaults, **kw)
 
     monkeypatch.setattr(play_pending, "render_track_segment", spy)
-    stem = play_pending.stem_path(ws.project, "host")
-    stem.parent.mkdir(parents=True, exist_ok=True)
-    real(ws.project, "host", 0.0, 6.0, stem, service._defaults)
     service.play_pending_preview("cut", mode="current", pad_sec=1.0, dry_run=True)
     assert rendered == ["guest"]
