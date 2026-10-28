@@ -16,7 +16,12 @@ import unicodedata
 from typing import Any
 
 from podcast_mcp.edits.cut_policy import sound_kind
-from podcast_mcp.edits.tighten_reasons import PAUSE_REASON_PREFIX, pause_gap_sec, repeated_word
+from podcast_mcp.edits.tighten_reasons import (
+    PAUSE_REASON_PREFIX,
+    RESTART_PARTIAL_REASON_PREFIX,
+    pause_gap_sec,
+    repeated_word,
+)
 from podcast_mcp.models import EditDecision
 
 TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
@@ -70,31 +75,35 @@ def is_listen_one_by_one_hit(decision: EditDecision) -> bool:
 MAX_QUOTED_CHARS = 24
 
 
-def _quoted(word: str) -> str | None:
-    text = "".join(ch for ch in word if unicodedata.category(ch)[0] != "C").strip()
-    if not text:
-        return None
-    if len(text) > MAX_QUOTED_CHARS:
-        text = f"{text[:MAX_QUOTED_CHARS]}…"
-    return f"“{text}”"
+def _plain(text: str | None) -> str | None:
+    cleaned = "".join(ch for ch in text or "" if unicodedata.category(ch)[0] != "C").strip()
+    if len(cleaned) > MAX_QUOTED_CHARS:
+        cleaned = f"{cleaned[:MAX_QUOTED_CHARS]}…"
+    return cleaned or None
 
 
 def why_line(decision: EditDecision, *, speaker_name: str | None) -> str | None:
     """One short sentence saying why this edit is suggested, or ``None`` for no line."""
     kind = sound_kind(decision.reason)
+    name = _plain(speaker_name)
     if kind == "filler":
         return "Filler word"
     if kind == "pause":
         gap = pause_gap_sec(decision.reason)
         return None if gap is None else f"A {gap:.1f} s gap"
     if kind == "repetition":
-        word = repeated_word(decision.reason)
-        quoted = _quoted(word) if word else None
-        if quoted is None:
+        word = _plain(repeated_word(decision.reason))
+        if word is None:
             return None
-        return f"{speaker_name} says {quoted} twice" if speaker_name else f"{quoted} is said twice"
+        return f"{name} says “{word}” twice" if name else f"“{word}” is said twice"
     if kind == "restart":
-        return f"{speaker_name} restarts the sentence" if speaker_name else "The sentence restarts"
+        if (decision.reason or "").startswith(RESTART_PARTIAL_REASON_PREFIX):
+            return (
+                f"{name} cuts off a word and says it again"
+                if name
+                else "A word is cut off and said again"
+            )
+        return f"{name} repeats a phrase" if name else "A phrase is repeated"
     if kind == "laugh":
         return "Might be a laugh; listen before cutting"
     if kind == "possible_word":

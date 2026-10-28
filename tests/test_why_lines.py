@@ -47,8 +47,10 @@ def _line(reason: str | None, name: str | None = "Jon") -> str | None:
         ("repetition:word:the:risky", "Jon says “the” twice"),
         ("repetition:word:10:30", "Jon says “10:30” twice"),
         ("repetition:word:10:30:join_review:risky", "Jon says “10:30” twice"),
-        ("restart:partial:we", "Jon restarts the sentence"),
-        ("restart:phrase:so the:join_review", "Jon restarts the sentence"),
+        ("repetition:word:risky", "Jon says “risky” twice"),
+        ("repetition:word:risky:risky", "Jon says “risky” twice"),
+        ("restart:partial:we", "Jon cuts off a word and says it again"),
+        ("restart:phrase:so the:join_review", "Jon repeats a phrase"),
     ],
 )
 def test_a_line_per_kind(reason: str, expected: str) -> None:
@@ -62,7 +64,24 @@ def test_a_pause_line_states_only_the_gap_the_reason_records() -> None:
 
 def test_without_a_speaker_name_the_line_reads_without_one() -> None:
     assert _line("repetition:word:the", name=None) == "“the” is said twice"
-    assert _line("restart:partial:we", name=None) == "The sentence restarts"
+    assert _line("restart:partial:we", name=None) == "A word is cut off and said again"
+    assert _line("restart:phrase:so the", name=None) == "A phrase is repeated"
+
+
+@pytest.mark.parametrize("name", ["", "   ", "\x00\n", None])
+def test_a_blank_speaker_name_counts_as_no_name(name: str | None) -> None:
+    assert _line("repetition:word:the", name=name) == "“the” is said twice"
+
+
+def test_a_speaker_name_is_trimmed_cleaned_and_capped() -> None:
+    assert _line("repetition:word:the", name="  Jo\x00n \n") == "Jon says “the” twice"
+    long = _line("repetition:word:the", name="N" * 40)
+    assert long == f"{'N' * MAX_QUOTED_CHARS}… says “the” twice"
+
+
+@pytest.mark.parametrize("gap", ["9" * 400, "3600.00", "99999.0"])
+def test_an_absurd_pause_gap_gives_no_line(gap: str) -> None:
+    assert _line(f"pause:{gap}s") is None
 
 
 def test_a_long_repeated_word_is_capped_and_control_characters_are_dropped() -> None:
@@ -87,7 +106,6 @@ def test_no_line_for_guest_agent_and_manual_edits(reason: str | None) -> None:
         "pause:xs",
         "repetition:",
         "repetition:word:",
-        "repetition:word:risky",
         "repetition:word:\x00",
         "repetition:the",
     ],
@@ -108,7 +126,8 @@ def test_the_copy_table_in_the_docs_matches_the_code() -> None:
         "Filler word": "filler:um",
         "Pause": "pause:2.90s",
         "Repeated word": "repetition:word:the",
-        "False start": "restart:partial:we",
+        "False start, cut-off word": "restart:partial:we",
+        "False start, repeated phrase": "restart:phrase:so the",
         "Laugh": "filler:acoustic:likely_laugh",
         "Possible missed word": "filler:acoustic:possible_word",
         "Unclear sound": "filler:acoustic",

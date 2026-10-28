@@ -186,5 +186,5 @@ def test_studio_view_sends_a_plain_why_line_only_for_tighten_hits(tmp_path) -> N
         "join": "A 0.8 s gap",
         "review": "Jon says “the” twice",
         "nl": None,
-        "restart": "Jon restarts the sentence",
+        "restart": "Jon cuts off a word and says it again",
     }
