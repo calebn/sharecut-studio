@@ -33,6 +33,10 @@ export type SheetProps = {
   open?: boolean;
   detent?: DrawerDetent;
   onDetentChange?: (detent: DrawerDetent) => void;
+  /** Extra class on the Dialog or BottomSheet panel, for a sheet with its own width. */
+  panelClassName?: string;
+  /** Centered form only: the control that takes focus on open, instead of Close. */
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 function BackButton({ onBack }: { onBack: () => void }) {
@@ -87,6 +91,8 @@ export function Sheet({
   open = true,
   detent = "half",
   onDetentChange,
+  panelClassName,
+  initialFocusRef,
 }: SheetProps) {
   const heading = step ? step.title : title;
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -133,7 +139,12 @@ export function Sheet({
         open={open}
         onClose={onClose}
         title={heading}
-        panelClassName="sys-sheet-centered"
+        initialFocusRef={initialFocusRef}
+        panelClassName={
+          panelClassName
+            ? `sys-sheet-centered ${panelClassName}`
+            : "sys-sheet-centered"
+        }
         footer={footer}
       >
         {body}
@@ -147,6 +158,7 @@ export function Sheet({
         onClose={onClose}
         backgroundPolicy="interactive"
         title={heading}
+        className={panelClassName}
         size={detent}
         drawer={{
           detents: ["peek", "half", "full"],

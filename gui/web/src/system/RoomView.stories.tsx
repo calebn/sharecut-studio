@@ -139,7 +139,7 @@ const meta: Meta<typeof RoomView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Record room for every seat: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host seat adds the Record button, Invite tiles for the empty seats and the saving line after Stop. The phone form puts the tiles in a square 2x2 grid, a Notes peek line (the latest note, one line) above the dock, and the Notes rail in a bottom Sheet; a landscape phone puts the tiles in one row with the dock as a vertical bar on the right edge.\n\n**Motion.** None yet. Later: the level ring animates, and the new note settles into the list.",
+          'The Record room for every seat: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host seat adds the Record button, Invite tiles for the empty seats and the saving line after Stop. The phone form puts the tiles in a square 2x2 grid, a Notes peek line (the latest note, one line) above the dock, and the Notes rail in a bottom Sheet; a landscape phone puts the tiles in one row with the dock as a vertical bar on the right edge.\n\nThe Declined phase (`declined`) dims the tiles to 40% under a light scrim and docks a 72 px peek bar: "You\'re not being recorded." and Join recording, held with "You can join after this take." while a take is live or paused; the rest of the room goes inert.\n\n**Motion.** None yet. Later: the level ring animates, the new note settles into the list, and the Declined scrim fades in with `--motion-state`.',
       },
     },
   },
@@ -694,5 +694,62 @@ export const HostLandscape: Story = {
     await expect(
       within(canvasElement).getByRole("button", { name: "Notes" }),
     ).toBeInTheDocument();
+  },
+};
+
+const DECLINED_JON: RoomPerson = { ...JON_YOU, presence: "declined" };
+
+const declinedBar = (root: HTMLElement) =>
+  within(root.querySelector<HTMLElement>(".sys-declined-bar") ?? root);
+
+export const GuestDeclinedDuringTake: Story = {
+  args: {
+    people: [HOST, DECLINED_JON, ANNEKE_GUEST],
+    declined: { onJoin: fn() },
+  },
+  play: async ({ canvasElement }) => {
+    const bar = declinedBar(canvasElement);
+    await expect(bar.getByText("You're not being recorded.")).toBeVisible();
+    await expect(
+      bar.getByRole("button", { name: "Join recording" }),
+    ).toBeDisabled();
+    await expect(bar.getByText("You can join after this take.")).toBeVisible();
+    await expect(
+      within(canvasElement).getByRole("group", { name: /Jon, declined/i }),
+    ).toBeInTheDocument();
+  },
+};
+
+export const GuestDeclinedCanRejoin: Story = {
+  args: {
+    people: [HOST, DECLINED_JON, ANNEKE_GUEST],
+    phase: WAITING,
+    declined: { onJoin: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const join = declinedBar(canvasElement).getByRole("button", {
+      name: "Join recording",
+    });
+    await expect(join).toBeEnabled();
+    await userEvent.click(join);
+    await expect(args.declined?.onJoin).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const GuestDeclinedPhone: Story = {
+  args: {
+    viewerWidth: "phone",
+    people: [HOST, DECLINED_JON, ANNEKE_GUEST],
+    notes: NOTES,
+    declined: { onJoin: fn() },
+  },
+  play: async ({ canvasElement }) => {
+    const bar = declinedBar(canvasElement);
+    await expect(
+      bar.getByRole("button", { name: "Join recording" }),
+    ).toBeDisabled();
+    await expect(
+      canvasElement.querySelector(".sys-room-view-body"),
+    ).toHaveAttribute("inert");
   },
 };
