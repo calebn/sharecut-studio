@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ScriptPiece, ScriptStop } from "./scriptPieces";
+import { CUT, patchWords, SCRIPT_TURNS, spanPatch } from "./scriptFixtures";
+import type { ScriptPiece, ScriptStop, ScriptTurn } from "./scriptPieces";
 import {
   dragEdge,
   extendTo,
@@ -9,8 +10,10 @@ import {
   type StopRect,
   type StopRects,
   selectionSummary,
+  selectionText,
   spanOf,
   stepEdge,
+  trackSpans,
   verticalStop,
 } from "./scriptSelection";
 
@@ -397,5 +400,106 @@ describe("marginStep", () => {
     expect(marginStep(both, 0, "ArrowRight")).toEqual({ kind: "text" });
     expect(marginStep(both, 1, "ArrowLeft")).toEqual({ kind: "before" });
     expect(marginStep(both, 0, "x")).toBeNull();
+  });
+});
+
+describe("trackSpans", () => {
+  const two = (speakers: string[]): ScriptTurn[] =>
+    SCRIPT_TURNS.map((turn, at) => ({ ...turn, speakerId: speakers[at] }));
+
+  it("covers each speaker's words on that speaker's track when a span crosses a speaker change", () => {
+    expect(trackSpans(SCRIPT_TURNS, { start: 17, end: 42 })).toEqual([
+      {
+        speakerId: "maya",
+        startIndex: 17,
+        endIndex: 19,
+        first: "episode:17",
+        last: "episode:19",
+        turnIds: ["t1"],
+      },
+      {
+        speakerId: "anneke",
+        startIndex: 20,
+        endIndex: 42,
+        first: "episode:20",
+        last: "episode:42",
+        turnIds: ["t2", "t3"],
+      },
+    ]);
+  });
+
+  it("gives a track that speaks on both sides of another one a single run", () => {
+    const [a, b] = trackSpans(two(["a", "b", "a", "b"]), {
+      start: 18,
+      end: 41,
+    });
+    expect([a.speakerId, a.startIndex, a.endIndex, a.turnIds]).toEqual([
+      "a",
+      18,
+      41,
+      ["t1", "t3"],
+    ]);
+    expect([b.speakerId, b.startIndex, b.endIndex]).toEqual(["b", 20, 39]);
+    const three = trackSpans(two(["a", "b", "a", "b"]), { start: 18, end: 44 });
+    expect(three.map((t) => [t.speakerId, t.startIndex, t.endIndex])).toEqual([
+      ["a", 18, 44],
+      ["b", 20, 39],
+    ]);
+  });
+
+  it("counts cut words as the track's own, and gives nothing without a span", () => {
+    const cut = patchWords(SCRIPT_TURNS, spanPatch(18, 19, { mark: CUT }));
+    expect(trackSpans(cut, { start: 18, end: 19 })).toHaveLength(1);
+    expect(trackSpans(cut, null)).toEqual([]);
+  });
+});
+
+describe("selectionText", () => {
+  it("is a turn to a line and leaves out a collapsed cut", () => {
+    const cut = patchWords(SCRIPT_TURNS, spanPatch(14, 14, { mark: CUT }));
+    expect(selectionText(cut, words(12, 21), false)).toBe(
+      "small room sound like a large one.\nThanks for",
+    );
+  });
+
+  it("copies struck words when the cut text shows, and nothing for a cut selection", () => {
+    const cut = patchWords(SCRIPT_TURNS, spanPatch(14, 14, { mark: CUT }));
+    expect(selectionText(cut, words(13, 15), true)).toBe("room can sound");
+    expect(selectionText(cut, { kind: "cut", id: "cut-1" }, false)).toBe("");
+    expect(selectionText(cut, null, false)).toBe("");
+  });
+
+  it("reads a backwards selection in reading order", () => {
+    expect(selectionText(SCRIPT_TURNS, words(2, 0), false)).toBe(
+      "Welcome back to",
+    );
+  });
+});
+
+describe("right-to-left lines", () => {
+  // One line of three words laid out right to left: word 0 is the rightmost.
+  const rtl: StopRects[] = [
+    [{ top: 0, bottom: 20, left: 200, right: 250 }],
+    [{ top: 0, bottom: 20, left: 140, right: 190 }],
+    [{ top: 0, bottom: 20, left: 80, right: 130 }],
+  ];
+
+  it("finds the place by where it is drawn, not by its order", () => {
+    expect(nearestStop(rtl, 220, 10)).toBe(0);
+    expect(nearestStop(rtl, 100, 10)).toBe(2);
+    expect(nearestStop(rtl, 135, 10)).toBe(1);
+  });
+
+  it("extends by reading order, so a pointer to the left of the anchor selects forward", () => {
+    const stops: ScriptStop[] = [0, 1, 2].map((i) => ({
+      kind: "word",
+      start: i,
+      end: i,
+    }));
+    const reached = nearestStop(rtl, 100, 10) ?? 0;
+    expect(extendTo(0, stops[reached])).toEqual(words(0, 2));
+    expect(extendTo(2, stops[nearestStop(rtl, 220, 10) ?? 0])).toEqual(
+      words(2, 0),
+    );
   });
 });
