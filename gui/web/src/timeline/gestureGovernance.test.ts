@@ -264,6 +264,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the Review card and queue row swipe: right is the verb, left is Keep, up is Later (the Swipe right and Swipe left rows in verbs.ts), 80 px to commit",
   "presence/usePresenceCursorSource.ts":
     "reads the pointer to publish a presence cursor; it starts no gesture",
+  "review/ReviewStage.tsx":
+    "a pointerdown outside the stage clears which row the keys address; it starts no gesture",
 };
 
 /** A file that owns a pointer press, touch, slider, drag handle or capture. */
