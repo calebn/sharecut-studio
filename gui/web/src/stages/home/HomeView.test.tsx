@@ -52,6 +52,43 @@ describe("HomeView", () => {
     expect(onOpenProject).toHaveBeenCalledWith("rosa", "review");
   });
 
+  it("keeps focus where the person put it when the list arrives", () => {
+    const field = document.createElement("input");
+    document.body.append(field);
+    field.focus();
+    setup({ autoFocusPrimary: true });
+    expect(field).toHaveFocus();
+    field.remove();
+  });
+
+  it("skips a folder-missing card when it takes focus on load", () => {
+    setup({
+      autoFocusPrimary: true,
+      projects: [
+        { ...RECENTS[0], id: "gone", name: "Gone", folderMissing: true },
+        ...RECENTS.slice(1),
+      ],
+    });
+    expect(screen.getByRole("button", { name: /^Gone/ })).not.toHaveFocus();
+    expect(document.activeElement?.hasAttribute("data-project-open")).toBe(
+      true,
+    );
+    expect(document.activeElement).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("says a failed read in words and tries again", async () => {
+    const onRetryLoad = vi.fn();
+    const { user } = setup({ phase: "error", projects: [], onRetryLoad });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't load your episodes.",
+    );
+    expect(
+      screen.getByRole("button", { name: /^Import audio/ }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetryLoad).toHaveBeenCalledOnce();
+  });
+
   it("focuses the first card on load only when asked", () => {
     setup({ autoFocusPrimary: true });
     expect(
@@ -241,6 +278,27 @@ describe("OpenOther", () => {
     expect(
       screen.getByRole("textbox", { name: "Folder of the episode" }),
     ).toHaveAccessibleDescription("This episode is open in another window.");
+  });
+});
+
+describe("OpenOther mode flip", () => {
+  const props = {
+    path: "",
+    onChooseFolder: vi.fn(),
+    onPathChange: vi.fn(),
+    onSubmit: vi.fn(),
+    onSwitchWindow: vi.fn(),
+  };
+
+  it("keeps the trigger mounted, opens the field and focuses it", () => {
+    const { rerender } = render(<OpenOther mode="picker" {...props} />);
+    const trigger = screen.getByRole("button", { name: "Open other…" });
+    trigger.focus();
+    rerender(<OpenOther mode="path" {...props} />);
+    expect(screen.getByRole("button", { name: "Open other…" })).toBe(trigger);
+    expect(
+      screen.getByRole("textbox", { name: "Folder of the episode" }),
+    ).toHaveFocus();
   });
 });
 

@@ -193,6 +193,17 @@ describe("setupOf", () => {
     expect(data?.progress).toBeUndefined();
     expect(data?.detail).toBe("5 MB downloaded");
   });
+  it("offers nothing when only ffmpeg stands in the way", () => {
+    expect(
+      setupOf({
+        ...base,
+        models: [
+          model({ state: { kind: "installed" } }),
+          model({ id: "opt", tier: "offered" }),
+        ],
+      }),
+    ).toBeNull();
+  });
   it("reports a failed model", () => {
     const data = setupOf({
       ...base,
