@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
 import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
 import type { ScriptTurn } from "../../system/scriptPieces";
-import type { GuestRole } from "./guestLogic";
+import {
+  GUEST_EMPTY_COPY,
+  type GuestEmpty,
+  type GuestRole,
+} from "./guestLogic";
 
 export type GuestScriptProps = {
   access: GuestRole;
@@ -11,8 +15,7 @@ export type GuestScriptProps = {
   wordStarts: readonly number[];
   playing: number | readonly number[] | undefined;
   playheadWord?: number;
-  hasTranscript?: boolean;
-  unplaced?: number;
+  empty?: GuestEmpty;
   onSeek: (seconds: number) => void;
   onUserScroll?: () => void;
 };
@@ -24,8 +27,7 @@ export function GuestScript({
   wordStarts,
   playing,
   playheadWord,
-  hasTranscript = false,
-  unplaced = 0,
+  empty = "none",
   onSeek,
   onUserScroll,
 }: GuestScriptProps) {
@@ -40,11 +42,7 @@ export function GuestScript({
   if (turns.length === 0) {
     return (
       <Cover size="region" glyph="inbox" title="Nothing to read yet">
-        {!hasTranscript
-          ? "The host has not made a transcript of this version."
-          : unplaced > 0
-            ? "The words of this version are not on the timeline yet."
-            : "Every word of this version has been cut or ignored."}
+        {GUEST_EMPTY_COPY[empty]}
       </Cover>
     );
   }

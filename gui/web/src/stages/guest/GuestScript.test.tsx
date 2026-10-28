@@ -153,7 +153,7 @@ describe("GuestScript", () => {
         turns={[]}
         wordStarts={[]}
         playing={undefined}
-        hasTranscript
+        empty="cut"
         onSeek={vi.fn()}
       />,
     );
@@ -253,23 +253,24 @@ describe("GuestScript following", () => {
     expect(onUserScroll).toHaveBeenCalledOnce();
   });
 
-  it("says the words are not on the timeline when they exist but have no place", () => {
-    render(
-      <GuestScript
-        access="viewer"
-        layout="desktop"
-        turns={[]}
-        wordStarts={[]}
-        playing={undefined}
-        hasTranscript
-        unplaced={3}
-        onSeek={vi.fn()}
-      />,
-    );
-    expect(
-      screen.getByText(
-        "The words of this version are not on the timeline yet.",
-      ),
-    ).toBeInTheDocument();
-  });
+  it.each([
+    ["unplaced", "The words of this version are not on the timeline yet."],
+    ["untimed", "The transcript of this version has no word timings yet."],
+  ] as const)(
+    "says the right thing for an empty %s transcript",
+    (empty, text) => {
+      render(
+        <GuestScript
+          access="viewer"
+          layout="desktop"
+          turns={[]}
+          wordStarts={[]}
+          playing={undefined}
+          empty={empty}
+          onSeek={vi.fn()}
+        />,
+      );
+      expect(screen.getByText(text)).toBeInTheDocument();
+    },
+  );
 });
