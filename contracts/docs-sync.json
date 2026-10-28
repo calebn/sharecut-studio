@@ -194,9 +194,7 @@
           "src/podcast_mcp/cli/record.py",
           "gui/web/src/record/",
           "gui/web/src/audio/mixMinus.ts",
-          "gui/web/src/api/sharesRecord.ts",
-          "gui/web/src/styles/partials/record.css",
-          "gui/web/src/styles/partials/record-entry.css"
+          "gui/web/src/api/sharesRecord.ts"
         ]
       }
     },

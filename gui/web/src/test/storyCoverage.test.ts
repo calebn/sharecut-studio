@@ -134,20 +134,19 @@ const COVERED: Record<string, string[]> = {
   "BAN-FOLLOW": ["Templates/FollowBanner"],
   "SCR-REC-LOADING": ["Organisms/LoadingScreen"],
   "SCR-REC-INVALID": ["Organisms/ErrorScreen"],
-  "SCR-REC-FULL": ["Templates/FullRoom"],
-  "SCR-REC-DECLINED": ["Templates/Declined"],
-  "SCR-REC-LOBBY-GUEST": ["Templates/Lobby"],
-  "SCR-REC-LOBBY-PRODUCER": ["Templates/Lobby"],
-  "CMP-REC-DEVICE": ["Templates/DeviceCheck"],
-  "CMP-REC-CONSENT": ["Templates/ConsentGate"],
-  "CMP-REC-ROOMTONE": ["Templates/RoomToneCapture"],
-  "SCR-REC-ROOM-GUEST": ["Templates/Room"],
-  "SCR-REC-ROOM-PRODUCER": ["Templates/Room"],
-  "CMP-REC-INDICATOR": ["Templates/RecIndicator"],
-  "CMP-REC-ROSTER": ["Templates/Roster", "Molecules/ParticipantMeter"],
-  "CMP-REC-LIVECOMMENTS": ["Templates/LiveComments"],
+  "SCR-REC-FULL": ["System/Cover"],
+  "SCR-REC-DECLINED": ["Stages/Record/Room"],
+  "SCR-REC-LOBBY-GUEST": ["Stages/Record/JoinSheet"],
+  "SCR-REC-LOBBY-PRODUCER": ["Stages/Record/JoinSheet"],
+  "CMP-REC-DEVICE": ["Stages/Record/JoinSheet"],
+  "CMP-REC-CONSENT": ["Stages/Record/JoinSheet"],
+  "SCR-REC-ROOM-GUEST": ["Stages/Record/Room"],
+  "SCR-REC-ROOM-PRODUCER": ["Stages/Record/Room"],
+  "CMP-REC-INDICATOR": ["System/RoomStatusPill"],
+  "CMP-REC-ROSTER": ["Stages/Record/PersonTile", "Molecules/ParticipantMeter"],
+  "CMP-REC-LIVECOMMENTS": ["Stages/Record/NotesRail"],
   "CMP-REC-UPLOAD": ["Templates/UploadStatus"],
-  "CMP-REC-CLIPPING": ["Templates/TakeClippingReport"],
+  "CMP-REC-CLIPPING": ["Stages/Record/PersonTile"],
   "EMPTY-STATES": ["Atoms/EmptyState"],
   "CMP-INLINE-ERROR": ["Atoms/InlineError"],
   "DLG-HELP": ["Templates/HelpDialog"],
@@ -215,11 +214,11 @@ const COVERED: Record<string, string[]> = {
   "BAN-HOME-SCREEN-HINT": ["Templates/HomeScreenHint", "Stages/Home/Home"],
   "BAN-GUEST-ROLE": ["Stages/Edit/Frame"],
   "BAN-GUEST-VERSION": ["Templates/GuestVersionNotice"],
-  "SCR-REC-ACCESS-ENDED": ["Templates/AccessEnded"],
+  "SCR-REC-ACCESS-ENDED": ["System/Cover"],
   "BAN-LOADFAIL": ["Templates/LoadFailureBanner"],
   "MENU-VIEW": ["Templates/OverlayLegend"],
   "CMP-TIMELINE": ["Templates/TimelineRange", "Templates/Timeline"],
-  "CMP-REC-NOTICES": ["Templates/Room", "Templates/Record · Notices"],
+  "CMP-REC-NOTICES": ["Stages/Record/RoomAlert", "Templates/Record · Notices"],
   "TOAST-MAIN": ["Molecules/Toast", "Templates/Toast dock"],
   "CMP-GUEST-COMMENT": ["Templates/CommentCompose", "Templates/GuestNameStep"],
 };
@@ -257,7 +256,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(136);
+    expect(INVENTORY_IDS).toHaveLength(135);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });

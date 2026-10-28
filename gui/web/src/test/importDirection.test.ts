@@ -111,7 +111,7 @@ const LAYER_OF = new Map<string, Layer>(
   ),
 );
 
-/** `record/Lobby.tsx` and `record/upload/params` give `record`; `api.ts` and `api` give `api`. */
+/** `record/GuestRoomApp.tsx` and `record/upload/params` give `record`; `api.ts` and `api` give `api`. */
 function entryOf(path: string): string {
   return path.replace(/\.[jt]sx?$/, "").split("/")[0];
 }

@@ -110,7 +110,7 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    person's send. **M** (or the Marker button) posts a live comment with body
    `"Marker"`; typed notes use the same path. Guests see only their own comments
    in the room (other guests never see them there). Host DAW `daw.record.marker`
-   is `omit.guest` because guests use RecordApp, not the host catalog. Host and
+   is `omit.guest` because guests use `GuestRoomApp`, not the host catalog. Host and
    producer see all live comments. After land they become ordinary timeline
    comments on the host.
 6. Once saved, the recordings land on the host timeline (`raw/` + one clip per

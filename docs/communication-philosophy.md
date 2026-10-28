@@ -78,7 +78,7 @@ to UX partners; for UI copy, this table wins.
 | MCP URL | The separate MCP server URL minted with a review link, for an AI assistant | "Agent URL", "agent link", "bot URL" |
 | Allow AI assistants (MCP) | The opt-in control that mints an MCP URL. Helper text: "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions." | "Allow agent" |
 | Take | One continuous recording pass | "clip" for a recording pass |
-| Lobby | Pre-recording staging state | "waiting room" |
+| Lobby | Pre-recording staging state (guests see the Join sheet over the room) | "waiting room" |
 | Land | Finish a recording and ingest the takes. Disabled with its reason beside it until there is something to land; "Retry land" after a failed land | "save", "finalize" (a recording is "Saved to project"; Land places it on the timeline) |
 | Stop take | End the open take for everyone in the record room. Stop sits alone behind a divider and asks once: "Stop this take? Recording ends for everyone in the room." [Keep recording] [Stop take] | "End take", "Finish recording" |
 | Start blocker | One reason Start is disabled, listed under Start with its fix when the host has one: "Waiting for Ava to accept recording."; a failed storage check [Retry storage check] | a comma-joined list of bare names |
@@ -165,8 +165,8 @@ is the fix, enforced in copy review.
   be consistent. (Surfaces 1, 2, 3, 5.)
 - **Gated actions are disabled with the reason in place.** Never a dead
   click, never a surprise error after the round trip. Copy the
-  ConsentGate pattern: disabled control + `aria-describedby` reason
-  next to it. `Button`, `ToggleButton` and `CommandButton` omit the
+  Join sheet pattern: the disabled "Join and record" button + an
+  `aria-describedby` reason next to it. `Button`, `ToggleButton` and `CommandButton` omit the
   native `disabled` prop: pass `disabledReason="..."` (what is missing
   and what to do), and the control is disabled, titled and described
   with it. A reason touch users must see (no hover) also gets a visible

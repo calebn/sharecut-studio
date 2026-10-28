@@ -21,7 +21,6 @@ export {
 export { MIC_RETRY_LABEL } from "./micPermission";
 export { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
 export { noteItems } from "./noteItems";
-export { RecIndicator } from "./RecIndicator";
 export {
   activeGuestLink,
   copyText,

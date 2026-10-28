@@ -51,9 +51,10 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
 - After stop: **upload status until confirmed**, then tracks on one timeline;
   late joiners **padded at the start**.
 - Join link is a **studio/room**, not a review/listen link.
-- Lobby: **name, headphones check, mic test, device picker, optional 3 s room
-  tone** before the host hits Record.
-- While recording: persistent **REC** indicator with a visible red dot and running clock in the host transport, plus a start notification. The dot stays static for reduced-motion users; PAUSED and local capture failure remain distinct text states.
+- Join sheet: **name, microphone (Allow microphone, device picker, level),
+  storage check and headphones** before a guest joins; the host starts the
+  optional 3 s room tone from the room.
+- While recording: a persistent **status pill** (`m:ss · Take N`) in the room header and the host transport chip, plus a start notification. PAUSED, saving and local capture failure remain distinct text states and alerts.
 - **Live timestamped notes** are table stakes: Riverside markers (`M` key →
   dots on the editor timeline), Zencastr Footnotes (host-only), Descript Rooms
   Editor Comments (host/co-host/producer; private from guests; land in the
@@ -99,8 +100,8 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Sidetone** | Optional 0 ms dry tap into headphones (gain-limited), never the WebRTC round-trip. |
 | **Chunk** | Upload unit of a closed keeper segment (30 s of PCM, the final part shorter). |
 | **ACK** | Host ingest confirmation (sha256 + byte length per chunk, then per file). |
-| **Lobby** | Name, headphones, mic test, device picker, optional 3 s room tone — before consent. |
-| **Consent gate** | Per-person blocking step before any encoder, keeper chunk, or room-tone PUT to the host. Lobby may capture a 3 s bed into OPFS; those bytes stay local until Accept. |
+| **Join sheet** | The guest's first view over the shared room: name, microphone, storage check, headphones, then **Join and record** (a producer sees name and **Join to listen**). |
+| **Consent** | Per-person blocking step before any encoder, keeper chunk, or room-tone PUT to the host. **Join and record** sends `Consent {accepted: true}`; **Not now** sends `accepted: false` and shows the declined scrim. |
 | **Recovery window** | 7 days to resume saving on the same `/rec/` link. |
 
 ## Session kind and URLs
@@ -206,7 +207,7 @@ advertise `build.upload: false` (no `join` cap). `build.capture` and
 mono WAV keepers to origin-private OPFS (`Sharecut Recordings/…`), and the
 browser mix-minus mesh plays remote tracks only. Capture and upload still
 authorize `join` / `monitor` from the frozen token caps — never from
-client-supplied flags. Lobby/consent/host Start, local keepers, mix-minus, and
+client-supplied flags. Join sheet consent/host Start, local keepers, mix-minus, and
 chunk resume already ship. After ACK, landing copies assembled WAV into `raw/`
 and registers clips. Live comments land in the same mutate as keepers (or on
 their own if no new clips).
@@ -333,7 +334,7 @@ No hosted SFU in FOSS. No program bus. Each listener's speaker bus plays
 inversion (OpenStudio invert-against-program-bus is for a single summed mix /
 SFU). Optional **sidetone**: 0 ms dry tap, gain-limited (−12 dB default, max
 0 dB), labeled in the graph — never the WebRTC round-trip. Headphones
-recommended; open speakers + open mic is acoustic echo and is a lobby warning,
+recommended; open speakers + open mic is acoustic echo and is why the Join sheet asks for headphones,
 not something mix-minus can fix.
 
 If an SFU ever lands, server mix-minus is specified then, and MM1–MM9 bars
@@ -408,7 +409,7 @@ while finalized WAV totals are known, then "Saved to project" once the file is A
 several segments, a list shows one "Saving to project…" or "Saved to project" line per segment. Each segment's
 line appears the moment its upload starts and flips as its chunks and file ACK land (the upload hook publishes during
 the pass, not once at its end); a polite, screen-reader-only live region speaks a segment starting or finishing, never
-each chunk (`SaveAnnouncer`, shared by the guest list and the host roster). The visible list, the "N of M chunks" line,
+each chunk (`SaveAnnouncer`, mounted by the guest room for its own save lines and by the host stage). The visible list, the "N of M chunks" line,
 and the host roster sit outside every other live region, so a moving count is never read twice; saving outcomes without
 counts (failed, saved and landed, waiting to land) are their own `role="status"` lines (`UploadStatus`). Resume on the **same `/rec/` token** inside a **7-day recovery window**.
 A pending segment is never uploaded automatically; the stopped panel offers
@@ -594,20 +595,18 @@ that participant's track at `join_offset_ms`. No trailing pad.
 
 An involuntary microphone loss is distinct from an intentional track stop: the
 browser `ended` event freezes the current keeper segment and clears the live
-stream. The host and guest show a persistent "Microphone disconnected.
-Full-quality recording is paused." warning with a Reconnect microphone action. The guest
-REC indicator shows local capture waiting while retry acquisition is
-pending; a failed retry returns to local capture failed. The room clock keeps
-following the shared take throughout, and the healthy REC dot returns only
-after a live microphone stream is restored. After Stop the mic-loss warning
+stream. The host and guest show the persistent room alert "Your mic stopped." with a
+**Reconnect mic** action; a failed retry keeps the alert. The room clock keeps
+following the shared take throughout, and the alert clears only after a live
+microphone stream is restored. After Stop the mic-loss alert
 clears, while incomplete keeper and upload recovery remain visible. Browser
 permission revocation follows the same failed/pending recovery path even when
-the hook resets its `lost` flag: a missing local stream cannot show healthy
-REC during an active take. Retry is
+the hook resets its `lost` flag: a missing local stream keeps the alert
+during an active take. Retry is
 explicit (there is no unbounded auto-retry); repeated clicks during acquisition
 are ignored. If a saved or selected device is missing (NotFoundError or
 OverconstrainedError on the exact deviceId), any acquisition (first open, Retry
-or reconnect) tries the default available input once. The lobby then shows
+or reconnect) tries the default available input once. The Join sheet then shows
 "Your saved microphone isn't available, so the default input is in use.", the
 select shows Default, and the saved `record:<token>:mic` id is reset without
 re-opening the stream. The fallback is latched in `useMicStream` (exposed as `staleDeviceId`) until the saved id opens again or the guest picks another input. Turning the mic off (consent decline, full room, access ended) keeps the latch, so the dead id is never written back to storage. While latched, each acquisition enumerates inputs first: when that list is non-empty and still lacks the id, Retry or reconnect opens the default input directly (one `getUserMedia` call) and a failed Retry keeps the notice; when enumeration fails or is empty, or the device is listed again, the saved id is tried first. Blocked-permission
@@ -623,19 +622,17 @@ listener before stopping tracks and does not show the warning.
 `AudioContext`, a hardware mute, a dead device). While local capture is active
 (`recordingLocally`, not muted, room `recording`) and the keeper tap is attached, the tap is watched (a tap reopened mid-take restarts the window):
 about 5 s without any PCM sample above 2^-24 (all zeros **or** no PCM at all)
-shows the persistent "No audio is reaching the recorder." alert with a
-**Check mic** action for host and guest, and REC reads "REC: no audio" with no
-healthy dot. It yields to mic-loss and keeper-error UI. It clears only on real
+shows the persistent "No sound is reaching the recorder." room alert with a
+**Check mic** action for host and guest. It yields to mic-loss and keeper-error UI. It clears only on real
 PCM or a successful Check mic (context `running`, track live, enabled and not
 muted; the watchdog then re-arms, so still-silent input re-alarms after another
 ~5 s, this time with the "Still no audio" guidance until real PCM arrives). A failed check adds "Still no audio" guidance. Pause, mute, and normal
-quiet input never trigger it. Host heartbeats are unchanged. The host record dialog opens once when the alert appears but, unlike mic loss, can be closed; the transport chip keeps showing "REC: no audio". Limitation: any sample above the floor counts as signal, so a dead input that delivers a constant DC offset or a dither floor above 2^-24 is not detected. Check mic while the tap is closed shows the "Still no audio" guidance and reopens the tap; a successful reopen clears it, and a failed one shows the keeper error. Safari's `interrupted` context state (a phone call, or another app holding audio) counts as a failed Check mic; the alarm itself does not depend on context state. A late timer tick (throttled or background tab, laptop sleep) restarts the 5 s window instead of counting the gap as silence.
+quiet input never trigger it. Host heartbeats are unchanged. The host record dialog opens once when the alert appears but, unlike mic loss, can be closed. Limitation: any sample above the floor counts as signal, so a dead input that delivers a constant DC offset or a dither floor above 2^-24 is not detected. Check mic while the tap is closed shows the "Still no audio" guidance and reopens the tap; a successful reopen clears it, and a failed one shows the keeper error. Safari's `interrupted` context state (a phone call, or another app holding audio) counts as a failed Check mic; the alarm itself does not depend on context state. A late timer tick (throttled or background tab, laptop sleep) restarts the 5 s window instead of counting the gap as silence.
 
 If the host's microphone is denied or unavailable when an active take begins,
 the record dialog opens and stays open with browser or desktop recovery copy
-and Retry. The REC label says local capture failed (or that it is waiting for
-the microphone during acquisition) until a live stream is restored; the
-transport chip uses the same capture state. Retry reacquires the mic without
+and Retry. The room alert ("Your mic stopped.") stays until a live stream is
+restored; the transport chip uses the same capture state. Retry reacquires the mic without
 deleting any keeper segment. A stopped take clears the capture warning. An
 empty, zero-sample WAV cannot be acknowledged as an uploaded take.
 If the host joined the take but never captured a full-quality recording, Stop shows an explicit
@@ -657,7 +654,7 @@ sequenceDiagram
 **Pause / Resume is host-only.** Host Pause appends a versioned pause-log
 entry `{seq, pause_wall_ms}` on the session WS: every keeper ends its current
 segment (byte stream frozen, upload continues); the monitor **keeps running**
-so people can talk off the record; indicator flips REC → **PAUSED** on every
+so people can talk off the record; the status pill flips to **Paused** on every
 client. Host Resume appends `{seq, resume_wall_ms}`; every consented recorded
 client starts a new segment whose `join_offset_ms` is the **recording-clock**
 value at resume. Clients apply the log **by seq** (ignore duplicates); every
@@ -710,11 +707,13 @@ on remote tracks). Pause/Resume never touches the monitor graph. Test bar
 to be recorded waits for Stop and opens the **guest** link in the next take.
 
 When 4 recorded participants (host included) are present, a 5th guest opening
-the link sees a **full room** page (copy in [Lobby, consent, REC](#lobby-consent-rec);
+the link sees a **full room** page (copy in [Join sheet, consent, room](#join-sheet-consent-room);
 no `getUserMedia` prompt); a 3rd producer sees the same page. Host cannot
-raise either cap in MVP. A participant who **declines consent** returns to the
-lobby and cannot enter as a guest while REC or PAUSED is on; the host may
-re-invite them as a **producer** (not recorded) instead.
+raise either cap in MVP. A participant who **declines consent** (**Not now**)
+sees the room under a dim scrim reading "You're not being recorded."; **Join
+recording** on the scrim works only while the room waits for a take ("You can
+join after this take." otherwise), and the host may re-invite them as a
+**producer** (not recorded) instead.
 
 | | Mute | Pause | Stop / Start |
 |--|------|-------|--------------|
@@ -722,27 +721,29 @@ re-invite them as a **producer** (not recorded) instead.
 | Clock | Runs | Recording clock freezes | New `session_start` |
 | Bytes written | Zeros for the span | None during pause | Previous take finalised |
 | Monitor | Send stops for that person | Stays live | Ends with the take |
-| Indicator | Mute badge | PAUSED on every client | REC off, then REC on take N+1 |
+| Status pill | Muted tile and alert | `Paused · m:ss` on every client | Saving, then `m:ss · Take N+1` |
 | Timeline | Continuous file; zeros | Clips abut (paused time collapses) | Sequential takes + 2 s gap |
 
 ## Metering and clipping
 
 **Sample peak only** (#174). ShareCut does not oversample or detect
 inter-sample (true) peaks; the -1 dBFS threshold (`DEFAULT_CLIP_DB`) is headroom
-for overs the meter cannot see. One threshold drives everything: the live LED,
-the encoder's clip regions, the post-take report and the timeline flags.
+for overs the meter cannot see. One threshold drives everything: the live clip indicator,
+the encoder's clip regions, the room alert and tile badge, the take's jump to its first clipped span and the timeline flags.
 
 **Own mic only.** Each recorded person (guest or host) sees only their own
 meter. Nothing is added to the record wire (`services/record/signal.py`,
 `hostWire.ts`, `useRecordSync` are unchanged), and remote-participant meters are
-out of scope. Surfaces: the device check (**Level**), the guest room (**Your mic
-level**) and the host Record stage. `FullRoom` never calls `getUserMedia`,
-so it has no meter. Producers have no meter and no clip LED.
+out of scope; other people's room tiles light from the monitor graph's own
+analysers (`useRecordMonitor().levels`), not from anything sent over the wire.
+Surfaces: the Join sheet's microphone row, the person's own room tile and the
+host Record stage. The room-full Cover never calls `getUserMedia`, so it has no
+meter. Producers have no meter and no clipping alert.
 
 **Two signal paths.**
 
 - *Monitor path* (`useInputPeakDb`, meter worklet): drives the visible meter and
-  its latching clip LED. Nothing is stored.
+  its latching clip indicator. Nothing is stored.
 - *Encode path* (`keeper/pcm.ts` -> `KeeperSession`): the ground truth. It
   records segment-relative clip regions, merges hits less than 1 s apart,
   caps them at 100 per segment (a hit within 1 s of the 100th region still merges into it, so a dense burst can lengthen that region; a later hit that cannot merge is dropped and flags the segment `clippingTruncated`), and writes them into the OPFS keeper metadata
@@ -765,18 +766,19 @@ so it has no meter. Producers have no meter and no clip LED.
   landing). They only drive UI flags; do not use them to drive audio edits
   without re-checking the audio.
 
-**Surfaces.** The REC indicator (`RecIndicator`, and so the host transport chip
-on desktop and phone) gets a `ClipLed`, lit from the first region. During a take
-a live notice appears; after Stop a **Clipping report** lists the ranges
-(m:ss, or h:mm:ss from one hour) with the recovery copy, rebuilt from OPFS after a reload. The host's
-report has **Jump to** per range (source -> timeline via the landed source id
+**Surfaces.** While a take records and the encoder has seen clipping, the
+person's own tile shows a clipping badge and the room shows the alert "You're
+clipping. Move back a little." (guest and host; `useTakeClipping`). The Join
+sheet shows a clip indicator while the guest checks their mic. On the host
+Record stage a landed take's row in the Takes tray jumps to its first clipped
+span (source -> timeline via the landed source id
 `rec-{session}-{take}-p_host-{segment}`), disabled until the take lands. The
 timeline shows a `clipping` marker-lane row (one flag per region per track) and a
-red tint on the affected span of each clip.
+red tint on the affected span of each clip. There is no post-take clipping
+report listing every range; the guest room has no such list.
 
 **Limitations.** Recovered crash segments, older clients and consolidated
-sources carry no regions. "No clipping detected" is shown only when every
-segment's metadata has `clippingRegions` (`known`). A truncated clip with no
+sources carry no regions. A truncated clip with no
 flag in its window has no timeline cue (only `list_clips` reports it).
 
 ## Room-tone countdown
@@ -799,7 +801,9 @@ Guests receive the result as the normal `Applied` snapshot; a guest sending it g
 `room_tone.requested_wall_ms + duration_ms` and the server clock, and is never stored.
 Nothing ticks it: the `Applied` event carries it once (about 3000), and clients count down locally from it.
 `participant_ids` lists only participants who have already consented, so a round requested before anyone accepts has an empty list and the late acceptors capture from the Device sheet. A round with no Start leaves the bed to land with the next land. Orchestration (auto-capture on a new
-`round`, sending Start after 3 s) is client work, and `room_tone` stays in the snapshot after Start, so consumers
+`round`, sending Start after 3 s) is client work (a consented guest's browser
+captures when a new `round` names them, `useGuestRoomTone`; a round already in the
+first snapshot, as for a late joiner or a reload, is not caught up, #2490), and `room_tone` stays in the snapshot after Start, so consumers
 should show a countdown only while the state is `lobby` or `stopped`; this command only announces the round.
 
 Rollback note: a build older than this command cannot replay a `RoomToneCountdown` ledger row.
@@ -971,47 +975,82 @@ sequenceDiagram
   H->>H: landing: add_comment under ProjectWorkspace.mutate() at take_offset + recording_ms
 ```
 
-## Lobby, consent, REC
+## Join sheet, consent, room
 
-**Shipped** in `feat/recording-lobby-consent` (lobby/consent) and
-`feat/recording-keeper-capture` (dry WAV). Device permission is an **explicit
-grant step** before the meter: recorded clients click **Allow microphone**,
-which is the only `getUserMedia` call (`useMicPermission` → `useMicStream`).
-The reusable peak meter hook shares one metering `AudioContext`, one worklet
-module load, and one animation-frame scheduler across concurrent mic meters.
-Each mic keeps its own worklet node, peak hold, and clip latch; the context
-closes when the last meter leaves. The keeper capture graph remains separate
-because it owns its sample rate and recording lifetime. Each person sees only
-**their own** input meter (device check, guest room, host Record stage):
-a peak meter with a latching clip LED and headroom guidance. It measures
-**sample peak only**; ShareCut does not detect inter-sample (true) peaks (#174).
-Safari has no `permissions.query({name:"microphone"})`; Chromium can
-pre-detect `denied`. After the mic is granted, recorded clients see an optional
-**Record 3 seconds of room tone** step (skip allowed) that uses keeper
-constraints and the PCM→WAV tap — not `MediaRecorder`. The bed is written to
-OPFS only; the `kind=room_tone` PUT waits until **Accept**. Skip or Decline
-discards the local bed. Recording consent is a **separate blocking step** per
-recorded person; Accept stays disabled with `aria-describedby` until the mic
-is granted **and** headphones are checked. The keeper encoder is armed on Accept
-and writes **zero bytes** until host Start (room-tone PUT is also zero bytes
-until Accept). Host **Start** is enabled
-when **every recorded guest currently in the lobby** has consented (not every
-invitee, not producers; the host auto-consents). Host Start does
-**not** require the host to record or skip room tone — idle is an implicit skip.
-Producers skip consent, `getUserMedia`, and room tone; they auto-satisfy the
-Start gate. Persistent **REC** indicator +
-clock; mute writes zeros on the keeper. Consent copy is product notice, not legal advice.
-Before a host can Start or a recorded guest can Accept, the client completes an
+A guest opening a `/rec/` link sees the shared Record room (`system/RoomView`,
+mounted by `record/GuestRoomApp.tsx`) with the **Join sheet** over it. The sheet's
+title is "Join the room", or "{Names} is here" once others are in. It holds four
+rows in order: **Your name**, **Microphone**, **Storage** and **Headphones**
+("I'm wearing headphones"). **Join and record** stays disabled and names the first
+row still open as its reason ("Add your name first", "Allow your microphone
+first", "Put on headphones first", "Fix storage first"). A producer sees the name
+row and **Join to listen** ("You'll listen and take notes. You won't be
+recorded."); producers skip the mic, storage and headphones rows.
+
+Device permission is an **explicit grant step**: recorded clients click **Allow
+microphone**, which is the only `getUserMedia` call (`useMicPermission` →
+`useMicStream`) and runs directly in that click. The sheet then shows a level fill
+with clip guidance and, with several inputs, an input picker ("Can't change while a
+take is running." during a take). A blocked mic reads "Microphone blocked" with
+**How to allow**, which retries; a lost device reads "Your microphone isn't
+available." with **Retry**. The reusable peak meter hook shares one metering
+`AudioContext`, one worklet module load, and one animation-frame scheduler across
+concurrent mic meters. Each mic keeps its own worklet node, peak hold, and clip
+latch; the context closes when the last meter leaves. The keeper capture graph
+remains separate because it owns its sample rate and recording lifetime. Each
+person sees only **their own** input meter (Join sheet, own room tile, host Record
+stage). It measures **sample peak only**; ShareCut does not detect inter-sample
+(true) peaks (#174). Safari has no `permissions.query({name:"microphone"})`;
+Chromium can pre-detect `denied`.
+
+**Join and record is the consent.** It sends `Consent {accepted: true}`; the
+sheet's **Details** disclosure says "Recording starts when {host} starts a take
+and stops when the take ends. Your audio is saved on this device first, then sent
+to {host}'s project. Joining means you agree to be recorded." **Not now** sends
+`accepted: false` and leaves the room under the declined scrim (above). Consent
+copy is product notice, not legal advice. The guest sheet appears whenever the
+guest has not consented, in any room state, so a late joiner can still join; it is
+not shown to a guest reloading after Stop with an unsaved local take, who sees the
+room in its saving state with **Finish saving** / **Resume saving** and
+**Save a copy** instead. The keeper encoder is armed on join and writes **zero
+bytes** until host Start. The host **Start** is enabled when **every recorded guest
+currently in the room** has consented (not every invitee, not producers; the host
+auto-consents). Host Start does **not** require any room tone. Producers skip
+consent, `getUserMedia` and room tone; they auto-satisfy the Start gate. Mute
+writes zeros on the keeper.
+
+Room tone is host-started only: a consented guest's browser records 3 seconds
+when a new `RoomToneCountdown` round names them and uploads it as `kind=room_tone`
+(see [Room-tone countdown](#room-tone-countdown)); there is no guest-side record
+or skip step, and a guest who joins after the countdown is not prompted (#2490).
+
+Before a host can Start or a recorded guest can join, the client completes an
 OPFS preflight that creates, writes, closes, and removes a disposable file in
 the `Sharecut Recordings/` keeper directory. The action remains disabled
-while the preflight is pending or if the browser/app environment cannot provide writable OPFS; the UI
-asks the participant to use a compatible browser and offers **Retry storage check**.
+while the preflight is pending or if the browser/app environment cannot provide writable OPFS; the sheet's
+Storage row asks the participant to use a compatible browser and offers **Retry storage check**
+(low free space adds "Low space on this device. Close other tabs.").
 The host Start transport checks the same verified sink even when invoked outside
 the room panel, and host capture uses that sink. A guest who leaves and rejoins
-in the lobby or between takes must complete a fresh preflight and Accept again
+in the lobby or between takes must complete a fresh preflight and join again
 before host Start. While waiting to re-consent after a stopped take, the guest
-can still resume saving or download the previous full-quality recording from the lobby. Producers are not recorded and do not need this preflight. There is no upload-only or
+can still resume saving or download the previous full-quality recording from the room's alerts or Cover. Producers are not recorded and do not need this preflight. There is no upload-only or
 alternate local sink path.
+
+**In the room** a guest sees the status pill (`Waiting for {host} to start`,
+`Quiet please · N`, `m:ss · Take N`, `Paused · m:ss`, `Saving · N%`, `Saved`,
+`Reconnecting…`), a tile per person, the notes rail (a composer enabled while a take
+runs; the `M` key adds a marker), Mute and Leave, and alerts in one slot: "Your mic
+stopped." (**Reconnect mic**), "No sound is reaching the recorder." (**Check mic**),
+"This device couldn't save the recording.", "Saving stopped." (**Resume saving**,
+**Save a copy**), "We found part of your recording." (**Finish saving**),
+"{Host} dropped. You're still recording on this device.", "You're clipping. Move
+back a little." and "You're muted.". Hidden screen-reader lines announce
+"Recording in full quality on this device.", "Hearing the room.", joins, leaves and
+other people's new notes. **Leave** is held until the file ACK. Covers replace the
+room for an invalid link, "The room is full" (**Try again**), "Invite link
+closed", "Your recording didn't finish saving" (**Save my recording**, **Try saving
+again**) and "This session has ended".
 
 The upload route enforces consent per take, not just per participant. Each
 take stores `consented_participant_ids`, captured from the currently-consented
@@ -1080,7 +1119,7 @@ and applies equally to direct and relayed joins. Nobody else is disconnected.
   closes it for all of them. An unaffected guest who loses the saved lease (new
   device, cleared data, lease older than 7 days) cannot be told apart from the
   removed person omitting their lease, so they see a terminal "Invite link
-  closed" screen with the Recover / Download full-quality recording buttons and need the
+  closed" Cover (the Cover offers no save or recover buttons) and need the
   replacement link. Guests who keep their lease are unaffected. The check only
   queries `record_participants` once the room has a removal.
 - **Keeper recovery:** unaffected guests keep uploading and recovering through
@@ -1128,28 +1167,26 @@ stateDiagram-v2
 
 | Situation | Copy |
 |-----------|------|
-| Open speakers | "Use headphones. Playing the room on speakers will echo into every mic." |
+| Headphones | Toggle "I'm wearing headphones"; until it is on, Join and record reads "Put on headphones first" |
 | Mic grant | "Allow microphone" |
-| Mic blocked | "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
+| Mic blocked | Row title "Microphone blocked", **How to allow** (retries), and "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
 | Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow ShareCut Studio in your system microphone privacy settings, then Retry." |
 | Mic permission prompt in the macOS or Windows Tauri desktop app | "Waiting for the operating system microphone permission prompt…" |
 | Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open ShareCut Studio in your browser and allow microphone access there." |
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
-| Invite closed | Heading "Invite link closed"; "The host closed this invite link to new participants. Ask the host for a new link." |
-| Mic required for consent | "Allow the microphone before you accept recording." |
-| Room tone | "Record 3 seconds of room tone" |
+| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link." |
+| Room tone (host Record stage) | "Record 3 seconds of room tone" |
 | Room tone too loud | "Too loud: is something playing?" |
 | Room tone saved on this device (not yet acknowledged by the host) | "Room tone saved on this device" |
 | Room tone acknowledged by the host (it joins the project when the session lands) | "Room tone sent to the host" |
-| Consent | "This session will be recorded in full quality on your device. After you Accept, your full-quality recording stays in this browser until it finishes saving to the host's project. Producers/listeners may be present and are shown in the roster. [Accept] [Decline]" |
+| Consent | Join sheet: "You'll be recorded in full quality on this device. It saves to {host}'s project when the take ends." **Join and record** / **Not now**; Details: "Recording starts when {host} starts a take and stops when the take ends. Your audio is saved on this device first, then sent to {host}'s project. Joining means you agree to be recorded." |
 | Recording on device | "Recording in full quality on this device." |
-| REC | "REC" persistent indicator + start notification |
-| No audio | "No audio is reaching the recorder." + **Check mic**; REC reads "REC: no audio" |
-| Mic check failed | "Still no audio: unmute or reconnect your microphone, then Check mic again." |
-| PAUSED | "PAUSED — still listening, not recording" |
-| Host reconnect pause | "Paused: the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the PAUSED indicator) |
-| Host offline | "Host offline: still recording locally." |
+| Live | Status pill `m:ss · Take N` + start notification |
+| No audio | Alert "No sound is reaching the recorder." + **Check mic** |
+| Paused | Status pill `Paused · m:ss` |
+| Host reconnect pause | "Paused: the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the Paused pill) |
+| Host offline | Alert "{Host} dropped. You're still recording on this device." |
 | Saving (own status) | "Saving to project… {n} of {total} chunks. Keep this tab open." Several segments add one line each: "Take 1 segment 2: Saving to project… 1 of 2 chunks". |
 | Saved, not landed | "Saved to project. This device keeps its copy until the host lands it on the timeline." |
 | Saved and landed | "Saved to project and on the timeline. This device's copy clears automatically." (only after ACK **and** confirmed landing) |
@@ -1158,8 +1195,8 @@ stateDiagram-v2
 | Stalled | "Saving stalled. Resume saving, or download your full-quality recording." with **Resume saving** and **Download full-quality recording** |
 | Storage unavailable | "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry." with **Retry storage check** |
 | Host status (per participant and segment) | "Ava: Saving to project… 1 of 3 chunks", "Ava: Saved to project"; with several segments "Ava, take 1 segment 2: Saved to project"; a failed land adds "Landing failed. Use Retry land." |
-| Full room | "This room is full (4 recorded / 2 producers)." |
-| Declined | "You declined recording. You can wait in the lobby, or the host can invite you as a producer (listen only)." |
+| Full room | Cover "The room is full" / "Ask {host} to make space or send you a new link." with **Try again** |
+| Declined | Scrim "You're not being recorded." with **Join recording** ("You can join after this take." while a take is not waiting) |
 
 ### Host Record stage
 
@@ -1282,13 +1319,13 @@ later segment can share that path. Timeouts are not cancellation: a truly hung
 Retry) until the browser gives up, which is why Retry always moves to a new
 segment path and never reopens the stuck one. The guest sees plain wording
 ("this device's storage couldn't keep up") for stalls; the technical detail
-stays on the error's `cause`. The REC indicator is no longer a claim that a
+stays on the error's `cause`. The live pill is no longer a claim that a
 durable local copy is being made. Already finalized segments remain available,
 while the failed open segment is not advertised as complete; **Download
 full-quality recording** still exports it, named
 `full-quality-take-<take>-segment-<segment>-partial.wav` (one-based).
 The same archive carries the participant's room-tone bed as `room-tone.wav` while the browser still holds it (a skipped, too-loud or already-cleared bed adds nothing and is not an error). It is not a recording: it does not count toward the downloaded, missing or expired totals, and a browser holding only the bed still reports that no full-quality recording is available (#1216).
-The client offers **Retry full-quality recording** while the take is recording; during
+The client offers **Retry recording** (alert "This device couldn't save the recording.") while the take is recording; during
 pause or after Stop, the host must resume or start a take first. Retry waits
 for the failed stream to close (bounded by the close deadline) and starts a
 new segment without overwriting the failed one.
@@ -1297,7 +1334,7 @@ per-segment dedicated worker (`keeper/syncWriter.worker.ts`) through
 `FileSystemSyncAccessHandle`, flushed on the first write after each 2 s interval (`KEEPER_FLUSH_INTERVAL_MS`) and on close; there is no idle timer.
 A killed tab, a crash or a browser quit therefore keeps everything already
 written; an OS crash loses at most about the last 2 s while audio keeps arriving (after a write pause, the unflushed tail waits for the next write or close). After Stop, reopening
-the room link offers **Recover partial take**. Browsers without sync access
+the room link offers **Finish saving** (the host's save list: **Recover partial take**). Browsers without sync access
 handles fall back to `createWritable()` and still lose the open segment on a
 hard kill. A worker that does not report ready within 2 s, errors before ready, or whose open does not settle within 5 s (`SYNC_WRITER_OPEN_TIMEOUT_MS`) falls back to `createWritable()` for that segment only; in-place writes stay off for the tab only when the browser reports sync access handles unsupported, the worker cannot be spawned, or two starts in a row fail (a start counts as successful only once the open succeeds). A timed-out open, or a close that misses the session's close deadline, terminates the worker so its exclusive handle is released for **Recover partial take** and reclaim; after any writer failure, later writes reject at once. Closing and reopening with `keepExistingData` every N seconds was
 rejected: Chrome copies the whole file into each swap file, which is O(n^2)
@@ -1383,7 +1420,7 @@ once every 5 seconds. A host timer maintains record presence in lobby and
 paused states. During REC, only healthy keeper PCM can drive host heartbeats;
 the timer cannot mask a missing microphone stream, stalled keeper setup, or
 failed local capture. The existing local-capture failure latch stops activity
-beats until Retry full-quality recording succeeds. Starting or resuming a take resets
+beats until Retry recording succeeds. Starting or resuming a take resets
 the stored host beat baseline so a long stopped or paused interval cannot make
 a brief reconnect look stale. An observed
 host socket close starts the 10-second reconnect window at close time when the
@@ -1579,16 +1616,16 @@ presence-follow. Lobby e2e uses the same hook so "Hearing the
 room." does not depend on ICE completing under the shared GUI server, and also
 asserts inbound `Signal` frames (`window.__recordSignalCount`).
 
-The US-1 scenario (`records a remote interview end to end (US-1)`) drives host, guest and producer through lobby, consent, Start, live comments (guest marker via `M`, guest note, producer note visible to host but not the guest), Stop, keeper upload to file ACK, host landing (ACK auto-land or Land, whichever is ready first), clips in `raw/` and on the timeline, and live comments landing as `review.comments[]`. The producer has no keeper or upload. Desktop (Tauri) recording stays manual (#193).
+The US-1 scenario (`records a remote interview end to end (US-1)`) drives host, guest and producer through the Join sheet, Start, live comments (guest marker via `M`, guest note, producer note visible to host but not the guest), Stop, keeper upload to file ACK, host landing (ACK auto-land or Land, whichever is ready first), clips in `raw/` and on the timeline, and live comments landing as `review.comments[]`. The producer has no keeper or upload. Desktop (Tauri) recording stays manual (#193).
 
-The US-2 scenario (`e2e/record-host-reconnect.spec.ts` › *recording survives host disconnects (US-2)*) cuts the host's session socket and the guest's record socket and HTTP together (`e2e/networkOutage.ts`). A 2 s blip stays REC with no new keeper segment. A 14 s outage shows "Host offline: still recording locally." while the guest keeper grows, refuses a remint while REC and PAUSED, and forces PAUSED with `pause_reason: "host_reconnect"` when the host returns. After Resume and Stop, every segment file-ACKs on the same `/rec/` token and lands under `raw/`. A drop closes both proxy sides at once, so the server sees a clean close with a fresh heartbeat; the stale-heartbeat and sidecar-crash branches of the Host reconnect row below stay pytest-only.
+The US-2 scenario (`e2e/record-host-reconnect.spec.ts` › *recording survives host disconnects (US-2)*) cuts the host's session socket and the guest's record socket and HTTP together (`e2e/networkOutage.ts`). A 2 s blip stays live with no new keeper segment. A 14 s outage shows the alert "{Host} dropped. You're still recording on this device." while the guest keeper grows, refuses a remint while REC and PAUSED, and forces PAUSED with `pause_reason: "host_reconnect"` when the host returns. After Resume and Stop, every segment file-ACKs on the same `/rec/` token and lands under `raw/`. A drop closes both proxy sides at once, so the server sees a clean close with a fresh heartbeat; the stale-heartbeat and sidecar-crash branches of the Host reconnect row below stay pytest-only.
 
 ### Hard tab kill (manual, real Chrome)
 
-1. Join, Accept, Start.
+1. Join and record, then Start.
 2. After about 20 s, DevTools -> Application -> Storage shows `0.wav` growing and no `.crswap`.
 3. Kill the tab (Task Manager -> End process), host Stop, reopen the link.
-4. **Recover partial take** appears, and the recovered WAV is about 20 s minus the last 2 s or less.
+4. **Finish saving** ("We found part of your recording.") appears in the room, and the recovered WAV is about 20 s minus the last 2 s or less.
 
 ### Acoustic / golden-ear (not CI)
 
@@ -1617,21 +1654,21 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
 
 | Area | How |
 |------|-----|
-| Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`, `::test_guest_keeper_upload_rechecks_consent_after_body_read`). |
+| Consent vs Join sheet | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Join and record disabled with `aria-describedby` until the name, mic, storage and headphones rows are done. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (the room-tone bed is captured only after consent, on the host's countdown); Start disabled while any **recorded** in-room client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require any room tone. The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`, `::test_guest_keeper_upload_rechecks_consent_after_body_read`). |
 | Removed guest | The host stops consented take 0, starts take 1, then removes the guest. Take 0 retains its historical consent roster, but both take indices and room tone deny upload consent. The guest lease is revoked, so retrying take 0 returns `403 invalid lease`. Reducer coverage is `tests/test_record_reducer.py::test_remove_participant_revokes_stopped_and_current_take_upload_consent`; HTTP coverage is `tests/test_record_upload.py::test_removed_guest_cannot_upload_stopped_take_after_next_take_starts`. Current-take removal is covered by `::test_guest_keeper_upload_rejected_after_host_removal`. |
-| Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
+| Room tone | Host-started only: a consented guest's browser records 3 s keeper-constraint PCM→WAV when a new `room_tone.round` names it (`useGuestRoomTone`; a round already in the first snapshot is ignored, #2490); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after consent (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers never record it. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
-| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants and segments, and the host list reads "Saving to project… N of M chunks" while saving and "Saved to project" after the file ACK; only explicit `complete: true` segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. `useRecordUpload` publishes each segment as saving when its upload starts and again per chunk, not once per pass (gated-transport test); the live region announces starts and finishes only, and no chunk count sits inside any live region (`expectOutsideLiveRegions` in `Room.test.tsx`, `RecordStage.test.tsx`, `UploadStatus.test.tsx`). |
+| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants and segments, and the host list reads "Saving to project… N of M chunks" while saving and "Saved to project" after the file ACK; only explicit `complete: true` segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. `useRecordUpload` publishes each segment as saving when its upload starts and again per chunk, not once per pass (gated-transport test); the live region announces starts and finishes only, and no chunk count sits inside any live region (`expectOutsideLiveRegions` in `GuestRoomApp.room.test.tsx`, `RecordStage.test.tsx`, `UploadStatus.test.tsx`). |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment; browser end-to-end in the Playwright US-2 scenario (`e2e/record-host-reconnect.spec.ts`). |
-| Hard tab kill | `keeper/syncWriterProtocol.test.ts`, `syncWriterClient.test.ts`, `syncWriter.worker.test.ts`, `opfsPath.test.ts` (in-place write, 2 s flush, fallback); `keeper/session.test.ts` recoverable-after-kill case; Playwright closed-tab test in `e2e/record-lobby.spec.ts` offers **Recover partial take**. |
+| Hard tab kill | `keeper/syncWriterProtocol.test.ts`, `syncWriterClient.test.ts`, `syncWriter.worker.test.ts`, `opfsPath.test.ts` (in-place write, 2 s flush, fallback); `keeper/session.test.ts` recoverable-after-kill case; Playwright closed-tab test in `e2e/record-lobby.spec.ts` offers **Finish saving**. |
 | Silent PCM | `keeper/silenceWatchdog.test.ts`, `keeper/useKeeperCapture.test.ts`: ~5 s of zero or missing PCM while recording locally raises the no-audio alert (host and guest); quiet input, pause, and mute do not; real PCM or a successful Check mic clears it, a failed check does not; arms only once the tap is attached and re-arms when the tap reopens; a late tick restarts the window; a re-alarm after a healthy check keeps the Still no audio guidance; a suspended tap context is reported, not thrown (`keeper/graph.test.ts`). |
-| Microphone loss | Test-only ended track reference: stale ended events are ignored, listeners are cleaned up, devicechange refreshes devices without declaring loss by itself, retry reacquires explicitly; the open keeper segment finalizes and the next segment resumes at the current recording-clock offset. A browser test ends the guest track before consent, blocks Accept, and verifies retry; no warning appears after an intentional stop. |
+| Microphone loss | Test-only ended track reference: stale ended events are ignored, listeners are cleaned up, devicechange refreshes devices without declaring loss by itself, retry reacquires explicitly; the open keeper segment finalizes and the next segment resumes at the current recording-clock offset. A browser test ends the guest track before joining, shows the sheet's microphone row with **Retry microphone**, and verifies retry; no warning appears after an intentional stop. |
 | Host reconnect | Last host conn drop during REC/PAUSED persists `host_offline_since_wall_ms` (Leave or last-socket pop). Join after ≥ 10 s while REC → `paused` + one `PauseEntry.pause_reason == "host_reconnect"`; Join below 10 s stays recording; already paused → no second entry; sidecar crash without Leave (empty `_HOST_CONNS`, same sqlite) still pauses; Resume clears live `pause_reason`; remint while REC/PAUSED is 409 / CLI non-zero / MCP error; landing after that pause places clips abutting. Host keeper `resetKey` follows the open host-reconnect pause seq (Vitest), not WS `connected`; the Playwright US-2 scenario (`e2e/record-host-reconnect.spec.ts`) covers the clean-close path in the browser (closed host socket → Leave, Join below and after 10 s, remint 409, Resume, landing); the sidecar crash without Leave and a socket that closes long after the network died (stale heartbeat, `HOST_HEARTBEAT_STALE_MS`) stay pytest-only (`test_restart_without_leave_still_pauses_on_host_join`, `test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold`); land drift report after that pause in `test_land_after_host_reconnect_pause_reports_drift`. |
 | Landing | After ACK: `raw/` + one clip per **segment** per track at `join_offset_ms`; happy path skips `ingest suggest`; pad math unit-tested. Sample-count vs recording-clock on first overlapping file-acked pair: `|duration_error| > 50 ms` or missing `session_start` sets `align_fallback` hint (pipeline `align_tracks` after transcribe; not run at land). Unknown overlap / one recorded ACK → `drift_ms` null. Each land re-reads the saved project under the project lock before it mutates, so overlapping lands (ACK auto-land plus Land) never drop an earlier land's clips or comments (`test_land_on_stale_workspace_keeps_earlier_land`), and a land in another process waits on `artifacts/record/land-<session_id>.lock` (`test_land_waits_for_cross_process_land_lock`, `test_land_times_out_on_held_cross_process_land_lock`, `test_discard_waits_for_cross_process_land_lock`); a failed stale-ACK rollback is deferred, repaired for `track.media`, and retried by a later land once its backoff has passed (`test_failed_keeper_rollback_is_retried_before_next_land`, `test_retried_rollback_after_media_repair_restores_prior_media`, `test_failed_deferred_retry_backs_off`, `test_unreadable_deferred_rollback_is_kept_and_reported`, `test_rollback_runs_when_deferral_cannot_be_persisted`, `test_revoke_room_purges_deferred_rollbacks`, `test_purge_waits_for_in_flight_land_lock`, `test_crash_before_deferral_leaves_stale_registration`, `test_failed_room_tone_rollback_is_retried_on_next_land`, `test_deferred_rollback_dropped_when_generation_current_again`, `test_deferred_bed_rollback_without_revision_is_dropped_with_warning`, `test_corrupt_raw_revision_does_not_block_other_deferred_rows`); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
 | Leave / rejoin | B leaves at T+300 s, rejoins at T+340 s (same `participant_id`): two segments, two clips on **one** track, second clip starts at 340 s ± 1 frame; no trailing pad on segment 1. A new device with the same display name returns to the same track (name match); the host can correct it. |
 | Pause / Resume | Host pauses at recording 60 s (wall 60 s), resumes at wall 70 s: every participant has segment 1 ending at 60 s and segment 2 starting at recording **60 s ± 1 frame** (clips abut, no gap, no zeros); keeper bytes written during the pause = **0**; PAUSED indicator asserted on all clients; a guest joining during the pause consents and gets `join_offset_ms` = 60 s; a late `pause` (or reconnect) truncates/discards samples ≥ `pause_wall_ms` from the versioned pause log; a drop that intersects a pause does **not** resume the same segment. Guest cannot trigger pause. |
 | Takes | Stop then Start: take 2 lands after take 1 + `take_gap_ms` (2 s) **even if take 1 is still uploading**; a participant absent from take 2 has no clip there; tracks = union; no re-consent prompt shown to already-consented clients; deleting take 1 is refused while its manifest is non-terminal; a tombstone voids in-flight ACK and leaves take 2 at offset 0. |
-| Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent is returned to lobby and cannot enter as a guest while REC or PAUSED is on. |
+| Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. |
 | Producer transparency | With one producer present, every guest's roster shows a "Not recorded" group containing the producer; the consent copy contains the listeners sentence; producer joining mid-take fires the same join notification as a guest; roles cannot change during a take. |
 | Live comments | Guest adds a comment (`body` `"Marker"` or a note) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list does not (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
 
@@ -1670,7 +1707,7 @@ Shipped in `feat/recording-lobby-consent`:
 - [x] Pure reducer + `RecordSessionService`; hub `record:{workspace}`.
 - [x] Guest/producer `WS /api/rec/{token}/ws`; host record plane on `/api/host/ws`.
 - [x] Host `GET /api/record/state` + `POST /api/record/command`; CLI/MCP twins.
-- [x] Lobby / DeviceCheck / ConsentGate / Room / FullRoom / Declined.
+- [x] Guest entry: Join sheet, shared room, declined scrim and Covers (the first lobby, consent, device check and room components were replaced by these in #2297).
 - [x] Host Record stage, Stage bar live badge, Share **Open Record stage**.
 - [x] Relay bridges `WS /api/rec/{token}/ws`.
 - [x] Docs / UX pack / skill `podcast-record-session`.
@@ -1730,7 +1767,7 @@ Shipped in `feat/recording-landing`:
 Shipped in `feat/recording-producer-live-comments`:
 
 - [x] Everyone in the room can add a timeline comment during REC or PAUSED (same `comment` cap). Host does not need `comment` on the default join/monitor cap list.
-- [x] `M` posts `body` `"Marker"` (guest RecordApp window listener; host DAW listener exception while the Record stage is active — not a second DAW window listener). Typed notes use the same Comment command.
+- [x] `M` posts `body` `"Marker"` (guest `GuestRoomApp` window listener; host DAW listener exception while the Record stage is active — not a second DAW window listener). Typed notes use the same Comment command.
 - [x] Client idempotency `id`; host rewrites `recording_ms` from `pressed_wall_ms` + `pauses[]` / `session_start`; PAUSED comments land at the pause point.
 - [x] Visibility is host-enforced: host + producer see all; a guest sees only their own (WS Echo/Snapshot/Applied).
 - [x] Stored in `record_live_comments` in `sync.db`; snapshot attaches unlanded rows. Landing uses `add_comment` under `ProjectWorkspace.mutate()` at `take_offset_s + recording_ms/1000` (no lead/title/metadata; `take_offset_s` includes the session origin).

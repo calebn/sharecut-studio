@@ -75,7 +75,7 @@ export function useMicStream(
       setPending(false);
       setSettledAttempt(resetKey);
       // Keep the stale-mic latch: it describes the saved id, not this stream, so
-      // RecordApp never writes a dead id back to storage while the mic is off.
+      // GuestRoomApp never writes a dead id back to storage while the mic is off.
       lostRef.current = false;
       setLost(false);
       return;

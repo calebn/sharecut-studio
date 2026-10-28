@@ -7,7 +7,7 @@ import { Avatar, LevelMeter } from "./index";
 /**
  * Layout sketch, not a shipped component: how per-participant meters could
  * sit in the record room roster (issue #170). Rows reuse
- * `Roster.tsx`'s `<ul className="record-roster">` markup with `.cluster`
+ * the `<ul className="record-roster">` markup (as UploadStatus does) with `.cluster`
  * items; each row is an Avatar, a name and a compact LevelMeter driven by
  * `usePeakMeter`, the same loop `useInputPeakDb` runs on a real mic.
  */

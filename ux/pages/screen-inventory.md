@@ -427,9 +427,9 @@ Step flows: [Guest journeys](#/journeys).
 
 ---
 
-## Guest / record (`/rec/{token}`) (lobby + full-quality recording + mix-minus + landing + live comments shipped)
+## Guest / record (`/rec/{token}`) (Join sheet + full-quality recording + mix-minus + landing + live comments shipped)
 
-Lobby, consent, roster, REC/PAUSED, full-quality recording on each
+Join sheet, consent, people tiles, status pill (live, paused, saving), full-quality recording on each
 participant's device, mix-minus monitor, saving to the project, timeline
 landing, and live comments ship.
 Spec: [recording-session.md](../../docs/recording-session.md).
@@ -437,15 +437,15 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 
 | Surface | Who | What they see |
 |---------|-----|----------------|
-| **Record lobby** | Guest (recorded) | Name, headphones, mic test, device picker, recording-consent notice. Wait for host Start. **Shipped (no screenshot yet).** |
-| **Record lobby** | Producer | Name only; **Not recorded** roster group; no mic, no consent. **Shipped (no screenshot yet).** |
-| **Record lobby / room / panel** | Recorded guest and host | **Own** peak meter (sample peak only) with a latching clip LED and headroom hint; REC indicator gets a take **clip LED**; live clipping notice during REC and a **Clipping report** after Stop (host: **Jump to** on the timeline). Producers and Full room have none. |
-| **Record room** | Guest | Persistent **REC** / **PAUSED** + clock; mute (silence in the full-quality recording + send stops); roster; "Recording in full quality on this device."; **Hearing the room.** Each segment reads "Saving to project…", then "Saved to project"; then host timeline clips. **Shipped (no screenshot yet).** |
+| **Join sheet** | Guest (recorded) | Over the shared room: name, microphone (Allow microphone, device picker, own level), storage check, headphones toggle, then **Join and record** (joining is consent; **Details** carries the notice). Wait for host Start. **Shipped (no screenshot yet).** |
+| **Join sheet** | Producer | Name and **Join to listen**; listed as listening and not recorded; no mic, no consent. **Shipped (no screenshot yet).** |
+| **Join sheet / room / Record stage** | Recorded guest and host | **Own** peak meter (sample peak only) with a clip indicator; a clipping badge on the own tile and the alert "You're clipping. Move back a little." during a take; the host's Takes tray jumps to the first clipped span once the take lands. Producers and the Full room Cover have none. |
+| **Record room** | Guest | Status pill (`m:ss · Take N`, `Paused · m:ss`, `Saving · N%`, `Saved`); mute (silence in the full-quality recording + send stops); a tile per person; notes rail; "Recording in full quality on this device." and **Hearing the room.** as screen-reader lines; then host timeline clips. **Shipped (no screenshot yet).** |
 | **Record stage** | Host | Start / Pause / Resume / Stop / **Land**; a status line per recorded participant and segment ("Saving to project…", then "Saved to project"). A saved file auto-lands its clips; Land retries. **Shipped (no screenshot yet).** |
-| **Record room** | Producer | Same REC/PAUSED + **Not recorded** group; mix-minus of recorded peers; no full-quality recording, no saving status. **Shipped (no screenshot yet).** |
-| **Full room** | 5th recorded or 3rd producer | Full-room copy; never `getUserMedia`. **Shipped (no screenshot yet).** |
-| **Declined** | Guest who declined while REC/PAUSED | Declined copy; host may re-invite as producer. **Shipped (no screenshot yet).** |
-| **Host offline** | Recorded guest | “Host offline: still recording locally.” The full-quality recording stays open. **Shipped with full-quality recording.** |
+| **Record room** | Producer | Same pill and tiles, listed as not recorded; mix-minus of recorded peers; no full-quality recording, no saving status. **Shipped (no screenshot yet).** |
+| **Full room** | 5th recorded or 3rd producer | Cover "The room is full" with **Try again**; never `getUserMedia`. **Shipped (no screenshot yet).** |
+| **Declined** | Guest who chose Not now | The room dims under "You're not being recorded." with **Join recording** (works while the room waits for a take); host may re-invite as producer. **Shipped (no screenshot yet).** |
+| **Host offline** | Recorded guest | Alert "{Host} dropped. You're still recording on this device." The full-quality recording stays open. **Shipped with full-quality recording.** |
 | **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the guest's full-quality recording. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
 
 Prefix `/rec/` with a review token opens the recording invalid-link cover: “This recording link is invalid or has ended. Ask the host for a new link.” A record token on `/r/` opens the review cover: “This link is invalid or has ended. Ask the host for a new link.”

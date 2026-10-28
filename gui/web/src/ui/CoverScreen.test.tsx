@@ -6,19 +6,12 @@ import { CoverScreen } from "./CoverScreen";
 describe("CoverScreen", () => {
   it("renders a heading, body, and shell classes with accessible markup", async () => {
     const { container } = render(
-      <CoverScreen
-        heading="Room full"
-        shellClassName="review-shell record-shell"
-      >
+      <CoverScreen heading="Room full" shellClassName="review-shell">
         <p>Try another room.</p>
       </CoverScreen>,
     );
 
-    expect(screen.getByRole("main")).toHaveClass(
-      "cover",
-      "review-shell",
-      "record-shell",
-    );
+    expect(screen.getByRole("main")).toHaveClass("cover", "review-shell");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Room full",
     );
