@@ -466,7 +466,7 @@
     },
     {
       "id": "daw.edit.bladeCut",
-      "label": "Blade cut",
+      "label": "Split at playhead",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -488,7 +488,7 @@
         ]
       },
       "omit": {},
-      "tooltip": "Blade cut at the playhead, or Alt-click at the pointer",
+      "tooltip": "Split at the playhead, or Alt-click at the pointer",
       "presence": {
         "cursor": "time",
         "follow": "none"
@@ -496,7 +496,7 @@
     },
     {
       "id": "daw.edit.delete",
-      "label": "Delete clip",
+      "label": "Cut selection",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 DeleteClip document command (mode gap)",
       "industry_standard_key": true,
@@ -515,7 +515,7 @@
         "cli": "podcast edit delete-clips"
       },
       "omit": {},
-      "tooltip": "Delete clip",
+      "tooltip": "Cut the selection",
       "presence": {
         "cursor": "none",
         "follow": "none"

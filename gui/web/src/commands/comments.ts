@@ -1,5 +1,8 @@
 import { useDawStore } from "../state/dawStore";
-import type { CommentDraft } from "../state/types";
+import { commentDraftFromRange } from "../comments/commentAnchor";
+import { resolveSelectionRange } from "../edit/rangeSelection";
+import { selectionSpan } from "../edit/editSelection";
+import type { CommentDraft, DawState } from "../state/types";
 import { clampToSession } from "../utils/time";
 import { buildCommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
@@ -13,6 +16,34 @@ export function openCommentDraft(draft: CommentDraft): void {
 }
 
 /**
+ * Where a comment on the selection lands: its words or range, else the span of
+ * the clip, seam or suggestion, else the playhead (C with nothing selected).
+ */
+function draftForSelection(
+  state: Pick<DawState, "project" | "selection" | "playheadSec">,
+): CommentDraft {
+  const project = state.project!;
+  const resolved = resolveSelectionRange(project, state.selection);
+  if (resolved.targets.length === 1)
+    return commentDraftFromRange(resolved.targets[0]!);
+  const span = selectionSpan(state.selection, project);
+  if (span) {
+    return {
+      startSec: clampToSession(span.start, project.timeline_duration_sec),
+      endSec:
+        span.end > span.start
+          ? clampToSession(span.end, project.timeline_duration_sec)
+          : null,
+      ...(span.trackIds.length ? { trackIds: [...span.trackIds] } : {}),
+    };
+  }
+  return {
+    startSec: clampToSession(state.playheadSec, project.timeline_duration_sec),
+    endSec: null,
+  };
+}
+
+/**
  * `comment.draftAt`: a comment anchored at `atTime` (on `trackId`, if
  * given). The touch create menu runs it (#1051).
  */
@@ -22,6 +53,11 @@ export function registerCommentCommands(): void {
     const allowed = evaluateWhen("canComment", buildCommandContext());
     if (!allowed.ok) return { status: "disabled", reason: allowed.reason };
     const { project } = useDawStore.getState();
+    if (args.atTime === undefined || args.atTime === null) {
+      if (!project) return { status: "disabled", reason: "No project loaded" };
+      openCommentDraft(draftForSelection(useDawStore.getState()));
+      return { status: "ok" };
+    }
     const raw = Number(args.atTime);
     if (!project || !Number.isFinite(raw)) {
       return { status: "disabled", reason: "atTime must be a number" };
