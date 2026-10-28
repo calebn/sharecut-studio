@@ -89,6 +89,8 @@ export type DeliverStageProps = {
   showSettings?: boolean;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
+  /** False when the host cannot save a clip's title or approval. */
+  showClipEdits?: boolean;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel?: () => void;
@@ -139,6 +141,7 @@ export function DeliverStage({
   showPlayer = true,
   showSettings = true,
   clipUndo = true,
+  showClipEdits = true,
   onChapters,
   onClips,
   onFix,
@@ -159,11 +162,11 @@ export function DeliverStage({
   const [settings, setSettings] = useState(initialSettings);
   const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
   const [clips, setClips] = useState<readonly Clip[]>(initialClips);
-  useWriteBack(chapters, onChapters);
+  const liveChapters = useWriteBack(chapters, onChapters);
   const [trimming, setTrimming] = useState(false);
   const [settled, setSettled] = useState(clips);
   if (!trimming && settled !== clips) setSettled(clips);
-  useWriteBack(settled, onClips);
+  useWriteBack(settled, onClips, clips);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -286,9 +289,10 @@ export function DeliverStage({
       chapters={chapters}
       total={total}
       state={sharedState}
-      onRetitle={(id, title) =>
-        setChapters((now) => retitleChapter(now, id, title))
-      }
+      onRetitle={(id, title) => {
+        liveChapters.current = retitleChapter(liveChapters.current, id, title);
+        setChapters(liveChapters.current);
+      }}
       onRetime={(id, at) => setChapters((now) => retimeChapter(now, id, at))}
       onPlayFrom={onPlayFrom}
       onRemove={removeChapterWithUndo}
@@ -320,6 +324,7 @@ export function DeliverStage({
       onOpenInEdit={onOpenClipInEdit}
       onFind={onFindClips}
       onTrimGesture={setTrimming}
+      editable={showClipEdits}
     />
   );
 

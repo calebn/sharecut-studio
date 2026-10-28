@@ -78,6 +78,8 @@ const CLIP = {
   review_required: false,
 };
 
+const APPROVED = { ...CLIP, approved: true };
+
 type Held = {
   chapters: { time: number; title: string }[];
   social_clips: (typeof CLIP)[];
@@ -469,25 +471,21 @@ describe("Deliver host when a refusal needs the page back", () => {
     },
     {
       name: "the project brings the clip back",
-      restore: async () => setProject(projectAt("h3")),
+      restore: async () =>
+        setProject(projectAt("h3", { social_clips: [APPROVED] })),
       mode: "up" as const,
     },
   ])(
-    "keeps a clip's title and approval when $name",
+    "brings a clip back with the project's own title and approval when $name",
     async ({ restore, mode }) => {
       network.mode = mode;
+      server.held.social_clips = [APPROVED];
+      useDawStore
+        .getState()
+        .setProject(projectAt("h1", { social_clips: [APPROVED] }));
       render(<DeliverStage />);
       await userEvent.click(
-        screen.getByRole("button", { name: "Approve A line" }),
-      );
-      fireEvent.change(
-        screen.getByRole("textbox", { name: "Title of A line" }),
-        {
-          target: { value: "Better line" },
-        },
-      );
-      await userEvent.click(
-        screen.getByRole("button", { name: "More for Better line" }),
+        screen.getByRole("button", { name: "More for A line" }),
       );
       await userEvent.click(
         await screen.findByRole("menuitem", { name: "Remove" }),
@@ -495,12 +493,62 @@ describe("Deliver host when a refusal needs the page back", () => {
       if (mode === "refusing") await screen.findByRole("alert");
       else await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
       await restore();
-      expect(
-        await screen.findByDisplayValue("Better line"),
-      ).toBeInTheDocument();
+      expect(await screen.findByText("A line")).toBeInTheDocument();
       expect(screen.getByText("Approved")).toBeInTheDocument();
     },
   );
+
+  it("shows a clip's title as text and offers no Approve", () => {
+    render(<DeliverStage />);
+    expect(screen.getByText("A line")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Title of A line" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Approve/ })).toBeNull();
+  });
+});
+
+describe("Deliver host edits still being made when the page goes away", () => {
+  const nudge = async () => {
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for A line" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Trim" }),
+    );
+    screen.getByRole("slider", { name: "Out handle of A line" }).focus();
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+    expect(wire.post).not.toHaveBeenCalled();
+  };
+
+  it("sends the trim when the stage is left", async () => {
+    const view = render(<DeliverStage />);
+    await nudge();
+    view.unmount();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()[0]?.[0]).toBe("UpdateSocialClip");
+  });
+
+  it("sends the trim once when the document changes under it", async () => {
+    render(<DeliverStage />);
+    await nudge();
+    setProject(projectAt("h2", { chapters: [INTRO] }));
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()[0]?.[0]).toBe("UpdateSocialClip");
+  });
+
+  it("sends a chapter title typed but not yet committed when the stage is left", async () => {
+    const view = render(<DeliverStage />);
+    const title = screen.getByRole("textbox", { name: "Title of Middle" });
+    await userEvent.type(title, " two");
+    expect(wire.post).not.toHaveBeenCalled();
+    view.unmount();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()[0]).toEqual([
+      "UpdateChapter",
+      { old_time: 120, old_title: "Middle", time: 120, title: "Middle two" },
+    ]);
+  });
 });
 
 describe("Deliver host clip trims", () => {
@@ -557,7 +605,7 @@ describe("Deliver host when the document changes elsewhere", () => {
           await screen.findByRole("menuitem", { name: "Remove" }),
         );
       },
-      restored: () => screen.findByDisplayValue("A line"),
+      restored: () => screen.findByText("A line"),
     },
   ])("shows the $name Undo brings back", async ({ remove, restored }) => {
     render(<DeliverStage />);
@@ -568,25 +616,6 @@ describe("Deliver host when the document changes elsewhere", () => {
     setProject(projectAt("h3"));
     expect(await restored()).toBeInTheDocument();
     expect(sent()).toHaveLength(1);
-  });
-
-  it("keeps clip titles and approvals the document does not hold", async () => {
-    render(<DeliverStage />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "Approve A line" }),
-    );
-    fireEvent.change(screen.getByRole("textbox", { name: "Title of A line" }), {
-      target: { value: "Better line" },
-    });
-    setProject(projectAt("h2", { chapters: [INTRO] }));
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Remove Middle" }),
-      ).toBeNull(),
-    );
-    expect(screen.getByDisplayValue("Better line")).toBeInTheDocument();
-    expect(screen.getByText("Approved")).toBeInTheDocument();
-    expect(wire.post).not.toHaveBeenCalled();
   });
 
   it("keeps an unsaved edit when a revision arrives during the save", async () => {
@@ -652,21 +681,6 @@ describe("Deliver host when the stage is left and opened again", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
-  it("keeps clip titles and approvals", async () => {
-    const first = render(<DeliverStage />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "Approve A line" }),
-    );
-    fireEvent.change(screen.getByRole("textbox", { name: "Title of A line" }), {
-      target: { value: "Better line" },
-    });
-    first.unmount();
-    render(<DeliverStage />);
-    expect(screen.getByDisplayValue("Better line")).toBeInTheDocument();
-    expect(screen.getByText("Approved")).toBeInTheDocument();
-    expect(wire.post).not.toHaveBeenCalled();
-  });
-
   it("keeps how far the page was scrolled", () => {
     const first = render(<DeliverStage />);
     const page = first.container.querySelector<HTMLElement>(".dv-page");
@@ -695,7 +709,7 @@ describe("Deliver host clip removal", () => {
     expect(screen.getByText("Removed A line")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
     await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
-    expect(screen.queryByDisplayValue("A line")).toBeNull();
+    expect(screen.queryByText("A line")).toBeNull();
   });
 });
 

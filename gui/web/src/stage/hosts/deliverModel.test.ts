@@ -5,8 +5,6 @@ import {
   clipsOf,
   deliverFacts,
   fixRoute,
-  pageFieldsOf,
-  withPageFields,
 } from "./deliverModel";
 
 const coldOpen = { id: "ch-0", at: 0, title: "Cold open" };
@@ -106,28 +104,6 @@ describe("clipOps", () => {
       { kind: "trim", id: "s1", start: 12, end: 38 },
       { kind: "delete", id: "s2" },
     ]);
-  });
-});
-
-describe("withPageFields", () => {
-  it("keeps the page's title and approval and the project's bounds", () => {
-    const fields = pageFieldsOf([
-      { ...lineA, title: "Better", approved: true, start: 0 },
-    ]);
-    expect(withPageFields(clips, fields)).toEqual([
-      { ...lineA, title: "Better", approved: true },
-      lineB,
-    ]);
-  });
-
-  it("leaves a clip the page never held as the project has it", () => {
-    expect(withPageFields(clips, {})).toEqual(clips);
-  });
-
-  it("remembers a clip after it leaves the page, so a restore gets it back", () => {
-    const edited = { ...lineA, title: "Better", approved: true };
-    const fields = pageFieldsOf([lineB], pageFieldsOf([edited]));
-    expect(withPageFields([lineA], fields)).toEqual([edited]);
   });
 });
 

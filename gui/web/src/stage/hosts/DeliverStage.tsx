@@ -44,10 +44,8 @@ import {
   deliverFacts,
   type FixRoute,
   fixRoute,
-  pageFieldsOf,
   sameChapters,
   sameClipBounds,
-  withPageFields,
 } from "./deliverModel";
 import { HostBody } from "./HostBody";
 import { hostStateOf } from "./hostModels";
@@ -111,14 +109,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const seedKey = `${state === "ready"}|${draft.epoch}`;
   const docChapters = project?.chapters;
   const docClips = project?.social_clips;
-  const fields = draft.fields;
   const seed = useMemo(
     () => ({
       key: seedKey,
       chapters: chaptersOf(docChapters ?? []),
-      clips: withPageFields(clipsOf(docClips ?? []), fields),
+      clips: clipsOf(docClips ?? []),
     }),
-    [seedKey, docChapters, docClips, fields],
+    [seedKey, docChapters, docClips],
   );
   const page = draft.page?.key === seedKey ? draft.page : seed;
   const refused = offline.conflicts.filter(
@@ -154,10 +151,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 
   const commit = (patch: Partial<Pick<DeliverPage, "chapters" | "clips">>) => {
     if (projectPath)
-      patchDeliverDraft(projectPath, (d) => ({
-        page: { ...page, ...patch },
-        fields: patch.clips ? pageFieldsOf(patch.clips, d.fields) : d.fields,
-      }));
+      patchDeliverDraft(projectPath, () => ({ page: { ...page, ...patch } }));
   };
   const onChapters = (next: readonly Chapter[]) => {
     if (!projectPath) return;
@@ -171,6 +165,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     if (!projectPath) return;
     const ops = clipOps(page.clips, next);
     commit({ clips: [...next] });
+    if (ops.length === 0) return;
     sendDeliverEdit(projectPath, async (path) => {
       for (const op of ops) await saveClipOp(path, op);
     });
@@ -260,6 +255,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           showPlayer={false}
           showSettings={false}
           clipUndo={false}
+          showClipEdits={false}
           onChapters={onChapters}
           onClips={onClips}
           onFix={(stage, target) => runFix(fixRoute(stage, target))}

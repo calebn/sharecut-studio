@@ -134,24 +134,3 @@ export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
     )
   );
 }
-
-export type PageFields = Readonly<
-  Record<string, Pick<Clip, "title" | "approved">>
->;
-
-export function pageFieldsOf(
-  clips: readonly Clip[],
-  into: PageFields = {},
-): PageFields {
-  const fields = { ...into };
-  for (const c of clips)
-    fields[c.id] = { title: c.title, approved: c.approved };
-  return fields;
-}
-
-export function withPageFields(
-  clips: readonly Clip[],
-  fields: PageFields,
-): Clip[] {
-  return clips.map((c) => ({ ...c, ...fields[c.id] }));
-}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Skeleton } from "../../system/Skeleton";
 import { SystemIcon } from "../../system/SystemIcon";
 import { TimeField } from "../../system/TimeField";
@@ -43,6 +43,8 @@ function ChapterTitle({
   const commit = () => {
     if (text !== title) onCommit(text);
   };
+  const leave = useEffectEvent(commit);
+  useEffect(() => () => leave(), []);
   return (
     <form
       className="dv-chapter-form"
