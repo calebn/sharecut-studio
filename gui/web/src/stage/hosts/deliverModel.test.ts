@@ -140,7 +140,7 @@ describe("fixRoute", () => {
     [
       "review",
       "suggestions",
-      { kind: "stage", stage: "review", section: "impact" },
+      { kind: "stage", stage: "review", section: "queue" },
     ],
     [
       "review",
