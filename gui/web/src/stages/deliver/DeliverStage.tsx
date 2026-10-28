@@ -84,6 +84,8 @@ export type DeliverStageProps = {
   onClips?: (clips: readonly Clip[]) => void;
   /** Without it the Listen link section is not shown. */
   showLink?: boolean;
+  /** False when the app frame already carries the Player bar. */
+  showPlayer?: boolean;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel: () => void;
@@ -127,6 +129,7 @@ export function DeliverStage({
   guest = false,
   toastMs = 6000,
   showLink = true,
+  showPlayer = true,
   onSettings,
   onChapters,
   onClips,
@@ -386,13 +389,15 @@ export function DeliverStage({
           onUndo={undo ?? undefined}
           onDismiss={() => setToast(null)}
         />
-        <Player
-          form="bar"
-          playing={playing}
-          time={clock.time}
-          total={clock.total}
-          onPlayPause={() => setPlaying(!playing)}
-        />
+        {showPlayer ? (
+          <Player
+            form="bar"
+            playing={playing}
+            time={clock.time}
+            total={clock.total}
+            onPlayPause={() => setPlaying(!playing)}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -251,6 +251,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         pinnedTo="the latest export"
         layout={shell === "phone" ? "phone" : "desktop"}
         showLink={false}
+        showPlayer={false}
         onChapters={onChapters}
         onClips={onClips}
         onFix={(stage, target) => {

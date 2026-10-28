@@ -1288,6 +1288,11 @@ describe("the error cover without a retry", () => {
 });
 
 describe("the toast and the Player", () => {
+  it("leaves the Player to the app frame when asked", () => {
+    setup({ showPlayer: false });
+    expect(screen.queryByRole("group", { name: "Player" })).toBeNull();
+  });
+
   it("keeps the Undo toast for the time the host asked for", () => {
     vi.useFakeTimers();
     try {
