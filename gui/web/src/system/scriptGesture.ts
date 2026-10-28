@@ -5,13 +5,13 @@ import {
 } from "../hooks/gestureConstants";
 
 /** Who made the selection. A key is a gesture too, so the host reads one vocabulary. */
-export type ScriptGestureSource = "mouse" | "pen" | "touch" | "keyboard";
+type ScriptGestureSource = "mouse" | "pen" | "touch" | "keyboard";
 
 /**
  * What the selection is for. `drag` is a press that moved, `extend` the same
  * with Shift held (the anchor stays), `hold` a touch long press.
  */
-export type ScriptGestureIntent = "drag" | "extend" | "hold";
+type ScriptGestureIntent = "drag" | "extend" | "hold";
 
 /** The flags every selection callback carries after its ids. `mod` is Ctrl or Cmd. */
 export type ScriptGesture = {
@@ -44,15 +44,10 @@ export const pressSlop = (kind: PressKind): number =>
   kind === "touch" ? TOUCH_SLOP_PX : MOVE_THRESHOLD_PX;
 
 /** A drag within this many px of the body's top or bottom edge scrolls it. */
-export const EDGE_BAND_PX = 56;
+const EDGE_BAND_PX = 56;
 const EDGE_STEP_PX = 14;
 
-/**
- * The px to scroll one frame while a drag is near an edge: negative up,
- * positive down, zero in the middle. The nearer the pointer is to the edge
- * (or past it), the faster, up to 14 px a frame. The band is a quarter of a
- * short body at most, so a small pane still has a middle.
- */
+/** The px to scroll one frame near an edge: negative up, positive down, faster the nearer the edge. The band is at most a quarter of the body so a short pane keeps a middle. */
 export function edgeScrollDelta(
   y: number,
   top: number,

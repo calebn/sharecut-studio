@@ -92,12 +92,12 @@ export type ScriptPaneHandle = {
  * runs and margin controls: the arrows, Home and End (alone, with Shift, and
  * Alt+Shift+Left or Right), Enter, F2 on a word when `onFixText` is given, and
  * Esc when something is selected and `onClearSelection` is given, or while a
- * drag runs. Typing is never one of them: every letter reaches the keymap. It calls `preventDefault()` and
- * `stopPropagation()` on them, so the window keymap never sees them: no
- * playhead nudge on an arrow, no Home to the start, no second Esc. Every other
- * key, and any chord with Ctrl or Cmd, reaches the keymap untouched. The host
- * must not rebind a key in that list for a script-focused context; when the
- * list changes, the keymap rows stay as they are.
+ * drag runs. It calls `preventDefault()` and `stopPropagation()` on them, so
+ * the window keymap never sees them: no playhead nudge on an arrow, no Home to
+ * the start, no second Esc. Every other key, typing included, and any chord
+ * with Ctrl or Cmd, reaches the keymap untouched. The host must not rebind a
+ * key in that list for a script-focused context; when the list changes, the
+ * keymap rows stay as they are.
  *
  * Pointer gestures (design-system element 14, `useScriptGestures`). The body
  * owns the browser's text selection (off) and the pointer: a mouse drag, a
@@ -328,7 +328,6 @@ function placeHandles(
     y: r.top - origin.top + body.scrollTop,
     height: r.height,
   });
-  // A right-to-left line starts at its right edge and ends at its left.
   const rtl = (el: HTMLElement) => getComputedStyle(el).direction === "rtl";
   return {
     start: at(first, rtl(startEl) ? first.right : first.left),
@@ -783,7 +782,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           caretRef.current = index;
           now.props.onCaret?.(index);
           now.props.onSeek?.(index);
-          // A click selects the word at once; it never waits for a second click.
           now.props.onSelect?.({ kind: "words", anchor: index, head: index });
           const at = Date.now();
           const touch = gestures.lastKind.current === "touch";
