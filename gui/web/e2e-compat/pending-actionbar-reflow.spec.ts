@@ -14,7 +14,7 @@ import {
   suggestOnFirstDialogueTrack,
 } from "../e2e/pendingActionbar";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 
 const CLIENT_ID = "e2e-actionbar-reflow";
 const REFINE_GATE =
@@ -169,6 +169,7 @@ test("pending review: the inspector's inline Approve and Reject stay reachable a
   await page.setViewportSize({ width: 1280, height: 260 });
   await settle(page);
   await expect(page.locator(".pending-actionbar")).toBeHidden();
+  await inspectSelectionByKey(page);
 
   const inspector = page.locator(".modifier-inspector");
   for (const name of ["Approve", "Reject"]) {

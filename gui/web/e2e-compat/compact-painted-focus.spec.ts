@@ -8,7 +8,11 @@ import { test } from "../e2e/interactionEvidence";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
-import { closeTools, openToolsIfFolded } from "../e2e/stageNav";
+import {
+  closeTools,
+  inspectSelection,
+  openToolsIfFolded,
+} from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 import { json } from "../e2e/touchTimeline";
 
@@ -56,6 +60,7 @@ for (const { cell: width, theme } of withAppearance([667, 844])) {
           await page.locator("html").evaluate((html) => {
             html.style.fontSize = "32px";
           });
+          await inspectSelection(page);
           const panel = page.locator(".bottom-sheet--compact");
           await expect(panel).toBeVisible();
           for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {

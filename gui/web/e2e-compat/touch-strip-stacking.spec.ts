@@ -8,7 +8,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelection, openProject } from "../e2e/stageNav";
 import {
   buildFixture,
   type CaseFixtures,
@@ -114,6 +114,7 @@ async function noRowOverStrip(
   );
   await page.waitForTimeout(60);
   await finger.up();
+  await inspectSelection(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   await page.waitForTimeout(600);
   await shot("1-strip");

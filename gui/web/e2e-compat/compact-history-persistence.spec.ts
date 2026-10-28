@@ -17,6 +17,7 @@ import {
   exposeControl,
 } from "../e2e/inspectorResponsiveEvidence";
 import type { InteractionReceipt } from "../e2e/interactionEvidence";
+import { inspectSelection } from "../e2e/stageNav";
 import { withAppearance } from "../e2e/theme";
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
 
@@ -236,6 +237,7 @@ async function undoStaysReachable(
   await finger.down(at);
   await page.waitForTimeout(60);
   await finger.up();
+  await inspectSelection(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   await page.evaluate((px) => {
     document.documentElement.style.fontSize = `${px}px`;

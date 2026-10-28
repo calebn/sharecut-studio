@@ -4,6 +4,7 @@ import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import {
+  inspectSelection,
   openProject,
   openProjectMenu,
   type Panel,
@@ -204,6 +205,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         await page
           .getByRole("button", { name: `Chapter ${title}`, exact: true })
           .click();
+        await inspectSelection(page);
         const inspector = page.locator(".modifier-inspector");
         await expect(
           inspector.getByRole("heading", { name: title, exact: true }),

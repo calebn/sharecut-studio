@@ -18,7 +18,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import {
@@ -182,6 +182,7 @@ async function tapTarget(
   await page.waitForTimeout(60);
   await finger.up();
   await page.waitForTimeout(700);
+  await inspectSelectionByKey(page);
 }
 
 /**
@@ -369,6 +370,7 @@ async function chipCase(
   await run(page, finger, (step) =>
     frame(page, info, `chip-${slug}-${browserName}-${step}`),
   );
+  await inspectSelectionByKey(page);
   const row = {
     case: name,
     input: finger.input,

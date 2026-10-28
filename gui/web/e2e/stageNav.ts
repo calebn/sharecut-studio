@@ -521,10 +521,13 @@ export async function collapsePlayer(page: Page): Promise<void> {
 }
 
 export async function inspectSelection(page: Page): Promise<void> {
-  await page
+  const inspect = page
     .getByRole("group", { name: /^(Selection|Edit) actions$/ })
-    .getByRole("button", { name: "Inspect", exact: true })
-    .click();
+    .getByRole("button", { name: "Inspect", exact: true });
+  const folded = await openToolsIfFolded(page, inspect);
+  await inspect.click();
+  if (folded)
+    await expect(page.getByRole("dialog", { name: "Tools" })).toBeHidden();
 }
 
 /** Inspect by its key, for a selection whose bar a pending card covers. */
