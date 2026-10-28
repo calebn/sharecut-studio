@@ -268,6 +268,18 @@ Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, and other step
 
 The default has been `--strict` since #628; it was opt-in before because of the false QC failures fixed in #621. It exits 1 when this run exported and the QC verdict is not ok; it prints `Export QC is not ok; exiting 1 (pass --no-strict to exit 0).` to stderr. `--no-strict` prints the same report and exits 0. A run that never reached `export_deliverables` always passes, so partial runs such as `--only ingest_tracks` in scripts need no flag. A QC file left over from an earlier run is never read.
 
+## Preview edit count
+
+`podcast render-preview` and MCP `render_preview` return `edit_count` as the
+number of records currently in `editorial.edit_log`, matching `podcast info`'s
+`applied_edits`. This includes archived decisions and direct timeline operations.
+Decision rows still in `edit_decisions` do not contribute, regardless of their
+`applied` flag. Undo and redo restore this count with editorial state.
+
+The count has the same meaning with `rerender=false` and when no premix exists.
+It describes the project's applied records, not the freshness of the audio file
+or the number of user actions.
+
 ## Edits during a run
 
 Completed steps commit progress even when they make no editable change. History comparison excludes the pipeline cursor, so disabled focus/tighten and music-free mixing reuse the current snapshot. A run adds a starting snapshot only when needed, then one per changed editable state.
