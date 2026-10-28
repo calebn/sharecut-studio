@@ -10,11 +10,17 @@ from podcast_mcp.engines.audio_audit import (
     has_active_chain,
 )
 from podcast_mcp.engines.level_profile import LevelProfile
-from podcast_mcp.engines.play_audit import stem_is_fresh
+from podcast_mcp.engines.play_audit import (
+    read_stem_hash,
+    stem_is_fresh,
+    stem_path,
+    track_render_hash,
+)
 from podcast_mcp.engines.windowed_rms import TimelineWindow
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.hashing import short_digest
+from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -58,56 +64,60 @@ class BatchBase:
     batch applied a cut reports the base profile of each track, in place of one measured from
     its own, shorter samples, so a verdict does not depend on which other cuts of the batch
     were applied before it, and a check on carried caches reads the same profile as one on
-    rebuilt caches. The verdict key carries a digest of the profiles (``stamp``), so the first
-    key of a batch builds the start's caches, also when every check then reuses a stored
-    verdict; the first check made on ``start`` reuses that build.
+    rebuilt caches. The verdict key carries ``stamp``, a digest of the inputs of those profiles
+    that builds no audio, so a batch whose checks all reuse a stored verdict builds nothing.
     """
 
     def __init__(self, start: EpisodeProject) -> None:
         self._start = start
         self._profiles: dict[str, LevelProfile] | None = None
-        self._start_set: TrackRmsCacheSet | None = None
+        self._stamp: str | None = None
 
     def profiles(
-        self,
-        project: EpisodeProject,
-        built: TrackRmsCacheSet | None,
-        *,
-        defaults: EffectiveConfig,
+        self, project: EpisodeProject, built: TrackRmsCacheSet, *, defaults: EffectiveConfig
     ) -> dict[str, LevelProfile]:
-        """The base profiles; ``built``, a set made from ``project``, is the source if the start."""
+        """The base profiles; ``built`` is a set made from ``project``, which they come from if it is the start."""
         if self._profiles is None:
-            if built is not None and project is self._start:
-                self._start_set = built
-            source = self.built_for(self._start, defaults=defaults)
+            source = (
+                built
+                if project is self._start
+                else shared_timeline_rms_caches(self._start, defaults=defaults)
+            )
             self._profiles = {tid: cache.profile for tid, cache in source.caches.items()}
         return self._profiles
 
-    def built_for(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> TrackRmsCacheSet:
-        """The timeline caches of ``project``; for the start, the one the stamp or a check built."""
-        if project is not self._start:
-            return shared_timeline_rms_caches(project, defaults=defaults)
-        if self._start_set is None:
-            self._start_set = shared_timeline_rms_caches(project, defaults=defaults)
-        return self._start_set
-
     def stamp(self, *, defaults: EffectiveConfig) -> str:
-        """A digest of the base profiles, for the verdict key (``verdict_cache``).
+        """A digest of what determines each track's base profile, for the verdict key.
 
-        Every value a check reads of a profile is derived from its room, speech and loud
-        levels, so those are hashed at full precision (``repr``): two bases that differ in any
-        bit differ in the stamp, and two that are equal give the same one. Asking for it builds
-        the start's timeline caches if no check has yet, once per batch.
+        It decodes and builds no audio. A track's timeline samples, and so its profile, are a
+        function of its clips (placement, fades, joins, mute regions, ignored words), the recording
+        files they read (path and revision), its volume envelope, effects chain and gate, and, when
+        its stem is fresh, the stem file. ``track_render_hash`` fingerprints the first group, as it
+        does for the stem's freshness, and the stem's file revision and hash sidecar cover the
+        rest. Equal digests are equal inputs, so equal profiles; a change to any input, such as a
+        mute on the track, changes the digest. It covers more than the profile reads (gain,
+        chain parameters), which can cost a hit and never a wrong one. The measuring code is
+        versioned by ``verdict_cache.SEMANTICS``.
         """
-        profiles = self.profiles(self._start, None, defaults=defaults)
-        return short_digest(
-            repr(
-                [
-                    (tid, repr(p.room_db), repr(p.speech_db), repr(p.loud_db))
-                    for tid, p in sorted(profiles.items())
-                ]
+        if self._stamp is not None:
+            return self._stamp
+        parts = []
+        for tid in sorted(dialogue_track_ids(self._start)):
+            stem = stem_path(self._start, tid)
+            try:
+                revision = repr(file_revision(stem)) if stem.is_file() else None
+            except OSError:
+                revision = None
+            parts.append(
+                (
+                    tid,
+                    track_render_hash(self._start, tid, defaults=defaults),
+                    revision,
+                    read_stem_hash(self._start, tid),
+                )
             )
-        )
+        self._stamp = short_digest(repr(parts))
+        return self._stamp
 
     def adopt(
         self, project: EpisodeProject, built: TrackRmsCacheSet, *, defaults: EffectiveConfig
@@ -146,7 +156,7 @@ class RebuiltTimelineRms:
 
     def whole(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> TrackRmsCacheSet:
         return self.base.adopt(
-            project, self.base.built_for(project, defaults=defaults), defaults=defaults
+            project, shared_timeline_rms_caches(project, defaults=defaults), defaults=defaults
         )
 
 
@@ -225,7 +235,7 @@ class CarriedTimelineRms:
         self, project: EpisodeProject, fresh: tuple[bool, ...], defaults: EffectiveConfig
     ) -> TrackRmsCacheSet:
         self._caches = self.base.adopt(
-            project, self.base.built_for(project, defaults=defaults), defaults=defaults
+            project, shared_timeline_rms_caches(project, defaults=defaults), defaults=defaults
         )
         self._intact_before = math.inf
         self._stems_fresh = fresh

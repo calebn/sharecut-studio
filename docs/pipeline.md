@@ -665,13 +665,16 @@ the auto-apply alike. A verdict therefore does not depend on which other cuts of
 applied first. The key carries two things for this: a `semantics` constant
 (`verdict_cache.SEMANTICS`), which only separates entries within one process (the store is in
 memory, so it matters when the constant changes under a running process, as in tests), and
-`base_profile`, a digest of each dialogue track's base room, speech and loud levels at full
-precision (`BatchBase.stamp`; the warm, the approve and the auto-apply all take it from their
-batch's `BatchBase`). Equal bases give equal digests, so an unchanged project keeps every hit; a
-base that differs in any bit does not. That is what makes the idle warm and the approve differ when
-pending mutes apply first: approve's base has the mutes applied and the warm's does not, so the
-warm's entries are not reused there. The stamp needs the start's timeline audio, which a batch
-whose checks all hit would otherwise not build, so asking for it builds that once per batch.
+`base_profile`, a digest of what determines each dialogue track's base profile
+(`BatchBase.stamp`; the warm, the approve and the auto-apply all take it from their batch's
+`BatchBase`). It is `track_render_hash` of the track (its clips with placement, fades, joins and
+mute regions, the recordings' paths and file revisions, envelope, chain and gate), plus the
+stem's file revision and hash sidecar. It decodes and builds no audio, so a batch whose checks
+all hit builds nothing. The same inputs give the same digest, so an unchanged project keeps every
+hit. Any change to a track's clips or files, such as a mute, a fade or a re-recorded file, changes
+it, even where the profile would not move; that costs a hit and never a wrong verdict. This is
+why the idle warm and the approve differ when pending mutes apply first: approve's base has the
+mutes applied and the warm's does not, so the warm's entries are not reused there.
 `PODCAST_VERDICT_VERIFY=1` also runs the full check on every hit and fails if it differs; the
 approve and cut tests pass in that mode except nine that count checks (named in
 `tests/conftest.py`) and the cache's own tests in `tests/test_verdict_cache.py`,

@@ -120,8 +120,6 @@ from podcast_mcp.project.merge import adopt_project_state
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
-from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -603,16 +601,14 @@ def _base_profile_stamp(
     """The batch-base profile digest a check's verdict key carries; ``None`` if not measurable.
 
     Every batch (approve, the idle warm, the auto-apply) asks its own ``BatchBase``; a check
-    with no batch is a batch of one, whose base is ``project`` itself. The stamp runs the
-    whole-track build on a path that may then reuse a stored verdict, so it tolerates what that
-    build tolerates for a track (``audio_audit``: ``OSError``, ``CalledProcessError``,
-    ``NoAudioDecodedError``, ``ValueError``) and what a key tolerates (``KeyError``). With no key
-    the check runs in full, and meets any other failure of the build where it always did.
+    with no batch is a batch of one, whose base is ``project`` itself. The stamp reads the
+    project and file stats and builds no audio; it tolerates what a key tolerates, and with no
+    key the check runs in full.
     """
     base = timeline.base if timeline is not None else BatchBase(project)
     try:
         return base.stamp(defaults=defaults)
-    except (OSError, ValueError, KeyError, CalledProcessError, NoAudioDecodedError):
+    except (OSError, ValueError, KeyError):
         return None
 
 
