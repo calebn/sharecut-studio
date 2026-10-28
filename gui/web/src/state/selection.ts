@@ -164,7 +164,9 @@ export function tracksSelection(trackIds: readonly string[]): Selection {
 /**
  * What the Inspector is open for. A word or timeline range keeps one key as its
  * edges move (the Inspector's own In and Out fields reshape it); every other
- * kind is its object, so selecting another one shuts the Inspector.
+ * kind is its object, so selecting another one shuts the Inspector. A track and
+ * its volume envelope and points are one object here: entering the envelope
+ * from the track's Inspector keeps it open.
  */
 export function inspectKeyOf(selection: Selection): string | null {
   if (selection === null) return null;
@@ -180,11 +182,9 @@ export function inspectKeyOf(selection: Selection): string | null {
     case "comment":
       return `${selection.kind}:${selection.id}`;
     case "track":
-      return `track:${selection.trackId}`;
     case "envelope":
-      return `envelope:${selection.trackId}`;
     case "envelopePoint":
-      return `envelopePoint:${selection.trackId}:${selection.pointId}`;
+      return `track:${selection.trackId}`;
     case "bleedAttenuation":
       return `bleedAttenuation:${selection.trackId}:${selection.id}`;
     default: {

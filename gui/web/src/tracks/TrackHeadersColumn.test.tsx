@@ -157,6 +157,25 @@ describe("TrackHeadersColumn deselect well", () => {
       "guest",
     ]);
   });
+
+  it("opens the track's details when its header is pressed, but not when it is added to a selection", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TrackHeadersColumn />
+      </DawProvider>,
+    );
+    await user.keyboard("{Shift>}");
+    await user.click(
+      screen.getByRole("button", { name: /Open track details, Host/i }),
+    );
+    await user.keyboard("{/Shift}");
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: /Open track details, Guest/i }),
+    );
+    expect(useDawStore.getState().inspectorKey).toBe("track:guest");
+  });
 });
 
 describe("TrackHeadersColumn Solo on chip", () => {

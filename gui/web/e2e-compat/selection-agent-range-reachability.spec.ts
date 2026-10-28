@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "../e2e/overlayReachability";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
+import { inspectSelection } from "../e2e/stageNav";
 
 async function sendSessionCommand(
   page: Page,
@@ -101,6 +102,7 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
     };
   });
   await page.touchscreen.tap(point.x, point.y);
+  await inspectSelection(page);
 
   const sheet = page.locator(".bottom-sheet--inspector");
   await expect(sheet).toBeVisible();
@@ -125,10 +127,9 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
     .getByRole("button", { name: "Use agent range on selected tracks" })
     .click();
 
-  const adoptedRange = sheet
-    .getByRole("region", { name: "Range fields" })
-    .getByText(/4\.00–9\.00 s/);
-  await expect(adoptedRange).toHaveText("4.00–9.00 s · reference");
+  const adopted = sheet.getByRole("region", { name: "Range fields" });
+  await expect(adopted.getByLabel("In")).toHaveValue("4");
+  await expect(adopted.getByLabel("Out")).toHaveValue("9");
 });
 
 test("a zero-start agent range arriving at the short-tablet column stays reachable", async ({
@@ -147,6 +148,7 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
     };
   });
   await page.touchscreen.tap(point.x, point.y);
+  await inspectSelection(page);
 
   const sheet = page.locator(".bottom-sheet--column");
   await expect(sheet).toBeVisible();
@@ -180,11 +182,9 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
   await actions
     .getByRole("button", { name: "Use agent range on selected tracks" })
     .click();
-  await expect(
-    sheet
-      .getByRole("region", { name: "Range fields" })
-      .getByText(/0\.00–2\.00 s/),
-  ).toHaveText("0.00–2.00 s · guest");
+  const adopted = sheet.getByRole("region", { name: "Range fields" });
+  await expect(adopted.getByLabel("In")).toHaveValue("0");
+  await expect(adopted.getByLabel("Out")).toHaveValue("2");
 });
 
 test("a tablet track sheet owns the agent range controls", async ({ page }) => {
@@ -235,6 +235,7 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
     };
   });
   await page.touchscreen.tap(point.x, point.y);
+  await inspectSelection(page);
 
   const sheet = page.locator(".bottom-sheet--column");
   await expect(sheet).toBeVisible();

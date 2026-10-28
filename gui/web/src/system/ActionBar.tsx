@@ -21,6 +21,8 @@ export type ActionBarPlacement =
       readonly anchorRef: RefObject<HTMLElement | null>;
       /** A value that moves the anchor without a scroll or resize. */
       readonly moves?: unknown;
+      /** The side tried first; above unless the selection sits under chrome (the Edit ruler). */
+      readonly prefer?: "above" | "below";
     }
   | { readonly form: "dock" }
   | { readonly form: "inline" };
@@ -373,7 +375,7 @@ function Floating({
       reason: "The Action bar floats beside its selection",
       ref: placement.anchorRef,
       moves: placement.moves,
-      prefer: "above",
+      prefer: placement.prefer ?? "above",
     },
     true,
   );
