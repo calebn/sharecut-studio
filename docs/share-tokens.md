@@ -430,7 +430,7 @@ An Editor is trusted to approve: approving applies an edit. The host can
 undo every change an Editor makes (applied cut or mute, approval,
 rejection, retime) with one History Undo each.
 
-One exception to that trust (owner, 2026-10-28): an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Guests see the `unsure` flag on words they receive but cannot mark the transcript checked (the host-only route, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
+One exception to that trust: an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Guests see the `unsure` flag on words they receive but cannot mark the transcript checked (the host-only route, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
 
 The document-command gate (`authorize_document_command` plus
 `policy.resolve_range_mode`, `policy.may_decide_exact_range` and
