@@ -417,6 +417,7 @@ with axe before the collected results are asserted.
 | a track with an envelope and an effect chain keeps every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending-edit and transcript-word sheet bodies keep every control reachable | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Pipeline native targets stay clear in the Pipeline panel | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Pipeline retains a scrolled focused control across viewport resizes | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Pipeline keeps an oversized native control targetable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Pipeline native flow keeps phone and coarse-pointer targets usable | `gui/web/e2e-compat/pipeline-toolbar-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -467,6 +468,7 @@ with axe before the collected results are asserted.
 | the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 32px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the Cut button of the blade confirmation can be tapped at 32px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a held nudge repeats, saves once, and one Undo restores it | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | a held nudge stops at a soft boundary with a cue; a fresh press goes past | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | pending and envelope strips: nudge rows and targets (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
