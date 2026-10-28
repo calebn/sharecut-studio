@@ -112,7 +112,7 @@ to UX partners; for UI copy, this table wins.
 | Add comment | The one name, in the create menu and the command catalog (`comment.draftAt`), for starting a comment draft at a held time, as "Add chapter" and "Add envelope point" name their siblings | "Comment here" |
 | Comment field | The always-visible field and **Post comment** button for anyone who can comment: docked above the phone mode bar in Listen, at the top of the Comments tab elsewhere. It needs no mode first, and Post enables once it has text | "Comment mode" for the field; "composer" in UI copy |
 | Comment time | Where a new comment lands, shown as the "at 0:12" chip beside **Post comment**: the time picked on the ruler or chip, else the selected range, else the playhead. Pressing the chip changes it; a range keeps its range. A time it cannot use stays as it was, with one line beside the chip: "End must be after start" or "Try 0:42 or 0:20–0:30". When the comment's time is not the selected range, the chip says "Selection is 0:04–0:09" so the Inspector's range is not mistaken for it | "anchor" in UI copy; "Click the ruler" instructions |
-| Select tool, Blade tool, Toggle comment mode | The three pointer tools by their command names, on a button, in the Menu, in the command palette and in the capabilities page. A compact button may show a short form only when the command declares one (`shortLabel`); every other word on a command's control is its catalog label or a declared variant, and a test walks them | "Select", "Blade", "Comment" for the tool buttons; "Cut at playhead" for Blade cut |
+| Blade cut, Select a range | The split and range commands by their command names, on a button, in the Menu, in the command palette and in the capabilities page (the Select, Blade and Comment pointer tools were removed in #2294). A compact button may show a short form only when the command declares one (`shortLabel`); every other word on a command's control is its catalog label or a declared variant, and a test walks them | "Tool", "Blade tool", "Comment mode"; "Cut at playhead" for Blade cut |
 | Needs attention | The banner for edits waiting to send, conflicts and an unreadable queue. One string (`NEEDS_ATTENTION`) is the visible heading, the start of the region name and the start of the details control's name, so what a person reads is what a screen reader announces | "Attention", "View attention details" |
 | Status sentences | The status row and the Activity chip read as sentences: "Mix finished", "Transcript failed", "Pipeline is running", "2 pending edits". A failed job adds its message after the sentence only as the host wrote it, with environment names, paths and ids replaced by the next step (`plainError`); a cancelled job adds nothing | "Pipeline: error", "Pending: 2", raw refusal text on a chip |
 | Ripple | The edit mode that closes or opens time on every dialogue track, so speakers stay in sync. It is the word on the clip inspector's **Ripple delete** button and the Edit menu's Ripple delete, with the line "Delete leaves a gap. Ripple delete closes it on every dialogue track." under the pair. Its icon mark is a wave, drawn beside the word on a trim drag's readout and the touch peek strip | "ripple trim mode", "shift", "shuffle", "magnetic" |
@@ -230,7 +230,7 @@ choice; phone and tablet keep their existing editing rail and compact inspector.
   [gui-mobile.md](gui-mobile.md), never by omission. (Surfaces 3, 4, 5.)
 - **Frequent actions have a direct control.** Menus are shortcuts, not
   the only path, for frequent actions: those belong in the main UI,
-  such as the Edit tool strip or the bottom zone. Infrequent actions may live
+  such as the Edit corner or the bottom zone. Infrequent actions may live
   only in More or the overflow menu, as long as that path exists on
   every shell. (Surfaces 3, 5 — Apple HIG.)
 - **Defaults are opt-in (least privilege).** A control that mints
@@ -270,7 +270,7 @@ the empty state, not a separate discovery task.
   did, so nothing changes behind the question. #1027
   and #1031 replaced every native dialog, and oxlint's `no-alert` rule
   rejects new ones (see Governance). The
-  blade-cut confirm sheet in `EditToolStrip` (named target, time,
+  blade-cut confirm sheet (`edit.bladeCut`) (named target, time,
   Cancel safe-left, action right) is the model. Inside an open
   `Dialog`, confirm in place with `ui/InlineConfirm` instead of
   stacking a second dialog: the row swaps its actions for the
@@ -693,7 +693,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-13 Hung boundary load (#1314). The dialog now offers **Try again**
   beside that message instead of only Close.
 - 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sat in
-  the phone and tablet tool rail (now the Edit tool strip); Impact's Approve all and Reject all ask first
+  the phone and tablet tool rail (gone since #2294); Impact's Approve all and Reject all ask first
   with counts and answer with one toast Undo; the tablet lane header's M and S
   reach the 44 px target on touch. Track lock stays out of scope: it was a
   product gap, not an established violation.

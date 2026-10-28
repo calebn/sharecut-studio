@@ -350,10 +350,10 @@ with axe before the collected results are asserted.
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | actual sheet controls and help copy work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways keeps two whole compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a phone in portrait keeps Undo and Redo in the header, the tools on one row and four whole lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a 360px phone keeps the tools, Zoom, Undo and Redo whole and in reach, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an iPad Air 1180 wide in landscape keeps Select, Blade, Select range and the add-track button on the tool strip | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an iPad Pro 11 1194 wide in landscape keeps Select, Blade, Select range and the add-track button on the tool strip (#1674) | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a phone in portrait keeps Undo and Redo in the header, the corner controls on one row and four whole lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a 360px phone keeps the range toggle, Zoom, Undo and Redo whole and in reach, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an iPad Air 1180 wide in landscape keeps Select range in the corner and the add-track button | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an iPad Pro 11 1194 wide in landscape keeps Select range in the corner and the add-track button (#1674) | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: the edited lane stays above the sheet and Add point and Done are in reach | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: the form, Save and Cancel are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430: Add point, Save and Cancel run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -385,7 +385,7 @@ with axe before the collected results are asserted.
 | 914x331 with a failed save and the envelope sheet open: the save state stays and the sheet rests on the Player | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a soloed track keeps Clear solo tappable at the top of the timeline at 914x331 while the envelope sheet is open | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | fresh short landscape exposes both tracks and keeps their Mute and Solo reachable | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the tool strip leaves its targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the corner controls leave their targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a native guest Mute center tap stays at scrollTop zero while acknowledgment is pending | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | with Safari's chrome collapsed the column stops above the Player, not over the focused field | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a clip's Inspector is a column beside a whole timeline, and Close returns the shell | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |

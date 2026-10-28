@@ -109,7 +109,7 @@ Specs reach the app's chrome only through `gui/web/e2e/stageNav.ts`, so a
 chrome change touches one file instead of fifty specs (#2292). Each helper says
 what the spec wants and none of them names the chrome that gets there. They
 drive the stage frame: the Stage bar in the App header (the tab bar on a phone),
-the Project menu, the Edit stage's eye sheet and tool strip, and the Player's
+the Project menu, the Edit stage's eye sheet and corner, and the Player's
 hear menu and expanded form.
 
 | Helper | Does |
@@ -120,7 +120,7 @@ hear menu and expanded form.
 | `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
 | `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Export, Bounce, Record, palette, gestures), through the menu, header or palette as each lives |
 | `openViewSheet`, `setLayer`, `stepTrackHeight` | The Edit corner's eye sheet (layers, track height) |
-| `selectTool`, `armRange`, `armCommentMode`, `addTrack` | The Edit tool strip and the "+" menu |
+| `altClickSplit`, `runPaletteCommand`, `armRange`, `addTrack` | Alt-click on a lane, the command palette, the touch corner's Select range toggle and the "+" menu |
 | `setAudition(page, mode)` | The Player hear menu: Full mix, Without mix processing, Original |
 | `expandPlayer`, `collapsePlayer` | The phone Player's expanded form with skip buttons |
 
@@ -350,8 +350,7 @@ selects scenes for validity debugging; a selected scene does not establish
 whole-issue coverage. `--trace --scene cold-waveform` retains a separate Chrome
 diagnostic trace. It uses diagnostic sample phases excluded from primary timing budgets.
 The original `large-project.spec.ts` remains the wheel/zoom/ruler-seek and
-extended editor/memory protocol. In Comment mode, ruler dragging anchors a
-comment range. In the ordinary mode, the ruler uses click/keyboard seeking; these measurements do not claim
+extended editor/memory protocol. The ruler uses click/keyboard seeking; these measurements do not claim
 continuous held-pointer scrubbing.
 
 Both presets keep their full 120 s or 7200 s source clock and original counts.

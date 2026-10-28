@@ -2,7 +2,7 @@
 
 All writers — **agent (MCP)**, **CLI**, **local DAW**, and **future remote web users** — are the same kind of **client** of one server-authoritative sync engine.
 
-ShareCut Studio also has a **frontend command bus** (`gui/web/src/commands/execute`) for local UX ids (`transport.togglePlay`, `tool.blade`, …). That catalog is **not** the session SyncCommand API — keys/buttons call `execute`, which then mutates Zustand and/or submits document/session wire commands. Agents keep using MCP / typed SyncCommand / DocumentCommand.
+ShareCut Studio also has a **frontend command bus** (`gui/web/src/commands/execute`) for local UX ids (`transport.togglePlay`, `edit.bladeCut`, …). That catalog is **not** the session SyncCommand API — keys/buttons call `execute`, which then mutates Zustand and/or submits document/session wire commands. Agents keep using MCP / typed SyncCommand / DocumentCommand.
 
 Session/document WebSockets are the **result plane** (project state + transport), not the long-running **progress plane**. Pipeline/bootstrap progress uses job SSE; guest-initiated work uses a token-keyed `plane: "progress"` event (Studio share mode on `daw/ws`) — see [progress.md](progress.md) and [gui-integration.md](gui-integration.md) § Progress.
 
@@ -288,7 +288,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 |-------|--------------------------|----------|
 | **Look** | Yes | Viewport + zoom, transport/playhead, active tab / phone mode, transcript scroll, inspector selection (`envelopePoint` is `{ kind, track_id, time }` — sorted volume time, not a transcript `word_index`) |
 | **Hear** | Yes if the follower can; otherwise the banner says what the leader hears | Audition Full mix / Edited stems / Original (`mix` / `fx` / `raw`), listen-only mute, solo (saved mix mute and volume are document state, so followers already hear them). Guests stay in Full mix. Host-only tabs (History, Impact, Pipeline) stay on the follower’s last available tab with a banner like “· in Pipeline (host-only)” |
-| **Do** | Never | Tool mode, comment mode, drafts, menus/dialogs/palette, layout, sheet, layer toggles, ingest, theme |
+| **Do** | Never | Drafts, menus/dialogs/palette, layout, sheet, layer toggles, ingest, theme |
 
 **Cursor** is independent of follow: drawn over any surface with a resolvable `data-presence-anchor` (or a timeline `t_sec` + `lane_pos`, in lane units, so it lands at the same spot in the same lane whatever each viewer's lane height). If the anchor is not in this DOM, draw nothing. Never guess a Y position (unknown `track_id` without `lane_pos` used to snap to lane 0).
 
