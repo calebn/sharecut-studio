@@ -49,7 +49,10 @@ function pointerOf(
   };
 }
 
-/** A tap that never passes the slop reports nothing, so the click that follows is the owner's to read. */
+/**
+ * A tap that never passes the slop reports nothing, so the click that follows is the owner's to read.
+ * A finger drag counts from the point where it passed the slop, so the first move does not jump by it.
+ */
 export function useGrab<G>(options: GrabOptions<G>) {
   const held = useRef<Grab<G> | null>(null);
   const dragged = useRef(false);
@@ -108,12 +111,16 @@ export function useGrab<G>(options: GrabOptions<G>) {
   const move = (event: PointerEvent<HTMLElement>) => {
     const grab = held.current;
     if (!grab || grab.pointerId !== event.pointerId) return;
-    const dx = event.clientX - grab.fromX;
-    const dy = event.clientY - grab.fromY;
     if (!grab.moved) {
+      const dx = event.clientX - grab.fromX;
       const slop = slopOf(grab.grip, event);
       if (Math.abs(dx) < slop) return;
       grab.moved = true;
+      if (event.pointerType === "touch" || event.pointerType === "pen") {
+        grab.fromX = event.clientX;
+        grab.fromY = event.clientY;
+        grab.press = pointerOf(event);
+      }
       if (onStart(grab.grip, pointerOf(event), grab.press) === false) {
         held.current = null;
         stopWatching();
@@ -126,7 +133,11 @@ export function useGrab<G>(options: GrabOptions<G>) {
         // A synthetic pointer id has nothing to capture.
       }
     }
-    onMove(grab.grip, { ...pointerOf(event), dx, dy });
+    onMove(grab.grip, {
+      ...pointerOf(event),
+      dx: event.clientX - grab.fromX,
+      dy: event.clientY - grab.fromY,
+    });
   };
   const finish = (committed: boolean) => (event: PointerEvent<HTMLElement>) => {
     const grab = held.current;
@@ -155,10 +166,11 @@ export function useGrab<G>(options: GrabOptions<G>) {
     cancel,
     active: (): G | null => held.current?.grip ?? null,
     abort,
-    consumeClick: (): boolean => {
+    /** True for the click a pointer gesture leaves behind; a key press (`detail` 0) is never swallowed. */
+    consumeClick: (event: { detail: number }): boolean => {
       const was = dragged.current;
       dragged.current = false;
-      return was;
+      return was && event.detail > 0;
     },
   };
 }

@@ -133,8 +133,13 @@ describe("niceTimeStep", () => {
     expect(step * zoom).toBeGreaterThanOrEqual(70);
   });
 
-  it("stops at an hour", () => {
-    expect(niceTimeStep(0.001)).toBe(3600);
+  it("steps by hours for an episode of many hours, and stops at a day", () => {
+    expect(niceTimeStep(0.01, 64)).toBe(7200);
+    expect(niceTimeStep(0.005, 64)).toBe(14400);
+    expect(niceTimeStep(0.003, 64)).toBe(21600);
+    expect(niceTimeStep(0.0015, 64)).toBe(43200);
+    expect(niceTimeStep(0.001)).toBe(86400);
+    expect(niceTimeStep(1e-9)).toBe(86400);
   });
 });
 

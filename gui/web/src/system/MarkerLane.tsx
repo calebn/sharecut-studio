@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
 import { Menu, MenuItem } from "../ui";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
@@ -151,6 +152,32 @@ type ItemProps = Routes & {
   hitProps: MarkerLaneProps["hitProps"];
 };
 
+function samePlaced(a: PlacedMarker, b: PlacedMarker): boolean {
+  return (
+    a.marker === b.marker &&
+    a.left === b.left &&
+    a.right === b.right &&
+    a.titleEnd === b.titleEnd &&
+    a.startVisible === b.startVisible &&
+    a.endVisible === b.endVisible &&
+    a.stacked === b.stacked &&
+    a.reachStart === b.reachStart &&
+    a.reachEnd === b.reachEnd
+  );
+}
+
+/** The layout hands out a fresh `placed` each time, so it is compared by what it holds. */
+function sameItem(a: ItemProps, b: ItemProps): boolean {
+  const { placed: placedA, ...restA } = a;
+  const { placed: placedB, ...restB } = b;
+  return (
+    samePlaced(placedA, placedB) &&
+    (Object.keys(restA) as (keyof typeof restA)[]).every((key) =>
+      Object.is(restA[key], restB[key]),
+    )
+  );
+}
+
 const MarkerItem = memo(function MarkerItem({
   placed,
   width,
@@ -230,6 +257,7 @@ const MarkerItem = memo(function MarkerItem({
     at,
     selected,
     dragging: dragging !== null,
+    stacked: placed.stacked,
     rootStyle,
     buttonProps,
     onSelect: (event: MouseEvent<HTMLButtonElement>) => click(id, event),
@@ -274,7 +302,7 @@ const MarkerItem = memo(function MarkerItem({
         </Marker>
       );
   }
-});
+}, sameItem);
 
 const StackChip = memo(function StackChip({
   placed,
@@ -313,6 +341,7 @@ const StackChip = memo(function StackChip({
             className="sys-marker-hit"
             aria-label={`${count} more ${count === 1 ? "marker" : "markers"}`}
             {...aria}
+            aria-pressed={selected || undefined}
             onClick={onClick}
           >
             <span aria-hidden="true">+{count}</span>
@@ -452,6 +481,8 @@ export const MarkerLane = memo(function MarkerLane({
   const grab = useGrab<Held>({
     canGrab: ({ id, grip }, event) =>
       movable(id, grip) && (!isFinger(event) || selectedIds.has(id)),
+    slop: (_grip, event) =>
+      isFinger(event) ? TOUCH_SLOP_PX : HANDLE_DRAG_MIN_PX,
     captureOnStart: () => track.current,
     onStart: ({ id, grip }, pointer) => {
       if (onDragStart?.(id, grip, pointer) === false) return false;
@@ -505,7 +536,7 @@ export const MarkerLane = memo(function MarkerLane({
   );
   const click = useStableCallback(
     (id: string, event: MouseEvent<HTMLElement>) => {
-      if (grab.consumeClick()) return;
+      if (grab.consumeClick(event)) return;
       onSelect(id, event.shiftKey || event.ctrlKey || event.metaKey);
     },
   );

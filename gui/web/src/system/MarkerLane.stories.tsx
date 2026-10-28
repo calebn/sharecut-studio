@@ -3,7 +3,15 @@ import { useRef, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { clamp } from "../utils/math";
-import { ALL_KINDS, DENSE, EPISODE_SECONDS, stage } from "./laneFixtures";
+import {
+  ALL_KINDS,
+  DENSE,
+  EPISODE_SECONDS,
+  NESTED,
+  STACKED_START,
+  stage,
+  WIDE,
+} from "./laneFixtures";
 import { LanesBelow, Measured } from "./laneStoryHost";
 import {
   type AddingChapter,
@@ -241,6 +249,7 @@ export const Selecting: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(hit(canvas, /^Chapter Interview/));
+    await userEvent.unhover(hit(canvas, /^Chapter Interview/));
     await expect(args.onSelect).toHaveBeenCalledWith("ch-interview", false);
     await expect(hit(canvas, /^Chapter Interview/)).toHaveAttribute(
       "aria-pressed",
@@ -376,6 +385,7 @@ export const ReadOnly: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("slider")).toBeNull();
     await userEvent.click(hit(canvas, /^Chapter Cold open/));
+    await userEvent.unhover(hit(canvas, /^Chapter Cold open/));
     await expect(args.onSelect).toHaveBeenCalledWith("ch-open", false);
   },
 };
@@ -398,5 +408,87 @@ export const Phone: Story = {
       "true",
     );
     await expect(hit(canvas, /^Clip idea Best joke/)).toBeVisible();
+  },
+};
+
+export const Wide: Story = {
+  render: (args) => (
+    <LiveLane
+      args={args}
+      markers={WIDE}
+      window={{ start: 0, pxPerSecond: 6 }}
+      withRuler
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("group", { name: "Markers" }),
+    ).toBeVisible();
+  },
+};
+
+export const Nested: Story = {
+  render: (args) => (
+    <LiveLane
+      args={args}
+      markers={NESTED}
+      window={{ start: 0, pxPerSecond: 4 }}
+      withRuler
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      hit(within(canvasElement), /^Clip idea Long clip/),
+    ).toBeVisible();
+  },
+};
+
+export const NestedZoomed: Story = {
+  render: (args) => (
+    <LiveLane
+      args={args}
+      markers={NESTED}
+      window={{ start: 95, pxPerSecond: 60 }}
+      withRuler
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      hit(within(canvasElement), /^Chapter Inside chapter/),
+    ).toBeVisible();
+  },
+};
+
+export const FoldedOnRangeStart: Story = {
+  render: (args) => (
+    <LiveLane
+      args={args}
+      markers={STACKED_START}
+      selected={["s-clip"]}
+      window={{ start: 0, pxPerSecond: 4 }}
+      touch
+      withRuler
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", { name: "1 more marker" }),
+    ).toBeVisible();
+  },
+};
+
+export const AddingChapterScrolledAway: Story = {
+  render: (args) => (
+    <LiveLane
+      args={args}
+      adding={{ at: 12 }}
+      window={{ start: 100, pxPerSecond: 6 }}
+      withRuler
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("textbox", { name: "Chapter name" }),
+    ).toBeVisible();
   },
 };

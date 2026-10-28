@@ -29,6 +29,22 @@ describe("rulerMath", () => {
     }
   });
 
+  it("keeps labels 64 px apart for a 10 hour episode fitted into 360 px", () => {
+    const pps = 360 / 36000;
+    const step = rulerStep(pps, 36000);
+    expect(step).toBe(7200);
+    const ticks = rulerTicks(0, pps, 360, step, 36000);
+    expect(ticks.map((t) => t.label)).toEqual([
+      "0:00",
+      "2:00:00",
+      "4:00:00",
+      "6:00:00",
+      "8:00:00",
+      "10:00:00",
+    ]);
+    expect(ticks.map((t) => t.x)).toEqual([0, 72, 144, 216, 288, 360]);
+  });
+
   it("lists ticks as index times step, from one label's width before the window", () => {
     const ticks = rulerTicks(604, 40, 360, 2);
     expect(ticks.map((t) => [t.time, t.x, t.label])).toEqual([

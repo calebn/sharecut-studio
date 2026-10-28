@@ -46,3 +46,26 @@ export const DENSE: readonly LaneMarker[] = [
     proposed: true,
   },
 ];
+
+/** A lane wider than 1024 px at 6 px/s: a chapter inside a clip, and a pin, past x = 1024. */
+export const WIDE: readonly LaneMarker[] = [
+  { kind: "clip", id: "w-clip", start: 120, end: 270, title: "Wide clip" },
+  { kind: "chapter", id: "w-ch1", start: 180, title: "Third minute" },
+  { kind: "comment", id: "w-c1", start: 210, author: "Maya" },
+  { kind: "chapter", id: "w-ch2", start: 240, title: "Fourth minute" },
+];
+
+/** Markers inside a clip and inside a range comment, which stand on their span at any zoom. */
+export const NESTED: readonly LaneMarker[] = [
+  { kind: "clip", id: "n-clip", start: 30, end: 200, title: "Long clip" },
+  { kind: "chapter", id: "n-ch", start: 100, title: "Inside chapter" },
+  { kind: "comment", id: "n-c", start: 150, author: "Maya" },
+  { kind: "comment", id: "n-r", start: 210, end: 260, author: "Anneke" },
+  { kind: "chapter", id: "n-ch2", start: 230, title: "Inside range" },
+];
+
+/** A clip with a pin on its start glyph, so a "+1" chip sits on the clip's start. */
+export const STACKED_START: readonly LaneMarker[] = [
+  { kind: "clip", id: "s-clip", start: 30, end: 200, title: "Long clip" },
+  { kind: "comment", id: "s-c", start: 33, author: "Maya" },
+];
