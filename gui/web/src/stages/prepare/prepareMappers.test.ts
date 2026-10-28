@@ -514,9 +514,25 @@ describe("preparePhase", () => {
         sources: 2,
         ingestBusy: false,
         checking: false,
-        rows: rows(),
+        rows: rows({ job: pipelineJobSnapshot({ status: "running" }) }),
       }),
     ).toEqual({ phase: "transcribing" });
+  });
+
+  it("is waiting, not transcribing, when nothing runs and the rows offer Start", () => {
+    const idle = rows();
+    expect(idle[1]).toMatchObject({
+      state: "queued",
+      action: { label: "Start" },
+    });
+    const { phase } = preparePhase({
+      sources: 2,
+      ingestBusy: false,
+      checking: false,
+      rows: idle,
+    });
+    expect(phase).toBe("waiting");
+    expect(isWorking(phase)).toBe(false);
   });
 
   it("is needs-model, with the hand-off open, while the model is asked for or downloading", () => {
