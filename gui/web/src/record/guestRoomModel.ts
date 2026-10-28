@@ -341,15 +341,30 @@ export function guestCovers(source: CoverSource): CoverProps | null {
         };
   }
   if (source.accessEnded) {
+    const { download, recover } = source.keeperActions;
     if (source.inviteClosed) {
+      const hasLocal = source.captureSettled && (download || recover);
       return {
         ...page,
         glyph: "door-open",
         title: "Invite link closed",
-        children: `${capitalized(host)} closed this invite link. Ask for a new link.`,
+        children: hasLocal
+          ? `${capitalized(host)} closed this invite link. Your recording is safe on this device. Save it and send it to ${host}, or ask for a new link.`
+          : `${capitalized(host)} closed this invite link. Ask for a new link.`,
+        primary:
+          hasLocal && download
+            ? {
+                label: "Save my recording",
+                onClick: download,
+                busy: source.keeperActions.busy,
+              }
+            : undefined,
+        secondary:
+          hasLocal && recover
+            ? { label: "Try saving again", onClick: recover }
+            : undefined,
       };
     }
-    const { download, recover } = source.keeperActions;
     if (source.captureSettled && (download || recover)) {
       return {
         ...page,

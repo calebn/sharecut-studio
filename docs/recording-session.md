@@ -1137,7 +1137,7 @@ and applies equally to direct and relayed joins. Nobody else is disconnected.
   closes it for all of them. An unaffected guest who loses the saved lease (new
   device, cleared data, lease older than 7 days) cannot be told apart from the
   removed person omitting their lease, so they see a terminal "Invite link
-  closed" Cover (the Cover offers no save or recover buttons) and need the
+  closed" Cover (with Save my recording and Try saving again when they hold an unsent local take) and need the
   replacement link. Guests who keep their lease are unaffected. The check only
   queries `record_participants` once the room has a removal.
 - **Keeper recovery:** unaffected guests keep uploading and recovering through
@@ -1193,7 +1193,7 @@ stateDiagram-v2
 | Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open ShareCut Studio in your browser and allow microphone access there." |
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
-| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link." |
+| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; with an unsent local take it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again** |
 | Room tone (host Record stage) | "Record 3 seconds of room tone" |
 | Room tone too loud | "Too loud: is something playing?" |
 | Room tone saved on this device (not yet acknowledged by the host) | "Room tone saved on this device" |
