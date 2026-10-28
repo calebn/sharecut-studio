@@ -6,7 +6,7 @@ import { clampToSession, formatTimeShort, parseTimecode } from "../utils/time";
 /** Where a new comment's time comes from, strongest first. */
 export type CommentAnchorSource = "draft" | "selection" | "playhead";
 
-export type CommentAnchor = Readonly<{
+type CommentAnchor = Readonly<{
   draft: CommentDraft;
   source: CommentAnchorSource;
 }>;
