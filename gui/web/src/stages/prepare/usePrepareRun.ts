@@ -130,6 +130,12 @@ export function usePrepareRun(input: PrepareRunInput) {
     overwriteEdited: boolean;
     fromStep?: string;
   } | null>(null);
+  /** The request that failed to start, replayed by Try again. */
+  const failedRef = useRef<{
+    mode: RunMode;
+    overwriteEdited: boolean;
+    fromStep?: string;
+  } | null>(null);
   /** Set once the model was seen missing after the ask, so a stale row never loops the run. */
   const sawMissing = useRef(false);
 
@@ -187,6 +193,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         }
         setNeed(null);
         refusedRef.current = null;
+        failedRef.current = null;
         waitingRef.current = false;
         setWaiting(false);
         if (useDawStore.getState().projectPath === latest.current.projectPath) {
@@ -199,6 +206,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         } else {
           waitingRef.current = false;
           setWaiting(false);
+          failedRef.current = { mode, overwriteEdited, fromStep };
           setStartError(errorMessage(error));
           useDawStore
             .getState()
@@ -333,7 +341,15 @@ export function usePrepareRun(input: PrepareRunInput) {
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: approximate,
     run: start,
-    tryAgain: () => (refusal ? void askToReplace("update") : void start("run")),
+    tryAgain: () => {
+      if (refusal) return void askToReplace("update");
+      const failed = startError ? failedRef.current : null;
+      void start(
+        failed?.mode ?? "run",
+        failed?.overwriteEdited ?? false,
+        failed?.fromStep,
+      );
+    },
     retranscribe: () => void askToReplace("retranscribe"),
     keepMyFixes: () => setKeepFixes(null),
     replaceFixes: () => {
