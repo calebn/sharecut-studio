@@ -24,7 +24,10 @@ vi.mock("../api", () => ({
   setClipFade: vi.fn(),
 }));
 vi.mock("../timeline/WaveformLayer", () => ({ WaveformLayer: () => null }));
-vi.mock("../hooks/useSnapTicks", () => ({ useSnapTicks: () => [] }));
+vi.mock("../hooks/useSnapTicks", () => ({
+  useSnapTicks: () => [],
+  useSplitGuideOnClip: () => false,
+}));
 
 beforeEach(() => {
   resetDocumentSeqForTests();
