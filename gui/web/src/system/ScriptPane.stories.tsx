@@ -563,13 +563,13 @@ function GestureLive(props: ScriptPaneProps) {
   );
 }
 
-const stack: CSSProperties = { display: "grid", gap: "0.5rem" };
+const stack: CSSProperties = { display: "grid", gap: "var(--space-3)" };
 const phoneStack: CSSProperties = { ...stack, inlineSize: "22.5rem" };
 const logStyle: CSSProperties = {
   margin: 0,
   paddingInlineStart: "1.25rem",
   minBlockSize: "5.5rem",
-  font: "var(--font-size-small) var(--font-mono, monospace)",
+  font: "var(--font-size-small) var(--font-family-mono)",
   overflowWrap: "anywhere",
 };
 
