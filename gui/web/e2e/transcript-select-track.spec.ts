@@ -31,7 +31,8 @@ test("Shift-click on another speaker starts a range on that track", async ({
   await page.mouse.down();
   await dragEnd.hover();
   await expect(list.locator(".utterance-word.selected")).toHaveCount(2);
-  await page.locator(".transcript-mode-hint").hover();
+  // The floating Selection actions bar now covers the mode hint; release over the header.
+  await page.mouse.move(2, 2);
   await page.mouse.up();
   await target.click({ modifiers: ["Shift"] });
   await expect(list.locator(".utterance-word.selected")).toHaveCount(1);
