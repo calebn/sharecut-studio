@@ -36,7 +36,7 @@ test("Prepare: the hand-off opens the next stage once the sources are ready", as
   ).toBeVisible();
 });
 
-test("Prepare: importing audio starts the run by itself and holds the hand-off while it runs", async ({
+test("Prepare: importing audio starts the run by itself and shows a waiting Run when the slot is busy", async ({
   page,
 }) => {
   let posts = 0;
@@ -76,11 +76,14 @@ test("Prepare: importing audio starts the run by itself and holds the hand-off w
   expect(body).toMatchObject({ use_working_set: true });
   expect(body).not.toHaveProperty("force_transcribe", true);
 
-  // The run is still going (the mock leaves the slot busy), so the hand-off is quiet and says why.
+  // The mock refuses the run (slot busy): Prepare says it is waiting and offers Run, not silence.
   await expect(
-    page.getByRole("button", { name: /^(Edit|Review)/ }),
-  ).toBeDisabled();
-  await expect(page.getByText("Still getting ready")).toBeVisible();
+    page.getByText("Waiting for the other job to finish."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^Run/ }).first(),
+  ).toBeVisible();
+  await expect(page.getByText("Still getting ready")).toHaveCount(0);
 });
 
 test("Prepare: Advanced opens the step sheet and Escape returns to the stage", async ({
