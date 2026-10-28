@@ -44,7 +44,7 @@ function repeatedProject(prefix: string) {
 
 async function selectRange(page: Page) {
   await armRange(page);
-  const range = page.getByRole("region", { name: "Range actions" });
+  const range = page.getByRole("region", { name: "Range fields" });
   await range.getByRole("spinbutton", { name: "In", exact: true }).fill("11");
   await range.getByRole("spinbutton", { name: "Out", exact: true }).fill("12");
   await range.getByRole("checkbox", { name: "reference", exact: true }).check();
@@ -306,7 +306,7 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
         }
         await expect(
           phone
-            .getByRole("region", { name: "Range actions" })
+            .getByRole("region", { name: "Range fields" })
             .getByRole("button", { name: "Cut", exact: true }),
         ).toBeVisible();
         await rangeAxe(phone);
@@ -375,7 +375,7 @@ test("host gets a plain reason when a range has no room tone to fill with", asyn
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
       await armRange(page);
-      const range = page.getByRole("region", { name: "Range actions" });
+      const range = page.getByRole("region", { name: "Range fields" });
       await range
         .getByRole("spinbutton", { name: "In", exact: true })
         .fill("5.5");
@@ -422,7 +422,7 @@ test.describe("a phone with a touch screen", () => {
         await page
           .getByRole("button", { name: "Select range", exact: true })
           .tap();
-        const range = page.getByRole("region", { name: "Range actions" });
+        const range = page.getByRole("region", { name: "Range fields" });
         await range
           .getByRole("spinbutton", { name: "In", exact: true })
           .fill("1");

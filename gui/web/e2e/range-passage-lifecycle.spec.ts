@@ -95,7 +95,7 @@ test("F06 wrapped passage reversal and existing Mute action restores exact clips
       reversed: r,
       wrapped: b.y !== a.y,
     });
-    const actions = page.getByRole("region", { name: "Range actions" });
+    const actions = page.getByRole("region", { name: "Range fields" });
     await expect(actions).toBeVisible();
     await actions.getByRole("button", { name: "Mute", exact: true }).click();
     await expect
