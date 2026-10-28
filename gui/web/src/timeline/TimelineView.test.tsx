@@ -987,8 +987,6 @@ describe("TimelineView lane fit", () => {
       useDawStore.setState({
         zoomPxPerSec: 10,
         userZoomed: true,
-        toolMode: "select",
-        commentMode: false,
         timelineDragging: false,
         joinMutationInFlight: false,
       });
@@ -1565,44 +1563,192 @@ describe("TimelineView render isolation", () => {
     expect(lane("third")?.querySelector(".pending-overlay")).toBeNull();
   });
 
-  it("draws the blade guide on target lanes at the pointer time", () => {
-    useDawStore.setState({ toolMode: "blade" });
-    useDawStore.getState().selectTracks(["guest"]);
-    const { container } = mount();
-    const lanes = container.querySelector(".lane-row")
-      ?.parentElement as HTMLElement;
-    Object.defineProperty(lanes, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({ left: 0, top: 0, width: 800, height: 216 }),
+  describe("Alt-click Split", () => {
+    const lanesOf = (container: HTMLElement) => {
+      const lanes = container.querySelector(".lane-row")
+        ?.parentElement as HTMLElement;
+      Object.defineProperty(lanes, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ left: 0, top: 0, width: 800, height: 216 }),
+      });
+      return lanes;
+    };
+    const guides = (container: HTMLElement) =>
+      container.querySelectorAll<HTMLElement>(".split-guide");
+    const bladeCalls = () =>
+      execute.mock.calls.filter(([id]) => id === "edit.bladeCut");
+
+    beforeEach(() => {
+      execute.mockReset();
+      execute.mockResolvedValue({ status: "ok" });
+      useDawStore.setState({ splitHoverSec: null, isPlaying: false });
     });
-    fireEvent.pointerMove(lanes, { clientX: 100 });
-    const guides = container.querySelectorAll<HTMLElement>(
-      ".blade-cut-guide.blade-cut-guide--lane",
-    );
-    // One target lane (guest, the second): 100 px at 40 px/s is 2.5 s.
-    expect(guides).toHaveLength(1);
-    expect(guides[0]!.style.left).toBe("100px");
-    const laneHeight = (
-      container.querySelector(".timeline-area") as HTMLElement
-    ).style.getPropertyValue("--lane-height");
-    expect(guides[0]!.style.top).toBe(laneHeight);
-    expect(renders.clips).toEqual([]);
+    afterEach(() => {
+      useDawStore.getState().setSplitHoverSec(null);
+    });
 
-    fireEvent.pointerLeave(lanes);
-    expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
-    useDawStore.setState({ toolMode: "select", selection: null });
-  });
+    it("draws the guide on target lanes at the pointer time while Alt is held", () => {
+      useDawStore.getState().selectTracks(["guest"]);
+      const { container } = mount();
+      const lanes = lanesOf(container);
+      fireEvent.pointerMove(lanes, { clientX: 100, altKey: true });
+      // One target lane (guest, the second): 100 px at 40 px/s is 2.5 s.
+      expect(guides(container)).toHaveLength(1);
+      expect(guides(container)[0]!.style.left).toBe("100px");
+      const laneHeight = (
+        container.querySelector(".timeline-area") as HTMLElement
+      ).style.getPropertyValue("--lane-height");
+      expect(guides(container)[0]!.style.top).toBe(laneHeight);
+      expect(useDawStore.getState().splitHoverSec).toBe(2.5);
+      expect(lanes).toHaveAttribute("data-split-armed");
+      expect(renders.clips).toEqual([]);
 
-  it("draws the blade guide on every lane when no track is selected", () => {
-    useDawStore.setState({ toolMode: "blade", selection: null });
-    const { container } = mount();
-    act(() => useDawStore.getState().setBladeHoverSec(1));
-    expect(container.querySelectorAll(".blade-cut-guide--lane")).toHaveLength(
-      3,
-    );
-    act(() => useDawStore.getState().setToolMode("select"));
-    expect(useDawStore.getState().bladeHoverSec).toBeNull();
-    expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
+      fireEvent.pointerLeave(lanes);
+      expect(guides(container)).toHaveLength(0);
+      expect(useDawStore.getState().splitHoverSec).toBeNull();
+      expect(lanes).not.toHaveAttribute("data-split-armed");
+    });
+
+    it("draws the guide on every lane when no track is selected", () => {
+      const { container } = mount();
+      fireEvent.pointerMove(lanesOf(container), {
+        clientX: 40,
+        altKey: true,
+      });
+      expect(guides(container)).toHaveLength(3);
+    });
+
+    it("draws no guide without Alt", () => {
+      const { container } = mount();
+      fireEvent.pointerMove(lanesOf(container), { clientX: 100 });
+      expect(guides(container)).toHaveLength(0);
+      expect(useDawStore.getState().splitHoverSec).toBeNull();
+    });
+
+    it("follows the Alt key while the pointer rests, and drops it on key up", () => {
+      const { container } = mount();
+      fireEvent.pointerMove(lanesOf(container), { clientX: 200 });
+      expect(guides(container)).toHaveLength(0);
+      fireEvent.keyDown(window, { key: "Alt", altKey: true });
+      expect(guides(container)).toHaveLength(3);
+      expect(guides(container)[0]!.style.left).toBe("200px");
+      fireEvent.keyUp(window, { key: "Alt" });
+      expect(guides(container)).toHaveLength(0);
+    });
+
+    it("clears the guide when the window loses focus or the page is hidden", () => {
+      const { container } = mount();
+      fireEvent.pointerMove(lanesOf(container), { clientX: 80, altKey: true });
+      expect(guides(container)).toHaveLength(3);
+      fireEvent.blur(window);
+      expect(guides(container)).toHaveLength(0);
+
+      fireEvent.keyDown(window, { key: "Alt", altKey: true });
+      expect(guides(container)).toHaveLength(3);
+      const visibility = vi
+        .spyOn(document, "visibilityState", "get")
+        .mockReturnValue("hidden");
+      fireEvent(document, new Event("visibilitychange"));
+      visibility.mockRestore();
+      expect(guides(container)).toHaveLength(0);
+    });
+
+    it("shows no guide for a viewer who cannot suggest edits", () => {
+      const { container } = mount();
+      act(() =>
+        useDawStore.setState({
+          projectPath: "share:viewer-token",
+          shareCapabilities: ["comment"],
+        }),
+      );
+      fireEvent.pointerMove(lanesOf(container), { clientX: 80, altKey: true });
+      expect(guides(container)).toHaveLength(0);
+      act(() =>
+        useDawStore.setState({
+          projectPath: "/tmp/p.json",
+          shareCapabilities: null,
+        }),
+      );
+    });
+
+    it("splits at the pointer time on an Alt-click of empty lane", () => {
+      const { container } = mount();
+      lanesOf(container);
+      const seek = container.querySelector(".lane-seek") as HTMLElement;
+      fireEvent.click(seek, { clientX: 100, altKey: true });
+      expect(bladeCalls()).toEqual([
+        ["edit.bladeCut", { atTime: 2.5 }, { skipWhen: true }],
+      ]);
+    });
+
+    it("splits at the pointer time on an Alt-click of a clip, without selecting it", () => {
+      const { container } = mount();
+      lanesOf(container);
+      const clip = container.querySelector(".clip-hit") as HTMLElement;
+      fireEvent.pointerDown(clip, {
+        clientX: 61,
+        altKey: true,
+        pointerType: "mouse",
+        button: 0,
+      });
+      fireEvent.click(clip, { clientX: 61, altKey: true });
+      expect(bladeCalls()).toEqual([
+        ["edit.bladeCut", { atTime: 1.525 }, { skipWhen: true }],
+      ]);
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("leaves an Alt-click on a control inside a lane to that control", () => {
+      const { container } = mount();
+      const lanes = lanesOf(container);
+      const chip = document.createElement("button");
+      lanes.append(chip);
+      fireEvent.click(chip, { clientX: 100, altKey: true });
+      expect(bladeCalls()).toEqual([]);
+    });
+
+    it("never splits on a plain click, on a clip or on empty lane", () => {
+      const { container } = mount();
+      lanesOf(container);
+      fireEvent.click(container.querySelector(".lane-seek") as HTMLElement, {
+        clientX: 100,
+      });
+      fireEvent.click(container.querySelector(".clip-hit") as HTMLElement, {
+        clientX: 20,
+      });
+      expect(bladeCalls()).toEqual([]);
+    });
+
+    it("says why when the split is refused", async () => {
+      execute.mockResolvedValue({
+        status: "disabled",
+        reason: "Splitting needs permission to suggest edits",
+      });
+      const { container } = mount();
+      lanesOf(container);
+      fireEvent.click(container.querySelector(".lane-seek") as HTMLElement, {
+        clientX: 100,
+        altKey: true,
+      });
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Splitting needs permission to suggest edits",
+        ),
+      );
+    });
+
+    it("leaves a click on the ruler a plain seek, Alt or not", () => {
+      const { container } = mount();
+      lanesOf(container);
+      fireEvent.click(
+        screen.getByRole("slider", { name: "Timeline position" }),
+        {
+          clientX: 100,
+          altKey: true,
+        },
+      );
+      expect(bladeCalls()).toEqual([]);
+    });
   });
 });
 
@@ -1648,8 +1794,6 @@ describe("TimelineView automatic reduction inspection", () => {
     useDawStore.setState({
       userZoomed: true,
       zoomPxPerSec: 40,
-      toolMode: "select",
-      commentMode: false,
       timelineDragging: false,
       joinMutationInFlight: false,
     });

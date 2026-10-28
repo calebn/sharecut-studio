@@ -164,7 +164,6 @@ it("rejects a synthetic roll while the real trim boundary is pending", async () 
     rollPreview: null,
     onRollPreview: () => {},
     onSelect: () => {},
-    onHit: () => {},
     canMove: true,
   };
   const view = render(<ClipBlock {...props} />);

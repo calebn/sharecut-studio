@@ -16,12 +16,12 @@ const COMMANDS: PaletteCommand[] = [
     disabledReason: null,
   },
   {
-    id: "tool.blade",
-    label: "Blade tool",
-    category: "tools",
-    shortcut: "C",
-    defaultKey: "C",
-    note: "C alone selects the Blade tool; Mod+C is Copy",
+    id: "edit.bladeCut",
+    label: "Blade cut",
+    category: "edit",
+    shortcut: "Mod+K",
+    defaultKey: "K",
+    note: "Mod+K cuts; K alone stops playback",
     disabledReason: null,
   },
   {
@@ -73,7 +73,7 @@ describe("CommandPaletteView", () => {
         .getAllByRole("group")
         .map((g) => g.getAttribute("aria-labelledby"))
         .map((id) => document.getElementById(id ?? "")?.textContent),
-    ).toEqual(["Transport", "Tools", "App"]);
+    ).toEqual(["Transport", "Edit", "App"]);
     expect(
       within(listbox).getByRole("option", { name: "Play / pause" }),
     ).not.toHaveAttribute("aria-disabled");
@@ -139,8 +139,8 @@ describe("CommandPaletteView", () => {
     const user = userEvent.setup();
     const { props } = renderPalette();
     await waitForDialogFocus();
-    await user.click(screen.getByRole("option", { name: "Blade tool" }));
-    expect(props.onRun).toHaveBeenCalledExactlyOnceWith("tool.blade");
+    await user.click(screen.getByRole("option", { name: "Blade cut" }));
+    expect(props.onRun).toHaveBeenCalledExactlyOnceWith("edit.bladeCut");
     expect(
       screen.getByRole("combobox", { name: "Search commands" }),
     ).toHaveFocus();
@@ -205,10 +205,8 @@ describe("CommandPaletteView", () => {
   it("links a row's collision note through aria-describedby", () => {
     renderPalette();
     expect(
-      screen.getByRole("option", { name: "Blade tool" }),
-    ).toHaveAccessibleDescription(
-      "C C alone selects the Blade tool; Mod+C is Copy",
-    );
+      screen.getByRole("option", { name: "Blade cut" }),
+    ).toHaveAccessibleDescription("Mod+K Mod+K cuts; K alone stops playback");
   });
 
   it("hands Gestures and Escape to the owner", async () => {
@@ -227,13 +225,13 @@ describe("CommandPaletteView", () => {
     await waitForDialogFocus();
     await user.click(screen.getByLabelText("Show remaps"));
     expect(screen.queryByLabelText("Remap Export diagnostics…")).toBeNull();
-    const input = screen.getByLabelText("Remap Blade tool");
+    const input = screen.getByLabelText("Remap Blade cut");
     await user.type(input, " B ");
     await user.tab();
-    expect(props.onRemap).toHaveBeenLastCalledWith("tool.blade", "B");
+    expect(props.onRemap).toHaveBeenLastCalledWith("edit.bladeCut", "B");
     await user.clear(input);
     await user.tab();
-    expect(props.onRemap).toHaveBeenLastCalledWith("tool.blade", "");
+    expect(props.onRemap).toHaveBeenLastCalledWith("edit.bladeCut", "");
   });
 
   it("clears the search and remaps when it reopens", async () => {

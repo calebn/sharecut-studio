@@ -99,8 +99,7 @@
   font-size: var(--font-size-small);
 }
 
-.ui-segmented
-  > .ui-control:is([aria-pressed="true"], .active):not(.comment-mode-btn) {
+.ui-segmented > .ui-control:is([aria-pressed="true"], .active) {
   border-color: transparent;
   background: var(--color-chip-selected);
   color: var(--color-chip-selected-fg);
@@ -305,14 +304,6 @@ button.pill.pill--action:focus-visible {
   background: var(--color-chip-selected);
 }
 
-/* Comment mode must keep marker fill over generic pressed paint. */
-.ui-control.comment-mode-btn.active,
-.ui-control.comment-mode-btn[aria-pressed="true"] {
-  background: var(--color-comment-marker);
-  color: var(--color-bg-canvas);
-  border-color: var(--color-comment-marker);
-}
-
 .ui-control--quiet[aria-pressed="true"],
 .ui-control--quiet.active,
 .ui-control[data-ui-kind="tab"][aria-pressed="true"],
@@ -410,8 +401,7 @@ button.pill.pill--action:focus-visible {
       .pill,
       .trk-btn.mute,
       .trk-btn.mute-implied,
-      .trk-btn.solo,
-      .comment-mode-btn
+      .trk-btn.solo
     )
   ) {
     color: var(--color-text-primary);
@@ -464,8 +454,7 @@ button.pill.pill--action:focus-visible {
       .ui-control--quiet,
       [data-ui-kind="tab"],
       .trk-btn.mute,
-      .trk-btn.solo,
-      .comment-mode-btn
+      .trk-btn.solo
     )
   ),
   .ui-control.active:hover:not(
@@ -477,8 +466,7 @@ button.pill.pill--action:focus-visible {
       .ui-control--quiet,
       [data-ui-kind="tab"],
       .trk-btn.mute,
-      .trk-btn.solo,
-      .comment-mode-btn
+      .trk-btn.solo
     )
   ) {
     color: var(--color-chip-selected-fg);
@@ -489,14 +477,9 @@ button.pill.pill--action:focus-visible {
   /* Quiet pressed wash — exclude solid segment groups (layout.css owns fill). */
   .ui-control--quiet[aria-pressed="true"]:hover:not(
     :disabled,
-    [aria-disabled="true"],
-    .comment-mode-btn
+    [aria-disabled="true"]
   ),
-  .ui-control--quiet.active:hover:not(
-    :disabled,
-    [aria-disabled="true"],
-    .comment-mode-btn
-  ),
+  .ui-control--quiet.active:hover:not(:disabled, [aria-disabled="true"]),
   .ui-control[data-ui-kind="tab"][aria-pressed="true"]:hover:not(
     :disabled,
     [aria-disabled="true"]
@@ -516,25 +499,11 @@ button.pill.pill--action:focus-visible {
   .ui-segmented
     > .ui-control--quiet:is([aria-pressed="true"], .active):hover:not(
       :disabled,
-      [aria-disabled="true"],
-      .comment-mode-btn
+      [aria-disabled="true"]
     ) {
     background: var(--color-chip-selected);
     color: var(--color-chip-selected-fg);
     border-color: transparent;
-  }
-
-  .ui-control.comment-mode-btn[aria-pressed="true"]:hover:not(
-    :disabled,
-    [aria-disabled="true"]
-  ),
-  .ui-control.comment-mode-btn.active:hover:not(
-    :disabled,
-    [aria-disabled="true"]
-  ) {
-    background: var(--color-comment-marker);
-    color: var(--color-bg-canvas);
-    border-color: var(--color-comment-marker);
   }
 }
 

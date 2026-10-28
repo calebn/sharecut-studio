@@ -1,11 +1,7 @@
-import { memo, type ReactNode, useCallback, useEffect, useRef } from "react";
+import { memo, type ReactNode } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { clampToSession, formatRulerTime, niceTimeStep } from "../utils/time";
 import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
-import type {
-  CommentAnchorGesture,
-  CommentAnchorSession,
-} from "./commentAnchorSession";
 import {
   estimateRulerLabelWidthPx,
   RULER_END_EDGE_PX,
@@ -13,9 +9,6 @@ import {
   rulerTickIndices,
 } from "./rulerTicks";
 import { timelineTestIds } from "./selectors";
-
-/** A comment drag shorter than this (px) is an instant comment. */
-const COMMENT_SPAN_MIN_PX = 4;
 
 export interface TimeRulerViewProps {
   /**
@@ -31,12 +24,8 @@ export interface TimeRulerViewProps {
   zoomPxPerSec: number;
   onSeek: (sec: number) => void;
   onFit?: () => void;
-  commentMode?: boolean;
-  commentGesture?: CommentAnchorGesture;
   /** Display value may be throttled while audio is playing. */
   valueSec: number;
-  /** What the slider announces instead of the time (comment mode: where the comment lands). */
-  valueText?: string;
   /** Reads the precise current position when a keyboard step is requested. */
   getPlayheadSec: () => number;
   visibleChunks: readonly [number, number];
@@ -104,10 +93,7 @@ export function TimeRulerView({
   zoomPxPerSec,
   onSeek,
   onFit,
-  commentMode = false,
-  commentGesture,
   valueSec,
-  valueText,
   getPlayheadSec,
   visibleChunks,
   playhead,
@@ -115,27 +101,6 @@ export function TimeRulerView({
   const width = Math.max(durationSec * zoomPxPerSec, MIN_TIMELINE_WIDTH_PX);
   const majorStep = niceTimeStep(zoomPxPerSec);
   const sessionEnd = Math.max(0, sessionDurationSec);
-
-  const drag = useRef<{
-    pointerId: number;
-    target: HTMLElement;
-    startSec: number;
-    session: CommentAnchorSession;
-  } | null>(null);
-  const cancelDrag = useCallback(() => {
-    const owner = drag.current;
-    if (!owner) return;
-    drag.current = null;
-    owner.session.cancel();
-    try {
-      if (owner.target.hasPointerCapture(owner.pointerId))
-        owner.target.releasePointerCapture(owner.pointerId);
-    } catch {}
-  }, []);
-  useEffect(() => cancelDrag, [cancelDrag, commentGesture]);
-  useEffect(() => {
-    if (!commentMode) cancelDrag();
-  }, [commentMode, cancelDrag]);
 
   const secFromEvent = (el: HTMLElement, clientX: number) => {
     const rect = el.getBoundingClientRect();
@@ -146,20 +111,17 @@ export function TimeRulerView({
   return (
     <div
       data-testid={timelineTestIds.ruler}
-      className={`time-ruler${commentMode ? " comment-mode" : ""}`}
+      className="time-ruler"
       style={{ width }}
       role="slider"
       tabIndex={0}
       {...presenceAnchorProps(presenceAnchor("ruler"))}
-      aria-label={commentMode ? "Comment time" : "Timeline position"}
+      aria-label="Timeline position"
       aria-valuemin={0}
       aria-valuemax={sessionEnd}
       aria-valuenow={valueSec}
-      aria-valuetext={valueText ?? formatRulerTime(valueSec, majorStep)}
+      aria-valuetext={formatRulerTime(valueSec, majorStep)}
       onClick={(e) => {
-        if (commentMode) {
-          return;
-        }
         onSeek(secFromEvent(e.currentTarget, e.clientX));
       }}
       onKeyDown={(e) => {
@@ -184,88 +146,10 @@ export function TimeRulerView({
         }
       }}
       onDoubleClick={(e) => {
-        if (commentMode) {
-          return;
-        }
         e.preventDefault();
         onFit?.();
       }}
-      onPointerDown={(e) => {
-        if (
-          !commentMode ||
-          !commentGesture ||
-          drag.current ||
-          e.button !== 0 ||
-          !e.isPrimary
-        )
-          return;
-        const target = e.currentTarget;
-        try {
-          target.setPointerCapture(e.pointerId);
-        } catch {
-          return;
-        }
-        const session = commentGesture.begin(cancelDrag);
-        if (!session) {
-          target.releasePointerCapture(e.pointerId);
-          return;
-        }
-        const sec = secFromEvent(target, e.clientX);
-        drag.current = {
-          pointerId: e.pointerId,
-          target,
-          startSec: sec,
-          session,
-        };
-        session.preview({ startSec: sec, endSec: null });
-        if (drag.current) onSeek(sec);
-      }}
-      onPointerMove={(e) => {
-        const owner = drag.current;
-        if (!owner || owner.pointerId !== e.pointerId) return;
-        const sec = secFromEvent(owner.target, e.clientX);
-        const startSec = Math.min(owner.startSec, sec);
-        const endSec = Math.max(owner.startSec, sec);
-        owner.session.preview({
-          startSec,
-          endSec:
-            (endSec - startSec) * zoomPxPerSec < COMMENT_SPAN_MIN_PX
-              ? null
-              : endSec,
-        });
-      }}
-      onPointerUp={(e) => {
-        const owner = drag.current;
-        if (!owner || owner.pointerId !== e.pointerId) return;
-        const sec = secFromEvent(owner.target, e.clientX);
-        const startSec = Math.min(owner.startSec, sec);
-        const endSec = Math.max(owner.startSec, sec);
-        drag.current = null;
-        owner.session.finish({
-          startSec,
-          endSec:
-            (endSec - startSec) * zoomPxPerSec < COMMENT_SPAN_MIN_PX
-              ? null
-              : endSec,
-        });
-        try {
-          if (owner.target.hasPointerCapture(owner.pointerId))
-            owner.target.releasePointerCapture(owner.pointerId);
-        } catch {}
-      }}
-      onPointerCancel={(e) => {
-        if (drag.current?.pointerId === e.pointerId) cancelDrag();
-      }}
-      onLostPointerCapture={(e) => {
-        if (drag.current?.pointerId === e.pointerId) cancelDrag();
-      }}
-      title={
-        commentMode
-          ? "Tap to set the comment time, or drag for a span"
-          : onFit
-            ? "Double-click to fit session"
-            : undefined
-      }
+      title={onFit ? "Double-click to fit session" : undefined}
     >
       <RulerTicks
         durationSec={durationSec}

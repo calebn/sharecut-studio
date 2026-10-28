@@ -865,7 +865,6 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
    title gives way to the stage name; the Project menu keeps it in its name. */
 html[data-frame-short] .stage-frame-tabs,
 html[data-frame-short] .phone-edit-bar,
-html[data-frame-short] .phone-edit .edit-tool-strip,
 html[data-frame-short] .edit-workspace .edit-corner {
   display: none;
 }

@@ -18,7 +18,6 @@ const clipBlockDefaults = {
   rollPreview: null,
   onRollPreview: () => {},
   onSelect: () => {},
-  onHit: () => {},
   canMove: true,
 } satisfies Partial<ComponentProps<typeof ClipBlock>>;
 
@@ -26,7 +25,10 @@ vi.mock("../api/boundary", () => ({
   loadBoundaryContext: vi.fn(async () => ({ token: "boundary-token" })),
 }));
 vi.mock("./WaveformLayer", () => ({ WaveformLayer: () => null }));
-vi.mock("../hooks/useSnapTicks", () => ({ useSnapTicks: () => [] }));
+vi.mock("../hooks/useSnapTicks", () => ({
+  useSnapTicks: () => [],
+  useSplitGuideOnClip: () => false,
+}));
 vi.mock("../api", async (original) => ({
   ...(await original()),
   rollClipJoin: vi.fn(async () => undefined),

@@ -31,7 +31,7 @@ const HOT_FIELDS = [
   "scrollLeft",
   "sessionClients",
   "pointerTrackId",
-  "bladeHoverSec",
+  "splitHoverSec",
 ] as const;
 const HOT_FIELD_SET: ReadonlySet<string> = new Set(HOT_FIELDS);
 const HOT_FIELD_ALTERNATION = HOT_FIELDS.join("|");
@@ -428,7 +428,7 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   {
     file: "hooks/useSnapTicks.ts",
     reason:
-      "computes snap ticks from the live playhead and blade hover position",
+      "computes snap ticks from the live playhead and split guide position",
   },
   {
     file: "stage/frame/AvatarStack.tsx",
@@ -500,7 +500,7 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   },
   {
     file: "timeline/TimelineLeaves.tsx",
-    reason: "small leaves that read blade hover and follow presence themselves",
+    reason: "small leaves that read split hover and follow presence themselves",
   },
   {
     file: "timeline/FixedPlayheadNeedle.tsx",
@@ -557,13 +557,13 @@ describe("store governance", () => {
     ],
     ['useDaw(pickDaw<"playheadSec">("playheadSec"))', ["playheadSec"]],
     [
-      'useDaw(pickDaw("playheadSec", "scrollLeft", "sessionClients", "pointerTrackId", "bladeHoverSec"))',
+      'useDaw(pickDaw("playheadSec", "scrollLeft", "sessionClients", "pointerTrackId", "splitHoverSec"))',
       [
         "playheadSec",
         "scrollLeft",
         "sessionClients",
         "pointerTrackId",
-        "bladeHoverSec",
+        "splitHoverSec",
       ],
     ],
     ['// pickDaw("scrollLeft")\nconst label = "pickDaw(\'playheadSec\')";', []],
@@ -652,8 +652,8 @@ describe("store governance", () => {
     ["useDaw((s) => ({ a: s.playheadSec }))", ["s.playheadSec"]],
     ["useDawStore((s) => s.scrollLeft)", ["s.scrollLeft"]],
     [
-      "(s) => s.sessionClients.length + s.bladeHoverSec",
-      ["s.sessionClients", "s.bladeHoverSec"],
+      "(s) => s.sessionClients.length + s.splitHoverSec",
+      ["s.sessionClients", "s.splitHoverSec"],
     ],
     ["useDawStore.getState().pointerTrackId", []],
     ["useDawStore((s) => s.playheadSecs)", []],
@@ -702,7 +702,7 @@ describe("store governance", () => {
       ["st.playheadSec"],
     ],
     ['useDaw((st) => st.mode === ")" || st.scrollLeft > 0)', ["st.scrollLeft"]],
-    ["useDaw((st) => `${st.mode})` + st.bladeHoverSec)", ["st.bladeHoverSec"]],
+    ["useDaw((st) => `${st.mode})` + st.splitHoverSec)", ["st.splitHoverSec"]],
     ["useDaw((st) => /* ) */ st.pointerTrackId)", ["st.pointerTrackId"]],
     [
       "useDaw((st) => {\n  // }\n  return st.sessionClients;\n})",

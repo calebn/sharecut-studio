@@ -1349,16 +1349,6 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   border-right: 1px solid var(--color-timeline-border);
 }
 
-.time-ruler.comment-mode {
-  outline: 1px solid var(--color-comment-marker);
-  outline-offset: -1px;
-}
-
-.comment-mode-btn.active {
-  background: var(--color-comment-marker);
-  color: var(--color-bg-canvas);
-}
-
 /* Lane-corner status caption: waveform (bottom) and the Prosody layer (top). */
 .lane-waveform-status,
 .lane-prosody-status {

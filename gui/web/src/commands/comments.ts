@@ -14,8 +14,7 @@ export function openCommentDraft(draft: CommentDraft): void {
 
 /**
  * `comment.draftAt`: a comment anchored at `atTime` (on `trackId`, if
- * given), as a ruler press in comment mode anchors one. The touch create
- * menu runs it (#1051).
+ * given). The touch create menu runs it (#1051).
  */
 export function registerCommentCommands(): void {
   registerCommand("comment.draftAt", (args): ExecuteResult => {

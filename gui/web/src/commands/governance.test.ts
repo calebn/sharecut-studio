@@ -60,6 +60,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   // The same window-level listener, to prove the keys the ruler and the marker lane handle never reach the keymap.
   "system/Ruler.test.tsx",
   "system/MarkerLane.test.tsx",
+  // Reads only whether Alt is down so the Split guide follows a press made while the pointer rests; it binds no command.
+  "timeline/useSplitAtPointer.ts",
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
@@ -148,7 +150,6 @@ describe("command bus", () => {
     useDawStore.setState({
       timelineFocused: true,
       stage: "edit",
-      commentMode: false,
       projectPath: "/tmp/ep",
       guestMode: null,
       project: {
@@ -167,9 +168,9 @@ describe("command bus", () => {
     expect(await execute("no.such")).toEqual({ status: "unknown" });
   });
 
-  it("disables tool.select when timeline not focused", async () => {
+  it("disables a timeline command when the timeline is not focused", async () => {
     useDawStore.setState({ timelineFocused: false, stage: "review" });
-    const r = await execute("tool.select");
+    const r = await execute("view.waveformZoomIn");
     expect(r.status).toBe("disabled");
   });
 
@@ -177,20 +178,21 @@ describe("command bus", () => {
     useDawStore.setState({
       timelineFocused: false,
       stage: "review",
-      toolMode: "blade",
+      waveformAmpZoom: 1,
     });
-    expect((await execute("tool.select")).status).toBe("disabled");
+    expect((await execute("view.waveformZoomIn")).status).toBe("disabled");
 
-    expect(await executePointerCommand("tool.select")).toEqual({
+    expect(await executePointerCommand("view.waveformZoomIn")).toEqual({
       status: "ok",
     });
-    expect(useDawStore.getState().toolMode).toBe("select");
+    expect(useDawStore.getState().waveformAmpZoom).toBeGreaterThan(1);
   });
 
-  it("sets tool mode when context allows", async () => {
-    const r = await execute("tool.select");
+  it("runs a timeline command when context allows", async () => {
+    useDawStore.setState({ waveformAmpZoom: 1 });
+    const r = await execute("view.waveformZoomIn");
     expect(r.status).toBe("ok");
-    expect(useDawStore.getState().toolMode).toBe("select");
+    expect(useDawStore.getState().waveformAmpZoom).toBeGreaterThan(1);
   });
 
   it("rejects guest comment resolution even when a caller skips the UI gate", async () => {
@@ -242,8 +244,6 @@ describe("command bus", () => {
     for (const id of [
       "transport.togglePlay",
       "transport.stop",
-      "tool.select",
-      "tool.blade",
       "edit.bladeCut",
       "edit.delete",
       "edit.rippleDelete",
@@ -264,7 +264,6 @@ describe("command bus", () => {
       "view.fit",
       "view.waveformZoomIn",
       "view.waveformZoomOut",
-      "review.toggleCommentMode",
       "comment.resolve",
       "history.undo",
       "history.redo",

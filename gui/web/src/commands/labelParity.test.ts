@@ -74,7 +74,8 @@ describe("one name per command", () => {
     expect(commandLabel("transcript.nextLowConfidence")).toBe(
       "Next low-confidence word",
     );
-    expect(commandLabel("tool.select", "short")).toBe("Select tool");
+    expect(commandLabel("range.arm", "short")).toBe("Select range");
+    expect(commandLabel("range.arm")).toBe("Select a range");
   });
 
   it("writes only the label, shortLabel or a declared variant on a button or menu item", () => {

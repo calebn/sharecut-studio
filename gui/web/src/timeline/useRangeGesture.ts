@@ -45,7 +45,7 @@ export function useRangeGesture(
         if (draft.current?.owner === owner) cancel();
         return;
       }
-      if (state.joinMutationInFlight || state.toolMode !== "select") {
+      if (state.joinMutationInFlight) {
         cancel();
         return;
       }
@@ -128,15 +128,11 @@ export function useRangeGesture(
     hasActiveGesture: () => draft.current !== null,
     captureDown(event: PointerEvent<HTMLDivElement>) {
       if (canStart && !canStart()) return;
+      // Alt is the Split modifier for a mouse; it never starts a range.
+      if (event.altKey && event.pointerType !== "touch") return;
       const state = useDawStore.getState();
       const target = event.target;
-      if (
-        !(target instanceof Element) ||
-        state.toolMode !== "select" ||
-        state.commentMode ||
-        state.joinMutationInFlight
-      )
-        return;
+      if (!(target instanceof Element) || state.joinMutationInFlight) return;
       if (draft.current) {
         event.preventDefault();
         event.stopPropagation();

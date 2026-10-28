@@ -46,6 +46,10 @@ const TOUCH_ALLOWLIST: Record<string, string> = {
   "timeline/TrackLane.tsx": "skips hover lane highlighting for a finger",
   "timeline/useRangeGesture.ts":
     "an armed Select range is the one mode that owns its touches",
+  "timeline/ClipBlock.tsx":
+    "Alt-press is a split-guide modifier, so a clip body ignores it for a mouse only",
+  "timeline/useSplitAtPointer.ts":
+    "Alt-click Split is mouse only; a finger has no Alt and never splits",
   "timeline/precision/precisionController.ts":
     "the precision drag lab (#1184) owns a target the router handed it, and a second finger cancels it",
 };

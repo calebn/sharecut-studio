@@ -128,7 +128,6 @@ describe("track.remove / nav / Escape fall-through", () => {
       project: sampleProject(),
       selection: null,
       playheadSec: 12,
-      commentMode: false,
       timelineFocused: true,
     });
   });
@@ -212,19 +211,8 @@ describe("track.remove / nav / Escape fall-through", () => {
     ).toBe("edit.delete");
   });
 
-  it("Escape exits comment mode before clear selection", () => {
+  it("Escape clears the inspector selection", async () => {
     useDawStore.setState({
-      commentMode: true,
-      selection: { kind: "track", trackId: "host" },
-    });
-    expect(
-      firstEnabledKeymapId(keyEvent({ key: "Escape", code: "Escape" })),
-    ).toBe("review.exitCommentMode");
-  });
-
-  it("Escape clears inspector selection when not in comment mode", async () => {
-    useDawStore.setState({
-      commentMode: false,
       selection: { kind: "clip", id: "c1", trackId: "host" },
     });
     expect(

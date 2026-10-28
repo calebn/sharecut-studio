@@ -109,7 +109,6 @@ export interface ClipBlockViewProps {
   /** Editable project and interactive clip: draw trim, fade and roll handles. */
   showHandles: boolean;
   canMove?: boolean;
-  bladeMode?: boolean;
   moving?: boolean;
   previewHidden?: boolean;
   /** Ghost on a dest lane: paint only, no hit or handles. */
@@ -161,7 +160,6 @@ export function ClipBlockView({
   nextClip,
   showHandles,
   canMove = false,
-  bladeMode = false,
   moving = false,
   previewHidden = false,
   interactive = true,
@@ -219,9 +217,7 @@ export function ClipBlockView({
   const fadeTip = capabilityTooltip("daw.edit.setClipFade");
   const moveTip = capabilityTooltip("daw.edit.moveClips");
   const title =
-    canMove && !bladeMode && interactive
-      ? `${labels.select} · ${moveTip}`
-      : labels.select;
+    canMove && interactive ? `${labels.select} · ${moveTip}` : labels.select;
   // Render ignores the fades at a cut join: this clip's fade-in when its
   // incoming join is a cut, its fade-out when the next clip's join is.
   const cutIn = isCutJoin(clip);
@@ -241,11 +237,11 @@ export function ClipBlockView({
       {interactive ? (
         <button
           type="button"
-          className={`clip-hit${canMove && !bladeMode ? " clip-hit-moveable" : ""}`}
+          className={`clip-hit${canMove ? " clip-hit-moveable" : ""}`}
           title={title}
           aria-label={labels.select}
           aria-pressed={selected}
-          {...(canMove && !bladeMode
+          {...(canMove
             ? hitTargetProps("clip", clip.id, savedStart, {
                 selected,
                 spanSec: savedEnd - savedStart,

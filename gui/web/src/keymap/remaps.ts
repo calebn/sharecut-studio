@@ -22,6 +22,11 @@ const RENAMED_COMMANDS: Readonly<Record<string, string | null>> = {
   "layout.timeline": null,
   "layout.text": null,
   "layout.review": null,
+  // The Select and Blade tools and Comment mode are gone (Alt-click splits).
+  "tool.select": null,
+  "tool.blade": null,
+  "review.toggleCommentMode": null,
+  "review.exitCommentMode": null,
 };
 
 /** Move renamed ids to their new id (an existing remap there wins); drop removed ones. */
