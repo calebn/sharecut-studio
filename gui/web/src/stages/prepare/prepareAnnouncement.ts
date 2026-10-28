@@ -56,7 +56,7 @@ export function prepareAnnouncement({
     case "transcribing":
       return "Transcribing started.";
     case "needs-model":
-      return "Transcribing needs a download first. Other steps keep going.";
+      return "Transcribing needs a download first.";
     case "waiting":
       return "Transcribing has not started. Run it when you are ready.";
     case "done":
