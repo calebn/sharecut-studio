@@ -157,24 +157,3 @@ export interface PipelineConfigResponse {
   /** Catalog for Pipeline Whisper picker (Downloaded / Needs download). */
   whisper_models?: WhisperModelCatalogRow[];
 }
-
-export interface PipelineAnalyzeReason {
-  code: string;
-  message: string;
-  track_id?: string;
-  evidence?: Record<string, unknown>;
-  suggested_skip_steps?: string[];
-}
-
-export interface PipelineAnalyzeResponse {
-  proposed_config: Record<string, unknown>;
-  patches: Record<string, unknown>;
-  reasons: PipelineAnalyzeReason[];
-  report_summary?: {
-    track_count?: number;
-    reason_count?: number;
-    tracks?: Array<Record<string, unknown>>;
-  };
-  applied: boolean;
-  config?: PipelineConfigResponse;
-}
