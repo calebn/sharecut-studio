@@ -393,6 +393,8 @@ export interface DawState {
   renderPreviewBusy: boolean;
   /** Audio import / track ingest in flight. */
   ingestBusy: boolean;
+  /** Files being imported while `ingestBusy`. */
+  ingestFileCount: number;
   /** Track id highlighted while dragging audio over a lane (TCP sync). */
   ingestDropTrackId: string | null;
   /** Polite live-region status: the last announcement. */
@@ -576,7 +578,7 @@ export interface DawState {
   ) => void;
   setHighlightStaleRender: (on: boolean) => void;
   setRenderPreviewBusy: (on: boolean) => void;
-  setIngestBusy: (on: boolean) => void;
+  setIngestBusy: (on: boolean, fileCount?: number) => void;
   setIngestDropTrackId: (trackId: string | null) => void;
   /** Speak `message` in the live region and show it as a toast (see `AnnounceOptions`). */
   announceStatus: (message: string, options?: AnnounceOptions) => void;
