@@ -48,11 +48,39 @@ function uploadPercent(upload: RecordUploadProgress): number | undefined {
     : undefined;
 }
 
+function hasOwnUpload(upload: RecordUploadProgress | null | undefined) {
+  return Boolean(
+    upload &&
+      (upload.fileAck ||
+        upload.pending ||
+        upload.uploading ||
+        upload.recoverable ||
+        upload.total > 0 ||
+        upload.error),
+  );
+}
+
+/** Whether this guest is on the current take's roster, as far as it is known. */
+export function tookPart(
+  snapshot: RecordSnapshot | null,
+  me: RecordParticipant | null,
+): boolean {
+  if (!snapshot || me?.consented !== true) {
+    return false;
+  }
+  const roster =
+    snapshot.takes?.find((take) => take.take_index === snapshot.take_index)
+      ?.consented_participant_ids ?? [];
+  return roster.length === 0 || roster.includes(me.participant_id);
+}
+
 export function guestRoomPhase(
   snapshot: RecordSnapshot | null,
   options: {
     elapsedSinceSnapshotMs?: number;
     upload?: RecordUploadProgress | null;
+    /** False for a guest who is not in the take: nothing of theirs is saving. */
+    tookPart?: boolean;
   } = {},
 ): RoomPhase {
   const phase = hostRoomPhase(snapshot, {
@@ -79,9 +107,13 @@ export function guestRoomPhase(
       };
     }
   }
-  if (phase.kind === "waiting") {
+  const idle =
+    snapshot?.state === "stopped" &&
+    options.tookPart === false &&
+    !hasOwnUpload(upload);
+  if (phase.kind === "waiting" || idle) {
     const host = guestHostName(snapshot);
-    return host ? { kind: "waiting", host } : phase;
+    return host ? { kind: "waiting", host } : { kind: "waiting" };
   }
   if (phase.kind === "saving" || phase.kind === "saved") {
     if (!upload || upload.fileAck) {
@@ -172,14 +204,20 @@ export function guestViewerWidth(
 }
 
 export function guestRoomAlerts(
-  source: Omit<RoomAlertSource, "hydrateError"> & { dropped?: boolean },
+  source: Omit<RoomAlertSource, "hydrateError"> & {
+    dropped?: boolean;
+    notice?: string | null;
+  },
   actions: RoomAlertActions = {},
   host?: string,
 ): RoomAlertInput[] {
-  const { dropped, ...rest } = source;
+  const { dropped, notice, ...rest } = source;
   const alerts = roomAlerts({ ...rest, hydrateError: null }, actions);
   if (dropped) {
     alerts.unshift({ kind: "host-offline", name: host });
+  }
+  if (notice) {
+    alerts.push({ kind: "notice", message: notice });
   }
   return alerts;
 }

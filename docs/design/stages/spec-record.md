@@ -42,7 +42,7 @@ Facts from the code that shape this spec (each one checked in the files above):
 
 **What the stage replaces.** DLG-RECORD (the Record room dialog), CHIP-REC-TRANSPORT, the Menu > Project > Record room… entry, the record half of DLG-SHARE, and the separate `/rec` lobby, waiting, room and dead-end pages.
 
-**Data shape (Model the Domain).** Today RecordApp switches between four views and RecordPanel carries a dozen booleans. The redesign drives one `RoomView` from one discriminated union:
+**Data shape (Model the Domain).** Today the guest page (now GuestRoomApp, formerly RecordApp) switches between four views and RecordPanel carries a dozen booleans. The redesign drives one `RoomView` from one discriminated union:
 
 ```ts
 type Role = "host" | "guest" | "producer";
@@ -265,7 +265,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 ### CMP-REC-NOTICES · Mic loss, no audio, storage, alert, save announcer
 - **Today:** five components that each render their own paragraph, stacked when several apply.
 - **Fate:** replace with NEW: Room alert. SaveAnnouncer stays (screen-reader announcements only).
-- **Spec:** one alert slot, one row at a time, priority: mic lost > no audio > storage failed > saving failed > recovery > host offline > monitor failed > clipping > muted > connecting > generic room error (**Dismiss**). Recovery, muted and connecting come from SCR-REC-ROOM and CMP-REC-UPLOAD. Each row: 20 px glyph, one sentence, at most one action. The highest-priority unresolved row shows. A count chip "+1" opens the rest.
+- **Spec:** one alert slot, one row at a time, priority: mic lost > no audio > storage failed > saving failed > a notice (the last recovery or save result) > recovery > host offline > monitor failed > clipping > muted > connecting > generic room error (**Dismiss**). Recovery, muted and connecting come from SCR-REC-ROOM and CMP-REC-UPLOAD. Each row: 20 px glyph, one sentence, at most one action. The highest-priority unresolved row shows. A count chip "+1" opens the rest.
 - **Story to build:** `Record/RoomAlert` › one story per kind, `Stacked`.
 
 ### CMP-REC-STOP · Stop take with inline confirm

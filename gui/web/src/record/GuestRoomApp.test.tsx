@@ -637,9 +637,12 @@ describe("GuestRoomApp", () => {
           { timeout: 4000 },
         ),
       );
+      await screen.findAllByText(/Recovered 1 partial segment/);
       expect(
-        await screen.findByText(/Recovered 1 partial segment/),
-      ).toBeInTheDocument();
+        (await screen.findAllByText(/Recovered 1 partial segment/)).some(
+          (node) => !node.closest(".sr-only"),
+        ),
+      ).toBe(true);
       expect(
         parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))?.complete,
       ).toBe(true);

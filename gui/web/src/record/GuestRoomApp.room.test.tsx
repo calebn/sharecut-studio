@@ -180,6 +180,21 @@ describe("GuestRoomApp in the room", () => {
     expect(download).toHaveBeenCalledOnce();
   });
 
+  it("shows the recovery result in the room, and still announces it", () => {
+    const notice =
+      "Recovered 1 partial segment. Download your full-quality recording to keep a copy.";
+    fakeRoom({ snapshot: stopped, keeperActions: { notice } });
+    render(<GuestRoomApp token="t" />);
+    const copies = screen.getAllByText(notice);
+    const shown = copies.filter((node) => !node.closest(".sr-only"));
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toBeVisible();
+    expect(shown[0]?.closest('[role="status"]')).not.toBeNull();
+    expect(copies.some((node) => node.closest("[aria-live=polite]"))).toBe(
+      true,
+    );
+  });
+
   describe("no audio", () => {
     it("shows a persistent alert with Check mic", async () => {
       const room = fakeRoom({ keeper: { noAudio: true } });
@@ -193,6 +208,23 @@ describe("GuestRoomApp in the room", () => {
       await userEvent.click(screen.getByRole("button", { name: "Check mic" }));
       expect(room.keeper.checkMic).toHaveBeenCalledOnce();
       await expectNoA11yViolations(container);
+    });
+
+    it("adds what to try after a failed check, and drops it once the check passes", () => {
+      const failedCopy =
+        "Still no audio: unmute or reconnect your microphone, then Check mic again.";
+      fakeRoom({ keeper: { noAudio: true, micCheckFailed: true } });
+      const view = render(<GuestRoomApp token="t" />);
+      expect(
+        screen.getByText(new RegExp(failedCopy.replace(/[.:]/g, "\\$&"))),
+      ).toBeVisible();
+      view.unmount();
+      fakeRoom({ keeper: { noAudio: true, micCheckFailed: false } });
+      render(<GuestRoomApp token="t" />);
+      expect(
+        screen.getByText("No sound is reaching the recorder."),
+      ).toBeVisible();
+      expect(screen.queryByText(/Still no audio/)).toBeNull();
     });
 
     it("stays quiet while paused", () => {

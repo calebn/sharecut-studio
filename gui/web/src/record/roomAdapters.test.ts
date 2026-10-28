@@ -243,6 +243,13 @@ describe("roomAlerts", () => {
       roomAlerts({ ...quiet, captureHealth: "silent" }).map((a) => a.kind),
     ).toEqual(["no-audio"]);
     expect(
+      roomAlerts({
+        ...quiet,
+        captureHealth: "silent",
+        micCheckFailed: true,
+      })[0],
+    ).toMatchObject({ kind: "no-audio", checkFailed: true });
+    expect(
       roomAlerts({ ...quiet, state: "paused", captureHealth: "silent" }),
     ).toEqual([]);
   });

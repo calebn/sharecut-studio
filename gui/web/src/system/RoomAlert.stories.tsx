@@ -27,7 +27,7 @@ const meta: Meta<typeof RoomAlert> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The record alert slot: one 44 px Status row under the header with a 20 px glyph, one sentence and one action (saving failed may add Save a copy). The most urgent alert shows (mic lost, no audio, storage failed, saving failed, recovery, host offline, monitor failed, clipping, muted, connecting, generic). A "+N" chip opens the rest as Status rows. With no alert the live region stays mounted and empty, so the slot takes no height.\n\n**Motion.** None. Alerts appear and change without animation.',
+          'The record alert slot: one 44 px Status row under the header with a 20 px glyph, one sentence and one action (saving failed may add Save a copy). The most urgent alert shows (mic lost, no audio, storage failed, saving failed, a notice, recovery, host offline, monitor failed, clipping, muted, connecting, generic). A "+N" chip opens the rest as Status rows. With no alert the live region stays mounted and empty, so the slot takes no height.\n\n**Motion.** None. Alerts appear and change without animation.',
       },
     },
   },
@@ -201,6 +201,19 @@ export const Generic: Story = {
       ),
     ).toBeVisible();
     await expectOneAction(canvasElement, "Dismiss", firstAction(args.alerts));
+  },
+};
+
+export const Notice: Story = {
+  args: ONE("notice", {
+    message:
+      "Recovered 1 partial segment. Download your full-quality recording to keep a copy.",
+    onAction: undefined,
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/Recovered 1 partial segment/)).toBeVisible();
+    await expect(canvas.queryByRole("button")).toBeNull();
   },
 };
 

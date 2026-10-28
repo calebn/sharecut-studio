@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  MIC_CHECK_FAILED_COPY,
   ROOM_ALERT_PRIORITY,
   ROOM_ALERT_TEXT,
   type RoomAlertKind,
@@ -16,6 +17,7 @@ describe("ROOM_ALERT_PRIORITY", () => {
       "no-audio",
       "storage-failed",
       "saving-failed",
+      "notice",
       "recovery",
       "host-offline",
       "monitor-failed",
@@ -41,6 +43,24 @@ describe("ROOM_ALERT_PRIORITY", () => {
 });
 
 describe("roomAlertTitle", () => {
+  it("adds what to try when the last mic check failed", () => {
+    expect(roomAlertTitle({ kind: "no-audio" })).toBe(
+      "No sound is reaching the recorder.",
+    );
+    expect(roomAlertTitle({ kind: "no-audio", checkFailed: true })).toBe(
+      `No sound is reaching the recorder. ${MIC_CHECK_FAILED_COPY}`,
+    );
+    expect(roomAlertTitle({ kind: "mic-lost", checkFailed: true })).toBe(
+      "Your mic stopped.",
+    );
+  });
+
+  it("prints a notice's own sentence", () => {
+    expect(roomAlertTitle({ kind: "notice", message: "Recovered it." })).toBe(
+      "Recovered it.",
+    );
+  });
+
   it("names the host, and says The host when no name is given", () => {
     expect(roomAlertTitle({ kind: "host-offline", name: "Rosa" })).toBe(
       "Rosa dropped. You're still recording on this device.",

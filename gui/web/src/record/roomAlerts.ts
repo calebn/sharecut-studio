@@ -18,6 +18,7 @@ export type RoomAlertSource = {
   hydrateError: string | null;
   clipped: number;
   muted: boolean;
+  micCheckFailed?: boolean;
 };
 
 export type RoomAlertActions = {
@@ -48,7 +49,11 @@ export function roomAlerts(
     alerts.push({ kind: "mic-lost", onAction: actions.retryMic });
   }
   if (noAudio) {
-    alerts.push({ kind: "no-audio", onAction: actions.checkMic });
+    alerts.push({
+      kind: "no-audio",
+      onAction: actions.checkMic,
+      checkFailed: source.micCheckFailed,
+    });
   }
   if (source.sinkError) {
     alerts.push({ kind: "storage-failed", onAction: actions.retryStorage });

@@ -22,6 +22,7 @@ import {
   joinMic,
   ownSaving,
   savingStatus,
+  tookPart,
 } from "./guestRoomModel";
 import { liveTakeOpen } from "./liveCommentQueue";
 import {
@@ -233,6 +234,8 @@ function GuestRoomSession({
       clipped: producer ? 0 : clipped,
       muted: recorded && (me?.muted ?? false),
       dropped,
+      micCheckFailed: keeper.micCheckFailed,
+      notice: keeperActions.notice,
     },
     {
       retryMic: mic.retry,
@@ -269,6 +272,7 @@ function GuestRoomSession({
   const phase = guestRoomPhase(snapshot, {
     elapsedSinceSnapshotMs: elapsed,
     upload: producer ? null : upload,
+    tookPart: producer ? undefined : tookPart(snapshot, me),
   });
 
   const cover = guestCoverProps(room, onRetry);
