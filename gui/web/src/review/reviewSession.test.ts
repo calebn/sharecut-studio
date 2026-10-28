@@ -183,7 +183,7 @@ describe("useReviewSession", () => {
     );
   });
 
-  it("reselects when reverting an entry that already left", () => {
+  it("leaves an entry that already left to observed, which reselects it on return", () => {
     const { result, rerender } = renderHook(
       ({ open }) => useReviewSession(open),
       { initialProps: { open: OPEN } },
@@ -192,9 +192,65 @@ describe("useReviewSession", () => {
       result.current.decide({ ids: ["a"], result: "applied" });
     });
     rerender({ open: [B, C] });
-    act(() => result.current.props.onSelect("a"));
+    act(() => result.current.props.onSelect("c"));
     act(() => result.current.revert(["a"]));
+    expect(result.current.props.items.find((i) => i.id === "a")?.result).toBe(
+      "applied",
+    );
+    expect(result.current.props.selectedId).toBe("c");
+    rerender({ open: OPEN });
+    expect(result.current.props.items.find((i) => i.id === "a")?.result).toBe(
+      undefined,
+    );
+    expect(result.current.props.selectedId).toBe("a");
+  });
+
+  it("reverts and reselects an entry that has not left yet", () => {
+    const { result } = renderHook(() => useReviewSession(OPEN));
+    act(() => {
+      result.current.decide({ ids: ["b"], result: "applied" });
+    });
+    act(() => result.current.revert(["b"]));
+    expect(result.current.props.items.find((i) => i.id === "b")?.result).toBe(
+      undefined,
+    );
     expect(result.current.props.selectedId).toBe("b");
+  });
+
+  it("takes the reverted row's selection back only while the user is still where the decision moved", () => {
+    const { result } = renderHook(() => useReviewSession(OPEN));
+    act(() => {
+      result.current.decide({ ids: ["a"], result: "applied" });
+    });
+    act(() => result.current.props.onSelect("c"));
+    act(() => result.current.revert(["a"], "b"));
+    expect(result.current.props.selectedId).toBe("c");
+    act(() => {
+      result.current.decide({ ids: ["b"], result: "applied" });
+    });
+    act(() => result.current.revert(["b"], "c"));
+    expect(result.current.props.selectedId).toBe("b");
+  });
+
+  it("sends only unclaimed ids when a group repeats a claimed one", () => {
+    const { result } = renderHook(() => useReviewSession(OPEN));
+    const plans: (ReturnType<typeof result.current.decide> | null)[] = [];
+    act(() => {
+      plans.push(result.current.decide({ ids: ["a"], result: "applied" }));
+      plans.push(result.current.decide({ ids: ["a", "b"], result: "applied" }));
+    });
+    expect(plans.map((p) => p?.decidedIds)).toEqual([["a"], ["b"]]);
+    expect(result.current.props.selectedId).toBe("c");
+  });
+
+  it("gives one plan for two decides inside one act", () => {
+    const { result } = renderHook(() => useReviewSession(OPEN));
+    const plans: unknown[] = [];
+    act(() => {
+      plans.push(result.current.decide({ ids: ["a"], result: "applied" }));
+      plans.push(result.current.decide({ ids: ["a"], result: "kept" }));
+    });
+    expect(plans.filter(Boolean)).toHaveLength(1);
   });
 
   it("serves the snapshot content of a decided entry", () => {

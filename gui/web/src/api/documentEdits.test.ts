@@ -640,4 +640,26 @@ describe("approveEdits", () => {
       { refineRecoveryInline: true },
     );
   });
+
+  it("sends skip_unsure only when asked", async () => {
+    vi.mocked(submitQueuedDocumentCommand)
+      .mockResolvedValueOnce({ queued: true })
+      .mockResolvedValueOnce({ queued: true });
+    await approveEdits("/tmp/ep", ["e1", "e2"], true, true, {
+      skipUnsure: true,
+    });
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "ApproveEdits",
+      { ids: ["e1", "e2"], hold_blocked: true, skip_unsure: true },
+      { refineRecoveryInline: true },
+    );
+    await approveEdits("/tmp/ep", ["e1"], true, true, undefined);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "ApproveEdits",
+      { ids: ["e1"], hold_blocked: true },
+      { refineRecoveryInline: true },
+    );
+  });
 });

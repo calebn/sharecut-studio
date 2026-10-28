@@ -336,3 +336,85 @@ describe("DecisionCard", () => {
     );
   });
 });
+
+describe("DecisionCard without a waveform", () => {
+  it("plays the A/B from change", async () => {
+    const onHear = vi.fn();
+    render(
+      <DecisionCard
+        {...base()}
+        waveform={undefined}
+        change={{ start: 10, end: 11 }}
+        audition={{ side: "B", onSide: vi.fn(), onHear }}
+      />,
+    );
+    expect(screen.queryAllByRole("slider")).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "A" }));
+    expect(onHear).toHaveBeenCalledWith("A", [{ start: 7, end: 14 }]);
+  });
+
+  it("shows no A/B without a change", () => {
+    render(<DecisionCard {...base()} waveform={undefined} />);
+    expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+  });
+});
+
+describe("DecisionCard verb", () => {
+  it("replaces the kind's primary and drops the duplicate Keep", async () => {
+    const onVerb = vi.fn();
+    render(
+      <DecisionCard {...base()} kind="sound" verb="keep" onVerb={onVerb} />,
+    );
+    const keeps = screen.getAllByRole("button", { name: /^Keep/ });
+    expect(keeps).toHaveLength(1);
+    await userEvent.click(keeps[0] as HTMLElement);
+    expect(onVerb).toHaveBeenCalledTimes(1);
+  });
+
+  it("labels the override, not the kind's own label", () => {
+    render(
+      <DecisionCard
+        {...base()}
+        kind="unsure-word"
+        unsure={undefined}
+        verb="cut"
+      />,
+    );
+    expect(screen.getByRole("button", { name: /^Cut/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
+  });
+
+  it("reveals the override's icon on a swipe, not the kind's", () => {
+    const { container } = render(
+      <DecisionCard {...base()} verb="shorten" layout="phone" />,
+    );
+    const body = container.querySelector(".sys-decision-body") as Element;
+    fireEvent.pointerDown(body, {
+      clientX: 100,
+      clientY: 100,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(body, { clientX: 220, clientY: 100, pointerId: 1 });
+    const icon = (el: Element | null) => el?.querySelector("svg")?.innerHTML;
+    const reveal = container.querySelector(".sys-decision-reveal");
+    expect(icon(reveal)).toBe(
+      icon(screen.getByRole("button", { name: /^Shorten/ })),
+    );
+  });
+
+  it("disables the primary and the swipe for a given reason", () => {
+    const props = base();
+    const { container } = render(
+      <DecisionCard {...props} layout="phone" verbDisabledReason="Open it." />,
+    );
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    swipe(container.querySelector(".sys-decision-body") as Element, 120, 0);
+    expect(props.onVerb).not.toHaveBeenCalled();
+  });
+
+  it("offers no Keep without a Keep handler", () => {
+    render(<DecisionCard {...base()} onKeep={undefined} />);
+    expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
+  });
+});

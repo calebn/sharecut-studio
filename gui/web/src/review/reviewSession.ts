@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useReducer } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 import { type DecisionPlan, planDecision, stepUndecided } from "./advance";
 import type { ReviewContent } from "./ReviewQueue";
 import type { ReviewIntent } from "./ReviewStage";
@@ -24,7 +31,7 @@ export type SessionAction =
   | { type: "filter"; filter: ReviewFilter }
   | { type: "looksRight"; id: string }
   | { type: "decided"; plan: DecisionPlan; snapshot: readonly ReviewEntry[] }
-  | { type: "revert"; ids: readonly string[] }
+  | { type: "revert"; ids: readonly string[]; from?: string | null }
   | { type: "observed"; open: readonly ReviewEntry[] };
 
 const idOf = (hit: DecidedEntry) => hit.entry.item.id;
@@ -99,14 +106,15 @@ export function reviewSession(
         : { ...s, decided, selectedId: a.plan.selectedId };
     }
     case "revert": {
-      const hit = a.ids.filter((id) => s.decided.has(id));
+      const hit = a.ids.filter((id) => s.decided.get(id)?.left === false);
       if (hit.length === 0) return s;
       const decided = new Map(s.decided);
       for (const id of hit) decided.delete(id);
+      const follow = a.from === undefined || a.from === s.selectedId;
       return {
         ...s,
         decided,
-        selectedId: hit.find((id) => !s.decided.get(id)?.left) ?? s.selectedId,
+        selectedId: follow ? hit[0] : s.selectedId,
         looksRight: without(s.looksRight, hit),
       };
     }
@@ -136,7 +144,17 @@ export function useReviewSession(
     } satisfies ReviewSession;
   });
   useEffect(() => dispatch({ type: "observed", open }), [open, s.decided]);
+  const claimed = useRef<Set<string>>(new Set());
+  useLayoutEffect(() => {
+    claimed.current = new Set(s.decided.keys());
+  }, [s.decided]);
 
+  /** `from` is the selection the decision moved to; the row takes it back only while it is still there. */
+  const revert = useCallback(
+    (ids: readonly string[], from?: string | null) =>
+      dispatch({ type: "revert", ids, from }),
+    [],
+  );
   const merged = useMemo(() => mergeOpen(open, s.decided), [open, s.decided]);
   const items = useMemo(() => merged.map((e) => e.item), [merged]);
   const content = useMemo(() => {
@@ -156,17 +174,21 @@ export function useReviewSession(
       onLooksRight: (id: string) => dispatch({ type: "looksRight", id }),
     },
     decide: ({ ids, result, waive }: ReviewIntent): DecisionPlan | null => {
-      const plan = planDecision(items, ids, result, {
+      const view = items.map((i) =>
+        claimed.current.has(i.id) && !i.result ? { ...i, result } : i,
+      );
+      const fresh = ids.filter((id) =>
+        view.some((i) => i.id === id && !i.result),
+      );
+      if (fresh.length === 0) return null;
+      const plan = planDecision(view, fresh, result, {
         filter: s.filter,
         waive: !!waive,
       });
-      const fresh = plan.decidedIds.some((id) =>
-        items.some((i) => i.id === id && !i.result),
-      );
-      if (!fresh) return null;
+      for (const id of plan.decidedIds) claimed.current.add(id);
       dispatch({ type: "decided", plan, snapshot: merged });
       return plan;
     },
-    revert: (ids: readonly string[]) => dispatch({ type: "revert", ids }),
+    revert,
   };
 }
