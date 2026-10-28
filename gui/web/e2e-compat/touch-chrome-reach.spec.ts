@@ -47,6 +47,7 @@ async function cutIsTappable(
     page.getByRole("button", { name: "Blade tool", exact: true }).first(),
   );
   const cutAtPlayhead = page.getByRole("button", { name: /^Blade cut/ });
+  if (folded && !(await cutAtPlayhead.isVisible())) await tapCentre(tools);
   await expect(cutAtPlayhead).toBeVisible();
   await tapCentre(cutAtPlayhead);
   const dialog = page.getByRole("dialog", { name: /^Cut at / });
