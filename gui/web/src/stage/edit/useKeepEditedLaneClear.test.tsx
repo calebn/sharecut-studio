@@ -5,7 +5,7 @@ import {
   FakeResizeObserver,
   stubResizeObserver,
 } from "../../test/resizeObserver";
-import { useKeepEditedLaneClear } from "./useKeepEditedLaneClear";
+import { laneSheetCap, useKeepEditedLaneClear } from "./useKeepEditedLaneClear";
 
 function mountSheetAndLane(): HTMLElement {
   document.body.innerHTML = `
@@ -82,5 +82,17 @@ describe("useKeepEditedLaneClear", () => {
       lastObserver().fire();
     });
     expect(pending()).toBe(1);
+  });
+});
+
+describe("laneSheetCap", () => {
+  it("is the room under the lane's band", () => {
+    expect(laneSheetCap(275, 150, 0, 44)).toBe(125);
+    expect(laneSheetCap(275, 150, 56, 44)).toBe(125);
+  });
+
+  it("never leaves less than the pinned chrome and one touch row", () => {
+    expect(laneSheetCap(275, 250, 0, 44)).toBe(44);
+    expect(laneSheetCap(275, 250, 56, 44)).toBe(100);
   });
 });

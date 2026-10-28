@@ -12,8 +12,8 @@ import {
   inspectorSheetBottom,
   inspectorSheetPanel,
 } from "../../ui/compactSheet";
+import { tokenHeightPx } from "../../ui/tokenHeight";
 import { useResizeObserver } from "../../ui/useResizeObserver";
-import { remToPx } from "../../utils/remToPx";
 import {
   KEEP_CLEAR_PX,
   keepTargetClear,
@@ -21,8 +21,14 @@ import {
   useShortScreen,
 } from "./useCompactInspector";
 
-/** The cap never leaves the sheet less than its pinned header and a form row. */
-const MIN_SHEET_REM = 9;
+export function laneSheetCap(
+  slotBottom: number,
+  band: number,
+  chromePx: number,
+  rowPx: number,
+): number {
+  return Math.max(chromePx + rowPx, slotBottom - band);
+}
 
 export const laneSelector = (trackId: string) =>
   `.lane-row[data-track-id=${JSON.stringify(trackId)}]`;
@@ -37,7 +43,17 @@ function fit(trackId: string): void {
   const pinnedBottom = pinnedChromeBottom(scroller);
   const band =
     pinnedBottom + lane.getBoundingClientRect().height + KEEP_CLEAR_PX;
-  capInspectorSheetForLane(Math.max(remToPx(MIN_SHEET_REM), slotBottom - band));
+  const panel = inspectorSheetPanel();
+  if (!panel) return;
+  capInspectorSheetForLane(
+    laneSheetCap(
+      slotBottom,
+      band,
+      panel.querySelector(".bottom-sheet-chrome")?.getBoundingClientRect()
+        .height ?? 0,
+      tokenHeightPx(panel, "--touch-min"),
+    ),
+  );
   keepTargetClear(locate);
   // keepTargetClear only lifts a target off the sheet; a lane scrolled under
   // the pinned ruler comes back down to sit just below it.

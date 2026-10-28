@@ -571,7 +571,7 @@ html[data-shell="phone"]
 
     .bottom-sheet--lane-band .envelope-workspace > form {
       flex: 1 1 100%;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+      grid-template-columns: minmax(max-content, 2fr) minmax(0, 1fr) auto auto;
       align-items: end;
       gap: var(--space-3) var(--space-3);
     }
