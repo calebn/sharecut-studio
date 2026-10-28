@@ -19,7 +19,7 @@ function GuestScriptHostAdapter() {
   const shell = useViewportClass();
   const short = useShortViewport();
   const role = stageRoleOf(guestMode);
-  const { turns, wordStarts, words, unplaced } = useMemo(
+  const { turns, wordStarts, words, empty } = useMemo(
     () => guestScriptOf(utterances),
     [utterances],
   );
@@ -47,8 +47,7 @@ function GuestScriptHostAdapter() {
         wordStarts={wordStarts}
         playing={playing}
         playheadWord={playheadWord}
-        unplaced={unplaced}
-        hasTranscript={(utterances?.length ?? 0) > 0}
+        empty={empty}
         onSeek={(seconds) => void seekTransport(seconds)}
       />
     </div>

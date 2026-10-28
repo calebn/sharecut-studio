@@ -42,18 +42,34 @@ describe("guestScriptOf ids and unplaced words", () => {
     expect(turns.map((turn) => turn.id)).toEqual(["t1@5", "t1@5#2"]);
   });
 
-  it("counts words that are neither cut nor ignored but have no place on the timeline", () => {
-    const model = guestScriptOf([
-      utterance("Maya", [
-        word("a", null),
-        word("b", null),
-        word("c", null, { suppressed: true }),
-        word("d", null, { ignored: true }),
-      ]),
+  it("says unplaced only for mappable words with no timeline start, and cut for the rest", () => {
+    const empty = (...words: TranscriptWordView[]) =>
+      guestScriptOf([utterance("Maya", words)]).empty;
+    expect(empty(word("a", null), word("b", null, { suppressed: true }))).toBe(
+      "unplaced",
+    );
+    expect(
+      empty(
+        word("a", null, { mappable: false }),
+        word("b", null, { ignored: true }),
+      ),
+    ).toBe("cut");
+    expect(empty(word("a", null, { mappable: false }), word("b", null))).toBe(
+      "unplaced",
+    );
+    expect(guestScriptOf([]).empty).toBe("none");
+    expect(
+      guestScriptOf([{ ...utterance("Maya", []), words: undefined }]).empty,
+    ).toBe("untimed");
+  });
+
+  it("keeps word keys unique when two utterances share a track, source and word index", () => {
+    const { turns } = guestScriptOf([
+      utterance("Maya", [word("a", 1, { word_index: 0 })]),
+      utterance("Maya", [word("b", 2, { word_index: 0 })]),
     ]);
-    expect(model.turns).toEqual([]);
-    expect(model.unplaced).toBe(2);
-    expect(guestScriptOf([utterance("Maya", [word("a", 1)])]).unplaced).toBe(0);
+    const keys = turns.flatMap((turn) => turn.words.map((w) => w.key));
+    expect(new Set(keys).size).toBe(2);
   });
 });
 
@@ -63,7 +79,7 @@ describe("guestScriptOf", () => {
       turns: [],
       wordStarts: [],
       words: [],
-      unplaced: 0,
+      empty: "none",
     });
     expect(
       guestScriptOf([
@@ -74,7 +90,7 @@ describe("guestScriptOf", () => {
       turns: [],
       wordStarts: [],
       words: [],
-      unplaced: 0,
+      empty: "cut",
     });
   });
 
@@ -120,8 +136,8 @@ describe("guestScriptOf", () => {
       ]),
     ]);
     expect(turns[0]?.words.map((w) => [w.text, w.key])).toEqual([
-      ["a", "t1:s1:6"],
-      ["b", "t1:s1:7"],
+      ["a", "0:t1:s1:6"],
+      ["b", "0:t1:s1:7"],
     ]);
   });
 

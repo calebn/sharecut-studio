@@ -138,17 +138,55 @@ describe("GuestScriptHost", () => {
     ).toBeInTheDocument();
   });
 
-  it("says the words are not on the timeline when none has a place", () => {
+  it("says the words are not on the timeline when they are mappable but have no start", () => {
     as("view", 0, [
       {
         ...UTTERANCES[0],
-        words: [{ text: "lost", start: 0, end: 0 }],
+        words: [{ text: "lost", start: 0, end: 0, mappable: true }],
       } as CombinedUtterance,
     ]);
     render(<GuestScriptHost />);
     expect(
       screen.getByText(
         "The words of this version are not on the timeline yet.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says every word was cut when the words are cut away by the server", () => {
+    as("view", 0, [
+      {
+        ...UTTERANCES[0],
+        words: [
+          {
+            text: "gone",
+            start: 0,
+            end: 0,
+            mappable: false,
+            timeline_start: null,
+          },
+        ],
+      } as CombinedUtterance,
+    ]);
+    render(<GuestScriptHost />);
+    expect(
+      screen.getByText("Every word of this version has been cut or ignored."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "The words of this version are not on the timeline yet.",
+      ),
+    ).toBeNull();
+  });
+
+  it("says there are no word timings when the utterances carry no words", () => {
+    as("view", 0, [
+      { ...UTTERANCES[0], words: undefined } as CombinedUtterance,
+    ]);
+    render(<GuestScriptHost />);
+    expect(
+      screen.getByText(
+        "The transcript of this version has no word timings yet.",
       ),
     ).toBeInTheDocument();
   });

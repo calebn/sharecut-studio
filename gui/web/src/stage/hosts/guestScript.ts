@@ -1,3 +1,4 @@
+import type { GuestEmpty } from "../../stages/guest/guestLogic";
 import type { ScriptTurn, ScriptWord } from "../../system/scriptPieces";
 import type {
   CombinedUtterance,
@@ -10,7 +11,7 @@ export type GuestScriptModel = {
   turns: ScriptTurn[];
   wordStarts: number[];
   words: TranscriptWordView[];
-  unplaced: number;
+  empty: GuestEmpty;
 };
 
 type Heard = {
@@ -20,7 +21,7 @@ type Heard = {
   word: TranscriptWordView;
 };
 
-function heardWords(utterance: CombinedUtterance): Heard[] {
+function heardWords(utterance: CombinedUtterance, ordinal: number): Heard[] {
   return (utterance.words ?? [])
     .flatMap((word, at) => {
       const start = wordSeekSec(word);
@@ -28,7 +29,7 @@ function heardWords(utterance: CombinedUtterance): Heard[] {
       return [
         {
           text: word.text,
-          key: `${utterance.track_id}:${utterance.source_id ?? ""}:${word.word_index ?? at}`,
+          key: `${ordinal}:${utterance.track_id}:${utterance.source_id ?? ""}:${word.word_index ?? at}`,
           start,
           word,
         },
@@ -40,18 +41,14 @@ function heardWords(utterance: CombinedUtterance): Heard[] {
 export function guestScriptOf(
   utterances: readonly CombinedUtterance[] | undefined,
 ): GuestScriptModel {
-  const unplaced = (utterances ?? []).reduce(
-    (sum, utterance) =>
-      sum +
-      (utterance.words ?? []).filter(
-        (word) =>
-          !word.suppressed && !word.ignored && wordSeekSec(word) === null,
-      ).length,
-    0,
-  );
+  const all = (utterances ?? []).flatMap((utterance) => utterance.words ?? []);
+  const cut = (word: TranscriptWordView) =>
+    word.suppressed || word.ignored || word.mappable === false;
+  const unplaced = all.some((word) => !cut(word) && wordSeekSec(word) === null);
+  const anyCut = all.some(cut);
   const spoken = (utterances ?? [])
-    .map((utterance) => {
-      const heard = heardWords(utterance);
+    .map((utterance, at) => {
+      const heard = heardWords(utterance, at);
       return { utterance, heard, first: heard[0]?.start ?? 0 };
     })
     .filter(({ heard }) => heard.length > 0)
@@ -93,7 +90,15 @@ export function guestScriptOf(
       ...heard.map(({ word }) => word.timeline_end ?? word.timeline_start ?? 0),
     );
   }
-  return { turns, wordStarts, words, unplaced };
+  const empty: GuestEmpty =
+    (utterances?.length ?? 0) === 0
+      ? "none"
+      : unplaced
+        ? "unplaced"
+        : anyCut
+          ? "cut"
+          : "untimed";
+  return { turns, wordStarts, words, empty };
 }
 
 export function playingWordsAt(
