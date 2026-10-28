@@ -71,6 +71,8 @@ export type HomeViewProps = {
   notice?: string;
   /** A quiet progress line while Home works ("Importing 2 files…"). */
   working?: string;
+  /** The card being opened while `working` shows. */
+  busyId?: string;
 };
 
 /** The picker form: the path fallback needs wiring, so Home shows the picker. */
@@ -219,6 +221,7 @@ export function HomeView({
   openOther = NO_OPEN_OTHER,
   notice,
   working,
+  busyId,
 }: HomeViewProps) {
   const host = useRef<HTMLDivElement>(null);
   const narrow = useNarrow(host);
@@ -280,6 +283,7 @@ export function HomeView({
         projects={projects}
         variant={narrow ? "row" : "card"}
         label="Recent episodes"
+        busyId={busyId}
         onOpen={onOpenProject}
         onFind={onFindProject}
       />
@@ -318,14 +322,14 @@ export function HomeView({
               <h2 id="home-recent" className="sys-home-recent-title">
                 Recent
               </h2>
+              {working ? (
+                <p className="sys-home-working" role="status">
+                  {working}
+                </p>
+              ) : null}
               <OpenOther {...openOther} onChooseFolder={onOpenOther} />
             </div>
             <InlineError message={notice} />
-            {working ? (
-              <p className="sys-home-empty" role="status">
-                {working}
-              </p>
-            ) : null}
             {showInstallHint ? (
               <Card
                 tone="hint"

@@ -77,6 +77,9 @@ export const ToolsMissing: Story = {
     await expect(
       canvas.getByRole("link", { name: "Setup guide for the audio tools" }),
     ).toHaveAttribute("href", expect.stringContaining("setup.md"));
+    await expect(
+      canvas.getByRole("link", { name: "Setup guide for the audio tools" }),
+    ).toHaveClass("sys-text-btn");
     await userEvent.click(canvas.getByRole("button", { name: "Check again" }));
     await expect(args.onRetry).toHaveBeenCalledOnce();
   },

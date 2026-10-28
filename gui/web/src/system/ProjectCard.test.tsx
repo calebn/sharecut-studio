@@ -65,13 +65,33 @@ describe("ProjectCardList", () => {
     expect(cards[0]).toHaveAccessibleName(/52:10 · edited 2 h ago.*Review 6/);
   });
 
-  it("rings the first card without giving it focus", () => {
+  it("marks no card until one has focus, so the ring means focus only", () => {
     const { cards } = setup();
-    const ring = document.querySelectorAll("[data-primary]");
-    expect(ring).toHaveLength(1);
-    expect(ring[0]).toContainElement(cards[0]);
     expect(document.body).toHaveFocus();
+    expect(
+      document.querySelectorAll("[data-primary], [data-busy]"),
+    ).toHaveLength(0);
     expect(cards[1].tabIndex).toBe(-1);
+  });
+
+  it("marks only the card being opened as busy", () => {
+    render(
+      <ProjectCardList
+        projects={PROJECTS}
+        label="Recent episodes"
+        busyId={PROJECTS[1].id}
+        onOpen={vi.fn()}
+      />,
+    );
+    const busy = screen
+      .getAllByRole("button")
+      .filter((card) => card.getAttribute("aria-busy") === "true");
+    expect(busy).toHaveLength(1);
+    expect(busy[0]).toHaveAccessibleName(new RegExp(`^${PROJECTS[1].name}`));
+    expect(busy[0].closest(".sys-project")).toHaveAttribute(
+      "data-busy",
+      "true",
+    );
   });
 
   it("offers Find beside a missing folder and does not open", async () => {

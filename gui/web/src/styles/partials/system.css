@@ -1882,11 +1882,6 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   outline-offset: var(--focus-ring-offset);
 }
 
-.sys-project[data-primary] {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: var(--focus-ring-offset);
-}
-
 .sys-project[data-missing] {
   background: var(--color-bg-sunken);
   color: var(--color-text-secondary);
@@ -1907,6 +1902,15 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-project[data-missing] .sys-project-open {
   cursor: default;
+}
+
+.sys-project[data-busy] {
+  border-color: var(--color-accent);
+  background: var(--color-bg-sunken);
+}
+
+.sys-project[data-busy] .sys-project-open {
+  cursor: progress;
 }
 
 .sys-project-name {
@@ -2092,7 +2096,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-start-pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
@@ -2119,6 +2123,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 }
 
 .sys-home-wordmark {
+  min-inline-size: 0;
   margin: 0;
   font: inherit;
   line-height: 0;
@@ -2134,10 +2139,12 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-home-lockup {
   block-size: 1.5rem;
+  max-inline-size: 100%;
 }
 
 .sys-home-header-actions {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-3);
 }
@@ -2167,6 +2174,17 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
+}
+
+.sys-home-working {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sys-home-recent-title {
@@ -2266,6 +2284,18 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-setup-line {
   margin: 0;
+}
+
+.sys-setup-line .sys-text-btn {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0;
+}
+
+@media (pointer: coarse) {
+  .sys-setup-line .sys-text-btn {
+    padding-inline: var(--space-3);
+  }
 }
 
 .sys-setup-actions {

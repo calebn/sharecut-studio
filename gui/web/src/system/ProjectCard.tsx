@@ -24,8 +24,8 @@ type ProjectCardProps = {
   variant?: "card" | "row";
   /** Roving tabindex: only the active card is in the tab order. */
   tabIndex?: 0 | -1;
-  /** The card Enter continues from: a visual ring only, it takes no focus. */
-  primary?: boolean;
+  /** The card being opened: marked busy until the open settles. */
+  busy?: boolean;
   onOpen: (id: string, stage: ProjectCardData["stage"]) => void;
   /** Shown beside the card button when the folder is missing. */
   onFind?: (id: string) => void;
@@ -41,7 +41,7 @@ function ProjectCard({
   project,
   variant = "card",
   tabIndex = 0,
-  primary = false,
+  busy = false,
   onOpen,
   onFind,
   onKeyDown,
@@ -54,7 +54,7 @@ function ProjectCard({
   return (
     <div
       className={`sys-project sys-project--${variant}`}
-      data-primary={primary || undefined}
+      data-busy={busy || undefined}
       data-missing={missing || undefined}
     >
       <button
@@ -62,6 +62,7 @@ function ProjectCard({
         className="sys-project-open"
         tabIndex={tabIndex}
         aria-disabled={missing || undefined}
+        aria-busy={busy || undefined}
         data-project-open=""
         onClick={missing ? undefined : () => onOpen(project.id, project.stage)}
         onKeyDown={onKeyDown}
@@ -98,6 +99,8 @@ export type ProjectCardListProps = {
   variant?: "card" | "row";
   /** Names the list for assistive technology: "Recent episodes". */
   label: string;
+  /** The id of the card being opened, if any. */
+  busyId?: string;
   onOpen: (id: string, stage: ProjectCardData["stage"]) => void;
   onFind?: (id: string) => void;
 };
@@ -107,6 +110,7 @@ export function ProjectCardList({
   projects,
   variant = "card",
   label,
+  busyId,
   onOpen,
   onFind,
 }: ProjectCardListProps) {
@@ -146,7 +150,7 @@ export function ProjectCardList({
             project={project}
             variant={variant}
             tabIndex={index === current ? 0 : -1}
-            primary={index === 0}
+            busy={project.id === busyId}
             onOpen={onOpen}
             onFind={onFind}
             onKeyDown={move}

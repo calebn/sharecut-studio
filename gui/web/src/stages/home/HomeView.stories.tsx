@@ -84,6 +84,16 @@ export const SetupDownloading: Story = {
     },
   },
 };
+export const Opening: Story = {
+  args: { working: "Opening…", busyId: RECENTS[0].id },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Opening…")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /^Rosa and Maya, week 42/ }),
+    ).toHaveAttribute("aria-busy", "true");
+  },
+};
 export const FolderMoved: Story = { args: { projects: RECENTS_MOVED } };
 export const DropHover: Story = { args: { dropActive: true, dropCount: 3 } };
 export const Loading: Story = {
