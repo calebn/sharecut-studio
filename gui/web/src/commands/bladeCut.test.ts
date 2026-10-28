@@ -33,7 +33,7 @@ describe("edit.bladeCut", () => {
     const { asked } = answerQuestions(null);
     await execute("edit.bladeCut", { atTime: 12 }, { skipWhen: true });
     expect(asked).toEqual([]);
-    expect(api.splitAtTime).toHaveBeenCalledWith("/tmp/ep", 12, ["guest"]);
+    expect(api.splitAtTime).toHaveBeenCalledWith("/tmp/ep", 12, ["guest"], null, []);
   });
 
   it.each(["phone", "tablet"] as const)(
@@ -51,7 +51,7 @@ describe("edit.bladeCut", () => {
           actionLabel: "Cut",
         }),
       ]);
-      expect(api.splitAtTime).toHaveBeenCalledWith("/tmp/ep", 83.5, ["guest"]);
+      expect(api.splitAtTime).toHaveBeenCalledWith("/tmp/ep", 83.5, ["guest"], null, []);
     },
   );
 

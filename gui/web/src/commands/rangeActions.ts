@@ -23,6 +23,10 @@ import { registerCommand } from "./execute";
 import { commandLabel } from "./labels";
 import type { ExecuteResult } from "./types";
 
+export const PLAY_DENIED_REASON = "This share cannot play audio";
+export const PLAY_STALE_REASON =
+  "Mix out of date. Ask the host to Refresh before playing this range.";
+
 export type RangeAction =
   | "play"
   | "cut"
@@ -109,15 +113,14 @@ export function rangeActionDescriptors(
       guest &&
       !hasShareCapability(state.shareCapabilities, "play")
     )
-      reason = "This share cannot play audio";
+      reason = PLAY_DENIED_REASON;
     if (
       !reason &&
       action === "play" &&
       guest &&
       staleRenderBreakdown(state.project).stale
     )
-      reason =
-        "Mix out of date. Ask the host to Refresh before playing this range.";
+      reason = PLAY_STALE_REASON;
     if (
       !reason &&
       action === "comment" &&
@@ -139,15 +142,19 @@ export function rangeActionDescriptors(
 
 let previewUrl: string | null = null;
 
+/** `override` is a span the caller built (one clip's), for a selection that is not a range. */
 export async function runRangeAction(
   action: RangeAction,
+  override?: ExactRangeTarget,
 ): Promise<ExecuteResult> {
   const state = useDawStore.getState();
-  const correcting = correctingWordReason(state, action);
+  const correcting = override ? null : correctingWordReason(state, action);
   if (correcting) return { status: "disabled", reason: correcting };
-  const resolved = state.project
-    ? resolveSelectionRange(state.project, state.selection)
-    : { targets: [], reason: "Open a project" };
+  const resolved = override
+    ? { targets: [override], reason: null }
+    : state.project
+      ? resolveSelectionRange(state.project, state.selection)
+      : { targets: [], reason: "Open a project" };
   const target = resolved.targets.length === 1 ? resolved.targets[0]! : null;
   const descriptor = rangeActionDescriptors(state, target).find(
     (d) => d.action === action,

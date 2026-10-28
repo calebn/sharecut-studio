@@ -140,7 +140,7 @@ describe("ActionBar dock", () => {
     await userEvent.click(
       within(menu).getByRole("menuitem", { name: "Record" }),
     );
-    expect(onVerb).toHaveBeenLastCalledWith("record");
+    expect(onVerb).toHaveBeenLastCalledWith("record", undefined);
   });
 
   it("draws the playhead verbs with no grip and no More", () => {
