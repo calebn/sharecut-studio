@@ -230,9 +230,8 @@ def _is_timeout(exc: BaseException) -> bool:
         return True
     if not isinstance(exc, OSError):
         return False
-    return (
-        _WSAETIMEDOUT in (exc.errno, getattr(exc, "winerror", None)) or exc.errno == errno.ETIMEDOUT
-    )
+    windows_code = getattr(exc, "winerror", None)
+    return exc.errno in (errno.ETIMEDOUT, _WSAETIMEDOUT) or windows_code == _WSAETIMEDOUT
 
 
 def _remaining(deadline: float) -> float:
@@ -288,19 +287,14 @@ class _PingConnection(http.client.HTTPConnection):
         last_error: OSError | None = None
         timed_out: OSError | None = None
         for family, ip in _LOOPBACK_ADDRESSES[host]:
+            sock: _DeadlineSocket | None = None
             try:
                 sock = _DeadlineSocket(family, deadline=self.deadline)
-            except OSError as exc:
-                _remaining(self.deadline)
-                last_error = exc
-                if _is_timeout(exc):
-                    timed_out = exc
-                continue
-            try:
                 sock.connect((ip, port))
                 return sock
             except OSError as exc:
-                sock.close()
+                if sock is not None:
+                    sock.close()
                 _remaining(self.deadline)
                 last_error = exc
                 if _is_timeout(exc):
@@ -365,13 +359,13 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
         except OSError as exc:
             if not _is_timeout(exc):
                 raise
-            status, body = _ping(host, resolved)
-    except OSError as exc:
-        if _is_timeout(exc):
-            raise StudioUnresponsive(host) from None
-        log.debug("studio announced at %s:%s did not answer", host.host, host.port)
-        return None
-    except (http.client.HTTPException, ValueError):
+            # The first attempt timed out, so a live Studio is wedged: the retry either
+            # answers or the Studio is unresponsive, whatever way the retry fails.
+            try:
+                status, body = _ping(host, resolved)
+            except (OSError, http.client.HTTPException, ValueError):
+                raise StudioUnresponsive(host) from None
+    except (OSError, http.client.HTTPException, ValueError):
         log.debug("studio announced at %s:%s did not answer", host.host, host.port)
         return None
     if status != 200:
