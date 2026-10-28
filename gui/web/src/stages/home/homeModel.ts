@@ -3,13 +3,7 @@ import { formatBytes, type ModelView, type useModels } from "../../models";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { STATUS_TEXT } from "../../system/statusText";
 import { plural } from "../../utils/format";
-import type { SetupCardProps } from "./SetupCard";
-
-/** What the Setup card shows; the adapter adds the callbacks. */
-export type SetupData = Pick<
-  SetupCardProps,
-  "state" | "progress" | "detail" | "sizeLabel"
->;
+import type { SetupData } from "./HomeView";
 
 const MONTHS = [
   "Jan",
@@ -26,12 +20,10 @@ const MONTHS = [
   "Dec",
 ] as const;
 
-/** "24 Oct": the day and month in the person's own time zone. */
 export function dayMonth(date: Date): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
-/** "52:10", or "1:04:30" from an hour up. */
 export function formatDuration(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
   const h = Math.floor(whole / 3600);
@@ -49,7 +41,6 @@ function startOfDay(date: Date): number {
   ).getTime();
 }
 
-/** "edited 2 h ago", "edited yesterday", "edited 24 Oct": how long ago, in the card's words. */
 export function formatEdited(editedAt: string | null, now: Date): string {
   const at = editedAt ? new Date(editedAt) : null;
   if (!at || Number.isNaN(at.getTime())) return "";
@@ -98,7 +89,6 @@ export function cardsOf(
   return projects.map((project) => cardOf(project, now));
 }
 
-/** The name a new episode gets from audio dropped or chosen on Home. */
 export function episodeNameFromFiles(
   files: readonly { name: string }[],
   now: Date,
@@ -108,12 +98,10 @@ export function episodeNameFromFiles(
   return base || `Episode, ${dayMonth(now)}`;
 }
 
-/** The name a new recording gets: "Untitled episode · 25 Oct". */
 export function untitledEpisodeName(now: Date): string {
   return `Untitled episode · ${dayMonth(now)}`;
 }
 
-/** "Importing 3 files…" for the line shown while Home uploads. */
 export function importingLine(count: number): string {
   return `Importing ${count} ${plural(count, "file")}…`;
 }
@@ -123,14 +111,12 @@ function needsDownload(model: ModelView): boolean {
   return kind === "missing" || kind === "update_needed" || kind === "failed";
 }
 
-/** The models Get ready fetches: everything the bundle needs that is not installed yet. */
 export function bundleToGet(models: readonly ModelView[] | null): string[] {
   return (models ?? [])
     .filter((m) => m.tier !== "offered" && needsDownload(m))
     .map((m) => m.id);
 }
 
-/** "about 2 GB", or the plain fallback when a size is not known. */
 function sizeLabelOf(models: readonly ModelView[]): string {
   const sizes = models.map((m) => m.sizeBytes);
   if (sizes.length === 0 || sizes.some((s) => s === null)) {

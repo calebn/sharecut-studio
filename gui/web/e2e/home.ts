@@ -15,7 +15,6 @@ export async function dismissSetupCard(page: Page): Promise<void> {
   }, SETUP_DISMISSED_KEY);
 }
 
-/** Open Home and wait for its two tiles. */
 export async function openHome(
   page: Page,
   options: { dismissSetup?: boolean } = {},
@@ -36,7 +35,6 @@ export async function expectHome(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: /^Record/ })).toBeVisible();
 }
 
-/** Choose a row of Home's More menu (Models, Connect agent). */
 export async function chooseHomeMenuItem(
   page: Page,
   name: string,
