@@ -91,7 +91,7 @@ export const Default: Story = {
 };
 
 export const Selected: Story = {
-  args: { selected: true },
+  args: { selected: true, expanded: true },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", {

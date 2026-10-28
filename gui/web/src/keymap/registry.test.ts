@@ -310,6 +310,21 @@ describe("keymap registry", () => {
     ).toBe("track.soloToggle");
     _resetKeymapOverridesForTests();
   });
+
+  it("keeps a remapped Solo key working without Shift", () => {
+    _resetKeymapOverridesForTests();
+    setKeymapOverride("track.soloToggle", ["L"]);
+    expect(matchKeymapCommand(keyEvent({ key: "l", code: "KeyL" }))?.id).toBe(
+      "track.soloToggle",
+    );
+    expect(formatShortcutKeys(keymapCommandById("track.soloToggle")!)).toBe(
+      "L",
+    );
+    _resetKeymapOverridesForTests();
+    expect(
+      matchKeymapCommand(keyEvent({ key: "s", code: "KeyS" }))?.id,
+    ).not.toBe("track.soloToggle");
+  });
 });
 
 describe("Alt chords", () => {

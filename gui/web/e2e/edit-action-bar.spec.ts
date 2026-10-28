@@ -443,3 +443,126 @@ test.describe("Phone dock", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
   });
 });
+
+test.describe("Keys and focus", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("C opens a focused composer, so typing a comment fires no shortcut", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await selectFirstClip(page);
+    const sent = watchCommands(page);
+    await page.locator("body").press("c");
+    const composer = page.getByPlaceholder("Add a comment…");
+    await expect(composer).toBeFocused();
+    await page.keyboard.type("my");
+    await expect(composer).toHaveValue("my");
+    expect(sent.filter((c) => c.type === "EditSelectedRange")).toHaveLength(0);
+  });
+
+  test("M outside the Edit stage never mutes the hidden Edit selection", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await selectFirstClip(page);
+    await goToStage(page, "review");
+    const sent = watchCommands(page);
+    await page.locator("body").press("m");
+    await expect(
+      page.getByRole("status").filter({ hasText: /Range mute/ }),
+    ).toHaveCount(0);
+    expect(sent.filter((c) => c.type === "EditSelectedRange")).toHaveLength(0);
+  });
+
+  test("Close hands focus back to the Inspect button", async ({ page }) => {
+    await openEdit(page);
+    await selectFirstClip(page);
+    await inspectSelection(page);
+    await inspector(page).getByRole("button", { name: "Close" }).click();
+    await expect(inspector(page)).toHaveCount(0);
+    await expect(
+      selectionBar(page).getByRole("button", { name: "Inspect", exact: true }),
+    ).toBeFocused();
+  });
+
+  test("a track header says it is expanded only while its Inspector is open", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    const header = page.getByRole("button", {
+      name: "Open track details, reference",
+    });
+    await header.focus();
+    await page.keyboard.press("Enter");
+    await expect(inspector(page)).toBeVisible();
+    await expect(header).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Escape");
+    await expect(inspector(page)).toHaveCount(0);
+    await expect(header).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+test.describe("Action bar follows and stays clear", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("moves under the next clip when the selection moves to another lane", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await selectFirstClip(page);
+    const bar = selectionBar(page);
+    await expect(bar).toBeVisible();
+    const last = page.locator(".clip-hit").last();
+    await last.click();
+    await expect(last).toHaveAttribute("aria-pressed", "true");
+    await expect
+      .poll(async () => {
+        const [clip, box] = await Promise.all([
+          last.boundingBox(),
+          bar.boundingBox(),
+        ]);
+        return clip && box ? box.y - (clip.y + clip.height) : null;
+      })
+      .toBeGreaterThanOrEqual(-1);
+    await expect
+      .poll(async () => {
+        const [clip, box] = await Promise.all([
+          last.boundingBox(),
+          bar.boundingBox(),
+        ]);
+        return clip && box ? box.y - (clip.y + clip.height) : null;
+      })
+      .toBeLessThan(40);
+  });
+
+  test("hangs above a selected word so the next lines stay clickable", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await openPanel(page, "transcript");
+    await page.getByRole("button", { name: /^Select:/ }).click();
+    const words = page.locator(
+      '.transcript-list button[data-transcript-word][data-track-id="reference"]',
+    );
+    await words.nth(2).click();
+    const bar = selectionBar(page);
+    await expect(bar).toBeVisible();
+    const word = await words.nth(2).boundingBox();
+    await expect
+      .poll(async () => (await bar.boundingBox())?.y ?? Number.NaN)
+      .toBeLessThanOrEqual((word?.y ?? 0) + 1);
+    const count = await words.count();
+    let later = -1;
+    for (let i = 3; i < count; i++) {
+      const box = await words.nth(i).boundingBox();
+      if (box && word && box.y > word.y + word.height) {
+        later = i;
+        break;
+      }
+    }
+    expect(later).toBeGreaterThan(2);
+    await words.nth(later).click({ modifiers: ["Shift"] });
+    await expect(words.nth(later)).toHaveClass(/selected/);
+  });
+});

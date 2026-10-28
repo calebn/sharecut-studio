@@ -50,6 +50,12 @@ export type KeymapCommand = {
   requireAlt?: boolean;
   /** true = Shift required; false = Shift excluded; omit = Shift optional. */
   requireShift?: boolean;
+  /**
+   * With requireShift: Shift is part of the default key only (it frees the bare
+   * key for another verb). A remap replaces the whole chord, so a key the user
+   * chose keeps working without Shift.
+   */
+  shiftOnDefaultKey?: boolean;
   /** Keys in `keys` that need Shift held (Shift+F10); the others match with or without. */
   shiftKeys?: string[];
   /** A toggle a held key must not flip back and forth (M saves the mix mute). */
@@ -391,6 +397,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Cut selection",
     keys: ["Backspace", "Delete"],
     bareKey: true,
+    noRepeat: true,
     when: "editStageStructural",
   },
   {
@@ -468,6 +475,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["S"],
     bareKey: true,
     requireShift: true,
+    shiftOnDefaultKey: true,
     noRepeat: true,
     when: "hasProject",
     notes: "Shift+S: S is Split",
@@ -503,6 +511,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Hear before",
     keys: ["A"],
     bareKey: true,
+    requireShift: false,
     noRepeat: true,
     when: "editStage",
     notes: "A: the suggestion as it is now",
@@ -513,6 +522,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Hear after",
     keys: ["B"],
     bareKey: true,
+    requireShift: false,
     noRepeat: true,
     when: "editStage",
     notes: "B: the suggestion applied",
@@ -523,6 +533,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Keep",
     keys: ["X"],
     bareKey: true,
+    requireShift: false,
     noRepeat: true,
     when: "editStage",
     notes:
@@ -534,6 +545,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Inspect",
     keys: ["I"],
     bareKey: true,
+    requireShift: false,
     noRepeat: true,
     when: "editStage",
     notes: "I: open or close the Inspector for the selection; Mod+I is Import",
@@ -806,11 +818,17 @@ const SHARED_KEY_RANK: ReadonlyMap<string, number> = new Map(
   SHARED_KEY_ORDER.flatMap(({ order }) => order.map((id, i) => [id, i])),
 );
 
+function shiftRequired(cmd: KeymapCommand): boolean | undefined {
+  return cmd.shiftOnDefaultKey && getKeymapOverride(cmd.id)
+    ? undefined
+    : cmd.requireShift;
+}
+
 function shortcutParts(cmd: KeymapCommand): string[] {
   // A remap replaces the key only; Mod/Shift still apply (see effectiveKeys).
   const primary = getKeymapOverride(cmd.id)?.[0] ?? cmd.keys[0] ?? "";
   if (primary === " " || primary === "Space") {
-    return cmd.requireShift ? ["Shift", "Space"] : ["Space"];
+    return shiftRequired(cmd) ? ["Shift", "Space"] : ["Space"];
   }
   const parts: string[] = [];
   if (cmd.requireMod) {
@@ -819,7 +837,7 @@ function shortcutParts(cmd: KeymapCommand): string[] {
   if (cmd.requireAlt) {
     parts.push("Alt");
   }
-  if (cmd.requireShift || cmd.shiftKeys?.includes(primary)) {
+  if (shiftRequired(cmd) || cmd.shiftKeys?.includes(primary)) {
     parts.push("Shift");
   }
   parts.push(primary);
@@ -996,24 +1014,25 @@ export function matchKeymapCommands(
   const out: KeymapCommand[] = [];
 
   for (const cmd of KEYMAP_COMMANDS) {
+    const shift = shiftRequired(cmd);
     if (cmd.requireAlt) {
       if (!e.altKey || mod) {
         continue;
       }
-      if (cmd.requireShift === true && !e.shiftKey) {
+      if (shift === true && !e.shiftKey) {
         continue;
       }
-      if (cmd.requireShift === false && e.shiftKey) {
+      if (shift === false && e.shiftKey) {
         continue;
       }
     } else if (cmd.requireMod) {
       if (!mod || e.altKey) {
         continue;
       }
-      if (cmd.requireShift === true && !e.shiftKey) {
+      if (shift === true && !e.shiftKey) {
         continue;
       }
-      if (cmd.requireShift === false && e.shiftKey) {
+      if (shift === false && e.shiftKey) {
         continue;
       }
     } else {
@@ -1021,10 +1040,10 @@ export function matchKeymapCommands(
       if (bare && hasCommandModifier(e)) {
         continue;
       }
-      if (cmd.requireShift === true && !e.shiftKey) {
+      if (shift === true && !e.shiftKey) {
         continue;
       }
-      if (cmd.requireShift === false && e.shiftKey) {
+      if (shift === false && e.shiftKey) {
         continue;
       }
     }

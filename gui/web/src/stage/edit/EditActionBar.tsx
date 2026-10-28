@@ -111,8 +111,8 @@ function EditActionBarImpl({
               form: "floating",
               anchorRef: anchor.ref,
               moves: anchor.moves,
-              // below, so the ruler above the first lane stays uncovered
-              prefer: "below",
+              // below, so the ruler stays uncovered; above a word, so the next line does
+              prefer: selection?.kind === "transcriptRange" ? "above" : "below",
             }
           : { form: "dock" }
       }

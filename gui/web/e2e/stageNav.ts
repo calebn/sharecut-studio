@@ -522,3 +522,12 @@ export async function inspectSelection(page: Page): Promise<void> {
     .getByRole("button", { name: "Inspect", exact: true })
     .click();
 }
+
+/** Inspect by its key, for a selection whose bar a pending card covers. */
+export async function inspectSelectionByKey(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
+  await page.keyboard.press("i");
+}

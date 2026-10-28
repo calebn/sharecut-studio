@@ -132,6 +132,7 @@ describe("TrackHeaderView", () => {
   it("shows selection, stale reason and reorder edge while preserving an empty lane", () => {
     const { container, rerender } = renderHeader({
       selected: true,
+      expanded: true,
       stemClass: "stale",
       wholeReasons: ["fx"],
       headerHighlight: true,

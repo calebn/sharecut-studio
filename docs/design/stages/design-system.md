@@ -164,7 +164,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Keep (the "no") sits left and the primary (the "yes") sits right, matching swipe left and swipe right.
   - Verbs that don't apply are absent, never disabled.
 - Primary per object: cut suggestion → Cut; pause → Shorten; sound → Lower; pickup → Replace or Insert; words or range → Cut; comment → Resolve; check or clip idea → Approve. Clip, seam, marker, track and envelope point have no primary.
-- **Floating** (desktop and tablet): a 40 px pill (44 px on touch) 8 px above the selection, flipping below when there is no room. Icon only, tooltip with name and key.
+- **Floating** (desktop and tablet): a 40 px pill (44 px on touch) beside the selection: below it by default so the ruler stays uncovered, above a selected word so the next Script line stays clickable, flipping when there is no room. Icon only, tooltip with name and key.
 - **Dock** (phone): one 64 px row above the Player bar, a 48 px icon over a 10 px label, and it is the Sheet's first detent.
   - Phone Edit always shows the dock. With nothing selected it shows playhead verbs (Split, Add chapter, Record, Paste).
   - Phone Review always shows it (an item is always current): Keep (left), A/B (center), verb (right).
