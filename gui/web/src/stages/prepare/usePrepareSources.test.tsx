@@ -285,6 +285,18 @@ describe("split", () => {
     expect(result.current.splitFailed).toEqual({});
   });
 
+  it("shows a split failure in plain words, without paths or codes", async () => {
+    vi.mocked(followJobToOk).mockRejectedValueOnce(
+      new Error("Failed reading /home/maya/proj/audio/take1.wav: bad_header"),
+    );
+    const { result } = setup();
+    await act(async () => result.current.actions.onSplit("maya"));
+    const shown = result.current.splitFailed.maya;
+    expect(shown).toBeDefined();
+    expect(shown).not.toContain("/home/maya");
+    expect(shown).not.toContain("bad_header");
+  });
+
   it("asks for the speaker model, and Try again downloads it then splits", async () => {
     vi.mocked(startSplitSpeakersJob).mockRejectedValueOnce(
       new ApiError("model needed", "model_needed", 409, {
