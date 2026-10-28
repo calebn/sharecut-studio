@@ -163,7 +163,7 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes the bounce and export dialogs when the project switches", () => {
+    it("closes the bounce dialog and drops a pending export request when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
