@@ -45,6 +45,8 @@ export type MarkerProps = MarkerKindProps & {
   at: number;
   selected?: boolean;
   dragging?: boolean;
+  /** A "+N" chip sits just after this marker's start, so its start edge hit area gives way. */
+  stacked?: boolean;
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Custom properties for the root, such as the reach of a touch hit area. */
   rootStyle?: CSSProperties;
@@ -133,6 +135,7 @@ export function Marker(props: MarkerProps) {
     at,
     selected = false,
     dragging = false,
+    stacked = false,
     onSelect,
     rootStyle,
     buttonProps,
@@ -154,6 +157,7 @@ export function Marker(props: MarkerProps) {
       data-span={to === undefined ? undefined : "true"}
       data-selected={selected || undefined}
       data-dragging={dragging || undefined}
+      data-stacked={stacked || undefined}
       data-proposed={
         props.kind === "clip" && props.proposed ? "true" : undefined
       }

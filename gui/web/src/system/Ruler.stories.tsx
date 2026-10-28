@@ -243,6 +243,46 @@ export const ResizingSelection: Story = {
   },
 };
 
+function LoggedRuler({ args }: { args: RulerProps }) {
+  const [events, setEvents] = useState<string[]>([]);
+  const [drags, setDrags] = useState(0);
+  return (
+    <>
+      <LiveRuler
+        args={{
+          ...args,
+          onSelectionDragStart: (edge, pointer) => {
+            setEvents((now) => [...now, `start ${edge}`]);
+            return args.onSelectionDragStart?.(edge, pointer);
+          },
+          onSelectionDrag: (edge, drag) => {
+            setDrags((now) => now + 1);
+            args.onSelectionDrag?.(edge, drag);
+          },
+          onSelectionDragEnd: (edge, committed) => {
+            setEvents((now) => [...now, `end ${edge} ${committed}`]);
+            args.onSelectionDragEnd?.(edge, committed);
+          },
+        }}
+        view={{ start: 604, pxPerSecond: 20 }}
+        playhead={606}
+        selection={{ start: 608, end: 614 }}
+      />
+      <output data-testid="events">{events.join(" | ")}</output>
+      <output data-testid="drags">{drags}</output>
+    </>
+  );
+}
+
+export const LoggingSelectionDrag: Story = {
+  render: (args) => <LoggedRuler args={args} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByTestId("events"),
+    ).toBeEmptyDOMElement();
+  },
+};
+
 export const WithSessions: Story = {
   render: (args) => (
     <LiveRuler

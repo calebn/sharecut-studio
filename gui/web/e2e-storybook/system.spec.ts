@@ -1490,7 +1490,7 @@ test("System/Ruler under a coarse pointer a touch drag on a handle resizes the s
     { dx: 48, dy: 0 },
   );
   await frames(page);
-  await expect(end).toHaveAttribute("aria-valuenow", "612");
+  await expect(end).toHaveAttribute("aria-valuenow", "611.5");
   expect(rows.inside).toContain("sys-ruler-handle");
   expect(rows.below).toContain("sys-markers-track");
   expect(rows.above ?? "").not.toContain("sys-ruler-handle");
@@ -1785,11 +1785,11 @@ test("System/MarkerLane only a selected marker moves under one finger, and a tap
   await swipe(
     cdp,
     { x: jokeBox.x + jokeBox.width / 2, y: jokeBox.y + 12 },
-    { dx: -48, dy: 0 },
+    { dx: -72, dy: 0 },
   );
   await frames(page);
   expect(before).toMatch(/0:30\.0 to 0:42\.0/);
-  expect(await name(joke)).toMatch(/0:22\.0 to 0:34\.0/);
+  expect(await name(joke)).toMatch(/0:20\.0 to 0:32\.0/);
   await context.close();
 });
 
@@ -1959,3 +1959,330 @@ test("System/MarkerLane and System/Ruler fit a 360 px phone without scrolling si
     expect(fit.ruler).toBeLessThanOrEqual(fit.view);
   }
 });
+
+type Page = import("@playwright/test").Page;
+
+const markerBox = (page: Page, name: RegExp) =>
+  page
+    .locator(".sys-marker", { has: page.getByRole("button", { name }) })
+    .evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, width: r.width };
+    });
+
+const tickLeft = (page: Page, label: string) =>
+  page
+    .locator(".sys-ruler-tick", { hasText: new RegExp(`^${label}$`) })
+    .evaluate((el) => el.getBoundingClientRect().left);
+
+/** The `aria-label` of the button, or the edge, under a point. */
+const ownerAt = (page: Page, x: number, y: number) =>
+  page.evaluate(
+    ([px, py]) => {
+      const el = document.elementFromPoint(px as number, py as number);
+      return (
+        el?.closest("[data-edge]")?.getAttribute("data-edge") ??
+        el?.closest("button")?.getAttribute("aria-label") ??
+        null
+      );
+    },
+    [x, y],
+  );
+
+test("System/MarkerLane on a lane wider than 1024 px every marker sits at the x the ruler gives its time", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--wide", 1700);
+  const lane = await page.locator(".sys-markers").boundingBox();
+  if (!lane) throw new Error("Lane did not render");
+  expect(lane.width).toBeGreaterThan(1500);
+  const third = await markerBox(page, /^Chapter Third minute/);
+  const fourth = await markerBox(page, /^Chapter Fourth minute/);
+  const clip = await markerBox(page, /^Clip idea Wide clip/);
+  const pin = await page.locator(".sys-marker-bubble").evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return r.left + r.width / 2;
+  });
+  expect(third.left).toBeCloseTo(await tickLeft(page, "3:00"), 0);
+  expect(fourth.left).toBeCloseTo(await tickLeft(page, "4:00"), 0);
+  expect(pin).toBeCloseTo(await tickLeft(page, "3:30"), 0);
+  expect(clip.left).toBeCloseTo(await tickLeft(page, "2:00"), 0);
+  expect(clip.right).toBeCloseTo(await tickLeft(page, "4:30"), 0);
+  expect(fourth.left - lane.x).toBeCloseTo(1440, 0);
+});
+
+test("System/MarkerLane a chapter and a comment inside a clip idea or a range comment are drawn on their own and reachable by pointer and keyboard", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--nested", 1280);
+  const lane = await page.locator(".sys-markers").boundingBox();
+  if (!lane) throw new Error("Lane did not render");
+  const y = lane.y + 12;
+  await expect(page.getByRole("button", { name: /more marker/ })).toHaveCount(
+    0,
+  );
+  const chapter = await markerBox(page, /^Chapter Inside chapter/);
+  expect(chapter.left - lane.x).toBeCloseTo(400, 0);
+  expect(await ownerAt(page, chapter.left + 6, y)).toMatch(
+    /^Chapter Inside chapter/,
+  );
+  expect(await ownerAt(page, lane.x + 300, y)).toMatch(/^Clip idea Long clip/);
+  expect(await ownerAt(page, lane.x + 928, y)).toMatch(/^Chapter Inside range/);
+  expect(await ownerAt(page, lane.x + 860, y)).toMatch(
+    /^Comment by Anneke, 3:30.0 to 4:20.0/,
+  );
+  const clip = page.getByRole("button", { name: /^Clip idea Long clip/ });
+  await clip.focus();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: /^Chapter Inside chapter/ }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("button", { name: /^Chapter Inside chapter/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("System/MarkerLane zoomed in, a chapter inside a clip idea whose start has scrolled off to the left is still drawn at its time", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--nested-zoomed", 1280);
+  const lane = await page.locator(".sys-markers").boundingBox();
+  if (!lane) throw new Error("Lane did not render");
+  await expect(page.getByRole("button", { name: /more marker/ })).toHaveCount(
+    0,
+  );
+  const chapter = await markerBox(page, /^Chapter Inside chapter/);
+  expect(chapter.left - lane.x).toBeCloseTo(300, 0);
+  expect(await ownerAt(page, chapter.left + 6, lane.y + 12)).toMatch(
+    /^Chapter Inside chapter/,
+  );
+  expect(await ownerAt(page, lane.x + 600, lane.y + 12)).toMatch(
+    /^Clip idea Long clip/,
+  );
+  await page.getByRole("button", { name: /^Chapter Inside chapter/ }).click();
+  await expect(
+    page.getByRole("button", { name: /^Chapter Inside chapter/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("System/MarkerLane a +N chip on a selected bracket's start leaves the start edge 18 px that a pointer reaches, and the chip stays whole", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--folded-on-range-start", 1280);
+  const y = (await page.locator(".sys-markers").boundingBox())!.y + 12;
+  const edge = await page
+    .locator(".sys-marker-edge[data-edge=start]")
+    .evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, width: r.width };
+    });
+  expect(edge.width).toBe(18);
+  for (const dx of [1, 9, 16]) {
+    expect(await ownerAt(page, edge.left + dx, y)).toBe("start");
+  }
+  const chip = await page
+    .getByRole("button", { name: "1 more marker" })
+    .boundingBox();
+  if (!chip) throw new Error("Chip did not render");
+  for (const x of [
+    chip.x + 1,
+    chip.x + chip.width / 2,
+    chip.x + chip.width - 1,
+  ]) {
+    expect(await ownerAt(page, x, y)).toBe("1 more marker");
+  }
+});
+
+test("System/Ruler a selection knob dragged out of the window and released below the ruler ends the drag once, and the bare mouse then drags nothing", async ({
+  page,
+}) => {
+  await open(page, "system-ruler--logging-selection-drag", 1280);
+  const end = page.getByRole("slider", { name: "Selection end" });
+  const box = await end.boundingBox();
+  if (!box) throw new Error("Knob did not render");
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 200, y, { steps: 5 });
+  await page.mouse.move(1278, y, { steps: 5 });
+  await expect(end).toHaveCount(0);
+  await page.mouse.move(1278, y + 200, { steps: 3 });
+  await page.mouse.up();
+  await expect(page.getByTestId("events")).toHaveText(
+    "start end | end end true",
+  );
+  const drags = await page.getByTestId("drags").textContent();
+  await page.mouse.move(600, y, { steps: 5 });
+  await page.mouse.move(300, y, { steps: 5 });
+  await frames(page);
+  await expect(page.getByTestId("drags")).toHaveText(drags ?? "");
+  await expect(page.getByTestId("events")).toHaveText(
+    "start end | end end true",
+  );
+  await expect(page.locator("[data-dragging]")).toHaveCount(0);
+});
+
+test("System/MarkerLane after a mouse drag the next Enter on another marker selects it at once", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--all-kinds", 1280);
+  const box = await page
+    .getByRole("button", { name: /^Chapter Interview/ })
+    .boundingBox();
+  if (!box) throw new Error("Chapter did not render");
+  await page.mouse.move(box.x + 6, box.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 46, box.y + 12, { steps: 6 });
+  await page.mouse.up();
+  const open1 = page.getByRole("button", { name: /^Chapter Cold open/ });
+  await open1.focus();
+  await page.keyboard.press("Enter");
+  await expect(open1).toHaveAttribute("aria-pressed", "true");
+});
+
+test("System/MarkerLane after a touch drag the next Enter on another marker selects it at once", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-markerlane--phone",
+  );
+  const cdp = await context.newCDPSession(page);
+  const joke = page.getByRole("button", { name: /^Clip idea Best joke/ });
+  const box = await joke.boundingBox();
+  if (!box) throw new Error("Bracket did not render");
+  await swipe(
+    cdp,
+    { x: box.x + box.width / 2, y: box.y + 12 },
+    { dx: -72, dy: 0 },
+  );
+  await frames(page);
+  await expect(joke).toHaveAttribute("aria-label", /0:20\.0 to 0:32\.0/);
+  const open1 = page.getByRole("button", { name: /^Chapter Cold open/ });
+  await open1.focus();
+  await page.keyboard.press("Enter");
+  await expect(open1).toHaveAttribute("aria-pressed", "true");
+  await context.close();
+});
+
+test("System/MarkerLane under a coarse pointer a selected bracket's edges are 34% of it, up to 44 px, without the touch prop", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-markerlane--selected",
+  );
+  await expect(page.locator(".sys-markers")).not.toHaveAttribute("data-touch");
+  const joke = await page
+    .getByRole("button", { name: /^Clip idea Best joke/ })
+    .boundingBox();
+  const widths = await page
+    .locator(".sys-marker[data-selected] .sys-marker-edge")
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+  if (!joke) throw new Error("Bracket did not render");
+  expect(widths).toHaveLength(2);
+  for (const width of widths) expect(width).toBeCloseTo(joke.width * 0.34, 1);
+  const y = joke.y + 12;
+  expect(await ownerAt(page, joke.x + 20, y)).toBe("start");
+  expect(await ownerAt(page, joke.x + joke.width - 20, y)).toBe("end");
+  expect(await ownerAt(page, joke.x + joke.width / 2, y)).toMatch(
+    /^Clip idea Best joke/,
+  );
+  await context.close();
+});
+
+test("System/MarkerLane the name field of an added chapter stays inside the lane when its time is scrolled off to the left", async ({
+  page,
+}) => {
+  await open(page, "system-markerlane--adding-chapter-scrolled-away", 1280);
+  const lane = await page.locator(".sys-markers").boundingBox();
+  const field = page.getByRole("textbox", { name: "Chapter name" });
+  const box = await field.boundingBox();
+  if (!lane || !box) throw new Error("Field did not render");
+  expect(box.x).toBeGreaterThanOrEqual(lane.x);
+  expect(box.x + box.width).toBeLessThanOrEqual(lane.x + lane.width);
+  await expect(field).toBeFocused();
+  expect(
+    await field.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, r.top + 10) === el;
+    }),
+  ).toBe(true);
+});
+
+test("System/MarkerLane draws the clip idea's line, the range comment's bar and the proposed hatch in the system text color under forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(storyUrl("system-markerlane--all-kinds", { theme: "light" }));
+  await expect(page.locator(".sys-marker-line").first()).toBeVisible();
+  const seen = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.forcedColorAdjust = "none";
+    probe.style.backgroundColor = "CanvasText";
+    document.body.append(probe);
+    const text = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const style = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (!el) throw new Error(selector);
+      return getComputedStyle(el);
+    };
+    return {
+      text,
+      well: style(".sys-markers").backgroundColor,
+      line: style(
+        ".sys-marker[data-kind=clip]:not([data-proposed]) .sys-marker-line",
+      ).backgroundColor,
+      bar: style(".sys-marker-bar").backgroundColor,
+      hatch: style(".sys-marker[data-proposed] .sys-marker-line")
+        .backgroundImage,
+    };
+  });
+  expect(seen.line).toBe(seen.text);
+  expect(seen.bar).toBe(seen.text);
+  expect(seen.line).not.toBe(seen.well);
+  expect(seen.hatch).toContain("repeating-linear-gradient");
+  expect(seen.hatch).toContain(seen.text);
+});
+
+for (const mode of ["light", "dark", "forced"] as const) {
+  test(`System/MarkerLane the selection ring of a selected marker is drawn inside its 24 px lane in ${mode}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.emulateMedia({
+      colorScheme: mode === "dark" ? "dark" : "light",
+      forcedColors: mode === "forced" ? "active" : "none",
+      reducedMotion: "reduce",
+    });
+    await page.goto(
+      storyUrl("system-markerlane--selected", {
+        theme: mode === "dark" ? "dark" : "light",
+      }),
+    );
+    const joke = page.getByRole("button", { name: /^Clip idea Best joke/ });
+    await expect(joke).toHaveAttribute("aria-pressed", "true");
+    const ring = await joke.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const lane = el.closest(".sys-markers")?.getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      return {
+        style: style.outlineStyle,
+        width: Number.parseFloat(style.outlineWidth),
+        offset: Number.parseFloat(style.outlineOffset),
+        above: box.top - (lane?.top ?? 0),
+        below: (lane?.bottom ?? 0) - box.bottom,
+      };
+    });
+    expect(ring.style).toBe("solid");
+    expect(ring.width).toBeGreaterThan(0);
+    expect(ring.offset).toBeLessThanOrEqual(-ring.width);
+    expect(ring.offset + ring.width).toBeLessThanOrEqual(0);
+    expect(ring.above).toBeGreaterThanOrEqual(0);
+    expect(ring.below).toBeGreaterThanOrEqual(0);
+  });
+}

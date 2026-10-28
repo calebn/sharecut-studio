@@ -218,7 +218,7 @@ describe("MarkerLane moving", () => {
     moveTo(chapter(), 162, 1, { altKey: true });
     moveTo(chapter(), 186, 1, { shiftKey: true });
     fireEvent.pointerUp(chapter(), { pointerId: 1, clientX: 186 });
-    fireEvent.click(chapter(), { clientX: 186 });
+    fireEvent.click(chapter(), { clientX: 186, detail: 1 });
     expect(onDragStart.mock.calls).toEqual([
       [
         "ch-interview",
@@ -340,8 +340,61 @@ describe("MarkerLane moving", () => {
     fireEvent.pointerUp(chapter(), finger(5, 190));
     again({ selected: ["ch-interview"] });
     fireEvent.pointerDown(chapter(), finger(6, 150));
-    fireEvent.pointerMove(chapter(), finger(6, 154));
+    fireEvent.pointerMove(chapter(), finger(6, 160));
     expect(onDragStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes a finger's drift of up to 9 px on a selected marker for a tap, and 10 px for a drag that starts without a jump", () => {
+    const { onDragStart, onDrag, onDragEnd, onSelect } = setup({
+      selected: ["ch-interview"],
+    });
+    fireEvent.pointerDown(chapter(), finger(7, 150));
+    fireEvent.pointerMove(chapter(), finger(7, 159));
+    fireEvent.pointerUp(chapter(), finger(7, 159));
+    fireEvent.click(chapter(), { detail: 1 });
+    expect(onDragStart).not.toHaveBeenCalled();
+    expect(onSelect.mock.calls).toEqual([["ch-interview", false]]);
+    fireEvent.pointerDown(chapter(), finger(8, 150));
+    fireEvent.pointerMove(chapter(), finger(8, 160));
+    fireEvent.pointerMove(chapter(), finger(8, 166));
+    fireEvent.pointerUp(chapter(), finger(8, 166));
+    expect(onDragStart).toHaveBeenCalledTimes(1);
+    expect(
+      onDrag.mock.calls.map(([, , drag]) => [drag.dx, drag.delta]),
+    ).toEqual([
+      [0, 0],
+      [6, 1],
+    ]);
+    expect(onDragEnd.mock.calls).toEqual([["ch-interview", "move", true]]);
+  });
+
+  it("keeps a mouse at 3 px, and the first move of a mouse drag is counted from the press", () => {
+    const { onDrag } = setup({ selected: ["ch-interview"] });
+    press(chapter(), 150);
+    moveTo(chapter(), 152);
+    moveTo(chapter(), 153);
+    fireEvent.pointerUp(chapter(), { pointerId: 1, clientX: 153 });
+    expect(onDrag.mock.calls.map(([, , drag]) => drag.dx)).toEqual([3]);
+  });
+
+  it("selects with Enter at once after a mouse drag or a touch drag, since no click follows either", async () => {
+    const user = userEvent.setup();
+    const { onSelect } = setup({ selected: ["ch-interview"] });
+    press(chapter(), 150);
+    moveTo(chapter(), 190);
+    fireEvent.pointerUp(chapter(), { pointerId: 1, clientX: 190 });
+    screen.getByRole("button", { name: /^Comment by Maya/ }).focus();
+    await user.keyboard("{Enter}");
+    expect(onSelect.mock.calls).toEqual([["cm-maya", false]]);
+    fireEvent.pointerDown(chapter(), finger(9, 150));
+    fireEvent.pointerMove(chapter(), finger(9, 190));
+    fireEvent.pointerUp(chapter(), finger(9, 190));
+    screen.getByRole("button", { name: /^Comment by Maya/ }).focus();
+    await user.keyboard(" ");
+    expect(onSelect.mock.calls).toEqual([
+      ["cm-maya", false],
+      ["cm-maya", false],
+    ]);
   });
 
   it("ignores a second pointer while one has hold, and finishes with the first", () => {
@@ -381,7 +434,7 @@ describe("MarkerLane moving", () => {
     expect(fireEvent.keyDown(document.body, { key: "Escape" })).toBe(false);
     moveTo(chapter(), 230);
     fireEvent.pointerUp(chapter(), { pointerId: 1, clientX: 230 });
-    fireEvent.click(chapter());
+    fireEvent.click(chapter(), { detail: 1 });
     expect(onDragEnd.mock.calls).toEqual([["ch-interview", "move", false]]);
     expect(onDrag).toHaveBeenCalledTimes(1);
     expect(onSelect).not.toHaveBeenCalled();
@@ -691,12 +744,48 @@ describe("MarkerLane stacks", () => {
   });
 
   it("says one more marker in the singular and marks the chip when a hidden marker is selected", () => {
-    setup({ markers: crowded.slice(0, 2), selected: ["p2"] });
-    const chip = screen.getByRole("button", { name: "1 more marker" });
-    expect(chip.closest(".sys-marker")).toHaveAttribute(
+    const { again } = setup({ markers: crowded.slice(0, 2) });
+    const chip = () => screen.getByRole("button", { name: "1 more marker" });
+    expect(chip()).not.toHaveAttribute("aria-pressed");
+    expect(chip().closest(".sys-marker")).not.toHaveAttribute("data-selected");
+    again({ selected: ["p2"] });
+    expect(chip().closest(".sys-marker")).toHaveAttribute(
       "data-selected",
       "true",
     );
+    expect(chip()).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("marks the marker a chip follows, so its start edge leaves room for the chip", () => {
+    setup({ markers: crowded });
+    const marks = [...document.querySelectorAll(".sys-marker")].map((el) => [
+      el.getAttribute("data-kind"),
+      el.getAttribute("data-stacked"),
+    ]);
+    expect(marks).toEqual([
+      ["comment", "true"],
+      ["stack", null],
+      ["clip", null],
+    ]);
+  });
+
+  it("keeps a chapter inside a clip's span on its own, and unfolds nothing when the window zooms", () => {
+    const nested: readonly LaneMarker[] = [
+      { kind: "clip", id: "long", start: 0, end: 50, title: "Long" },
+      { kind: "chapter", id: "inside", start: 25, title: "Inside" },
+    ];
+    const { again } = setup({ markers: nested });
+    const names = () =>
+      screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+    expect(names()).toEqual([
+      "Clip idea Long, approved, 0:00.0 to 0:50.0",
+      "Chapter Inside, 0:25.0",
+    ]);
+    again({ pxPerSecond: 60, start: 24.5 });
+    expect(names()).toEqual([
+      "Clip idea Long, approved, 0:00.0 to 0:50.0",
+      "Chapter Inside, 0:25.0",
+    ]);
   });
 
   it("unfolds the chip when the window zooms in", () => {

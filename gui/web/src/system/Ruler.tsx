@@ -126,10 +126,14 @@ export const Ruler = memo(function Ruler({
 
   const grab = useGrab<RulerGrip>({
     canGrab: (grip) => (grip === "scrub" ? true : editable),
-    slop: (grip, event) =>
-      grip === "scrub" && event.pointerType === "touch"
-        ? TOUCH_SLOP_PX
-        : HANDLE_DRAG_MIN_PX,
+    slop: (grip, event) => {
+      const finger =
+        grip === "scrub"
+          ? event.pointerType === "touch"
+          : event.pointerType === "touch" || event.pointerType === "pen";
+      return finger ? TOUCH_SLOP_PX : HANDLE_DRAG_MIN_PX;
+    },
+    captureOnStart: () => root.current,
     onStart: (grip, pointer, press) => {
       if (grip === "scrub") {
         if (onScrubStart?.(secondsAt(pointer.clientX), pointer) === false) {
@@ -175,7 +179,7 @@ export const Ruler = memo(function Ruler({
   });
 
   const click = (event: MouseEvent<HTMLElement>) => {
-    if (grab.consumeClick()) return;
+    if (grab.consumeClick(event)) return;
     onSeek(secondsAt(event.clientX));
   };
 
@@ -285,7 +289,7 @@ export const Ruler = memo(function Ruler({
         onKeyDown={edgeKey(edge)}
         onKeyUp={edgeKeyUp}
         onBlur={endNudge}
-        {...grab.handlers(edge)}
+        onPointerDown={(event) => grab.press(edge, event)}
       >
         <span className="sys-ruler-grip" />
       </span>
@@ -313,6 +317,12 @@ export const Ruler = memo(function Ruler({
       data-readonly={readOnly || undefined}
       data-touch={touch || undefined}
       data-scrubbing={grabbed === "scrub" || undefined}
+      onPointerMove={grab.move}
+      onPointerUp={grab.up}
+      onPointerCancel={grab.cancel}
+      onLostPointerCapture={(event) => {
+        if (event.target === event.currentTarget) grab.cancel(event);
+      }}
       style={
         {
           "--sys-ruler-width": px(width),
@@ -382,12 +392,15 @@ export const Ruler = memo(function Ruler({
         aria-valuemin={0}
         aria-valuemax={round3(duration)}
         aria-valuenow={round3(clamp(playhead, 0, duration))}
-        aria-valuetext={formatRulerTime(playhead, Math.min(step, 0.1))}
+        aria-valuetext={formatRulerTime(
+          clamp(playhead, 0, duration),
+          Math.min(step, 0.1),
+        )}
         {...hitProps?.scrub}
         onClick={click}
         onDoubleClick={onFit ? () => onFit() : undefined}
         onKeyDown={bodyKey}
-        {...grab.handlers("scrub")}
+        onPointerDown={(event) => grab.press("scrub", event)}
       />
       {editable ? EDGES.map(handle) : null}
     </div>

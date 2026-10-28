@@ -203,3 +203,57 @@ describe("MarkerLane in a timeline", () => {
     expect(renders.markers).toBe(6);
   });
 });
+
+const spread: LaneMarker[] = [0, 1, 2, 3, 4, 5].map((n) => ({
+  kind: "chapter",
+  id: `c${n}`,
+  start: n * 10,
+  title: `Chapter ${n}`,
+}));
+
+function MovingMarkers() {
+  const [markers, setMarkers] = useState<readonly LaneMarker[]>(spread);
+  const move = (id: string, by: number) =>
+    setMarkers((now) =>
+      now.map((marker) =>
+        marker.id === id ? { ...marker, start: marker.start + by } : marker,
+      ),
+    );
+  return (
+    <>
+      <button type="button" onClick={() => move("c2", 1)}>
+        Nudge
+      </button>
+      <button type="button" onClick={() => setMarkers((now) => [...now])}>
+        Copy
+      </button>
+      <MarkerLane
+        markers={markers}
+        start={0}
+        pxPerSecond={6}
+        width={400}
+        duration={100}
+        onSelect={noop}
+      />
+    </>
+  );
+}
+
+describe("MarkerLane when the host moves one marker", () => {
+  it("draws the moved marker and the one whose title it cuts off, and none of the other four", () => {
+    renders.markers = 0;
+    render(<MovingMarkers />);
+    expect(renders.markers).toBe(6);
+    fireEvent.click(screen.getByRole("button", { name: "Nudge" }));
+    expect(renders.markers).toBe(8);
+    fireEvent.click(screen.getByRole("button", { name: "Nudge" }));
+    expect(renders.markers).toBe(10);
+  });
+
+  it("draws nothing when the host passes a new array of the same markers", () => {
+    renders.markers = 0;
+    render(<MovingMarkers />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(renders.markers).toBe(6);
+  });
+});
