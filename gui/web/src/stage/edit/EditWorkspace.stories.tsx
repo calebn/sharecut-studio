@@ -79,7 +79,7 @@ export const Desktop: Story = {
       canvas.getByRole("separator", { name: "Resize Script" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("group", { name: "Editing tools" }),
+      canvas.getByRole("group", { name: "Timeline view" }),
     ).toBeVisible();
   },
 };
@@ -249,7 +249,7 @@ export const PhoneTimeline: Story = {
       canvas.getByRole("group", { name: "Edit surface" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("group", { name: "Editing tools" }),
+      canvas.getByRole("group", { name: "Timeline view" }),
     ).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Timeline" }),
@@ -298,7 +298,7 @@ export const GuestEditor: Story = {
       await canvas.findByRole("group", { name: "Tracks" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: "Blade tool" }),
+      canvas.getByRole("button", { name: "Fit session width" }),
     ).toBeEnabled();
   },
 };
@@ -310,7 +310,7 @@ export const GuestViewer: Story = {
     docs: {
       description: {
         story:
-          "A view link reaches Edit only by a deep link, which the stage host will turn into the cover. The workspace itself stays read-only: no Blade, no + row.",
+          "A view link reaches Edit only by a deep link, which the stage host will turn into the cover. The workspace itself stays read-only: no + row, and Alt-click shows no split guide.",
       },
     },
   },
@@ -319,9 +319,6 @@ export const GuestViewer: Story = {
     await expect(
       await canvas.findByRole("group", { name: "Tracks" }),
     ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Blade tool" }),
-    ).toBeDisabled();
     await expect(canvas.queryByRole("button", { name: "+" })).toBeNull();
   },
 };

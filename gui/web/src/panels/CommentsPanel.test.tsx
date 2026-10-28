@@ -75,7 +75,6 @@ describe("CommentsPanel", () => {
       playheadSec: 0,
       selection: null,
       commentDraft: null,
-      commentMode: false,
     });
     useDawStore.getState().announceStatus("");
   });
@@ -332,7 +331,6 @@ describe("CommentsPanel", () => {
     expect(localStorage.getItem("podcast-mcp-comment-author")).toBe("Ada");
 
     act(() => {
-      useDawStore.getState().setCommentMode(true);
       useDawStore.getState().setCommentDraft({ startSec: 1, endSec: null });
     });
     await user.type(
@@ -447,14 +445,13 @@ describe("CommentsPanel", () => {
     expect(screen.getByRole("textbox", { name: "Comment" })).toHaveFocus();
   });
 
-  it("posts at the playhead once the body has text, with no ruler press", async () => {
+  it("posts at the playhead once the body has text", async () => {
     const user = userEvent.setup();
     createComment.mockResolvedValueOnce(sampleComment({ id: "c2" }));
     act(() => useDawStore.getState().setPlayheadSec(21.4));
     render(<CommentsPanel />);
     const post = screen.getByRole("button", { name: "Post comment" });
     expect(post).toBeDisabled();
-    expect(useDawStore.getState().commentMode).toBe(false);
     expect(
       screen.getByRole("button", { name: "Comment at 0:21. Change time" }),
     ).toBeInTheDocument();
@@ -634,13 +631,12 @@ describe("CommentsPanel", () => {
     expect(useDawStore.getState().commentDraft).toBeNull();
   });
 
-  it("shows a Viewer link no comment field and no Comment mode", () => {
+  it("shows a Viewer link no comment field", () => {
     useDawStore
       .getState()
       .hydrate("share:tok", minimalProject(), "view", ["view"]);
     render(<CommentsPanel guestShare />);
     expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Comment mode/ })).toBeNull();
   });
 
   it("opens a Commenter link on the Comments tab with its field", () => {
@@ -654,7 +650,6 @@ describe("CommentsPanel", () => {
   it("names action items while composing and includes them in the post", async () => {
     const user = userEvent.setup();
     act(() => {
-      useDawStore.getState().setCommentMode(true);
       useDawStore.getState().setCommentDraft({ startSec: 3, endSec: null });
     });
     createComment.mockResolvedValueOnce(sampleComment());

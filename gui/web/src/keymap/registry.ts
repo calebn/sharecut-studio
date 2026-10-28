@@ -20,7 +20,6 @@ import { hasCommandModifier } from "./typing";
 /** Keymap categories in display order (in-app palette tabs and generated cheatsheets); `KeymapCategory` and `keymapByCategory()` derive from it. */
 export const KEYMAP_CATEGORY_ORDER = [
   "transport",
-  "tools",
   "navigation",
   "review",
   "history",
@@ -109,53 +108,13 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     collision: "K alone stops playback; Mod+K is Blade cut",
   },
   {
-    id: "tool.select",
-    category: "tools",
-    label: "Select tool",
-    keys: ["V"],
-    bareKey: true,
-    when: "timelineFocused",
-    notes: "When timeline is focused",
-  },
-  {
-    id: "tool.blade",
-    category: "tools",
-    label: "Blade tool",
-    keys: ["C"],
-    bareKey: true,
-    when: "timelineAndStructural",
-    notes: "When timeline is focused",
-    collision:
-      "C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode",
-  },
-  {
-    id: "review.exitCommentMode",
-    category: "review",
-    label: "Exit comment mode",
-    keys: ["Escape"],
-    bareKey: true,
-    when: "commentMode",
-  },
-  {
     id: "edit.clearSelection",
     category: "edit",
     label: "Clear selection",
     keys: ["Escape"],
     bareKey: true,
     when: "hasInspectorSelection",
-    notes: "After exitCommentMode; also clears track targeting",
-  },
-  {
-    id: "review.toggleCommentMode",
-    category: "review",
-    label: "Toggle comment mode",
-    keys: ["C"],
-    bareKey: false,
-    requireMod: true,
-    requireShift: true,
-    when: "always",
-    notes: "Mod+Shift+C",
-    collision: "C alone selects the Blade tool when the timeline is focused",
+    notes: "Also clears track targeting",
   },
   {
     id: "stage.record",
@@ -701,12 +660,8 @@ export type SharedKeyOrder = {
 export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
   {
     key: "Escape",
-    order: [
-      "presence.unfollow",
-      "review.exitCommentMode",
-      "edit.clearSelection",
-    ],
-    why: "the narrowest mode ends first: stop following, then leave comment mode, then clear the selection",
+    order: ["presence.unfollow", "edit.clearSelection"],
+    why: "the narrowest mode ends first: stop following, then clear the selection",
   },
   {
     key: "ArrowLeft",

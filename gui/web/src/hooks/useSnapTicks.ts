@@ -7,9 +7,29 @@ import { useWaveformSnapTicks } from "./useWaveformSnapTicks";
 const FOCUS_EPS_SEC = 1e-6;
 
 /**
+ * True while the Alt-click Split guide rests on this clip. The selector returns
+ * a boolean, so a moving guide re-renders the clip only when it enters or
+ * leaves it.
+ */
+export function useSplitGuideOnClip(
+  clip: Pick<ClipRow, "timeline_start" | "timeline_end">,
+): boolean {
+  const { timeline_start: tl0, timeline_end: tl1 } = clip;
+  return useDawStore(
+    useCallback(
+      (s: { splitHoverSec: number | null }) =>
+        s.splitHoverSec != null &&
+        s.splitHoverSec >= tl0 - FOCUS_EPS_SEC &&
+        s.splitHoverSec <= tl1 + FOCUS_EPS_SEC,
+      [tl0, tl1],
+    ),
+  );
+}
+
+/**
  * Inaudible-cut snap ticks (source seconds) near where an edit would land on
  * this clip: the trim edge while trimming (`trimFocusSourceSec`), else the
- * blade hover inside the clip, else the paused playhead inside it. The
+ * split hover inside the clip, else the paused playhead inside it. The
  * selector returns that timeline time or null, so a playing playhead never
  * re-renders the clip. Ticks show only while the focus is inside the window
  * they were loaded for.
@@ -31,14 +51,14 @@ export function useSnapTicks(opts: {
   const focusTl = useDawStore(
     useCallback(
       (s: {
-        bladeHoverSec: number | null;
+        splitHoverSec: number | null;
         isPlaying: boolean;
         playheadSec: number;
       }) => {
         const inClip = (t: number) =>
           t >= tl0 - FOCUS_EPS_SEC && t <= tl1 + FOCUS_EPS_SEC;
-        if (s.bladeHoverSec != null && inClip(s.bladeHoverSec)) {
-          return s.bladeHoverSec;
+        if (s.splitHoverSec != null && inClip(s.splitHoverSec)) {
+          return s.splitHoverSec;
         }
         if (!s.isPlaying && inClip(s.playheadSec)) {
           return s.playheadSec;

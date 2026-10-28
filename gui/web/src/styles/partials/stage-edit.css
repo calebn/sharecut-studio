@@ -141,84 +141,6 @@
   display: none;
 }
 
-/* The tool strip fills the corner box above the track headers. */
-.track-headers-chrome:has(> .edit-tool-strip) {
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: var(--space-1);
-  padding-inline: var(--space-1);
-}
-
-/* The corner is one ruler row tall and as wide as the track headers, so the
-   tools stay in one row and give up padding, not controls. */
-.edit-tool-strip {
-  position: relative;
-  z-index: var(--z-content);
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.edit-tool-strip .tool-mode-toggle {
-  flex: 0 0 auto;
-}
-
-.track-headers-chrome > .edit-tool-strip .tool-mode-toggle > .ui-control,
-.track-headers-chrome > .edit-tool-strip .edit-tool-strip-range,
-.track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut {
-  padding-inline: var(--space-1);
-  min-inline-size: var(--control-height-compact);
-  min-block-size: var(--control-height-compact);
-  block-size: var(--control-height-compact);
-}
-
-/* On a touch screen the four tools each take the 44 px floor, which is wider
-   than the tablet and compact-lane header columns. The column grows to hold
-   them (the strip has no second row), and the lanes keep the rest. */
-.edit-timeline-col {
-  --edit-header-touch: 12.5rem;
-}
-
-/* With the Blade armed the strip carries a fifth button, wider than the
-   header column holds. The column grows to hold it, as it does on touch, so
-   the button is never left under the marker lane. */
-html[data-shell]
-  .timeline-area
-  .timeline-scroll:has(
-    .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut
-  ),
-html[data-shell]
-  .timeline-area
-  .timeline-lock-inner:has(
-    .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut
-  ) {
-  --header-width: var(--edit-header-touch);
-}
-
-@media (pointer: coarse) {
-  html[data-shell]
-    .timeline-area
-    .timeline-scroll:has(.track-headers-chrome > .edit-tool-strip),
-  html[data-shell]
-    .timeline-area
-    .timeline-lock-inner:has(.track-headers-chrome > .edit-tool-strip) {
-    --header-width: var(--edit-header-touch);
-  }
-
-  /* The corner wraps inside the lanes, never over the header column. */
-  .edit-timeline-col:has(.track-headers-chrome > .edit-tool-strip)
-    .edit-corner {
-    max-inline-size: calc(
-      100% -
-      var(--edit-header-touch) -
-      var(--space-4) -
-      var(--space-3)
-    );
-  }
-}
-
 /* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */
 .edit-corner {
   position: absolute;
@@ -264,27 +186,10 @@ html[data-shell]
   min-block-size: var(--control-height);
 }
 
+/* On a touch screen every corner button, the range toggle included, takes the
+   44 px floor. */
 @media (pointer: coarse) {
-  .edit-corner-btn,
-  .edit-tool-strip-range,
-  .edit-tool-strip-cut,
-  .track-headers-chrome > .edit-tool-strip .tool-mode-toggle > .ui-control,
-  .track-headers-chrome > .edit-tool-strip .edit-tool-strip-range,
-  .track-headers-chrome > .edit-tool-strip .edit-tool-strip-cut {
-    min-inline-size: var(--touch-min);
-    min-block-size: var(--touch-min);
-    block-size: auto;
-  }
-}
-
-/* Outside the corner (the phone's strip) the Select, Blade and Comment tools
-   take the full touch target, and their track grows with them. */
-@media (pointer: coarse) {
-  .edit-tool-strip .ui-segmented.tool-mode-toggle {
-    block-size: auto;
-  }
-
-  .edit-tool-strip .tool-mode-toggle > .ui-control {
+  .edit-corner-btn {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
   }
@@ -362,12 +267,6 @@ html[data-shell]
   min-inline-size: 0;
 }
 
-.phone-edit .edit-tool-strip {
-  flex: 0 0 auto;
-  padding: var(--space-1) var(--space-3);
-  border-block-end: 1px solid var(--color-border);
-}
-
 .phone-edit-lanes {
   position: relative;
   display: flex;
@@ -387,7 +286,7 @@ html[data-shell]
   background: var(--color-bg-base);
 }
 
-/* Wide enough for the surface switch, the tool strip and Mix side by side
+/* Wide enough for the surface switch and Mix side by side
    (360 px at the default size): they share one row, and the lanes or the
    Script take the height that frees. Narrower, or at a larger text size, they
    keep their own rows. */
@@ -407,12 +306,6 @@ html[data-shell]
   .phone-edit-switch {
     grid-area: 1 / 1;
     margin-inline-start: var(--space-3);
-  }
-
-  .phone-edit .edit-tool-strip {
-    grid-area: 1 / 2;
-    padding-block: 0;
-    border-block-end: 0;
   }
 
   .phone-edit-mix {

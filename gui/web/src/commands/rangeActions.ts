@@ -359,8 +359,6 @@ export function registerRangeCommands(): void {
         status: "disabled",
         reason: "Open a project and wait for the current edit",
       };
-    s.setCommentMode(false);
-    s.setToolMode("select");
     s.setRangeArmed(!s.rangeArmed);
     return { status: "ok" };
   });

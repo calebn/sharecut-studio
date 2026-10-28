@@ -12,11 +12,17 @@ export interface EditCornerViewProps {
   onToggleView: () => void;
   /** Phone has no side-by-side Script pane, so no toggle. */
   script?: { shown: boolean; onToggle: () => void };
+  /**
+   * The range bracket toggle, on touch devices only: a finger cannot drag on
+   * empty lane, so arming it makes the next drag draw a range. Absent where a
+   * mouse or pen drags a range directly.
+   */
+  range?: { armed: boolean; reason?: string; onToggle: () => void };
 }
 
 const ZOOM_REASON = { in: "Fully zoomed in", out: "Fully zoomed out" } as const;
 
-/** Fit, zoom, the eye (View sheet) and the Script toggle, bottom-right of the lanes. */
+/** Fit, zoom, the eye (View sheet), the Script toggle and, on touch, the range toggle, bottom-right of the lanes. */
 export function EditCornerView({
   zoom,
   onZoomIn,
@@ -25,6 +31,7 @@ export function EditCornerView({
   viewOpen,
   onToggleView,
   script,
+  range,
 }: EditCornerViewProps) {
   return (
     <div className="edit-corner" role="group" aria-label="Timeline view">
@@ -65,6 +72,19 @@ export function EditCornerView({
       >
         <SystemIcon name="eye" size={20} />
       </ToggleButton>
+      {range ? (
+        <ToggleButton
+          quiet
+          pressed={range.armed}
+          className="edit-corner-btn edit-corner-range"
+          disabledReason={range.reason}
+          title={commandLabel("range.arm")}
+          aria-label={commandLabel("range.arm", "short")}
+          onClick={range.onToggle}
+        >
+          <Icon name="range" />
+        </ToggleButton>
+      ) : null}
       {script ? (
         <ToggleButton
           quiet
