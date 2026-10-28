@@ -868,9 +868,17 @@ html[data-frame-short] .sys-header-right {
   display: none;
 }
 
-html[data-frame-short] .sys-header-left > .sys-header-menu,
-html[data-frame-short] .sys-header-left > .sys-header-guest {
-  flex: 1 1 0;
+@container sys-app-header (max-width: 20rem) {
+  html[data-frame-short] .sys-header-left > .sys-header-menu,
+  html[data-frame-short] .sys-header-left > .sys-header-guest {
+    flex: 1 1 0;
+  }
+}
+
+html[data-frame-short] .sys-header-project {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  justify-content: center;
 }
 
 html[data-frame-short] .sys-header-project .sys-header-title {
