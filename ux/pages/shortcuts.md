@@ -24,13 +24,6 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `K` | Stop playback (`transport.stop`) | Always (when not typing in an input) | K alone stops playback; Mod+K is Blade cut |
 | `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B: rebuild stems/premix when host or Docs Editor |
 
-## tools
-
-| Shortcut | Command | When | Notes |
-|----------|---------|------|-------|
-| `V` | Select tool (`tool.select`) | Timeline focused | When timeline is focused |
-| `C` | Blade tool (`tool.blade`) | Timeline focused + structural edits allowed | When timeline is focused — C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode |
-
 ## navigation
 
 | Shortcut | Command | When | Notes |
@@ -51,8 +44,6 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `Escape` | Exit comment mode (`review.exitCommentMode`) | Comment mode on |  |
-| `Mod+Shift+C` | Toggle comment mode (`review.toggleCommentMode`) | Always (when not typing in an input) | Mod+Shift+C — C alone selects the Blade tool when the timeline is focused |
 | `Enter` | Apply tighten hit (`tighten.applyHit`) | tightenPanelOpen | Enter: selected tighten hit |
 | `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace: selected tighten hit |
 | `Mod+Shift+Enter` | Apply suggested actions (`tighten.applySuggested`) | tightenPanelOpen | Mod+Shift+Enter: every listed sound gets its own suggested action |
@@ -70,7 +61,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
 | `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: focused word in Navigate mode |
-| `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | After exitCommentMode; also clears track targeting |
+| `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | Also clears track targeting |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
 | `ArrowLeft` | Trim clip edge (`edit.trimClipEdge`) | focusedTrimHandle | Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels. |
 | `Mod+C` | Copy (`edit.copy`) | editStage | Mod+C |
