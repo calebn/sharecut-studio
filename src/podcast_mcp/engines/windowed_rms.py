@@ -1,4 +1,4 @@
-"""A track's 8 kHz samples over one stretch of the timeline, read as the whole track would read them (#2357).
+"""A track's 8 kHz samples over a stretch of the timeline, read as the whole track is (#2357).
 
 An approve check reads a few seconds around its cut, but the whole-track build behind
 ``TrackRmsCache`` evaluates and resamples the entire track. :class:`WindowedTrackRmsCache` holds
@@ -49,7 +49,7 @@ class WindowMiss(RuntimeError):
 
 
 class WindowedTrackRmsCache(TrackRmsCache):
-    """``window`` samples starting at ``first_index`` of a ``total_size``-sample track at ``sample_rate``.
+    """``window`` samples from ``first_index`` of a ``total_size``-sample track at ``sample_rate``.
 
     ``window`` and ``_index_range`` follow ``TrackRmsCache`` for the index arithmetic, so a read
     that lands inside the held stretch returns the slice the whole-track cache returns, and a
@@ -78,7 +78,7 @@ class WindowedTrackRmsCache(TrackRmsCache):
 
     @samples.setter
     def samples(self, value: np.ndarray) -> None:
-        """The dataclass constructor assigns the field; the windowed cache keeps ``held`` instead."""
+        """The dataclass constructor assigns the field; this cache keeps ``held`` instead."""
 
     def __repr__(self) -> str:
         return (
@@ -135,7 +135,7 @@ class WindowedTrackRmsCache(TrackRmsCache):
 def resampled_window(
     piece: Piece, from_rate: int, rate: int, first: int, last: int
 ) -> tuple[np.ndarray, int, int] | None:
-    """Samples ``[first, last)`` of ``piece`` converted to ``rate`` as the whole conversion gives them.
+    """Samples ``[first, last)`` of ``piece`` converted to ``rate`` as the whole conversion gives.
 
     Returns ``(samples, first, total)``: the samples, the index of the first one (``first``
     kept inside the track), and the length of the whole conversion. The range is clipped

@@ -541,6 +541,7 @@ def test_only_a_pause_key_carries_an_observation_span(tmp_path: Path) -> None:
             manual=False,
             batch=[],
             span=(PAUSE[0], PAUSE[1]),
+            base_profile="test-base",
         )
         assert found is not None
         parts[reason] = found["pause_span"]
@@ -632,6 +633,7 @@ def _key_of(tmp_path: Path, mutate: Callable[[EpisodeProject], None]) -> str | N
         manual=False,
         batch=[],
         span=(edit.start, edit.end),
+        base_profile="test-base",
     )
 
 

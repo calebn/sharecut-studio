@@ -146,6 +146,7 @@ def test_every_input_of_the_check_changes_the_key(
             "manual": False,
             "batch": (),
             "span": (5.0, 5.4),
+            "base_profile": "test-base",
         }
         return verdict_cache.verdict_key(project, edit, **{**args, **over})
 
@@ -188,7 +189,13 @@ def test_a_fade_inside_a_second_widens_the_window_and_a_longer_one_is_not_cached
 ) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "batch": (),
+        "span": (5.0, 5.4),
+        "base_profile": "test-base",
+    }
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     project.clips = [
         Clip(id="a", track_id="host", source_start=0, source_end=12.0, timeline_start=0),
@@ -209,7 +216,13 @@ def test_a_fade_inside_a_second_widens_the_window_and_a_longer_one_is_not_cached
 def test_a_cut_far_from_the_window_does_not_change_the_key(tmp_path: Path, cache_on: None) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "batch": (),
+        "span": (5.0, 5.4),
+        "base_profile": "test-base",
+    }
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     project.clips = [
         Clip(id="host", track_id="host", source_start=0, source_end=30, timeline_start=0),
@@ -277,7 +290,13 @@ def test_cut_application_names_the_cache_module() -> None:
 def test_the_production_window_sees_a_change_four_seconds_away(tmp_path: Path) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "batch": (),
+        "span": (5.0, 5.4),
+        "base_profile": "test-base",
+    }
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     project.clips = [
         Clip(id="a", track_id="host", source_start=0, source_end=9.4, timeline_start=0),
@@ -289,7 +308,12 @@ def test_the_production_window_sees_a_change_four_seconds_away(tmp_path: Path) -
 def test_a_batch_cut_changes_the_key_only_when_it_maps_into_the_window(tmp_path: Path) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "span": (5.0, 5.4)}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "span": (5.0, 5.4),
+        "base_profile": "test-base",
+    }
     base = verdict_cache.verdict_key(project, edit, batch=(), **kwargs)
     near = (LaneSourceExtent("host", 6.0, 6.4),)
     far = (LaneSourceExtent("host", 35.0, 35.4),)
@@ -305,7 +329,13 @@ def test_the_policy_tables_are_part_of_the_key(
 ) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "batch": (),
+        "span": (5.0, 5.4),
+        "base_profile": "test-base",
+    }
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     monkeypatch.setattr(cut_policy, "CUT_EDGE_CHECKS", {})
     assert verdict_cache.verdict_key(project, edit, **kwargs) != base
@@ -317,7 +347,13 @@ def test_a_changed_word_near_the_cut_changes_the_key(tmp_path: Path) -> None:
         Transcript(track_id="host", words=[TranscriptWord(text="hello", start=4.6, end=5.0)])
     ]
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "batch": (),
+        "span": (5.0, 5.4),
+        "base_profile": "test-base",
+    }
     base = verdict_cache.verdict_key(project, edit, **kwargs)
     project.transcripts[0].words[0].text = "hullo"
     assert verdict_cache.verdict_key(project, edit, **kwargs) != base
@@ -333,6 +369,7 @@ def test_a_transcript_with_no_words_still_gets_a_verdict_key(tmp_path: Path) -> 
         manual=False,
         batch=(),
         span=(5.0, 5.4),
+        base_profile="test-base",
     )
     assert key is not None
 
@@ -340,7 +377,13 @@ def test_a_transcript_with_no_words_still_gets_a_verdict_key(tmp_path: Path) -> 
 def test_key_parts_name_the_input_that_moved_the_key(tmp_path: Path) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": (5.0, 5.4)}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "batch": (),
+        "span": (5.0, 5.4),
+        "base_profile": "test-base",
+    }
     base = verdict_cache.key_parts(project, edit, **kwargs)
     assert base is not None and "heard" in base
     project.clips = [

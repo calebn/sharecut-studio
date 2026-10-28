@@ -63,7 +63,7 @@ READ_SEC = 6.0
 # What a stored verdict means. "batch-base-profile": every check of a batch read each track's level
 # profile as it stood before the batch (#2357); before, a check after an applied cut read the
 # profile of the track as that cut left it. The store lives in one process, so this guards only a
-# process in which the constant changes (tests); the profile itself is in the key as ``base_profile``.
+# process in which the constant changes (tests); the profile is in the key as ``base_profile``.
 SEMANTICS = "batch-base-profile"
 PAUSE_REACH_FLOOR_SEC = 13.0
 LONG_FADE_NO_CACHE_SEC = 1.0
@@ -214,12 +214,12 @@ def verdict_key(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
-    base_profile: str | None = None,
+    base_profile: str,
 ) -> str | None:
     """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable.
 
-    ``base_profile`` is ``BatchBase.stamp`` of the batch the check belongs to; a caller that
-    leaves it out gets a key that no batch's check shares.
+    ``base_profile`` is ``BatchBase.stamp`` of the batch the check belongs to. It is required:
+    a key without it would be shared by every batch, whatever base each read.
     """
     if _has_long_fade(project):
         return None
@@ -243,7 +243,7 @@ def key_parts(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
-    base_profile: str | None = None,
+    base_profile: str,
 ) -> dict[str, str] | None:
     """A digest per input of the key, to see which input made a check miss (lab); ``None`` as ``verdict_key``."""
     if _has_long_fade(project):
@@ -262,7 +262,7 @@ def _key(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
-    base_profile: str | None,
+    base_profile: str,
 ) -> str:
     return _digest(_payload(project, edit, defaults, manual, batch, span, base_profile))
 
@@ -274,7 +274,7 @@ def _payload(
     manual: bool,
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
-    base_profile: str | None,
+    base_profile: str,
 ) -> dict[str, Any]:
     from podcast_mcp.util.tracks import recording_audio_path
 

@@ -197,7 +197,13 @@ def test_a_pause_in_a_long_silence_widens_the_window_to_the_words_it_observes(
 def _key_with_host_joins(
     project: EpisodeProject, edit: EditDecision, *host_edges: float
 ) -> str | None:
-    kwargs = {"defaults": load_defaults(), "manual": False, "batch": (), "span": CUT}
+    kwargs = {
+        "defaults": load_defaults(),
+        "manual": False,
+        "batch": (),
+        "span": CUT,
+        "base_profile": "test-base",
+    }
     guest = Clip(id="guest", track_id="guest", source_start=0, source_end=SECONDS, timeline_start=0)
     edges = [0.0, *host_edges, float(SECONDS)]
     project.clips = [

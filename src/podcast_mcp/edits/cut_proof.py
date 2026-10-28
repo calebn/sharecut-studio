@@ -50,7 +50,7 @@ def shared_source_audio_caches(project: EpisodeProject) -> dict[str, TrackAudioC
 
 
 class BatchBase:
-    """The level profile of each dialogue track before a batch's cuts: the profile every check of the batch reads (#2357).
+    """The level profile of each dialogue track before a batch's cuts (#2357), read by every check.
 
     ``start`` is the project the batch starts from. The profiles are measured on the timeline
     caches of ``start`` the first time a check needs any: from the caches that check builds
@@ -58,12 +58,15 @@ class BatchBase:
     batch applied a cut reports the base profile of each track, in place of one measured from
     its own, shorter samples, so a verdict does not depend on which other cuts of the batch
     were applied before it, and a check on carried caches reads the same profile as one on
-    rebuilt caches. A batch whose checks all reuse a stored verdict builds nothing.
+    rebuilt caches. The verdict key carries a digest of the profiles (``stamp``), so the first
+    key of a batch builds the start's caches, also when every check then reuses a stored
+    verdict; the first check made on ``start`` reuses that build.
     """
 
     def __init__(self, start: EpisodeProject) -> None:
         self._start = start
         self._profiles: dict[str, LevelProfile] | None = None
+        self._start_set: TrackRmsCacheSet | None = None
 
     def profiles(
         self,
@@ -72,15 +75,21 @@ class BatchBase:
         *,
         defaults: EffectiveConfig,
     ) -> dict[str, LevelProfile]:
-        """The base profiles; ``built`` is a set made from ``project``, which they come from if it is the start."""
+        """The base profiles; ``built``, a set made from ``project``, is the source if the start."""
         if self._profiles is None:
-            source = (
-                built
-                if built is not None and project is self._start
-                else shared_timeline_rms_caches(self._start, defaults=defaults)
-            )
+            if built is not None and project is self._start:
+                self._start_set = built
+            source = self.built_for(self._start, defaults=defaults)
             self._profiles = {tid: cache.profile for tid, cache in source.caches.items()}
         return self._profiles
+
+    def built_for(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> TrackRmsCacheSet:
+        """The timeline caches of ``project``; for the start, the one the stamp or a check built."""
+        if project is not self._start:
+            return shared_timeline_rms_caches(project, defaults=defaults)
+        if self._start_set is None:
+            self._start_set = shared_timeline_rms_caches(project, defaults=defaults)
+        return self._start_set
 
     def stamp(self, *, defaults: EffectiveConfig) -> str:
         """A digest of the base profiles, for the verdict key (``verdict_cache``).
@@ -103,7 +112,7 @@ class BatchBase:
     def adopt(
         self, project: EpisodeProject, built: TrackRmsCacheSet, *, defaults: EffectiveConfig
     ) -> TrackRmsCacheSet:
-        """``built`` (made from ``project``) as is if ``project`` is the start, else ``built`` reporting the base profiles."""
+        """``built`` (made from ``project``) as is for the start, else on the base profiles."""
         profiles = self.profiles(project, built, defaults=defaults)
         if project is self._start:
             return built
@@ -116,7 +125,7 @@ class BatchBase:
 
 
 class RebuiltTimelineRms:
-    """A batch whose every check builds the caches from the project as it stands, on the base profile.
+    """A batch whose every check builds the caches from the project as it stands, on the base.
 
     The auto-apply of tighten removes checks each cut on the project as the earlier cuts left
     it; this gives it the same profile definition as ``CarriedTimelineRms`` (#2357).
@@ -137,7 +146,7 @@ class RebuiltTimelineRms:
 
     def whole(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> TrackRmsCacheSet:
         return self.base.adopt(
-            project, shared_timeline_rms_caches(project, defaults=defaults), defaults=defaults
+            project, self.base.built_for(project, defaults=defaults), defaults=defaults
         )
 
 
@@ -193,7 +202,7 @@ class CarriedTimelineRms:
         return self.base.adopt(project, built, defaults=defaults)
 
     def whole(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> TrackRmsCacheSet:
-        """Every track built whole from the current project, for a check the window could not serve."""
+        """Every track built whole from the current project, for a check no window served."""
         return self._rebuilt(project, self._fresh(project, defaults), defaults)
 
     def applied(self, timeline_start: float) -> None:
@@ -216,7 +225,7 @@ class CarriedTimelineRms:
         self, project: EpisodeProject, fresh: tuple[bool, ...], defaults: EffectiveConfig
     ) -> TrackRmsCacheSet:
         self._caches = self.base.adopt(
-            project, shared_timeline_rms_caches(project, defaults=defaults), defaults=defaults
+            project, self.base.built_for(project, defaults=defaults), defaults=defaults
         )
         self._intact_before = math.inf
         self._stems_fresh = fresh
@@ -225,7 +234,7 @@ class CarriedTimelineRms:
     def _carried_with_current_stems(
         self, project: EpisodeProject, defaults: EffectiveConfig
     ) -> TrackRmsCacheSet:
-        """The carried caches, with each track that has no active chain built again from the current project."""
+        """The carried caches, each track with no active chain built again from ``project``."""
         assert self._caches is not None
         plain = tuple(
             tid for tid in sorted(dialogue_track_ids(project)) if not has_active_chain(project, tid)
