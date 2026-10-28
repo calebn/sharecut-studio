@@ -71,7 +71,7 @@ async function open(page: Page, view: Layout, envelope: boolean) {
   await expect(page.locator(".lane-row").first()).toBeVisible();
   await openToolsIfFolded(page);
   await expect(
-    page.getByRole("group", { name: "Editing tools" }),
+    page.getByRole("group", { name: "Timeline view" }),
   ).toBeVisible();
   await closeTools(page);
   if (envelope) {
