@@ -460,6 +460,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "the Player bar's time readout and overview position follow the live playhead; only the PlayerBar subtree renders it",
   },
   {
+    file: "stage/hosts/GuestScriptHost.tsx",
+    reason:
+      "the selector turns the live playhead into a key of the playing words, so the Script re-renders only when a word changes",
+  },
+  {
     file: "state/presenceSlice.ts",
     reason:
       "the presence slice's own actions read the playhead/roster to publish state",

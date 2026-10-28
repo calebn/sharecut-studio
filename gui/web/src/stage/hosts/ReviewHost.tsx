@@ -11,6 +11,7 @@ import type { ReviewSection } from "../../types/stage";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 
+import { GuestScriptHost } from "./GuestScriptHost";
 import { effectiveSection, hostStateOf, reviewSectionsFor } from "./hostModels";
 import { ReviewStageView } from "./ReviewStageView";
 import { useReviewQueue } from "./useReviewQueue";
@@ -24,6 +25,7 @@ function panelFor(
   section: ReviewSection,
   guestShare: boolean,
   queue: ReturnType<typeof useReviewQueue>,
+  guest: boolean,
 ) {
   switch (section) {
     case "queue":
@@ -31,7 +33,12 @@ function panelFor(
     case "tighten":
       return <TightenPanel />;
     case "comments":
-      return <CommentsPanel guestShare={guestShare} />;
+      return (
+        <>
+          {guest ? <GuestScriptHost /> : null}
+          <CommentsPanel guestShare={guestShare} />
+        </>
+      );
   }
 }
 
@@ -65,7 +72,7 @@ function ReviewHostAdapter({
       active={active}
       waiting={waiting}
       onSection={(section) => runPointerCommand("stage.review", { section })}
-      panel={panelFor(active, guestShare, queue)}
+      panel={panelFor(active, guestShare, queue, role !== "host")}
       onDeliver={
         role === "host" ? () => runPointerCommand("stage.deliver") : undefined
       }
