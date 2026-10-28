@@ -254,7 +254,7 @@ export function useReviewQueue() {
     useDawStore
       .getState()
       .setSelection({ kind: "pending", id: editId, trackId: edit.track_id });
-    void runPointerCommand("stage.edit");
+    runPointerCommand("stage.edit");
   });
 
   return {
@@ -266,7 +266,7 @@ export function useReviewQueue() {
       onDecide,
       onHear,
       onOpenInEdit,
-      onHandOff: () => void runPointerCommand("stage.deliver"),
+      onHandOff: () => runPointerCommand("stage.deliver"),
     },
   };
 }
