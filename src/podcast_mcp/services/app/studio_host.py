@@ -117,11 +117,14 @@ class StudioUnresponsive(Exception):
     what Studio holds.
     """
 
-    def __init__(self, host: StudioHost) -> None:
+    def __init__(self, host: StudioHost, announcement: Path | None = None) -> None:
+        stale = (
+            f" If no Studio is running, delete {announcement}." if announcement is not None else ""
+        )
         super().__init__(
             f"Studio (pid {host.pid}) is serving this project but did not answer in time. "
             f"Try again in a moment, or set {DIRECT_ENV_VAR}=1 to write directly "
-            "(this may overwrite what Studio is holding)."
+            f"(this may overwrite what Studio is holding).{stale}"
         )
         self.host = host
 
@@ -266,7 +269,6 @@ def _connection(host: StudioHost, timeout: float) -> http.client.HTTPConnection:
 
 
 _WSAETIMEDOUT = 10060
-_WSAECONNREFUSED = 10061
 
 
 def _is_timeout(exc: BaseException) -> bool:
@@ -385,8 +387,16 @@ def _ping(host: StudioHost, resolved: str) -> tuple[int, Any]:
 
 
 def _is_refused(exc: OSError) -> bool:
-    windows_code = getattr(exc, "winerror", None)
-    return exc.errno in (errno.ECONNREFUSED, _WSAECONNREFUSED) or windows_code == _WSAECONNREFUSED
+    return isinstance(exc, ConnectionRefusedError)
+
+
+def _is_this_machine(announced: str) -> bool:
+    """True when ``announced`` names this machine, ignoring case and any domain suffix."""
+
+    def first_label(name: str) -> str:
+        return name.split(".", 1)[0].lower()
+
+    return bool(announced) and first_label(announced) == first_label(socket.gethostname())
 
 
 def _check_unpingable(host: StudioHost, project_path: Path | str) -> None:
@@ -397,10 +407,10 @@ def _check_unpingable(host: StudioHost, project_path: Path | str) -> None:
     """
     try:
         socket.create_connection((host.host, host.port), timeout=PROBE_TIMEOUT_SEC).close()
-    except Exception as exc:
-        if isinstance(exc, OSError) and _is_refused(exc):
+    except OSError as exc:
+        if _is_refused(exc):
             return
-        raise StudioUnresponsive(host) from exc
+        raise StudioUnresponsive(host, studio_host_path(project_path)) from exc
     raise StudioNotReachable(host, studio_host_path(project_path))
 
 
@@ -417,7 +427,7 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
     if host is None:
         return None
     if host.host not in _LOOPBACK_ADDRESSES:
-        if host.hostname != socket.gethostname() or not pid_is_alive(host.pid):
+        if not _is_this_machine(host.hostname) or not pid_is_alive(host.pid):
             return None
         _check_unpingable(host, project_path)
         return None

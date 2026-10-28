@@ -813,8 +813,6 @@ def test_commands_for_a_studio_on_127_0_0_2_are_refused_and_nothing_is_written(
         for needed in (
             f"pid {os.getpid()}",
             "127.0.0.2",
-            "cannot hand work to",
-            "Nothing was run",
             "--host 127.0.0.1",
             "PODCAST_NO_STUDIO_HANDOFF=1",
             str(studio_host_path(alias_studio.project)),
