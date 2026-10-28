@@ -669,6 +669,7 @@ memory, so it matters when the constant changes under a running process, as in t
 (`BatchBase.stamp`; the warm, the approve and the auto-apply all take it from their batch's
 `BatchBase`). It is `track_render_hash` of the track (its clips with placement, fades, joins and
 mute regions, the recordings' paths and file revisions, envelope, chain and gate), plus the
+file revision of each room-tone bed a mute fill reads, the render's crossfade curve, and the
 stem's file revision and hash sidecar. It decodes and builds no audio, so a batch whose checks
 all hit builds nothing. The same inputs give the same digest, so an unchanged project keeps every
 hit. Any change to a track's clips or files, such as a mute, a fade or a re-recorded file, changes
