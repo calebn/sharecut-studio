@@ -63,6 +63,7 @@ def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(
     result = job.snapshot()["result"]
     assert result["paths"][0].endswith("demo.wav")
     assert result["master"] == master
+    assert result["edit_head_id"] == "root"
 
 
 def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, monkeypatch) -> None:
