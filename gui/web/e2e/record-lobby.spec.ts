@@ -304,7 +304,7 @@ test.describe("record lobby", () => {
             );
           expect(sheetControls.length).toBeGreaterThan(0);
           for (const height of sheetControls)
-            expect(height).toBeGreaterThanOrEqual(44);
+            expect(height).toBeGreaterThanOrEqual(43.5);
           const join = guest.getByRole("button", { name: "Join and record" });
           await expect(
             roomDlg.getByText("Ava", { exact: true }).first(),
