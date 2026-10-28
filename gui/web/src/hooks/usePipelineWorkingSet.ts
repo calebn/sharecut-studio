@@ -20,7 +20,6 @@ export interface PipelineWorkingSet {
   reload: () => void;
   update: (recipe: PipelineWorkingSetRecipe) => Promise<boolean>;
   fetchFresh: () => Promise<PipelineConfigResponse | null>;
-  reset: () => Promise<boolean>;
 }
 
 function applyPatch(
@@ -136,36 +135,6 @@ export function usePipelineWorkingSet(
     return fresh;
   }, [enabled, projectPath, request]);
 
-  const reset = useCallback(async () => {
-    if (!enabled) return false;
-    writeEpoch.current += 1;
-    const token = request.begin();
-    setSaving(true);
-    setSaveError(null);
-    const pending = writeTail.current.then(async () => {
-      if (!request.isCurrent(token)) return false;
-      try {
-        const saved = await putPipelineConfig(projectPath, { reset: true });
-        recordConfirmedIfNoNewerRead(token, saved);
-        if (!request.isCurrent(token)) return false;
-        setCfg(saved);
-        return true;
-      } catch (error) {
-        if (!request.isCurrent(token)) return false;
-        setCfg(confirmed.current);
-        setSaveError(errorMessage(error));
-        throw error;
-      } finally {
-        if (request.isCurrent(token)) setSaving(false);
-      }
-    });
-    writeTail.current = pending.then(
-      () => undefined,
-      () => undefined,
-    );
-    return pending;
-  }, [enabled, projectPath, request, recordConfirmedIfNoNewerRead]);
-
   return {
     cfg,
     loadError,
@@ -174,6 +143,5 @@ export function usePipelineWorkingSet(
     reload,
     update,
     fetchFresh,
-    reset,
   };
 }
