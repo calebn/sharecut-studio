@@ -33,6 +33,9 @@ export function e2eRuntimeEnv(
     // change what a run sees: a host with the aligner downloaded defaults Precise word
     // boundaries on, and every run then asks for it. FFmpeg resolves from PATH, not here.
     PODCAST_MCP_CACHE: path.join(directory, "cache"),
+    // The recent-episodes list and the folder Home creates blank-folder episodes in.
+    PODCAST_CONFIG_DIR: path.join(directory, "config"),
+    PODCAST_WORKSPACE_ROOT: path.join(directory, "workspaces"),
     PODCAST_RELAY_CONFIG: relayConfig,
     PODCAST_SHARE_REGISTRY: path.join(directory, "share_registry.sqlite"),
     PODCAST_SHARE_IDENTITY: path.join(directory, "share_identity.sqlite"),

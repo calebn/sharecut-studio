@@ -30,6 +30,20 @@ describe("e2eRuntimeEnv", () => {
       path.join(ownedE2eManifestDirectory(manifest.manifestPath), "cache"),
     );
   });
+  it("keeps the recents list and Home's default workspace inside the owned directory", () => {
+    const physical = fs.realpathSync(manifest.manifestDir);
+    const env = e2eRuntimeEnv(
+      {
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
+        PODCAST_CONFIG_DIR: "/Users/developer/.config/podcast_mcp",
+        PODCAST_WORKSPACE_ROOT: "/Users/developer/ShareCut",
+      },
+      "test-run",
+    );
+
+    expect(env.PODCAST_CONFIG_DIR).toBe(path.join(physical, "config"));
+    expect(env.PODCAST_WORKSPACE_ROOT).toBe(path.join(physical, "workspaces"));
+  });
   it("removes every relay and object-store deployment setting", () => {
     const env = e2eRuntimeEnv(
       {
