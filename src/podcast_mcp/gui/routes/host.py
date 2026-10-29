@@ -30,11 +30,11 @@ from podcast_mcp.services.record import (
     RecordSessionService,
     RecordStateError,
     RoomFullError,
+    connection_holds,
     filter_record_event_for_guest,
     record_hub_key,
     route_record_ws_message,
 )
-from podcast_mcp.services.record.service import connection_holds
 from podcast_mcp.services.session_sync import (
     AuthzDecision,
     SessionSyncService,
