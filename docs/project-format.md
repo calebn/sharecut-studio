@@ -4,7 +4,7 @@
 
 Primary file: `episode.sharecut` in the episode workspace directory.
 
-The extension is `.sharecut`; the content is the same JSON document (version `2.0`). The Python constant `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`) and the web constant in `gui/web/src/utils/projectFile.ts` are the only places that spell the name. The previous name `episode.project.json` is retired with no fallback: opening it from Home returns the coded error `project_old_filename`. A folder still resolves to `<folder>/episode.sharecut`.
+The file is the same version `2.0` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the only place that spells the name. The previous name `episode.project.json` has no fallback: opening it from Home returns the coded error `project_old_filename`.
 
 ## Layout
 

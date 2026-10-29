@@ -39,10 +39,7 @@ function seedSourceRoot(): string {
   for (const rel of [...SKIPPED_SEED_PATHS, ...KEPT_SEED_PATHS]) {
     const file = path.join(root, rel);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(
-      file,
-      rel.endsWith(".json") || rel === "episode.sharecut" ? "{}" : "",
-    );
+    fs.writeFileSync(file, /\.(json|sharecut)$/.test(rel) ? "{}" : "");
   }
   return root;
 }
