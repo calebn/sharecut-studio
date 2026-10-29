@@ -1376,7 +1376,8 @@
       "surfaces": {
         "command": "render.refreshMix",
         "gui": [
-          "ShareDialog"
+          "ShareDialog",
+          "deliverShare"
         ],
         "keyboard": "Mod+B",
         "mcp": [
@@ -1434,7 +1435,8 @@
       "surfaces": {
         "command": "share.manage",
         "gui": [
-          "ShareDialog"
+          "ShareDialog",
+          "deliverShare"
         ],
         "cli": "podcast review share"
       },

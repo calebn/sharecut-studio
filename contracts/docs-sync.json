@@ -413,6 +413,28 @@
       }
     },
     {
+      "id": "deliver-share-section",
+      "when": "Share section on Deliver (review links, record rooms, online sharing status)",
+      "update": "`docs/design/stages/spec-review-deliver.md` (DLG-SHARE), `docs/design/stages/inventory.md`, `docs/host-online-relay.md` when the tunnel states or their copy change",
+      "docs": [
+        "docs/design/stages/spec-review-deliver.md",
+        "docs/design/stages/inventory.md",
+        "docs/host-online-relay.md"
+      ],
+      "advisory": {
+        "include": [
+          "gui/web/src/stage/hosts/shareFlow*",
+          "gui/web/src/stage/hosts/deliverShare.ts",
+          "gui/web/src/stage/hosts/copyWhenReady.ts",
+          "gui/web/src/stage/hosts/useTunnelStatus.ts",
+          "gui/web/src/stages/deliver/Share*",
+          "gui/web/src/stages/deliver/shareLogic.ts",
+          "gui/web/src/stages/deliver/TunnelStatusLine.tsx",
+          "gui/web/src/stages/deliver/tunnelStatusCopy.ts"
+        ]
+      }
+    },
+    {
       "id": "waveform-pyramid-renderer-tiles",
       "when": "Waveform pyramid / renderer / tiles",
       "update": "`docs/waveform.md`, `contracts/timeline-zoom.json`, `docs/gui-viewer.md` § Waveforms, `docs/persistence.md`",
