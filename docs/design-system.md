@@ -340,15 +340,6 @@ context.
 same actions inside the Deliver stage; `ShareFlowProvider` owns listing,
 making, copying and stopping, and `deliverShare.ts` maps it to the section.
 
-`Templates/ShareDialog` renders the production `ShareDialogView` that the live
-`ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
-links (`../api`), clipboard writes, the copied-flash timer and the
-Record stage handoff; the view owns the in-place Stop sharing and End
-room confirmations (`InlineConfirm`). Stories pass fictional `hostShareRow`
-fixtures and local callbacks, covering empty, live review links with and
-without an MCP URL, a record room, a missing producer link, a just-created
-link, busy, clipboard error, and a 360px phone.
-
 `Stages/Deliver/Bounce` renders the props-only `BounceSection`. The Deliver
 host keeps selection and solo resolution, and `BounceFlowProvider` keeps
 `startBounceJob` / the job follow, project-switch abort and the status
@@ -412,7 +403,7 @@ one page and the stories would overwrite each other's hydration.
 and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
 examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
-`GuestAttentionBannerView`, `ShareDialogView`,
+`GuestAttentionBannerView`,
 `EditCornerView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
 `EditBoundaryMarkView` and `InspectorSeekFooterView`.
@@ -704,7 +695,7 @@ jsdom visibility checks.
   Catalog boundary follow-up list; the conflict list now ends with a "+N
   more" item when more than 5 conflicts are queued.
 
-- 2026-09-27 — Added `Templates/ShareDialog` and `Templates/BounceDialog`
+- 2026-09-27 — Added `Templates/ShareDialog` (replaced by `Stages/Deliver/Share` in #2450) and `Templates/BounceDialog`
   with the props-only `ShareDialogView` and `BounceDialogView` rendered by
   their live adapters, closing #608. (`Templates/BounceDialog` was replaced by
   `Stages/Deliver/Bounce` in #2449.) Dialog stories (including

@@ -1,7 +1,7 @@
 /**
  * `GET /api/tunnel/status`: whether guests can reach this computer's links.
  * `not_set_up` is a local-only host (no online sharing settings and no status
- * ever written); the Share dialog shows nothing for it.
+ * ever written); the Share section shows nothing for it.
  */
 export type TunnelState =
   | "online"

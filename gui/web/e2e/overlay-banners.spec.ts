@@ -6,7 +6,6 @@ import {
 } from "./followBanner";
 import {
   expectMenuLastItemReachable,
-  expectShareRecordRoomsReachable,
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
@@ -21,17 +20,13 @@ test.describe("overlay with follow banner", () => {
   for (const viewport of SHORT_VIEWPORTS) {
     const label = `${viewport.width}x${viewport.height}`;
 
-    test(`menu last item and Share rooms stay reachable at ${label}`, async ({
-      browser,
-    }) => {
+    test(`menu last item stays reachable at ${label}`, async ({ browser }) => {
       await withTwoHostPages(browser, viewport, async (_pageA, pageB) => {
         await followUntilBannerVisible(pageB);
         await expect(pageB.locator(".follow-banner")).toBeVisible();
         // The banner row above the stage shrinks --menu-available-height;
-        // the menu must still fit and keep its last item reachable, and Share's
-        // Record rooms must stay reachable through the dialog scroller.
+        // the menu must still fit and keep its last item reachable.
         await expectMenuLastItemReachable(pageB);
-        await expectShareRecordRoomsReachable(pageB);
       });
     });
   }

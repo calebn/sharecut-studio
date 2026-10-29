@@ -35,7 +35,7 @@ function useRetryText(retryAt: number | null): string | null {
   return reduce ? retryAtClock(retryAt) : retryCountdown(retryAt, now);
 }
 
-/** Share dialog line: can guests open this host's links right now, and what to do if not. */
+/** Share section line: can guests open this host's links right now, and what to do if not. */
 export function TunnelStatusLine({ status }: { status: TunnelStatus }) {
   const copy = tunnelStatusCopy(status);
   const retry = useRetryText(

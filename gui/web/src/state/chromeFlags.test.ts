@@ -8,7 +8,7 @@ const FLAGS = [
   "gesturesSheetOpen",
   "bounceRequested",
   "exportRequested",
-  "shareDialogOpen",
+  "shareRequested",
   "hostMcpDialogOpen",
   "helpDialogOpen",
   "modelsDialogOpen",
@@ -21,7 +21,7 @@ const SETTERS: Record<Flag, string> = {
   gesturesSheetOpen: "setGesturesSheetOpen",
   bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
-  shareDialogOpen: "setShareDialogOpen",
+  shareRequested: "setShareRequested",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
   modelsDialogOpen: "setModelsDialogOpen",
@@ -115,7 +115,6 @@ describe("dawStore chrome flags", () => {
     const OTHER = [
       "commandPaletteOpen",
       "gesturesSheetOpen",
-      "shareDialogOpen",
       "hostMcpDialogOpen",
       "helpDialogOpen",
     ] as const;
@@ -131,10 +130,11 @@ describe("dawStore chrome flags", () => {
       expect(read("transcriptFindReplaceOpen")).toBe(true);
       expect(read("bounceRequested")).toBe(true);
       expect(read("exportRequested")).toBe(true);
+      expect(read("shareRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes find/replace on a path change and leaves the untouched six open", () => {
+    it("closes find/replace on a path change and leaves the untouched five open", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
@@ -142,12 +142,13 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("drops a pending bounce and export request when the project switches", () => {
+    it("drops a pending bounce, export and share request when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
       expect(read("bounceRequested")).toBe(false);
       expect(read("exportRequested")).toBe(false);
+      expect(read("shareRequested")).toBe(false);
     });
   });
 });

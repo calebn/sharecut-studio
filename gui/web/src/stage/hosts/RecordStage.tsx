@@ -65,7 +65,6 @@ function RecordStageBody({
   loadFailure,
 }: RecordStageProps & { room: HostRoom }) {
   const project = useDawStore((s) => s.project);
-  const setShareDialogOpen = useDawStore((s) => s.setShareDialogOpen);
   const announceStatus = useDawStore((s) => s.announceStatus);
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
@@ -177,7 +176,7 @@ function RecordStageBody({
         notes: noteItems(snapshot),
         selfName: host?.display_name ?? "Host",
         onSendNote: (note) => room.liveComments.postNote(note.text),
-        onInvite: () => setShareDialogOpen(true),
+        onInvite: () => runPointerCommand("share.manage"),
         muted: host?.muted ?? false,
         onStartTake: canRecord
           ? () => room.runCommand(paused ? "record.resume" : "record.start")
@@ -259,7 +258,7 @@ function RecordStageBody({
       removedInvite={room.hasRemovedParticipant}
       onInvite={() => {
         setMoreOpen(false);
-        setShareDialogOpen(true);
+        runPointerCommand("share.manage");
       }}
       onDevices={() => {
         setMoreOpen(false);
