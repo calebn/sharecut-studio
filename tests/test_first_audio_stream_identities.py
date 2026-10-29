@@ -42,7 +42,7 @@ RENDER_DIGESTS = {
     "proxy": "22bea67c70ce597bf5350ba8067ad3e266978d291e6bf94b6ed5d12692b01d05",
     "gate": "477c81fd42d46dd3178f5d4a0f15a115c1489de6d12755a71a6b2d082669daa6",
 }
-MAIN_POOL_RECORD_NAME = "e8336a18ee202c0f.json"
+MAIN_POOL_RECORD_NAME = "3bd63e34b6d9d47a.json"
 MAIN_ALIGN_NAME = "asr.word_align_8ddd9e4881f64893.json"
 
 
@@ -73,7 +73,7 @@ def test_probe_counts_audio_streams(tmp_path: Path, mono_wav: Path) -> None:
 def test_revisions_that_feed_decodes_keep_their_main_values() -> None:
     assert level_profile._RECORD_REV == 2
     assert bleed_gate.BLEED_GATE_REV == 19
-    assert room_tone._POOL_REV == 2
+    assert room_tone._POOL_REV == 3
     assert waveform_pyramid._BUILD_REVISION == 2
     assert prosody_profile.ALGORITHM_VERSION == 5
 
@@ -359,11 +359,11 @@ def test_pool_record_name_follows_the_first_stream_for_several_only(tmp_path: Pa
     unprobeable = room_tone._pool_record_path(project, ("/ws/mono.wav", revision))
     assert unprobeable.name == MAIN_POOL_RECORD_NAME
     several = media.multistream(tmp_path, "two_b.mkv")
-    parts = [2, str(several), str(revision)]
+    parts = [3, str(several), str(revision)]
     old = short_digest(json.dumps(parts))
     assert room_tone._pool_record_path(project, (str(several), revision)).stem != old
     mono = media.single_stream_media(tmp_path)["wav"]
-    kept = short_digest(json.dumps([2, str(mono), str(revision)]))
+    kept = short_digest(json.dumps([3, str(mono), str(revision)]))
     assert room_tone._pool_record_path(project, (str(mono), revision)).stem == kept
 
 
@@ -376,7 +376,7 @@ def test_pool_written_under_the_old_name_is_not_read_for_several_streams(
     key = room_tone._pool_key(several)
     assert key is not None
     path = room_tone._pool_record_path(project, key)
-    old = path.with_name(f"{short_digest(json.dumps([2, *map(str, key)]))}.json")
+    old = path.with_name(f"{short_digest(json.dumps([3, *map(str, key)]))}.json")
     old.parent.mkdir(parents=True, exist_ok=True)
     old.write_text(json.dumps({"samples": [[0.0, 1.0, -60.0, None]]}))
     assert room_tone.read_room_tone_pool(project, "t") is None

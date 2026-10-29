@@ -40,6 +40,7 @@ import json
 import logging
 import math
 import threading
+import zlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -216,6 +217,7 @@ def room_tone_span(
     near_sec: float,
     duration_sec: float,
     avoid: Sequence[Span] = (),
+    near_source_id: str | None = None,
 ) -> RoomToneSelection:
     """Measured room tone or an actual absence cause for this request.
 
@@ -237,9 +239,11 @@ def room_tone_span(
     if track.media is None:
         return _after_bed(bed, SampleAbsent("missing_media"))
 
+    on_primary = None in project.equivalent_source_ids(track_id, near_source_id)
     pooled = _from_pool(
         read_room_tone_pool(project, track_id) or (),
-        near_sec=near_sec,
+        near_sec=near_sec if on_primary else None,
+        spread_key=near_sec,
         duration_sec=duration_sec,
         avoid=avoid,
     )
@@ -252,7 +256,13 @@ def room_tone_span(
         return _after_bed(bed, SampleAbsent("digital_silence"))
     if read.gated:
         return _after_bed(bed, SampleAbsent("gated_live"))
-    selected = _pick_sample(read.floor, near_sec=near_sec, duration_sec=duration_sec, avoid=avoid)
+    selected = _pick_sample(
+        read.floor,
+        near_sec=near_sec if on_primary else _spread_near(read.floor, near_sec),
+        duration_sec=duration_sec,
+        avoid=avoid,
+        clear=_no_foreign_voice(project, track_id),
+    )
     return _after_bed(bed, selected)
 
 
@@ -263,7 +273,9 @@ POOL_ANCHORS_MAX = 64
 POOL_ANCHOR_SPACING_SEC = 60.0
 # Each pooled sample is up to this long; a request takes the piece it needs.
 POOL_SAMPLE_SEC = 2.0
-_POOL_REV = 2
+# A pooled sample shorter than this is a scrap that a pad tiles into a stutter.
+POOL_MIN_SAMPLE_SEC = 1.0
+_POOL_REV = 3
 _POOLS_KEPT = 64
 _POOL_RECORDS_KEPT = 64
 _POOLS: dict[tuple[str, FileRevision], tuple[Sample, ...]] = {}
@@ -358,9 +370,16 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
             POOL_ANCHORS_MAX,
             max(POOL_ANCHORS_MIN, round((high - low) / POOL_ANCHOR_SPACING_SEC)),
         )
+        clear = _no_foreign_voice(project, track_id)
         for index in range(anchors):
             anchor = low + (high - low) * (index + 0.5) / anchors
-            picked = _pick_sample(read.floor, near_sec=anchor, duration_sec=POOL_SAMPLE_SEC)
+            picked = _pick_sample(
+                read.floor,
+                near_sec=anchor,
+                duration_sec=POOL_SAMPLE_SEC,
+                min_sec=POOL_MIN_SAMPLE_SEC,
+                clear=clear,
+            )
             if isinstance(picked, OwnQuietSample) and all(
                 picked.sample.start != kept.start for kept in pool
             ):
@@ -471,25 +490,124 @@ def room_tone_bed_digest(project: EpisodeProject) -> str:
     return json.dumps(parts) if parts else ""
 
 
+def _spread_fraction(key: float) -> float:
+    """A fixed fraction in [0, 1) for ``key``, so nearby cut positions differ."""
+    return (zlib.crc32(f"{key:.1f}".encode()) % 10_000) / 10_000.0
+
+
+def _spread_near(floor: TrackFloor, key: float) -> float:
+    if not floor.runs:
+        return key
+    low, high = floor.runs[0][0], floor.runs[-1][1]
+    return low + (high - low) * _spread_fraction(key)
+
+
 def _from_pool(
-    pool: Sequence[Sample], *, near_sec: float, duration_sec: float, avoid: Sequence[Span]
+    pool: Sequence[Sample],
+    *,
+    near_sec: float | None,
+    spread_key: float,
+    duration_sec: float,
+    avoid: Sequence[Span],
 ) -> OwnQuietSample | None:
-    """The pooled sample nearest ``near_sec`` with a clear piece long enough, else None."""
+    """The pooled sample nearest ``near_sec`` with a clear piece long enough, else None.
+
+    With no ``near_sec`` (the cut is not on the pool's recording) the samples are taken in
+    an order fixed by ``spread_key``.
+    """
     need = min(duration_sec, MIN_SAMPLE_SEC)
-    ranked = sorted(pool, key=lambda x: max(x.start - near_sec, near_sec - x.end, 0.0))
+    if near_sec is None:
+        order = {id(x): _spread_fraction(spread_key + i) for i, x in enumerate(pool)}
+        ranked = sorted(pool, key=lambda x: order[id(x)])
+    else:
+        ranked = sorted(pool, key=lambda x: max(x.start - near_sec, near_sec - x.end, 0.0))
     for sample in ranked:
         for piece in subtract_intervals([(sample.start, sample.end)], avoid):
             if piece[1] - piece[0] >= need - 1e-9:
-                start, end = _window_nearest(piece, near_sec, duration_sec)
+                centre = (piece[0] + piece[1]) / 2.0 if near_sec is None else near_sec
+                start, end = _window_nearest(piece, centre, duration_sec)
                 return OwnQuietSample(Sample(start, end, sample.rms_db, sample.speech_prob))
     return None
 
 
+# A sample whose 10 ms level envelope follows another track's voice this closely is that
+# voice reaching this microphone, whatever level it sits at.
+BLEED_ENVELOPE_CORRELATION = 0.5
+
+
+def _envelope_db(audio: np.ndarray) -> np.ndarray:
+    frame = int(FRAME_SEC * SAMPLE_RATE)
+    count = audio.shape[0] // frame
+    shaped = audio[: count * frame].reshape(count, frame)
+    return 10.0 * np.log10(np.mean(shaped**2, axis=1) + 1e-12)
+
+
+def _follows(own: np.ndarray, other: np.ndarray) -> bool:
+    count = min(own.shape[0], other.shape[0])
+    if count < 8:
+        return False
+    a, b = own[:count], other[:count]
+    if np.std(a) < 1e-6 or np.std(b) < 1e-6:
+        return False
+    return float(np.corrcoef(a, b)[0, 1]) >= BLEED_ENVELOPE_CORRELATION
+
+
+def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span], bool]:
+    """Whether a span of this track's audio is free of another track's voice.
+
+    Tracks of one recording share a clock. While another track speaks, its voice reaches
+    this microphone as bleed that sits near the room's floor, below any level check: a
+    pad tiles such a sample and repeats the word. The sample is foreign when its level
+    envelope follows the speaking track's.
+    """
+    own_path = track_audio_path(project, track_id)
+    others: list[tuple[Path, float]] = []
+    for other in project.tracks:
+        if other.id == track_id or other.media is None:
+            continue
+        read = track_floor(track_audio_path(project, other.id))
+        if isinstance(read, LiveFloor) and not read.gated:
+            others.append((read.floor.path, read.floor.floor_db))
+
+    def envelope(path: Path, span: Span) -> np.ndarray:
+        audio = load_mono_window(
+            path,
+            start_sec=span[0],
+            duration_sec=span[1] - span[0],
+            sample_rate=SAMPLE_RATE,
+        )
+        return _envelope_db(audio)
+
+    def clear(span: Span) -> bool:
+        try:
+            own = envelope(own_path, span)
+            for path, floor_db in others:
+                theirs = envelope(path, span)
+                if (
+                    theirs.size
+                    and float(np.max(theirs)) > floor_db + FLOOR_BAND_DB
+                    and _follows(own, theirs)
+                ):
+                    return False
+        except Exception as exc:
+            log.warning("room tone window %.2f-%.2f unreadable: %s", span[0], span[1], exc)
+            return False
+        return True
+
+    return clear
+
+
 def _pick_sample(
-    track: TrackFloor, *, near_sec: float, duration_sec: float, avoid: Sequence[Span] = ()
+    track: TrackFloor,
+    *,
+    near_sec: float,
+    duration_sec: float,
+    avoid: Sequence[Span] = (),
+    min_sec: float = MIN_SAMPLE_SEC,
+    clear: Callable[[Span], bool] | None = None,
 ) -> OwnQuietSample | SampleAbsent:
     """The room-tone sample nearest ``near_sec``: quiet runs nearest first, first to pass."""
-    need = min(duration_sec, MIN_SAMPLE_SEC)
+    need = min(duration_sec, min_sec)
     if not track.runs:
         return SampleAbsent("no_quiet_run")
     eligible = [run for run in track.runs if run[1] - run[0] >= need - 1e-9]
@@ -507,6 +625,8 @@ def _pick_sample(
             unreadable += 1
             continue
         failed = rejection(sample, track)
+        if failed is None and clear is not None and not clear((sample.start, sample.end)):
+            failed = "other_voice"
         if failed is None:
             return OwnQuietSample(sample)
         if failed not in rejected:

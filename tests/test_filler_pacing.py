@@ -123,7 +123,9 @@ def test_insert_room_tone_pad_tiles_short_sample():
         return_value=OwnQuietSample(Sample(3.0, 3.1, -70.0, None)),
     ) as span:
         insert_room_tone_pad(p, 0.15, 0.4, sample_duration_sec=0.1, defaults=load_defaults())
-    span.assert_called_once_with(p, "host", near_sec=0.15, duration_sec=0.1, avoid=[])
+    span.assert_called_once_with(
+        p, "host", near_sec=0.15, near_source_id=None, duration_sec=0.1, avoid=[]
+    )
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
     # Multiple pad tiles between left and shifted right
     assert len(host) >= 4
