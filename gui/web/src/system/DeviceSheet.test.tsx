@@ -114,7 +114,7 @@ describe("DeviceSheet", () => {
         tone: {
           ...TONE,
           state: "capturing",
-          message: "Recording room tone…",
+          message: "Saving room tone…",
           progress: 1,
           endEarlyDisabled: true,
         },
@@ -122,6 +122,34 @@ describe("DeviceSheet", () => {
     );
     expect(screen.getByRole("button", { name: "End early" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+
+  it("moves focus to Cancel when End early is pressed into saving, and back to Record when the take ends", async () => {
+    const capturing = {
+      ...TONE,
+      state: "capturing",
+      message: "Stay quiet · 0:30",
+      progress: 0.5,
+    } as const;
+    const { rerender } = render(sheet());
+    const record = screen.getByRole("button", { name: TONE.label });
+    record.focus();
+    rerender(sheet({ tone: capturing }));
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    screen.getByRole("button", { name: "End early" }).focus();
+    rerender(
+      sheet({
+        tone: {
+          ...capturing,
+          message: "Saving room tone…",
+          endEarlyDisabled: true,
+        },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "End early" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    rerender(sheet());
+    expect(screen.getByRole("button", { name: TONE.label })).toHaveFocus();
   });
 
   it("says why room tone waits", () => {

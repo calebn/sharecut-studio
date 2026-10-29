@@ -46,11 +46,23 @@ describe("roomTone", () => {
   });
 
   it("reads whole seconds left and the share used", () => {
-    expect(roomToneClock(0)).toEqual({ remainingSec: 60, progress: 0 });
+    expect(roomToneClock(0)).toEqual({
+      remainingSec: 60,
+      progress: 0,
+      saving: false,
+    });
     expect(roomToneClock(0.2).remainingSec).toBe(60);
-    expect(roomToneClock(18)).toEqual({ remainingSec: 42, progress: 0.3 });
+    expect(roomToneClock(18)).toEqual({
+      remainingSec: 42,
+      progress: 0.3,
+      saving: false,
+    });
     expect(roomToneClock(59.1).remainingSec).toBe(1);
-    expect(roomToneClock(75)).toEqual({ remainingSec: 0, progress: 1 });
+    expect(roomToneClock(75)).toEqual({
+      remainingSec: 0,
+      progress: 1,
+      saving: true,
+    });
   });
 
   it("offers End early and Cancel only while capturing", () => {
@@ -77,8 +89,8 @@ describe("roomTone", () => {
       endEarly: vi.fn(),
       cancel: vi.fn(),
     });
-    expect(alert?.message).toBe("Recording room tone…");
-    expect(alert?.onAction).toBeUndefined();
+    expect(alert?.message).toBe("Saving room tone…");
+    expect(alert?.actionDisabledReason).toBe("Room tone is saving.");
     expect(alert?.onSecondaryAction).toBeDefined();
   });
 });

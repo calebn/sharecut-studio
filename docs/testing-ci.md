@@ -151,7 +151,7 @@ test, then follows the normal PCM-to-WAV, OPFS, and Accept code paths; it must
 not change the production capture timeout or be enabled by general E2E setup.
 The test pre-arms a response matcher immediately before Accept and waits for a
 successful acknowledged room-tone upload (`file_ack: true`) after consent; it
-does not assert the transient `Recording room tone…` copy, which can be missed
+does not assert the transient `Saving room tone…` copy, which can be missed
 under full-suite scheduling. Upload is consent-gated, so Accept is the earliest
 point at which the request can occur.
 
