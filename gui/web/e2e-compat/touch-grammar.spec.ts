@@ -17,7 +17,12 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { closeTools, openProject, openToolsIfFolded } from "../e2e/stageNav";
+import {
+  closeTools,
+  inspectSelection,
+  openProject,
+  openToolsIfFolded,
+} from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme } from "../e2e/theme";
 import {
@@ -302,6 +307,7 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
   await finger.slide({ x: handle.x - 30, y: handle.y }, 8, 20);
   await finger.up();
   await page.waitForTimeout(900);
+  await inspectSelection(page);
   await frame(page, info, `grammar-default-trim-drag-${browserName}`);
   const row = {
     commands: commands.map((c) => c.type),
@@ -482,6 +488,7 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   await expect
     .poll(() => commands.filter((c) => c.type === "SetEnvelope").length)
     .toBe(1);
+  await inspectSelection(page);
   await expect(page.locator(".nudge-row", { hasText: "Level" })).toBeVisible();
   await frame(page, info, `grammar-create-added-${browserName}`);
   json(info, `grammar-create-${browserName}`, {
@@ -492,12 +499,12 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
     expect(axe?.violations).toEqual([]);
   }
-  expect(items[0]).toMatch(/^Add envelope point/);
-  expect(items.slice(1)).toEqual([
-    "Blade cutCuts all dialogue tracks",
+  expect(items.slice(0, 3)).toEqual([
+    "Split hereCuts all dialogue tracks",
     "Add chapter",
     "Add comment",
   ]);
+  expect(items[3]).toMatch(/^Add envelope point/);
   const added = commands.find((c) => c.type === "SetEnvelope")?.payload as
     | { track_id: string; points: unknown[] }
     | undefined;
@@ -850,6 +857,7 @@ test("the strip follows the finger; a flick opens or closes it fully, a slow dra
   await open(page);
   const finger = await newFinger(context, page, browserName);
   await tap(page, finger, await centerOf(page, envC));
+  await inspectSelection(page);
   const sheet = page.locator(".bottom-sheet--compact");
   await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await frame(page, info, `grammar-drawer-peek-${browserName}`);

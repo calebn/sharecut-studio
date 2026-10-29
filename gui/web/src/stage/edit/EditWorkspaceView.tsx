@@ -20,8 +20,9 @@ export interface EditWorkspaceViewProps {
   scriptWidthRem: number;
   /** The pane that gives way because the side layout cannot hold them all. */
   yields?: SideYield;
-  /** Range actions above the lanes, when the selection sheet does not carry them. */
-  rangeActions?: ReactNode;
+  /** In and Out, the occurrence choice and the word handles, when the selection sheet does not carry them. */
+  rangeFields?: ReactNode;
+  actionBar?: ReactNode;
   /** The headers and lanes, or the empty-session drop target. */
   timeline: ReactNode;
   /** Zoom, eye and Script toggle over the lanes. */
@@ -52,7 +53,8 @@ export function EditWorkspaceView({
   scriptFocus,
   scriptWidthRem,
   yields = null,
-  rangeActions,
+  rangeFields,
+  actionBar,
   timeline,
   corner,
   divider,
@@ -70,6 +72,8 @@ export function EditWorkspaceView({
         data-state={state}
       >
         {phone}
+        {rangeFields}
+        <div className="edit-dock">{actionBar}</div>
         {sheet}
       </div>
     );
@@ -98,7 +102,7 @@ export function EditWorkspaceView({
         className="edit-timeline-col"
         hidden={scriptFocus}
       >
-        {rangeActions}
+        {rangeFields}
         <div className="edit-timeline-main" data-state={state}>
           {timeline}
         </div>
@@ -123,6 +127,7 @@ export function EditWorkspaceView({
           {inspector}
         </div>
       ) : null}
+      {actionBar}
       {sheet}
     </div>
   );

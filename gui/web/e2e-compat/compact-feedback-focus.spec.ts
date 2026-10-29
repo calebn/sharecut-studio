@@ -12,7 +12,7 @@ import {
   openPhoneTimeline,
   rememberInspectorDetent,
 } from "../e2e/phoneTimeline";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 import { lane } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
@@ -101,6 +101,7 @@ async function focusCompactToastAction(page: Page, name: "Undo" | "Dismiss") {
   const point = page.locator(`${lane} [data-hit-id="env-c"]`);
   await point.focus();
   await point.press("Enter");
+  await inspectSelectionByKey(page);
   const panel = page.locator(".bottom-sheet--compact");
   await expect(panel).toBeVisible();
   await expect.poll(() => savedEnvelope(page)).toEqual(original);

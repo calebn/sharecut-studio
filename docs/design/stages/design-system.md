@@ -164,7 +164,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Keep (the "no") sits left and the primary (the "yes") sits right, matching swipe left and swipe right.
   - Verbs that don't apply are absent, never disabled.
 - Primary per object: cut suggestion → Cut; pause → Shorten; sound → Lower; pickup → Replace or Insert; words or range → Cut; comment → Resolve; check or clip idea → Approve. Clip, seam, marker, track and envelope point have no primary.
-- **Floating** (desktop and tablet): a 40 px pill (44 px on touch) 8 px above the selection, flipping below when there is no room. Icon only, tooltip with name and key.
+- **Floating** (desktop and tablet): a 40 px pill (44 px on touch) beside the selection: below it by default so the ruler stays uncovered, above a selected word so the next Script line stays clickable, flipping when there is no room. Icon only, tooltip with name and key.
 - **Dock** (phone): one 64 px row above the Player bar, a 48 px icon over a 10 px label, and it is the Sheet's first detent.
   - Phone Edit always shows the dock. With nothing selected it shows playhead verbs (Split, Add chapter, Record, Paste).
   - Phone Review always shows it (an item is always current): Keep (left), A/B (center), verb (right).
@@ -261,6 +261,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Esc clears the selection. Left from a turn's first word enters its margin (speaker name, then time; Up and Down walk them, Right returns to the words).
   - Esc order, innermost first: a Fix text or rename field, then the speaker popover, then the Find bar while focus is in it, then the selection, then Follow. The handles and the margin controls are not Esc stops.
   - Keys the pane handles are the pane's: it stops them (`preventDefault` and `stopPropagation`) so the window keymap never also nudges the playhead on an arrow, jumps to the start on Home, or takes a second Esc. The list is the arrows, Home and End (alone, with Shift, and Alt+Shift+Left or Right), Enter on a word, F2 on a word when `onFixText` is given, and Esc over a selection or a drag. Every other key and any Ctrl or Cmd chord reaches the keymap. The keymap rows stay as they are; the host must not bind a script-focused when-clause to a key in that list.
+  - The window keymap listener does not read `defaultPrevented`; `stopPropagation` is the contract, and it works because React's root listener runs before the window's. A host that wants a key for itself must stop it, not only prevent it. The listener also skips a key while an IME composition is open, treats Space and Enter on a focused button as the browser's click except Shift+Space (Hear), and prevents the default of Shift+Space's keyup so Hear on a focused word, clip or bar button does not also click it.
   - The pane has the one polite live region of the script. It says the selection (on release while a handle is dragged), "Selection cleared", and the host's `findStatus`; the Find bar's count is plain text.
   - A cut that spans two turns is one pill in each: the turn where it begins shows the length, the later ones say "continued".
   - Fix text over a selection that spans turns is one field, drawn in the first turn, and the later turns show nothing in its place.
@@ -341,7 +342,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/Seam`.
 
 **21. A/B audition**
-- A two-segment control: "A" (before or original) and "B" (after or edited). Each plays 1.5 s pre-roll through 1.5 s post-roll (Review: 3 s). Press-and-hold A with nothing selected plays the original at the playhead.
+- A two-segment control: "A" (before or original) and "B" (after or edited). Each plays 1.5 s pre-roll through 1.5 s post-roll (Review: 3 s). Press-and-hold A with nothing selected plays the original at the playhead (not built yet; W2).
 - Adjusting a handle switches it to B.
 - Used: Decision card, Seam, Suggestion, Player (Hear original), the Prepare align check, Source card voice check.
 - Replaces: "Hear original" (edit, the O key) and Hear before and after (rdp).
@@ -539,7 +540,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 ### Dropped as redundant
 
-- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a crosshair cursor and a 2 px guide (1 px ring) on the lanes the cut will land on, the targeted tracks else the dialogue tracks, while Alt is held over the lanes (W1a, #2294). Touch has no Alt; its Split verb arrives with the action bar in W1b.
+- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a crosshair cursor and a 2 px guide (1 px ring) on the lanes the cut will land on, the targeted tracks else the dialogue tracks, while Alt is held over the lanes (W1a, #2294). Touch has no Alt: it splits with the Action bar's Split verb (the playhead, or both edges of a selection) or a long-press on a lane, whose Create-here menu opens with "Split here" (W1b, #2294).
 - The Edit surface switch as its own element. It is a Segmented control instance: lanes (`chart-gantt`) and text (`text`).
 - The Home New sheet (record FLOW-REC-NEW). Start tiles sit on Home directly, and name and folder default.
 - The Re-record verb. It is the Record verb with a Replace target.
@@ -563,7 +564,7 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Play / Pause | `play` / `pause` (ink-filled circle) | Space | Tap Play | Player (all stages), expanded Player |
 | Shuttle | none | J back, K pause and return, L forward (repeat 1×, 2×, 4×) | Swipe the timeline | Player, every stage |
 | Hear (play the selection) | `ear` | Shift+Space | Tap Hear | Action bar on any selection, Decision card, Take rows, Source card voice, Status rows (align move) |
-| Hear before / after | "A" / "B" segmented | A / B (hold A with nothing selected = original) | Tap A or B, press-and-hold A | A/B audition: Decision card, Seam, Suggestion, Player |
+| Hear before / after | "A" / "B" segmented | A / B (hold A with nothing selected = original; not built yet, W2) | Tap A or B, press-and-hold A | A/B audition: Decision card, Seam, Suggestion, Player |
 | Cut | `scissors` | Backspace or Delete (Mod+X also copies) | Swipe right on a cut suggestion; dock button | Action bar (words, range, clip, cut suggestion), Decision card, queue group bulk, Find bar "Cut all", toast "Cut all" |
 | Keep | `shield-check` | X | Swipe left | Action bar (suggestion, cut seam, cut words), Decision card, queue rows, auto-reduction region |
 | Shorten | `fold-horizontal` | Enter (primary) | Swipe right | Pause suggestions |
@@ -574,13 +575,13 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Later | `chevron-down` | Tab or ↓ (moves on without deciding) | Swipe up | Decision card, Review dock |
 | Next / Previous of the same kind | none | Tab / Shift+Tab (↓/↑ in the queue) | Swipe up / down on the card | Review queue, Edit after a cut (next occurrence), Fix text (next unsure word) |
 | Apply to all like this | the verb's icon with a count | Shift+Enter | Group header button | Queue group bulk, Find "Cut all", toast "Cut all" |
-| Split | `square-split-horizontal` | Mod+K at playhead; Alt-click at pointer | Dock "Split" with nothing selected | Action bar (range, clip), playhead menu, phone dock |
+| Split | `square-split-horizontal` | S or Mod+K: at the playhead, or at both edges of a range or words selection (one undo step); Alt-click at pointer | Action bar Split (at the playhead, or both edges of a selection); long-press a lane, then "Split here" | Action bar (range, clip, playhead), Create-here menu, phone dock |
 | Comment (also marker, reply) | `message-square` | C | Tap Comment; long-press = compose with time pinned | Player (all stages), Action bar, Record dock, Decision card (reply), Marker, Review queue |
 | Fix text (also rename) | `text-cursor-input` | F2, or start typing on a selection | Double-tap | Script, Decision card unsure word, marker titles, speaker, project title, session name |
 | Remove (non-audio) | `trash-2` | Backspace or Delete on a non-audio object | Swipe left on list rows | Markers, comments, tracks, envelope points, chapter rows, clip ideas, Home Recent ("Remove from list"), person in room (Confirm in place) |
 | Mute | `volume-x` (track, words) / `mic-off` (your mic) | M | Tap | Track header, Mix sheet, Action bar More, Record dock, Person tile |
-| Solo | `headphones` | S | Tap | Track header, Mix sheet, Solo Status pill |
-| Inspect | `sliders-horizontal` | I | Swipe the dock up; double-click the object | Action bar, Prepare Advanced |
+| Solo | `headphones` | Shift+S | Tap | Track header, Mix sheet, Solo Status pill |
+| Inspect | `sliders-horizontal` | I (toggles) | Swipe the dock up; double-click the object | Action bar, Prepare Advanced. The Inspector opens only on Inspect, never because something is selected; Esc, Close or a new selection shuts it |
 | More | `ellipsis` | . (period) | Long-press or right-click | Action bar, rows, cards |
 | Record | filled circle | R: in Record, start or resume, and hold R 600 ms to stop. In Edit, opens Record with a Replace target (selection) or Insert target (playhead) | Tap; hold the Record button to stop | Stage bar, Start tile, Record button, Action bar (Edit, host only), "+" menu |
 | Pause take | `pause` | P | Tap | Record dock (host) |
@@ -751,6 +752,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | K15 | Mod+B force mix refresh (E) | Palette only | The mix refreshes on its own |
 | K16 | Tab: E uses it for clip focus, next occurrence, and next unsure word | Tab is "next of the same kind" inside a content surface. F6 moves between regions | Keeps one meaning for Tab and gives keyboard users a way out |
 | K17 | Skip 5 s (E desktop) versus 15 s (E phone sheet, D Player card) | 15 s everywhere. Fine moves use ←/→ (1 s, Shift 5 s) | Podcast-app convention, for one Player |
+| K18 | S: E has Solo track on S, and the Action bar's Split needs a visible key | S is Split (Caleb, 2026-10-28). Solo is Shift+S, still a button on the track header and in the Mix sheet | Split is the constant verb on a selection; Solo is a mix toggle with a button of its own |
 
 ### Icons
 

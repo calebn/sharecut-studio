@@ -85,7 +85,7 @@ describe("TrackMuteSoloButtons (#386)", () => {
     );
     expect(solo).toHaveAttribute(
       "title",
-      "Solo (S). Solos the track for you only",
+      "Solo (Shift+S). Solos the track for you only",
     );
   });
 
@@ -98,7 +98,10 @@ describe("TrackMuteSoloButtons (#386)", () => {
   it("marks solo as listen-only", () => {
     const { mute, solo } = renderButtons({ soloTracks: { host: true } });
     expect(solo).toHaveAttribute("aria-pressed", "true");
-    expect(solo).toHaveAttribute("title", "Unsolo (S). Soloed for you only");
+    expect(solo).toHaveAttribute(
+      "title",
+      "Unsolo (Shift+S). Soloed for you only",
+    );
     expect(mute).toHaveAttribute("data-mute-state", "off");
     expect(mute).toHaveAttribute(
       "title",
@@ -121,7 +124,7 @@ describe("TrackMuteSoloButtons (#386)", () => {
     const mute = screen.getByRole("button", { name: "Mute Caleb" });
     const solo = screen.getByRole("button", { name: "Solo Caleb" });
     expect(mute.title.startsWith("Mute (M)")).toBe(true);
-    expect(solo.title.startsWith("Solo (S)")).toBe(true);
+    expect(solo.title.startsWith("Solo (Shift+S)")).toBe(true);
     await expectNoA11yViolations(container);
   });
 

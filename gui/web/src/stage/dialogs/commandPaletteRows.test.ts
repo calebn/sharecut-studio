@@ -34,7 +34,7 @@ describe("paletteCommands", () => {
   it("carries the keymap shortcut, default key and collision note", () => {
     const blade = rowsNow().find((r) => r.id === "edit.bladeCut");
     expect(blade).toMatchObject({
-      label: "Blade cut",
+      label: "Split at playhead",
       category: "edit",
       shortcut: expect.stringMatching(/K$/),
       defaultKey: keymapCommandById("edit.bladeCut")?.keys[0],

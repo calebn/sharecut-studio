@@ -19,12 +19,16 @@ import { payloadFromSelection } from "../edit/selectionClipboard";
 import { askConfirm } from "../feedback/ask";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { selectedTrackIdsOf } from "../state/selection";
+import {
+  inspectorOpenFor,
+  selectedClipIdsOf,
+  selectedTrackIdsOf,
+} from "../state/selection";
 import {
   SOLO_OFF_ANNOUNCEMENT,
   SOLO_ON_ANNOUNCEMENT,
 } from "../tracks/trackMuteCopy";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { anySolo } from "../utils/audio";
 import {
   bladeCutNote,
@@ -32,7 +36,6 @@ import {
   dialogueTrackIds,
 } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
-import type { CommandContext } from "./context";
 import { openCreateMenu } from "./createMenuHost";
 import { registerCommand } from "./execute";
 import { runFocusedClipHandle } from "./focusedClipHandle";
@@ -52,58 +55,83 @@ function canSuggestStructuralFor(s: DawState): boolean {
   );
 }
 async function runSplitAt(
-  _ctx: CommandContext,
   atTime: number,
+  extraAtTimes: readonly number[],
+  trackIds: readonly string[] | null,
 ): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   if (!s.project || !canSuggestStructuralFor(s)) {
     return { status: "disabled", reason: "Structural edits not allowed" };
   }
-  const tids = bladeTrackIds(
-    selectedTrackIdsOf(s.selection),
-    dialogueTrackIds(s.project.tracks ?? []),
-  );
-  await splitAtTime(s.projectPath, atTime, tids);
-  return { status: "ok" };
+  const tids = trackIds?.length
+    ? [...trackIds]
+    : bladeTrackIds(
+        selectedTrackIdsOf(s.selection),
+        dialogueTrackIds(s.project.tracks ?? []),
+      );
+  try {
+    const undo = await splitAtTime(
+      s.projectPath,
+      atTime,
+      tids,
+      null,
+      extraAtTimes,
+    );
+    const where = [atTime, ...extraAtTimes].map((t) => formatTime(t));
+    useDawStore
+      .getState()
+      .announceStatus(`Split at ${where.join(" and ")}`, { undo });
+    return { status: "ok" };
+  } catch (e) {
+    const code = e instanceof ApiError ? e.code : undefined;
+    const reason =
+      code === "no_clip_at_time"
+        ? "There is no clip at that time to split"
+        : errorMessage(e);
+    return { status: "disabled", reason };
+  }
 }
 
-function resolveClipId(args: Record<string, unknown>): string | null {
+function resolveClipIds(args: Record<string, unknown>): string[] {
   if (typeof args.clipId === "string" && args.clipId) {
-    return args.clipId;
+    return [args.clipId];
   }
-  const s = useDawStore.getState();
-  if (s.selection?.kind === "clip") {
-    return s.selection.id;
-  }
-  return null;
+  return [...selectedClipIdsOf(useDawStore.getState().selection)];
 }
 
-async function runDeleteClip(
-  clipId: string,
+export async function runDeleteClips(
+  clipIds: readonly string[],
   ripple: boolean,
 ): Promise<ExecuteResult> {
   const s = useDawStore.getState();
+  if (!clipIds.length) {
+    return { status: "disabled", reason: "No clip selected" };
+  }
   if (!canSuggestStructuralFor(s)) {
     return { status: "disabled", reason: "Structural edits not allowed" };
   }
   const project = s.projectEditBasis();
-  if (
-    !project ||
-    !Object.values(project.clips.tracks).some((lane) =>
-      lane.some((clip) => clip.id === clipId),
-    )
-  ) {
+  const known = new Set(
+    project
+      ? Object.values(project.clips.tracks)
+          .flat()
+          .map((clip) => clip.id)
+      : [],
+  );
+  if (!project || clipIds.some((id) => !known.has(id))) {
     return { status: "disabled", reason: "Unknown clip" };
   }
+  const noun = clipIds.length === 1 ? "clip" : `${clipIds.length} clips`;
   try {
     const undo = ripple
-      ? await rippleDeleteClips(s.projectPath, [clipId])
-      : await deleteClips(s.projectPath, [clipId]);
+      ? await rippleDeleteClips(s.projectPath, [...clipIds])
+      : await deleteClips(s.projectPath, [...clipIds]);
     const store = useDawStore.getState();
     store.setSelection(null);
-    store.announceStatus(ripple ? "Ripple deleted clip" : "Deleted clip", {
-      undo,
-    });
+    store.announceStatus(
+      ripple ? `Ripple deleted ${noun}` : `Deleted ${noun}`,
+      { undo },
+    );
     return { status: "ok" };
   } catch (e) {
     const msg = errorMessage(e);
@@ -140,15 +168,13 @@ export function registerPrimaryEditingCommands(): void {
     ) {
       return { status: "ok" };
     }
-    return runSplitAt(ctx, atTime);
-  });
-
-  registerCommand("edit.delete", async (args) => {
-    const clipId = resolveClipId(args);
-    if (!clipId) {
-      return { status: "disabled", reason: "No clip selected" };
-    }
-    return runDeleteClip(clipId, false);
+    const extra = Array.isArray(args.extraAtTimes)
+      ? args.extraAtTimes.map(Number).filter(Number.isFinite)
+      : [];
+    const trackIds = Array.isArray(args.trackIds)
+      ? args.trackIds.filter((id): id is string => typeof id === "string")
+      : null;
+    return runSplitAt(atTime, extra, trackIds);
   });
 
   registerCommand("create.menu", () =>
@@ -158,17 +184,18 @@ export function registerPrimaryEditingCommands(): void {
   );
 
   registerCommand("edit.clearSelection", () => {
-    useDawStore.getState().setSelection(null);
+    const s = useDawStore.getState();
+    if (inspectorOpenFor(s.selection, s.inspectorKey)) {
+      s.setInspectorOpen(false);
+      return { status: "ok" };
+    }
+    s.setSelection(null);
     return { status: "ok" };
   });
 
-  registerCommand("edit.rippleDelete", async (args) => {
-    const clipId = resolveClipId(args);
-    if (!clipId) {
-      return { status: "disabled", reason: "No clip selected" };
-    }
-    return runDeleteClip(clipId, true);
-  });
+  registerCommand("edit.rippleDelete", (args) =>
+    runDeleteClips(resolveClipIds(args), true),
+  );
 
   registerCommand("track.selectAll", () => {
     const s = useDawStore.getState();

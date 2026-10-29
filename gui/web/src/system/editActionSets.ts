@@ -4,7 +4,7 @@ import type {
   PendingSuggestedAction,
 } from "../edit/editSelection";
 import type { SystemIconName } from "./icons";
-import { hintOf, verbOf } from "./verbDisplay";
+import { ariaShortcutOf, hintOf, verbOf } from "./verbDisplay";
 import { VERBS, type VerbId } from "./verbs";
 
 export type MoreCommandId =
@@ -254,10 +254,17 @@ export type BarDisplay = {
   readonly icon: SystemIconName | null;
   /** The first key as a tooltip suffix: ` (X)`, or empty. */
   readonly hint: string;
+  readonly shortcut?: string;
 };
 
 export function barDisplay(id: BarId): BarDisplay {
   if (!isVerbId(id)) return { ...MORE_COMMANDS[id], hint: "" };
   const def = verbOf(id);
-  return { label: def.label, icon: def.icon, hint: hintOf(def) };
+  const shortcut = ariaShortcutOf(def);
+  return {
+    label: def.label,
+    icon: def.icon,
+    hint: hintOf(def),
+    ...(shortcut ? { shortcut } : {}),
+  };
 }

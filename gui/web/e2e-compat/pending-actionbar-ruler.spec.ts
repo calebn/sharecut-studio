@@ -13,7 +13,7 @@ import {
 } from "../e2e/pendingActionbar";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import { save } from "../e2e/touchTimeline";
 
@@ -105,6 +105,7 @@ async function expectCardOutcome(
     .click({
       position: { x: 4, y: 4 },
     });
+  if (outcome !== "floating") await inspectSelectionByKey(page);
   const bar = page.locator(".pending-actionbar");
   await expect(bar).toBeAttached();
   await page.locator(".timeline-scroll").evaluate((el) => {
@@ -128,8 +129,11 @@ async function expectCardOutcome(
   await expect(bar).not.toHaveClass(/pending-actionbar--docked/);
   if (outcome === "inline") {
     await expect(bar).toBeHidden();
-    await expectHitTestable(page.getByRole("button", { name: "Approve" }));
-    await expectHitTestable(page.getByRole("button", { name: "Reject" }));
+    for (const name of ["Approve", "Reject"]) {
+      const button = page.getByRole("button", { name });
+      await button.scrollIntoViewIfNeeded();
+      await expectHitTestable(button);
+    }
     return;
   }
   await expect(bar).toBeVisible();

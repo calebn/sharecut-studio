@@ -104,7 +104,7 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.grammar.test.ts::picks nothing when the finger lifts without moving onto an item, whatever is under it
 - gui/web/src/timeline/hitRouting.fingers.test.ts::cancels the armed target and puts the selection back, so the chip's lift saves nothing
 - gui/web/src/timeline/hitRouting.fingers.test.ts::rolls an armed grip back when a second finger lands on the lanes
-- gui/web/src/timeline/CreateMenu.test.tsx::says Blade cut cuts the selected tracks, not the held lane, and sets it apart from the lane's entry
+- gui/web/src/timeline/CreateMenu.test.tsx::says Split here cuts the selected tracks, not the held lane, and sets it apart from the lane's entry
 - gui/web/src/timeline/chooserLayout.test.ts::falls back to the viewport when the timeline box is shorter than the menu, below the finger rather than over it
 - gui/web/src/timeline/chooserLayout.test.ts::never covers the finger, in any geometry that has a free side
 - gui/web/src/timeline/CreateMenu.test.tsx::measures the menu's natural height, not the height its own cap leaves, so a menu the cap clips scrolls
@@ -420,7 +420,7 @@ Apple's [iPhone Undo and redo guide](https://support.apple.com/en-au/guide/iphon
 documents the three-finger text editing gesture. That system convention does
 not establish ShareCut's separate two-finger shortcut.
 
-Amended by #2294 (W1a): the Select/Blade tool strip and the ruler comment mode are gone. Alt-click at the pointer splits with a mouse and a touch user has no Alt, so the visible equivalent for touch is the command palette's Blade cut and the create menu now, and the Split verb in the action bar (W1b). The touch Select range toggle is a 44 px button in the Edit corner.
+Amended by #2294 (W1a): the Select/Blade tool strip and the ruler comment mode are gone. Alt-click at the pointer splits with a mouse and a touch user has no Alt, so the visible equivalent for touch is the Split verb in the Action bar (the playhead, or both edges of a range or words selection, in one undo step) and the create menu's Split here (W1b, decided by calebn, 2026-10-28). The touch Select range toggle is a 44 px button in the Edit corner.
 
 Exact seek remains outside this patch. the transport timecode (now the Player bar's time, `System/Player`) uses
 `ui/Timecode.tsx` for the text readout. `commands/seek.ts` dispatches existing
@@ -955,6 +955,11 @@ enforced-by:
 - gui/web/src/stage/edit/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
 -->
 
+Amended by #2294 (W1b, calebn, 2026-10-28): the Inspector opens only on Inspect
+(I, the Inspect verb, a double-click on a clip) and never because something is
+selected; Esc, Close or a new selection shuts it. The column, the sheet and the
+peek strip below describe where it opens, not when.
+
 On a coarse primary pointer at most 40rem tall and at least 40rem wide, the
 selection Inspector is a column on the inline end of the shell, not a bottom
 sheet. One hook, `useInspectorColumn`, owns the three conditions; below 40rem
@@ -1154,11 +1159,13 @@ chooser lab until the owner made it the default (2026-10-07).
   for its width (large text), above or below the finger, whichever has more
   room, capped to that room. Either way a 24 px gap stays between the menu
   and the finger. Its title is the time and lane
-  ("00:30.000 · Avery"). Entries: **Add envelope point** (with the level it
-  adds at, on the held lane), then, below a divider, **Blade cut**, **Add
-  chapter** and **Add comment**. Blade cut cuts the selected tracks, else
-  every dialogue track, so it carries a line saying which ("Cuts all dialogue
-  tracks", "Cuts Avery, Blair") and does not sit with the held lane's entry.
+  ("00:30.000 · Avery"). Entries: **Split here** first, then **Add
+  chapter** and **Add comment**, then, below a divider, **Add envelope point**
+  (with the level it adds at, on the held lane) (#2294 W1b: the menu is how a
+  touch user splits on a lane, and Split heads it). Split here cuts the
+  selected tracks, else every dialogue track, so it carries a line saying
+  which ("Cuts all dialogue tracks", "Cuts Avery, Blair") and does not sit
+  with the held lane's entry.
   Each runs a catalog command at the held
   time (`envelope.addPoint`, `edit.bladeCut`, `edit.addChapter` with
   `atTime`, `comment.draftAt`); an entry the link cannot run stays, disabled,

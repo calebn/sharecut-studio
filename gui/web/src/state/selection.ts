@@ -160,3 +160,44 @@ export function trackClickSelection(
 export function tracksSelection(trackIds: readonly string[]): Selection {
   return trackIds.length === 0 ? null : trackSelection(trackIds, trackIds[0]!);
 }
+
+/**
+ * What the Inspector is open for. A word or timeline range keeps one key as its
+ * edges move (the Inspector's own In and Out fields reshape it); every other
+ * kind is its object, so selecting another one shuts the Inspector. A track and
+ * its volume envelope and points are one object here: entering the envelope
+ * from the track's Inspector keeps it open, and so does a clip's automatic
+ * reduction.
+ */
+export function inspectKeyOf(selection: Selection): string | null {
+  if (selection === null) return null;
+  switch (selection.kind) {
+    case "range":
+    case "transcriptRange":
+      return selection.kind;
+    case "clip":
+    case "pending":
+    case "applied":
+    case "chapter":
+    case "social":
+    case "comment":
+      return `${selection.kind}:${selection.id}`;
+    case "track":
+    case "envelope":
+    case "envelopePoint":
+      return `track:${selection.trackId}`;
+    case "bleedAttenuation":
+      return `clip:${selection.id}`;
+    default: {
+      const unhandled: never = selection;
+      return unhandled;
+    }
+  }
+}
+
+export function inspectorOpenFor(
+  selection: Selection,
+  inspectorKey: string | null,
+): boolean {
+  return inspectorKey !== null && inspectorKey === inspectKeyOf(selection);
+}

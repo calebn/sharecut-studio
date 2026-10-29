@@ -69,10 +69,6 @@ async function cutThenUndo(
   await page
     .getByRole("button", { name: "Select reference clip at 00:00.000, 1m 0s" })
     .click();
-  await page
-    .getByRole("dialog", { name: "reference clip" })
-    .getByRole("button", { name: "Close" })
-    .click();
   // A phone has no Alt key: the palette runs the same split at the playhead.
   await runPaletteCommand(page, "Blade cut");
   await page

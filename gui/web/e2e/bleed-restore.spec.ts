@@ -4,7 +4,7 @@ import { expectPageAxeClean } from "./axe";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
-import { openProject } from "./stageNav";
+import { inspectSelection, openProject } from "./stageNav";
 
 function createBleedRestoreProject(prefix: string) {
   const relocated = createRelocatedE2eProject(prefix);
@@ -48,6 +48,7 @@ for (const viewport of [
         );
         if (viewport.width === 390) await openPhoneTimeline(page);
         await page.locator(`[data-clip-id="${selected.id}"]`).click();
+        await inspectSelection(page);
         await page
           .getByRole("button", { name: "Inspect automatic audio reduction" })
           .click();

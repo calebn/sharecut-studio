@@ -18,7 +18,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import {
@@ -98,6 +98,23 @@ async function open(
 const chooser = (page: Page) =>
   page.locator(".target-chooser:not(.is-closing)");
 const sheet = (page: Page) => page.locator(".bottom-sheet");
+
+/** A tap that selects shuts the sheet it found; wait for that, if it happens. */
+async function settleSheetShut(page: Page): Promise<void> {
+  await expect(page.locator(".bottom-sheet"))
+    .toHaveCount(0, { timeout: 3000 })
+    .catch(() => undefined);
+}
+
+/**
+ * Inspect opens the sheet for the selection. The key toggles, and a tap that
+ * retargets a sheet already up may leave it up or shut it, so look again and
+ * press it once more if the sheet did not end up open.
+ */
+async function ensureInspected(page: Page): Promise<void> {
+  if ((await page.locator(".bottom-sheet").count()) > 0) return;
+  await inspectSelectionByKey(page);
+}
 
 async function centerOfBox(locator: Locator): Promise<Point> {
   const box = await locator.boundingBox({ timeout: 5000 });
@@ -182,6 +199,7 @@ async function tapTarget(
   await page.waitForTimeout(60);
   await finger.up();
   await page.waitForTimeout(700);
+  await ensureInspected(page);
 }
 
 /**
@@ -369,6 +387,7 @@ async function chipCase(
   await run(page, finger, (step) =>
     frame(page, info, `chip-${slug}-${browserName}-${step}`),
   );
+  await ensureInspected(page);
   const row = {
     case: name,
     input: finger.input,
@@ -590,6 +609,7 @@ async function dragStowsStrip(
   await page.waitForTimeout(SETTLE_MS);
   await finger.up();
   await page.waitForTimeout(700);
+  await ensureInspected(page);
   const opened = await sheetState(page);
   await frame(page, info, `stow-${size}-1-strip-${browserName}`);
 
@@ -730,13 +750,15 @@ async function expandRemembered(
     await finger.up();
     await page.waitForTimeout(700);
   };
-  const tapPoint = async (id: string) =>
-    tap(
+  const tapPoint = async (id: string) => {
+    await tap(
       await centerOf(
         page,
         `${lane} [data-hit-kind="envelope-point"][data-hit-id="${id}"]`,
       ),
     );
+    await ensureInspected(page);
+  };
   /** A finger on the button where it is drawn; null if something covers it. */
   const tapButton = async (name: string) => {
     const at = await centerOfBox(page.getByRole("button", { name }));
@@ -821,6 +843,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
       await finger.down(at);
       await page.waitForTimeout(60);
       await finger.up();
+      await ensureInspected(page);
       await page.evaluate((font) => {
         document.documentElement.style.fontSize = `${font}px`;
       }, rootFont);
@@ -944,6 +967,7 @@ test("both themes and reduced motion with the strip open", async ({
     await page.waitForTimeout(SETTLE_MS);
     await finger.up();
     await page.waitForTimeout(700);
+    await ensureInspected(page);
     const axeStrip = ownsStudioAxe({ suite: "compat", engine: browserName })
       ? await new AxeBuilder({ page })
           .disableRules([...STUDIO_AXE_DISABLED_RULES])
@@ -1188,7 +1212,7 @@ async function openTrackSheet(page: Page, finger: Finger): Promise<void> {
   expect((await sheetState(page)).compact).toBe(false);
 }
 
-test("a timeline tap while a track's sheet is open goes to the strip: portrait-390", async ({
+test("a timeline tap while a track's sheet is open selects, and Inspect opens the strip: portrait-390", async ({
   page,
   context,
   browserName,
@@ -1201,12 +1225,19 @@ test("a timeline tap while a track's sheet is open goes to the strip: portrait-3
   const track = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-1-track-${browserName}`);
   await tapClipBody(page, finger);
+  // Selecting shuts the track's sheet; Inspect opens the clip's strip.
+  await settleSheetShut(page);
+  await ensureInspected(page);
+  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   const clip = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-2-clip-${browserName}`);
   json(info, `tap-while-track-sheet-${browserName}`, { track, clip });
   expect(clip).toMatchObject({ compact: true, size: "peek", stowed: false });
   expect(await page.locator(".bottom-sheet .inspector").count()).toBe(0);
   await tapTarget(page, finger, envC);
+  await settleSheetShut(page);
+  await ensureInspected(page);
+  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   expect(await sheetState(page)).toMatchObject({
     compact: true,
     size: "peek",

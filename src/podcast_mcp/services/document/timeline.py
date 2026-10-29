@@ -549,23 +549,50 @@ class TimelineService(CutMutatingService):
         propose: bool = False,
         reason: str | None = None,
         author: str | None = None,
+        extra_at_times: list[float] | None = None,
     ) -> dict:
-        """Blade cut: apply split or append pending ``type=split`` proposal."""
+        """Blade cut: apply split or append pending ``type=split`` proposal.
+
+        ``extra_at_times`` splits at more times in the same history step (both edges
+        of a selected range). With several times, one with no clip to split is
+        skipped as long as another splits.
+        """
+        times = [float(at_time), *(float(t) for t in extra_at_times or [])]
 
         def mutate(p) -> dict:
             tids = list(track_ids) if track_ids else dialogue_track_ids(p)
             if not tids:
                 raise CodedValueError("no tracks to split", code="no_tracks_to_split")
             if propose:
-                decision = append_split_decision(
-                    p,
-                    float(at_time),
-                    tids,
-                    reason=reason or GUEST_SUGGEST_SPLIT_REASON,
-                    author=author,
-                )
-                return {"operation": "propose_split", "edit": decision.model_dump()}
-            return split_clips_at(p, float(at_time), tids, defaults=self.ws.effective_config())
+                edits = [
+                    append_split_decision(
+                        p,
+                        t,
+                        tids,
+                        reason=reason or GUEST_SUGGEST_SPLIT_REASON,
+                        author=author,
+                    ).model_dump()
+                    for t in times
+                ]
+                return {"operation": "propose_split", "edit": edits[0], "edits": edits}
+            summary: dict | None = None
+            failure: CodedValueError | None = None
+            split_times: list[float] = []
+            for t in times:
+                try:
+                    summary = split_clips_at(p, t, tids, defaults=self.ws.effective_config())
+                except CodedValueError as exc:
+                    if len(times) == 1 or exc.code != "no_clip_at_time":
+                        raise
+                    failure = exc
+                    continue
+                split_times.append(t)
+            if summary is None:
+                assert failure is not None
+                raise failure
+            if len(times) > 1:
+                summary["split_times"] = split_times
+            return summary
 
         return self.ws.mutate(
             "before split at time",

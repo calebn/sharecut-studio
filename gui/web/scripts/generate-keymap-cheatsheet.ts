@@ -54,7 +54,7 @@ function defaultShortcut(cmd: KeymapCommand): string {
   // Ignore localStorage remaps for published docs.
   const primary = cmd.keys[0] ?? "";
   if (primary === " " || primary === "Space") {
-    return "Space";
+    return cmd.requireShift ? "Shift+Space" : "Space";
   }
   const parts: string[] = [];
   if (cmd.requireMod) {

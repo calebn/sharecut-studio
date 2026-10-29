@@ -8,6 +8,7 @@ import {
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { useTimelineMetrics } from "../timeline/timelineMetrics";
@@ -158,7 +159,16 @@ export function TrackHeadersColumn({
           track={track}
           trackIndex={idx}
           selected={selectedTrackIds.includes(track.id)}
-          onSelect={(additive) => toggleTrackSelected(track.id, additive)}
+          onSelect={(additive) => {
+            toggleTrackSelected(track.id, additive);
+            const held = useDawStore.getState();
+            if (
+              !additive &&
+              held.selection?.kind === "track" &&
+              held.selection.trackId === track.id
+            )
+              held.setInspectorOpen(true);
+          }}
           reorderEnabled={mayReorder}
           isReorderDragActive={() => dragTrackIdRef.current != null}
           dragging={dragTrackId === track.id}

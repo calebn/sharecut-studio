@@ -11,7 +11,7 @@ import {
   rememberInspectorDetent,
 } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelection, openProject } from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 import { buildFixture, json, lane, setZoom } from "../e2e/touchTimeline";
 
@@ -121,6 +121,7 @@ for (const {
           : page.locator(".pending-overlay .pending-hit").first();
       await hit.focus();
       await hit.press("Enter");
+      await inspectSelection(page);
       const panel = page.locator(".bottom-sheet--compact");
       await expect(panel).toBeVisible();
       await page.locator("html").evaluate((html, px) => {
@@ -260,6 +261,7 @@ for (const {
         });
         await hit.focus();
         await hit.press("Enter");
+        await inspectSelection(page);
         await expect(panel).toHaveClass(/bottom-sheet--half/);
         expect((await panel.boundingBox())!.height).toBeCloseTo(
           withoutFeedback.half,

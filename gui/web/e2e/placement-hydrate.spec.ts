@@ -5,7 +5,7 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
-import { openProject } from "./stageNav";
+import { ensureInspected, openProject } from "./stageNav";
 
 let projectPath: string;
 let workspaceDir: string;
@@ -51,6 +51,7 @@ test("a late transcript word load keeps an open Move clip form and Apply sends o
   const correct = page.getByRole("button", { name: /correct/i }).first();
   await expect(correct).toBeDisabled();
   await page.locator(".clip-block .clip-hit").first().click();
+  await ensureInspected(page);
   const entry = page.getByRole("button", { name: "Move clip", exact: true });
   await expect(entry).toBeEnabled();
   await entry.click();

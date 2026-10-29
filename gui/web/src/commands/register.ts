@@ -7,6 +7,7 @@ import {
   registerClipMoveCommands,
   registerPrimaryEditingCommands,
 } from "./editing";
+import { registerEditVerbCommands } from "./editVerbs";
 import { registerEnvelopeCommands } from "./envelopes";
 import { registerHistoryCommands } from "./history";
 import { registerHostCommands } from "./host";
@@ -36,6 +37,7 @@ export function registerDawCommands(): void {
   registerSpeakerMoveLaneSpanCommands();
   registerNavigationCommands();
   registerPrimaryEditingCommands();
+  registerEditVerbCommands();
   registerViewCommands();
   registerHistoryCommands();
   registerClipboardCommands();

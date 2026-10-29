@@ -4,11 +4,6 @@ import { plural } from "./format";
 /** Name for pending edits whose span was cut away, so they have no place on the timeline. */
 export const UNMAPPED_PENDING_TITLE = "Edits in removed audio";
 
-/** `Edits in removed audio (N)`: empty-inspector heading. */
-export function unmappedPendingLabel(count: number): string {
-  return `${UNMAPPED_PENDING_TITLE} (${count})`;
-}
-
 export function pendingEditsStatus(count: number): string {
   return `${count} pending ${plural(count, "edit")}`;
 }

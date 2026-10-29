@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { compactHistory, openAt, test } from "../e2e/compactChromeFixture";
+import { inspectSelection } from "../e2e/stageNav";
 import { lane } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
@@ -12,6 +13,7 @@ test("unavailable history feedback stays above a real inspector refusal", async 
   const hit = page.locator(`${lane} [data-hit-id="env-c"]`);
   await hit.focus();
   await hit.press("Enter");
+  await inspectSelection(page);
   const panel = page.locator(".bottom-sheet--compact");
   await expect(panel).toBeVisible();
   await page.locator("html").evaluate((html) => {

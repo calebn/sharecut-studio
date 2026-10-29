@@ -36,6 +36,7 @@ import {
   noteZoomPointerClientX,
   peekZoomPointerClientX,
 } from "../utils/zoomPointer";
+import { inspectKeyOf } from "./selection";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
   ChromeFlags,
@@ -160,6 +161,10 @@ type UiSlice = Pick<
   | "resetTimelineViewportWidth"
   | "rangeArmed"
   | "rangeBusy"
+  | "inspectorKey"
+  | "setInspectorOpen"
+  | "moreRequest"
+  | "requestMore"
   | "setRangeArmed"
   | "rangeScopeTrackIds"
   | "setRangeScopeTrackIds"
@@ -286,6 +291,7 @@ export function uiProjectInitial() {
     rangeArmed: false,
     rangeScopeTrackIds: null as readonly string[] | null,
     rangeBusy: false,
+    inspectorKey: null as string | null,
     bounceRangeTarget: null,
     prepareFocusTrackId: null,
     feedbackToast: null,
@@ -445,6 +451,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ rangeArmed, rangeScopeTrackIds: null }),
     setRangeScopeTrackIds: (rangeScopeTrackIds) => set({ rangeScopeTrackIds }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
+    inspectorKey: null as string | null,
+    setInspectorOpen: (open) =>
+      set((s) => ({
+        inspectorKey: open ? inspectKeyOf(s.selection) : null,
+      })),
+    moreRequest: 0,
+    requestMore: () => set((s) => ({ moreRequest: s.moreRequest + 1 })),
     userZoomed: false,
     layers: {
       showEdits: true,

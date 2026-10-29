@@ -11,7 +11,11 @@ import { test } from "../e2e/interactionEvidence";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
-import { closeTools, openToolsIfFolded } from "../e2e/stageNav";
+import {
+  closeTools,
+  inspectSelection,
+  openToolsIfFolded,
+} from "../e2e/stageNav";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 for (const { cell: viewport, theme } of withAppearance([
@@ -50,6 +54,7 @@ for (const { cell: viewport, theme } of withAppearance([
             .locator(".lane-row .clip-hit")
             .first()
             .click({ position: { x: 20, y: 20 } });
+          await inspectSelection(page);
           await expect(page.locator(".modifier-badge")).toHaveText("Clip");
           await page.locator("html").evaluate((html) => {
             html.style.fontSize = "32px";

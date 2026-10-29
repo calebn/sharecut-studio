@@ -17,6 +17,7 @@ import {
   wheelInspector,
 } from "../e2e/inspectorResponsiveEvidence";
 import type { InteractionReceipt } from "../e2e/interactionEvidence";
+import { inspectSelection } from "../e2e/stageNav";
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true });
@@ -33,6 +34,7 @@ test("clipped saved feedback pauses its remaining visible lifetime", async ({
   await finger.down(at);
   await page.waitForTimeout(60);
   await finger.up();
+  await inspectSelection(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "32px";
@@ -174,6 +176,7 @@ for (const width of [600, 636]) {
       await finger.down(at);
       await page.waitForTimeout(60);
       await finger.up();
+      await inspectSelection(page);
       await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
       await page.locator("html").evaluate((html) => {
         html.style.fontSize = "32px";

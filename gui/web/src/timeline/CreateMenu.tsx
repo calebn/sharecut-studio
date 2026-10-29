@@ -210,9 +210,9 @@ export function CreateMenu({
           {title}
         </p>
         <div ref={panelRef} role="menu" aria-label={`Create at ${title}`}>
-          {track.map((item) => render(item, list.indexOf(item)))}
-          <hr className="create-menu-separator" />
           {episode.map((item) => render(item, list.indexOf(item)))}
+          <hr className="create-menu-separator" />
+          {track.map((item) => render(item, list.indexOf(item)))}
         </div>
       </div>
     </div>,

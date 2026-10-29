@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../api/documentEdits";
+import { registerEditVerbCommands } from "../commands/editVerbs";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerRangeCommands } from "../commands/rangeActions";
 import { setClipboard } from "../edit/clipboard";
+import { EditActionBar } from "../stage/edit/EditActionBar";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
@@ -12,7 +14,7 @@ import {
   minimalProject,
   sampleTrack,
 } from "../test/fixtures";
-import { RangeActions } from "../timeline/RangeActions";
+import { RangeFields } from "../timeline/RangeFields";
 import { TranscriptPanel } from "./TranscriptPanel";
 
 vi.mock("../api/documentEdits", async (orig) => ({
@@ -82,7 +84,8 @@ function openShare(capabilities: string[]) {
   return render(
     <main>
       <TranscriptPanel />
-      <RangeActions />
+      <RangeFields />
+      <EditActionBar form="dock" root={null} />
     </main>,
   );
 }
@@ -97,6 +100,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   clearRegisteredCommands();
   registerRangeCommands();
+  registerEditVerbCommands();
   setClipboard(null);
 });
 
@@ -108,11 +112,11 @@ describe("guest transcript Select follows share capabilities", () => {
     expect(q.queryByRole("button", { name: /^Select:/ })).toBeNull();
     fireEvent.click(q.getByRole("button", { name: "Um." }));
     expect(useDawStore.getState().selection).toBeNull();
-    expect(screen.queryByRole("region", { name: "Range actions" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Range fields" })).toBeNull();
     await expectNoA11yViolations(container);
   });
 
-  it("a guest on a touch screen is told to hold and drag, and gets the Words controls beside Range actions", () => {
+  it("a guest on a touch screen is told to hold and drag, and gets the Words controls beside the Action bar", () => {
     useDawStore.setState({ pointerKind: "coarse" });
     const { container } = openShare(SUGGEST);
     selectUm(container);

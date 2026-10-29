@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**125** capabilities · **99** ShareCut Studio commands · **50** keyed · **197** MCP tools · **17** skills on rows (+ **19** hub skills).
+**133** capabilities · **107** ShareCut Studio commands · **59** keyed · **197** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -42,8 +42,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Nudge playhead forward | session | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — | — |
 | Go to start | session | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
 | Go to end | session | `navigation.goToEnd` | `End` | — | — | — | — | — | — | — |
-| Blade cut | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `timeline`, `timeline.createMenu` | `split_clip_tool` | — | — | — | time · none |
-| Delete clip | project | `edit.delete` | `Backspace` | — | `clipInspector` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
+| Split at playhead | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `timeline`, `timeline.createMenu` | `split_clip_tool` | — | — | — | time · none |
+| Cut selection | project | `edit.delete` | `Backspace` | — | `clipInspector`, `actionBar` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
 | Remove track | project | `track.remove` | `Backspace` | — | `trackInspector` | `track_remove_tool` | — | — | — | none · none |
 | Split speakers… | project | `track.splitSpeakers` | — (opens Prepare at the track's split prompt, which asks for the speaker count; reached from the track inspector and the command palette) | — | `SourceCard`, `trackInspector` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
@@ -55,7 +55,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Paste | project | `edit.paste` | `Mod+V` | — | — | `paste_segment_tool` | `podcast edit paste-segment` | — | — | — |
 | Select all tracks | session | `track.selectAll` | `Mod+A` | — | — | — | — | — | — | — |
 | Deselect all tracks | session | `track.deselectAll` | `Mod+Shift+A` | — | `trackHeadersWell` | — | — | — | — | none · none |
-| Toggle track mute | project | `track.muteToggle` | `M` | — | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
+| Toggle track mute | project | `track.muteToggle` | — (M is edit.mute, which mutes the targeted track when nothing else is selected) | — | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
 | Toggle track solo | session | `track.soloToggle` | `S` | — | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
 | Clear solo | session | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | — | `trackHeaders.soloChip`, `trackMix` | — | — | — | — | none · hear |
 | Set track volume | project | `track.setVolume` | — (slider: arrow keys step the focused fader) | — | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
@@ -112,22 +112,30 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Show cut away | view | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | — | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | project | `edit.trimClipEdge` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
 | Move clips | project | `edit.moveClips` | — (Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge) | `long-press-arm-drag` | `timeline.clip.body`, `clipInspector` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
-| Add chapter at playhead | project | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `long-press-empty` | `timeline.createMenu`, `editPlusMenu` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
+| Add chapter at playhead | project | `edit.addChapter` | `C` | `long-press-empty` | `timeline.createMenu`, `editPlusMenu`, `actionBar` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
 | Add envelope point | project | `envelope.addPoint` | — (touch create menu; the envelope inspector's Add point is the keyboard route) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | — | — | — | time · none |
-| Add comment | view | `comment.draftAt` | — (touch create menu; the pointer route is the comment panel) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · none |
+| Add comment | view | `comment.draftAt` | `C` | `long-press-empty` | `timeline.createMenu`, `actionBar` | — | — | — | — | time · none |
 | Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Bleed reductions inspector; no default shortcut) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | — | — | yes | none · none |
 | Roll clip join | project | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `long-press-arm-drag` | `timeline.clip.joinDiamond`, `transcript.editBoundary` | `roll_clip_join_tool` | `podcast edit roll-join` | — | — | time · none |
 | Set clip fade | project | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | `set_clip_fade_tool` | — | — | — | time · none |
 | Set clip join | project | `edit.setClipJoin` | — (inspector select and join glyph popover; no industry-standard key) | — | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
 | Find and replace transcript | project | `transcript.findReplace` | — (toolbar and command palette; no shortcut yet) | — | `transcript.findReplace` | `find_replace_transcript_tool` | `podcast transcript find-replace` | — | yes | none · none |
-| Play range | session | `range.play` | — (Context action with explicit range selection) | — | `RangeActions` | — | — | — | — | none · none |
-| Cut selected range | project | `range.cut` | — (Context action with explicit range selection) | — | `RangeActions` | `propose_range_cut_tool` | `podcast edit propose-range-cut` | — | — | none · none |
-| Mute selected range | project | `range.mute` | — (Context action with explicit range selection) | — | `RangeActions` | `propose_range_mute_tool` | — | — | — | none · none |
-| Fill range with room tone | project | `range.fillRoomTone` | — (Context action with explicit range selection) | — | `RangeActions` | `fill_with_room_tone_tool` | — | — | — | none · none |
-| Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `SpeakerLaneMoveActions` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
-| Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `RangeActions` | `add_comment_tool` | `podcast comment add` | — | — | none · none |
-| Bounce selected range | project | `range.bounce` | — (Context action with explicit range selection) | — | `RangeActions` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
+| Play range | session | `range.play` | — (Context action with explicit range selection) | — | `actionBar` | — | — | — | — | none · none |
+| Cut selected range | project | `range.cut` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_cut_tool` | `podcast edit propose-range-cut` | — | — | none · none |
+| Mute selected range | project | `range.mute` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_mute_tool` | — | — | — | none · none |
+| Fill range with room tone | project | `range.fillRoomTone` | — (Context action with explicit range selection) | — | `actionBar` | `fill_with_room_tone_tool` | — | — | — | none · none |
+| Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `actionBar` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
+| Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `actionBar` | `add_comment_tool` | `podcast comment add` | — | — | none · none |
+| Bounce selected range | project | `range.bounce` | — (Context action with explicit range selection) | — | `actionBar` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
 | Select a range | view | `range.arm` | — (Context action with explicit range selection) | — | `editCorner` | — | — | — | — | none · none |
+| Split | project | `edit.split` | `S` | — | `actionBar` | `split_clip_tool` | — | — | — | time · none |
+| Hear | session | `edit.hear` | `Shift+Space` | — | `actionBar` | — | — | — | — | none · none |
+| Hear before | session | `edit.hearBefore` | `A` | — | `actionBar` | — | — | — | — | none · none |
+| Hear after | session | `edit.hearAfter` | `B` | — | `actionBar` | — | — | — | — | none · none |
+| Keep | project | `edit.keep` | `X` | — | `actionBar` | — | — (Keep rejects a pending suggestion, and on a cut it opens History where Undo brings the cut back; the verb is a GUI shortcut to the existing History and review commands) | — | — | none · none |
+| Inspect | session | `edit.inspect` | `I` | — | `actionBar` | — | — | — | — | none · none |
+| More | session | `edit.more` | `.` | — | `actionBar` | — | — | — | — | none · none |
+| Mute | project | `edit.mute` | `M` | — | `actionBar` | `propose_range_mute_tool`, `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
 
 ## Agent workflows
 
