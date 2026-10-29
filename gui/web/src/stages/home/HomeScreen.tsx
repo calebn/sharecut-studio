@@ -60,7 +60,7 @@ const NAME_RESERVED_CODE = "project_name_reserved";
 
 function startFailure(error: unknown, name: string): string {
   if (error instanceof ApiError && error.code === NAME_RESERVED_CODE) {
-    return `Windows can't use "${name}" as a folder name. Choose another episode name.`;
+    return `Windows can't use "${name}" as a folder name. Rename the file and drop it again.`;
   }
   return NOT_STARTED;
 }

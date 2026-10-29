@@ -89,13 +89,18 @@ export function cardsOf(
   return projects.map((project) => cardOf(project, now));
 }
 
+// The names Windows keeps for devices; the server refuses them for a typed name
+// (recent_projects._WINDOWS_RESERVED), so a name taken from a file falls back instead.
+const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
 export function episodeNameFromFiles(
   files: readonly { name: string }[],
   now: Date,
 ): string {
   if (files.length > 1) return `Episode, ${dayMonth(now)}`;
   const base = (files[0]?.name ?? "").replace(/\.[^./\\]+$/, "").trim();
-  return base || `Episode, ${dayMonth(now)}`;
+  const reserved = RESERVED_NAME.test(base.split(".", 1)[0] ?? "");
+  return base && !reserved ? base : `Episode, ${dayMonth(now)}`;
 }
 
 export function untitledEpisodeName(now: Date): string {

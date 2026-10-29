@@ -542,9 +542,22 @@ describe("HomeScreen", () => {
       );
     });
 
+    it("names an episode after the day when the file is called con", async () => {
+      const user = userEvent.setup();
+      pickFiles.mockResolvedValue([
+        new File(["x"], "con.wav", { type: "audio/wav" }),
+      ]);
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: /^Import audio/ }),
+      );
+      await waitFor(() => expect(create).toHaveBeenCalled());
+      expect(create).toHaveBeenCalledWith("", expect.stringMatching(/^Episode, /));
+    });
+
     it("names a reserved Windows name instead of the generic failure", async () => {
       const user = userEvent.setup();
-      const file = new File(["x"], "con.wav", { type: "audio/wav" });
+      const file = new File(["x"], "c:on.wav", { type: "audio/wav" });
       pickFiles.mockResolvedValue([file]);
       create.mockRejectedValue(
         new ApiError("server words", "project_name_reserved", 400),
@@ -554,7 +567,7 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: /^Import audio/ }),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        `Windows can't use "con" as a folder name. Choose another episode name.`,
+        `Windows can't use "c:on" as a folder name. Rename the file and drop it again.`,
       );
       expect(ingestInto).not.toHaveBeenCalled();
     });
