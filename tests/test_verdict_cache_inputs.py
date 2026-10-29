@@ -701,6 +701,14 @@ def _pad_samples_not_a_list(p: EpisodeProject) -> None:
     _pad_record(p, "oops")
 
 
+def _falsy_or_odd_samples(value: Any) -> Callable[[EpisodeProject], None]:
+    def mutate(p: EpisodeProject) -> None:
+        _tile_the_pause(p)
+        _pad_record(p, value)
+
+    return mutate
+
+
 def _pad_sample_not_a_dict(p: EpisodeProject) -> None:
     _tile_the_pause(p)
     _pad_record(p, ["oops"])
@@ -1001,3 +1009,23 @@ def test_an_unexpected_error_resolving_a_far_pad_sample_propagates(
     monkeypatch.setattr(verdict_cache, "pad_sample_recording", broken)
     with pytest.raises(RuntimeError, match="bug"):
         verdict_cache._pad_records_seen(project, edit, edit.start - 1.0, edit.end + 1.0)
+
+
+_NOT_A_LIST: list[Any] = [None, 0, False, "", {}, {"track_id": "host"}, "oops", 7]
+
+
+@pytest.mark.parametrize("value", _NOT_A_LIST, ids=repr)
+def test_pad_samples_that_are_not_a_list_move_the_key_whatever_their_truthiness(
+    tmp_path: Path, value: Any
+) -> None:
+    assert _key_of(tmp_path, _tile_the_pause) != _key_of(tmp_path, _falsy_or_odd_samples(value))
+
+
+@pytest.mark.parametrize("value", _NOT_A_LIST, ids=repr)
+def test_a_cached_pause_verdict_equals_a_cold_check_for_pad_samples_that_are_not_a_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: Any
+) -> None:
+    _, cold, cached = _compare(
+        tmp_path, monkeypatch, False, _tile_the_pause, _falsy_or_odd_samples(value)
+    )
+    assert cached == cold
