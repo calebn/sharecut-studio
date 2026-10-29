@@ -19,6 +19,8 @@ export type OpenOtherProps = {
   onChooseFolder: () => void;
   onPathChange: (path: string) => void;
   onSubmit: () => void;
+  /** The popover was closed by Escape or the trigger. */
+  onClose?: () => void;
 };
 
 /** The error copy for a folder with no episode in it. */
@@ -38,6 +40,7 @@ export function OpenOther({
   onChooseFolder,
   onPathChange,
   onSubmit,
+  onClose,
 }: OpenOtherProps) {
   const [open, setOpen] = useState(defaultOpen);
   const errorId = useId();
@@ -56,10 +59,15 @@ export function OpenOther({
     event.preventDefault();
     onSubmit();
   };
+  const toggle = () => {
+    if (open) onClose?.();
+    setOpen(!open);
+  };
   const closeOnEscape = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;
     event.stopPropagation();
     setOpen(false);
+    onClose?.();
     trigger.current?.focus();
   };
   return (
@@ -69,7 +77,7 @@ export function OpenOther({
         type="button"
         className="sys-text-btn"
         aria-expanded={mode === "path" ? open : undefined}
-        onClick={mode === "picker" ? onChooseFolder : () => setOpen(!open)}
+        onClick={mode === "picker" ? onChooseFolder : toggle}
       >
         Open other…
       </button>
