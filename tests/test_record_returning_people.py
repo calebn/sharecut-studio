@@ -1615,7 +1615,9 @@ def test_the_stale_landed_flag_only_holds_the_track_for_a_staged_target(
     assert out["reason"] == "host_choice"
 
 
-def test_a_present_persons_acked_bed_holds_the_track(minimal_project, sample_wav, tmp_workspace):
+def test_a_person_still_in_the_room_always_holds_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
     ws = _seed(minimal_project, sample_wav)
     track = _sam_project(ws)
     room, _sam = _gone_sam(ws, bed=True)
@@ -1634,6 +1636,61 @@ def test_a_removed_persons_bed_only_recording_does_not_hold_the_track(
     new = _rejoin(ws, room)
     _remove(ws, room, sam)
     assert RecordControlService(ws).assign_track(new, track)["reason"] == "host_choice"
+
+
+def test_a_removed_person_with_a_bed_and_a_kept_take_holds_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, sam = _gone_sam(ws, acked=True, bed=True)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(new, track)
+    assert caught.value.code == "track_taken"
+
+
+def test_a_removed_person_whose_take_is_already_placed_holds_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, [sam] = _room(ws, ["Sam"], land=True)
+    ws.reload()
+    assert any(c.track_id == track for c in ws.project.clips)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(new, track)
+    assert caught.value.code == "track_taken"
+
+
+def test_a_removed_person_whose_only_take_was_discarded_does_not_hold_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, sam = _gone_sam(ws, acked=True)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    RecordControlService(ws).discard_take(0)
+    assert RecordControlService(ws).assign_track(new, track)["reason"] == "host_choice"
+
+
+def test_a_removed_person_acking_after_the_rejoiner_is_assigned_gets_a_new_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, sam = _gone_sam(ws)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    RecordControlService(ws).assign_track(new, track)
+    _ack(ws, room, sam, 0)
+    rows = _by_pid(ws)
+    assert rows[new]["track_id"] == track
+    assert rows[sam]["track_id"] != track and rows[sam]["reason"] == "track_in_use"
 
 
 def test_a_removed_person_with_an_unlanded_take_holds_the_track(

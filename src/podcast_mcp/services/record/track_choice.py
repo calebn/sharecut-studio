@@ -71,16 +71,15 @@ class RecordTrackService:
             suggestion = suggestion_for_session(project, self.session_id)
             self._require_open(project, suggestion, match)
             held = held_tracks(project, self.session_id)
-            person = find_participant(
-                RecordSnapshot.model_validate(self._room.snapshot()), participant_id
-            )
+            snap = RecordSnapshot.model_validate(self._room.snapshot())
+            person = find_participant(snap, participant_id)
             if person is not None and person.removed and participant_id not in held:
                 raise CodedValueError(
                     f"{match.display_name} was removed from this session, so their track cannot "
                     "be changed.",
                     code="person_removed",
                 )
-            target, label = self._target(project, current, match, track)
+            target, label = self._target(project, current, match, track, snap)
             sources = _own_sources(project, self.session_id, participant_id, suggestion)
             has_staged_recording = suggestion is not None and (
                 bool(sources) or _has_bed(suggestion, self.session_id, participant_id)
@@ -178,7 +177,12 @@ class RecordTrackService:
             )
 
     def _target(
-        self, project: EpisodeProject, current: dict[str, TrackMatch], match: TrackMatch, track: str
+        self,
+        project: EpisodeProject,
+        current: dict[str, TrackMatch],
+        match: TrackMatch,
+        track: str,
+        snap: RecordSnapshot,
     ) -> tuple[str, str]:
         if track.strip().lower() == NEW_TRACK:
             target, label = slug_track_id(match.participant_id), match.display_name
@@ -198,7 +202,7 @@ class RecordTrackService:
             target, label = track, pool[track]
         for other in current.values():
             if other.participant_id != match.participant_id and other.track_id == target:
-                if not self._holds_track(project, other, current):
+                if not self._holds_track(project, other, current, snap):
                     continue
                 raise CodedValueError(
                     f'{other.display_name} is already on "{other.track_label}". Move them first, '
@@ -208,15 +212,19 @@ class RecordTrackService:
         return target, label
 
     def _holds_track(
-        self, project: EpisodeProject, other: TrackMatch, current: dict[str, TrackMatch]
+        self,
+        project: EpisodeProject,
+        other: TrackMatch,
+        current: dict[str, TrackMatch],
+        snap: RecordSnapshot,
     ) -> bool:
-        """Whether ``other`` still keeps the track from a rejoiner: not when removed with nothing left to land.
+        """Whether ``other`` keeps the track from a rejoiner: not once removed with nothing to land.
 
         A removed person holds it while they have staged or placed audio, or an acknowledged take
-        or bed that landing would still copy for the session's current target. Read without the
-        room land lock, so a land in flight can make this say yes too often, never too rarely.
+        or bed that landing would still copy for the session's current target. Land writes the
+        project before marking an upload row landed, both inside one project transaction that
+        assign's transaction excludes, so these reads never see a take as landed but unplaced.
         """
-        snap = RecordSnapshot.model_validate(self._room.snapshot())
         person = find_participant(snap, other.participant_id)
         if person is None or not person.removed:
             return True
