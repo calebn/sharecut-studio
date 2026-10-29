@@ -12,6 +12,7 @@ never orphans one.
 
 from __future__ import annotations
 
+import ctypes
 import os
 import shutil
 import signal
@@ -41,15 +42,13 @@ _detach_depth = 0
 _detached: weakref.WeakSet[subprocess.Popen[Any]] = weakref.WeakSet()
 
 
-PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _ERROR_INVALID_PARAMETER = 87
 _STILL_ACTIVE = 259
 
 
 def _kernel32() -> tuple[Any, Callable[[], int]] | None:
     try:
-        import ctypes
-
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
         kernel32.OpenProcess.restype = ctypes.c_void_p
         kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
@@ -60,11 +59,9 @@ def _kernel32() -> tuple[Any, Callable[[], int]] | None:
         return None
 
 
-def windows_pid_alive(pid: int, kernel32: Any, last_error: Callable[[], int]) -> bool:
+def _windows_pid_alive(pid: int, kernel32: Any, last_error: Callable[[], int]) -> bool:
     """False only when Windows says ``pid`` is no process or has exited; never signals it."""
-    import ctypes
-
-    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
         return last_error() != _ERROR_INVALID_PARAMETER
     try:
@@ -82,7 +79,9 @@ def pid_is_alive(pid: int) -> bool:
         return True
     if sys.platform == "win32":
         probe = _kernel32()
-        return True if probe is None else windows_pid_alive(pid, *probe)
+        if probe is None:
+            return True
+        return _windows_pid_alive(pid, *probe)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

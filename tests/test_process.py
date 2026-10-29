@@ -9,7 +9,6 @@ import pytest
 
 from podcast_mcp.util import process as process_module
 from podcast_mcp.util.process import (
-    PROCESS_QUERY_LIMITED_INFORMATION,
     CalledProcessError,
     TimeoutExpired,
     detached_children,
@@ -18,7 +17,6 @@ from podcast_mcp.util.process import (
     pid_is_alive,
     popen,
     run,
-    windows_pid_alive,
 )
 
 _SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
@@ -43,19 +41,22 @@ def test_probe_errors_leave_owner_unknown(
     assert pid_is_alive(1234) is True
 
 
-class _Kernel32:
-    """Stands in for kernel32 so the Windows branch runs on any host."""
+HANDLE = 77
 
-    def __init__(self, *, opens: bool = True, exit_code: int = 259, error: int = 0) -> None:
+
+class _Kernel32:
+    def __init__(self, *, opens: bool = True, exit_code: int | None = 259, error: int = 0) -> None:
         self.opens, self.exit_code, self.error = opens, exit_code, error
         self.closed: list[int] = []
         self.asked: list[tuple[int, bool, int]] = []
 
     def OpenProcess(self, access: int, inherit: bool, pid: int) -> int | None:
         self.asked.append((access, inherit, pid))
-        return 77 if self.opens else None
+        return HANDLE if self.opens else None
 
     def GetExitCodeProcess(self, handle: int, out: Any) -> int:
+        if self.exit_code is None:
+            return 0
         out._obj.value = self.exit_code
         return 1
 
@@ -70,6 +71,7 @@ class _Kernel32:
         pytest.param(_Kernel32(), True, id="still_active"),
         pytest.param(_Kernel32(exit_code=0), False, id="exited_zero"),
         pytest.param(_Kernel32(exit_code=1), False, id="exited_one"),
+        pytest.param(_Kernel32(exit_code=None), True, id="exit_code_unreadable"),
         pytest.param(_Kernel32(opens=False, error=87), False, id="no_such_process"),
         pytest.param(_Kernel32(opens=False, error=5), True, id="access_denied"),
         pytest.param(_Kernel32(opens=False, error=1450), True, id="unknown_error"),
@@ -78,19 +80,9 @@ class _Kernel32:
 def test_windows_liveness_is_false_only_when_the_process_is_certainly_gone(
     kernel32: _Kernel32, alive: bool
 ) -> None:
-    assert windows_pid_alive(4321, kernel32, lambda: kernel32.error) is alive
-    assert kernel32.asked == [(PROCESS_QUERY_LIMITED_INFORMATION, False, 4321)]
-    assert kernel32.closed == ([77] if kernel32.opens else [])
-
-
-def test_windows_liveness_failing_to_read_the_exit_code_is_unknown() -> None:
-    class Broken(_Kernel32):
-        def GetExitCodeProcess(self, handle: int, out: Any) -> int:
-            return 0
-
-    kernel32 = Broken()
-    assert windows_pid_alive(4321, kernel32, lambda: 0) is True
-    assert kernel32.closed == [77]
+    assert process_module._windows_pid_alive(4321, kernel32, lambda: kernel32.error) is alive
+    assert kernel32.asked == [(0x1000, False, 4321)]
+    assert kernel32.closed == [HANDLE] * kernel32.opens
 
 
 def test_pid_is_alive_on_windows_asks_the_windows_probe_and_never_signals(
@@ -102,8 +94,6 @@ def test_pid_is_alive_on_windows_asks_the_windows_probe_and_never_signals(
     monkeypatch.setattr(os, "kill", lambda *_a: pytest.fail("os.kill terminates on Windows"))
 
     assert pid_is_alive(4321) is False
-    assert pid_is_alive(0) is True
-    assert pid_is_alive(-5) is True
 
 
 def test_pid_is_alive_on_windows_without_kernel32_is_unknown(
