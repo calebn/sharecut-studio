@@ -281,11 +281,21 @@ def _at(monkeypatch, wall_ms: int) -> None:
     monkeypatch.setattr(preflight, "_now_ms", lambda: wall_ms)
 
 
+def _consented_before_start(svc, pids) -> None:
+    for pid in pids:
+        svc.submit(
+            _cmd("Consent", pid=pid, role="guest", payload={"accepted": True}),
+            now_wall_ms=STOP_AT - 3_100,
+            capabilities=["join"],
+        )
+
+
 def _stopped_room(ws, names, *, pause: bool = False, resumes: int = 0):
     """A room whose take stopped at ``STOP_AT`` with no uploads at all (the gap right after Stop)."""
     room = ShareService(ws).create_record_room()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     pids = [_join_guest(svc, room, name, i) for i, name in enumerate(names)]
+    _consented_before_start(svc, pids)
     svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=STOP_AT - 3_000)
     svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
     for n in range(resumes):
@@ -478,7 +488,7 @@ def test_a_removed_guest_with_an_unfinished_upload_is_reported_not_cleared(
     assert len(new["landed_first"]["clips"]) == 1 and new["left_behind"] == 1
 
 
-def test_stop_while_paused_no_longer_waits_for_a_segment_that_never_records(
+def test_without_a_report_stop_while_paused_does_not_wait_for_a_segment_that_never_records(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed(minimal_project, sample_wav)
@@ -506,7 +516,7 @@ def _ack_segment(ws, room, pid: str, segment: int) -> None:
 
 
 @pytest.mark.parametrize("resumes", [1, 2])
-def test_a_resumed_take_waits_for_each_later_segment_then_reports_it_stalled(
+def test_without_a_report_a_resumed_take_waits_for_each_later_segment_then_reports_it_stalled(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, resumes
 ):
     ws = _seed(minimal_project, sample_wav)
@@ -528,7 +538,7 @@ def test_a_resumed_take_waits_for_each_later_segment_then_reports_it_stalled(
     assert "was left behind" in new["left_behind_message"]
 
 
-def test_a_resumed_take_with_every_segment_in_is_not_flagged(
+def test_without_a_report_a_resumed_take_with_every_segment_in_is_not_flagged(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
@@ -537,6 +547,156 @@ def test_a_resumed_take_with_every_segment_in_is_not_flagged(
         _ack_segment(ws, old, ava, segment)
     RecordLandingService(ws).land()
     assert _flags(ws) == (False, 0)
+
+
+def _report(svc, pid: str, segments: int, *, final: bool = True, take: int = 0) -> None:
+    host = pid == "p_host"
+    svc.submit(
+        _cmd(
+            "SegmentReport",
+            pid=pid,
+            role="host" if host else "guest",
+            payload={"take_index": take, "segments": segments, "final": final},
+        ),
+        capabilities=None if host else ["join"],
+    )
+
+
+def _stalled_after_grace(ws, monkeypatch) -> dict:
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    return RecordControlService(ws).snapshot()
+
+
+def test_a_reported_segment_that_never_uploaded_is_saving_then_stalled_after_a_consent_flip(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _ack_segment(ws, old, ava, 0)
+    _report(svc, ava, 2)
+    _at(monkeypatch, STOP_AT + 60_000)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    with pytest.raises(RecordLandingError, match="still saving"):
+        ShareService(ws).create_record_room(land_first=True)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0, 1)
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert len(new["landed_first"]["clips"]) == 1
+    assert new["left_behind"] == 1 and "left behind" in new["left_behind_message"]
+
+
+def test_a_report_below_the_rows_never_shrinks_what_is_owed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _ack_segment(ws, old, ava, 0)
+    _ack_segment(ws, old, ava, 2)
+    _report(svc, ava, 1)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+
+
+def test_a_report_above_the_rows_counts_each_missing_index(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _ack_segment(ws, old, ava, 1)
+    _report(svc, ava, 4)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 3)
+
+
+def test_a_final_report_of_zero_owes_nothing(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava, bea], svc = _stopped_room(ws, ["Ava", "Bea"], resumes=1)
+    _ack_segment(ws, old, ava, 0)
+    _ack_segment(ws, old, ava, 1)
+    _report(svc, bea, 0)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0, 0)
+    assert snap["land_first_possible"] is True
+
+
+def test_a_removed_guest_with_a_report_is_still_skipped(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava, bea], svc = _stopped_room(ws, ["Ava", "Bea"])
+    _ack_segment(ws, old, ava, 0)
+    _report(svc, bea, 2)
+    svc.submit(_cmd("RemoveParticipant", payload={"participant_id": bea}), now_wall_ms=STOP_AT + 1)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 0)
+
+
+def test_the_host_owes_the_segments_it_reports(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"], resumes=1)
+    _ack_segment(ws, old, ava, 0)
+    _ack_segment(ws, old, ava, 1)
+    _ack_segment(ws, old, "p_host", 0)
+    _report(svc, "p_host", 2)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert new["left_behind"] == 1
+
+
+def test_a_host_who_never_reported_stays_silent(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], _ = _stopped_room(ws, ["Ava"], resumes=1)
+    _ack_segment(ws, old, ava, 0)
+    _ack_segment(ws, old, ava, 1)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0, 0)
+
+
+@pytest.mark.parametrize("reported", [None, 1], ids=["no-report", "reported"])
+def test_a_guest_who_consented_after_the_resume_owes_only_what_they_recorded(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, reported
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    ava = _join_guest(svc, room, "Ava", 0)
+    _consented_before_start(svc, [ava])
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=STOP_AT - 3_000)
+    svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
+    svc.submit(_cmd("Pause"), now_wall_ms=STOP_AT - 2_500)
+    svc.submit(_cmd("Resume"), now_wall_ms=STOP_AT - 2_450)
+    bea = _join_guest(svc, room, "Bea", 1)
+    svc.submit(_cmd("Stop"), now_wall_ms=STOP_AT + 1_000)
+    _ack_segment(ws, room, ava, 0)
+    _ack_segment(ws, room, ava, 1)
+    _ack_segment(ws, room, bea, 0)
+    if reported is not None:
+        _report(svc, bea, reported)
+    _at(monkeypatch, STOP_AT + 1_000 + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0, 0)
+    assert ShareService(ws).create_record_room(land_first=True)["landed_first"]
+
+
+def test_a_room_with_only_stalled_recordings_is_not_closed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    _old, svc, _guest = _decided_room(ws, "accept")
+    svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=STOP_AT)
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    unsaved = unsaved_takes(ws.project, now_wall_ms=STOP_AT + GRACE + 1)
+    assert (unsaved.stalled, unsaved.landable, unsaved.saving) == (1, 0, 0)
+    assert unsaved.closed is False
 
 
 def test_a_part_that_disappears_between_listing_and_stat_does_not_stall_a_live_upload(

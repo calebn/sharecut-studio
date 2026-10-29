@@ -6,7 +6,15 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    ValidationError,
+    field_validator,
+)
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.services.collaboration import CAP_COMMENT, CAP_JOIN
@@ -14,7 +22,12 @@ from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     parse_comment_id,
 )
-from podcast_mcp.services.record.state import RecordRole, SessionTarget, parse_session_target
+from podcast_mcp.services.record.state import (
+    MAX_REPORTED_SEGMENTS,
+    RecordRole,
+    SessionTarget,
+    parse_session_target,
+)
 from podcast_mcp.services.session_sync import sanitize_display_name
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -34,6 +47,7 @@ RecordCommandType = Literal[
     "RemoveParticipant",
     "UpdateName",
     "Comment",
+    "SegmentReport",
 ]
 
 COMMAND_TYPES: frozenset[str] = frozenset(
@@ -53,13 +67,14 @@ COMMAND_TYPES: frozenset[str] = frozenset(
         "RemoveParticipant",
         "UpdateName",
         "Comment",
+        "SegmentReport",
     }
 )
 
 HOST_ONLY: frozenset[str] = frozenset(
     {"Start", "Pause", "Resume", "Stop", "RoomToneCountdown", "SetTarget", "RemoveParticipant"}
 )
-REQUIRES_JOIN_CAP: frozenset[str] = frozenset({"Consent", "SetMuted"})
+REQUIRES_JOIN_CAP: frozenset[str] = frozenset({"Consent", "SetMuted", "SegmentReport"})
 REQUIRES_COMMENT_CAP: frozenset[str] = frozenset({"Comment"})
 
 
@@ -101,6 +116,13 @@ class SetMutedPayload(BaseModel):
 class HeadphonesAckPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     ok: bool
+
+
+class SegmentReportPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    take_index: StrictInt = Field(ge=0)
+    segments: StrictInt = Field(ge=0, le=MAX_REPORTED_SEGMENTS)
+    final: StrictBool
 
 
 class SetTargetPayload(BaseModel):
@@ -172,6 +194,7 @@ _PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "RemoveParticipant": RemoveParticipantPayload,
     "UpdateName": UpdateNamePayload,
     "Comment": CommentPayload,
+    "SegmentReport": SegmentReportPayload,
 }
 
 
