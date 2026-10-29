@@ -194,6 +194,7 @@ const mount = (comments = [OPEN, LATER, DONE], picked?: string) => {
   useDawStore.setState({
     stage: "review",
     guestMode: null,
+    commentDraft: null,
     ...(picked ? { selection: { kind: "comment", id: picked } } : {}),
   });
   return render(<App />);
@@ -820,6 +821,88 @@ describe("Review host comments", () => {
       expect(field()).toHaveValue("Keep me");
       expect(useDawStore.getState().commentDraft).not.toBeNull();
     });
+
+    it("opens once on C: the card key and the window keymap do not both write a draft", async () => {
+      mount();
+      let writes = 0;
+      const original = useDawStore.getState().setCommentDraft;
+      useDawStore.setState({
+        setCommentDraft: (draft) => {
+          writes += 1;
+          original(draft);
+        },
+      });
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+      useDawStore.setState({ setCommentDraft: original });
+      expect(writes).toBe(1);
+    });
+
+    it("ignores Escape while an IME composition is open", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "かな");
+      fireEvent.keyDown(field(), { key: "Escape", isComposing: true });
+      fireEvent.keyDown(field(), { key: "Escape", keyCode: 229 });
+      expect(field()).toHaveValue("かな");
+      expect(useDawStore.getState().commentDraft).not.toBeNull();
+    });
+
+    it("drops a draft when Review is left, so coming back opens no stale field", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+      act(() => {
+        useDawStore.getState().openStage("edit");
+      });
+      expect(useDawStore.getState().commentDraft).toBeNull();
+      act(() => {
+        useDawStore.getState().openStage("review");
+      });
+      expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    });
+
+    it("returns focus to the stage after Escape and after a post", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "x{Escape}");
+      expect(stage()).toHaveFocus();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Posted{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      await waitFor(() => expect(stage()).toHaveFocus());
+    });
+
+    it("sends one comment for two Enters in the same tick", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Once");
+      act(() => {
+        fireEvent.keyDown(field(), { key: "Enter" });
+        fireEvent.keyDown(field(), { key: "Enter" });
+      });
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+    });
+  });
+
+  it("counts the open comments on the Comments filter, resolved ones apart", () => {
+    mount();
+    expect(screen.getByRole("button", { name: "Comments, 2" })).toBeVisible();
   });
 
   it("gives a guest the Comments section and no queue comments", () => {
