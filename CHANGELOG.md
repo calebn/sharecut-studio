@@ -19,6 +19,8 @@
 
 ### Fixes
 
+* Opening a project whose folder name is not valid UTF-8 (Linux) no longer fails with a 500 and leaves Studio unable to serve its home page; `POST /api/project/open`, `create` and the project routes now refuse it with 400 `project_path_invalid` before pinning anything, and `podcast gui --project` stops with an error.
+
 * A looped final transcription window no longer adds hundreds of repeated words crammed into a fraction of a second to a transcript (#2424). A project that already holds such a window keeps it until Re-transcribe runs ASR on the track again.
 
 * The stdio MCP server and the CLI no longer write behind a live Studio bound to `127.0.0.2` or a LAN address; both now stop with a message naming the Studio and the two ways out (restart with `--host 127.0.0.1`, or `PODCAST_NO_STUDIO_HANDOFF=1`), and the CLI refuses reads for such a Studio too (#2515).

@@ -29,7 +29,11 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.routes.handoff import set_served_project
-from podcast_mcp.project.io import require_episode_project_file, resolve_project_path
+from podcast_mcp.project.io import (
+    ensure_utf8_path,
+    require_episode_project_file,
+    resolve_project_path,
+)
 from podcast_mcp.project.merge import ProjectMergeConflict
 from podcast_mcp.services.app import (
     ProjectWorkspace,
@@ -79,7 +83,9 @@ def _unpin_served_if_allowed(request: Request) -> None:
 
 def _require_episode_path(path_raw: str) -> Path:
     try:
-        return require_episode_project_file(path_raw)
+        resolved = require_episode_project_file(path_raw)
+        ensure_utf8_path(resolved)
+        return resolved
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="project_path_invalid") from exc
     except FileNotFoundError as exc:
@@ -110,6 +116,11 @@ def create_project(
         )
     name = body.name.strip() or "episode"
     reserved: Path | None = None
+    if body.workspace_dir.strip():
+        try:
+            ensure_utf8_path(Path(body.workspace_dir.strip()).expanduser().resolve())
+        except ValueError as exc:
+            raise coded_exception_error(400, exc, code="project_path_invalid") from exc
     try:
         if body.workspace_dir.strip():
             workspace_dir = body.workspace_dir.strip()

@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
 from podcast_mcp.models.episode import ProjectUnreadableError
+from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.services.session_sync import (
@@ -221,6 +222,10 @@ def resolve_project(path: str, request: Request | WebSocket | None = None) -> Pa
     project_path = Path(path).expanduser().resolve()
     if not project_path.is_file():
         raise coded_http_error(404, f"Project not found: {project_path}", code="project_not_found")
+    try:
+        ensure_utf8_path(project_path)
+    except ValueError as exc:
+        raise coded_exception_error(400, exc, code="project_path_invalid") from exc
     if request is not None:
         served = getattr(request.app.state, "served_project", None)
         if served is not None and project_path != Path(served).resolve():

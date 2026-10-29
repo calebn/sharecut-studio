@@ -176,7 +176,10 @@ def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | 
         require_host(request, token=params.get("session_token"))
     except GuardRefusal:
         return None
-    query = request.url.include_query_params(project=str(served)).query
+    try:
+        query = request.url.include_query_params(project=str(served)).query
+    except UnicodeEncodeError:
+        return None
     # A query-only Location resolves against the URL the browser asked for, so a
     # mount prefix or a path-rewriting proxy cannot send it to the wrong path.
     return RedirectResponse(
