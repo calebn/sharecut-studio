@@ -323,12 +323,23 @@ describe("InspectorSheet phone", () => {
     expect(third.onDetentChange.mock.calls).toEqual([["half"]]);
   });
 
-  it("steps with the arrows, jumps with Home and End, toggles with Enter and Space, and closes on Escape", () => {
+  it("steps with the four arrows, jumps with Home and End, toggles with Enter and Space, and closes on Escape", () => {
     const { onDetentChange, onClose } = phone({ detent: "half" });
-    for (const key of ["ArrowUp", "ArrowDown", "Home", "End", "Enter", " "]) {
+    for (const key of [
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowRight",
+      "ArrowLeft",
+      "Home",
+      "End",
+      "Enter",
+      " ",
+    ]) {
       fireEvent.keyDown(grip(), { key });
     }
     expect(onDetentChange.mock.calls).toEqual([
+      ["full"],
+      ["dock"],
       ["full"],
       ["dock"],
       ["dock"],
