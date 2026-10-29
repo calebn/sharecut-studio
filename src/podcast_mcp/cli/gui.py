@@ -6,7 +6,12 @@ from urllib.parse import urlencode
 
 import typer
 
-from podcast_mcp.services.app import ensure_viewer, packaged_cli_gui_refusal, viewer_url
+from podcast_mcp.services.app import (
+    ensure_viewer,
+    packaged_cli_gui_refusal,
+    unencodable_project_refusal,
+    viewer_url,
+)
 
 gui_app = typer.Typer(help="DAW-style episode viewer.")
 
@@ -44,6 +49,11 @@ def gui_cmd(
 
     if project is not None and not project.is_file():
         typer.echo(f"Project not found: {project}", err=True)
+        raise typer.Exit(1)
+
+    unencodable = unencodable_project_refusal(project) if project is not None else None
+    if unencodable is not None:
+        typer.echo(unencodable, err=True)
         raise typer.Exit(1)
 
     if background:

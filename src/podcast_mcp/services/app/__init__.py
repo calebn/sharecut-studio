@@ -12,6 +12,7 @@ if TYPE_CHECKING:
         is_viewer_up,
         packaged_cli_gui_refusal,
         resolve_gui_static_root,
+        unencodable_project_refusal,
         viewer_url,
     )
     from podcast_mcp.services.app.recent_projects import (
@@ -79,6 +80,7 @@ __all__ = [
     "record_recent",
     "resolve_gui_static_root",
     "studio_host_path",
+    "unencodable_project_refusal",
     "viewer_url",
     "withdraw_studio_host",
 ]
@@ -93,6 +95,7 @@ _MODULE_BY_NAME = {
     "is_viewer_up": "gui_launch",
     "packaged_cli_gui_refusal": "gui_launch",
     "resolve_gui_static_root": "gui_launch",
+    "unencodable_project_refusal": "gui_launch",
     "viewer_url": "gui_launch",
     "default_workspace_dir": "recent_projects",
     "forget_recent": "recent_projects",

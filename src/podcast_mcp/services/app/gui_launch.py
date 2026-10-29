@@ -57,6 +57,15 @@ class GuiLaunchResult:
         return json.dumps(asdict(self), indent=2)
 
 
+def unencodable_project_refusal(path: Path) -> str | None:
+    """Refusal for a project path the viewer URL cannot carry (not valid UTF-8)."""
+    try:
+        str(path).encode("utf-8")
+    except UnicodeEncodeError:
+        return f"--project path is not valid UTF-8: {str(path)!r}"
+    return None
+
+
 def viewer_url(
     host: str,
     port: int,
@@ -120,6 +129,18 @@ def ensure_viewer(
             already_running=False,
             opened_browser=False,
             error=refusal,
+        )
+    unencodable = unencodable_project_refusal(path)
+    if unencodable is not None:
+        return GuiLaunchResult(
+            ok=False,
+            url="",
+            host=host,
+            port=port,
+            project_path=str(path),
+            already_running=False,
+            opened_browser=False,
+            error=unencodable,
         )
     if not path.is_file():
         return GuiLaunchResult(

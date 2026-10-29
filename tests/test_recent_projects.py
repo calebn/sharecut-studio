@@ -674,3 +674,10 @@ def test_a_transient_read_failure_is_not_cached(tmp_path, monkeypatch):
     assert recent.recent_project_cards()[0]["chip"]["text"] == "Needs attention"
     failing["on"] = False
     assert recent.recent_project_cards()[0]["chip"]["text"] == "Edited"
+
+
+def test_recent_warning_names_the_cause(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level("WARNING"):
+        recent.record_recent("/x/a\x00b")
+        recent.forget_recent("/x/a\x00b")
+    assert [r.getMessage().count("embedded null character") for r in caplog.records] == [1, 1]
