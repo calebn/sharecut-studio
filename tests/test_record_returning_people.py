@@ -618,21 +618,20 @@ def test_a_choice_for_a_deleted_track_is_worked_out_again(
     assert sam not in _tracks(ws)
 
 
-def test_undoing_a_staged_move_and_the_staging_land_keeps_the_hosts_last_choice(
+def test_undoing_a_staged_move_and_the_staging_land_leaves_the_name_match(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
     sam = _sam_project(ws)
-    _, [pid] = _room(ws, ["Sam"], target=INSERT, land=True)
+    _room_, [pid] = _room(ws, ["Sam"], target=INSERT, land=True)
     RecordControlService(ws).assign_track(pid, "new")
-    pid_track = _by_pid(ws)[pid]["track_id"]
+    assert RecordSessionService(ws.project, session_id=_room_["session_id"]).track_choices() == {}
     HistoryService(ws).undo()  # the move
     HistoryService(ws).undo()  # the staging land
     ws.reload()
     RecordLandingService(ws).land(align=lambda _p: None)
     [row] = _rows(ws)
-    assert row["track_id"] == pid_track
-    assert row["track_id"] != sam
+    assert (row["track_id"], row["reason"]) == (sam, "held")
 
 
 def _replace_setup(ws):
@@ -943,7 +942,7 @@ def test_assigning_a_removed_person_with_an_acked_take_is_refused(
     _remove(ws, room, pid)
     with pytest.raises(CodedError) as caught:
         RecordControlService(ws).assign_track(pid, "new")
-    assert caught.value.code == "participant_removed"
+    assert caught.value.code == "person_removed"
 
 
 def test_a_removed_person_with_nothing_to_land_does_not_hold_a_track(
@@ -958,6 +957,18 @@ def test_a_removed_person_with_nothing_to_land_does_not_hold_a_track(
     _remove(ws, room, gone)
     RecordControlService(ws).assign_track(live, sam)
     assert _by_pid(ws)[live]["track_id"] == sam
+
+
+def test_a_removed_person_with_an_acked_take_still_holds_their_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room, [gone, live] = _room(ws, ["Sam", "Ben"])
+    _remove(ws, room, gone)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(live, sam)
+    assert caught.value.code == "track_taken"
 
 
 def test_a_person_with_a_placed_bed_cannot_be_moved_to_land_it_twice(
@@ -981,20 +992,6 @@ def test_a_person_with_a_placed_bed_cannot_be_moved_to_land_it_twice(
     with pytest.raises(CodedError) as caught:
         RecordControlService(ws).assign_track(pid, "new")
     assert caught.value.code == "session_already_accepted"
-
-
-def test_a_stale_unstaged_choice_does_not_resurface_after_a_staged_move_and_discard(
-    minimal_project, sample_wav, tmp_workspace
-):
-    ws = _seed(minimal_project, sample_wav)
-    sam = _sam_project(ws)
-    _, [pid] = _room(ws, ["Sam"], target=INSERT)
-    ctrl = RecordControlService(ws)
-    ctrl.assign_track(pid, "new")
-    RecordLandingService(ws).land(align=lambda _p: None)
-    ctrl.assign_track(pid, sam)
-    ctrl.discard_take(0)
-    assert _by_pid(ws)[pid]["track_id"] == sam
 
 
 def test_the_replace_note_never_says_a_track_instead_of_itself(

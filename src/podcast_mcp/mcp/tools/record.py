@@ -73,7 +73,7 @@ def record_tracks_tool(project_path: str) -> str:
 
 
 def record_assign_track_tool(project_path: str, participant_id: str, track: str) -> str:
-    """Correct a person's track: put their recordings on an existing track id, or pass track="new" for a new one. Allowed until the session is accepted; one undo step when takes are already staged. Refusal codes: unknown_participant, unknown_track, track_taken, replace_target_track, participant_removed, session_already_accepted, session_skipped."""
+    """Correct a person's track: put their recordings on an existing track id, or pass track="new" for a new one. Allowed until the session is accepted; one undo step when takes are already staged. Refusal codes: unknown_participant, unknown_track, track_taken, replace_target_track, person_removed, session_already_accepted, session_skipped."""
     return json.dumps(_ctrl(project_path).assign_track(participant_id, track), indent=2)
 
 
