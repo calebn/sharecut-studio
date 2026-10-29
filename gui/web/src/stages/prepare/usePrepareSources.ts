@@ -16,7 +16,7 @@ import { useDawStore } from "../../state/dawStore";
 import { projectScopedSignal } from "../../state/projectScopedSignal";
 import { seedStudioJob } from "../../state/seedStudioJob";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
-import type { TrackView } from "../../types/project";
+import type { HistoryEntryId, TrackView } from "../../types/project";
 import {
   errorMessage,
   isAbortError,
@@ -57,6 +57,7 @@ export function usePrepareSources(input: {
   const [splitFailed, setSplitFailed] = useState<Keyed<string>>({});
   const [playingId, setPlayingId] = useState<string | null>(null);
   const splitJobs = useRef(new Map<string, string>());
+  const splitUndos = useRef(new Map<string, HistoryEntryId>());
   const splitNeeds = useRef(new Map<string, ModelNeeded>());
   const timers = useRef(new Map<string, { timer: number; name: string }>());
   const latest = useRef({ projectPath, tracks, chosenVoices });
@@ -68,6 +69,9 @@ export function usePrepareSources(input: {
     const { projectPath: path } = latest.current;
     const trimmed = name.trim();
     if (!trimmed) return;
+    // The rename becomes the newest history entry, so a standing Undo would undo it instead.
+    const toast = useDawStore.getState().feedbackToast;
+    if (toast?.undo) useDawStore.getState().dropFeedbackUndo(toast.id);
     void setTrackMetaCommand(path, trackId, {
       label: trimmed,
       speaker: trimmed,
@@ -172,6 +176,9 @@ export function usePrepareSources(input: {
       after.announceStatus(splitSpeakersDoneCopy(result, label), {
         undo: result.history_head_id,
       });
+      if (result.history_head_id) {
+        splitUndos.current.set(trackId, result.history_head_id);
+      }
       after.markJobResultsSpoken([job.id]);
     } catch (error) {
       if (jobId !== null) useDawStore.getState().settleJobResult(jobId);
@@ -218,7 +225,9 @@ export function usePrepareSources(input: {
   const actions: SourceActions = {
     onName: (id, name) => {
       const toast = useDawStore.getState().feedbackToast;
-      if (toast?.undo) useDawStore.getState().dropFeedbackUndo(toast.id);
+      if (toast?.undo && toast.undo === splitUndos.current.get(id)) {
+        useDawStore.getState().dropFeedbackUndo(toast.id);
+      }
       setNames((current) => ({ ...current, [id]: name }));
       window.clearTimeout(timers.current.get(id)?.timer);
       timers.current.set(id, {

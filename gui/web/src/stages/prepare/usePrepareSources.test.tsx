@@ -20,6 +20,7 @@ import {
   modelsApi,
   registryRows,
 } from "../../test/renderWithModels";
+import { parseHistoryEntryId } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
 import { usePrepareSources } from "./usePrepareSources";
 
@@ -241,6 +242,80 @@ describe("split", () => {
     act(() => result.current.actions.onName("maya", "M"));
     expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
     expect(setTrackMetaCommand).not.toHaveBeenCalled();
+  });
+
+  it("keeps an unrelated toast's Undo while a name is typed but not yet saved", () => {
+    vi.useFakeTimers();
+    try {
+      useDawStore.setState({
+        announceStatus: useDawStore.getInitialState().announceStatus,
+        feedbackToast: null,
+      });
+      useDawStore
+        .getState()
+        .announceStatus("Trimmed Mira", { undo: parseHistoryEntryId("h1") });
+      const { result } = setup();
+      act(() => result.current.actions.onName("maya", "M"));
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("h1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops an unrelated toast's Undo once the rename is saved", async () => {
+    vi.useFakeTimers();
+    try {
+      useDawStore.setState({
+        announceStatus: useDawStore.getInitialState().announceStatus,
+        feedbackToast: null,
+      });
+      useDawStore
+        .getState()
+        .announceStatus("Trimmed Mira", { undo: parseHistoryEntryId("h1") });
+      const { result } = setup();
+      act(() => result.current.actions.onName("maya", "Maya"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(setTrackMetaCommand).toHaveBeenCalledOnce();
+      expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the Undo when the name is cleared and nothing is saved", async () => {
+    vi.useFakeTimers();
+    try {
+      useDawStore.setState({
+        announceStatus: useDawStore.getInitialState().announceStatus,
+        feedbackToast: null,
+      });
+      useDawStore
+        .getState()
+        .announceStatus("Trimmed Mira", { undo: parseHistoryEntryId("h1") });
+      const { result } = setup();
+      act(() => result.current.actions.onName("maya", "  "));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(setTrackMetaCommand).not.toHaveBeenCalled();
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("h1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the split's Undo when another source is renamed", async () => {
+    useDawStore.setState({
+      announceStatus: useDawStore.getInitialState().announceStatus,
+      feedbackToast: null,
+    });
+    const { result } = setup();
+    await act(async () => result.current.actions.onSplit("maya"));
+    expect(useDawStore.getState().feedbackToast?.undo).toBe("h2");
+    act(() => result.current.actions.onName("joss", "J"));
+    expect(useDawStore.getState().feedbackToast?.undo).toBe("h2");
   });
 
   it("shows the split working while it runs, with its own progress", async () => {
