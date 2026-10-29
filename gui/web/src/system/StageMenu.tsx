@@ -1,11 +1,11 @@
 import { type ReactNode, useState } from "react";
 import { Menu, MenuItem } from "../ui";
-import { Badge, type StageBarProps } from "./StageBar";
+import { type StageBarProps, stageBadge } from "./StageBar";
 import { SystemIcon } from "./SystemIcon";
 import { STAGES } from "./verbs";
 
 type StageMenuProps = Partial<
-  Pick<StageBarProps, "active" | "onSelect" | "stages" | "badges" | "live">
+  Pick<StageBarProps, "active" | "onSelect" | "stages" | "badges" | "record">
 > & {
   /**
    * Rows after the stages: what the header's right side holds (Follow, search,
@@ -26,7 +26,7 @@ export function StageMenu({
   onSelect,
   stages,
   badges,
-  live,
+  record,
   extras,
 }: StageMenuProps) {
   const [open, setOpen] = useState(false);
@@ -68,10 +68,7 @@ export function StageMenu({
       }
     >
       {shown.map((stage) => {
-        const badge =
-          stage.id === "record" && live
-            ? ({ kind: "live" } as const)
-            : badges?.[stage.id];
+        const badge = stageBadge(stage.id, badges, record);
         return (
           <MenuItem
             key={stage.id}
@@ -86,7 +83,7 @@ export function StageMenu({
               <span className="sr-only"> (current)</span>
             ) : null}
             {badge ? " " : null}
-            {badge ? <Badge badge={badge} /> : null}
+            {badge}
           </MenuItem>
         );
       })}

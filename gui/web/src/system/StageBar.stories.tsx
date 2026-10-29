@@ -15,7 +15,7 @@ const meta: Meta<typeof StageBar> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Five stages in one tab list. Below a 1100 px container the inactive segments show the icon only (a container query, so the same story fits 360 and 1280). The phone form is a tab bar: a 24 px icon over an 11 px label. Record is red only while live.\n\n**Motion.** The active segment moves with `--motion-panel` once the animation pass lands; nothing animates in this slice.",
+          "Five stages in one tab list. Below a 1100 px container the inactive segments show the icon only (a container query, so the same story fits 360 and 1280). The phone form is a tab bar: a 24 px icon over an 11 px label. Record says nothing when idle, then a count while people wait, the red take clock while live, Paused, a ring while saving and an amber dot for any alert.\n\n**Motion.** The active segment moves with `--motion-panel` once the animation pass lands; nothing animates in this slice.",
       },
     },
   },
@@ -91,8 +91,68 @@ export const DoneBadge: Story = {
   render: () => <Bar active="deliver" badges={{ prepare: { kind: "done" } }} />,
 };
 
+const live = { kind: "live", clockMs: 724000, receivedAtMs: null } as const;
+
+export const RecordIdle: Story = {
+  render: () => <Bar record={{ kind: "idle" }} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("tab", { name: "Record" }),
+    ).toBeVisible();
+  },
+};
+
+export const RecordPeopleWaiting: Story = {
+  render: () => <Bar record={{ kind: "waiting", count: 2 }} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("tab", { name: "Record 2 waiting" }),
+    ).toBeVisible();
+  },
+};
+
 export const RecordLive: Story = {
-  render: () => <Bar active="record" live />,
+  render: () => <Bar record={live} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("tab", { name: "Record Live" }),
+    ).toBeVisible();
+    await expect(canvas.getByText("12:04")).toBeVisible();
+  },
+};
+
+export const RecordLivePhone: Story = {
+  render: () => <Bar form="tabs" active="review" record={live} />,
+};
+
+export const RecordPaused: Story = {
+  render: () => <Bar record={{ kind: "paused" }} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("tab", { name: "Record Paused" }),
+    ).toBeVisible();
+  },
+};
+
+export const RecordSaving: Story = {
+  render: () => <Bar record={{ kind: "saving", progress: 0.4 }} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("tab", { name: "Record Saving" }),
+    ).toBeVisible();
+  },
+};
+
+export const RecordAlert: Story = {
+  render: () => <Bar record={{ kind: "alert" }} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("tab", {
+        name: "Record Needs attention",
+      }),
+    ).toBeVisible();
+  },
 };
 
 export const GuestEditor: Story = {

@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ReactNode } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { HostRoomProvider } from "../../record/hostRoomContext";
+import { useHostRoom } from "../../record/useHostRoom";
 import { useDawStore } from "../../state/dawStore";
 import {
   portaledOverlayParameters,
@@ -45,6 +48,12 @@ const meta: Meta<typeof StageFrame> = {
 
 export default meta;
 type Story = StoryObj<typeof StageFrame>;
+
+/** What `DawApp` mounts above the frame: the host room the Record badge reads. */
+function HostRoomHarness({ children }: { children: ReactNode }) {
+  const room = useHostRoom({}, { hydrate: false });
+  return <HostRoomProvider value={room}>{children}</HostRoomProvider>;
+}
 
 const WIDE_ONLY_REASON =
   "The play needs the desktop frame and a 360 px viewport selects the phone one.";
@@ -193,6 +202,13 @@ export const RecordNoPlayer: Story = {
 
 export const RecordingLive: Story = {
   tags: ["wide-only"],
+  decorators: [
+    (Story) => (
+      <HostRoomHarness>
+        <Story />
+      </HostRoomHarness>
+    ),
+  ],
   parameters: {
     wideOnlyReason: WIDE_ONLY_REASON,
     episode: {

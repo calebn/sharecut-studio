@@ -1,11 +1,30 @@
+import type { ReactNode } from "react";
+import { useElapsedSince } from "../hooks/useElapsedSince";
 import type { StageId } from "../types/stage";
 import { TabList } from "../ui/Tabs";
+import { RoomStatusPill } from "./RoomStatusPill";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
 import { STATUS_TEXT, type StatusState } from "./statusText";
 import { STAGES } from "./verbs";
 
 export type StageBadge = { kind: StatusState; count?: number };
+
+/** `alert`: something in the room needs the host; on the others it adds a dot. */
+export type RecordBadge =
+  | { kind: "idle" }
+  | { kind: "waiting"; count: number }
+  | {
+      kind: "live";
+      /** The take clock when the snapshot arrived. */
+      clockMs: number;
+      /** `performance.now()` at that moment, so the clock survives a reconnect. */
+      receivedAtMs: number | null;
+      alert?: boolean;
+    }
+  | { kind: "paused"; alert?: boolean }
+  | { kind: "saving"; progress: number; alert?: boolean }
+  | { kind: "alert" };
 
 export type StageBarProps = {
   active: StageId;
@@ -15,8 +34,8 @@ export type StageBarProps = {
   badges?: Partial<Record<StageId, StageBadge>>;
   /** `bar`: header segments. `tabs`: the phone tab bar, an icon over a label. */
   form?: "bar" | "tabs";
-  /** Record shows red only while live. */
-  live?: boolean;
+  /** What the Record item says about the room; a `failed` badge for Record outranks it. */
+  record?: RecordBadge;
   label?: string;
   /** Id of the stage content, for `aria-controls`. */
   panelId?: string;
@@ -39,6 +58,97 @@ export function Badge({ badge }: { badge: StageBadge }) {
   );
 }
 
+/** The only part of the Record badge that changes each second; the tabs around it stay put. */
+function LiveClock({
+  clockMs,
+  receivedAtMs,
+}: {
+  clockMs: number;
+  receivedAtMs: number | null;
+}) {
+  const elapsedMs = useElapsedSince(receivedAtMs, true);
+  return (
+    <RoomStatusPill
+      compact
+      phase={{ kind: "live", take: 0, clockSec: (clockMs + elapsedMs) / 1000 }}
+    />
+  );
+}
+
+/**
+ * The name carries the state, never the clock: a tab whose name changed every
+ * second would be read out every second.
+ */
+function recordName(badge: RecordBadge): string {
+  const alert = "alert" in badge && badge.alert ? ", needs attention" : "";
+  switch (badge.kind) {
+    case "idle":
+      return "";
+    case "waiting":
+      return `${badge.count} waiting`;
+    case "live":
+      return `Live${alert}`;
+    case "paused":
+      return `Paused${alert}`;
+    case "saving":
+      return `Saving${alert}`;
+    case "alert":
+      return "Needs attention";
+  }
+}
+
+export function RecordBadgeView({ badge }: { badge: RecordBadge }) {
+  if (badge.kind === "idle") return null;
+  const pill = badge.kind === "live" || badge.kind === "paused";
+  return (
+    <span className={`sys-stage-badge${pill ? " sys-stage-badge--pill" : ""}`}>
+      {badge.kind === "live" ? (
+        <span aria-hidden="true">
+          <LiveClock
+            clockMs={badge.clockMs}
+            receivedAtMs={badge.receivedAtMs}
+          />
+        </span>
+      ) : null}
+      {badge.kind === "paused" ? (
+        <span aria-hidden="true">
+          <RoomStatusPill compact phase={{ kind: "paused", clockSec: 0 }} />
+        </span>
+      ) : null}
+      {badge.kind === "saving" ? (
+        <StatusGlyph
+          state="running"
+          progress={badge.progress}
+          size={12}
+          text={false}
+        />
+      ) : null}
+      {badge.kind === "waiting" ? (
+        <span aria-hidden="true" className="sys-stage-count">
+          {badge.count}
+        </span>
+      ) : null}
+      {badge.kind === "alert" || ("alert" in badge && badge.alert) ? (
+        <StatusGlyph state="needs-you" dot text={false} />
+      ) : null}
+      <span className="sr-only">{recordName(badge)}</span>
+    </span>
+  );
+}
+
+/** A stage's badge, or null. Record's `failed` badge outranks its room badge. */
+export function stageBadge(
+  id: StageId,
+  badges: StageBarProps["badges"],
+  record: RecordBadge | undefined,
+): ReactNode {
+  const given = badges?.[id];
+  if (id === "record" && record && given?.kind !== "failed") {
+    return record.kind === "idle" ? null : <RecordBadgeView badge={record} />;
+  }
+  return given ? <Badge badge={given} /> : null;
+}
+
 /**
  * The five stages as one tab list; `ui/Tabs` owns the roving keys. Under 1100 px
  * (68.75rem) the inactive segments show the icon only and keep the label in the
@@ -51,7 +161,7 @@ export function StageBar({
   stages,
   badges,
   form = "bar",
-  live,
+  record,
   label = "Stages",
   panelId,
 }: StageBarProps) {
@@ -60,13 +170,7 @@ export function StageBar({
   );
   const tabs = shown.map((stage) => {
     const selected = stage.id === active;
-    const isLive = stage.id === "record" && live;
-    const attention =
-      stage.id === "record" && badges?.record?.kind === "failed";
-    const badge =
-      isLive && !attention
-        ? ({ kind: "live" } as StageBadge)
-        : badges?.[stage.id];
+    const badge = stageBadge(stage.id, badges, record);
     return (
       <button
         key={stage.id}
@@ -75,7 +179,7 @@ export function StageBar({
         aria-selected={selected}
         aria-controls={panelId}
         tabIndex={selected ? 0 : -1}
-        className={`sys-stage-tab${isLive ? " sys-stage-tab--live" : ""}`}
+        className="sys-stage-tab"
         title={stage.label}
         onClick={() => onSelect(stage.id)}
       >
@@ -83,7 +187,7 @@ export function StageBar({
         <span className="sys-stage-label">{stage.label}</span>
         {/* A text node between the label and the badge keeps the words apart in the accessible name. */}
         {badge ? " " : null}
-        {badge ? <Badge badge={badge} /> : null}
+        {badge}
       </button>
     );
   });

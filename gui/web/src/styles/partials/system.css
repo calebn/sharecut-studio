@@ -242,10 +242,6 @@
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
-.sys-stage-tab--live svg {
-  color: var(--color-record);
-}
-
 .sys-stage-badge {
   position: absolute;
   inset-block-start: 0;
@@ -259,6 +255,22 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-micro);
   color: var(--color-text-primary);
+}
+
+/* The take clock or "Paused" sits in the tab's flow so it never covers the label. */
+.sys-stage-badge--pill {
+  position: static;
+}
+
+.sys-stage-tab:has(.sys-stage-badge--pill) {
+  inline-size: auto;
+}
+
+.sys-pill--compact {
+  block-size: auto;
+  padding-inline: var(--space-1);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-micro);
 }
 
 /* 68.75rem is 1100 px; a container query cannot read a token. It takes the
@@ -318,6 +330,11 @@
 .sys-stage-bar--tabs .sys-stage-badge {
   inset-inline-end: 25%;
   inset-block-start: var(--space-1);
+}
+
+.sys-stage-bar--tabs .sys-stage-badge--pill {
+  position: absolute;
+  inset-inline: 50% auto;
 }
 
 /* App header */

@@ -33,6 +33,7 @@ export { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 export { SAVE_STATE_COPY, type SegmentAckRow } from "./saveStatus";
 export { type TakeInput, takeInputs } from "./takeInputs";
 export {
+  type CaptureHealth,
   HEARING_COPY,
   isRecordTransportVisible,
   LOCAL_KEEPER_COPY,

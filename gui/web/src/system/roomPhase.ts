@@ -40,7 +40,11 @@ export function savingPercent(
   return Math.round(Math.min(100, Math.max(0, phase.percent)));
 }
 
-export function roomPillRendering(phase: RoomPhase): Rendering {
+/** `compact` is the Stage bar's form: the clock alone while live, the word while paused. */
+export function roomPillRendering(
+  phase: RoomPhase,
+  compact = false,
+): Rendering {
   switch (phase.kind) {
     case "waiting":
       return {
@@ -55,12 +59,14 @@ export function roomPillRendering(phase: RoomPhase): Rendering {
     case "live":
       return {
         state: "live",
-        text: `${clockText(phase.clockSec)} · Take ${phase.take}`,
+        text: compact
+          ? clockText(phase.clockSec)
+          : `${clockText(phase.clockSec)} · Take ${phase.take}`,
       };
     case "paused":
       return {
         state: "not-yet",
-        text: `Paused · ${clockText(phase.clockSec)}`,
+        text: compact ? "Paused" : `Paused · ${clockText(phase.clockSec)}`,
       };
     case "saving": {
       if (phase.failed) {
