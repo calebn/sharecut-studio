@@ -999,9 +999,9 @@ sequenceDiagram
 
 A guest opening a `/rec/` link sees the shared Record room (`system/RoomView`,
 mounted by `record/GuestRoomApp.tsx`) with the **Join sheet** over it. The sheet's
-title is "Join the room", or "{Names} is here" once others are in. It holds four
-rows in order: **Your name**, **Microphone**, **Storage** and **Headphones**
-("I'm wearing headphones"). **Join and record** stays disabled and names the first
+title is "Join the room", or "{Names} is here" (one person) / "{Names} are here"
+(several) once others are in. It holds four rows in order: **Your name**,
+**Microphone**, **Storage** and **Headphones** ("I'm wearing headphones"). **Join and record** stays disabled and names the first
 row still open as its reason ("Add your name first", "Allow your microphone
 first", "Put on headphones first", "Fix storage first"). A producer sees the name
 row and **Join to listen** ("You'll listen and take notes. You won't be
@@ -1077,8 +1077,9 @@ back a little." and "You're muted.". Hidden screen-reader lines announce
 "Recording in full quality on this device.", "Hearing the room.", joins, leaves and
 other people's new notes. **Leave** is held until the file ACK. Covers replace the
 room for an invalid link, "The room is full" (**Try again**), "Invite link
-closed", "Your recording didn't finish saving" (**Save my recording**, **Try saving
-again**) and "This session has ended".
+closed", "Your recording didn't finish saving" and "This session has ended". The
+didn't-finish-saving Cover shows **Save my recording** and **Try saving again** only
+once capture has settled and the keeper store offers that action.
 
 The upload route enforces consent per take, not just per participant. Each
 take stores `consented_participant_ids`, captured from the currently-consented
@@ -1127,7 +1128,7 @@ valid lease gets `invite_closed`. The server then closes that socket with 4403, 
 it already minted who still holds a valid lease: reconnect, reload, heartbeat,
 signal, upload and keeper recovery. New people need a fresh link for the same
 role the removed participant joined through. The host Record stage calls out
-removals and its **Copy links…** action opens Share. The room list marks the
+removals and its **Invite and links…** action opens Share. The room list marks the
 closed guest or producer invite, disables copying that old link, and offers
 **Replace guest invite** or **Replace producer invite**. Replacement is bound
 to the source token and keeps its room, role, and expiry; the server checks the
@@ -1147,7 +1148,7 @@ and applies equally to direct and relayed joins. Nobody else is disconnected.
   closes it for all of them. An unaffected guest who loses the saved lease (new
   device, cleared data, lease older than 7 days) cannot be told apart from the
   removed person omitting their lease, so they see a terminal "Invite link
-  closed" Cover (with Save my recording and Try saving again when they hold an unsent local take) and need the
+  closed" Cover (with Save my recording and Try saving again once capture has settled and they hold an unsent local take) and need the
   replacement link. Guests who keep their lease are unaffected. The check only
   queries `record_participants` once the room has a removal.
 - **Keeper recovery:** unaffected guests keep uploading and recovering through
@@ -1170,10 +1171,8 @@ stateDiagram-v2
   error --> prompting: Retry
   granted --> devices_ok: meter
   joined --> ready: producer (no mic, no consent)
-  devices_ok --> room_tone: record or skip 3s bed
-  room_tone --> consented: accept notice
-  room_tone --> declined: decline
-  devices_ok --> declined: decline
+  devices_ok --> consented: Join and record
+  devices_ok --> declined: Not now
   declined --> joined
   consented --> recording: host Start
   ready --> recording: host Start
@@ -1272,7 +1271,7 @@ cannot. Every button runs the same `record.*` command as the palette.
   take is open.
 - Mute my mic, the take control, Land, the blockers and Stop stay in a sticky
   footer of the scrolling panel, so they remain in reach on a phone, with
-  44 px targets on touch. **Copy links…** (open Share) sits just above it.
+  44 px targets on touch. **Invite and links…** (open Share) sits just above it.
   After **Create record room** or the palette's **Copy guest link** the footer
   repeats the announcement ("Guest link copied") as visible text.
 - If the room lookup fails, the error comes with **Check again**.
@@ -1313,7 +1312,7 @@ only shown there, inside its polite live region, and not also announced, so
 screen readers hear it once. Over the Share
 dialog the failure is only announced and nothing is stored. The next record
 command clears it, and the panel clears it whenever it closes (by any route,
-including **Copy links…**) or the project changes.
+including **Invite and links…**) or the project changes.
 
 If the host record WebSocket drops after it has connected, while a take is
 recording or paused (`useRecordHostStore.dropped`; not before the first
