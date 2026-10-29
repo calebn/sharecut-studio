@@ -302,6 +302,21 @@ describe("joinMic", () => {
     ).toEqual({ status: "lost", detail: "Gone." });
   });
 
+  it("keeps the lock on a lost microphone's input menu", () => {
+    const lost = {
+      ...base,
+      status: "lost" as const,
+      devices: [device("a", "Desk"), device("b", "Headset")],
+    };
+    expect(
+      joinMic(lost, { ...options, deviceId: "a", inputLocked: true }),
+    ).toMatchObject({ status: "lost", inputId: "a", inputLocked: true });
+    expect(joinMic(lost, { ...options, deviceId: "a" })).not.toHaveProperty(
+      "inputLocked",
+      true,
+    );
+  });
+
   it("is not ready while granted without a stream", () => {
     expect(joinMic({ ...base, status: "granted" }, options)).toEqual({
       status: "idle",

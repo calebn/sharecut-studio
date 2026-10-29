@@ -16,6 +16,8 @@ export type JoinMic =
       devices?: JoinInput[];
       /** The failing pick's id. */
       inputId?: string;
+      /** A take is running, so the input cannot change now. */
+      inputLocked?: boolean;
     }
   | {
       status: "ready";
