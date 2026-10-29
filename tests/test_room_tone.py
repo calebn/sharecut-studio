@@ -276,6 +276,19 @@ def test_short_burst_in_a_long_bed_is_not_averaged_away(tmp_path: Path) -> None:
     _add_voice(bed, 3.0, 3.6, VOICE_DB)
     _add_bed(project, tmp_path, bed)
 
+    selected = room_tone_bed(project, "host")
+
+    assert isinstance(selected, RecordedBedSample)
+    assert not (selected.start < 3.6 and selected.end > 3.0)
+
+
+def test_a_bed_loud_throughout_is_still_rejected(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _noise(-62.0, seed=7)
+    for second in range(len(bed) // SR):
+        _add_voice(bed, second + 0.1, second + 0.9, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
     selected = room_tone_span(
         project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
     )
@@ -300,16 +313,18 @@ def test_one_minute_bed_is_read_whole_and_a_pad_takes_its_start(tmp_path: Path) 
     assert selected == RecordedBedSample(0.0, 8.0, "room-tone-host", bed.path)
 
 
-def test_one_minute_bed_with_a_burst_is_still_rejected(tmp_path: Path) -> None:
+def test_one_minute_bed_with_a_cough_keeps_its_longest_quiet_stretch(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     bed = _minute_noise(7)
     _add_voice(bed, 41.0, 41.6, VOICE_DB)
     _add_bed(project, tmp_path, bed)
 
-    selected = room_tone_span(project, "host", near_sec=4.0, near_source_id=None, duration_sec=0.5)
+    selected = room_tone_span(project, "host", near_sec=4.0, near_source_id=None, duration_sec=8.0)
 
-    assert isinstance(selected, OwnQuietSample)
-    assert selected.bed_failure == "contaminated_bed"
+    assert isinstance(selected, RecordedBedSample)
+    assert selected.end - selected.start == pytest.approx(8.0)
+    assert selected.end <= 41.0 + 1e-6 or selected.start >= 41.6 - 1e-6
+    assert (selected.start, selected.end) == pytest.approx((0.0, 8.0), abs=0.5)
 
 
 def test_gated_bed_with_clean_room_noise_is_accepted(tmp_path: Path) -> None:

@@ -504,7 +504,10 @@ def _room_tone_bed(
             return f"recorded room-tone bed rejected ({', '.join(bed.rejected_checks)})"
         return "no recorded room-tone bed"
     samples = load_mono_window(
-        bed.path, start_sec=0.0, duration_sec=bed.end, sample_rate=holes.sample_rate
+        bed.path,
+        start_sec=bed.start,
+        duration_sec=bed.end - bed.start,
+        sample_rate=holes.sample_rate,
     )
     nfft = _frame_len(holes.sample_rate)
     psd = None
