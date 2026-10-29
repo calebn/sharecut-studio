@@ -8,6 +8,7 @@ import type {
   TranscriptCheckStatus,
 } from "../types/project";
 import { formatTimeShort } from "../utils/time";
+import { wordSeekSec, wordsForUtterance } from "../utils/transcript";
 import type { ReviewContent } from "./ReviewQueue";
 import type { ReviewItem } from "./reviewQueueModel";
 
@@ -149,6 +150,25 @@ export const reviewEntriesOf = (
 ): ReviewEntry[] =>
   pending.filter((e) => !e.applied && e.review_required).map(entryOf);
 
+/** The word's own start in the transcript, if the transcript has it. */
+function ownStart(
+  utterances: readonly CombinedUtterance[],
+  track: string,
+  source: string | null,
+  index: number,
+): number | null {
+  for (const u of utterances) {
+    if (u.track_id !== track) continue;
+    for (const w of wordsForUtterance(u))
+      if (
+        w.word_index === index &&
+        (w.timing_target?.source_id ?? u.source_id ?? null) === source
+      )
+        return wordSeekSec(w);
+  }
+  return null;
+}
+
 /** One item per unsure word, whether it sits inside an open cut or only in the transcript. */
 export function unsureEntriesOf(
   pending: readonly PendingEditView[],
@@ -178,7 +198,10 @@ export function unsureEntriesOf(
         text: w.text,
         endSec: null,
         ...known,
-        at: known?.at ?? (Number.isFinite(start) ? (start as number) : null),
+        at:
+          known?.at ??
+          ownStart(utterances, w.track_id, w.source_id, w.word_index) ??
+          (Number.isFinite(start) ? (start as number) : null),
         cut: known?.cut ?? edit.label ?? undefined,
       });
     }

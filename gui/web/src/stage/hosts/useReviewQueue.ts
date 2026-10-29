@@ -62,6 +62,9 @@ const UNSURE_REASON = "unsure_word";
 const HEAR_PAD_SEC = 2;
 const OPEN_CHECK =
   "The transcript check stays open until every word has loaded.";
+const LEFT_AS_IS = "Left as it is. Nobody is talking over it.";
+const RELOAD_FAILED =
+  "Undone, but the words did not reload. Reload the project to see them.";
 const CUT_AGAIN = "The transcript isn't checked yet. Cut again to cut anyway.";
 
 const rangeOf = (e: PendingEditView) =>
@@ -74,6 +77,7 @@ type Reply = {
   count: number | null;
   historyHead: HistoryEntryId | null;
   held?: readonly HeldCut[];
+  loweredToLeave?: number;
 };
 
 export function useReviewQueue() {
@@ -186,8 +190,26 @@ export function useReviewQueue() {
     }
     if (intent.result === "kept") return rejectEdits(path, ids);
     const item = session.props.items.find((i) => i.id === intent.ids[0]);
-    if (ids.length === 1 && item && verbOf(item) === "lower")
-      return { ...(await applySuggestedActions(path, ids)), count: null };
+    if (ids.length === 1 && item && verbOf(item) === "lower") {
+      const { held, loweredToLeave, ...rest } = await applySuggestedActions(
+        path,
+        ids,
+      );
+      return {
+        ...rest,
+        loweredToLeave,
+        held: (held ?? []).map((id) => ({
+          id,
+          label:
+            useDawStore
+              .getState()
+              .project?.pending_edits?.find((e) => e.id === id)?.label ??
+            "A suggestion",
+          reason: CLOSER_LOOK,
+        })),
+        count: null,
+      };
+    }
     return approveEdits(
       path,
       ids,
@@ -293,6 +315,7 @@ export function useReviewQueue() {
         seen?.fingerprint,
       );
       if (!current()) return;
+      if (target) releaseCuts(intent.ids[0]);
       const marked = word
         ? await settleCheck(path, seen, closes, changed, complete)
         : undefined;
@@ -300,7 +323,6 @@ export function useReviewQueue() {
       if (intent.waive || closes || changed) void refreshStatus();
       if (!current()) return;
       if (marked === false) return false;
-      if (target) releaseCuts(intent.ids[0]);
       if (!reply) return say(plan.message);
       if (reply.queued) return say(PENDING_REVIEW_QUEUED_MESSAGE);
       const heldCuts = [...(reply.held ?? [])];
@@ -354,7 +376,9 @@ export function useReviewQueue() {
               reply.count ?? ids.length - heldCuts.length,
               heldCuts,
             )
-          : message,
+          : reply.loweredToLeave
+            ? LEFT_AS_IS
+            : message,
         {
           undo: reply.historyHead,
           onUndone: () => {
@@ -362,7 +386,9 @@ export function useReviewQueue() {
             confirmed.current.delete(intent.ids[0]);
             // A same-text Undo reply keeps the old timed words, so reload them.
             if (target && current())
-              void refreshDocumentProject(path, "full").catch(() => null);
+              void refreshDocumentProject(path, "full").catch(() => {
+                if (current()) say(RELOAD_FAILED, { tone: "error" });
+              });
             if (closes || changed) void refreshStatus();
             stageRef.current?.focus({ preventScroll: true });
           },
@@ -378,9 +404,12 @@ export function useReviewQueue() {
         error.code === TRANSCRIPT_REFINE_REQUIRED_CODE;
       const changedText = changedMessage(error);
       const next =
-        (gate && !intent.waive) || changedText ? await refreshStatus() : null;
+        (gate && !intent.waive) || intent.waive || changedText
+          ? await refreshStatus()
+          : null;
       if (!current()) return false;
-      if (next && checkEntryOf(next) && !changedText) say(CUT_AGAIN);
+      if (next && checkEntryOf(next) && !changedText && !intent.waive)
+        say(CUT_AGAIN);
       else
         say(
           changedText ?? (gate ? REFINE_GATE_GUI_MESSAGE : errorMessage(error)),

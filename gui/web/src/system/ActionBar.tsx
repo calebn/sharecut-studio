@@ -32,7 +32,11 @@ export type ActionBarProps = {
   readonly items: readonly BarItem[];
   readonly more?: readonly BarItem[];
   /** Trailing and accent filled. Only a real gate sets `disabledReason`. */
-  readonly primary?: BarItem & { readonly disabledReason?: string };
+  readonly primary?: BarItem & {
+    readonly disabledReason?: string;
+    /** Id of the visible note that gives `disabledReason`. */
+    readonly describedBy?: string;
+  };
   /** Review's A/B, in the middle of the dock. */
   readonly center?: ReactNode;
   /** After the verbs where a guest has no primary. */
@@ -138,6 +142,7 @@ function PrimaryButton({
       title={titleOf(item)}
       aria-label={look === "floating" ? label : undefined}
       onClick={() => onVerb(item.id)}
+      aria-describedby={item.describedBy}
       {...disabledAttrs(item.disabledReason)}
     >
       {icon}

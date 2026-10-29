@@ -219,6 +219,7 @@ export function DecisionCard(props: DecisionCardProps) {
     onComment,
   } = props;
   const headingId = useId();
+  const verbNoteId = useId();
   const meta = KIND_META[kind];
   const phone = layout === "phone";
   const holdVerb =
@@ -372,7 +373,9 @@ export function DecisionCard(props: DecisionCardProps) {
         ) : null}
         {why ? <p className="sys-decision-why">{why}</p> : null}
         {verbDisabledReason && !readOnly ? (
-          <p className="sys-decision-why">{verbDisabledReason}</p>
+          <p id={verbNoteId} className="sys-decision-why">
+            {verbDisabledReason}
+          </p>
         ) : null}
         {unsure && !readOnly ? (
           <UnsureWord
@@ -388,6 +391,7 @@ export function DecisionCard(props: DecisionCardProps) {
         form={phone ? "dock" : "inline"}
         verb={verb ?? meta.verb}
         verbLabel={verb && verb !== meta.verb ? undefined : meta.verbLabel}
+        verbNoteId={verbNoteId}
         verbDisabledReason={
           holdVerb ? "Check the unsure word first." : verbDisabledReason
         }

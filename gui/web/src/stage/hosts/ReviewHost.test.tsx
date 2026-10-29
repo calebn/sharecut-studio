@@ -148,6 +148,11 @@ const fresh = () => ({
   holdStatus: null as Promise<void> | null,
   status: "clear" as "clear" | "pending" | "done" | "waived",
   waiveFails: false,
+  approveFails: false,
+  reloadFails: false,
+  inert: false,
+  lowered: 0,
+  lowerHeld: [] as string[],
   down: false,
 });
 const server = fresh();
@@ -232,14 +237,19 @@ const snapshot = (seq = ++server.seq) =>
     applyDocumentSnapshot({ server_seq: seq, project: projectOf() });
   });
 
-function reply(count: number, held: Held[] = [], all = server.words) {
+function reply(
+  count: number,
+  held: Held[] = [],
+  all = server.words,
+  extra: Record<string, unknown> = {},
+) {
   server.seq += 1;
   return {
     ok: true,
     data: {
       history_head_id: server.head,
       command: {
-        payload: { result: { count, held } },
+        payload: { result: { count, held, ...extra } },
       },
       ...(server.omitSnapshot
         ? {}
@@ -258,6 +268,12 @@ function answer(body: { type: string; payload: Record<string, unknown> }) {
     serverUndo();
     return reply(0, [], server.staleWordsOnUndo ? before : server.words);
   }
+  if (body.type === "ApproveEdits" && server.approveFails)
+    return {
+      ok: false,
+      status: 422,
+      failure: new ApiError("Broke", null, 422),
+    };
   if (body.type === "ApproveEdits" && server.gate) {
     const failure = new ApiError("Check", "transcript_refine_required", 409);
     return { ok: false, status: 409, failure };
@@ -285,6 +301,18 @@ function answer(body: { type: string; payload: Record<string, unknown> }) {
     );
     return reply(0);
   }
+  if (body.type === "ApplySuggestedActions") {
+    server.pending = server.pending.map((e) =>
+      ids.includes(e.id) && !server.lowerHeld.includes(e.id)
+        ? { ...e, applied: true }
+        : e,
+    );
+    return reply(0, [], server.words, {
+      lowered_to_leave: server.lowered,
+      held: server.lowerHeld,
+    });
+  }
+  if (server.inert) return reply(ids.length);
   const heldIds = new Set(server.held.map((h) => h.id));
   const done = server.count ?? ids.length - heldIds.size;
   const take = server.count === 0 ? [] : ids.filter((id) => !heldIds.has(id));
@@ -392,7 +420,8 @@ beforeEach(() => {
   wire.rows = [];
   wire.post.mockImplementation(async (_path: string, body) => answer(body));
   wire.preview.mockImplementation(async () => wavResponse(1));
-  wire.refresh.mockImplementation(async () => {
+  wire.refresh.mockImplementation(async (_path: string, phase?: string) => {
+    if (server.reloadFails && phase === "full") throw new Error("down");
     const project = projectOf();
     applyDocumentSnapshot({ server_seq: ++server.seq, project });
     return project;
@@ -602,6 +631,60 @@ describe("Review host decisions", () => {
       expect(toast()).toMatch(/held 1/);
     },
   );
+
+  it("says a lower turned into leave was left as it is, and keeps Undo", async () => {
+    server.lowered = 1;
+    mount([edit("sw", "sound", 10, { suggested_action: "lower" })]);
+    press("Enter");
+    await waitFor(() =>
+      expect(toast()).toBe("Left as it is. Nobody is talking over it."),
+    );
+    expect(await undoButton()).toBeVisible();
+  });
+
+  it("reopens a lowered row the server held", async () => {
+    server.lowerHeld = ["sw"];
+    mount([
+      edit("sw", "sound", 10, { suggested_action: "lower" }),
+      edit("s2", "sound", 20),
+    ]);
+    press("Enter");
+    await waitFor(() => expect(toast()).toMatch(/held 1/));
+    expect(decided()).not.toMatch(/Decided\s*1/);
+    expect(screen.getByText("Needs a closer look in Edit")).toBeVisible();
+  });
+
+  it("fetches the check again after a waive that worked and an approve that failed", async () => {
+    server.status = "pending";
+    server.approveFails = true;
+    mount();
+    await checks();
+    press("Enter");
+    const button = await cutAnyway();
+    const statusCalls = () =>
+      fetchStub.mock.calls.filter(
+        ([u]) => typeof u === "string" && u.includes("/refine/status"),
+      ).length;
+    const before = statusCalls();
+    await userEvent.click(button);
+    await waitFor(() => expect(order).toEqual(["waive", "ApproveEdits"]));
+    await waitFor(() => expect(statusCalls()).toBeGreaterThan(before));
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast?.tone).toBe("error"),
+    );
+  });
+
+  it("reopens a decided row when the history moves elsewhere while the ledger still lists it", async () => {
+    server.inert = true;
+    mount();
+    press("Enter");
+    await waitFor(() => expect(decided()).toMatch(/Decided\s*1/));
+    await undoButton();
+    server.head = "elsewhere";
+    snapshot();
+    await waitFor(() => expect(decided()).not.toMatch(/Decided\s*1/));
+    expect(heading()).toBe("filler f1");
+  });
 
   it("does not revert a lowered row when the refresh fails and the ledger shows it applied", async () => {
     wire.refresh.mockRejectedValue(new Error("down"));
@@ -1065,6 +1148,62 @@ describe("Review host unsure words", () => {
       ids: ["f1"],
       hold_blocked: true,
     });
+  });
+
+  it("says so when the words do not reload after Undo", async () => {
+    setup("pending", []);
+    await pick(/gnu/);
+    act(() => {
+      press("Enter");
+    });
+    server.reloadFails = true;
+    await userEvent.click(await undoButton());
+    await waitFor(() =>
+      expect(wire.refresh).toHaveBeenCalledWith(PATH, "full"),
+    );
+    await waitFor(() =>
+      expect(toast()).toBe(
+        "Undone, but the words did not reload. Reload the project to see them.",
+      ),
+    );
+  });
+
+  it("frees the cut that holds a word even when the closing mark fails", async () => {
+    server.markFails = true;
+    server.omitSnapshot = true;
+    setup();
+    await pick(/uncle/);
+    for (let i = 0; i < 3; i++)
+      act(() => {
+        press("Enter");
+      });
+    await waitFor(() => expect(order).toContain("done"));
+    await checks();
+    await userEvent.click(screen.getByRole("button", { name: /filler f3/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+  });
+
+  it("keeps the cut held when the correction is refused", async () => {
+    server.correctFails = true;
+    setup("done");
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    await fix("knew");
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast?.tone).toBe("error"),
+    );
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+  });
+
+  it("keeps a two-word cut held after one Fix", async () => {
+    setup("done", [
+      edit("f1", "filler", 10, {
+        unsure_words: [word(0, "uncle"), word(1, "gnu")],
+      }),
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    await fix("knew");
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(1));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 
   it("reverts a word and says why when the correction is refused", async () => {

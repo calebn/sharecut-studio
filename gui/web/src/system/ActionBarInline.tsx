@@ -13,6 +13,8 @@ export type ActionBarInlineProps = {
   verbLabel?: string;
   /** Why the primary cannot be used yet. */
   verbDisabledReason?: string;
+  /** Id of the note that shows `verbDisabledReason`. */
+  verbNoteId?: string;
   /** `dock` is the phone's 64 px row: Keep, A/B in the middle, verb. */
   form?: "inline" | "dock";
   /** A/B audition. Shown in the dock form and in the guest bar. */
@@ -48,6 +50,7 @@ export function ActionBarInline({
   verb,
   verbLabel,
   verbDisabledReason,
+  verbNoteId,
   form = "inline",
   center,
   readOnly = false,
@@ -63,7 +66,12 @@ export function ActionBarInline({
   const commentButton = verbButtonProps("comment");
   const primary: ActionBarProps["primary"] =
     verb && verbOf(verb).icon && !promptOpen
-      ? { id: verb, label: verbLabel, disabledReason: verbDisabledReason }
+      ? {
+          id: verb,
+          label: verbLabel,
+          disabledReason: verbDisabledReason,
+          describedBy: verbDisabledReason ? verbNoteId : undefined,
+        }
       : undefined;
   const openInEdit = canEdit ? (
     <Button variant="link" onClick={onOpenInEdit} title={editTitle}>

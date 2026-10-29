@@ -175,6 +175,10 @@ export interface SuggestedActionsOutcome {
   queued: boolean;
   summary: string | null;
   historyHead: HistoryEntryId | null;
+  /** Lowers the server left as they are because nobody talks over them. */
+  loweredToLeave?: number;
+  /** Ids the server could not apply; they stay pending. */
+  held?: string[];
 }
 
 /**
@@ -197,7 +201,11 @@ export async function applySuggestedActions(
     },
   );
   if (result.queued === true)
-    return { queued: true, summary: null, historyHead: null };
+    return {
+      queued: true,
+      summary: null,
+      historyHead: null,
+    };
   const command = result.command;
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const done = isSuggestionRecord(payload) ? payload.result : null;
@@ -205,7 +213,17 @@ export async function applySuggestedActions(
     isSuggestionRecord(done) && typeof done.summary === "string"
       ? done.summary
       : null;
-  return { queued: false, summary, historyHead: replyHistoryHead(result) };
+  const record = isSuggestionRecord(done) ? done : {};
+  return {
+    queued: false,
+    summary,
+    historyHead: replyHistoryHead(result),
+    loweredToLeave:
+      typeof record.lowered_to_leave === "number" ? record.lowered_to_leave : 0,
+    held: Array.isArray(record.held)
+      ? record.held.filter((h): h is string => typeof h === "string")
+      : [],
+  };
 }
 
 /** `queued`: saved and sent later by the drain, so the outcome is not known yet. */

@@ -312,6 +312,21 @@ describe("unsureEntriesOf", () => {
     });
   });
 
+  it("places a cut-only word at its own start, not the cut's, when the transcript has it", () => {
+    const { entries } = unsureEntriesOf(
+      [cut("a", 20)],
+      utterance([
+        { text: "gnu", start: 5, end: 6, timeline_start: 5, word_index: 1 },
+      ]),
+    );
+    expect(entries.map((e) => e.item.at)).toEqual([5]);
+  });
+
+  it("falls back to the cut's start when the transcript lacks the word", () => {
+    const { entries } = unsureEntriesOf([cut("a", 20)], utterance([]));
+    expect(entries.map((e) => e.item.at)).toEqual([20]);
+  });
+
   it("puts a word with no placement last, and ignores applied cuts", () => {
     const { entries } = unsureEntriesOf(
       [cut("a", null), { ...cut("b", 3, [word(7, "no")]), applied: true }],
