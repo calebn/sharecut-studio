@@ -190,6 +190,7 @@ export function HomeScreen() {
         async () => {
           const out = await openEpisodeProject(target);
           await forgetReplaced(replaces, out.project_path);
+          if (fromField) setReplacing(undefined);
           if (stage) writeOpenIntent(out.project_path, { stage });
           return navigateToProject(out.project_path);
         },
@@ -205,8 +206,9 @@ export function HomeScreen() {
   );
 
   const pick = useCallback(
-    (replaces?: string) =>
-      guarded(
+    (replaces?: string) => {
+      setReplacing(replaces);
+      return guarded(
         async () => {
           const picked = await pickEpisodeProject();
           if ("project_path" in picked) {
@@ -216,7 +218,6 @@ export function HomeScreen() {
           }
           if ("unavailable" in picked && picked.unavailable) {
             if (replaces) setNotice(NO_PICKER);
-            setReplacing(replaces);
             setPathMode(true);
             return;
           }
@@ -225,7 +226,8 @@ export function HomeScreen() {
         },
         (error) => setNotice(openFailure(error)),
         OPENING,
-      ),
+      );
+    },
     [guarded],
   );
 
@@ -323,6 +325,7 @@ export function HomeScreen() {
     path,
     error: pathError,
     defaultOpen: pathMode,
+    onClose: () => setReplacing(undefined),
     onPathChange: (value) => {
       setPath(value);
       setPathError(undefined);

@@ -338,6 +338,30 @@ describe("HomeScreen", () => {
       expect(navigatedTo().searchParams.get("project")).toBe(moved);
     });
 
+    it("with no picker, forgets nothing once the person closes the path field and opens another folder", async () => {
+      const user = userEvent.setup();
+      list.mockResolvedValue([recent({ folder_missing: true })]);
+      pick.mockResolvedValue({ unavailable: true });
+      const other = "/other/maya/episode.project.json";
+      open.mockResolvedValue({ project_path: other, name: "maya" });
+      render(<HomeScreen />);
+      await user.click(await screen.findByRole("button", { name: /Find/ }));
+      const field = await screen.findByRole("textbox", {
+        name: "Folder of the episode",
+      });
+      await user.type(field, "{Escape}");
+      expect(
+        screen.queryByRole("textbox", { name: "Folder of the episode" }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Open other…" }));
+      await user.type(
+        await screen.findByRole("textbox", { name: "Folder of the episode" }),
+        `${other}{Enter}`,
+      );
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(forget).not.toHaveBeenCalled();
+    });
+
     it("keeps the entry when the picker is cancelled", async () => {
       const user = userEvent.setup();
       list.mockResolvedValue([recent({ folder_missing: true })]);
