@@ -22,6 +22,11 @@ import {
   nextAnchor,
 } from "../../system/composerAnchor";
 import { EmptyState, InlineError } from "../../ui";
+import {
+  capCommentName,
+  GUEST_SESSION_LABEL,
+  savedGuestName,
+} from "../../utils/commentAuthor";
 import { clampToSession } from "../../utils/time";
 import { commentCardOf } from "./commentCardData";
 
@@ -71,7 +76,9 @@ function GuestComposer({ naming }: { naming: Naming }) {
       anchor.kind === "pinned" &&
       anchor.start === draft.startSec &&
       (anchor.end ?? null) === draft.endSec;
-    const author = naming.chosen ? naming.name : naming.choose(naming.draft);
+    const author = naming.chosen
+      ? naming.name
+      : capCommentName(naming.draft) || savedGuestName() || GUEST_SESSION_LABEL;
     const comment = await run(() =>
       createComment(state.projectPath, {
         body: body.trim(),
@@ -85,6 +92,7 @@ function GuestComposer({ naming }: { naming: Naming }) {
     );
     posting.current = false;
     if (comment === undefined) return;
+    if (!naming.chosen) naming.choose(naming.draft);
     setBody("");
     setPin(null);
     state.setCommentDraft(null);
