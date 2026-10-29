@@ -359,11 +359,11 @@ def test_pool_record_name_follows_the_first_stream_for_several_only(tmp_path: Pa
     unprobeable = room_tone._pool_record_path(project, ("/ws/mono.wav", revision, ()))
     assert unprobeable.name == MAIN_POOL_RECORD_NAME
     several = media.multistream(tmp_path, "two_b.mkv")
-    parts = [4, str(several), str(revision), str(())]
+    parts = [4, str(several), str(revision), "()"]
     old = short_digest(json.dumps(parts))
     assert room_tone._pool_record_path(project, (str(several), revision, ())).stem != old
     mono = media.single_stream_media(tmp_path)["wav"]
-    kept = short_digest(json.dumps([4, str(mono), str(revision), str(())]))
+    kept = short_digest(json.dumps([4, str(mono), str(revision), "()"]))
     assert room_tone._pool_record_path(project, (str(mono), revision, ())).stem == kept
 
 

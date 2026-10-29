@@ -26,16 +26,15 @@ A request ranks the quiet runs by distance from the cut (all of them sit at the 
 so the nearest matches the room at the cut best), takes the window of its length nearest
 the cut from each, and returns the first window that passes every row of ``CHECKS``.
 Picking is done once per recording: :func:`record_room_tone_pool` runs that pick at evenly
-spaced points along the track, keeps the samples that passed (each at least
-``POOL_MIN_SAMPLE_SEC`` long), and records them under the
+spaced points along the track, keeps the samples that passed, and records them under the
 project's ``artifacts``, keyed on the recording's identity. A request on a track with a pool
-takes the nearest pooled sample with a piece of at least ``MIN_SAMPLE_SEC`` clear of ``avoid``, preferring one that no clip
-or mute fill within ``TAKEN_WINDOW_SEC`` of the cut already plays, reading no audio; a track
-without one picks as above. A pick, the pool's included, also rejects a window whose level
-envelope follows another track's voice: that voice reaches this microphone as bleed under
-the level checks. Spectral flatness is not a check: on the lab tape the room floor's
-flatness (median 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so
-no threshold separates them; the floor band does.
+takes the nearest pooled sample with a piece of at least ``MIN_SAMPLE_SEC`` clear of
+``avoid``, reading no audio; a track without one picks as above. A pick, the pool's
+included, also rejects a window whose level envelope follows another track's voice: that
+voice reaches this microphone as bleed under the level checks.
+Spectral flatness is not a check: on the lab tape the room floor's flatness (median
+0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold
+separates them; the floor band does.
 """
 
 from __future__ import annotations
@@ -226,9 +225,9 @@ def room_tone_span(
 ) -> RoomToneSelection:
     """Measured room tone or an actual absence cause for this request.
 
-    ``near_sec`` is the cut's position in the source named by ``near_source_id`` and
-    ``timeline_sec`` its position on the timeline. ``avoid`` is source
-    time a sample of the track's own audio may not come from: a pad that replays the
+    ``near_sec`` is source seconds in ``near_source_id``; ``timeline_sec`` is the timeline
+    position. ``avoid`` is source time a sample of the track's own audio may not come from:
+    a pad that replays the
     source of a cut that has not been applied yet makes that cut play in two places, and
     approving it then removes everything between them. ``also_taken`` is source time the
     caller has already filled in this pass but not yet applied: it ranks like a fill that
@@ -527,9 +526,8 @@ def _pool_spans_in_use(
 ) -> list[Span]:
     """Source spans this track's fills play within ``TAKEN_WINDOW_SEC`` of the cut.
 
-    A mute fill counts by the timeline position of its own region. A pad clip is a
-    primary-recording clip that mostly plays one pooled sample; a speech clip that only
-    grazes a sample is not a fill.
+    A pad clip is a primary-recording clip that mostly plays one pooled sample; a speech
+    clip that only grazes a sample is not a fill.
     """
     window = (timeline_sec - TAKEN_WINDOW_SEC, timeline_sec + TAKEN_WINDOW_SEC)
     spans: list[Span] = []
@@ -569,11 +567,12 @@ def _from_pool(
     avoid: Sequence[Span],
     taken: Sequence[Span],
 ) -> OwnQuietSample | None:
-    """The unused pooled sample nearest ``near_sec`` with a clear piece of ``MIN_SAMPLE_SEC``, else None.
+    """The unused pooled sample nearest ``near_sec`` (first in recording order when None)
+    with a clear piece of ``MIN_SAMPLE_SEC``, else None.
 
-    A sample that overlaps ``taken`` ranks after every sample that does not. With no
-    ``near_sec`` (the cut is not on the pool's recording) the samples are taken in recording
-    order, rotated by the cut's ``TAKEN_WINDOW_SEC`` slot so distant cuts spread over the pool.
+    With no ``near_sec`` (the cut is not on the pool's recording) the samples are taken in
+    recording order, rotated by the cut's ``TAKEN_WINDOW_SEC`` slot so distant cuts spread
+    over the pool.
     """
     need = min(duration_sec, MIN_SAMPLE_SEC)
     ordered = sorted(pool, key=lambda x: x.start)
@@ -599,6 +598,7 @@ def _from_pool(
 # A sample whose 10 ms level envelope follows another track's voice this closely is that
 # voice reaching this microphone, whatever level it sits at.
 BLEED_ENVELOPE_CORRELATION = 0.5
+MIN_ENVELOPE_FRAMES = 8
 
 
 def _envelope_db(audio: np.ndarray) -> np.ndarray:
@@ -610,7 +610,7 @@ def _envelope_db(audio: np.ndarray) -> np.ndarray:
 
 def _follows(own: np.ndarray, other: np.ndarray) -> bool:
     count = min(own.shape[0], other.shape[0])
-    if count < 8:
+    if count < MIN_ENVELOPE_FRAMES:
         return False
     a, b = own[:count], other[:count]
     if np.ptp(a) == 0.0 or np.ptp(b) == 0.0:
@@ -619,12 +619,9 @@ def _follows(own: np.ndarray, other: np.ndarray) -> bool:
 
 
 def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span], bool]:
-    """Whether a span of this track's audio is free of another track's voice.
-
-    Tracks of one recording share a clock. While another track speaks, its voice reaches
+    """Tracks of one recording share a clock. While another track speaks, its voice reaches
     this microphone as bleed that sits near the room's floor, below any level check: a
-    pad tiles such a sample and repeats the word. The sample is foreign when its level
-    envelope follows the speaking track's.
+    pad tiles such a sample and repeats the word.
     """
     own_path = track_audio_path(project, track_id)
     others: list[tuple[Path, float]] = []
