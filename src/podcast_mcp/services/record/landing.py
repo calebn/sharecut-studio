@@ -8,7 +8,7 @@ import re
 import threading
 import time
 import wave
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any
@@ -1110,13 +1110,6 @@ class RecordLandingService:
 
         was_closed = [False]
         recorded = self._contest_inputs(extra_tombstoned={take})
-        discarded_tracks = {
-            piece.track_id
-            for row in (session_suggestion_for(self.workspace.project, self.session_id),)
-            if row is not None
-            for piece in row.takes
-            if piece.take_index == take
-        }
 
         def mutate(project: EpisodeProject) -> None:
             placed = session_suggestion_for(project, self.session_id)
@@ -1131,6 +1124,15 @@ class RecordLandingService:
                     f"{placed.session_number}. Undo the accept to discard it."
                 )
             self._require_last_take(project, take)
+            pieces = [
+                row
+                for row in (placed.takes if placed is not None else [])
+                if row.take_index == take
+            ]
+            discarded_tracks = {piece.track_id for piece in pieces}
+            discarded_people = {
+                piece.source_id.removeprefix(prefix).rsplit("-", 1)[0] for piece in pieces
+            }
             extent_before = own_extent_s(project.clips, self.session_id)
             drop_ids = {src.id for src in project.sources if src.id.startswith(prefix)}
             drop_tracks = {clip.track_id for clip in project.clips if clip.source_id in drop_ids}
@@ -1140,7 +1142,7 @@ class RecordLandingService:
             restore_followed_tracks(
                 project,
                 self.session_id,
-                contested=self._contested_tracks(project, *recorded),
+                contested=self._contested_tracks(project, *recorded, release=discarded_people),
                 only=discarded_tracks,
             )
             kept = {clip.track_id for clip in project.clips}
@@ -1325,14 +1327,17 @@ class RecordLandingService:
         snap = self._snapshot()
         gone = set(self._upload.tombstoned_takes(self.session_id)) | (extra_tombstoned or set())
         status = self._upload.status(session_id=self.session_id)
-        recorded = {
+        removed = {person.participant_id for person in snap.participants if person.removed}
+        taken = {
             str(row["participant_id"])
             for row in status["segments"]
             if row.get("file_ack") and int(row["take_index"]) not in gone
-        } | {
+        }
+        recorded = taken | {
             str(row["participant_id"])
             for row in self._upload.room_tone_status(session_id=self.session_id)
             if row.get("file_ack")
+            and (str(row["participant_id"]) not in removed or str(row["participant_id"]) in taken)
         }
         return list(snap.participants), self._room.track_choices(), recorded
 
@@ -1342,15 +1347,22 @@ class RecordLandingService:
         people: list[ParticipantState],
         choices: dict[str, str],
         recorded: set[str],
+        release: Collection[str] = (),
     ) -> set[str]:
-        """Tracks someone holds by choice, or whose acked recording would stage onto them.
+        """Tracks another person holds by choice, or whose acked recording would stage onto them.
+
+        The people in ``release`` are the ones being moved back; their own choice and recordings
+        do not hold a track.
 
         Decided by the same matcher landing uses, so a follow is never restored onto a track the
         next land would give to somebody else.
         """
+        choices = {pid: track for pid, track in choices.items() if pid not in release}
         matches = resolve_session_tracks(project, self.session_id, people, choices)
         return set(choices.values()) | {
-            match.track_id for pid, match in matches.items() if pid in recorded
+            match.track_id
+            for pid, match in matches.items()
+            if pid in recorded and pid not in release
         }
 
     def _track_id_for(self, participant_id: str) -> str:
@@ -1514,6 +1526,7 @@ class RecordLandingService:
         ]
 
         recorded = self._contest_inputs()
+        released = {participant for participant, _take, _segment in superseded}
 
         def mutate(project: EpisodeProject) -> None:
             touched: set[str] = set()
@@ -1542,12 +1555,15 @@ class RecordLandingService:
                         emptied |= staged_on or {prior.track_id}
                     else:
                         touched.add(prior.track_id)
-            restore_followed_tracks(
-                project,
-                self.session_id,
-                contested=self._contested_tracks(project, *recorded),
-                only=emptied,
-            )
+            try:
+                restore_followed_tracks(
+                    project,
+                    self.session_id,
+                    contested=self._contested_tracks(project, *recorded, release=released),
+                    only=emptied,
+                )
+            except Exception:
+                log.exception("record land rollback could not restore followed tracks")
             if touched:
                 refresh_timeline_duration(project)
                 if self._close_start_tail(project, extent_before):

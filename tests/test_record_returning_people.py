@@ -996,7 +996,7 @@ def test_a_replace_cannot_be_moved_onto_another_track_it_already_covers(
     assert len(row.track_ids) == 2
 
 
-def _late_replace_room(ws, target):
+def _late_replace_room(ws, target, *, land: bool = True, late: str = "Ava"):
     """Ben records take 0; Ava joins late and records only take 1 (both takes staged)."""
     room = ShareService(ws).create_record_room(target=target)
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
@@ -1005,12 +1005,13 @@ def _late_replace_room(ws, target):
     svc.submit(_cmd("Start"), now_wall_ms=0)
     svc.submit(_cmd("Stop"), now_wall_ms=3_000)
     _ack(ws, room, ben, 0)
-    ava = _join_guest(svc, room, "Ava", 1)
+    ava = _join_guest(svc, room, late, 1)
     svc.submit(_cmd("Start"), now_wall_ms=10_000)
     svc.submit(_cmd("Stop"), now_wall_ms=13_000)
     _ack(ws, room, ben, 1)
     _ack(ws, room, ava, 1)
-    RecordLandingService(ws).land(align=lambda _p: None)
+    if land:
+        RecordLandingService(ws).land(align=lambda _p: None)
     return room, ava, ben
 
 
@@ -1394,3 +1395,99 @@ def test_a_removed_persons_bed_is_dropped_when_their_take_was_never_acked(
     RecordLandingService(ws).land(align=lambda _p: None)
     ws.reload()
     assert [t.id for t in ws.project.tracks if t.room_tone is not None] == []
+
+
+def test_a_pin_on_the_moved_person_does_not_block_the_restore(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, ava, _ben = _late_replace_room(ws, target, land=False)
+    RecordControlService(ws).assign_track(ava, track_a)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    RecordControlService(ws).assign_track(ava, "new")
+    assert _row(ws, room).track_follows == {ava: track_a}
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([track_a], {})
+
+
+def test_the_moved_persons_own_acked_take_does_not_block_the_restore(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, ava, _ben = _late_replace_room(ws, target)
+    RecordControlService(ws).assign_track(ava, "new")
+    _ack(ws, room, ava, 0)
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([track_a], {})
+
+
+def test_another_persons_acked_take_blocks_the_restore(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, zoe, _ben = _late_replace_room(ws, target, land=False, late="Zoe")
+    RecordControlService(ws).assign_track(zoe, track_a)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    RecordControlService(ws).assign_track(zoe, "new")
+    other = _late_guest(ws, room, "Ava")
+    _ack(ws, room, other, 0)
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([zoe], {zoe: track_a})
+
+
+def test_restoring_a_swap_of_two_followed_tracks_keeps_both(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _room(ws, ["Ava", "Ben"], land=True)
+    labels = _tracks(ws)
+    track_a = next(t for t, label in labels.items() if label == "Ava")
+    track_b = next(t for t, label in labels.items() if label == "Ben")
+    target = {"kind": "replace", "from_sec": 0.1, "to_sec": 0.3, "track_ids": [track_a, track_b]}
+    room = ShareService(ws).create_record_room(target=target)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    dan = _join_guest(svc, room, "Dan", 0)
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    _ack(ws, room, dan, 0)
+    ava = _join_guest(svc, room, "Ava", 1)
+    ben = _join_guest(svc, room, "Ben", 2)
+    svc.submit(_cmd("Start"), now_wall_ms=10_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=13_000)
+    for pid in (ava, ben):
+        _ack(ws, room, pid, 1)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    RecordControlService(ws).assign_track(ava, "new")
+    RecordControlService(ws).assign_track(ben, track_a)
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([track_a, track_b], {})
+
+
+def test_restore_followed_tracks_restores_a_swap_in_one_pass(tmp_path):
+    from podcast_mcp.edits.session_suggestions import restore_followed_tracks
+    from podcast_mcp.edits.session_track_remap import remap_staged_participant
+    from podcast_mcp.models import EpisodeProject, SessionSuggestion
+
+    project = EpisodeProject.create("swap_unit", str(tmp_path / "swap_unit"))
+    row = SessionSuggestion(
+        id="ss-s1", kind="replace", session_id="s1", session_number=2, track_ids=["ta", "tb"]
+    )
+    project.editorial.session_suggestions.append(row)
+
+    def move(old: str, new: str) -> None:
+        remap_staged_participant(
+            project, "ss-s1", source_ids=set(), bed_path="x", track_id=new, track_label="P",
+            old_track_id=old,
+        )  # fmt: skip
+
+    move("ta", "tx")
+    move("tb", "ta")
+    assert (row.track_ids, row.track_follows) == (["tx", "ta"], {"tx": "ta", "ta": "tb"})
+    restore_followed_tracks(project, "s1")
+    assert (row.track_ids, row.track_follows) == (["ta", "tb"], {})

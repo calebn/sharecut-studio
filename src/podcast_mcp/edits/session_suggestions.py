@@ -201,21 +201,26 @@ def restore_followed_tracks(
 
     A replace follows a person who is moved to another track; when their staged pieces are gone,
     the row goes back to the track they were set to cover. It stays put when a staged take or
-    bed sits on either track, when a track in ``contested`` is wanted by someone by choice or by
-    a recording still to be staged, or when ``only`` is given and the moved-to track is not in it.
+    bed sits on either track, when a track in ``contested`` is wanted by another person by
+    choice or by an acknowledged take still to be staged, or when ``only`` is given and the moved-to track is not in it.
     """
     for row in project.editorial.session_suggestions:
         if row.session_id != session_id or row.status != "pending":
             continue
-        for current, origin in list(row.track_follows.items()):
-            held = {take.track_id for take in row.takes} | {bed.track_id for bed in row.room_tone}
-            held |= set(contested)
-            if current in held or origin in held or current not in row.track_ids:
-                continue
-            if only is not None and current not in only:
-                continue
-            swapped = [origin if t == current else t for t in row.track_ids]
-            row.track_ids = list(dict.fromkeys(swapped))
+        held = {take.track_id for take in row.takes} | {bed.track_id for bed in row.room_tone}
+        held |= set(contested)
+        back = {
+            current: origin
+            for current, origin in row.track_follows.items()
+            if current not in held
+            and origin not in held
+            and current in row.track_ids
+            and (only is None or current in only)
+        }
+        if not back:
+            continue
+        row.track_ids = list(dict.fromkeys(back.get(t, t) for t in row.track_ids))
+        for current in back:
             del row.track_follows[current]
 
 
