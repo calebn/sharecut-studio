@@ -408,8 +408,7 @@ def _pad_records_seen(
     that are not original quiet. A record is hashed for what the check reads of it. Skipped: a
     non-pad record without samples, and a valid, resolvable sample whose range lies outside
     ``[lo, hi]`` (the window around the pause, which no clip heard near it can reach). A sample
-    with an invalid range is hashed whole, whatever recording it names, since the recording is not
-    resolved for it.
+    with an invalid range is hashed whole, whatever recording it names.
     """
     if not _is_pause(edit):
         return None
@@ -429,16 +428,16 @@ def _pad_records_seen(
             if not pad_sample_well_formed(sample):
                 kept.append("malformed")
                 continue
+            try:
+                pad_sample_recording(project, sample)
+            except PAD_SAMPLE_UNRESOLVED_ERRORS:
+                kept.append([sample, "unresolved"])
+                continue
             pad_range = pad_sample_range(sample)
             if pad_range is None:
                 kept.append(sample)
                 continue
             if pad_range[1] < lo or pad_range[0] > hi:
-                # Far away, but a recording the check cannot resolve rejects wherever it lies.
-                try:
-                    pad_sample_recording(project, sample)
-                except PAD_SAMPLE_UNRESOLVED_ERRORS:
-                    kept.append([sample, "unresolved"])
                 continue
             kept.append(sample)
         if kept:
