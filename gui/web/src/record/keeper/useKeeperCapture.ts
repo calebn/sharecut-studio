@@ -484,7 +484,7 @@ export function useKeeperCapture({
         (row) => row.take_index === local.takeIndex,
       );
       const known = take?.segment_reports?.[local.participantId];
-      if (take && (!known || known < local.segments)) {
+      if (take && (known === undefined || known < local.segments)) {
         sendReport(local.participantId, local.takeIndex, local.segments, true);
       }
     }

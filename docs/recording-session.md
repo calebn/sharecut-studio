@@ -159,7 +159,7 @@ checked against the episode after the land, which can change its length).
 
 "Saving" is bounded. Each browser keeper (guest and host) tells the room how many upload
 segments it opened for a take with a `SegmentReport` command (`take_index`, `segments`):
-at every segment open, after the segment is recorded on the device, and at Stop (0 when
+at every segment open, once the segment's start is saved on the device, and at Stop (0 when
 none opened). It is self-only (the server stores it under the sender's own participant id),
 needs the join capability, never shrinks, and a count above 5000 is clamped to 5000. The keeper
 resends it, for every take, when the room's snapshot shows an older count. For each consented, not

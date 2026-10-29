@@ -713,6 +713,7 @@ RECORD_WS_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
     "RemoveParticipant": {"participant_id": "p1"},
     "UpdateName": {"display_name": "Guest"},
     "Comment": {"id": "live-c1", "body": "comment"},
+    "SegmentReport": {"take_index": 0, "segments": 1},
 }
 
 

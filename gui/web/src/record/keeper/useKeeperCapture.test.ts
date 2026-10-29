@@ -1237,4 +1237,24 @@ describe("useKeeperCapture segment reports", () => {
     rerender({ snapshot: { ...snap, state: "stopped", takes: [take] } });
     expect(report).toHaveBeenCalledTimes(calls);
   });
+
+  it("does not resend a zero count the room has already stored", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, {
+      snapshot: { ...snap, state: "paused" },
+    });
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 0));
+    const take = {
+      take_index: 0,
+      session_start_wall_ms: 0,
+      session_start_iso: "",
+      pauses: [],
+      consented_participant_ids: ["p_g"],
+      segment_reports: { p_g: 0 },
+    };
+    rerender({ snapshot: { ...snap, state: "stopped", takes: [take] } });
+    rerender({ snapshot: { ...snap, state: "stopped", takes: [take] } });
+    expect(report).toHaveBeenCalledTimes(1);
+  });
 });
