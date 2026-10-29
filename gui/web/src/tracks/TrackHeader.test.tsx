@@ -321,8 +321,7 @@ describe("TrackHeader", () => {
     },
   ];
 
-  // Space would toggle playback and Enter (on the Tighten tab) would apply a
-  // tighten hit if the key reached the window keymap.
+  // Space would toggle playback if the key reached the window keymap.
   const activationKeys: {
     key: string;
     typed: string;
@@ -332,11 +331,6 @@ describe("TrackHeader", () => {
       key: "Space",
       typed: " ",
       blocked: "transport.togglePlay",
-    },
-    {
-      key: "Enter",
-      typed: "{Enter}",
-      blocked: "tighten.applyHit",
     },
   ];
 

@@ -248,7 +248,6 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "commands/host.ts -> record (static)",
     "commands/projectMedia.ts -> feedback/ask (static)",
     "commands/rangeActions.ts -> comments/commentAnchor (static)",
-    "commands/tighten.ts -> feedback/ask (static)",
     "commands/trackMix.ts -> tracks/trackMuteCopy (static)",
     "commands/transcriptIgnore.ts -> transcript/ignoredWords (static)",
     "commands/transcriptIgnore.ts -> transcript/transcriptModeCopy (static)",
@@ -292,10 +291,10 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "services -> commands/edit": 2,
   "services -> views": 2,
   "commands/edit -> hooks": 2,
-  "commands/edit -> views": 14,
+  "commands/edit -> views": 13,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 60;
+const ALLOWLIST_SIZE = 59;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

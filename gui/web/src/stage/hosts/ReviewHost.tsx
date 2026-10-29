@@ -4,7 +4,6 @@ import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { ModelGateDialog } from "../../models";
 import { CommentsPanel } from "../../panels/CommentsPanel";
-import { TightenPanel } from "../../panels/TightenPanel";
 import { ReviewStage } from "../../review/ReviewStage";
 import { isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -41,8 +40,6 @@ function panelFor(
           findMoreDisabled={find.findMoreDisabled}
         />
       );
-    case "tighten":
-      return <TightenPanel />;
     case "comments":
       return (
         <>
@@ -105,7 +102,7 @@ function ReviewHostAdapter({
 }
 
 /**
- * The Review stage host: Queue, Comments and Tighten sections. A guest sees
+ * The Review stage host: Queue and Comments sections. A guest sees
  * Comments only, because the others act on the project.
  */
 export const ReviewHost = memo(ReviewHostAdapter);

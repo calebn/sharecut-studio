@@ -184,22 +184,6 @@ const COVERED: Record<string, Proof> = {
     file: "commands/transcriptIgnore.test.ts",
     test: "offers Undo on the toast for the history entry the command left",
   },
-  "tighten.applyHit": {
-    file: "commands/tighten.test.ts",
-    test: "applyHit and skipHit offer Undo for the entry the reply names",
-  },
-  "tighten.skipHit": {
-    file: "commands/tighten.test.ts",
-    test: "applyHit and skipHit offer Undo for the entry the reply names",
-  },
-  "tighten.applySuggested": {
-    file: "commands/tighten.test.ts",
-    test: "apply-suggested announces the server summary with an undo",
-  },
-  "tighten.reviseSuggested": {
-    file: "commands/tighten.test.ts",
-    test: "revises the latest batch with the one changed sound and announces an undo",
-  },
   "comment.resolve": {
     file: "panels/CommentsPanel.test.tsx",
     test: "shows an Undo toast after resolving and reopens on Undo",

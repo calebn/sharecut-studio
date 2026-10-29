@@ -20,9 +20,6 @@ import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 import { ShareFlowProvider } from "./shareFlow";
 
-vi.mock("../../panels/TightenPanel", () => ({
-  TightenPanel: () => <div>tighten panel</div>,
-}));
 vi.mock("../../panels/CommentsPanel", () => ({
   CommentsPanel: ({ guestShare }: { guestShare?: boolean }) => (
     <div>{guestShare ? "guest comments panel" : "comments panel"}</div>
@@ -156,7 +153,7 @@ describe("StageHost gating", () => {
 });
 
 describe("Review host", () => {
-  it("gives the host three sections and writes the choice to the stage slice", async () => {
+  it("gives the host two sections and writes the choice to the stage slice", async () => {
     asHost("review");
     mount();
     const tabs = within(
@@ -167,21 +164,20 @@ describe("Review host", () => {
         .getAllByRole("tab")
         .map((t) => t.textContent)
         .join(),
-    ).toMatch(/^Queue.*Comments.*Tighten/);
+    ).toMatch(/^Queue.*Comments$/);
     await userEvent.click(tabs.getByRole("tab", { name: /Queue/ }));
     expect(useDawStore.getState().reviewSection).toBe("queue");
     expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
   });
 
-  it("gives a guest Comments only, even when the slice names Tighten", () => {
+  it("gives a guest Comments only, even when the slice names Queue", () => {
     asGuest("review", "comment");
-    useDawStore.setState({ reviewSection: "tighten" });
+    useDawStore.setState({ reviewSection: "queue" });
     mount(true);
     expect(
       screen.queryByRole("tablist", { name: "Review sections" }),
     ).toBeNull();
     expect(screen.getByText("guest comments panel")).toBeInTheDocument();
-    expect(screen.queryByText("tighten panel")).toBeNull();
     expect(screen.queryByRole("button", { name: "Deliver" })).toBeNull();
   });
 

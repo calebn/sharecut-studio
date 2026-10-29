@@ -19,7 +19,7 @@ const VIEWPORTS = [
   { name: "phone", width: 360, height: 800 },
 ] as const;
 
-type PanelName = "Comments" | "History" | "Queue" | "Tighten" | "Pipeline";
+type PanelName = "Comments" | "History" | "Queue" | "Pipeline";
 
 async function expectEditorAxeClean(
   page: Page,
@@ -104,7 +104,6 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         ["Comments", ".comments-panel"],
         ["History", ".history-panel"],
         ["Queue", ".rv-stage"],
-        ["Tighten", ".tighten-panel"],
         ["Pipeline", ".sys-prepare"],
       ] as const) {
         await openPanel(page, name);

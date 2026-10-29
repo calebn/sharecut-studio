@@ -151,17 +151,9 @@ test.describe("core flow", () => {
             ).toBeVisible();
           });
 
-          await test.step("tighten: the panel opens on its empty state", async () => {
-            await openPanel(host, "tighten");
-            await expect(
-              host.getByRole("group", { name: "Class" }),
-            ).toBeVisible();
-            await expect(
-              host.getByText("No pending tighten decisions."),
-            ).toBeVisible();
-            await expect(
-              host.getByRole("button", { name: /Apply suggested actions/ }),
-            ).toBeDisabled();
+          await test.step("review: the queue opens on its empty state", async () => {
+            await openPanel(host, "queue");
+            await expect(host.getByText("Nothing to decide")).toBeVisible();
           });
 
           await test.step("edit: correct a transcript word, then undo it", async () => {

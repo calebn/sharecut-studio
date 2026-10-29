@@ -20,7 +20,7 @@ import { isButtonActivation, isTypingTarget } from "./typing";
  * in-app confirm. Native keys inside the dialog (typing in its field, Tab,
  * Enter on its buttons) are left to the browser.
  *
- * When several keymap rows share a key (Backspace Tighten hit, track or clip;
+ * When several keymap rows share a key (Backspace track or clip;
  * Escape follow or selection), try each match in the order
  * `SHARED_KEY_ORDER` declares and run the first whose when-clause passes.
  */
@@ -58,13 +58,10 @@ export function useDawKeymapListener(): void {
           if (ignoresKeyRepeat(e, cmd)) {
             return;
           }
-          const result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
+          await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
             ctx,
             skipWhen: true,
           });
-          if (result.status === "disabled" && cmd.id.startsWith("tighten.")) {
-            continue;
-          }
           return;
         }
       })();

@@ -682,7 +682,6 @@
           "gui/web/src/transcript/",
           "gui/web/src/commands/editing.ts",
           "gui/web/src/commands/trackMutation.ts",
-          "gui/web/src/commands/tighten.ts",
           "gui/web/src/api/documentEdits.ts",
           "src/podcast_mcp/services/document_sync/handlers/edits.py",
           "src/podcast_mcp/services/document_sync/handlers/transcript.py"
@@ -912,7 +911,7 @@
           "src/podcast_mcp/services/pipeline/config.py",
           "gui/web/src/stages/prepare/usePrepareRun.ts",
           "gui/web/src/stages/prepare/advancedModel.ts",
-          "gui/web/src/panels/TightenPanel.tsx",
+          "gui/web/src/stage/hosts/useFindMore.ts",
           "gui/web/src/api/pipeline.ts",
           "gui/web/src/types/pipeline.ts",
           "gui/web/src/utils/pipeline.ts"

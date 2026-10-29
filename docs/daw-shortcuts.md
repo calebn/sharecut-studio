@@ -38,15 +38,6 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Mod+ArrowRight` | Go to end (`navigation.goToEnd`) | Always (when not typing in an input) | Mod+ArrowRight: End alias for laptops |
 | `End` | Go to end (`navigation.goToEnd`) | Always (when not typing in an input) | Also Mod+ArrowRight (laptops without End) |
 
-## review
-
-| Shortcut | Command | When | Notes |
-|----------|---------|------|-------|
-| `Enter` | Apply tighten hit (`tighten.applyHit`) | tightenPanelOpen | Enter: selected tighten hit |
-| `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace: selected tighten hit |
-| `Mod+Shift+Enter` | Apply suggested actions (`tighten.applySuggested`) | tightenPanelOpen | Mod+Shift+Enter: every listed sound gets its own suggested action |
-| `P` | Preview tighten hit (`tighten.previewHit`) | tightenPanelOpen | P: rendered Suggested preview when possible |
-
 ## history
 
 | Shortcut | Command | When | Notes |
@@ -165,8 +156,6 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Add chapter at playhead | `edit.addChapter` | Loaded host project | Args: { atTime?: number } → chapter titled from that time (the touch create menu's held time), else the playhead (AddChapter); turns the Markers layer on. Host only. |
 | Add envelope point | `envelope.addPoint` | Host or shared edit mode | Args: { trackId: string, atTime: number } → visible volume layer required; SetEnvelope with a point at the envelope's current level there; the touch create menu |
 | Add comment | `comment.draftAt` | Host or a link that can comment | Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu |
-| Change an applied sound | `tighten.reviseSuggested` | tightenPanelOpen | Args: { id: string, action: cut \| shorten \| lower \| leave }: ApplySuggestedActions revise of the latest batch |
-| Go to tighten hit | `tighten.goToHit` | tightenPanelOpen | Args: { id?: string }: seek + select pending |
 
 ## Governance
 

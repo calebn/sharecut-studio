@@ -139,8 +139,6 @@ describe("stageSlice", () => {
     st().openStage("review", { section: "comments" });
     expect(st().stage).toBe("review");
     expect(st().reviewSection).toBe("comments");
-    st().openStage("review", { section: "tighten" });
-    expect(st().reviewSection).toBe("tighten");
   });
 
   it("applies a section or sheet to the current stage without a snapshot", () => {

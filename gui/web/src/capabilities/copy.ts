@@ -44,30 +44,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Resolve comment",
     tooltip: "Resolve this comment",
   },
-  "daw.tighten.applyHit": {
-    label: "Apply tighten hit",
-    tooltip: "Apply the selected tighten cut",
-  },
-  "daw.tighten.skipHit": {
-    label: "Skip tighten hit",
-    tooltip: "Skip the selected tighten cut",
-  },
-  "daw.tighten.applySuggested": {
+  "daw.review.applySuggestedActions": {
     label: "Apply suggested actions",
     tooltip:
-      "Give every listed sound its own suggested action in one undo step",
-  },
-  "daw.tighten.reviseSuggested": {
-    label: "Change an applied sound",
-    tooltip: "Change one sound of the batch just applied, keeping the others",
-  },
-  "daw.tighten.previewHit": {
-    label: "Preview tighten hit",
-    tooltip: "Preview the selected tighten hit",
-  },
-  "daw.tighten.goToHit": {
-    label: "Go to tighten hit",
-    tooltip: "Seek the playhead to a tighten hit",
+      "Give a list of sounds each its own suggested action in one undo step",
   },
   "daw.navigation.nudgePlayheadBack": {
     label: "Nudge playhead back",
@@ -546,7 +526,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "presence.avatarStack": "daw.presence.follow",
   "presence.followBanner": "daw.presence.unfollow",
   "mobileShell.gesture.swipeLeftComment": "daw.review.resolveComment",
-  tightenPanel: "daw.tighten.goToHit",
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",

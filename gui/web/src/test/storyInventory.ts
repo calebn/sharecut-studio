@@ -95,7 +95,6 @@ export const INVENTORY_IDS: readonly string[] = [
   "PNL-HISTORY",
   "PNL-PIPELINE",
   "PNL-REVIEW-QUEUE",
-  "PNL-TIGHTEN",
   "PNL-TRANSCRIPT",
   "POP-CHOOSER",
   "POP-JOIN",

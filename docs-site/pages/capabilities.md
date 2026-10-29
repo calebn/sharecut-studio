@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**130** capabilities · **105** ShareCut Studio commands · **54** keyed · **197** MCP tools · **17** skills on rows (+ **19** hub skills).
+**125** capabilities · **99** ShareCut Studio commands · **50** keyed · **197** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -38,12 +38,6 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Clear selection | session | `edit.clearSelection` | `Escape` | — | — | — | — | — | — | — |
 | Create here | view | `create.menu` | `Shift+F10` | — | — | — | — | — | — | — |
 | Resolve comment | project | `comment.resolve` | — (Direct comment card gesture and button; no standard shortcut) | `swipe-left` | `mobileShell.gesture.swipeLeftComment` | `resolve_comment_tool` | `podcast comment resolve` | — | yes | none · none |
-| Apply tighten hit | project | `tighten.applyHit` | `Enter` | — | `tightenPanel` | `approve_edits_tool` | `podcast edit approve` | `podcast-tighten-dialogue` | — | none · none |
-| Skip tighten hit | project | `tighten.skipHit` | `Backspace` | — | `tightenPanel` | `reject_edits_tool` | `podcast edit reject` | `podcast-tighten-dialogue` | — | none · none |
-| Apply suggested actions | project | `tighten.applySuggested` | `Mod+Shift+Enter` | — | `tightenPanel` | `apply_suggested_actions_tool` | `podcast edit apply-suggested` | `podcast-tighten-dialogue` | — | none · none |
-| Change an applied sound | project | `tighten.reviseSuggested` | — (per-sound select in the last applied batch) | — | `tightenPanel` | `apply_suggested_actions_tool` | `podcast edit apply-suggested` | `podcast-tighten-dialogue` | — | none · none |
-| Preview tighten hit | session | `tighten.previewHit` | `P` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
-| Go to tighten hit | session | `tighten.goToHit` | — (pointer/row action; seek+select) | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |
 | Nudge playhead back | session | `navigation.nudgePlayheadBack` | `ArrowLeft` | — | — | — | — | — | — | — |
 | Nudge playhead forward | session | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — | — |
 | Go to start | session | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
@@ -141,6 +135,7 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 
 | Label | Effect | MCP | CLI | Skill | Host-only |
 | ----- | ------ | --- | --- | ----- | --------- |
+| Apply suggested actions | project | `apply_suggested_actions_tool` | `podcast edit apply-suggested` | `podcast-tighten-dialogue` | yes |
 | Discard recording take | project | `record_discard_take_tool` | `podcast record discard-take` | `podcast-record-session` | yes |
 | Show who lands on which track | session | `record_tracks_tool` | `podcast record tracks` | `podcast-record-session` | yes |
 | Move a person to a track | project | `record_assign_track_tool` | `podcast record assign-track` | `podcast-record-session` | yes |

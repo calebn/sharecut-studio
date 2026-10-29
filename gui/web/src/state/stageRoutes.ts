@@ -72,7 +72,8 @@ export const STAGE_FOR_TAB: Record<PresenceTab, StageTarget> = {
   transcript: { stage: "edit" },
   history: { stage: "edit", sheet: "history" },
   impact: { stage: "review", section: "queue" },
-  tighten: { stage: "review", section: "tighten" },
+  // Older clients in a follow session still send `tighten`; it lands on Queue.
+  tighten: { stage: "review", section: "queue" },
   comments: { stage: "review", section: "comments" },
   pipeline: { stage: "prepare" },
 };

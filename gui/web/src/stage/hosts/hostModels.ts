@@ -12,7 +12,7 @@ export function stageAvailable(stage: StageId, role: StageRole): boolean {
   return stagesForRole(role).includes(stage);
 }
 
-/** Queue and Tighten act on the project; a guest reviews comments. */
+/** Queue acts on the project; a guest reviews comments. */
 export function reviewSectionsFor(role: StageRole): readonly ReviewSection[] {
   return role === "host" ? REVIEW_SECTIONS : ["comments"];
 }

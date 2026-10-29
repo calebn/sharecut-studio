@@ -362,9 +362,6 @@ export interface DawState {
   ) => void;
   /** Source Prepare shows its split prompt for, set by "Split speakers…"; null otherwise. */
   prepareFocusTrackId: string | null;
-  /** Tighten tab Apply-eligible scope for keyboard shortcuts. */
-  tightenApplyScope: { ids: string[] };
-  setTightenApplyScope: (scope: { ids: string[] }) => void;
   /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/editMarkers/EditMarkerLayer.tsx). */
   openJoinId: string | null;
   /**

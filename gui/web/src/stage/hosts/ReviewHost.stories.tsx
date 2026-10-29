@@ -37,7 +37,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Review stage host: Queue, Comments and Tighten as sections of one stage, with the open section kept in the stage slice. A Viewer or Commenter link gets Comments only and no Stage bar.\n\n**Motion.** Switching section swaps the panel in one frame. The saved scroll position of each section returns when it is reopened.",
+          "The Review stage host: Queue and Comments as sections of one stage, with the open section kept in the stage slice. A Viewer or Commenter link gets Comments only and no Stage bar.\n\n**Motion.** Switching section swaps the panel in one frame. The saved scroll position of each section returns when it is reopened.",
       },
     },
   },
@@ -60,8 +60,8 @@ export const Default: Story = {
       await canvas.findByRole("tablist", { name: "Review sections" }),
     ).toBeVisible();
     await expect(
-      canvas.getAllByRole("tab", { name: /Queue|Comments|Tighten/ }).length,
-    ).toBeGreaterThanOrEqual(3);
+      canvas.getAllByRole("tab", { name: /Queue|Comments/ }).length,
+    ).toBeGreaterThanOrEqual(2);
   },
 };
 
@@ -208,8 +208,6 @@ export const GuestViewer: Story = {
       await canvas.findByRole("region", { name: "Comments" }),
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Deliver" })).toBeNull();
-    await expect(
-      canvas.queryByRole("tab", { name: /Tighten|Queue/ }),
-    ).toBeNull();
+    await expect(canvas.queryByRole("tab", { name: /Queue/ })).toBeNull();
   },
 };

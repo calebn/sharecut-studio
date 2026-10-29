@@ -17,7 +17,6 @@ export type Panel =
   | "transcript"
   | "history"
   | "queue"
-  | "tighten"
   | "pipeline"
   | "comments";
 
@@ -41,7 +40,6 @@ const PANEL_HOME: Record<
   transcript: { stage: "edit" },
   history: { stage: "edit", sheet: "history" },
   queue: { stage: "review", section: "Queue" },
-  tighten: { stage: "review", section: "Tighten" },
   pipeline: { stage: "prepare" },
   comments: { stage: "review", section: "Comments" },
 };

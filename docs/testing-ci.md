@@ -331,7 +331,7 @@ with axe before the collected results are asserted.
 | --- | --- | --- | --- | --- | --- |
 | record: keeper capture, upload and landing | `gui/web/e2e-compat/core-flow.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | transcribe: the episode transcript hydrates | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
-| tighten: the panel opens on its empty state | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
+| review: the queue opens on its empty state | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
 | edit: correct a transcript word, then undo it | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
 | share: a viewer plays the per-track MP3 proxies | `gui/web/e2e-compat/core-flow.spec.ts` | Audio playback | Pass | Pass | Not run |
 | export: bounce the mix to a non-silent WAV | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -600,7 +600,7 @@ also has WebKit's `createSyncAccessHandle` working inside a worker. Both are
 harness-only; the app needs no change for either. A WebKit run takes about
 16–18 s end to end, against about 12.5 s on Chromium. The episode transcript
 hydrates; "transcribe" is the browser rendering only, because live ASR is
-server-side (`make e2e-slow`). The Tighten panel opens on its empty state. A
+server-side (`make e2e-slow`). The Review queue opens on its empty state. A
 transcript word is corrected and undone with Mod+Z. A viewer review share
 plays the per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on
 Play). The Bounce section on Deliver passes full-page axe on WebKit (`expectPageAxeClean`) and

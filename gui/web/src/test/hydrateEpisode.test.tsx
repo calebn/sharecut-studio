@@ -81,7 +81,7 @@ describe("hydrateEpisode", () => {
     for (let round = 0; round < 2; round += 1) {
       const cleanup = hydrate({ role: "editor" });
       expect(useDawStore.getState()).not.toBe(before);
-      expect(listRegisteredIds()).toContain("tighten.applyHit");
+      expect(listRegisteredIds()).toContain("stage.review");
       expect(globalThis.fetch).not.toBe(fetch);
       expect(episodeActive()).toBe(true);
       cleanups.pop();

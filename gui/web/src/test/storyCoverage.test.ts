@@ -32,7 +32,6 @@ const COVERED: Record<string, string[]> = {
   "CMP-GUEST-NAME": ["Templates/Editor · Comments panel"],
   "DLG-STEP-PARAMS": ["Stages/Prepare/AdvancedSteps"],
   "PNL-PIPELINE": ["Stages/Prepare/AdvancedSteps", "Stages/Prepare/ReadyList"],
-  "PNL-TIGHTEN": ["Templates/Editor · Tighten panel"],
   "PNL-REVIEW-QUEUE": ["Stages/Review/Host"],
   "PNL-HISTORY": ["Templates/Editor · History panel"],
   "INS-PEEK": ["Templates/Editor · Inspector · Peek"],
@@ -254,7 +253,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(133);
+    expect(INVENTORY_IDS).toHaveLength(132);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });

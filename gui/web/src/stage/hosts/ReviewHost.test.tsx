@@ -51,9 +51,6 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
     wire.rows = wire.rows.filter((r) => !ids.includes(r.command_id));
   },
 }));
-vi.mock("../../panels/TightenPanel", () => ({
-  TightenPanel: () => <div>tighten panel</div>,
-}));
 vi.mock("../../panels/CommentsPanel", () => ({
   CommentsPanel: () => <div>comments panel</div>,
 }));
@@ -523,7 +520,7 @@ describe("Review host decisions", () => {
       "It has a word we're not sure of. Check the word first, then cut.";
     expect(toast()).toMatch(new RegExp(`held 1. filler f2 is held: ${why}$`));
     expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(1);
-    await userEvent.click(screen.getByRole("tab", { name: /Tighten/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /Comments/ }));
     await userEvent.click(screen.getByRole("tab", { name: /Queue/ }));
     expect(decided()).toMatch(/Decided\s*2/);
     await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
@@ -1328,7 +1325,7 @@ describe("Review host unsure words", () => {
     mount();
     await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     await undoButton();
-    await userEvent.click(screen.getByRole("tab", { name: /Tighten/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /Comments/ }));
     await userEvent.click(screen.getByRole("tab", { name: /Queue/ }));
     await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
     expect(screen.getByText(/Unsure word: is this/)).toBeVisible();
