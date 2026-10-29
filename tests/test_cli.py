@@ -358,11 +358,13 @@ def test_info_command(tmp_path):
     assert "episode" in result.stdout
 
 
-def test_info_command_refuses_a_folder_holding_only_the_retired_file(tmp_path):
-    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}", encoding="utf-8")
-    result = runner.invoke(app, ["info", "--project", str(tmp_path)])
-    assert result.exit_code != 0
-    assert "Rename it to episode.sharecut" in result.output
+def test_info_command_renames_a_folder_holding_only_the_retired_file(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    (ws / "episode.sharecut").rename(ws / RETIRED_PROJECT_FILENAME)
+    result = runner.invoke(app, ["info", "--project", str(ws)])
+    assert result.exit_code == 0
+    assert sorted(child.name for child in ws.iterdir() if child.is_file()) == ["episode.sharecut"]
 
 
 def test_info_command_prints_summary_by_default(tmp_path):

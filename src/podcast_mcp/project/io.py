@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -13,27 +15,51 @@ from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
 
+log = logging.getLogger(__name__)
+
 WORKSPACE_COPY_IGNORE = ("artifacts", "history", "_build", ".git")
 RETIRED_PROJECT_FILENAME = "episode.project.json"
 
 
 def _retired_name_refusal() -> CodedValueError:
     return CodedValueError(
-        f"{RETIRED_PROJECT_FILENAME} is no longer opened. "
-        f"Rename it to {EPISODE_PROJECT_FILENAME} and open it again.",
+        f"{RETIRED_PROJECT_FILENAME} could not be renamed automatically. "
+        f"Rename it to {EPISODE_PROJECT_FILENAME} by hand and open it again.",
         code="project_old_filename",
     )
+
+
+def adopt_retired_entry_file(retired: Path) -> Path:
+    """Rename *retired* to ``episode.sharecut`` beside it and return the new path.
+
+    A one-way, one-time upgrade: the bytes are untouched and no old-name lookup
+    survives it. When ``episode.sharecut`` already exists it wins and *retired*
+    is left alone. Losing a race to another process that did the same rename
+    counts as success.
+    """
+    entry = retired.with_name(EPISODE_PROJECT_FILENAME)
+    if entry.exists():
+        return entry
+    try:
+        os.rename(retired, entry)
+    except OSError as exc:
+        if entry.exists():
+            return entry
+        raise _retired_name_refusal() from exc
+    log.info("renamed %s to %s", retired, entry)
+    return entry
 
 
 def resolve_project_path(path: Path | str) -> Path:
     p = Path(path).expanduser().resolve()
     if p.is_dir():
         entry = p / EPISODE_PROJECT_FILENAME
-        if not entry.exists() and (p / RETIRED_PROJECT_FILENAME).is_file():
-            raise _retired_name_refusal()
+        retired = p / RETIRED_PROJECT_FILENAME
+        if not entry.exists() and retired.is_file():
+            return adopt_retired_entry_file(retired)
         return entry
-    if p.name == RETIRED_PROJECT_FILENAME:
-        raise _retired_name_refusal()
+    if p.name == RETIRED_PROJECT_FILENAME and p.is_file():
+        return adopt_retired_entry_file(p)
     return p
 
 

@@ -35,22 +35,75 @@ def test_resolve_project_path_dir(tmp_path):
     assert resolve_project_path(ws).name == "episode.sharecut"
 
 
-def test_resolve_project_path_refuses_the_retired_file_name(tmp_path):
+def test_resolve_project_path_renames_a_folder_holding_only_the_retired_file(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b'{"version": "2.0"}\n')
+    resolved = resolve_project_path(tmp_path)
+    assert resolved == (tmp_path / "episode.sharecut").resolve()
+    assert resolved.read_bytes() == b'{"version": "2.0"}\n'
+    assert sorted(child.name for child in tmp_path.iterdir()) == ["episode.sharecut"]
+
+
+def test_resolve_project_path_renames_the_retired_file_given_directly(tmp_path):
     retired = tmp_path / RETIRED_PROJECT_FILENAME
-    retired.write_text("{}", encoding="utf-8")
-    with pytest.raises(ValueError, match=r"Rename it to episode\.sharecut") as raised:
-        resolve_project_path(retired)
-    assert raised.value.code == "project_old_filename"
-    assert str(raised.value) == (
-        "episode.project.json is no longer opened. Rename it to episode.sharecut and open it again."
+    retired.write_bytes(b"{}")
+    resolved = resolve_project_path(retired)
+    assert resolved == (tmp_path / "episode.sharecut").resolve()
+    assert resolved.read_bytes() == b"{}"
+    assert not retired.exists()
+
+
+def test_resolve_project_path_rename_is_a_no_op_the_second_time(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
+    first = resolve_project_path(tmp_path)
+    second = resolve_project_path(tmp_path)
+    assert first == second == (tmp_path / "episode.sharecut").resolve()
+    assert sorted(child.name for child in tmp_path.iterdir()) == ["episode.sharecut"]
+
+
+def test_resolve_project_path_leaves_the_retired_file_when_the_current_one_exists(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"old")
+    (tmp_path / "episode.sharecut").write_bytes(b"new")
+    assert (
+        resolve_project_path(tmp_path.joinpath(RETIRED_PROJECT_FILENAME))
+        == (tmp_path / "episode.sharecut").resolve()
     )
+    assert (tmp_path / RETIRED_PROJECT_FILENAME).read_bytes() == b"old"
+    assert (tmp_path / "episode.sharecut").read_bytes() == b"new"
 
 
-def test_resolve_project_path_refuses_a_folder_holding_only_the_retired_file(tmp_path):
-    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}", encoding="utf-8")
+def test_resolve_project_path_does_not_rename_a_missing_retired_file(tmp_path):
+    missing = tmp_path / RETIRED_PROJECT_FILENAME
+    assert resolve_project_path(missing) == missing.resolve()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_resolve_project_path_asks_for_a_hand_rename_when_the_rename_fails(tmp_path, monkeypatch):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
+
+    def refuse(src, dst):
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr("podcast_mcp.project.io.os.rename", refuse)
     with pytest.raises(ValueError) as raised:
         resolve_project_path(tmp_path)
     assert raised.value.code == "project_old_filename"
+    assert str(raised.value) == (
+        "episode.project.json could not be renamed automatically. "
+        "Rename it to episode.sharecut by hand and open it again."
+    )
+    assert [child.name for child in tmp_path.iterdir()] == [RETIRED_PROJECT_FILENAME]
+
+
+def test_resolve_project_path_treats_losing_the_rename_race_as_success(tmp_path, monkeypatch):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
+
+    def another_process_wins(src, dst):
+        (tmp_path / "episode.sharecut").write_bytes(b"{}")
+        (tmp_path / RETIRED_PROJECT_FILENAME).unlink()
+        raise FileNotFoundError(src)
+
+    monkeypatch.setattr("podcast_mcp.project.io.os.rename", another_process_wins)
+    assert resolve_project_path(tmp_path) == (tmp_path / "episode.sharecut").resolve()
 
 
 def test_resolve_project_path_prefers_the_current_file_over_a_retired_sibling(tmp_path):
@@ -158,12 +211,11 @@ def test_require_episode_project_file_basename(tmp_path):
         assert "episode.sharecut" in str(exc)
 
 
-def test_require_episode_project_file_refuses_the_retired_name(tmp_path):
+def test_require_episode_project_file_renames_the_retired_name(tmp_path):
     retired = tmp_path / RETIRED_PROJECT_FILENAME
     retired.write_text("{}", encoding="utf-8")
-    with pytest.raises(ValueError, match=r"Rename it to episode\.sharecut") as raised:
-        require_episode_project_file(retired)
-    assert raised.value.code == "project_old_filename"
+    assert require_episode_project_file(retired) == (tmp_path / "episode.sharecut").resolve()
+    assert not retired.exists()
 
 
 def test_require_episode_project_file_dir(tmp_path):
