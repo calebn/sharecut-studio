@@ -535,6 +535,13 @@ export async function inspectSelection(page: Page): Promise<void> {
   }).toPass({ timeout: 20_000 });
 }
 
+/** Open the Inspector for the held selection unless it is already open. */
+export async function ensureInspected(page: Page): Promise<void> {
+  const open = page.locator(".edit-workspace--inspector, .bottom-sheet");
+  if ((await open.count()) > 0) return;
+  await inspectSelection(page);
+}
+
 /** Inspect by its key, for a selection whose bar a pending card covers. */
 export async function inspectSelectionByKey(page: Page): Promise<void> {
   await page.evaluate(() => {
