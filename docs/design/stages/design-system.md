@@ -577,7 +577,7 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Split | `square-split-horizontal` | Mod+K at playhead; Alt-click at pointer | Dock "Split" with nothing selected | Action bar (range, clip), playhead menu, phone dock |
 | Comment (also marker, reply) | `message-square` | C | Tap Comment; long-press = compose with time pinned | Player (all stages), Action bar, Record dock, Decision card (reply), Marker, Review queue |
 | Fix text (also rename) | `text-cursor-input` | F2, or start typing on a selection | Double-tap | Script, Decision card unsure word, marker titles, speaker, project title, session name |
-| Remove (non-audio) | `trash-2` | Backspace or Delete on a non-audio object | Swipe left on list rows | Markers, comments, tracks, envelope points, chapter rows, clip ideas, Home Recent ("Remove from list"), person in room (Confirm in place) |
+| Remove (non-audio) | `trash-2` | Backspace or Delete on a non-audio object | Swipe left on list rows | Markers, comments (not by swipe: swipe left does nothing on a comment), tracks, envelope points, chapter rows, clip ideas, Home Recent ("Remove from list"), person in room (Confirm in place) |
 | Mute | `volume-x` (track, words) / `mic-off` (your mic) | M | Tap | Track header, Mix sheet, Action bar More, Record dock, Person tile |
 | Solo | `headphones` | S | Tap | Track header, Mix sheet, Solo Status pill |
 | Inspect | `sliders-horizontal` | I | Swipe the dock up; double-click the object | Action bar, Prepare Advanced |

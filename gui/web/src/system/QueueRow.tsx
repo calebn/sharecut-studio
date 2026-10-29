@@ -73,7 +73,8 @@ export function QueueRow({
           type: "button" as const,
           onClick: onSelect,
           "aria-label": [
-            decided.text,
+            // The visible text first, time chip included (label in name).
+            time !== undefined ? `${decided.text} ${time}` : decided.text,
             author?.name,
             typeof snippet === "string" ? snippet : "",
           ]
