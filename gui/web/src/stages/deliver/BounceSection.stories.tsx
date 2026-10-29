@@ -142,6 +142,24 @@ export const FixedRange: Story = {
   },
 };
 
+export const FixedRangeWhileRunning: Story = {
+  args: {
+    options: {
+      ...meta.args!.options!,
+      fixedRange: "12.00–18.50 s on host, guest",
+      onClearRange: fn(),
+      state: { phase: "running", progress: 0.4, detail: "Mixing" },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(
+        "Selected range · 12.00–18.50 s on host, guest. This selection is fixed for the next bounce.",
+      ),
+    ).toBeVisible();
+  },
+};
+
 export const Starting: Story = {
   args: {
     options: {
