@@ -76,6 +76,7 @@ from podcast_mcp.util.coded_error import (
 from podcast_mcp.util.project_state import FileRevision, ProjectBusyError, file_revision
 
 log = logging.getLogger(__name__)
+_REFUSED_ADOPTIONS: set[Path] = set()
 
 # Guest DAW audio kinds - never raw (host media paths) or arbitrary kinds.
 _DAW_AUDIO_KINDS = frozenset({"premix", "stem", "processed", "review"})
@@ -715,8 +716,10 @@ def _share_entry_file(row: dict[str, Any]) -> Path:
     workspace = Path(str(row.get("project_workspace") or ""))
     try:
         return adopt_retired_entry_file(workspace)
-    except CodedValueError:
-        log.warning("Cannot rename the retired entry file in %s", workspace, exc_info=True)
+    except (ValueError, RuntimeError, OSError) as exc:
+        if workspace not in _REFUSED_ADOPTIONS:
+            _REFUSED_ADOPTIONS.add(workspace)
+            log.warning("Cannot adopt the entry file in %r", str(workspace), exc_info=exc)
         return workspace / EPISODE_PROJECT_FILENAME
 
 

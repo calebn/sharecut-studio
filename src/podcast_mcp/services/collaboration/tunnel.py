@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 from podcast_mcp.config.runtime import RelayConfig, load_relay_config
 from podcast_mcp.models import load_project
+from podcast_mcp.project.io import adopt_retired_entry_file
 from podcast_mcp.services.collaboration.review_shares import list_usable_shares
 from podcast_mcp.services.collaboration.tunnel_failure import (
     FailureKind,
@@ -754,10 +755,14 @@ def run_tunnel_sync(
 
     ``emit`` receives one line per connection state change (default: ``log.info``).
     The live status snapshot the GUI reads is written to ``tunnel_status_path(cfg)``
-    under the machine cache, whatever ``config_path`` is. SIGINT and SIGTERM stop the
+    under the machine cache, whatever ``config_path`` is. A retired entry file name or a
+    workspace folder in *project_path* is resolved once here, so every reconnect reads the
+    same entry file. SIGINT and SIGTERM stop the
     tunnel cleanly: the snapshot ends Stopped and this function returns.
     Raises ``TunnelError`` on an auth or config failure that retrying cannot fix.
     """
+    if project_path is not None:
+        project_path = adopt_retired_entry_file(project_path)
     cfg = load_relay_config(
         config_path,
         relay_url=relay_url,

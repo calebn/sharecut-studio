@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 
 WORKSPACE_COPY_IGNORE = ("artifacts", "history", "_build", ".git")
 RETIRED_PROJECT_FILENAME = "episode.project.json"
+_WARNED_STRANDED: set[Path] = set()
 
 
 def _retired_name_refusal() -> CodedValueError:
@@ -68,11 +69,14 @@ def adopt_retired_entry_file(location: Path | str) -> Path:
 
 
 def _warn_if_retired_is_newer(entry: Path, retired: Path) -> None:
+    if retired in _WARNED_STRANDED:
+        return
     try:
         newer = retired.stat().st_mtime_ns > entry.stat().st_mtime_ns
     except OSError:
         return
     if newer:
+        _WARNED_STRANDED.add(retired)
         log.warning(
             "%s is newer than %s and is ignored; edits saved by an older build are not loaded",
             retired,
