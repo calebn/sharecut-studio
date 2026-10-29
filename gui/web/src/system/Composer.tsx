@@ -37,13 +37,19 @@ export type ComposerProps = {
   /** Absent: the chip is static text with no clear control. */
   onAnchor?: (intent: AnchorIntent) => void;
   /** Guest first post. A blank name posts as "Guest" (the caller maps it). Never blocks Post. */
-  name?: { value: string; onChange: (value: string) => void };
+  name?: {
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+  };
   /** Offline posts to the queue: the label is "Queue comment" and the offline status glyph shows. */
   state?: ComposerState;
   /** Accessible name of the field. Default "Comment". */
   label?: string;
   submitLabel?: string;
   placeholder?: string;
+  /** Escape in the name or comment field (not during an IME composition). */
+  onEscape?: () => void;
   /** One line that grows to four (reply, phone dock). */
   compact?: boolean;
   /** Focus from outside: C on a mounted card, the guest's first key press. */
@@ -89,6 +95,7 @@ export function Composer(props: ComposerProps) {
     submitLabel = "Post",
     placeholder = "Add a comment",
     compact = false,
+    onEscape,
     inputRef,
   } = props;
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
@@ -109,7 +116,21 @@ export function Composer(props: ComposerProps) {
       ? QUEUE_LABEL
       : submitLabel;
 
+  const escapes = (event: KeyboardEvent): boolean => {
+    if (
+      event.key !== "Escape" ||
+      !onEscape ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    )
+      return false;
+    event.stopPropagation();
+    onEscape();
+    return true;
+  };
+
   const onBodyKeyDown = (event: KeyboardEvent) => {
+    if (escapes(event)) return;
     if (
       event.key !== "Enter" ||
       event.nativeEvent.isComposing ||
@@ -124,6 +145,7 @@ export function Composer(props: ComposerProps) {
   };
 
   const onNameKeyDown = (event: KeyboardEvent) => {
+    if (escapes(event)) return;
     if (
       event.key !== "Enter" ||
       event.nativeEvent.isComposing ||
@@ -156,7 +178,9 @@ export function Composer(props: ComposerProps) {
                 {...control}
                 className="sys-composer-input"
                 value={name.value}
-                placeholder="Name, so the host knows who said it"
+                placeholder={
+                  name.placeholder ?? "Name, so the host knows who said it"
+                }
                 onChange={(event) => name.onChange(event.target.value)}
                 autoComplete="name"
                 enterKeyHint="next"

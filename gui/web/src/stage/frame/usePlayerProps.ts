@@ -165,7 +165,7 @@ export function usePlayerProps(
     onSkip: (seconds) => skipListen(seconds, duration),
     onHearOriginal: guest ? undefined : onHearOriginal,
     // Only a link that may comment gets the button; the command opens the
-    // draft in Comments itself.
+    // draft itself (the Review composer for a host).
     onComment: mayComment
       ? () =>
           runPointerCommand("comment.draftAt", {

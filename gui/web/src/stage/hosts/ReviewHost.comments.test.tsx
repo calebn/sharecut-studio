@@ -843,6 +843,49 @@ describe("Review host comments", () => {
       expect(writes).toBe(1);
     });
 
+    it("refocuses the open field on C when focus has moved off it", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+      act(() => {
+        stage().focus();
+      });
+      expect(field()).not.toHaveFocus();
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+    });
+
+    it("shows no error from a post that was refused after Escape closed the field", async () => {
+      server.refuse.add("AddComment");
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      wire.post.mockImplementation(async (_path: string, body) => {
+        if (body.type === "AddComment") await held;
+        return answer(body);
+      });
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Late{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      fireEvent.keyDown(field(), { key: "Escape" });
+      act(() => {
+        press("c");
+      });
+      release();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      });
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
     it("ignores Escape while an IME composition is open", async () => {
       mount();
       act(() => {

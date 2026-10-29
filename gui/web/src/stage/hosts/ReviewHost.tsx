@@ -102,7 +102,8 @@ function ReviewHostAdapter({
 }
 
 /**
- * The Review stage host: Queue and Comments sections. A guest sees
- * Comments only, because the others act on the project.
+ * The Review stage host: the Queue alone, where a host's comments are items
+ * and the comment field opens. A guest sees the Comments section only,
+ * because the queue acts on the project.
  */
 export const ReviewHost = memo(ReviewHostAdapter);
