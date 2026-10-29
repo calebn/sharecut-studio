@@ -670,14 +670,17 @@ a project with any clip fade over 1 s is never cached), and for a pause at least
 to the words its check observes, the words there, the span the pause is observed over (its two
 ends, which the longest fade of any clip, also one ending before the window, can widen), the edit
 log's pad records it reads (#2439). A pad-purpose record with no `pad_samples` is hashed. So is
-`pad_samples` that is not a list, on any record. For a record with a list, each sample is hashed if
+`pad_samples` that is neither a list nor a tuple, on any record. For a list or tuple, each sample is hashed if
 it is malformed, or if its range is invalid (non-finite, below 0 or not increasing). The check
 applies `pad_sample_range` to a sample only when it is on the pause's own recording, so the key
 hashes an invalid-range sample whole whatever recording it names (for another recording that is
 more than needed, and harmless). A sample is also hashed if its source range is within that reach,
-or if its recording does not resolve (also when far). Only a valid, resolvable, far sample is left
-out, and so is a record without samples that is not a pad. The key also hashes the recordings'
-file revisions, the policy tables and the speaker-profile files. The key also
+or if its recording does not resolve (also when far). Every well-formed sample's recording is
+resolved before range classification. If that recording becomes unavailable, the key includes
+an unresolved marker even for near or invalid-range samples. Restoring resolution removes the
+marker. Only a valid, resolvable, far sample is left out, and so is a record without samples that
+is not a pad. The key also hashes the recordings' file revisions, the policy tables and the
+speaker-profile files. The key also
 covers the fade ramp ends outside that window of the clips from the window start onward (a clip
 past it, or the far end of one straddling it), hashed on the source clock with the words around
 them, because the check assesses every ramp; clips ending before the window are excluded, since a

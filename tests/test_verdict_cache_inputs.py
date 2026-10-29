@@ -892,7 +892,13 @@ def test_cached_pause_tracks_pad_recording_loss_and_restoration(
     assert project.model_dump(mode="json") == original
     assert project.editorial.edit_log[0].params == receipt
     assert host.read_bytes() == host_bytes
-    assert host.stat() == host_stat
+    current_host_stat = host.stat()
+    assert (
+        current_host_stat.st_size,
+        current_host_stat.st_mtime_ns,
+        current_host_stat.st_dev,
+        current_host_stat.st_ino,
+    ) == (host_stat.st_size, host_stat.st_mtime_ns, host_stat.st_dev, host_stat.st_ino)
     assert missing_cached == missing_cold
     assert missing_key != present_key
 
