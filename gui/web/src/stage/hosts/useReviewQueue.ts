@@ -27,7 +27,7 @@ import {
   type WordTarget,
   wordIdOf,
 } from "../../review/reviewItems";
-import { verbOf } from "../../review/reviewQueueModel";
+import { kindInFilter, verbOf } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
 import { commentRole, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -170,7 +170,7 @@ export function useReviewQueue() {
   const onFilter = useStableCallback(session.props.onFilter);
   const land = useStableCallback((id: string) => {
     if (open.find((e) => e.item.id === id)?.item.result) return;
-    onFilter("all");
+    if (!kindInFilter("comment", session.props.filter)) onFilter("all");
     select(id);
   });
   useEffect(() => {
