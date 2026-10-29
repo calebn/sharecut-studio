@@ -485,8 +485,12 @@ class TranscriptionEngine:
         options: AsrOptions | None = None,
         *,
         defaults: EffectiveConfig,
+        cpu_threads: int | None = None,
     ) -> None:
         self.model_size = validate_whisper_model(model_size)
+        # None leaves the thread count to CTranslate2; a fixed count keeps CPU results the same
+        # across machines.
+        self.cpu_threads = cpu_threads
         if device not in ("auto", "cpu", "cuda"):
             raise CodedValueError(
                 f"Unknown Whisper device {device!r}. Choose auto, cpu or cuda",
@@ -545,12 +549,14 @@ class TranscriptionEngine:
         return self.placement
 
     def _load_model(self, factory: Any, model_path: str, placement: WhisperPlacement) -> Any:
+        threads = {} if self.cpu_threads is None else {"cpu_threads": self.cpu_threads}
         return factory(
             model_path,
             device=placement.device,
             compute_type=placement.compute_type,
             download_root=str(whisper_cache_dir()),
             local_files_only=True,
+            **threads,
         )
 
     def _fall_back_to_cpu(self, why: str, exc: BaseException | None = None) -> None:
@@ -768,7 +774,9 @@ class TranscriptionEngine:
         """What the model hears in 16 kHz mono ``samples`` taken alone, as one string.
 
         No VAD and no earlier text to condition on: the model sees only this audio, so a
-        sound that is not a word comes back as a filler or nothing.
+        sound that is not a word comes back as a filler or nothing. Temperature 0 only: the
+        default fallback ladder samples from a shared random generator, so the same span
+        could read as a word on one call and not on the next (#2632).
         """
 
         def run() -> str:
@@ -778,6 +786,7 @@ class TranscriptionEngine:
                 initial_prompt=initial_prompt,
                 vad_filter=False,
                 condition_on_previous_text=False,
+                temperature=0.0,
             )
             return " ".join(segment.text.strip() for segment in segments).strip()
 
