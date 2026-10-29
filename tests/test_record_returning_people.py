@@ -1552,3 +1552,177 @@ def test_a_removed_persons_bed_only_ack_does_not_block_the_restore(
     RecordControlService(ws).discard_take(1)
     row = _row(ws, room)
     assert (row.track_ids, row.track_follows) == ([track_a], {})
+
+
+def _rejoin(ws, room, name: str = "Sam's iPad") -> str:
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    return _join_guest(svc, room, name, 7)
+
+
+def _gone_sam(ws, *, acked: bool = False, bed: bool = False, target=None):
+    room = ShareService(ws).create_record_room(target=target)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    sam = _join_guest(svc, room, "Sam", 0)
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    if acked:
+        _ack(ws, room, sam, 0)
+    if bed:
+        _bed_only(ws, room, sam)
+    return room, sam
+
+
+def test_a_rejoiner_takes_a_removed_persons_track_when_nothing_is_left_to_land(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, sam = _gone_sam(ws)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    out = RecordControlService(ws).assign_track(new, track)
+    assert out["reason"] == "host_choice" and out["track_id"] == track
+    assert _by_pid(ws)[sam]["track_id"] != track
+
+
+def test_a_removed_person_still_holds_the_track_after_undoing_the_staging_land(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, [sam] = _room(ws, ["Sam"], target=INSERT, land=True)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    HistoryService(ws).undo()
+    ws.reload()
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(new, track)
+    assert caught.value.code == "track_taken"
+
+
+def test_the_stale_landed_flag_only_holds_the_track_for_a_staged_target(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, [sam] = _room(ws, ["Sam"], land=True)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    HistoryService(ws).undo()
+    ws.reload()
+    out = RecordControlService(ws).assign_track(new, track)
+    assert out["reason"] == "host_choice"
+
+
+def test_a_present_persons_acked_bed_holds_the_track(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, _sam = _gone_sam(ws, bed=True)
+    new = _rejoin(ws, room)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(new, track)
+    assert caught.value.code == "track_taken"
+
+
+def test_a_removed_persons_bed_only_recording_does_not_hold_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, sam = _gone_sam(ws, bed=True)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    assert RecordControlService(ws).assign_track(new, track)["reason"] == "host_choice"
+
+
+def test_a_removed_person_with_an_unlanded_take_holds_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track = _sam_project(ws)
+    room, sam = _gone_sam(ws, acked=True)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(new, track)
+    assert caught.value.code == "track_taken"
+
+
+def _placed_bed_then_gone(ws, *, this_session: bool):
+    track = _sam_project(ws)
+    room, sam = _gone_sam(ws, bed=True)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    if not this_session:
+
+        def earlier(p) -> None:
+            bed = p.track_by_id(track).room_tone
+            assert bed is not None
+            p.track_by_id(track).room_tone = bed.model_copy(
+                update={"path": f"raw/room-tone/earlier/{sam}.wav"}
+            )
+
+        ws.mutate("earlier", "earlier", earlier)
+    new = _rejoin(ws, room)
+    _remove(ws, room, sam)
+    return track, new
+
+
+def test_a_removed_person_with_a_bed_placed_in_this_session_holds_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track, new = _placed_bed_then_gone(ws, this_session=True)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(new, track)
+    assert caught.value.code == "track_taken"
+
+
+def test_a_removed_person_with_a_bed_from_an_earlier_session_does_not_hold_the_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track, new = _placed_bed_then_gone(ws, this_session=False)
+    assert RecordControlService(ws).assign_track(new, track)["reason"] == "host_choice"
+
+
+def test_pending_rows_name_the_people_land_copies(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import re
+
+    from podcast_mcp.services.record import landing
+    from podcast_mcp.services.record.landing_math import record_source_prefix
+
+    ws = _seed(minimal_project, sample_wav)
+    room, [ava, ben] = _room(ws, ["Ava", "Ben"])
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    cy = _join_guest(svc, room, "Cy", 5)
+    for pid in (ava, ben, cy):
+        _bed_only(ws, room, pid)
+    _remove(ws, room, ben)
+    _remove(ws, room, cy)
+    seen: list[tuple[set[str], set[str]]] = []
+    real = landing.pending_rows
+
+    def spy(*args, **kwargs):
+        segments, beds = real(*args, **kwargs)
+        seen.append(
+            ({str(r["participant_id"]) for r in segments}, {str(r["participant_id"]) for r in beds})
+        )
+        return segments, beds
+
+    monkeypatch.setattr(landing, "pending_rows", spy)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    pattern = re.compile(rf"^{re.escape(record_source_prefix(room['session_id']))}\d+-(.+)-\d+$")
+    clip_people = {m.group(1) for c in ws.project.clips if (m := pattern.match(c.source_id or ""))}
+    bed_people = {
+        pid
+        for pid in (ava, ben, cy)
+        for t in ws.project.tracks
+        if t.room_tone is not None and t.room_tone.path.endswith(f"/{pid}.wav")
+    }
+    assert seen == [({ava, ben}, {ava, ben})]
+    assert (clip_people, bed_people) == seen[0]
