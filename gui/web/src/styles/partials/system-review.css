@@ -508,6 +508,28 @@ button.sys-queue-row--decided {
   line-height: 1.65;
 }
 
+/* Compact: the 320 px card in an Edit Sheet */
+
+.sys-decision[data-layout="compact"] {
+  max-inline-size: 20rem;
+  margin-inline: 0;
+  border-radius: var(--radius-lg);
+}
+
+.sys-decision[data-layout="compact"] .sys-decision-body {
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.sys-decision[data-layout="compact"] .sys-wave {
+  block-size: 4rem;
+  margin-inline: 0;
+}
+
+.sys-decision[data-layout="compact"] .sys-actions--inline {
+  padding: var(--space-3) var(--space-4);
+}
+
 .sys-decision-reveal {
   position: absolute;
   inset: 0;
