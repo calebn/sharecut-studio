@@ -481,7 +481,7 @@ def test_non_finite_duration_is_dropped_and_the_response_renders(local, tmp_path
     assert res.json()["projects"][0]["duration_sec"] is None
 
 
-def test_a_lone_surrogate_path_never_fails_the_list(local, tmp_path):
+def test_a_path_json_cannot_carry_is_dropped_from_the_list_and_the_file(local, tmp_path):
     good = _make(tmp_path, "good")
     recent.record_recent(good)
     bad = tmp_path / "config" / "recent_projects.json"
@@ -490,14 +490,8 @@ def test_a_lone_surrogate_path_never_fails_the_list(local, tmp_path):
     bad.write_text(json.dumps(data), encoding="utf-8")
     res = local.get("/api/projects/recent")
     assert res.status_code == 200
-    by_name = {c["name"]: c for c in res.json()["projects"]}
-    broken = by_name["\ufffd"]
-    assert broken["path"] == "/x/\ufffd/episode.project.json"
-    assert broken["opened_at"] == "t\ufffd"
-    assert broken["chip"]["text"] == "Needs attention"
-    assert broken["folder_missing"] is False
-    assert by_name["good"]["path"] == str(good.resolve())
-    assert [e.path for e in recent.read_recent()][-1] == "/x/\ud800/episode.project.json"
+    assert [c["name"] for c in res.json()["projects"]] == ["good"]
+    assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
 
 
 def test_a_lone_surrogate_project_name_is_cleaned_on_its_card(local, tmp_path):

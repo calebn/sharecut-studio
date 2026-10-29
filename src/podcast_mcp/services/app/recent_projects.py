@@ -320,8 +320,6 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
         "edited_at": None,
         "peaks": [],
     }
-    if base["path"] != entry.path:
-        return _attention_card(base)
     try:
         stat = project_file.stat()
     except OSError:
@@ -361,8 +359,24 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
 def recent_project_cards(jobs: Any = None) -> list[dict[str, Any]]:
     """Card data for Home, newest first. *jobs* is the host job manager when one is running."""
     entries = read_recent()
+    unnamed = [e for e in entries if _clean(e.path) != e.path]
+    if unnamed:
+        entries = _drop_unnamed(unnamed)
     _prune_summaries(entries)
     return [_card(entry, jobs) for entry in entries]
+
+
+def _drop_unnamed(unnamed: list[RecentEntry]) -> list[RecentEntry]:
+    """Forget paths JSON cannot carry (non-UTF-8 folder names): no card could open or forget them."""
+    gone = {e.path for e in unnamed}
+    try:
+        with _LOCK:
+            kept = [e for e in read_recent() if e.path not in gone]
+            _write(kept)
+            return kept
+    except OSError:
+        log.warning("Cannot save the recent projects list at %s", recent_projects_path())
+        return [e for e in read_recent() if e.path not in gone]
 
 
 def default_workspace_dir(name: str) -> Path:
