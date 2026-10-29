@@ -652,7 +652,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   (formats, progress with Cancel export, then the written files) instead of
   starting from one menu tap; the phone Listen hero carries the Menu; the Menu
   keeps Bounce… and Export deliverables… together between New / Open and
-  Share (Record is a stage in the Stage bar); the command palette is **Commands and shortcuts**,
+  Share / Record room (Record has since become a stage in the Stage bar); the command palette is **Commands and shortcuts**,
   searchable from **?** or More → **Search commands**.
 - 2026-10-07 — Feedback primitives (#1031): every announcement shows in the
   app toast with a scoped Undo where history recorded the change; the last
