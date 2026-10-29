@@ -19,7 +19,6 @@ export type OpenOtherProps = {
   onChooseFolder: () => void;
   onPathChange: (path: string) => void;
   onSubmit: () => void;
-  /** The popover was closed by Escape or the trigger. */
   onClose?: () => void;
 };
 
