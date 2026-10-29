@@ -447,10 +447,6 @@ with axe before the collected results are asserted.
 | guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped saved feedback pauses its remaining visible lifetime | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | compact header queues Undo behind a pending save | `gui/web/e2e-compat/compact-save-refusal.spec.ts` | Core flow | Pass | Pass | Not run |
-| the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the Cut button of the blade confirmation can be tapped at 32px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the Cut button of the blade confirmation can be tapped at 16px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the Cut button of the blade confirmation can be tapped at 32px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a held nudge repeats, saves once, and one Undo restores it | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | a held nudge stops at a soft boundary with a cue; a fresh press goes past | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | pending and envelope strips: nudge rows and targets (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |

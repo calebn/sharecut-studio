@@ -71,10 +71,6 @@ async function cutThenUndo(
     .click();
   // A phone has no Alt key: the palette runs the same split at the playhead.
   await runPaletteCommand(page, "Blade cut");
-  await page
-    .getByRole("dialog", { name: /^Cut at/ })
-    .getByRole("button", { name: "Cut", exact: true })
-    .click();
   await expect.poll(clipCount).toBeGreaterThan(before);
   await expect.poll(mixCurrent, { timeout: 60_000 }).toBe(true);
   await beforeUndo();

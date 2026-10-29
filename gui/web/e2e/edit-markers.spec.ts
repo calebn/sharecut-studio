@@ -413,7 +413,6 @@ test("a chip still zooms with Alt held: it is not a split", async ({
   await page.locator(`${lane} .edit-chip`).click({ modifiers: ["Alt"] });
   await expect(page.locator(`${lane} .edit-chip`)).toHaveCount(0);
   expect(await rulerWidthPx(page)).toBeGreaterThan(before);
-  await expect(page.getByRole("dialog", { name: /^Cut at / })).toHaveCount(0);
 });
 
 /**

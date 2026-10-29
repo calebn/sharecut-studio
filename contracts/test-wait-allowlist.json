@@ -11,7 +11,6 @@
     "gui/web/e2e-compat/compact-save-refusal.spec.ts": 4,
     "gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts": 3,
     "gui/web/e2e-compat/precision-drag.spec.ts": 13,
-    "gui/web/e2e-compat/touch-chrome-reach.spec.ts": 3,
     "gui/web/e2e-compat/touch-grammar.spec.ts": 24,
     "gui/web/e2e-compat/touch-nudge.spec.ts": 4,
     "gui/web/e2e-compat/touch-peek.spec.ts": 39,
