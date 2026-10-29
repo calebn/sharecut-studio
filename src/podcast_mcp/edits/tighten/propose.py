@@ -120,6 +120,34 @@ def _edit_payload(
     return row
 
 
+def held_summary_suffix(count: int) -> str:
+    return (
+        f"; {count} of them the audio checks would hold "
+        "(`podcast edit held` lists each with its reason)"
+    )
+
+
+def with_audio_check(
+    payload: dict[str, Any], held: dict[str, str], checked: bool
+) -> dict[str, Any]:
+    """The proposal payload with each row's audio check and the hold suffix, as ``TightenProposal`` builds it."""
+    if not checked:
+        return payload
+    edits = [
+        {
+            **row,
+            "audio_check": (
+                {"status": "held", "reason": held[row["id"]]}
+                if row["id"] in held
+                else {"status": "clean"}
+            ),
+        }
+        for row in payload["edits"]
+    ]
+    summary = payload["summary"] + held_summary_suffix(len(held)) if held else payload["summary"]
+    return {**payload, "edits": edits, "summary": summary}
+
+
 @dataclass(frozen=True)
 class TightenProposal:
     """Pending filler/pause decisions plus counted discourse and backchannel skips."""
@@ -142,10 +170,7 @@ class TightenProposal:
     def summary(self) -> str:
         text = format_tighten_propose_summary(self.decisions, self.skip_counts)
         if self.held:
-            text += (
-                f"; {len(self.held)} of them the audio checks would hold "
-                "(`podcast edit held` lists each with its reason)"
-            )
+            text += held_summary_suffix(len(self.held))
         return text
 
     def to_payload(self) -> dict[str, Any]:

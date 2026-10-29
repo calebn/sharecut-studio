@@ -22,7 +22,7 @@ if TYPE_CHECKING:
         cross_process_bridge,
         cross_process_lease,
     )
-    from podcast_mcp.services.document.edit import EditService
+    from podcast_mcp.services.document.edit import EditService, with_audio_check
     from podcast_mcp.services.document.episode import EpisodeService
     from podcast_mcp.services.document.golden_ear import (
         DEFAULT_LIMIT,
@@ -84,6 +84,7 @@ __all__ = [
     "run_comment_mutation_with_file_revisions",
     "score_golden_ear",
     "warm_in_background",
+    "with_audio_check",
 ]
 
 _MODULE_BY_NAME = {
@@ -101,6 +102,7 @@ _MODULE_BY_NAME = {
     "cross_process_lease": "cross_process_sync",
     "warm_in_background": "approval_warm",
     "EditService": "edit",
+    "with_audio_check": "edit",
     "EpisodeService": "episode",
     "DEFAULT_LIMIT": "golden_ear",
     "LISTEN_DIRNAME": "golden_ear",
