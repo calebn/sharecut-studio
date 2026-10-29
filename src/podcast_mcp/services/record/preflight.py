@@ -115,8 +115,9 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
                 saving.add(index)
         # Each consenting recorded person owes the segments they reported (a guest with no report,
         # the inferred count); none yet is "saving" for the grace window after Stop, then stalled.
-        # A removed person with no upload at all is not known.
-        for pid in take.consented_participant_ids:
+        # A removed person with no upload at all is not known. A guest who reported and then
+        # declined is no longer consented but still owes what they reported.
+        for pid in dict.fromkeys([*take.consented_participant_ids, *take.segment_reports]):
             person = by_pid.get(pid)
             if person is None or person.removed:
                 continue
