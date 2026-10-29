@@ -228,6 +228,8 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--action-bar-height-touch": "2.75rem",
   "--action-dock-height": "4rem",
   "--tab-bar-height": "3.5rem",
+  "--stage-tab-width": "6rem",
+  "--stage-tab-width-tablet": "5.5rem",
   "--space-7": "2rem",
   "--space-8": "3rem",
   "--content-max-wide": "65rem",

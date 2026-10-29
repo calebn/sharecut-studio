@@ -41,6 +41,25 @@ test("System/AppHeader shows icons only for inactive stages under 1100", async (
   expect(edit?.width ?? 0).toBeGreaterThan(20);
 });
 
+for (const [shell, width, tab] of [
+  ["desktop", 1280, 96],
+  ["tablet", 1150, 88],
+] as const) {
+  test(`System/AppHeader stage tabs are ${tab} px wide on the ${shell} shell`, async ({
+    page,
+  }) => {
+    await open(page, "system-appheader--host", width);
+    await page.evaluate((value) => {
+      document.documentElement.dataset.shell = value;
+    }, shell);
+    const prepare = page.getByRole("tab", { name: /^Prepare/ });
+    await expect(prepare).toBeVisible();
+    await expect
+      .poll(async () => (await prepare.boundingBox())?.width)
+      .toBe(tab);
+  });
+}
+
 for (const [story, label] of [
   ["system-stagebar--record-live-phone", "live"],
   ["system-stagebar--record-live-phone-hour", "live over an hour"],
