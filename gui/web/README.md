@@ -181,9 +181,11 @@ view the live `ShareDialog` adapter renders. Stories use fictional
 `hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
 clipboard and the record-panel handoff, and the view owns the in-place Stop
 sharing and End room confirmations.
-`Templates/BounceDialog` renders `BounceDialogView`, the same view the live
-`BounceDialog` adapter renders; the adapter keeps the bounce job start/follow
-and DAW selection state.
+`Stages/Deliver/Bounce` renders the props-only `BounceSection` of the Deliver
+stage. The Deliver host (`stage/hosts/DeliverStage.tsx`) hands it the project's
+selected tracks, solo set, session region and fixed range, and
+`BounceFlowProvider` in `DawApp` starts and follows the bounce job, so leaving
+Deliver does not stop it.
 
 `Organisms/LoadingScreen` and `Organisms/ErrorScreen` show the shared cover
 screens, and `Atoms/CloseButton` shows the one close affordance `Dialog` and

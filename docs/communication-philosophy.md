@@ -374,8 +374,8 @@ the empty state, not a separate discovery task.
   silent.
 - **Heavyweight actions get a dialog, not a menu item.** Starting a
   minutes-long mastered export from one menu tap with no cancel is
-  the wrong weight for the interaction — give it the bounce-dialog
-  treatment. (Surface 5.)
+  the wrong weight for the interaction — give it a Deliver section with
+  a progress row and Cancel. (Surface 5.)
 
 ## Copy patterns for buttons and links
 
@@ -587,6 +587,8 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
 shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
+
+- 2026-10-29 Bounce moved from a dialog into the Deliver stage (#2449): the section holds the Source choice, the region and MP3 toggles and a range fixed in Edit, shows progress with Cancel, and lists the files it wrote. **Bounce…**, `Mod+Shift+B` and Range actions → Bounce go to Deliver and focus it.
 
 - 2026-10-28 Added "Why lines on suggestions" (#2293): one plain sentence per suggested edit, with a copy table pinned to the code by a test.
 
