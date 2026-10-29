@@ -926,7 +926,7 @@ describe("Review host unsure words", () => {
     await waitFor(() => expect(order).toContain("done"));
     await waitFor(() =>
       expect(toast()).toMatch(
-        /^Fixed “uncle” to “oncle”\. The transcript check could not be kept/,
+        "Fixed “uncle” to “oncle”. The transcript check could not be kept. Mark it checked again.",
       ),
     );
   });
@@ -942,6 +942,29 @@ describe("Review host unsure words", () => {
     expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
     expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+  });
+
+  it("frees the cuts that hold a word even when no fresh project arrives", async () => {
+    server.omitSnapshot = true;
+    setup("done");
+    await pick(/gnu/);
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(1));
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+  });
+
+  it("brings the check back when undoing a Fix makes the record stale", async () => {
+    setup("done");
+    await pick(/uncle/);
+    await fix("oncle");
+    await waitFor(() => expect(order).toContain("done"));
+    expect(screen.queryByRole("region", { name: "Checks" })).toBeNull();
+    server.status = "pending";
+    await userEvent.click(await undoButton());
+    await checks();
   });
 
   it("re-waives a waived check with its notes", async () => {
