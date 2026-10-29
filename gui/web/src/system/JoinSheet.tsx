@@ -1,11 +1,4 @@
-import {
-  type FormEvent,
-  type ReactNode,
-  type RefObject,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { Button } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -29,7 +22,7 @@ import { MicRow } from "./MicRow";
 import { PersonAvatar, type PersonData } from "./Person";
 import type { RoomRole } from "./roomViewModel";
 import { Sheet } from "./Sheet";
-import { StatusRow } from "./StatusRow";
+import { SheetRow } from "./SheetRow";
 import { SystemIcon } from "./SystemIcon";
 
 type JoinHere = { person: PersonData; role: RoomRole };
@@ -63,37 +56,6 @@ export type JoinSheetProps = {
   /** Not now, Escape and Close all decline. */
   onDecline: () => void;
 };
-
-function Row({
-  row,
-  onAction,
-  children,
-}: {
-  row: JoinRow;
-  onAction?: (kind: NonNullable<JoinRow["action"]>["kind"]) => void;
-  children?: ReactNode;
-}) {
-  const { action } = row;
-  return (
-    <div className="sys-join-row" data-step={row.key} tabIndex={-1}>
-      <StatusRow
-        state={row.state}
-        title={row.title}
-        detail={row.detail}
-        action={
-          action
-            ? {
-                label: action.label,
-                name: action.name,
-                onAction: () => onAction?.(action.kind),
-              }
-            : undefined
-        }
-      />
-      {children ? <div className="sys-join-control">{children}</div> : null}
-    </div>
-  );
-}
 
 function Consent({
   host,
@@ -282,26 +244,28 @@ export function JoinSheet({
         ) : null}
         {guest ? (
           <>
-            {blocker ? <Row row={rowOf("storage")} onAction={act} /> : null}
-            <Row row={rowOf("name")}>{nameField}</Row>
-            <Row row={rowOf("mic")} onAction={act}>
+            {blocker ? (
+              <SheetRow row={rowOf("storage")} onAction={act} />
+            ) : null}
+            <SheetRow row={rowOf("name")}>{nameField}</SheetRow>
+            <SheetRow row={rowOf("mic")} onAction={act}>
               <MicRow
                 mic={mic}
                 notes={guestModel.micNotes}
                 onInputChange={onInputChange}
               />
-            </Row>
-            <Row row={rowOf("headphones")}>
+            </SheetRow>
+            <SheetRow row={rowOf("headphones")}>
               <HeadphonesToggle
                 pressed={headphones}
                 onChange={onHeadphonesChange}
               />
-            </Row>
+            </SheetRow>
             <Consent host={host} listeners={listenersLine(here)} />
           </>
         ) : (
           <>
-            <Row row={producerModel.row}>{nameField}</Row>
+            <SheetRow row={producerModel.row}>{nameField}</SheetRow>
             <p className="sys-join-line sys-join-listen">
               <SystemIcon name="headphones" size={24} />
               {JOIN_TEXT.producerLine}

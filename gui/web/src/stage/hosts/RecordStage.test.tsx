@@ -538,6 +538,45 @@ describe("Record stage capture and storage", () => {
       }),
     );
     expect(onRetryMic).toHaveBeenCalledOnce();
+    expect(within(dialog).getByText(MIC_DENIED_COPY)).toBeVisible();
+  });
+
+  it("keeps the input locked while Stop's keeper flush settles", async () => {
+    const devices = [
+      { deviceId: "a", label: "USB Mic", kind: "audioinput" },
+      { deviceId: "b", label: "Headset", kind: "audioinput" },
+    ] as MediaDeviceInfo[];
+    const capture = {
+      stream: {} as MediaStream,
+      micStatus: "granted" as const,
+      devices,
+      deviceId: "a",
+    };
+    setRoom({
+      state: "stopped",
+      take_index: 0,
+      participants: [hostPerson()],
+    });
+    const { unmount } = mount({ ...capture, keeperFinalizing: true });
+    await openDevices();
+    expect(screen.getByLabelText("Input")).toBeDisabled();
+    unmount();
+    mount(capture);
+    await openDevices();
+    expect(screen.getByLabelText("Input")).toBeEnabled();
+  });
+
+  it("closes Devices when the room goes away, so the next room starts without it", async () => {
+    setRoom({ participants: [hostPerson()] });
+    mount({ stream: {} as MediaStream });
+    await openDevices();
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Devices" })).toBeNull(),
+    );
+    act(() => setRoom({ participants: [hostPerson()] }));
+    await screen.findByRole("button", { name: "More" });
+    expect(screen.queryByRole("dialog", { name: "Devices" })).toBeNull();
   });
 
   it("shows microphone denial guidance and retries it", async () => {

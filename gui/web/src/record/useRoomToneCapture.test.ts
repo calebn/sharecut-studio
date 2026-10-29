@@ -287,4 +287,25 @@ describe("useRoomToneCapture", () => {
     });
     expect(transport.puts).toBe(1);
   });
+
+  it("cancels a capture in flight when it is disabled, such as a take starting", async () => {
+    encode.mockImplementationOnce(
+      (_stream: MediaStream, { signal }: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason));
+        }),
+    );
+    const { result, rerender } = renderHook(
+      (props: { enabled: boolean }) =>
+        useRoomToneCapture(hookArgs({ enabled: props.enabled })),
+      { initialProps: { enabled: true } },
+    );
+    act(() => {
+      result.current.record();
+    });
+    expect(result.current.status).toBe("capturing");
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    expect(result.current.error).toBeNull();
+  });
 });

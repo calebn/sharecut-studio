@@ -53,6 +53,7 @@ function Harness({ deviceId }: { deviceId: string }) {
 
 describe("guest input change with the real mic hook", () => {
   beforeEach(() => {
+    getUserMedia.mockClear();
     for (const key of Object.keys(waiters)) delete waiters[key];
     immediate.clear();
     immediate.add("a");

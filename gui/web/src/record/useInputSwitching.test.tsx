@@ -96,4 +96,14 @@ describe("useInputSwitching", () => {
     rerender(<Harness stream={null} status="idle" deviceId="b" {...props} />);
     expect(screen.queryByLabelText("Input")).toBeNull();
   });
+
+  it("forgets the old input when the mic is released, so a later pick is not a switch", () => {
+    const props = { onPick: () => {} };
+    const { rerender } = render(
+      <Harness stream={streamA} status="granted" deviceId="a" {...props} />,
+    );
+    rerender(<Harness stream={null} status="idle" deviceId="a" {...props} />);
+    rerender(<Harness stream={null} status="idle" deviceId="b" {...props} />);
+    expect(screen.queryByLabelText("Input")).toBeNull();
+  });
 });

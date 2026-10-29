@@ -11,7 +11,7 @@ import { HeadphonesToggle } from "./HeadphonesToggle";
 import type { JoinMicAction } from "./joinSheetModel";
 import { MicRow } from "./MicRow";
 import { Sheet } from "./Sheet";
-import { StatusRow } from "./StatusRow";
+import { SheetRow } from "./SheetRow";
 
 export type DeviceSheetProps = {
   /** `phone` is the bottom sheet; `desktop` a centred card. */
@@ -50,7 +50,6 @@ export function DeviceSheet({
 }: DeviceSheetProps) {
   const [detent, setDetent] = useState<DrawerDetent>("full");
   const model = deviceSheetModel({ mic, micNotes, headphones, tone });
-  const { action } = model.mic;
   return (
     <Sheet
       form={viewerWidth === "phone" ? "bottom" : "centered"}
@@ -61,60 +60,34 @@ export function DeviceSheet({
       onClose={onClose}
     >
       <div className="sys-join" data-state={model.state}>
-        <div className="sys-join-row">
-          <StatusRow
-            state={model.mic.state}
-            title={model.mic.title}
-            detail={model.mic.detail}
-            action={
-              action
-                ? {
-                    label: action.label,
-                    name: action.name,
-                    onAction: () => {
-                      if (action.kind !== "blocker") onMicAction?.(action.kind);
-                    },
-                  }
-                : undefined
-            }
+        <SheetRow
+          row={model.mic}
+          onAction={(kind) => {
+            if (kind !== "blocker") onMicAction?.(kind);
+          }}
+        >
+          <MicRow
+            mic={model.control}
+            notes={model.micNotes}
+            onInputChange={onInputChange}
           />
-          <div className="sys-join-control">
-            <MicRow
-              mic={model.control}
-              notes={model.micNotes}
-              onInputChange={onInputChange}
-            />
-          </div>
-        </div>
+        </SheetRow>
         {onHeadphonesChange ? (
-          <div className="sys-join-row">
-            <StatusRow
-              state={model.headphones.state}
-              title={model.headphones.title}
+          <SheetRow row={model.headphones}>
+            <HeadphonesToggle
+              pressed={headphones}
+              onChange={onHeadphonesChange}
             />
-            <div className="sys-join-control">
-              <HeadphonesToggle
-                pressed={headphones}
-                onChange={onHeadphonesChange}
-              />
-            </div>
-          </div>
+          </SheetRow>
         ) : null}
-        <div className="sys-join-row">
-          <StatusRow
-            state={model.toneRow.state}
-            title={model.toneRow.title}
-            detail={model.toneRow.detail}
-          />
-          <div className="sys-join-control">
-            <Button
-              disabledReason={tone.disabledReason}
-              onClick={onRecordRoomTone}
-            >
-              {tone.label}
-            </Button>
-          </div>
-        </div>
+        <SheetRow row={model.toneRow}>
+          <Button
+            disabledReason={tone.disabledReason}
+            onClick={onRecordRoomTone}
+          >
+            {tone.label}
+          </Button>
+        </SheetRow>
       </div>
     </Sheet>
   );

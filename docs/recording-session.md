@@ -822,7 +822,7 @@ Nothing ticks it: the `Applied` event carries it once (about 3000), and clients 
 `round`, sending Start after 3 s) is client work (a consented guest's browser
 captures when a new `round` names them, `useGuestRoomTone`; a round already in the
 first snapshot, as for a late joiner or a reload, is not caught up, #2490), and `room_tone` stays in the snapshot after Start, so consumers
-should show a countdown only while the state is `lobby` or `stopped`; this command only announces the round.
+should show a countdown only while the state is `lobby` or `stopped`; this command only announces the round. A capture in flight, on the host or a guest, is cancelled when a take starts.
 
 Rollback note: a build older than this command cannot replay a `RoomToneCountdown` ledger row.
 

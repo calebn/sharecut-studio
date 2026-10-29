@@ -210,7 +210,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 ### CMP-REC-DEVICE · Microphone check
 - **Today:** shots under SCR-REC-LOBBY-GUEST. Language: "-∞ dBFS", "Clear clip light". Hierarchy: input picker with a red error border in the normal state.
 - **Fate:** merge into NEW: Join sheet (mic row) and NEW: Device sheet (later changes).
-- **Spec:** Device sheet opens by tapping your own tile, or from ⋯ Devices. Contents: input menu, level meter 8 px tall with a clip tick, headphone toggle, **Record room tone** (3 s, for someone who joined after the countdown), and on desktop an output device menu where the browser supports it. Changes apply instantly with no Apply button. Same states as the Join sheet mic row.
+- **Spec:** Device sheet opens by tapping your own tile, or from ⋯ Devices. Contents: input menu, level meter 8 px tall with a clip tick, a headphone toggle (guests only; the host has none until the wire carries a host headphone ack), **Record room tone** (3 s, for someone who joined after the countdown), and on desktop an output device menu where the browser supports it. Changes apply instantly with no Apply button. Same states as the Join sheet mic row.
 - **Shared elements used:** NEW: Device sheet, Inspector sheet conventions (no Apply).
 - **Story to build:** `Record/DeviceSheet` › `Ready`, `Denied`, `InputLost`, `NoInput`, `RoomToneTooLoud`, `Phone`.
 
@@ -325,7 +325,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 | INT-REC-MARK | Mark a moment | Marker button | Marker in dock | M | Tap; long-press adds text |
 | INT-REC-NOTE | Write a note | Note field, Add note | Composer in rail or sheet | N focuses, Enter sends | Notes sheet |
 | INT-REC-MUTE | Mute self | Checkbox | Dock button | Cmd/Ctrl+D | Tap |
-| INT-REC-DEVICE | Change mic | Lobby only | Tap own tile, Device sheet | none | Tap own tile |
+| INT-REC-DEVICE | Change mic | Lobby and after Stop; held while a take is live, paused or still flushing | Tap own tile, Device sheet | none | Tap own tile |
 | INT-REC-END | End the session | End room confirm in Share | ⋯ End session, undoable for 10 s as a toast ("Session ended · Undo" reopens the same links) | none | ⋯ |
 | INT-REC-RETURN | Return from another stage | Record chip | Stage bar Record (Live badge) | Stage bar key | Stage switcher |
 | INT-REC-REMOVE | Remove a person | Share dialog | Tile menu (right-click or long-press) Remove, InlineConfirm since it can't be undone | none | Long-press tile |
@@ -346,7 +346,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 
 **NEW: Join sheet.** The pre-join sheet over a live room: header with who is here, rows that check themselves off (name, mic, headphones), consent lines, one thumb-zone primary (**Join and record** or **Join to listen**), **Not now**. Desktop card 420 px, phone bottom sheet at the large detent. Reused shape for the review-link guest's first visit if the Review spec adds a name step (a review guest naming themselves is audit finding phone/F08).
 
-**NEW: Device sheet.** Input menu, live meter with clip tick, headphone toggle, room tone (3 s), output menu. No Apply. Opened by tapping your own Person tile (host and guest alike).
+**NEW: Device sheet.** Input menu, live meter with clip tick, headphone toggle (guests only), room tone (3 s), output menu. No Apply. Opened by tapping your own Person tile (host and guest alike).
 
 **NEW: Invite tile.** An empty grid slot (dashed outline, plus glyph, "Invite"). Tap opens a popover: guest link with **Copy** (primary), **Share…** on devices with the system share sheet, a QR code (160 px) for a phone in the same room, and the producer link behind a "Listen-only link" disclosure. Replace link lives here too.
 

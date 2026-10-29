@@ -55,7 +55,6 @@ export type DeviceSheetModel = {
   control: JoinMic;
   micNotes: JoinNote[];
   headphones: JoinRow;
-  tone: DeviceTone;
   toneRow: ToneRow;
 };
 
@@ -99,7 +98,6 @@ export function deviceSheetModel(input: {
     control,
     micNotes: micNoteList(control, input.micNotes),
     headphones: headphonesRow(input.headphones),
-    tone,
     toneRow: {
       state: TONE_ROW[tone.state],
       title: DEVICE_TEXT.tone,

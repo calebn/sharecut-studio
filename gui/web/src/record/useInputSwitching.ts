@@ -14,7 +14,7 @@ export function useInputSwitching(
     status === "prompting" || status === "idle" || status === "granted";
   if (stream && opened?.stream !== stream) {
     setOpened({ stream, deviceId });
-  } else if (!stream && opened && !waiting) {
+  } else if (!stream && opened && (!waiting || opened.deviceId === deviceId)) {
     setOpened(null);
   }
   return !stream && !!opened && opened.deviceId !== deviceId && waiting;

@@ -272,7 +272,7 @@ export function joinMic(
   if (LOST_STATUSES.includes(mic.status)) {
     const lost: JoinMic = { status: "lost" };
     if (options.detail) lost.detail = options.detail;
-    if (options.deviceId && mic.devices.length > 0) {
+    if (mic.devices.length > 0) {
       lost.devices = mic.devices.map((entry) => ({
         id: entry.deviceId,
         label: entry.label || "Microphone",

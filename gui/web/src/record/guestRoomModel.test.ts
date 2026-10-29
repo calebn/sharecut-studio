@@ -317,6 +317,22 @@ describe("joinMic", () => {
     );
   });
 
+  it("keeps the lost input menu on Default and after a stale saved input", () => {
+    const lost = {
+      ...base,
+      status: "lost" as const,
+      devices: [device("a", "Desk"), device("b", "Headset")],
+    };
+    expect(joinMic(lost, { ...options, deviceId: "" })).toMatchObject({
+      status: "lost",
+      devices: [
+        { id: "a", label: "Desk" },
+        { id: "b", label: "Headset" },
+      ],
+      inputId: "",
+    });
+  });
+
   it("is not ready while granted without a stream", () => {
     expect(joinMic({ ...base, status: "granted" }, options)).toEqual({
       status: "idle",
