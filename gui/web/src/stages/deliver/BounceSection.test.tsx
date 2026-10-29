@@ -300,6 +300,48 @@ describe("BounceSection", () => {
     expect(onFocused).toHaveBeenCalledTimes(1);
   });
 
+  it("focuses an enabled control, not the disabled Bounce, when asked", () => {
+    const onFocused = vi.fn();
+    render(
+      <BounceSection
+        options={options({
+          focusRequested: true,
+          onFocused,
+          blockedReason: "Not now.",
+        })}
+      />,
+    );
+    expect(button("Bounce").hasAttribute("disabled")).toBe(true);
+    expect(document.activeElement).toBe(button("Entire mix"));
+    expect(onFocused).toHaveBeenCalledTimes(1);
+  });
+
+  it("focuses the model prompt once, not on each phase change", () => {
+    const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
+    const asking = (phase: "ask" | "failed") =>
+      options({
+        gate: gate({
+          prompt: {
+            need: { id: view.id },
+            label: view.label,
+            purpose: view.purpose,
+            size: view.size,
+            phase,
+            view,
+            blockedReason: undefined,
+          } as never,
+        }),
+      });
+    const { rerender } = render(<BounceSection options={asking("ask")} />);
+    expect(document.activeElement).toBe(screen.getAllByRole("button")[0]);
+    const elsewhere = document.createElement("button");
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    rerender(<BounceSection options={asking("failed")} />);
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
   it("shows a skeleton while the page loads", () => {
     render(<BounceSection options={options()} state="loading" />);
     expect(screen.queryByRole("button", { name: "Bounce" })).toBeNull();

@@ -59,17 +59,26 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   const reason = useDisabledReasonNote(running ? undefined : unavailable);
 
   const askPhase = gate?.prompt?.phase ?? null;
+  // Focus the prompt once when it appears, not again on each download phase.
+  const asked = askPhase !== null;
   useEffect(() => {
-    if (!askPhase) return;
+    if (!asked) return;
     const first = gatePanel.current?.querySelector("button");
     first?.scrollIntoView?.({ block: "center" });
     first?.focus();
-  }, [askPhase]);
+  }, [asked]);
 
   useEffect(() => {
     if (!focusRequested) return;
-    button.current?.focus();
-    button.current?.scrollIntoView?.({ block: "nearest" });
+    // A disabled button cannot take focus, so land on the nearest control
+    // that can; the reason note beside Bounce says why it is off.
+    const target = button.current?.disabled
+      ? button.current
+          .closest("section")
+          ?.querySelector<HTMLElement>("button:not(:disabled)")
+      : button.current;
+    target?.focus();
+    target?.scrollIntoView?.({ block: "nearest" });
     onFocused?.();
   }, [focusRequested, onFocused]);
 

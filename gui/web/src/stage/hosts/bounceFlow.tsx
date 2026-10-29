@@ -58,6 +58,18 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
     resetGate();
   }, [projectPath, resetGate]);
 
+  // Leaving Deliver ends this visit, as closing the old dialog did: a range
+  // fixed from Edit and the bounce choices do not carry to the next visit.
+  const stage = useDawStore((s) => s.stage);
+  const wasDeliver = useRef(stage === "deliver");
+  useEffect(() => {
+    const was = wasDeliver.current;
+    wasDeliver.current = stage === "deliver";
+    if (!was || stage === "deliver") return;
+    useDawStore.getState().setBounceRangeTarget(null);
+    setChoices(BOUNCE_DEFAULTS);
+  }, [stage]);
+
   const start = useCallback(async () => {
     const s = useDawStore.getState();
     const path = s.projectPath;
@@ -114,11 +126,8 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
         }
       });
       if (ran.kind === "declined") {
-        setRun(
-          scope.signal.aborted
-            ? { kind: "idle" }
-            : { kind: "failed", reason: `${ran.label} is not downloaded.` },
-        );
+        // Declining is a choice, not a failure: back to idle.
+        setRun({ kind: "idle" });
         return;
       }
       if (scope.signal.aborted) return;

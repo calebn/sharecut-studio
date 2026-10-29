@@ -406,22 +406,38 @@ describe("BounceFlowProvider", () => {
       expect(startBounceJob).toHaveBeenCalledTimes(2);
     });
 
-    it("fails with a hint when the person declines", async () => {
+    it("returns quietly to idle when the person declines", async () => {
       vi.mocked(followJobToOk).mockRejectedValue(needed());
       mountGated();
       act(() => flow.start());
       await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
       act(() => flow.gate.decline());
-      await waitFor(() =>
-        expect(flow.run).toEqual({
-          kind: "failed",
-          reason: "Noise reduction (RNNoise) is not downloaded.",
-        }),
-      );
+      await waitFor(() => expect(flow.run).toEqual({ kind: "idle" }));
       expect(flow.gate.declined).toEqual({
         id: "rnnoise",
         label: "Noise reduction (RNNoise)",
       });
+    });
+
+    it("clears a fixed range and the choices when the person leaves Deliver", () => {
+      mount();
+      act(() => {
+        flow.setChoices({ ...BOUNCE_DEFAULTS, includeMp3: true });
+        useDawStore.setState({ bounceRangeTarget: RANGE });
+      });
+      expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
+      act(() => useDawStore.setState({ stage: "edit" }));
+      expect(useDawStore.getState().bounceRangeTarget).toBeNull();
+      expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
+    });
+
+    it("keeps a range set from Edit while arriving on Deliver", () => {
+      mount();
+      act(() => useDawStore.setState({ stage: "edit" }));
+      act(() =>
+        useDawStore.setState({ bounceRangeTarget: RANGE, stage: "deliver" }),
+      );
+      expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
     });
 
     it("returns to idle, not a failure, when the project changes during the ask", async () => {
