@@ -10,7 +10,8 @@ export function useInputSwitching(
   deviceId: string,
 ): boolean {
   const [opened, setOpened] = useState<Opened | null>(null);
-  const waiting = status === "prompting" || status === "idle";
+  const waiting =
+    status === "prompting" || status === "idle" || status === "granted";
   if (stream && opened?.stream !== stream) {
     setOpened({ stream, deviceId });
   } else if (!stream && opened && !waiting) {

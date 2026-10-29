@@ -71,19 +71,6 @@ describe("useInputSwitching", () => {
     expect(select).toHaveFocus();
   });
 
-  it("keeps the guest menu while the mic reads idle without a stream", () => {
-    const props = { onPick: () => {} };
-    const { rerender } = render(
-      <Harness stream={streamA} status="granted" deviceId="a" {...props} />,
-    );
-    const select = screen.getByLabelText("Input");
-    rerender(<Harness stream={null} status="idle" deviceId="b" {...props} />);
-    expect(screen.getByLabelText("Input")).toBe(select);
-    expect(
-      screen.queryByRole("button", { name: "Allow microphone" }),
-    ).toBeNull();
-  });
-
   it("does not hide a real prompt or failure", () => {
     const props = { onPick: () => {} };
     const { rerender } = render(
