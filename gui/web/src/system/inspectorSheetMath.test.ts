@@ -47,6 +47,17 @@ describe("inspectorSheetMath detents", () => {
     expect(settleDetent(64, -0.3, 800, true)).toBe("dismiss");
   });
 
+  it("takes the measured dock height, as at a 20 px root where the 4 rem dock is 80 px", () => {
+    expect(detentHeight("dock", 800, 80)).toBe(80);
+    expect(detentHeight("half", 800, 80)).toBe(400);
+    expect(settleDetent(79, 0, 800, false, 80)).toBe("dock");
+    expect(settleDetent(55, 0, 800, false, 80)).toBe("dismiss");
+    expect(settleDetent(55, 0, 800)).toBe("dock");
+    expect(settleDetent(80, -0.1, 800, true, 80)).toBe("dock");
+    expect(settleDetent(80, -0.3, 800, true, 80)).toBe("dismiss");
+    expect(settleDetent(80, -0.3, 800, true)).toBe("dock");
+  });
+
   it("lands a flick down from higher up on the dock instead of dismissing", () => {
     expect(settleDetent(260, -2, 640)).toBe("dock");
     expect(settleDetent(300, -3, 640)).toBe("dock");
