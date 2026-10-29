@@ -52,8 +52,8 @@ export function hostRoomPhase(
         (snapshot.countdown_left_ms ?? 0) -
         Math.max(0, options.elapsedSinceSnapshotMs ?? 0);
       if (snapshot.room_tone && left > 0) {
-        const secondsLeft = Math.min(3, Math.max(1, Math.ceil(left / 1000)));
-        return { kind: "countdown", secondsLeft: secondsLeft as 3 | 2 | 1 };
+        const secondsLeft = Math.max(1, Math.ceil(left / 1000));
+        return { kind: "countdown", secondsLeft };
       }
       return { kind: "waiting" };
     }

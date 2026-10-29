@@ -55,6 +55,8 @@ export type JoinRow = {
   state: StatusRowState;
   title: string;
   detail?: string;
+  /** 0 to 1, a bar under a running row (the room-tone take's time used). */
+  progress?: number;
   action?: { label: string; name: string; kind: JoinMicAction | "blocker" };
 };
 

@@ -211,9 +211,13 @@ export const LOCAL_KEEPER_PENDING_COPY =
   "Preparing device storage for your full-quality recording…";
 export const UPLOAD_STATUS_ID = "record-upload-status";
 
-export const ROOM_TONE_DURATION_SEC = 3;
+/** One minute of quiet; the server's `ROOM_TONE_DURATION_SEC` must match. */
+export const ROOM_TONE_DURATION_SEC = 60;
+/** End early keeps a take at least this long; a shorter one is discarded. */
+export const ROOM_TONE_MIN_SEC = 10;
 export const ROOM_TONE_TOO_LOUD_DBFS = -35;
-export const ROOM_TONE_PROMPT_COPY = "Record 3 seconds of room tone";
+export const ROOM_TONE_PROMPT_COPY = "Record 1 minute of room tone";
+export const ROOM_TONE_TOO_SHORT_COPY = `Too short, record at least ${ROOM_TONE_MIN_SEC} seconds`;
 export const ROOM_TONE_TOO_LOUD_COPY = "Too loud: is something playing?";
 export const ROOM_TONE_DEVICE_COPY = "Room tone saved on this device";
 export const ROOM_TONE_HOST_COPY = "Room tone sent to the host";

@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 describe("encodeRoomToneWav", () => {
-  it("encodes a 3s PCM WAV from the keeper tap", async () => {
+  it("encodes a PCM WAV of the asked length from the keeper tap", async () => {
     const encoded = await encodeRoomToneWav({} as MediaStream, {
       durationSec: 1,
     });
@@ -47,8 +47,8 @@ describe("encodeRoomToneWav", () => {
 
     const encoded = await encodeRoomToneWav({} as MediaStream);
 
-    expect(encoded.wav.byteLength).toBe(288_044);
-    expect(encoded.samples).toHaveLength(144_000);
+    expect(encoded.wav.byteLength).toBe(5_760_044);
+    expect(encoded.samples).toHaveLength(2_880_000);
     expect(openKeeperTap).not.toHaveBeenCalled();
   });
 
@@ -65,6 +65,46 @@ describe("encodeRoomToneWav", () => {
     );
     await encodeRoomToneWav({} as MediaStream, { durationSec: 1 });
     expect(stop).toHaveBeenCalled();
+  });
+
+  it("keeps what was captured when it is ended early", async () => {
+    const stop = vi.fn();
+    const ender = new AbortController();
+    vi.mocked(openKeeperTap).mockImplementationOnce(
+      async (_stream, onPcm: (pcm: Float32Array, rate: number) => void) => {
+        onPcm(
+          new Float32Array(KEEPER_SAMPLE_RATE * 12).fill(0.01),
+          KEEPER_SAMPLE_RATE,
+        );
+        queueMicrotask(() => ender.abort());
+        return { stop, resume: async () => "running" as AudioContextState };
+      },
+    );
+    const encoded = await encodeRoomToneWav({} as MediaStream, {
+      stopSignal: ender.signal,
+    });
+    expect(encoded.durationSec).toBe(12);
+    expect(encoded.samples.length).toBe(KEEPER_SAMPLE_RATE * 12);
+    expect(encoded.wav.byteLength).toBe(44 + KEEPER_SAMPLE_RATE * 12 * 2);
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("defaults to one minute", async () => {
+    vi.mocked(openKeeperTap).mockImplementationOnce(
+      async (_stream, onPcm: (pcm: Float32Array, rate: number) => void) => {
+        onPcm(
+          new Float32Array(KEEPER_SAMPLE_RATE * 75).fill(0.01),
+          KEEPER_SAMPLE_RATE,
+        );
+        return {
+          stop: () => undefined,
+          resume: async () => "running" as AudioContextState,
+        };
+      },
+    );
+    const encoded = await encodeRoomToneWav({} as MediaStream);
+    expect(encoded.durationSec).toBe(60);
+    expect(encoded.wav.byteLength).toBe(44 + KEEPER_SAMPLE_RATE * 60 * 2);
   });
 
   it("rejects when aborted before samples arrive", async () => {

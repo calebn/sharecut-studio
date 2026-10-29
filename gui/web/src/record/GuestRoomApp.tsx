@@ -36,6 +36,7 @@ import {
 } from "./micPermission";
 import { noteItems } from "./noteItems";
 import { roomPeople } from "./roomPeople";
+import { roomToneCapturingAlert } from "./roomTone";
 import { SaveAnnouncer } from "./SaveAnnouncer";
 import { ownSaveLines } from "./saveStatus";
 import { useStorageHeadroom } from "./storageQuota";
@@ -51,6 +52,7 @@ import { useGuestRoomTone } from "./useGuestRoomTone";
 import { useInputPeakDb } from "./useInputPeakDb";
 import { useLateRoomTone } from "./useLateRoomTone";
 import { recordSyncErrorCopy } from "./useRecordSync";
+import { useRoomToneAnnouncement } from "./useRoomToneAnnouncement";
 import { useRosterAnnouncer } from "./useRosterAnnouncer";
 
 const subscribeLandscape = mediaQuerySubscription(["(orientation: landscape)"]);
@@ -186,6 +188,7 @@ function GuestRoomSession({
     roomTone,
   });
   const announcement = useRosterAnnouncer(snapshot, me?.participant_id ?? null);
+  const toneAnnouncement = useRoomToneAnnouncement(roomTone.status);
   const saveLines = useMemo(
     () => ownSaveLines(upload.segments),
     [upload.segments],
@@ -298,6 +301,15 @@ function GuestRoomSession({
   );
   if (lateRoomTone) {
     alerts.push(lateRoomTone);
+  }
+  const capturingTone = roomToneCapturingAlert({
+    status: roomTone.status,
+    clock: roomTone.clock,
+    endEarly: roomTone.endEarly,
+    cancel: roomTone.cancel,
+  });
+  if (capturingTone) {
+    alerts.push(capturingTone);
   }
   if (keeperActions.error) {
     alerts.push({ kind: "generic", message: keeperActions.error });
@@ -436,11 +448,14 @@ function GuestRoomSession({
             status: roomTone.status,
             delivery: roomTone.delivery,
             error: roomTone.error,
+            clock: roomTone.clock,
             micReady: !!mic.stream,
             captureReady: roomTone.captureReady,
             takeRunning: onAir,
           })}
           onRecordRoomTone={roomTone.record}
+          onEndRoomToneEarly={roomTone.endEarly}
+          onCancelRoomTone={roomTone.cancel}
           onClose={() => setDeviceOpen(false)}
         />
       ) : null}
@@ -451,6 +466,9 @@ function GuestRoomSession({
         {monitor.hearing && !dropped ? <p>{HEARING_COPY}</p> : null}
         {keeperActions.notice ? <p>{keeperActions.notice}</p> : null}
         {announcement ? <p>{announcement}</p> : null}
+        {toneAnnouncement ? (
+          <p key={toneAnnouncement.seq}>{toneAnnouncement.text}</p>
+        ) : null}
       </div>
       <SaveAnnouncer lines={saveLines} />
     </>

@@ -143,6 +143,24 @@ describe("hostRoomPhase", () => {
     });
   });
 
+  it("counts the whole minute down", () => {
+    const snap = recordSnapshot({
+      state: "lobby",
+      room_tone: {
+        round: 1,
+        requested_wall_ms: 0,
+        duration_ms: 60_000,
+        participant_ids: [],
+      },
+      countdown_left_ms: 60_000,
+    });
+    expect(hostRoomPhase(snap)).toEqual({ kind: "countdown", secondsLeft: 60 });
+    expect(hostRoomPhase(snap, { elapsedSinceSnapshotMs: 18_000 })).toEqual({
+      kind: "countdown",
+      secondsLeft: 42,
+    });
+  });
+
   it("ticks the clock while recording and holds it while paused", () => {
     const live = recordSnapshot({
       state: "recording",

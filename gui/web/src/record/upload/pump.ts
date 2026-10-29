@@ -62,6 +62,8 @@ export async function uploadKeeperWav(args: {
       continue;
     }
     const digest = await sha256Hex(data);
+    // Hashing yields; a cancel that landed meanwhile must not still send the part.
+    args.signal?.throwIfAborted?.();
     const result = await args.transport.put({
       takeIndex: args.takeIndex,
       segmentIndex: args.segmentIndex,

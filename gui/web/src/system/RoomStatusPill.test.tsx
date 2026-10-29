@@ -7,7 +7,7 @@ describe("RoomStatusPill", () => {
   it.each([
     [{ kind: "waiting", host: "Maya" } as const, "Waiting for Maya to start"],
     [{ kind: "waiting" } as const, "Waiting"],
-    [{ kind: "countdown", secondsLeft: 3 } as const, "Quiet please · 3"],
+    [{ kind: "countdown", secondsLeft: 42 } as const, "Stay quiet · 0:42"],
     [{ kind: "live", take: 2, clockSec: 724 } as const, "12:04 · Take 2"],
     [{ kind: "paused", clockSec: 724 } as const, "Paused · 12:04"],
     [

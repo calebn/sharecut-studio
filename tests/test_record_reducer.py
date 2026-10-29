@@ -13,6 +13,7 @@ from podcast_mcp.services.record.reducer import (
     prepare_host_rejoin,
 )
 from podcast_mcp.services.record.state import (
+    ROOM_TONE_COUNTDOWN_MS,
     RecordSnapshot,
     empty_record_snapshot,
     find_participant,
@@ -890,7 +891,7 @@ def test_room_tone_round_records_consented_recorded_participants() -> None:
     assert out.room_tone.model_dump() == {
         "round": 1,
         "requested_wall_ms": 100,
-        "duration_ms": 3000,
+        "duration_ms": ROOM_TONE_COUNTDOWN_MS,
         "participant_ids": ["p_host", "p_g"],
     }
     assert out.state == "lobby"
@@ -965,11 +966,11 @@ def test_room_tone_countdown_left_elapses_to_zero() -> None:
     snap = empty_record_snapshot("sess")
     assert room_tone_countdown_left_ms(snap, now_wall_ms=5) == 0
     snap = _room_tone(_room_tone_room(), now=1000)
-    assert room_tone_countdown_left_ms(snap, now_wall_ms=1000) == 3000
-    assert room_tone_countdown_left_ms(snap, now_wall_ms=2200) == 1800
-    assert room_tone_countdown_left_ms(snap, now_wall_ms=4000) == 0
-    assert room_tone_countdown_left_ms(snap, now_wall_ms=9000) == 0
-    assert room_tone_countdown_left_ms(snap, now_wall_ms=0) == 3000
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=1000) == ROOM_TONE_COUNTDOWN_MS
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=2200) == ROOM_TONE_COUNTDOWN_MS - 1200
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=1000 + ROOM_TONE_COUNTDOWN_MS) == 0
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=1000 + ROOM_TONE_COUNTDOWN_MS + 6000) == 0
+    assert room_tone_countdown_left_ms(snap, now_wall_ms=0) == ROOM_TONE_COUNTDOWN_MS
 
 
 def test_snapshot_without_room_tone_still_loads() -> None:

@@ -21,7 +21,9 @@ MAX_REPORTED_SEGMENTS = 5000
 HOST_OFFLINE_PAUSE_MS = 10_000
 HOST_HEARTBEAT_STALE_MS = 7_500
 TAKE_OPEN_REMINT_MSG = "A take is open (REC/PAUSED). Stop it before minting a new room."
-ROOM_TONE_COUNTDOWN_MS = 3000
+#: One minute of quiet; the web client's ROOM_TONE_DURATION_SEC must match.
+ROOM_TONE_DURATION_SEC = 60
+ROOM_TONE_COUNTDOWN_MS = ROOM_TONE_DURATION_SEC * 1000
 #: Host land is refused while a take is open; ShareCut Studio words the same reason in `landGate`.
 LAND_TAKE_OPEN_MSG = "Stop the take to land it on the timeline."
 

@@ -33,6 +33,8 @@ type StatusRowProps = {
   valueText?: string;
   /** The bar's accessible name when the title alone would repeat across rows. */
   barLabel?: string;
+  /** `timer` for a title that ticks, so a screen reader does not read each change. */
+  titleRole?: "timer";
   /** At most one action; `name` is the accessible name when the label alone would repeat. */
   action?: {
     label: string;
@@ -63,6 +65,7 @@ export function StatusRow({
   barLabel,
   action,
   secondaryAction,
+  titleRole,
   details,
   density = "list",
   children,
@@ -79,7 +82,9 @@ export function StatusRow({
   const expandable = Boolean(children);
   const text = (
     <>
-      <span className="sys-status-title">{title}</span>
+      <span className="sys-status-title" role={titleRole}>
+        {title}
+      </span>
       {detail ? <span className="sys-status-detail">{detail}</span> : null}
     </>
   );

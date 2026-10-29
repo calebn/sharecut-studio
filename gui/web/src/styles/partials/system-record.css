@@ -936,6 +936,13 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   display: none;
 }
 
+/* End early and Cancel wrap under each other at 320 px instead of overflowing. */
+.sys-device-tone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .sys-join-input {
   box-sizing: border-box;
   inline-size: 100%;

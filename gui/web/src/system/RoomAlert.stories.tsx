@@ -165,7 +165,7 @@ export const RoomTone: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText("Record 3 seconds of room tone."),
+      canvas.getByText("Record 1 minute of room tone."),
     ).toBeVisible();
     await expect(canvas.getAllByRole("button")).toHaveLength(2);
     await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
@@ -173,6 +173,25 @@ export const RoomTone: Story = {
     await userEvent.click(
       canvas.getByRole("button", { name: "Record room tone" }),
     );
+    await expect(args.alerts?.[0]?.onAction).toHaveBeenCalledOnce();
+  },
+};
+
+export const RoomToneCapturing: Story = {
+  args: ONE("room-tone-capturing", {
+    message: "Stay quiet · 0:42",
+    progress: 0.3,
+    onSecondaryAction: fn(),
+  }),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Stay quiet · 0:42")).toBeVisible();
+    await expect(
+      canvas.getByRole("progressbar", { name: "Room tone" }),
+    ).toHaveAttribute("aria-valuenow", "30");
+    await userEvent.click(canvas.getByRole("button", { name: "Cancel" }));
+    await expect(args.alerts?.[0]?.onSecondaryAction).toHaveBeenCalledOnce();
+    await userEvent.click(canvas.getByRole("button", { name: "End early" }));
     await expect(args.alerts?.[0]?.onAction).toHaveBeenCalledOnce();
   },
 };

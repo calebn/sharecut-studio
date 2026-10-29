@@ -15,6 +15,7 @@ export const ROOM_ALERT_PRIORITY = [
   "host-offline",
   "monitor-failed",
   "room-tone",
+  "room-tone-capturing",
   "clipping",
   "muted",
   "connecting",
@@ -25,7 +26,7 @@ export type RoomAlertKind = (typeof ROOM_ALERT_PRIORITY)[number];
 
 type RoomAlertText = {
   state: StatusRowState;
-  /** `{name}` takes the host's name; generic, notice and room-tone take their own message. */
+  /** `{name}` takes the host's name; generic, notice and the room-tone kinds take their own message. */
   title: string;
   /** The one action's label. Absent when the alert has none. */
   action?: string;
@@ -74,9 +75,15 @@ export const ROOM_ALERT_TEXT: Record<RoomAlertKind, RoomAlertText> = {
   },
   "room-tone": {
     state: "needs-you",
-    title: "Record 3 seconds of room tone.",
+    title: "Record 1 minute of room tone.",
     action: "Record room tone",
     secondary: "Skip",
+  },
+  "room-tone-capturing": {
+    state: "running",
+    title: "Stay quiet",
+    action: "End early",
+    secondary: "Cancel",
   },
   clipping: {
     state: "needs-you",
@@ -110,6 +117,8 @@ export type RoomAlertInput = {
   message?: string;
   /** No audio only: the last mic check found nothing, so the title says what to try. */
   checkFailed?: boolean;
+  /** 0 to 1, drawn as the row's bar: the capturing room-tone take's time used. */
+  progress?: number;
   /** Without it the alert shows no action, even when its kind has one. */
   onAction?: () => void;
   /** Without it the alert shows no second action, even when its kind has one. */
@@ -127,7 +136,12 @@ export function roomAlertTitle({
   message,
   checkFailed,
 }: RoomAlertInput): string {
-  if (kind === "generic" || kind === "notice" || kind === "room-tone")
+  if (
+    kind === "generic" ||
+    kind === "notice" ||
+    kind === "room-tone" ||
+    kind === "room-tone-capturing"
+  )
     return message?.trim() || ROOM_ALERT_TEXT[kind].title;
   if (kind === "no-audio" && checkFailed)
     return `${ROOM_ALERT_TEXT[kind].title} ${MIC_CHECK_FAILED_COPY}`;

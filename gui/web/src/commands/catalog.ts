@@ -594,7 +594,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["quiet", "noise", "silence"],
     when: "canManageProjects",
     notes:
-      "Ask every recorded device to capture 3 s of room tone (lobby or stopped)",
+      "Ask every recorded device to capture 1 minute of room tone (lobby or stopped)",
   },
   "record.setTarget": {
     id: "record.setTarget",

@@ -27,6 +27,33 @@ describe("RoomAlert", () => {
     expect(onAction).toHaveBeenCalledOnce();
   });
 
+  it("draws the capturing room-tone take as a labelled bar with End early and Cancel", async () => {
+    const onAction = vi.fn();
+    const onSecondaryAction = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <RoomAlert
+        alerts={[
+          {
+            kind: "room-tone-capturing",
+            message: "Stay quiet · 0:42",
+            progress: 0.3,
+            onAction,
+            onSecondaryAction,
+          },
+        ]}
+      />,
+    );
+    expect(within(live()).getByText("Stay quiet · 0:42")).toBeVisible();
+    expect(
+      screen.getByRole("progressbar", { name: "Room tone" }),
+    ).toHaveAttribute("aria-valuenow", "30");
+    await user.click(screen.getByRole("button", { name: "End early" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onAction).toHaveBeenCalledOnce();
+    expect(onSecondaryAction).toHaveBeenCalledOnce();
+  });
+
   it("offers a second action beside the first when both handlers exist", async () => {
     const onAction = vi.fn();
     const onSecondaryAction = vi.fn();

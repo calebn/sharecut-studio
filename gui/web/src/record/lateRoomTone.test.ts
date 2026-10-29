@@ -10,7 +10,7 @@ import {
 const round = (ids: string[]) => ({
   round: 1,
   requested_wall_ms: 1000,
-  duration_ms: 3000,
+  duration_ms: 60_000,
   participant_ids: ids,
 });
 const late = recordParticipant({ participant_id: "p_late" });

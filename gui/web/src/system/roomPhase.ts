@@ -2,7 +2,8 @@ import type { StatusState } from "./statusText";
 
 export type RoomPhase =
   | { kind: "waiting"; host?: string }
-  | { kind: "countdown"; secondsLeft: 3 | 2 | 1 }
+  /** Whole seconds of the room-tone round left, up to a minute. */
+  | { kind: "countdown"; secondsLeft: number }
   /** The Stage bar's badge has no take to name; the pill then reads the clock alone. */
   | { kind: "live"; take?: number; clockSec: number }
   | { kind: "paused"; clockSec: number }
@@ -31,6 +32,11 @@ export function clockText(totalSec: number): string {
     : `${minutes}:${seconds}`;
 }
 
+/** "Stay quiet · 0:42": the room-tone round's pill and the capturing take's line. */
+export function quietCountdownText(secondsLeft: number): string {
+  return `Stay quiet · ${clockText(secondsLeft)}`;
+}
+
 /** 0 to 100 as a whole number, or null when the phase carries none. */
 export function savingPercent(
   phase: Extract<RoomPhase, { kind: "saving" }>,
@@ -55,7 +61,7 @@ export function roomPillRendering(
     case "countdown":
       return {
         state: "running",
-        text: `Quiet please · ${phase.secondsLeft}`,
+        text: quietCountdownText(phase.secondsLeft),
       };
     case "live":
       return {
