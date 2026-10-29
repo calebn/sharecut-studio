@@ -14,8 +14,7 @@ from podcast_mcp.gui.schemas import (
     TranscriptExportRequest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import TranscriptService
-from podcast_mcp.services.document.transcript import ExportBusyError, TranscriptEmptyError
+from podcast_mcp.services.document import ExportBusyError, TranscriptEmptyError, TranscriptService
 from podcast_mcp.services.jobs import JobManager
 
 router = APIRouter()
