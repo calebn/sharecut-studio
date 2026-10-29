@@ -501,6 +501,7 @@ describe("DecisionCard verb", () => {
     expect(screen.getByRole("group", { name: "Audition" })).toBeInTheDocument();
     swipe(container.querySelector(".sys-decision-body") as Element, 100, 0);
     expect(props.onVerb).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Open in/ })).toBeNull();
   });
 
   it("compact still holds the verb behind an unsure word and lets a guest comment", () => {
@@ -511,11 +512,13 @@ describe("DecisionCard verb", () => {
         unsure={{ word: "uncl", guess: "uncle", onFix: vi.fn() }}
       />,
     );
-    expect(
-      screen
-        .getByRole("button", { name: "Cut" })
-        .getAttribute("aria-describedby"),
-    ).toBeTruthy();
+    const describedBy = screen
+      .getByRole("button", { name: "Cut" })
+      .getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    const note = document.getElementById(describedBy as string);
+    expect(note).not.toBeNull();
+    expect(note).toHaveTextContent("Check the unsure word first.");
     rerender(<DecisionCard {...base()} layout="compact" readOnly />);
     expect(screen.getByRole("button", { name: "Comment" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();

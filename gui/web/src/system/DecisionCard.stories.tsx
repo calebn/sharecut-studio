@@ -412,6 +412,23 @@ export const CompactGuest: Story = {
   decorators: compactFrame,
 };
 
+export const CompactEmpty: Story = {
+  args: { ...Empty.args, layout: "compact" },
+  decorators: compactFrame,
+  play: Empty.play,
+};
+
+export const CompactLoading: Story = {
+  args: { state: "loading", layout: "compact" },
+  decorators: compactFrame,
+};
+
+export const CompactError: Story = {
+  args: { ...LoadError.args, layout: "compact" },
+  decorators: compactFrame,
+  play: LoadError.play,
+};
+
 const phoneFrame = (width: string) => [
   (Story: () => React.ReactElement) => (
     <div

@@ -402,7 +402,8 @@ export function DecisionCard(props: DecisionCardProps) {
         verbNoteId={verbNoteId}
         verbDisabledReason={verbReason}
         readOnly={readOnly}
-        canEdit={compact ? false : canEdit}
+        canEdit={canEdit}
+        showOpenInEdit={!compact}
         promptOpen={prompt !== undefined}
         center={abInBar ? ab : undefined}
         onKeep={onKeep}
