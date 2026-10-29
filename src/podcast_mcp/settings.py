@@ -164,7 +164,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_DECODE_MEMO_IDLE_S",
-            "Seconds without a decode memo hit or store, and no decode running, before the memo releases its recordings; 0 never releases.",
+            "Seconds without a decode memo hit or store, and no decode running, before the memo releases its recordings (about twice that if a decode overlaps the deadline; capped at 86400); 0 never releases.",
             "90",
         ),
         (
