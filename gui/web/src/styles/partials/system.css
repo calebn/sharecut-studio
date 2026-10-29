@@ -333,8 +333,9 @@
 }
 
 /* The take clock or "Paused" is wider than an equal tab: its tab takes the
-   width the pill needs and the others share the rest (never under the touch
-   minimum), and the pill takes the label's row. The label stays in the
+   width the pill needs and the others share the rest (none under the touch
+   minimum at the 320 to 390 px widths the layout tests cover), and the pill
+   takes the label's row. The label stays in the
    accessible name, as in the bar form. */
 .sys-stage-bar--tabs .sys-stage-list:has(.sys-stage-badge--pill) {
   display: flex;
