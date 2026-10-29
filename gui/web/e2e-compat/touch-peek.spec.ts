@@ -605,6 +605,7 @@ async function dragStowsStrip(
   await page.waitForTimeout(SETTLE_MS);
   await finger.up();
   await page.waitForTimeout(700);
+  await ensureInspected(page);
   const opened = await sheetState(page);
   await frame(page, info, `stow-${size}-1-strip-${browserName}`);
 
@@ -1207,7 +1208,7 @@ async function openTrackSheet(page: Page, finger: Finger): Promise<void> {
   expect((await sheetState(page)).compact).toBe(false);
 }
 
-test("a timeline tap while a track's sheet is open goes to the strip: portrait-390", async ({
+test("a timeline tap while a track's sheet is open selects, and Inspect opens the strip: portrait-390", async ({
   page,
   context,
   browserName,
@@ -1220,12 +1221,19 @@ test("a timeline tap while a track's sheet is open goes to the strip: portrait-3
   const track = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-1-track-${browserName}`);
   await tapClipBody(page, finger);
+  // Selecting shuts the track's sheet; Inspect opens the clip's strip.
+  await page.waitForTimeout(800);
+  await ensureInspected(page);
+  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   const clip = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-2-clip-${browserName}`);
   json(info, `tap-while-track-sheet-${browserName}`, { track, clip });
   expect(clip).toMatchObject({ compact: true, size: "peek", stowed: false });
   expect(await page.locator(".bottom-sheet .inspector").count()).toBe(0);
   await tapTarget(page, finger, envC);
+  await page.waitForTimeout(800);
+  await ensureInspected(page);
+  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   expect(await sheetState(page)).toMatchObject({
     compact: true,
     size: "peek",
