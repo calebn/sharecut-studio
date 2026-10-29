@@ -12,6 +12,7 @@ import { StageFrame } from "../frame/StageFrame";
 import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost, type StageHostProps } from "./StageHost";
+import { ShareFlowProvider } from "./shareFlow";
 
 const PIPELINE = {
   config: {
@@ -37,9 +38,11 @@ const meta: Meta<StageHostProps> = {
     (Story) => (
       <ExportFlowProvider>
         <BounceFlowProvider>
-          <div data-daw-app-chrome>
-            <Story />
-          </div>
+          <ShareFlowProvider>
+            <div data-daw-app-chrome>
+              <Story />
+            </div>
+          </ShareFlowProvider>
         </BounceFlowProvider>
       </ExportFlowProvider>
     ),

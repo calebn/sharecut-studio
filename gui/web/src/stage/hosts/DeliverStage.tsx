@@ -9,7 +9,11 @@ import {
 } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
-import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
+import { useHasFeature } from "../../extensions/FeaturesContext";
+import {
+  FEATURE_SHARE_UI_MENU,
+  FEATURE_TUNNEL_STATUS,
+} from "../../extensions/features";
 import { Slot } from "../../extensions/Slot";
 import { useNowSec } from "../../hooks/useNowSec";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
@@ -54,9 +58,12 @@ import {
   sameChapters,
   sameClipBounds,
 } from "./deliverModel";
+import { shareOptionsOf } from "./deliverShare";
 import { useExportFlow } from "./exportFlowContext";
 import { HostBody } from "./HostBody";
 import { hostStateOf } from "./hostModels";
+import { useShareFlow } from "./shareFlowContext";
+import { useTunnelStatus } from "./useTunnelStatus";
 
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
@@ -100,6 +107,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const {
     project,
     projectPath,
+    projectEpoch,
     exportRequested,
     setExportRequested,
     bounceRequested,
@@ -113,6 +121,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     useShallow((s) => ({
       project: s.project,
       projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
       exportRequested: s.chrome.exportRequested,
       setExportRequested: s.setExportRequested,
       bounceRequested: s.chrome.bounceRequested,
@@ -127,6 +136,12 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const exportFlow = useExportFlow();
   const { reload: reloadExportSettings, start: startExport } = exportFlow;
   const bounceFlow = useBounceFlow();
+  const shareFlow = useShareFlow();
+  const reloadShares = shareFlow.reload;
+  const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
+  const tunnel = useTunnelStatus(
+    useHasFeature(FEATURE_TUNNEL_STATUS) && shareOffered,
+  );
   const nowSec = useNowSec(
     exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
   );
@@ -250,6 +265,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     edits,
     exportOptions.target,
   ]);
+  const [focusShare, setFocusShare] = useState(false);
+  const clearShareFocus = useCallback(() => setFocusShare(false), []);
+  // The links are listed as Deliver shows, and again for a reopened project.
+  useEffect(() => {
+    if (state !== "ready" || !shareOffered || !projectPath) return;
+    reloadShares();
+  }, [state, shareOffered, projectPath, projectEpoch, reloadShares]);
   const [focusBounce, setFocusBounce] = useState(false);
   const clearBounceFocus = useCallback(() => setFocusBounce(false), []);
   useEffect(() => {
@@ -387,6 +409,17 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             focusRequested: focusBounce,
             onFocused: clearBounceFocus,
           })}
+          share={
+            shareOffered
+              ? shareOptionsOf(shareFlow, {
+                  tunnel,
+                  blockedReason: shareCmd.whenReason,
+                  onOpenRecord: () => runPointerCommand("stage.record"),
+                  focusRequested: focusShare,
+                  onFocused: clearShareFocus,
+                })
+              : undefined
+          }
           env="none"
           getPlayheadSec={() => useDawStore.getState().playheadSec}
           layout={shell === "phone" ? "phone" : "desktop"}
@@ -413,7 +446,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           <Slot id={FEATURE_SHARE_UI_MENU}>
             <Button
               disabledReason={shareCmd.whenReason}
-              onClick={() => runPointerCommand("share.manage")}
+              onClick={() => setFocusShare(true)}
             >
               Share a listen link
             </Button>
@@ -427,6 +460,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
  * and clip edits written back to the document, and the export run by the
- * flows in `DawApp`. Share still opens its dialog. Host only.
+ * flows in `DawApp`. Share is a section here; the header Invite still opens
+ * its dialog. Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);

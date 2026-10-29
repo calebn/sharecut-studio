@@ -344,7 +344,7 @@ describe("ShareSection review links", () => {
     expect(button(/^Press .*C Commenter link$/)).toBeTruthy();
     const text = document.querySelector(".sys-link-text");
     expect(text?.getAttribute("data-selected")).toBe("true");
-    expect(window.getSelection()?.toString()).toContain("http://127.0");
+    expect(window.getSelection()?.toString()).toBe(review.url);
   });
 
   it("disables Copy for a link with no address, with the reason", () => {

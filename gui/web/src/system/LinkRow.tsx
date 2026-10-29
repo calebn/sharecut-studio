@@ -78,7 +78,11 @@ export function LinkRow({
           data-selected={copyState === "blocked" || undefined}
           title={link ?? undefined}
         >
-          {link ? middleTruncate(link) : placeholder}
+          {link
+            ? copyState === "blocked"
+              ? link
+              : middleTruncate(link)
+            : placeholder}
         </span>
       </div>
       {note ? <span className="sys-link-note">{note}</span> : null}

@@ -45,8 +45,12 @@
   font-size: var(--font-size-ui);
 }
 
+/* The whole address, so Mod+C copies all of it and not the shortened form. */
 .sys-link-text[data-selected] {
   background: var(--color-selection-subtle);
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
   user-select: all;
 }
 
