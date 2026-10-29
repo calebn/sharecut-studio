@@ -57,7 +57,11 @@ function RenameForm({
   };
 
   return (
-    <form className="sys-rename-form" noValidate onSubmit={submit}>
+    <form
+      className="sys-rename-form"
+      noValidate
+      onSubmit={(event) => void submit(event)}
+    >
       <Field label="Project name" error={error}>
         {(control) => (
           <input
