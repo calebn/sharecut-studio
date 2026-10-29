@@ -25,6 +25,7 @@ from typing import Any
 import anyio
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp import settings
@@ -122,11 +123,14 @@ def _studio_mcp_url(host: StudioHost) -> str:
     return f"http://{name}:{host.port}{HOST_MCP_PATH}"
 
 
-async def _studio_stopped_answering(session: ClientSession, scope: anyio.CancelScope) -> None:
-    """Cancel ``scope`` once Studio misses ``HEARTBEAT_MISSES`` MCP pings in a row.
+async def _studio_stopped_answering(
+    session: ClientSession, scope: anyio.CancelScope, stalled: anyio.Event
+) -> None:
+    """Set ``stalled`` and cancel ``scope`` once Studio misses ``HEARTBEAT_MISSES`` pings in a row.
 
-    A tool may run for as long as it needs; only a Studio that answers nothing at all (wedged
-    after it took the call) stops it. Any reply, even an error, counts as alive.
+    A tool may run for as long as it needs; only a Studio whose event loop answers nothing at
+    all stops it (a wedged tool thread on a loop that still answers is not seen). Any reply,
+    even an error, counts as alive.
     """
     misses = 0
     while True:
@@ -135,9 +139,12 @@ async def _studio_stopped_answering(session: ClientSession, scope: anyio.CancelS
             with anyio.fail_after(HEARTBEAT_TIMEOUT_SEC):
                 await session.send_ping()
             misses = 0
+        except MCPError:
+            misses = 0
         except Exception:
             misses += 1
             if misses >= HEARTBEAT_MISSES:
+                stalled.set()
                 scope.cancel()
                 return
 
@@ -156,23 +163,26 @@ async def _run_in_studio(
         url = _studio_mcp_url(host)
         with anyio.fail_after(INITIALIZE_TIMEOUT_SEC) as initialization:
             async with (
-                streamable_http_client(url) as (read, write, *_),
+                streamable_http_client(url, terminate_on_close=False) as (read, write, *_),
                 ClientSession(read, write) as session,
             ):
                 await session.initialize()
                 initialization.deadline = float("inf")
                 sent = True
                 result: Any = None
+                stalled = anyio.Event()
                 async with anyio.create_task_group() as group:
-                    group.start_soon(_studio_stopped_answering, session, group.cancel_scope)
+                    group.start_soon(
+                        _studio_stopped_answering, session, group.cancel_scope, stalled
+                    )
                     if relay is None:
                         result = await session.call_tool(name, arguments)
                     else:
                         result = await session.call_tool(name, arguments, progress_callback=relay)
                     group.cancel_scope.cancel()
-                if result is None:
-                    log.warning("Studio stopped answering %s", name)
-                    return _lost_result(host, name, "it stopped answering pings")
+                if stalled.is_set():
+                    log.warning("Studio stopped answering pings during %s", name)
+                    return _lost_result(host, name, "its event loop stopped answering pings")
                 return result
     except Exception as exc:
         if not sent:
