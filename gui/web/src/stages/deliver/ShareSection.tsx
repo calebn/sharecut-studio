@@ -239,10 +239,10 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
       <p className="dv-note">Links don't expire. Stop sharing turns one off.</p>
       {review.length === 0 ? (
         <EmptyState>
-          {loaded
-            ? "No review links yet."
-            : listFailed
-              ? "Could not list your links."
+          {listFailed
+            ? "Could not list your links."
+            : loaded
+              ? "No review links yet."
               : "Looking for your links…"}
         </EmptyState>
       ) : (
@@ -282,10 +282,10 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
       </p>
       {rooms.length === 0 ? (
         <EmptyState>
-          {loaded
-            ? "No record rooms yet."
-            : listFailed
-              ? "Could not list your rooms."
+          {listFailed
+            ? "Could not list your rooms."
+            : loaded
+              ? "No record rooms yet."
               : "Looking for your rooms…"}
         </EmptyState>
       ) : (
