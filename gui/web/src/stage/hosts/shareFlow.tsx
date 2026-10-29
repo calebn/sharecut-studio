@@ -238,15 +238,17 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => void load(scopeNow()), [load, scopeNow]);
 
   // The Share dialog makes and stops links and refreshes the mix too; when it
-  // closes, drop a pending retry here and list again.
+  // closes, drop a retry waiting on Refresh mix here and list again.
   const dialogOpen = useDawStore((s) => s.chrome.shareDialogOpen);
   const dialogWasOpen = useRef(dialogOpen);
   useEffect(() => {
     const wasOpen = dialogWasOpen.current;
     dialogWasOpen.current = dialogOpen;
     if (!wasOpen || dialogOpen || !onDeliver) return;
-    staleRequest.current = null;
-    setRecovery({ kind: "idle" });
+    if (recoveryRef.current.kind === "needs_refresh") {
+      staleRequest.current = null;
+      setRecovery({ kind: "idle" });
+    }
     reload();
   }, [dialogOpen, onDeliver, reload]);
 

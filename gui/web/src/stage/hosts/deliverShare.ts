@@ -5,7 +5,7 @@ import type { ShareFlow } from "./shareFlowContext";
 export function shareOptionsOf(
   flow: ShareFlow,
   host: {
-    /** Online sharing state; null or absent without the `tunnel.status` feature. */
+    /** Online sharing state; null without the `tunnel.status` feature. */
     tunnel: TunnelStatus | null;
     /** Why Share is unavailable (the command's reason). */
     blockedReason?: string;
