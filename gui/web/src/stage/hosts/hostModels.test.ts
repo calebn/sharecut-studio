@@ -25,8 +25,8 @@ describe("stageAvailable", () => {
 });
 
 describe("review sections", () => {
-  it("gives the host both and a guest Comments", () => {
-    expect(reviewSectionsFor("host")).toEqual(["queue", "comments"]);
+  it("gives the host the Queue and a guest Comments", () => {
+    expect(reviewSectionsFor("host")).toEqual(["queue"]);
     expect(reviewSectionsFor("commenter")).toEqual(["comments"]);
     expect(reviewSectionsFor("editor")).toEqual(["comments"]);
   });

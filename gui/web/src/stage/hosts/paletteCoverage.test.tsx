@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -21,6 +22,7 @@ import { DawProvider } from "../../state/store";
 import { fakeExportServer } from "../../test/fakeExportServer";
 import {
   minimalProject,
+  sampleComment,
   sampleTrack,
   sessionRoster,
 } from "../../test/fixtures";
@@ -50,9 +52,6 @@ import { ShareFlowProvider } from "./shareFlow";
 vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../ingest/ingestFiles")>()),
   pickAudioFiles: vi.fn(async () => []),
-}));
-vi.mock("../../panels/CommentsPanel", () => ({
-  CommentsPanel: () => <div>comments panel</div>,
 }));
 vi.mock("../edit/EditWorkspace", () => ({
   EditWorkspace: () => <div>edit workspace</div>,
@@ -327,16 +326,28 @@ const pipeline: Probe = async () => {
   expect(button(/Advanced/)).toBeInTheDocument();
 };
 
-const reviewSection =
-  (tab: RegExp, panel: string): Probe =>
-  async (user) => {
-    mountStage("review");
-    const tabs = within(
-      screen.getByRole("tablist", { name: "Review sections" }),
-    );
-    await user.click(tabs.getByRole("tab", { name: tab }));
-    expect(screen.getAllByText(panel)[0]).toBeInTheDocument();
-  };
+const queueOnScreen: Probe = async () => {
+  mountStage("review");
+  expect(screen.getAllByText("Nothing to decide")[0]).toBeInTheDocument();
+  expect(screen.queryByRole("tablist", { name: "Review sections" })).toBeNull();
+};
+
+const commentsInQueue: Probe = async () => {
+  mountStage("review");
+  act(() =>
+    useDawStore.setState({
+      project: minimalProject({
+        tracks: [sampleTrack()],
+        comments: [sampleComment({ body: "Lose the cough" })],
+      }),
+    }),
+  );
+  expect(
+    within(screen.getByRole("region", { name: "Comments" })).getByText(
+      "Lose the cough",
+    ),
+  ).toBeInTheDocument();
+};
 
 const plusMenuRow =
   (name: RegExp, id: string): Probe =>
@@ -466,10 +477,8 @@ const REMOVED_SURFACES: Entry[] = [
 
   component("More hub", "Command search", [headerPalette]),
   component("More hub", "Mix", [mixSheet]),
-  component("More hub", "Comments", [
-    reviewSection(/Comments/, "comments panel"),
-  ]),
-  component("More hub", "Queue", [reviewSection(/Queue/, "Nothing to decide")]),
+  component("More hub", "Comments", [commentsInQueue]),
+  component("More hub", "Queue", [queueOnScreen]),
   component("More hub", "Pipeline", [pipeline]),
   entry("More hub", "History", "edit.history", [historySheet]),
   entry("More hub", "Import audio", "media.import"),

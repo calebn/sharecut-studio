@@ -154,20 +154,14 @@ describe("StageHost gating", () => {
 });
 
 describe("Review host", () => {
-  it("gives the host two sections and writes the choice to the stage slice", async () => {
+  it("gives the host the Queue alone, with a stored Comments choice landing on it", () => {
     asHost("review");
+    useDawStore.setState({ reviewSection: "comments" });
     mount();
-    const tabs = within(
-      screen.getByRole("tablist", { name: "Review sections" }),
-    );
     expect(
-      tabs
-        .getAllByRole("tab")
-        .map((t) => t.textContent)
-        .join(),
-    ).toMatch(/^Queue.*Comments$/);
-    await userEvent.click(tabs.getByRole("tab", { name: /Queue/ }));
-    expect(useDawStore.getState().reviewSection).toBe("queue");
+      screen.queryByRole("tablist", { name: "Review sections" }),
+    ).toBeNull();
+    expect(screen.queryByText("comments panel")).toBeNull();
     expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
   });
 
@@ -272,21 +266,6 @@ describe("Review host", () => {
       ).toBe(false);
     },
   );
-
-  it("marks sections that wait on the person", () => {
-    asHost("review");
-    useDawStore.getState().hydrate(
-      HOST_PATH,
-      minimalProject({
-        tracks: [sampleTrack()],
-        comments: [sampleComment({ id: "c1", body: "x", author: "Host" })],
-      }),
-    );
-    mount();
-    expect(screen.getByRole("tab", { name: /Comments/ })).toHaveTextContent(
-      "●",
-    );
-  });
 });
 
 describe("Prepare host", () => {

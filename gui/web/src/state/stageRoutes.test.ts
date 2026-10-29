@@ -94,7 +94,7 @@ describe("tab and stage mapping", () => {
       history: { stage: "edit", sheet: "history" },
       impact: { stage: "review", section: "queue" },
       tighten: { stage: "review", section: "queue" },
-      comments: { stage: "review", section: "comments" },
+      comments: { stage: "review", section: "queue" },
       pipeline: { stage: "prepare" },
     });
   });
@@ -103,7 +103,7 @@ describe("tab and stage mapping", () => {
     for (const tab of TABS) {
       const { stage, section, sheet } = STAGE_FOR_TAB[tab];
       const back = tabForStage(stage, section ?? "comments");
-      const expected = tab === "tighten" ? "impact" : tab;
+      const expected = tab === "tighten" || tab === "comments" ? "impact" : tab;
       expect(back).toBe(sheet ? "transcript" : expected);
     }
   });

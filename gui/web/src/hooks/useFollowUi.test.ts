@@ -8,7 +8,7 @@ import { useFollowUi } from "./useFollowUi";
 
 const tracks = [sampleTrack({ id: "host" })];
 
-/** The wire tab of what the follower is showing. */
+/** The wire tab of what the follower is showing; a host's comments tab lands on Queue, so it reads `impact`. */
 const shownTab = () => {
   const { stage, reviewSection } = useDawStore.getState();
   return tabForStage(stage, reviewSection);
@@ -55,7 +55,7 @@ describe("useFollowUi", () => {
 
   it("mirrors the leader tab without unfollowing", () => {
     renderHook(() => useFollowUi());
-    expect(shownTab()).toBe("comments");
+    expect(shownTab()).toBe("impact");
     expect(useDawStore.getState().followingClientId).toBe("a");
   });
 
@@ -103,14 +103,14 @@ describe("useFollowUi", () => {
       sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     renderHook(() => useFollowUi());
-    expect(shownTab()).toBe("comments");
+    expect(shownTab()).toBe("impact");
     expect(useDawStore.getState().openSheet).toBeNull();
     expect(useDawStore.getState().followingClientId).toBe("a");
   });
 
   it("keeps a follower's sheet until the leader changes stage", () => {
     const { rerender } = renderHook(() => useFollowUi());
-    expect(shownTab()).toBe("comments");
+    expect(shownTab()).toBe("impact");
     useDawStore.setState({ openSheet: "view" });
     useDawStore.setState({
       sessionClients: sessionRoster([
@@ -158,7 +158,7 @@ describe("useFollowUi", () => {
 
   it("keeps a tab the follower chose until the leader's tab changes", () => {
     const { rerender } = renderHook(() => useFollowUi());
-    expect(shownTab()).toBe("comments");
+    expect(shownTab()).toBe("impact");
     choose("transcript");
     useDawStore.setState({
       sessionClients: sessionRoster([
@@ -177,7 +177,7 @@ describe("useFollowUi", () => {
 
   it("ignores a leader tab flip it never saw and follows one it did", () => {
     const { rerender } = renderHook(() => useFollowUi());
-    expect(shownTab()).toBe("comments");
+    expect(shownTab()).toBe("impact");
     choose("transcript");
     // Leader went comments -> pipeline -> comments between two renders.
     useDawStore.setState({
@@ -197,7 +197,7 @@ describe("useFollowUi", () => {
       sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     rerender();
-    expect(shownTab()).toBe("comments");
+    expect(shownTab()).toBe("impact");
   });
 
   it("applies the same ui only once", () => {
