@@ -227,6 +227,7 @@ async def host_ws(
             RoomFullError,
             LeaseInUseError,
             ValueError,
+            OSError,
         ) as exc:
             await detach_record()
             failed_sid = session_id
