@@ -427,6 +427,45 @@ describe("useRecordUpload", () => {
     unmount();
   });
 
+  it("skips a finalized zero-sample segment instead of blocking later segments", async () => {
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
+    const emptyPath = keeperWavPath({ ...ids, segmentIndex: 0 });
+    const audioPath = keeperWavPath({ ...ids, segmentIndex: 1 });
+    const meta = (segmentIndex: number, samplesWritten: number) =>
+      new TextEncoder().encode(
+        JSON.stringify({
+          ...ids,
+          segmentIndex,
+          sampleRate: 48_000,
+          joinOffsetMs: segmentIndex * 4000,
+          samplesWritten,
+          complete: true,
+        }),
+      );
+    await sink.write(emptyPath, wavWithPcm(0));
+    await sink.write(keeperMetaPath(emptyPath), meta(0, 0));
+    await sink.write(audioPath, wavWithPcm(8));
+    await sink.write(keeperMetaPath(audioPath), meta(1, 4));
+    const transport = memoryUploadTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: ids.sessionId,
+        takeIndex: ids.takeIndex,
+        participantId: ids.participantId,
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(transport.joinOffsets).toContain(4000));
+    await waitFor(() => expect(result.current.uploading).toBe(false));
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
   it("retains an abandoned partial and releases Leave after complete segments upload", async () => {
     const sink = new MemorySink();
     const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };

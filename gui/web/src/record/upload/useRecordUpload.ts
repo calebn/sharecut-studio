@@ -13,6 +13,7 @@ import {
 } from "../keeper/store";
 import { mergeSegmentSaves, type SegmentSave } from "../saveStatus";
 import { UPLOAD_STALLED_COPY } from "../types";
+import { keeperPcmParts } from "./chunker";
 import { uploadKeeperWav } from "./pump";
 import { inspectKeeperRecovery } from "./recovery";
 import type { RecordUploadStatus, RecordUploadTransport } from "./transport";
@@ -264,6 +265,10 @@ export function useRecordUpload(args: {
             // (e.g. Discard take). Nothing left to upload or wait on.
             continue;
           }
+          // A pre-fix disk can hold a finalized segment with no audio; it was
+          // reported, so the server shows it stalled, but it must not block
+          // the segments after it.
+          if (keeperPcmParts(wav).length === 0) continue;
           allLanded = false;
           const ackedBefore = acked;
           const totalBefore = total;
