@@ -508,6 +508,11 @@ describe("Review host comments", () => {
     expect(heading()).toBe("Comment from Sam");
   });
 
+  it("widens the Checks filter to All when a comment is picked", () => {
+    pickAfter("Checks, 0", "c2");
+    expect(filterPressed()).toBe("All, 2");
+  });
+
   it("names each Decided comment row by its author and excerpt", async () => {
     mount([
       OPEN,
