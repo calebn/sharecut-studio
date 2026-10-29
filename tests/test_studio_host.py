@@ -185,6 +185,7 @@ def test_unknown_studio_owner_keeps_timeout_protection(
         raise TimeoutError
 
     monkeypatch.setattr(os, "kill", uncertain)
+    monkeypatch.setattr(process, "_kernel32", lambda: None)
     monkeypatch.setattr(studio_host_module, "_ping", timeout)
     with pytest.raises(StudioUnresponsive):
         locate_studio(project)
