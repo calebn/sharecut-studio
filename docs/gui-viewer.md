@@ -369,7 +369,7 @@ still controls automation curves independently of playback meters.
 Inspector sheets scroll as one region, including their header, actions, fields,
 errors, related commands, and footer. The envelope workspace retains its draft
 through view sizing and scrolling. On short phone screens, use ordinary scrolling
-and the visible **Expand** action to reach complete controls. Opening the workspace
+and the **Expand** icon button to reach complete controls. Opening the workspace
 does not expand the sheet automatically. Focus transitions reveal the current
 control within its sheet or desktop inspector; they do not scroll the page or
 timeline. Desktop modifier inspectors scroll as one aside, with fields and
