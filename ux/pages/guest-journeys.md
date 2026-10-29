@@ -386,14 +386,16 @@ flowchart TD
    whose roster includes them. The host should wait for
    "Saved to project" before removal when those parts matter.
    Removal during REC stops microphone capture and saving, then shows the Cover
-   "Your recording didn't finish saving" with **Save my recording** and **Try saving
-   again** for the full-quality recording kept on this device. A naturally expired lease can start a fresh
+   "Your recording didn't finish saving" for the full-quality recording kept on this
+   device, with **Save my recording** and **Try saving again** once capture has
+   settled and the device holds something to save. A naturally expired lease can start a fresh
    guest identity in the still-open room, unless someone who joined through the
    same link was removed; then the guest sees "Invite link closed" and needs a
    fresh link from the host. When that guest still holds a finished take on this
-   device, the same Cover offers **Save my recording** and **Try saving again**. The Join lease check and host removal
+   device, the same Cover offers **Save my recording** and **Try saving again**
+   (again only once capture has settled). The Join lease check and host removal
    use one room decision so removal cannot look like ordinary lease expiry.
-   The host Record stage points to Share through **Copy links…**. There the
+   The host Record stage points to Share through **Invite and links…**. There the
    closed guest or producer invite cannot be copied for newcomers; **Replace
    guest invite** / **Replace producer invite** mints and copies a link for the
    same room and role. Existing valid leases on the old link continue working.
