@@ -234,7 +234,7 @@ def read_studio_host(project_path: Path | str) -> StudioHost | None:
             version=str(raw.get("version", "")),
             hostname=str(raw.get("hostname", "")),
         )
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
         return None
     if not _is_address(host.host) or not 0 < host.port < 65536 or not host.token:
         return None
