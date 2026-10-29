@@ -35,6 +35,41 @@ def test_resolve_project_path_dir(tmp_path):
     assert resolve_project_path(ws).name == "episode.sharecut"
 
 
+def test_resolve_project_path_refuses_the_retired_file_name(tmp_path):
+    retired = tmp_path / RETIRED_PROJECT_FILENAME
+    retired.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"Rename it to episode\.sharecut") as raised:
+        resolve_project_path(retired)
+    assert raised.value.code == "project_old_filename"
+    assert str(raised.value) == (
+        "episode.project.json is no longer opened. Rename it to episode.sharecut and open it again."
+    )
+
+
+def test_resolve_project_path_refuses_a_folder_holding_only_the_retired_file(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError) as raised:
+        resolve_project_path(tmp_path)
+    assert raised.value.code == "project_old_filename"
+
+
+def test_resolve_project_path_prefers_the_current_file_over_a_retired_sibling(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}", encoding="utf-8")
+    (tmp_path / "episode.sharecut").write_text("{}", encoding="utf-8")
+    assert resolve_project_path(tmp_path) == (tmp_path / "episode.sharecut").resolve()
+
+
+def test_resolve_project_path_leaves_an_empty_folder_to_the_caller(tmp_path):
+    assert resolve_project_path(tmp_path) == (tmp_path / "episode.sharecut").resolve()
+
+
+def test_workspace_create_works_beside_a_retired_file(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}", encoding="utf-8")
+    ws = ProjectWorkspace.create(tmp_path, name="fresh")
+    assert ws.path == (tmp_path / "episode.sharecut").resolve()
+    assert ws.project.name == "fresh"
+
+
 def test_open_and_persist_roundtrip(minimal_project):
     path, proj = open_project(minimal_project)
     proj.name = "renamed"
@@ -126,7 +161,7 @@ def test_require_episode_project_file_basename(tmp_path):
 def test_require_episode_project_file_refuses_the_retired_name(tmp_path):
     retired = tmp_path / RETIRED_PROJECT_FILENAME
     retired.write_text("{}", encoding="utf-8")
-    with pytest.raises(ValueError, match="retired project file name") as raised:
+    with pytest.raises(ValueError, match=r"Rename it to episode\.sharecut") as raised:
         require_episode_project_file(retired)
     assert raised.value.code == "project_old_filename"
 

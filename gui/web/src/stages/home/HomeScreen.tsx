@@ -22,6 +22,10 @@ import {
   readHomeScreenEnv,
 } from "../../utils/homeScreenHint";
 import { writeOpenIntent } from "../../utils/openIntent";
+import {
+  EPISODE_PROJECT_FILENAME,
+  RETIRED_PROJECT_FILENAME,
+} from "../../utils/projectFile";
 import { OPEN_OTHER_QUERY_PARAM, projectUrl } from "../../utils/projectUrl";
 import { readLocal, writeLocal } from "../../utils/storage";
 import { HomeView } from "./HomeView";
@@ -56,6 +60,9 @@ const NOT_AN_EPISODE_CODES = new Set([
   "project_file_missing",
 ]);
 
+const OLD_FILENAME_CODE = "project_old_filename";
+const OLD_FILENAME = `This episode uses the old file name. In its folder, rename ${RETIRED_PROJECT_FILENAME} to ${EPISODE_PROJECT_FILENAME}, then open it again.`;
+
 const NAME_RESERVED_CODE = "project_name_reserved";
 
 function startFailure(error: unknown, name: string): string {
@@ -72,6 +79,9 @@ function navigateToProject(path: string): true {
 
 /** Plain words with a fix for a failed open; the server's own text never shows. */
 function openFailure(error: unknown): string {
+  if (error instanceof ApiError && error.code === OLD_FILENAME_CODE) {
+    return OLD_FILENAME;
+  }
   if (error instanceof ApiError && NOT_AN_EPISODE_CODES.has(error.code ?? "")) {
     return NOT_AN_EPISODE;
   }

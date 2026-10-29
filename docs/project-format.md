@@ -4,7 +4,7 @@
 
 Primary file: `episode.sharecut` in the episode workspace directory.
 
-The file is the same version `2.0` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the only place that spells the name. The previous name `episode.project.json` has no fallback: opening it from Home returns the coded error `project_old_filename`.
+The file is the same version `2.0` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the source for engine code. The previous name `episode.project.json` has no fallback: opening that file, or a folder that holds it but no `episode.sharecut`, returns the coded error `project_old_filename` from every entry point (Home, `--project`, MCP and the GUI data routes). The fix is to rename the file to `episode.sharecut`.
 
 ## Layout
 
@@ -134,8 +134,10 @@ python -m podcast_mcp.cli.main --no-progress episode upgrade \
 	--output /path/to/new-workspace
 ```
 
-`--output` names a new workspace directory. The command must publish its current
-`episode.sharecut`, history index, every retained upgraded snapshot, and
+`--project` names a file called `episode.sharecut`. A workspace saved before the
+rename holds `episode.project.json`: rename it first, or the command refuses with
+`project_old_filename`. `--output` names a new workspace directory. The command
+must publish its current `episode.sharecut`, history index, every retained upgraded snapshot, and
 unchanged raw media there. It must leave the source unchanged. The guard first
 requires ordinary loading to reject the source version. A missing command,
 nonzero exit, absent output, discarded history, changed media, or failed current

@@ -11,9 +11,11 @@ RETIRED = "episode.project" + ".json"
 # Each entry names the retired file on purpose.
 ALLOWED = frozenset(
     {
-        "CHANGELOG.md",  # release history, written when the old name was current
         "src/podcast_mcp/project/io.py",  # the project_old_filename refusal names it
         "docs/project-format.md",  # states the rename and the refusal
+        "tests/test_project_io.py",  # asserts the refusal text literally
+        "gui/web/src/utils/projectFile.ts",  # mirrors the retired name for Home's rename copy
+        "gui/web/src/stages/home/HomeScreen.test.tsx",  # asserts that copy literally
     }
 )
 
@@ -52,7 +54,7 @@ def test_a_tracked_file_naming_the_retired_entry_file_is_reported(tmp_path):
         {
             "docs/a.md": f"open {RETIRED} here",
             "docs/b.md": "open episode.sharecut here",
-            "CHANGELOG.md": f"was {RETIRED}",
+            "docs/project-format.md": f"was {RETIRED}",
             "schemas/episode.project.schema.json": "{}",
         },
     )

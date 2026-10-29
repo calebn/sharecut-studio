@@ -147,6 +147,21 @@ describe("HomeScreen", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("tells the user to rename an episode saved under the old file name", async () => {
+    const user = userEvent.setup();
+    open.mockRejectedValue(
+      new ApiError("boom /secret/path", "project_old_filename", 400),
+    );
+    render(<HomeScreen />);
+    await user.click(await screen.findByRole("button", { name: /Rosa/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "This episode uses the old file name. In its folder, rename episode.project.json to episode.sharecut, then open it again.",
+    );
+    expect(alert).not.toHaveTextContent("secret");
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it("says a failed read and reads again on Try again", async () => {
     const user = userEvent.setup();
     list.mockRejectedValueOnce(new Error("500"));

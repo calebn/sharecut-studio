@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.models.episode import EpisodeProject, project_not_found
+from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, EpisodeProject, project_not_found
 from podcast_mcp.project.history import HistoryManager, run_mutation
 from podcast_mcp.project.history.manager import record_and_commit
 from podcast_mcp.project.history.rollback import (
@@ -332,7 +332,7 @@ class ProjectWorkspace:
         workspace = Path(workspace_dir).expanduser().resolve()
         project = EpisodeProject.create(name, str(workspace))
         project.ensure_dirs()
-        path = resolve_project_path(workspace)
+        path = workspace / EPISODE_PROJECT_FILENAME
         store = ProjectStore(path)
         store.commit(project)
         loaded = store.load()

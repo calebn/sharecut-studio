@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 from podcast_mcp.util.coded_error import AccessDeniedError, HostSetupError
 
 CODE = "X-Sharecut-Error-Code"
@@ -57,6 +58,21 @@ def test_open_project_bad_paths(local, tmp_path):
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 404, "project_not_found")
     missing.write_text("not json")
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 400, "project_unreadable")
+
+
+def test_open_project_refuses_the_retired_file_name(local, tmp_path):
+    retired = tmp_path / RETIRED_PROJECT_FILENAME
+    retired.write_text("{}")
+    res = local.post("/api/project/open", json={"path": str(retired)})
+    _assert(res, 400, "project_old_filename")
+    assert "Rename it to episode.sharecut" in res.text
+
+
+def test_open_project_refuses_a_folder_holding_only_the_retired_file(local, tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}")
+    res = local.post("/api/project/open", json={"path": str(tmp_path)})
+    _assert(res, 400, "project_old_filename")
+    assert "Rename it to episode.sharecut" in res.text
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="needs a non-UTF-8 directory name")
