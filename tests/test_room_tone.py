@@ -853,8 +853,8 @@ def test_scheduling_a_pool_records_it_in_the_background_once(tmp_path: Path) -> 
 
 
 def test_a_peer_voice_bleeding_below_the_level_checks_is_not_room_tone(tmp_path: Path) -> None:
-    # The guest talks 5.0-7.0 s and reaches the host's mic 2 dB over the host's floor,
-    # nearest to the cut, under every level check. Only the guest's own track shows it.
+    # A peer's voice reaches the host mic 2 dB over its floor, nearest to the cut, under every
+    # level check, so only the envelope test catches it.
     guest = _noise(-64.0, seed=2)
     _add_voice(guest, 5.0, 7.0, -25.0)
     host = _host_audio()
@@ -894,7 +894,7 @@ def _pooled_project(
     return project
 
 
-def _taken(project: EpisodeProject, selected: OwnQuietSample, timeline_start: float) -> int:
+def _add_pad_clip(project: EpisodeProject, selected: OwnQuietSample, timeline_start: float) -> None:
     project.clips.append(
         Clip(
             id=f"pad{len(project.clips)}",
@@ -904,10 +904,11 @@ def _taken(project: EpisodeProject, selected: OwnQuietSample, timeline_start: fl
             timeline_start=timeline_start,
         )
     )
-    return next(i for i, x in enumerate(POOL) if x.start <= selected.sample.start < x.end)
 
 
-def _cut(project: EpisodeProject, near: float, timeline: float, source_id: str | None):
+def _cut(
+    project: EpisodeProject, near: float, timeline: float, source_id: str | None
+) -> OwnQuietSample:
     selected = room_tone_span(
         project,
         "host",
@@ -926,11 +927,11 @@ def test_later_recording_cuts_within_two_minutes_take_different_samples(
     project = _pooled_project(tmp_path, monkeypatch, POOL)
 
     first = _cut(project, 2300.0, 1000.0, "later")
-    index = _taken(project, first, 1000.0)
+    _add_pad_clip(project, first, 1000.0)
     nearby = _cut(project, 2371.0, 1071.0, "later")
     distant = _cut(project, 2600.0, 1300.0, "later")
 
-    assert index == 2
+    assert POOL[2].start <= first.sample.start < POOL[2].end
     assert (nearby.sample.start, nearby.sample.end) != (first.sample.start, first.sample.end)
     assert POOL[0].start <= nearby.sample.start < POOL[0].end
     assert POOL[1].start <= distant.sample.start < POOL[1].end
@@ -990,7 +991,8 @@ def test_every_recorded_pool_sample_is_at_least_one_second(tmp_path: Path) -> No
     project = _project(tmp_path, host=_host_audio())
     pool = room_tone.record_room_tone_pool(project, "host")
 
-    assert pool
+    assert len(pool) == 6
+    assert (pool[0].start, pool[0].end) == pytest.approx((5.15, 7.15))
     assert all(x.end - x.start >= 1.0 - 1e-9 for x in pool)
 
 
@@ -1004,7 +1006,7 @@ def test_a_later_recording_cut_with_no_pool_picks_from_the_first_quiet_run(
     assert (selected.sample.start, selected.sample.end) == (0.0, 0.5)
 
 
-def test_two_nearby_later_recording_mute_fills_with_no_pool_differ(
+def test_nearby_mute_fills_on_a_later_recording_without_a_pool_take_different_samples(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _pooled_project(tmp_path, monkeypatch, ())
@@ -1065,7 +1067,8 @@ def test_a_pool_recorded_before_a_peer_existed_is_rebuilt(tmp_path: Path) -> Non
     )
     assert room_tone.read_room_tone_pool(project, "host") is None
 
-    assert room_tone.record_room_tone_pool(project, "host")
+    rebuilt = room_tone.record_room_tone_pool(project, "host")
+    assert room_tone.read_room_tone_pool(project, "host") == rebuilt
     _write_wav(tmp_path / "raw" / "guest.wav", _noise(-60.0, seed=3))
     assert room_tone.read_room_tone_pool(project, "host") is None
 
@@ -1117,7 +1120,7 @@ def test_a_primary_cut_whose_nearest_sample_is_in_use_takes_the_second_nearest(
     project = _pooled_project(tmp_path, monkeypatch, POOL)
 
     first = _cut(project, 1.0, 1.0, None)
-    _taken(project, first, 1.0)
+    _add_pad_clip(project, first, 1.0)
     second = _cut(project, 1.0, 5.0, None)
 
     assert POOL[0].start <= first.sample.start and first.sample.end <= POOL[0].end
@@ -1130,7 +1133,7 @@ def test_a_one_sample_pool_is_still_used_when_that_sample_is_in_use(
     project = _pooled_project(tmp_path, monkeypatch, POOL[:1])
 
     first = _cut(project, 1.0, 1.0, None)
-    _taken(project, first, 1.0)
+    _add_pad_clip(project, first, 1.0)
     again = _cut(project, 1.0, 5.0, None)
 
     assert (again.sample.start, again.sample.end) == (first.sample.start, first.sample.end)
@@ -1160,3 +1163,4 @@ def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_pa
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((5.15, 5.65))
