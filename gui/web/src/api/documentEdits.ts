@@ -887,6 +887,15 @@ export async function setTrackMediaCommand(
   });
 }
 
+export async function renameProjectCommand(
+  projectPath: string,
+  name: string,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, DocumentCommand.RenameProject, {
+    name,
+  });
+}
+
 export async function setTrackMetaCommand(
   projectPath: string,
   trackId: string,

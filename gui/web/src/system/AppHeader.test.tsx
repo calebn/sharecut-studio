@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
@@ -223,5 +223,97 @@ describe("AppHeader Stage menu", () => {
     render(<AppHeader title="Episode" onPalette={() => undefined} />);
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
     expect(screen.getByRole("button", { name: /Palette/ })).toBeInTheDocument();
+  });
+});
+
+describe("AppHeader rename", () => {
+  async function openRename() {
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Episode 14/ }));
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Rename project" }),
+    );
+    const field = await screen.findByRole("textbox", { name: "Project name" });
+    await waitFor(() => expect(field).toHaveFocus());
+    return { user, field };
+  }
+
+  it("offers no Rename row without onRename", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: /Episode 14/ }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Rename project" }),
+    ).toBeNull();
+  });
+
+  it("opens a card with the name selected, outside the menu", async () => {
+    setup({ onRename: vi.fn() });
+    const { field } = await openRename();
+    expect(field).toHaveValue("Episode 14");
+    expect(field).toHaveFocus();
+    expect(field.closest('[role="menu"]')).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("applies the trimmed name on Enter and returns focus to the Project button", async () => {
+    const onRename = vi.fn();
+    setup({ onRename });
+    const { user, field } = await openRename();
+    await user.clear(field);
+    await user.type(field, "  Finale  {Enter}");
+    expect(onRename).toHaveBeenCalledExactlyOnceWith("Finale");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Episode 14/ })).toHaveFocus(),
+    );
+    expect(screen.queryByRole("textbox", { name: "Project name" })).toBeNull();
+  });
+
+  it("cancels on Escape and does not commit on blur", async () => {
+    const onRename = vi.fn();
+    setup({ onRename });
+    const first = await openRename();
+    await first.user.type(first.field, " changed");
+    await first.user.tab();
+    expect(onRename).not.toHaveBeenCalled();
+    await first.user.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox", { name: "Project name" })).toBeNull();
+    expect(onRename).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Episode 14/ })).toHaveFocus();
+  });
+
+  it("does not call onRename for an unchanged name", async () => {
+    const onRename = vi.fn();
+    setup({ onRename });
+    const { user } = await openRename();
+    await user.keyboard("{Enter}");
+    expect(onRename).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox", { name: "Project name" })).toBeNull();
+  });
+
+  it("refuses an empty name inline and keeps the card open", async () => {
+    const onRename = vi.fn();
+    setup({ onRename });
+    const { user, field } = await openRename();
+    await user.clear(field);
+    await user.keyboard("{Enter}");
+    expect(onRename).not.toHaveBeenCalled();
+    expect(field).toBeInvalid();
+    expect(field).toHaveAccessibleDescription("Enter a project name.");
+    await user.type(field, "a");
+    expect(field).toBeValid();
+  });
+
+  it("shows the reason when the rename is refused and keeps the typing", async () => {
+    const onRename = vi.fn().mockRejectedValue(new Error("Nope, too long."));
+    setup({ onRename });
+    const { user, field } = await openRename();
+    await user.type(field, "!{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Nope, too long.",
+    );
+    expect(field).toHaveValue("Episode 14!");
+    expect(field).toHaveAccessibleDescription("Nope, too long.");
+    expect(field).toHaveFocus();
   });
 });

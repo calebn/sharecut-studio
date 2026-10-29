@@ -160,4 +160,12 @@ describe("pending document display drafts", () => {
     clearPreviewDraft("k", owner);
     finishDocumentDraft("cmd");
   });
+  it("shows the trimmed new project name until the command finishes", () => {
+    const before = project();
+    beginDocumentDraft("rename", "RenameProject", { name: "  Finale " });
+    expect(overlayDocumentDrafts(before).meta.name).toBe("Finale");
+    expect(before.meta.name).not.toBe("Finale");
+    finishDocumentDraft("rename");
+    expect(overlayDocumentDrafts(before)).toBe(before);
+  });
 });

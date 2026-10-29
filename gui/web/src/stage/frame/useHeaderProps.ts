@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { runPointerCommand } from "../../commands/pointer";
+import { useRenameProject } from "../../hooks/useRenameProject";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
@@ -30,6 +31,7 @@ export function useHeaderProps(): Omit<
     title: s.project?.meta.name ?? null,
     guestMode: s.guestMode,
   }));
+  const onRename = useRenameProject();
   const save = useSaveIndicator();
   const history = useHistoryControls();
   const stages = useStageBarProps();
@@ -55,6 +57,7 @@ export function useHeaderProps(): Omit<
     onRedo: history.onRedo,
     onInvite: () => runPointerCommand("share.manage"),
     onPalette: () => runPointerCommand("ui.toggleCommandPalette"),
+    onRename: role === "host" ? onRename : undefined,
     onHistory: history.history ? onHistory : undefined,
     appearance: {
       value: preference,

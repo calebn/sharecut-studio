@@ -64,6 +64,7 @@ export {
   redoHistory,
   rejectEdits,
   removeTrackCommand,
+  renameProjectCommand,
   reorderTrackCommand,
   replyHistoryHead,
   restoreAppliedEdit,

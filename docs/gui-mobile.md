@@ -770,7 +770,7 @@ test any more.
 
 | Piece | Where | Holds |
 |-------|-------|-------|
-| App header | Top, 48px (phone: 44px under the safe area) | Project menu (All projects, Settings, Connect agent, Help, Appearance), save indicator, Undo and Redo (right-click Undo opens History), people (`AvatarStack`; phone: one avatar plus a count), Invite for hosts, search; the Stage bar sits centered on desktop and tablet |
+| App header | Top, 48px (phone: 44px under the safe area) | Project menu (Rename project, All projects, Settings, Connect agent, Help, Appearance), save indicator, Undo and Redo (right-click Undo opens History), people (`AvatarStack`; phone: one avatar plus a count), Invite for hosts, search; the Stage bar sits centered on desktop and tablet |
 | Stage bar | Header (desktop, tablet) or the bottom tab bar (phone, 56px plus safe area) | Record, Prepare, Edit, Review, Deliver with badges, on Mod+1 to Mod+5 |
 | Player bar | Above the tab bar, 56px, every stage | Play and Pause, time, edited length, **Hear original**, the mix ring, the Solo chip, comment-at-playhead |
 | Edit corner | Timeline corner (`EditCorner`) | Range arm (touch only, 44 px; the Select/Blade tools, Comment mode and Cut at playhead buttons are gone, #2294), Fit, Zoom out and Zoom in, the Script toggle, and the eye (View options), which opens the View sheet (layers, waveform scale, amplitude, track height, zoom) |
