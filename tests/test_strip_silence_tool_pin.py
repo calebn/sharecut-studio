@@ -500,3 +500,4 @@ def test_registered_tool_second_call_journals_a_second_row(tmp_path):
     _registered({"project_path": path, "track_id": "host"})
     _registered({"project_path": path, "track_id": "host"})
     assert _journal(path) == ["StripSilence", "StripSilence"]
+    assert _history(path)["total"] == 3

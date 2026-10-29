@@ -25,7 +25,6 @@ from test_strip_silence_tool_pin import (
     _history,
     _journal,
     _path,
-    _registered,
     _run,
     _spans,
 )
@@ -71,21 +70,6 @@ def test_a_call_that_finds_no_silence_still_journals_and_sets_last_command(tmp_p
     assert _journal(path) == ["StripSilence"]
     assert _last_command(path).type == "StripSilence"
     assert [e["label"] for e in _entries(path)] == ["before strip silence", "after strip silence"]
-
-
-def test_the_registered_path_journals_exactly_one_row_per_call(tmp_path):
-    path = _path(tmp_path)
-    assert not _registered({"project_path": path, "track_id": "host"}).is_error
-    assert _journal(path) == ["StripSilence"]
-    assert "ExternalMutate" not in _journal(path)
-
-
-def test_each_call_adds_exactly_one_row_and_a_history_step(tmp_path):
-    path = _path(tmp_path)
-    _run(path, track_id="host")
-    _run(path, track_id="host")
-    assert _journal(path) == ["StripSilence"] * 2
-    assert _history(path)["total"] == 3
 
 
 def _bare_path(tmp_path: Path) -> str:

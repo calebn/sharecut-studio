@@ -13,6 +13,10 @@ from filelock import Timeout
 from play_patch import patch_play
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+from podcast_mcp.edits.strip_silence import (
+    DEFAULT_STRIP_MIN_DURATION_SEC,
+    DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
+)
 from podcast_mcp.edits.transcript_search import TranscriptMatch
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.play_audit import (
@@ -1374,6 +1378,14 @@ def test_edit_strip_silence(minimal_project, sample_wav) -> None:
         out = AnalysisService(ws).strip_silence(speaker="Host", over_voice_floor_db=3.0)
     strip.assert_called_once()
     assert out == report
+
+
+def test_strip_silence_defaults_are_the_named_constants(minimal_project, sample_wav) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    with patch("podcast_mcp.services.document.analysis.strip_silence", return_value={}) as strip:
+        AnalysisService(ws).strip_silence(speaker="Host")
+    assert strip.call_args.kwargs["over_voice_floor_db"] == DEFAULT_STRIP_OVER_VOICE_FLOOR_DB
+    assert strip.call_args.kwargs["min_duration_sec"] == DEFAULT_STRIP_MIN_DURATION_SEC
 
 
 def test_edit_verify_transcript(minimal_project, sample_wav) -> None:
