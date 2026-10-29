@@ -18,7 +18,12 @@ export function copyWhenReady(text: Promise<string>): Promise<void> {
     const blob = text.then(
       (value) => new Blob([value], { type: "text/plain" }),
     );
-    return clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+    try {
+      return clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+    } catch (err) {
+      blob.catch(() => undefined);
+      return Promise.reject(err);
+    }
   }
   return text.then(copyText);
 }

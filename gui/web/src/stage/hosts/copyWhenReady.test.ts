@@ -28,6 +28,25 @@ describe("copyWhenReady", () => {
     expect(writeText).toHaveBeenCalledWith("https://x.test/r/a");
   });
 
+  it("rejects, not throws, when the browser refuses the write at once", async () => {
+    class FakeItem {
+      readonly items: Record<string, Promise<Blob>>;
+      constructor(items: Record<string, Promise<Blob>>) {
+        this.items = items;
+      }
+    }
+    vi.stubGlobal("ClipboardItem", FakeItem);
+    const write = vi.fn(() => {
+      throw new Error("NotAllowedError");
+    });
+    setClipboard({ write, writeText: vi.fn() });
+    let copying!: Promise<void>;
+    expect(() => {
+      copying = copyWhenReady(Promise.resolve("https://x.test/r/a"));
+    }).not.toThrow();
+    await expect(copying).rejects.toThrow("NotAllowedError");
+  });
+
   it("starts the write inside the click, before the text exists, with ClipboardItem", async () => {
     class FakeItem {
       readonly items: Record<string, Promise<Blob>>;

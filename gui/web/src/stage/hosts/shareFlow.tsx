@@ -397,6 +397,8 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         }
         setRecovery({ kind: "retrying" });
         await startCreate(retry);
+      } catch (err) {
+        if (isCurrent(retry.scope)) setError(errorMessage(err));
       } finally {
         finish(owner);
       }

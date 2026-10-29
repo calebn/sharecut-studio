@@ -286,6 +286,11 @@ describe("ShareSection review links", () => {
       />,
     );
     expect(screen.getByText("Looking for your links…")).toBeTruthy();
+    rerender(
+      <ShareSection options={options({ loaded: true, listFailed: true })} />,
+    );
+    expect(screen.getByText("Could not list your links.")).toBeTruthy();
+    expect(screen.getByText("Could not list your rooms.")).toBeTruthy();
   });
 
   it("lists each live link with its role, version, dates, address and MCP", async () => {
