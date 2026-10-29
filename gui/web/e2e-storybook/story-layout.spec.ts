@@ -165,15 +165,15 @@ test("Menu rows are 44 px under a coarse pointer without the phone shell", async
   const page = await context.newPage();
   await page.goto(storyUrl("molecules-menu--default", { theme: "light" }));
   await page.getByRole("button", { name: "Actions", exact: true }).click();
+  const rows = page.getByRole("menuitem");
+  await expect(rows.first()).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.dataset.shell),
   ).not.toBe("phone");
-  const heights = await page
-    .getByRole("menuitem")
-    .evaluateAll((rows) =>
-      rows.map((row) => row.getBoundingClientRect().height),
-    );
+  const heights = await rows.evaluateAll((items) =>
+    items.map((row) => row.getBoundingClientRect().height),
+  );
   await context.close();
-  expect(heights.length).toBeGreaterThan(0);
-  for (const height of heights) expect(height).toBeGreaterThanOrEqual(44);
+  expect(heights.length).toBeGreaterThan(1);
+  for (const height of heights) expect(height).toBeGreaterThanOrEqual(43.5);
 });

@@ -2353,9 +2353,16 @@ test("System/CoachTip Above leaves room for the tip and its shadow inside the fr
   await open(page, "system-coachtip--above", 360);
   const tip = page.getByRole("note");
   await expect(tip).toBeVisible();
-  const clearance = await tip.evaluate((el) => {
+  const room = await tip.evaluate((el) => {
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    return el.getBoundingClientRect().top - 1 * rem;
+    const box = el.getBoundingClientRect();
+    return {
+      top: box.top - 1 * rem,
+      start: box.left,
+      end: document.documentElement.clientWidth - box.right,
+    };
   });
-  expect(clearance).toBeGreaterThanOrEqual(0);
+  expect(room.top).toBeGreaterThanOrEqual(0);
+  expect(room.start).toBeGreaterThanOrEqual(0);
+  expect(room.end).toBeGreaterThanOrEqual(0);
 });
