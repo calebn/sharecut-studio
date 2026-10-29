@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import html
-import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -11,7 +10,6 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Request
-from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -51,6 +49,7 @@ from podcast_mcp.gui.routes.deps import (
     coded_http_error,
     guard_exception_handler,
     host_setup_exception_handler,
+    http_exception_response,
     model_missing_exception_handler,
     project_busy_exception_handler,
     project_unreadable_exception_handler,
@@ -127,20 +126,9 @@ async def _validation_error_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
-class _AsciiJSONResponse(JSONResponse):
-    def render(self, content: Any) -> bytes:
-        return json.dumps(content, allow_nan=False, separators=(",", ":")).encode("ascii")
-
-
 async def _http_exception_handler(request: Request, exc: Exception) -> Response:
-    """FastAPI's HTTPException response; a lone surrogate in the detail renders as a \\udcXX escape."""
     assert isinstance(exc, StarletteHTTPException)
-    try:
-        return await http_exception_handler(request, exc)
-    except UnicodeEncodeError:
-        return _AsciiJSONResponse(
-            {"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers
-        )
+    return await http_exception_response(request, exc)
 
 
 def _accepts_html(request: Request) -> bool:

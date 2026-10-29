@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,8 @@ from typing import Any
 from fastapi import HTTPException, Request, WebSocket
 from fastapi.exception_handlers import http_exception_handler
 from filelock import Timeout
-from starlette.responses import Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import JSONResponse, Response
 
 from podcast_mcp.models.episode import ProjectUnreadableError
 from podcast_mcp.services.document_sync import DocumentConflictError
@@ -33,6 +35,21 @@ from podcast_mcp.util.tool_refusal import tool_refusal
 ERROR_CODE_HEADER = "X-Sharecut-Error-Code"
 NO_STORE = {"Cache-Control": "no-store"}
 SHARE_LOGIN_PATH = "/auth/login"
+
+
+class _AsciiJSONResponse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        return json.dumps(content, allow_nan=False, separators=(",", ":")).encode("ascii")
+
+
+async def http_exception_response(request: Request, exc: StarletteHTTPException) -> Response:
+    """FastAPI's HTTPException response; a lone surrogate in the detail renders as a \\udcXX escape."""
+    try:
+        return await http_exception_handler(request, exc)
+    except UnicodeEncodeError:
+        return _AsciiJSONResponse(
+            {"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers
+        )
 
 
 def coded_http_error(
@@ -86,7 +103,7 @@ def guard_http_error(exc: GuardRefusal) -> HTTPException:
 async def guard_exception_handler(request: Request, exc: Exception) -> Response:
     """App-wide: an auth guard's refusal leaves as ``guard_http_error``."""
     assert isinstance(exc, GuardRefusal)
-    return await http_exception_handler(request, guard_http_error(exc))
+    return await http_exception_response(request, guard_http_error(exc))
 
 
 async def project_busy_exception_handler(request: Request, exc: Exception) -> Response:
@@ -99,14 +116,14 @@ async def project_busy_exception_handler(request: Request, exc: Exception) -> Re
     """
     assert isinstance(exc, (Timeout, TranscriptContextBusyError))
     message = str(exc) if isinstance(exc, TranscriptContextBusyError) else busy_message(exc)
-    return await http_exception_handler(
+    return await http_exception_response(
         request, coded_http_error(503, message, code=PROJECT_BUSY_CODE, headers=NO_STORE)
     )
 
 
 async def project_unreadable_exception_handler(request: Request, exc: Exception) -> Response:
     assert isinstance(exc, ProjectUnreadableError)
-    return await http_exception_handler(
+    return await http_exception_response(
         request, coded_http_error(500, str(exc), code=exc.code, headers=NO_STORE)
     )
 
@@ -131,7 +148,7 @@ async def host_setup_exception_handler(request: Request, exc: Exception) -> Resp
     host = _is_host(request)
     refusal = tool_refusal(exc, for_guest=not host)
     assert refusal is not None
-    return await http_exception_handler(
+    return await http_exception_response(
         request, coded_http_error(500, refusal.message, code=refusal.code)
     )
 
@@ -147,7 +164,7 @@ async def model_missing_exception_handler(request: Request, exc: Exception) -> R
     refusal = tool_refusal(exc, for_guest=not host)
     assert refusal is not None
     detail = {"detail": refusal.message, **(refusal.extra or {})} if host else refusal.message
-    return await http_exception_handler(
+    return await http_exception_response(
         request, coded_http_error(409, detail, code=refusal.code, headers=NO_STORE)
     )
 
