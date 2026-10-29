@@ -905,6 +905,48 @@ def test_windows_are_built_while_the_caller_holds_the_project_lock(
     assert list(result) == ids
 
 
+def test_the_verify_check_runs_on_the_calling_thread_that_holds_the_project_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    ids = _alias_two_ids_by_patching_plan_window(monkeypatch)
+    monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
+    monkeypatch.setenv(track_evidence.VERIFY_ENV, "1")
+    real = track_evidence.WindowPlan.verify
+    verified: list[int] = []
+    result: dict = {}
+    failures: list[BaseException] = []
+
+    def approve() -> None:
+        caller = threading.get_ident()
+
+        # verify takes project_state_lock for a non-private plan, so in a pool worker it would
+        # wait on the lock this thread holds. The spy fails at once there rather than hang.
+        def verify(plan, cache):  # type: ignore[no-untyped-def]
+            verified.append(threading.get_ident())
+            if threading.get_ident() != caller:
+                raise AssertionError("verify ran off the thread that holds the project lock")
+            real(plan, cache)
+
+        try:
+            with monkeypatch.context() as spy, project_state_lock(project):
+                spy.setattr(track_evidence.WindowPlan, "verify", verify)
+                result.update(_windowed(project, ids, private=False))
+        except BaseException as exc:  # handed to the test thread
+            failures.append(exc)
+
+    caller_thread = threading.Thread(target=approve, daemon=True)
+    caller_thread.start()
+    caller_thread.join(timeout=120)
+
+    assert not caller_thread.is_alive(), "the verify check waited for the lock its caller held"
+    assert not failures, failures
+    assert list(result) == ids
+    assert len(verified) == len(ids)
+    assert set(verified) == {caller_thread.ident}
+
+
 def test_a_track_whose_window_cannot_be_built_is_skipped_and_the_other_is_built(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
