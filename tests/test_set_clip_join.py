@@ -271,7 +271,7 @@ def test_cli_set_clip_join(tmp_path):
                 "edit",
                 "set-clip-join",
                 "--project",
-                str(ws / "episode.project.json"),
+                str(ws / "episode.sharecut"),
                 "--left",
                 "a",
                 "--right",

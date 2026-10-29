@@ -123,7 +123,7 @@ failed preparation or encode, or cancellation before publication, keeps the earl
 audio and transcripts. Final file replacements are not a crash-atomic transaction.
 
 ```bash
-podcast pipeline run --project episode.project.json --from master_loudness
+podcast pipeline run --project episode.sharecut --from master_loudness
 ```
 
 Outputs in episode `export/`:
@@ -164,7 +164,7 @@ Legacy: if `formats` is omitted, only `mp3_bitrate_kbps` is used to emit a singl
 Re-encode without full pipeline:
 
 ```bash
-podcast pipeline export-audio --project episode.project.json
+podcast pipeline export-audio --project episode.sharecut
 ```
 
 MCP: `export_audio_tool(project_path, formats?)` — an optional list of format objects overrides the yaml `formats` for that run. Returns `{"paths": [...], "master": {...}, "edit_head_id": "..."}`; `master` is `master_qc.json` (check `target_integrated_lufs`, `target_true_peak_db` and `within_tolerance`), and `edit_head_id` is the latest history entry that is not a mix rebuild, read when the export checkpoints.

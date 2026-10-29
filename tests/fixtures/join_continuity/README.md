@@ -7,7 +7,7 @@ label harvest, and ranker smoke tests.
 speech examples, copy **short** clips into `raw/` here (keep under a few MB).
 
 ```bash
-PROJECT=tests/fixtures/join_continuity/episode.project.json
+PROJECT=tests/fixtures/join_continuity/episode.sharecut
 
 # Prefer a tmp copy so harvest does not write into the fixture:
 podcast fixture sandbox --project "$PROJECT"   # if available

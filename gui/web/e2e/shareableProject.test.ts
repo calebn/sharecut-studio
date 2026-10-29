@@ -16,7 +16,7 @@ import { tempWorkspace } from "./testWorkspace";
 const suiteProjectPath = path.join(
   os.tmpdir(),
   "sharecut-e2e-suite-probe",
-  "episode.project.json",
+  "episode.sharecut",
 );
 
 function createMinimalProjectFactory(
@@ -32,7 +32,7 @@ function createMinimalProjectFactory(
   );
   try {
     writeFile(
-      path.join(fixtureRoot, "episode.project.json"),
+      path.join(fixtureRoot, "episode.sharecut"),
       JSON.stringify({ meta: { workspace_dir: "." } }),
     );
   } catch (error) {
@@ -57,7 +57,7 @@ describe("assertDisposableE2eProject", () => {
     const spelled = path.join(
       path.dirname(committedE2eProjectPath),
       ".",
-      "episode.project.json",
+      "episode.sharecut",
     );
     expect(() => assertDisposableE2eProject(spelled)).toThrow(
       /committed fixture/,
@@ -77,7 +77,7 @@ describe("assertDisposableE2eProject", () => {
 
   it("rejects a symlinked alias of the committed fixture", () => {
     const dir = tempWorkspace("sharecut-e2e-alias-");
-    const alias = path.join(dir, "episode.project.json");
+    const alias = path.join(dir, "episode.sharecut");
     fs.symlinkSync(committedE2eProjectPath, alias);
     expect(() => assertDisposableE2eProject(alias)).toThrow(
       /committed fixture/,
@@ -86,7 +86,7 @@ describe("assertDisposableE2eProject", () => {
 
   it("accepts a path that does not exist yet (ENOENT fallback)", () => {
     const dir = tempWorkspace("sharecut-e2e-missing-");
-    const missing = path.join(dir, "not-yet", "episode.project.json");
+    const missing = path.join(dir, "not-yet", "episode.sharecut");
     expect(() => assertDisposableE2eProject(missing)).not.toThrow();
   });
 
@@ -94,7 +94,7 @@ describe("assertDisposableE2eProject", () => {
     const dir = tempWorkspace("sharecut-e2e-notdir-");
     const file = path.join(dir, "plain-file");
     fs.writeFileSync(file, "");
-    const underFile = path.join(file, "episode.project.json");
+    const underFile = path.join(file, "episode.sharecut");
     expect(() => assertDisposableE2eProject(underFile)).not.toThrow();
   });
 
@@ -109,7 +109,7 @@ describe("assertDisposableE2eProject", () => {
 
   const caseVariant = path.join(
     path.dirname(committedE2eProjectPath),
-    "EPISODE.project.json",
+    "EPISODE.sharecut",
   );
   it.runIf(fs.existsSync(caseVariant))(
     "rejects a case variant of the committed fixture on a case-insensitive volume",
@@ -148,7 +148,7 @@ describe("withShareableProject", () => {
       const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
       await (await fetch(url)).text();
       await setTimeout(25);
-      await switchE2eProject("/tmp/episode.project.json", url);
+      await switchE2eProject("/tmp/episode.sharecut", url);
       expect(sockets).toHaveLength(2);
       expect(sockets[1]).not.toBe(sockets[0]);
     } finally {
@@ -165,7 +165,7 @@ describe("withShareableProject", () => {
     try {
       const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
       await expect(
-        switchE2eProject("/tmp/episode.project.json", url),
+        switchE2eProject("/tmp/episode.sharecut", url),
       ).rejects.toThrow(/failed during transport:.*ECONNRESET/);
     } finally {
       server.closeAllConnections();
@@ -316,7 +316,7 @@ describe("withShareableProject", () => {
     }
 
     expect(switched).toEqual([
-      path.join(workspaceDir, "episode.project.json"),
+      path.join(workspaceDir, "episode.sharecut"),
       suiteProjectPath,
     ]);
     expect(fs.existsSync(workspaceDir)).toBe(false);
@@ -348,7 +348,7 @@ describe("withShareableProject", () => {
     }
 
     expect(switched).toEqual([
-      path.join(workspaceDir, "episode.project.json"),
+      path.join(workspaceDir, "episode.sharecut"),
       suiteProjectPath,
     ]);
     expect(fs.existsSync(workspaceDir)).toBe(false);
@@ -379,7 +379,7 @@ describe("withShareableProject", () => {
     }
 
     expect(switched).toEqual([
-      path.join(workspaceDir, "episode.project.json"),
+      path.join(workspaceDir, "episode.sharecut"),
       suiteProjectPath,
     ]);
     expect(fs.existsSync(workspaceDir)).toBe(false);

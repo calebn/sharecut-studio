@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { takeAutoRun, takeOpenStage, writeOpenIntent } from "./openIntent";
 
-const PATH = "/ep/episode.project.json";
+const PATH = "/ep/episode.sharecut";
 
 describe("open intent", () => {
   beforeEach(() => sessionStorage.clear());
@@ -22,7 +22,7 @@ describe("open intent", () => {
 
   it("is keyed by project", () => {
     writeOpenIntent(PATH, { autoRun: true });
-    expect(takeAutoRun("/other/episode.project.json")).toBe(false);
+    expect(takeAutoRun("/other/episode.sharecut")).toBe(false);
     expect(takeAutoRun(PATH)).toBe(true);
   });
 

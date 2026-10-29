@@ -236,7 +236,7 @@ def test_sanitize_guest_project_view_strips_paths():
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     raw = {
-        "project_path": "/Users/host/secret/episode.project.json",
+        "project_path": "/Users/host/secret/episode.sharecut",
         "meta": {"name": "ep", "workspace_dir": "/Users/host/secret"},
         "tracks": [
             {"id": "t1", "label": "Host", "media_path": "/Users/host/a.wav"},
@@ -825,7 +825,7 @@ def test_guest_render_preview_requires_edit(
 
     other_job = SimpleNamespace(
         kind="render_preview",
-        project_path="/another/episode.project.json",
+        project_path="/another/episode.sharecut",
     )
     monkeypatch.setattr(client.app.state.jobs, "get_job", lambda _id: other_job)
     assert client.get(f"/api/review/{edit_tok}/daw/render-preview/{job_id}").status_code == 404
@@ -1080,7 +1080,7 @@ def test_sanitize_guest_document_event_strips_paths():
                 "groups": [{"kind": "mutation", "title": "add comment"}],
             },
             "project": {
-                "project_path": "/Users/host/secret/episode.project.json",
+                "project_path": "/Users/host/secret/episode.sharecut",
                 "meta": {"name": "ep", "workspace_dir": "/Users/host/secret"},
                 "tracks": [{"id": "t1", "media_path": "/Users/host/a.wav"}],
                 "history": [],
@@ -2258,7 +2258,7 @@ def test_guest_waveform_symlinked_project_uses_target_sidecar(
     target_sidecar.write_text(json.dumps(rows), encoding="utf-8")
     alias = tmp_path / "alias"
     alias.mkdir()
-    (alias / "episode.project.json").symlink_to(minimal_project)
+    (alias / "episode.sharecut").symlink_to(minimal_project)
     get_share_registry()._conn.execute(
         "UPDATE active_shares SET project_workspace = ? WHERE token = ?",
         (str(alias), token),

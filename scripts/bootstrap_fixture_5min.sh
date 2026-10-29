@@ -21,7 +21,7 @@ echo "==> Consolidate opening 300s (see ingest.yaml session_start)"
 "$PODCAST" ingest consolidate \
   --audio-dir "$PODCAST_AUDIO_DIR" \
   --manifest "$MANIFEST" \
-  --project "$PODCAST_E2E_PROJECT/episode.project.json" \
+  --project "$PODCAST_E2E_PROJECT/episode.sharecut" \
   --extract-start 0 \
   --extract-duration 300 \
   --analysis-start 0 \

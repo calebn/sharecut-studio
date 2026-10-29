@@ -30,7 +30,7 @@ vi.mock("./offlineQueue/offlineStore", () => ({
 }));
 
 describe("queued command identity and landed history", () => {
-  const path = "/tmp/episode.project.json";
+  const path = "/tmp/episode.sharecut";
 
   beforeEach(() => {
     Object.defineProperty(navigator, "locks", {

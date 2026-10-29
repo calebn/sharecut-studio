@@ -52,7 +52,7 @@ def _two_track_project(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
     raw.mkdir()
     for tid in ("host", "guest"):
         (raw / f"{tid}.wav").write_bytes(sample_wav.read_bytes())
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     proj = EpisodeProject.create("spk_test", str(tmp_path))
     proj.tracks = [
         Track(
@@ -420,7 +420,7 @@ def test_speaker_service_segment_enroll_label_and_count(tmp_path, sample_wav) ->
     from podcast_mcp.services.media.speaker import SpeakerService
 
     proj = _two_track_project(tmp_path, sample_wav)
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     save_project(proj, path)
     ws = ProjectWorkspace.open(path)
     svc = SpeakerService(ws)

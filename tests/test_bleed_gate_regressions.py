@@ -71,7 +71,7 @@ def test_follow_transcript_preserves_owner_without_bleed_evidence(tmp_path: Path
     project = audio_project(tmp_path)
     project.transcripts[0].words[0].start = 1.2
     project.transcripts[0].words[0].end = 1.7
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", project)
     ws.save()
     service = PlayService(ws)
     result = service.play(
@@ -141,7 +141,7 @@ def test_reconcile_refuses_gated_fallback_when_ungated_evidence_fails(tmp_path, 
 
 def test_refresh_persists_fresh_reconciliation_with_transcript_gate(tmp_path):
     project = audio_project(tmp_path)
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", project)
     ws.save()
     PipelineService(ws).render_preview()
     PipelineService(ws).render_preview()

@@ -53,7 +53,7 @@ def test_open_project_bad_paths(local, tmp_path):
         400,
         "project_path_invalid",
     )
-    missing = tmp_path / "episode.project.json"
+    missing = tmp_path / "episode.sharecut"
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 404, "project_not_found")
     missing.write_text("not json")
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 400, "project_unreadable")
@@ -64,7 +64,7 @@ def test_open_project_lone_surrogate_dir_matches_clean_twin(tmp_path):
     client = TestClient(create_app(), client=LOOPBACK, raise_server_exceptions=False)
 
     def post(directory: str):
-        raw = json.dumps({"path": directory + "/episode.project.json"}, ensure_ascii=True).encode()
+        raw = json.dumps({"path": directory + "/episode.sharecut"}, ensure_ascii=True).encode()
         return client.post(
             "/api/project/open", content=raw, headers={"content-type": "application/json"}
         )

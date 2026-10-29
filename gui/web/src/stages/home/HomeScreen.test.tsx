@@ -54,7 +54,7 @@ const pick = vi.mocked(api.pickEpisodeProject);
 const pickFiles = vi.mocked(ingest.pickAudioFiles);
 const ingestInto = vi.mocked(ingest.ingestIntoNewProject);
 
-const EP = "/ws/rosa/episode.project.json";
+const EP = "/ws/rosa/episode.sharecut";
 
 function recent(overrides: Partial<RecentProject> = {}): RecentProject {
   return {
@@ -272,11 +272,7 @@ describe("HomeScreen", () => {
       const user = userEvent.setup();
       pick.mockResolvedValue({ unavailable: true });
       open.mockRejectedValueOnce(
-        new ApiError(
-          "expected episode.project.json",
-          "project_path_invalid",
-          400,
-        ),
+        new ApiError("expected episode.sharecut", "project_path_invalid", 400),
       );
       render(<HomeScreen />);
       await user.click(
@@ -313,7 +309,7 @@ describe("HomeScreen", () => {
     it("opens the picked folder and drops the moved entry", async () => {
       const user = userEvent.setup();
       list.mockResolvedValue([recent({ folder_missing: true })]);
-      const moved = "/new/rosa/episode.project.json";
+      const moved = "/new/rosa/episode.sharecut";
       pick.mockResolvedValue({ project_path: moved });
       open.mockResolvedValue({ project_path: moved, name: "rosa" });
       render(<HomeScreen />);
@@ -327,7 +323,7 @@ describe("HomeScreen", () => {
       const user = userEvent.setup();
       list.mockResolvedValue([recent({ folder_missing: true })]);
       pick.mockResolvedValue({ unavailable: true });
-      const moved = "/new/rosa/episode.project.json";
+      const moved = "/new/rosa/episode.sharecut";
       open.mockResolvedValue({ project_path: moved, name: "rosa" });
       render(<HomeScreen />);
       await user.click(await screen.findByRole("button", { name: /Find/ }));
@@ -344,7 +340,7 @@ describe("HomeScreen", () => {
       const user = userEvent.setup();
       list.mockResolvedValue([recent({ folder_missing: true })]);
       pick.mockResolvedValue({ unavailable: true });
-      const other = "/other/maya/episode.project.json";
+      const other = "/other/maya/episode.sharecut";
       open.mockResolvedValue({ project_path: other, name: "maya" });
       render(<HomeScreen />);
       await user.click(await screen.findByRole("button", { name: /Find/ }));
@@ -373,7 +369,7 @@ describe("HomeScreen", () => {
       });
       list.mockResolvedValue([recent({ folder_missing: true })]);
       pick.mockResolvedValue({ cancelled: true });
-      const other = "/other/maya/episode.project.json";
+      const other = "/other/maya/episode.sharecut";
       open.mockResolvedValue({ project_path: other, name: "maya" });
       render(<HomeScreen />);
       await user.click(await screen.findByRole("button", { name: /Find/ }));

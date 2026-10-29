@@ -61,7 +61,7 @@ def stereo_project(tmp_path: Path) -> ProjectWorkspace:
         ),
         Transcript(track_id="guest", words=[TranscriptWord(text="foreign", start=0.5, end=2.4)]),
     ]
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", project)
     ws.save()
     return ws
 

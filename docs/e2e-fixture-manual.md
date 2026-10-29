@@ -6,15 +6,15 @@ Commands assume `podcast` is on your PATH from the project venv.
 
 | Fixture | Path | Use |
 |---------|------|-----|
-| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.project.json` | Smoke, NL edit, social; human LibriSpeech utterances with corpus text and MFA-derived word boundaries; waveform pyramids build on demand (nothing tracked under `artifacts/`) |
-| `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/episode.project.json` | Bleed/reconcile gold |
-| `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/episode.project.json` | AMI overlap realism |
+| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.sharecut` | Smoke, NL edit, social; human LibriSpeech utterances with corpus text and MFA-derived word boundaries; waveform pyramids build on demand (nothing tracked under `artifacts/`) |
+| `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/episode.sharecut` | Bleed/reconcile gold |
+| `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/episode.sharecut` | AMI overlap realism |
 | `audition_defects` | `tests/fixtures/audition_defects/` (audio generated at test time) | Hum / clipping / skew hypothesis eval |
 
 ```bash
-PROJECT=tests/fixtures/aligned_dialogue/episode.project.json
-BLEED=tests/fixtures/synthetic_bleed_60s/episode.project.json
-AMI=tests/fixtures/ami_bleed_60s/episode.project.json
+PROJECT=tests/fixtures/aligned_dialogue/episode.sharecut
+BLEED=tests/fixtures/synthetic_bleed_60s/episode.sharecut
+AMI=tests/fixtures/ami_bleed_60s/episode.sharecut
 ```
 
 Bleed fixtures need **reconcile** pipeline defaults (not the flag-only e2e yaml):
@@ -121,8 +121,8 @@ When `PODCAST_E2E_PROJECT` points at a real remote session, document intro bleed
 
 ```bash
 export PODCAST_E2E_PROJECT=/path/to/test_fixture_5min
-podcast play --project "$PODCAST_E2E_PROJECT/episode.project.json" --compare --start 20 --end 45
-podcast edit bleed-words --project "$PODCAST_E2E_PROJECT/episode.project.json" --start 20 --end 45
+podcast play --project "$PODCAST_E2E_PROJECT/episode.sharecut" --compare --start 20 --end 45
+podcast edit bleed-words --project "$PODCAST_E2E_PROJECT/episode.sharecut" --start 20 --end 45
 ```
 
 Adjust `--start` / `--end` to the overlap noted in your pipeline audit.

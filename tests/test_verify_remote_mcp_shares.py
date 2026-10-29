@@ -32,7 +32,7 @@ def test_default_project_runs_against_relocated_tmp_copy(
 
     project = seen["project"]
     assert isinstance(project, Path)
-    assert project.name == "episode.project.json"
+    assert project.name == "episode.sharecut"
     assert FIXTURE_WS.resolve() not in project.resolve().parents
     assert seen["workspace_dir"] == str(project.parent.resolve())
     assert seen["revoke"] is True
@@ -48,7 +48,7 @@ def test_explicit_project_runs_in_place(monkeypatch: pytest.MonkeyPatch, tmp_pat
         return 0
 
     monkeypatch.setattr(mod, "_run", fake_run)
-    explicit = tmp_path / "episode.project.json"
+    explicit = tmp_path / "episode.sharecut"
 
     assert mod.main(["--project", str(explicit), "--keep-shares"]) == 0
     assert seen == [explicit.resolve()]

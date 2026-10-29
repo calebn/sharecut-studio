@@ -7,7 +7,7 @@ have to thread ``project_path`` through every tool call::
         "mcpServers": {
             "sharecut": {
                 "command": "/path/to/.venv/bin/podcast-mcp",
-                "env": {"PODCAST_MCP_PROJECT": "/path/to/episode.project.json"},
+                "env": {"PODCAST_MCP_PROJECT": "/path/to/episode.sharecut"},
             }
         }
     }

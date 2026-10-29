@@ -32,7 +32,7 @@ export function minimalProject(
   overrides: Partial<ProjectView> = {},
 ): ProjectView {
   return {
-    project_path: "/tmp/test/episode.project.json",
+    project_path: "/tmp/test/episode.sharecut",
     meta: { name: "Test Episode", workspace_dir: "/tmp/test" },
     timeline_duration_sec: 60,
     tracks: [],
@@ -306,7 +306,7 @@ export function pipelineJobSnapshot(
 ): PipelineJobSnapshot {
   return {
     id: "sample-job",
-    project_path: "/tmp/sample/episode.project.json",
+    project_path: "/tmp/sample/episode.sharecut",
     from_step: null,
     only_step: null,
     kind: "pipeline",

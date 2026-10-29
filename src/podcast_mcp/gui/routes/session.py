@@ -180,7 +180,7 @@ def apply_ws_client_message(
 @router.get("/api/session/meta")
 def get_session_meta(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
@@ -192,7 +192,7 @@ def get_session_meta(
 @router.get("/api/session/state")
 def get_session_state(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
@@ -212,7 +212,7 @@ def get_session_state(
 def post_session_command(
     body: SessionCommandRequest,
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
@@ -247,7 +247,7 @@ def post_session_command(
 def post_session_state(
     body: ViewerSessionSnapshot,
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):

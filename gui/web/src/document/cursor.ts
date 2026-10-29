@@ -6,7 +6,7 @@ import { documentClientId } from "../utils/documentClient";
 import { jsonEqual } from "../utils/jsonEqual";
 import type { DocumentFileSignature } from "./authorityState";
 
-/** Identity of the episode.project.json a document snapshot was built from (#657). */
+/** Identity of the episode.sharecut a document snapshot was built from (#657). */
 
 export function noteDocumentSeq(seq: number): void {
   if (seq > documentAuthority.seq) {

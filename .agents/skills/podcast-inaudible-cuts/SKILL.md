@@ -46,7 +46,7 @@ but remain pending implementation in #1403. A pending proposal or its
 ## CLI
 
 ```bash
-podcast edit preview-cut --project episode.project.json --track host --start 1.0 --end 2.0
+podcast edit preview-cut --project episode.sharecut --track host --start 1.0 --end 2.0
 podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0
 podcast edit join-quality --project tests/fixtures/join_continuity --track host --join 1.0
 podcast edit join-sweep --project tests/fixtures/join_continuity

@@ -302,7 +302,7 @@ const COMMENTS = [
 
 export function episode(overrides: Partial<ProjectView> = {}): ProjectView {
   return minimalProject({
-    project_path: "/episodes/after-hours/episode.project.json",
+    project_path: "/episodes/after-hours/episode.sharecut",
     meta: {
       name: "After Hours Almanac 12",
       workspace_dir: "/episodes/after-hours",
@@ -469,7 +469,7 @@ export const selections = {
 
 export const pipelineJob: PipelineJobSnapshot = pipelineJobSnapshot({
   id: "job-1",
-  project_path: "/episodes/after-hours/episode.project.json",
+  project_path: "/episodes/after-hours/episode.sharecut",
   message: "Cleaning up dialogue",
   current: 2,
   total: 6,

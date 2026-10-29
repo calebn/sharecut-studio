@@ -18,7 +18,7 @@ def gui_cmd(
     project: Path | None = typer.Option(
         None,
         "--project",
-        help="episode.project.json path (omit on loopback for New/Open home)",
+        help="episode.sharecut path (omit on loopback for New/Open home)",
     ),
     port: int = typer.Option(8765, "--port"),
     host: str = typer.Option("127.0.0.1", "--host"),

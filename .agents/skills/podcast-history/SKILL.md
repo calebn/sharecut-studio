@@ -17,11 +17,11 @@ description: >-
 ## CLI
 
 ```bash
-podcast history list --project episode.project.json
-podcast history goto --project episode.project.json --index N
-podcast undo --project episode.project.json --rerender
-podcast redo --project episode.project.json
-podcast history record --project episode.project.json --label "before risky change"
+podcast history list --project episode.sharecut
+podcast history goto --project episode.sharecut --index N
+podcast undo --project episode.sharecut --rerender
+podcast redo --project episode.sharecut
+podcast history record --project episode.sharecut --label "before risky change"
 ```
 
 `goto` / undo / redo stale only the stems the move changed (content-addressed hashes, #424); `play processed:*` segment-renders a stale track (fast A/B), and unchanged tracks keep playing their stem. Pass `rerender=true` / `--rerender` only when you need full stems or premix.
@@ -33,7 +33,7 @@ For a failed mutation, raw history restoration alone does not certify editable a
 Re-render if needed:
 
 ```bash
-podcast pipeline run --project episode.project.json --from assemble_timeline
+podcast pipeline run --project episode.sharecut --from assemble_timeline
 ```
 
 ## MCP

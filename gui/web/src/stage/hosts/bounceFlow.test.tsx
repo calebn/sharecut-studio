@@ -27,7 +27,7 @@ vi.mock("../../api", async (importOriginal) => ({
   cancelPipelineRun: vi.fn(),
 }));
 
-const PATH = "/tmp/ep/episode.project.json";
+const PATH = "/tmp/ep/episode.sharecut";
 
 const started: PipelineJobSnapshot = {
   id: "b1",

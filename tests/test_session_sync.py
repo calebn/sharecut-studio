@@ -2456,7 +2456,7 @@ def test_session_meta_path_resolution_error_reports_missing(monkeypatch, exc) ->
         raise exc
 
     monkeypatch.setattr(session_service, "resolve_project_path", _boom)
-    meta = session_meta("/loop/episode.project.json")
+    meta = session_meta("/loop/episode.sharecut")
     assert meta["exists"] is False and meta["server_seq"] == 0
 
 
@@ -2464,7 +2464,7 @@ def test_session_meta_never_raises_on_a_real_symlink_loop(tmp_path) -> None:
     a, b = tmp_path / "a", tmp_path / "b"
     a.symlink_to(b)
     b.symlink_to(a)
-    meta = session_meta(a / "episode.project.json")
+    meta = session_meta(a / "episode.sharecut")
     assert meta["exists"] is False and meta["server_seq"] == 0
 
 
@@ -2477,7 +2477,7 @@ def test_meta_reads_never_raise_on_a_real_symlink_loop_under_artifacts(tmp_path)
     from podcast_mcp.services.document_sync.service import document_server_seq
     from podcast_mcp.services.session_sync.service import session_meta_at
 
-    project = tmp_path / "episode.project.json"
+    project = tmp_path / "episode.sharecut"
     project.write_text("{}")
     _loop_artifacts(tmp_path)
     meta = session_meta(project)
@@ -2501,7 +2501,7 @@ def test_meta_reads_convert_a_db_path_symlink_loop_runtime_error(tmp_path, monke
         return real_resolve(self, strict=strict)
 
     monkeypatch.setattr(Path, "resolve", _resolve)
-    project = tmp_path / "episode.project.json"
+    project = tmp_path / "episode.sharecut"
     meta = session_meta(project)
     assert meta["exists"] is False and meta["server_seq"] == 0
     assert document_server_seq(project) is None

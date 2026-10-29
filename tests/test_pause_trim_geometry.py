@@ -85,7 +85,7 @@ def _workspace(tmp_path: Path) -> ProjectWorkspace:
             voice(audio, float(n), float(n) + 0.2)
         write_wav(tmp_path / track.media.path, audio)
     project.edit_decisions = [_pause()]
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     REFINE_GATE.mark_done(project, notes="Literal synthetic fixture. No owner audio acceptance.")
     save_project(project, path)
     return ProjectWorkspace.open(path)

@@ -94,13 +94,13 @@ def proposed_hits(tmp_path_factory: pytest.TempPathFactory) -> dict[str, list[Ed
         for case in CASES:
             workspace = tmp_path_factory.mktemp(case["name"]) / case["name"]
             shutil.copytree(FIXTURE_DIR / case["name"], workspace)
-            PipelineService(ProjectWorkspace.open(workspace / "episode.project.json")).run(
+            PipelineService(ProjectWorkspace.open(workspace / "episode.sharecut")).run(
                 only_step="analyze_fillers_pauses",
                 config={"tighten": {"enabled": True, "intensity": "medium"}},
             )
             hits[case["name"]] = [
                 decision
-                for decision in load_project(workspace / "episode.project.json").edit_decisions
+                for decision in load_project(workspace / "episode.sharecut").edit_decisions
                 if not decision.applied
             ]
     return hits
@@ -124,7 +124,7 @@ def test_committed_clip_matches_manifest_seals(case: dict, track: str) -> None:
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["name"])
 def test_project_is_schema_valid_with_window_transcripts(case: dict) -> None:
-    path = FIXTURE_DIR / case["name"] / "episode.project.json"
+    path = FIXTURE_DIR / case["name"] / "episode.sharecut"
     jsonschema.validate(
         instance=json.loads(path.read_text(encoding="utf-8")),
         schema=json.loads(SCHEMA.read_text(encoding="utf-8")),

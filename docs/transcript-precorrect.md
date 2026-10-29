@@ -20,8 +20,8 @@ See [transcript-workflow.md](transcript-workflow.md).
 Or run manually:
 
 ```bash
-podcast transcript precorrect --project episode.project.json --dry-run
-podcast transcript precorrect --project episode.project.json --apply
+podcast transcript precorrect --project episode.sharecut --dry-run
+podcast transcript precorrect --project episode.sharecut --apply
 ```
 
 Use `--json-progress` on long episodes; progress events use `task_id` values documented in [cli-progress.md](cli-progress.md). Parent contract: [progress.md](progress.md).
@@ -35,9 +35,9 @@ Three layers (merged in order):
 3. `{workspace}/transcript_context.yaml` — guest names, skip spans, per-episode overrides
 
 ```bash
-podcast transcript context show --project episode.project.json
-podcast transcript context set --project episode.project.json --show-title "My Show" --term "Guest Name"
-podcast transcript context set --project episode.project.json --file context.yaml
+podcast transcript context show --project episode.sharecut
+podcast transcript context set --project episode.sharecut --show-title "My Show" --term "Guest Name"
+podcast transcript context set --project episode.sharecut --file context.yaml
 ```
 
 Remove entries with repeatable `--remove-term` / `--remove-guest-name` on

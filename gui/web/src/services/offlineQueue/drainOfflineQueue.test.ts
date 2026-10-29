@@ -92,7 +92,7 @@ describe("drainHostOfflineQueue", () => {
   });
 
   it("stops at this tab's in-flight send and drains again once it settles", async () => {
-    const path = "/projects/episode.project.json";
+    const path = "/projects/episode.sharecut";
     const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const send = beginDocumentSend(path, "live");
     let current = [cmd("live"), cmd("later")];
@@ -110,7 +110,7 @@ describe("drainHostOfflineQueue", () => {
   });
 
   it("skips a record a live send dequeued while an earlier one replayed", async () => {
-    const path = "/projects/episode.project.json";
+    const path = "/projects/episode.sharecut";
     const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const liveA = beginDocumentSend(path, "a");
     let current = [cmd("x"), cmd("a"), cmd("b")];
@@ -128,7 +128,7 @@ describe("drainHostOfflineQueue", () => {
   });
 
   it("requestHostDrain runs one more pass when asked mid-drain", async () => {
-    const path = "/projects/episode.project.json";
+    const path = "/projects/episode.sharecut";
     let current = [cmd("x")];
     hostQueue.mockImplementation(async () => current);
     removeHostQueuedCommands.mockImplementation(
@@ -181,12 +181,12 @@ describe("drainHostOfflineQueue", () => {
     ]);
     const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
 
-    await drainHostOfflineQueue("/projects/episode.project.json");
+    await drainHostOfflineQueue("/projects/episode.sharecut");
 
     expect(guestQueue).not.toHaveBeenCalled();
     expect(submit.mock.calls).toEqual([
       [
-        "/projects/episode.project.json",
+        "/projects/episode.sharecut",
         "SetTrackMeta",
         { label: "A" },
         expect.objectContaining({
@@ -197,7 +197,7 @@ describe("drainHostOfflineQueue", () => {
         }),
       ],
       [
-        "/projects/episode.project.json",
+        "/projects/episode.sharecut",
         "SetTrackMeta",
         { label: "B" },
         expect.objectContaining({
@@ -210,7 +210,7 @@ describe("drainHostOfflineQueue", () => {
     ]);
     expect(removeHostQueuedCommands).toHaveBeenCalledOnce();
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(
-      "/projects/episode.project.json",
+      "/projects/episode.sharecut",
       ["first", "second"],
     );
   });
@@ -227,13 +227,13 @@ describe("drainHostOfflineQueue", () => {
     hostQueue.mockResolvedValue(commands);
     const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
 
-    await drainHostOfflineQueue("/projects/episode.project.json");
+    await drainHostOfflineQueue("/projects/episode.sharecut");
 
     expect(submit).toHaveBeenCalledTimes(100);
     expect(hostQueue).toHaveBeenCalledTimes(1);
     expect(removeHostQueuedCommands).toHaveBeenCalledOnce();
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(
-      "/projects/episode.project.json",
+      "/projects/episode.sharecut",
       commands.map((command) => command.command_id),
     );
   });
@@ -277,17 +277,17 @@ describe("drainHostOfflineQueue", () => {
     );
     const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
 
-    await drainHostOfflineQueue("/projects/episode.project.json");
+    await drainHostOfflineQueue("/projects/episode.sharecut");
 
     expect(hostPoints).toEqual([{ id: "a", time: 0, value: 0.25 }]);
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(
-      "/projects/episode.project.json",
+      "/projects/episode.sharecut",
       ["first", "second"],
     );
   });
 
   it("still removes replayed records when a queue re-read fails", async () => {
-    const path = "/projects/episode.project.json";
+    const path = "/projects/episode.sharecut";
     const { beginDocumentSend } = await import("../../state/documentSendOrder");
     const liveB = beginDocumentSend(path, "b");
     let unreadable = false;
@@ -341,7 +341,7 @@ describe("drainHostOfflineQueue", () => {
   });
 
   it("replays another tab's in-flight record with its original identity", async () => {
-    const path = "/projects/episode.project.json";
+    const path = "/projects/episode.sharecut";
     // Another tab is still POSTing "foreign"; this tab's registry does not know it.
     hostQueue.mockResolvedValue([
       {

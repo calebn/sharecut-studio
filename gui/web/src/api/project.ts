@@ -171,7 +171,7 @@ export async function openEpisodeProject(
 }
 
 export type RecentProject = {
-  /** Absolute path of episode.project.json. */
+  /** Absolute path of episode.sharecut. */
   path: string;
   name: string;
   opened_at: string;

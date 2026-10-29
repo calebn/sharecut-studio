@@ -32,7 +32,7 @@ import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
 
-const PATH = "/tmp/ep/episode.project.json";
+const PATH = "/tmp/ep/episode.sharecut";
 const MP3 = { ext: "mp3", codec: "libmp3lame", bitrate_kbps: 128 };
 
 let server: ReturnType<typeof fakeExportServer>;

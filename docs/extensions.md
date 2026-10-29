@@ -8,7 +8,7 @@ Extensions run **in-process** with the GUI and MCP server (full access to the ep
 
 ```bash
 export PODCAST_EXTENSIONS=
-podcast gui --project …/episode.project.json
+podcast gui --project …/episode.sharecut
 ```
 
 Allowlist by entry-point name:

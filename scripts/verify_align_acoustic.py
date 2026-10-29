@@ -10,11 +10,11 @@ host speech (outside any host silence).
 
 Examples:
   .venv/bin/python scripts/verify_align_acoustic.py \\
-    --project …/turbo-raw/episode.project.json \\
+    --project …/turbo-raw/episode.sharecut \\
     --ref audra --src caleb
 
   .venv/bin/python scripts/verify_align_acoustic.py \\
-    --project …/turbo-raw/episode.project.json \\
+    --project …/turbo-raw/episode.sharecut \\
     --occupancy --ref audra --src lana
 """
 

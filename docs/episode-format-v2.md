@@ -1,6 +1,6 @@
 # Episode Project Format v2
 
-Canonical file: `episode.project.json` in the episode workspace.
+Canonical file: `episode.sharecut` in the episode workspace. The extension is `.sharecut`; the file is JSON.
 
 Version `2.0` is the **single source of truth** for editable project state. CLI, MCP, pipeline, and history all load and commit through `ProjectStore`.
 
@@ -8,7 +8,7 @@ Version `2.0` is the **single source of truth** for editable project state. CLI,
 
 ```
 my_episode/
-├── episode.project.json    # v2 project (required)
+├── episode.sharecut    # v2 project (required)
 ├── raw/                    # Source / consolidated audio (never overwritten by edits)
 ├── transcripts/            # Optional write-through caches (not authoritative)
 ├── history/
@@ -22,7 +22,7 @@ my_episode/
 
 | Section | Purpose |
 |---------|---------|
-| `meta` | `name`, `workspace_dir`, `created_at`, `schema_id`, `analysis_reads_first_audio_stream` (true on projects created since analysis reads the first audio stream, or after `podcast episode mark-streams-current`; absent or false on older ones). On disk, `workspace_dir` is always `"."`; `load_project` remaps to the directory containing `episode.project.json`. Media and source paths are workspace-relative (never absolute host paths). |
+| `meta` | `name`, `workspace_dir`, `created_at`, `schema_id`, `analysis_reads_first_audio_stream` (true on projects created since analysis reads the first audio stream, or after `podcast episode mark-streams-current`; absent or false on older ones). On disk, `workspace_dir` is always `"."`; `load_project` remaps to the directory containing `episode.sharecut`. Media and source paths are workspace-relative (never absolute host paths). |
 | `sources` | Raw ingest files, alignment offsets (pre- or post-consolidation). Recorded keepers also carry `clipping_regions[]` (`start_s`/`end_s`, source seconds): sample-peak clipping the browser encoder detected (-1 dBFS), written at landing; `clipping_truncated` (the encoder hit its region cap); `list_clips` reports each clip's share as `clipping_regions` and `clipping_truncated`. Consolidated sources carry none |
 | `timeline` | `tracks`, `clips` (placement on session clock), `duration_sec` |
 | `editorial` | Non-destructive `edit_decisions` (remove/mute ranges; `split` blade proposals use timeline clock via `timebase`); `edit_log` (committed-cut provenance); `speaker_splits` (one recording split into a lane per speaker); `record_sessions` (record-room sessions landed on the timeline, numbered in landing order); `session_suggestions` (record sessions staged for an insert or replace target) |
@@ -48,7 +48,7 @@ fingerprints.
 
 ## Transcripts (canonical in project file)
 
-After transcription, **`transcripts.per_track`** must be present in `episode.project.json`. Each entry:
+After transcription, **`transcripts.per_track`** must be present in `episode.sharecut`. Each entry:
 
 ```json
 {
@@ -165,7 +165,7 @@ Each undo point stores a **full snapshot** of editable sections (not a diff): `s
 
 `review.comments[]` holds human/agent feedback on the **timeline** clock (what listeners hear on premix/review). Each comment may be an instant (`timeline_end` null or equal to start) or a contiguous span, optionally scoped to one or more `track_ids` (empty = session-wide). Nested `action_items` track checkable work with `completed_by` / `completed_at`; `replies[]` is a flat thread. Optional `edit_decision_id` binds **one** comment thread to a pending `editorial.edit_decisions[]` row (unique among comments; lazy-created on first Ask). Optional `review.versions[]` / `active_version_id` freeze review mixes (`audio_relpath` WAV + optional `mp3_relpath` / `object_store_key` for link previews and agents; both relpaths must resolve inside `artifacts/review/` — see timeline-comments.md); comments may stamp `review_version_id`. See [timeline-comments.md](timeline-comments.md).
 
-Undo/redo restores snapshot → `ProjectStore.commit()` updates `episode.project.json`.
+Undo/redo restores snapshot → `ProjectStore.commit()` updates `episode.sharecut`.
 
 ## Version policy
 

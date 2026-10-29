@@ -19,7 +19,7 @@ claim a license for the source recordings. No full recording is included.
 | `caleb_um_pause` | 608.0 to 633.0 | 1 (Caleb) | 0 | 4 (Caleb) |
 
 Each case directory is an openable v2 episode project. It has
-`episode.project.json`, `raw/<track>.flac`, and the transcript mirrors under
+`episode.sharecut`, `raw/<track>.flac`, and the transcript mirrors under
 `transcripts/`. The transcripts hold the lab's seeded ASR words that lie fully
 inside the window, shifted to clip time.
 
@@ -102,9 +102,9 @@ been refined.
 
 ```sh
 cp -R tests/fixtures/lab_tighten/lana_uh_cluster /tmp/lab-tighten
-podcast transcript refine-waive --project /tmp/lab-tighten/episode.project.json \
+podcast transcript refine-waive --project /tmp/lab-tighten/episode.sharecut \
   --reason "lab_tighten fixture: seeded ASR"
-podcast gui --project /tmp/lab-tighten/episode.project.json
+podcast gui --project /tmp/lab-tighten/episode.sharecut
 ```
 
 ## Regenerate

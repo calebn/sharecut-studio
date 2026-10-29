@@ -19,7 +19,7 @@ from podcast_mcp.services.app.gui_launch import (
 def test_viewer_url_encodes_absolute_project(tmp_path: Path) -> None:
     from urllib.parse import parse_qs, unquote, urlparse
 
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     url = viewer_url("127.0.0.1", 8765, proj)
     assert url.startswith("http://127.0.0.1:8765/?")
@@ -35,7 +35,7 @@ def test_ensure_viewer_missing_project(tmp_path: Path) -> None:
 
 
 def test_ensure_viewer_reuses_healthy_server(tmp_path: Path) -> None:
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     with (
         patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=True),
@@ -51,7 +51,7 @@ def test_ensure_viewer_reuses_healthy_server(tmp_path: Path) -> None:
 def test_ensure_viewer_hint_names_the_missing_web_build(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     monkeypatch.setenv("PODCAST_GUI_DIST", str(tmp_path / "no-web-build"))
     with patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=True):
@@ -63,7 +63,7 @@ def test_ensure_viewer_hint_names_the_missing_web_build(
 
 
 def test_ensure_viewer_port_busy_without_health(tmp_path: Path) -> None:
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     with (
         patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=False),
@@ -75,7 +75,7 @@ def test_ensure_viewer_port_busy_without_health(tmp_path: Path) -> None:
 
 
 def test_ensure_viewer_missing_uvicorn(tmp_path: Path) -> None:
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     with (
         patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=False),
@@ -88,7 +88,7 @@ def test_ensure_viewer_missing_uvicorn(tmp_path: Path) -> None:
 
 
 def test_ensure_viewer_starts_subprocess(tmp_path: Path) -> None:
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     proc = MagicMock()
     proc.pid = 4242
@@ -121,7 +121,7 @@ def test_ensure_viewer_starts_subprocess(tmp_path: Path) -> None:
 
 
 def test_ensure_viewer_process_exits_early(tmp_path: Path) -> None:
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     proc = MagicMock()
     proc.pid = 7
@@ -178,7 +178,7 @@ def test_is_viewer_up_sends_boot_token() -> None:
 def test_open_gui_mcp_tool(tmp_path: Path) -> None:
     from podcast_mcp.mcp.server import open_gui_tool
 
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     with patch(
         "podcast_mcp.mcp.tools.gui.ensure_viewer",
@@ -195,7 +195,7 @@ def test_gui_cli_background(tmp_path: Path) -> None:
 
     from podcast_mcp.cli.gui import gui_app
 
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     runner = CliRunner()
     payload = {"ok": True, "already_running": False}
@@ -225,7 +225,7 @@ def test_packaged_cli_gui_refusal_only_when_marker_is_one(
 def test_ensure_viewer_refuses_under_packaged_cli(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     monkeypatch.setenv(PACKAGED_CLI_ENV, "1")
     with patch("podcast_mcp.services.app.gui_launch.popen") as spawn:
@@ -250,7 +250,7 @@ def test_packaged_cli_refuses_gui_after_root_options(
 
     from podcast_mcp.cli.main import app
 
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     monkeypatch.setenv(PACKAGED_CLI_ENV, "1")
     argv = [str(proj) if a == "PROJECT" else a for a in argv]

@@ -23,7 +23,7 @@ def episode_init(
 
 @episode_app.command("add-track")
 def track_add(
-    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    project: Path = typer.Option(..., "--project", help="episode.sharecut"),
     id: str = typer.Option(..., "--id", help="Track id"),
     file: Path = typer.Option(..., "--file", help="Audio file path"),
     label: str | None = typer.Option(None, "--label", help="Display label"),
@@ -37,7 +37,7 @@ def track_add(
 
 @episode_app.command("reorder-track")
 def track_reorder(
-    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    project: Path = typer.Option(..., "--project", help="episode.sharecut"),
     id: str = typer.Option(..., "--id", help="Track id"),
     index: int = typer.Option(..., "--index", help="0-based destination index"),
 ) -> None:
@@ -48,7 +48,7 @@ def track_reorder(
 
 @episode_app.command("set-track-volume")
 def track_set_volume(
-    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    project: Path = typer.Option(..., "--project", help="episode.sharecut"),
     id: str = typer.Option(..., "--id", help="Track id"),
     db: float = typer.Option(
         ..., "--db", help="Saved volume in dB (-60 to +12), on top of staging gain"
@@ -60,7 +60,7 @@ def track_set_volume(
 
 @episode_app.command("set-track-mute")
 def track_set_mute(
-    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    project: Path = typer.Option(..., "--project", help="episode.sharecut"),
     id: str = typer.Option(..., "--id", help="Track id"),
     muted: bool = typer.Option(True, "--muted/--unmuted", help="Saved mix mute"),
 ) -> None:
@@ -70,7 +70,7 @@ def track_set_mute(
 
 @episode_app.command("mark-streams-current")
 def mark_streams_current(
-    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    project: Path = typer.Option(..., "--project", help="episode.sharecut"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     typer.echo(json.dumps(EpisodeService(ws).mark_streams_current()))

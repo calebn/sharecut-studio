@@ -14,9 +14,9 @@ There is one speaker model: the ECAPA ONNX export (`podcast bootstrap --componen
 
 ```bash
 podcast speaker doctor
-podcast speaker enroll --project episode.project.json
+podcast speaker enroll --project episode.sharecut
 podcast speaker enroll --project PATH --speaker NAME --track T --start 10 --end 40
-podcast speaker profiles --project episode.project.json
+podcast speaker profiles --project episode.sharecut
 podcast speaker score --project PATH --track host --start 10 --end 12
 podcast speaker compare --project PATH --start 978.65 --end 979.49
 podcast speaker compare --project PATH --track-a host --start-a 10 --end-a 12 \
@@ -25,8 +25,8 @@ podcast speaker label --project PATH --track host --start 10 --end 12 --dry-run
 podcast speaker gate-track --project PATH --dry-run
 podcast speaker gate-track --project PATH --apply
 podcast speaker set-speaker-count --project PATH --speakers 2
-podcast speaker attribute --project episode.project.json --dry-run
-podcast speaker attribute --project episode.project.json --apply
+podcast speaker attribute --project episode.sharecut --dry-run
+podcast speaker attribute --project episode.sharecut --apply
 podcast speaker split --project PATH --track room --speakers 3 --dry-run
 podcast speaker split --project PATH --track room --enroll "Ana=12:20" --enroll "Ben=31:40" --apply
 ```

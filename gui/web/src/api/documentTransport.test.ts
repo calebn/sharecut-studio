@@ -25,7 +25,7 @@ describe("postHostDocumentCommand", () => {
           }),
       ),
     );
-    const pending = postHostDocumentCommand("/tmp/episode.project.json", {});
+    const pending = postHostDocumentCommand("/tmp/episode.sharecut", {});
     const assertion = expect(pending).rejects.toMatchObject({
       name: "TimeoutError",
     });
@@ -39,7 +39,7 @@ describe("postHostDocumentCommand", () => {
       "fetch",
       vi.fn(async () => new Response("{}", { status: 200 })),
     );
-    await postHostDocumentCommand("/tmp/episode.project.json", {});
+    await postHostDocumentCommand("/tmp/episode.sharecut", {});
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -82,7 +82,7 @@ describe("postHostDocumentCommand", () => {
           ),
       ),
     );
-    const pending = postHostDocumentCommand("/tmp/episode.project.json", {});
+    const pending = postHostDocumentCommand("/tmp/episode.sharecut", {});
     const assertion = expect(pending).rejects.toMatchObject({
       name: "TimeoutError",
     });
@@ -102,7 +102,7 @@ describe("postHostDocumentCommand", () => {
       ),
     );
     await expect(
-      postHostDocumentCommand("/tmp/episode.project.json", {}),
+      postHostDocumentCommand("/tmp/episode.sharecut", {}),
     ).resolves.toMatchObject({
       ok: false,
       status: 409,
@@ -124,7 +124,7 @@ describe("postHostDocumentCommand", () => {
       ),
     );
     await expect(
-      postHostDocumentCommand("/tmp/episode.project.json", {}),
+      postHostDocumentCommand("/tmp/episode.sharecut", {}),
     ).resolves.toEqual({ ok: true, data: { ok: true, server_seq: 3 } });
   });
 });
@@ -150,7 +150,7 @@ describe("long document commands", () => {
           }),
       ),
     );
-    const pending = postHostDocumentCommand("/tmp/episode.project.json", {
+    const pending = postHostDocumentCommand("/tmp/episode.sharecut", {
       type: "ApproveEdits",
     });
     const assertion = expect(pending).rejects.toMatchObject({

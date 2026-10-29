@@ -3,8 +3,8 @@
 Benchmarks that need a full local session (e.g. sibling ``podcast-cleanup-test``)
 must not hard-code ``/Users/...``. Prefer:
 
-1. ``PODCAST_CLEANUP_TEST_PROJECT`` — path to ``episode.project.json`` (or its dir)
-2. Sibling checkout: ``<repo-parent>/podcast-cleanup-test/episode.project.json``
+1. ``PODCAST_CLEANUP_TEST_PROJECT`` — path to ``episode.sharecut`` (or its dir)
+2. Sibling checkout: ``<repo-parent>/podcast-cleanup-test/episode.sharecut``
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ def cleanup_test_project() -> Path | None:
     if override:
         path = Path(override).expanduser()
         if path.is_dir():
-            path = path / "episode.project.json"
+            path = path / "episode.sharecut"
         path = path.resolve()
         return path if path.is_file() else None
-    sibling = _REPO_ROOT.parent / "podcast-cleanup-test" / "episode.project.json"
+    sibling = _REPO_ROOT.parent / "podcast-cleanup-test" / "episode.sharecut"
     return sibling if sibling.is_file() else None

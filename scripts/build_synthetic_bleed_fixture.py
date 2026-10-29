@@ -371,7 +371,7 @@ def _write_project(
         project
     )
 
-    project_path = out_root / "episode.project.json"
+    project_path = out_root / "episode.sharecut"
     store = ProjectStore(project_path)
     store.commit(project)
     return project_path

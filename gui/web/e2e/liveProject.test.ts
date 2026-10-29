@@ -29,7 +29,7 @@ const SKIPPED_SEED_PATHS = [
   "artifacts/peaks/track-reference.key.wfpk",
 ];
 const KEPT_SEED_PATHS = [
-  "episode.project.json",
+  "episode.sharecut",
   "transcripts/review/t.json",
   "sources/export/s.wav",
 ];
@@ -39,7 +39,10 @@ function seedSourceRoot(): string {
   for (const rel of [...SKIPPED_SEED_PATHS, ...KEPT_SEED_PATHS]) {
     const file = path.join(root, rel);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, rel.endsWith(".json") ? "{}" : "");
+    fs.writeFileSync(
+      file,
+      rel.endsWith(".json") || rel === "episode.sharecut" ? "{}" : "",
+    );
   }
   return root;
 }
@@ -196,18 +199,16 @@ describe("copyUxDemoProject", () => {
     const media = path.join(src, "real.wav");
     fs.writeFileSync(media, "RIFF");
     fs.mkdirSync(path.join(src, "demo", "raw"), { recursive: true });
-    fs.writeFileSync(path.join(src, "demo", "episode.project.json"), "{}");
+    fs.writeFileSync(path.join(src, "demo", "episode.sharecut"), "{}");
     fs.symlinkSync(media, path.join(src, "demo", "raw", "a.wav"));
     const projectPath = copyUxDemoProject(
-      path.join(src, "demo", "episode.project.json"),
+      path.join(src, "demo", "episode.sharecut"),
     );
     removeAfterTest(path.dirname(projectPath));
     const copied = path.join(path.dirname(projectPath), "raw", "a.wav");
     expect(fs.lstatSync(copied).isSymbolicLink()).toBe(false);
     expect(fs.readFileSync(copied, "utf8")).toBe("RIFF");
-    expect(copyUxDemoProject("/nowhere/episode.project.json")).toBe(
-      projectPath,
-    );
+    expect(copyUxDemoProject("/nowhere/episode.sharecut")).toBe(projectPath);
   });
 
   it("copies a caller-supplied UX project before share preparation can change it", async () => {
@@ -215,7 +216,7 @@ describe("copyUxDemoProject", () => {
     process.env.DAW_E2E_CLEANUP_MANIFEST = manifest.manifestPath;
     const source = path.join(
       tempWorkspace("ux-demo-caller-"),
-      "episode.project.json",
+      "episode.sharecut",
     );
     const original = '{"meta":{"workspace_dir":"caller-owned"}}';
     fs.writeFileSync(source, original);

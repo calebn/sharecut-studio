@@ -19,7 +19,7 @@ describe("createHostShare", () => {
     );
 
     await expect(
-      createHostShare("/tmp/episode.project.json", { role: "commenter" }),
+      createHostShare("/tmp/episode.sharecut", { role: "commenter" }),
     ).rejects.toMatchObject({
       name: "ApiError",
       code: "stale_mix",

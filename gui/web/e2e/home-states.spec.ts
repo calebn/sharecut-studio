@@ -3,7 +3,7 @@ import { openHome } from "./home";
 import { expectNoHorizontalScroll, mockBootstrap } from "./modelsMock";
 import { setRootFontSize } from "./rootFontSize";
 
-const EPISODE = "/tmp/sharecut-e2e-home-states/rosa/episode.project.json";
+const EPISODE = "/tmp/sharecut-e2e-home-states/rosa/episode.sharecut";
 
 const RECENT = {
   path: EPISODE,

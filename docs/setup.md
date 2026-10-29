@@ -50,7 +50,7 @@ podcast bootstrap --component all
 cd gui/web && npm ci && npm run build && cd ../..   # ShareCut Studio static assets
 make hooks                                          # lint-staged + check-only pre-commit hooks
 make worktree-setup                                 # per git worktree: hooks + venv (incl. pre-commit) + gui/web node_modules
-podcast gui --project /path/to/episode.project.json
+podcast gui --project /path/to/episode.sharecut
 ```
 
 The pre-commit hook and `make worktree-setup` source `scripts/node-env.sh`, which puts the Node major pinned in `.nvmrc` first on `PATH` from nvm's install tree (`$NVM_DIR/versions/node`). Shells that don't load nvm, such as git hooks and agent shells, still get the pinned Node instead of an older default. If that version isn't installed, the script warns; run `nvm install` in the repo.
@@ -217,7 +217,7 @@ podcast bootstrap --component all     # every model in the table, including word
 podcast bootstrap --component whisper --whisper-model small.en
 podcast setup --whisper-model medium.en   # persist without downloading
 # Use another downloaded model for one standalone transcription run.
-podcast transcribe --project /path/to/episode.project.json --model small.en
+podcast transcribe --project /path/to/episode.sharecut --model small.en
 podcast bootstrap --component word-aligner  # precise word boundaries turn on by default once downloaded (transcribe.forced_alignment.enabled)
 ```
 
@@ -541,7 +541,7 @@ Audition timeline ranges or transcript matches:
 ```bash
 # Processed solo track (edits + FX; uses stem if fresh and not longer than timeline,
 # else segment render). Play-cache keys include stem mtime so reassemble invalidates extracts.
-podcast play --project /path/to/episode.project.json --source processed:host --start 0 --end 10
+podcast play --project /path/to/episode.sharecut --source processed:host --start 0 --end 10
 
 # Raw source (alignment checks, no FX)
 podcast play --project ... --source track:host --start 0 --end 10
@@ -574,7 +574,7 @@ Share, record, remote-MCP, and guest `/r/{token}` routes load through the public
 ```bash
 # Pure local ShareCut Studio (no share routes, no share MCP mint tool, no `podcast review share*`)
 export PODCAST_EXTENSIONS=
-podcast gui --project episode.project.json
+podcast gui --project episode.sharecut
 
 # FOSS self-hosted collaboration only
 export PODCAST_EXTENSIONS=collaboration
@@ -818,9 +818,9 @@ ShareCut Studio is the full editor, not only a viewer. Install the optional `gui
 
 ```bash
 cd gui/web && npm ci && npm run build && cd ../..
-podcast gui --project /path/to/episode.project.json
+podcast gui --project /path/to/episode.sharecut
 # or background (same as MCP open_gui_tool):
-podcast gui --project /path/to/episode.project.json --background
+podcast gui --project /path/to/episode.sharecut --background
 # loopback without --project opens New/Open home (Pass 8)
 # with a project pinned, / redirects to it; /?home=1 shows home without unpinning
 # Open other… on Home uses a host OS file dialog (a path field when there is none); Mod+O opens Home
@@ -893,14 +893,14 @@ Development with hot reload:
 
 ```bash
 # Terminal 1 — API on :8765
-podcast gui --project /path/to/episode.project.json --dev --no-open
+podcast gui --project /path/to/episode.sharecut --dev --no-open
 # or: podcast gui --dev --no-open   # New/Open home on loopback
 
 # Terminal 2 — Vite on :5173 (proxies /api to :8765)
 cd gui/web && npm run dev
 ```
 
-Open `http://127.0.0.1:5173/?project=/absolute/path/to/episode.project.json` (or omit `?project=` for host New/Open).
+Open `http://127.0.0.1:5173/?project=/absolute/path/to/episode.sharecut` (or omit `?project=` for host New/Open).
 
 See [gui-integration.md](gui-integration.md) for layout, ingest, API details, and **local host MCP** (`http://127.0.0.1:8765/mcp`).
 
@@ -914,9 +914,9 @@ LAN-only alternative (prefer the relay when possible):
 export PODCAST_REVIEW_CORS_ORIGINS=https://your-origin.example
 # Binding off-loopback auto-enables PODCAST_SESSION_AUTHZ=strict and generates
 # PODCAST_SESSION_TOKEN if unset; open the printed URL (includes session_token).
-podcast gui --host 0.0.0.0 --port 8765 --project episode.project.json
-podcast review publish-version --project episode.project.json --label "Guest v1"
-podcast review share --project episode.project.json \
+podcast gui --host 0.0.0.0 --port 8765 --project episode.sharecut
+podcast review publish-version --project episode.sharecut --label "Guest v1"
+podcast review share --project episode.sharecut \
   --role commenter --base-url http://YOUR_HOST:8765
 ```
 
@@ -933,8 +933,8 @@ restore](share-tokens.md#backup--restore) before moving registry data.
 Guests use `/r/{token}` or `/rec/{token}` only (no `?project=` paths). `--role viewer|commenter|editor` picks the review-link role (default Commenter). Every role opens ShareCut Studio. Mint a recording room with `--kind record` (prints guest + producer `/rec/` URLs; the `--kind record` mint warns if the current room has a stopped take not yet saved to the episode, and `--land-first` lands it before minting). Grant `--with-mcp` for capability-scoped remote MCP at `{base}/mcp/{token}/mcp` — host usually needs `podcast tunnel`. (`/r/{token}/mcp` is an accepted alias of the MCP bridge.) Restricted ACL + Google/GitHub login: [share-tokens.md](share-tokens.md) § Identity. See [timeline-comments.md](timeline-comments.md) § Public review share and [host-online-relay.md](host-online-relay.md) § Remote MCP. `podcast tunnel` prints one timestamped stderr line per state change (connecting, connected with the public URL and share count, disconnected with the reason, reconnecting with backoff) and exits `1` on a rejected host token or bad relay URL instead of retrying; Share says whether guests can open your links (or nothing on a local-only host) — see [host-online-relay.md](host-online-relay.md) § Tunnel status. Share/MCP traffic is rate-limited by default (generous budgets; `PODCAST_RATE_LIMIT=0` / `PODCAST_RELAY_RATE_LIMIT=0` to disable) — see [host-online-relay.md](host-online-relay.md) § Rate limiting. With an object store configured, `podcast relay bucket-check` says whether guests can read its media and `podcast relay bucket-setup` adds the CORS rule they need with an admin key, safe to run again — see [host-online-relay.md](host-online-relay.md) § Object-store bucket setup.
 
 ```bash
-podcast gui --project episode.project.json --no-open
-podcast review share --project episode.project.json \
+podcast gui --project episode.sharecut --no-open
+podcast review share --project episode.sharecut \
   --role commenter --with-mcp \
   --base-url https://share.example.com
 # Cursor: { "mcpServers": { "podcast-remote": { "url": "<printed MCP URL>" } } }
@@ -949,10 +949,10 @@ exits 1 instead of a full traceback (`cli/busy.py`'s `BusyErrorGroup`, the CLI's
 choke point). Set `PODCAST_DEBUG=1` to get the original traceback back instead:
 
 ```bash
-podcast edit suggest-handoff-cut --project episode.project.json --keep-left-end 10 --keep-right-start 20
+podcast edit suggest-handoff-cut --project episode.sharecut --keep-left-end 10 --keep-right-start 20
 # Error: track_id or speaker is required (set PODCAST_DEBUG=1 for the traceback)
 
-PODCAST_DEBUG=1 podcast edit suggest-handoff-cut --project episode.project.json --keep-left-end 10 --keep-right-start 20
+PODCAST_DEBUG=1 podcast edit suggest-handoff-cut --project episode.sharecut --keep-left-end 10 --keep-right-start 20
 # full traceback
 ```
 

@@ -112,17 +112,17 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### SCR-HOME-OPEN · Open project form
 
-- **Today:** `SCR-HOME-OPEN--desktop-light.png`, `SCR-HOME-OPEN--phone-light.png`. The user must know a file is called `episode.project.json`; three equal buttons; Cancel wraps on phone.
+- **Today:** `SCR-HOME-OPEN--desktop-light.png`, `SCR-HOME-OPEN--phone-light.png`. The user must know a file is called `episode.sharecut`; three equal buttons; Cancel wraps on phone.
 - **Fate:** replace with "Open other…" (OS folder picker that accepts the project folder or the json) plus Project cards.
-- **Spec:** "Open other…" opens the OS picker in folder mode; choosing a folder that contains `episode.project.json` opens it. When no OS picker exists (plain browser), a popover anchored to the button holds one path field (placeholder "Folder of the episode") and an Open button; Enter submits. Errors appear under the field (see SCR-HOME-ERROR).
+- **Spec:** "Open other…" opens the OS picker in folder mode; choosing a folder that contains `episode.sharecut` opens it. When no OS picker exists (plain browser), a popover anchored to the button holds one path field (placeholder "Folder of the episode") and an Open button; Enter submits. Errors appear under the field (see SCR-HOME-ERROR).
 - **Shared elements used:** popover, inline error.
 - **Story to build:** `Stages/Home/OpenOther` stories `Picker`, `PathFallback`, `PathError`.
 
 ### SCR-HOME-ERROR · Home error
 
-- **Today:** `SCR-HOME-ERROR--desktop-light.png`, `SCR-HOME-ERROR--phone-light.png`. Error appears above the form, far from the field, in internal phrasing "expected episode.project.json, got 'bad.project.json'".
+- **Today:** `SCR-HOME-ERROR--desktop-light.png`, `SCR-HOME-ERROR--phone-light.png`. Error appears above the form, far from the field, in internal phrasing "expected episode.sharecut, got 'bad.project.json'".
 - **Fate:** restyle into inline field errors.
-- **Spec:** error text 13/16 in the danger color directly under the path field, with a fix: "That folder has no ShareCut episode. Choose the folder that holds episode.project.json." Opening a project another window already has open: "This episode is open in another window. Switch to it" (button).
+- **Spec:** error text 13/16 in the danger color directly under the path field, with a fix: "That folder has no ShareCut episode. Choose the folder that holds episode.sharecut." Opening a project another window already has open: "This episode is open in another window. Switch to it" (button).
 - **Shared elements used:** inline error.
 - **Story to build:** covered by `Stages/Home/OpenOther` `PathError`.
 

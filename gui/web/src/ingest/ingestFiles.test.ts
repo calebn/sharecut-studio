@@ -30,7 +30,7 @@ describe("ingestFiles", () => {
     addTrackMock.mockReset();
     refreshMock.mockReset();
     useDawStore.setState({
-      projectPath: "/tmp/test/episode.project.json",
+      projectPath: "/tmp/test/episode.sharecut",
       project: minimalProject(),
       ingestBusy: false,
       statusAnnouncement: "",
@@ -61,7 +61,7 @@ describe("ingestFiles", () => {
 
     await ingestFiles([file], { kind: "new" });
 
-    expect(refreshMock).toHaveBeenCalledWith("/tmp/test/episode.project.json");
+    expect(refreshMock).toHaveBeenCalledWith("/tmp/test/episode.sharecut");
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Import failed: unsupported audio format",
     );
@@ -166,7 +166,7 @@ describe("ingestFiles", () => {
 });
 
 describe("ingestIntoNewProject", () => {
-  const PATH = "/ws/new/episode.project.json";
+  const PATH = "/ws/new/episode.sharecut";
   const setMediaMock = vi.mocked(api.setTrackMediaCommand);
 
   beforeEach(() => {

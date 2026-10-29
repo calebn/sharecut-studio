@@ -19,7 +19,7 @@ def test_tunnel_help():
 
 
 def test_tunnel_missing_websockets_import_error(tmp_path: Path):
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
 
     # Patch in the cli.tunnel namespace (where the name is bound after import)
@@ -36,7 +36,7 @@ def test_tunnel_missing_websockets_import_error(tmp_path: Path):
 
 
 def test_tunnel_keyboard_interrupt_exits_cleanly(tmp_path: Path):
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
 
     with patch(
@@ -51,7 +51,7 @@ def test_tunnel_keyboard_interrupt_exits_cleanly(tmp_path: Path):
 
 
 def test_tunnel_passes_options_to_run_tunnel_sync(tmp_path: Path):
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     cfg_file = tmp_path / "relay.yaml"
     cfg_file.write_text("relay_url: ws://test/tunnel\n", encoding="utf-8")

@@ -69,7 +69,7 @@ podcast ingest report \
 podcast ingest consolidate \
   --audio-dir "$PODCAST_AUDIO_DIR" \
   --manifest ingest.yaml \
-  --project episode.project.json \
+  --project episode.sharecut \
   --extract-start 960 --extract-duration 60 \
   --transcript path/to/per_track.json \
   --align-mode transcript
@@ -84,7 +84,7 @@ Remote tracks often **bleed** the other speaker. Both waveforms can be "hot" at 
 ## Tools
 
 - `docs/multitrack-ingest.md` — CLI reference
-- E2E project: `tests/fixtures/aligned_dialogue/episode.project.json`
+- E2E project: `tests/fixtures/aligned_dialogue/episode.sharecut`
 
 ## After alignment changes
 

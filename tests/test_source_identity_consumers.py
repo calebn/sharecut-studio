@@ -165,7 +165,7 @@ def test_edit_service_persists_resized_source_geometry(tmp_path: Path) -> None:
     decision = cut_words(
         project, "host", 0, 0, source_id="B", use_inaudible_opt=False, defaults=load_defaults()
     )
-    path = save_project(project, tmp_path / "episode.project.json")
+    path = save_project(project, tmp_path / "episode.sharecut")
 
     updated = EditService(ProjectWorkspace.open(path)).update_pending(
         decision.id, start=0.05, end=0.45, snap=False
@@ -212,7 +212,7 @@ def test_edit_service_resize_does_not_retarget_another_source_occurrence(
                 start=2.1, end=2.3, mode="waveform_only", confidence=0.9
             ),
         )
-    path = save_project(project, tmp_path / "episode.project.json")
+    path = save_project(project, tmp_path / "episode.sharecut")
     before = path.read_bytes()
 
     with pytest.raises(ScopeChangedAtApproval):
@@ -346,7 +346,7 @@ def test_source_witness_rejects_foreign_overlap_before_persisted_approval(
 ) -> None:
     project, decision = _source_overlap_project(tmp_path, scope=scope)
     project.meta.workspace_dir = str(tmp_path)
-    path = save_project(project, tmp_path / "episode.project.json")
+    path = save_project(project, tmp_path / "episode.sharecut")
     before_bytes = path.read_bytes()
     before_geometry = _clip_geometry(load_project(path))
 
@@ -363,7 +363,7 @@ def test_source_witness_rejects_foreign_overlap_before_persisted_approval(
 def test_source_witness_foreign_overlap_is_stale_in_preview_and_update(tmp_path: Path) -> None:
     project, decision = _source_overlap_project(tmp_path)
     project.meta.workspace_dir = str(tmp_path)
-    path = save_project(project, tmp_path / "episode.project.json")
+    path = save_project(project, tmp_path / "episode.sharecut")
     before = path.read_bytes()
 
     assert _timeline_span(project, decision) == (0.0, 0.0, False)

@@ -1033,7 +1033,7 @@ def test_standalone_transcribe_trims_stretched_word_spans(tmp_path):
             media=MediaAsset(path="raw/lana.wav"),
         )
     )
-    project_file = tmp_path / "episode.project.json"
+    project_file = tmp_path / "episode.sharecut"
     save_project(project, project_file)
     ws = ProjectWorkspace.open(project_file)
     stretched = Transcript(

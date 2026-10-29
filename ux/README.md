@@ -56,7 +56,7 @@ Canonical showcase fixture: [`tests/fixtures/sharecut_ux_demo/`](../tests/fixtur
 - Seeded pending edit, comments, chapters, transcript chips, FX/envelope, social clip
 - Human LibriSpeech audio **symlinked** from `aligned_dialogue/raw` (no duplicate WAVs). Seeded transcript chips and pending word removal use the same source labels.
 - Regenerate: `make ux-demo` / `python3 scripts/build_ux_demo_fixture.py`
-- Open: `podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json`
+- Open: `podcast gui --project tests/fixtures/sharecut_ux_demo/episode.sharecut`
 - Site gallery: [See the UI](https://ux.sharecut.studio/#/demo) (`make ux-demo-screens` refreshes PNGs under `assets/screens/`, including the guest ShareCut Studio share)
 
 Screenshot capture copies the existing demo project into a disposable workspace.

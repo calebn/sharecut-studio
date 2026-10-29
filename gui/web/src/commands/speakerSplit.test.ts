@@ -5,7 +5,7 @@ import { buildCommandContext, evaluateWhen } from "./context";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
-const PATH = "/tmp/ep/episode.project.json";
+const PATH = "/tmp/ep/episode.sharecut";
 
 function load(...tracks: Parameters<typeof sampleTrack>[0][]) {
   useDawStore

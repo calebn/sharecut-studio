@@ -29,7 +29,7 @@ runner = CliRunner()
 def _init_project(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "cli-test"])
-    return ws / "episode.project.json"
+    return ws / "episode.sharecut"
 
 
 def test_history_list_and_record(tmp_path):
@@ -431,7 +431,7 @@ def test_e2e_project_path_env_override(tmp_path, monkeypatch):
 
     ws = tmp_path / "custom"
     ws.mkdir()
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     project.write_text("{}", encoding="utf-8")
     monkeypatch.setenv("PODCAST_E2E_PROJECT", str(ws))
     assert e2e_project_path() == project.resolve()

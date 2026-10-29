@@ -263,7 +263,7 @@ def history_index_adoptable(
 
 
 class ProjectStore:
-    """Single API for loading and committing episode.project.json."""
+    """Single API for loading and committing episode.sharecut."""
 
     def __init__(self, project_path: Path | str) -> None:
         self.project_path = Path(project_path).expanduser().resolve()
@@ -441,7 +441,7 @@ class ProjectStore:
         return signatures
 
     def _mirror_transcript_cache(self, project: EpisodeProject) -> None:
-        """Write-through optional caches; canonical data lives in episode.project.json."""
+        """Write-through optional caches; canonical data lives in episode.sharecut."""
         paths = self._transcript_cache_paths(project)
         if (
             self._mirrored_transcripts is not None

@@ -25,7 +25,7 @@ from podcast_mcp.util.project_state import (
 )
 
 CODE = "X-Sharecut-Error-Code"
-LOCK_PATH = "/secret/ws/artifacts/episode.project.json.lock"
+LOCK_PATH = "/secret/ws/artifacts/episode.sharecut.lock"
 
 
 def _raise(exc: BaseException):

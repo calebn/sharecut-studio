@@ -1,6 +1,6 @@
 # Timeline comments
 
-Review feedback anchored to the **session/timeline clock** (what listeners hear on premix/review), stored in `review.comments[]` on `episode.project.json`.
+Review feedback anchored to the **session/timeline clock** (what listeners hear on premix/review), stored in `review.comments[]` on `episode.sharecut`.
 
 Inspired by SoundCloud pins, Frame.io range comments + “mark complete”, and Descript’s hideable markers + comments panel.
 
@@ -45,23 +45,23 @@ All mutations go through `CommentService` → `ProjectWorkspace.mutate` (history
 ## Comment CLI
 
 ```bash
-podcast comment add --project episode.project.json \
+podcast comment add --project episode.sharecut \
   --author caleb --start 12.5 --end 20 --body "Trim the intro" \
   --tracks host --action "Cut filler" --action "Check levels"
 
 # Unique Ask thread for a pending edit (later notes use reply, not a second add)
-podcast comment add --project episode.project.json \
+podcast comment add --project episode.sharecut \
   --author host --start 10 --end 12 --body "Why this cut?" \
   --edit-decision-id cut1
 
-podcast comment list --project episode.project.json --open-only
-podcast comment get --project episode.project.json --id <cid>
-podcast comment update --project episode.project.json --id <cid> --body "…"
-podcast comment add-action --project episode.project.json --id <cid> --text "Re-check"
-podcast comment reply --project episode.project.json --id <cid> --author guest --body "Sounds good"
-podcast comment done --project episode.project.json --id <cid> --action-id <aid> --by agent
-podcast comment resolve --project episode.project.json --id <cid> --by caleb
-podcast comment delete --project episode.project.json --id <cid>
+podcast comment list --project episode.sharecut --open-only
+podcast comment get --project episode.sharecut --id <cid>
+podcast comment update --project episode.sharecut --id <cid> --body "…"
+podcast comment add-action --project episode.sharecut --id <cid> --text "Re-check"
+podcast comment reply --project episode.sharecut --id <cid> --author guest --body "Sounds good"
+podcast comment done --project episode.sharecut --id <cid> --action-id <aid> --by agent
+podcast comment resolve --project episode.sharecut --id <cid> --by caleb
+podcast comment delete --project episode.sharecut --id <cid>
 ```
 
 ## Agent workflow
@@ -115,9 +115,9 @@ Agent workflow: `list_comments_tool(..., include_resolved=false)` (or `podcast c
 Freeze the current premix (or mastered) so guest feedback pins to a known mix. Publishing refuses a premix that's stale vs the project (Refresh first) and a master that wasn't mastered from the current premix (export first, or publish the premix). While `artifacts/premix.wav` exists, a master with no `artifacts/mastered.hash` (mastered before #425), or one whose premix was copied or restored without its mtime, is refused once, until the next export re-masters it; an imported or legacy episode with only `mastered.wav` (no premix) publishes that master as-is (export, by contrast, rebuilds it):
 
 ```bash
-podcast review publish-version --project episode.project.json --label "Guest pass 1"
-podcast review list-versions --project episode.project.json
-podcast review set-active --project episode.project.json --id <vid>
+podcast review publish-version --project episode.sharecut --label "Guest pass 1"
+podcast review list-versions --project episode.sharecut
+podcast review set-active --project episode.sharecut --id <vid>
 ```
 
 MCP: `publish_review_version_tool`, `list_review_versions_tool`, `set_active_review_version_tool`.

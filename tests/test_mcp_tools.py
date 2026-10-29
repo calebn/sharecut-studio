@@ -99,7 +99,7 @@ def test_set_words_ignored_tool_mcp(tmp_path):
 def test_episode_create_and_track_add(tmp_path, sample_wav):
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws), name="mcp_ep")
-    assert path.endswith("episode.project.json")
+    assert path.endswith("episode.sharecut")
     msg = mcp_server.track_add(
         path,
         "host",
@@ -811,7 +811,7 @@ def test_lock_timeout_cause_walks_the_chain():
 
     from podcast_mcp.util.tool_refusal import lock_timeout_cause
 
-    inner = Timeout("/artifacts/episode.project.json.lock")
+    inner = Timeout("/artifacts/episode.sharecut.lock")
     middle = RuntimeError("wrapped")
     middle.__cause__ = inner
     outer = RuntimeError("outer")
@@ -862,7 +862,7 @@ async def test_history_undo_mcp_tool_call_returns_structured_busy_error(minimal_
     from podcast_mcp.util.project_state import ProjectBusyError
 
     def _busy(self, **kwargs):
-        raise ProjectBusyError("/artifacts/episode.project.json.lock")
+        raise ProjectBusyError("/artifacts/episode.sharecut.lock")
 
     with patch("podcast_mcp.services.document.history.HistoryService.undo", _busy):
         async with Client(mcp_server.mcp) as client:

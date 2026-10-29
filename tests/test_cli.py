@@ -19,7 +19,7 @@ def test_episode_init(tmp_path):
     ws = tmp_path / "ep"
     result = runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "demo"])
     assert result.exit_code == 0
-    assert (ws / "episode.project.json").is_file()
+    assert (ws / "episode.sharecut").is_file()
 
 
 def test_pipeline_list():
@@ -45,7 +45,7 @@ def test_pipeline_list_json():
 def test_track_add(tmp_path, sample_wav):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     result = runner.invoke(
         app,
         [
@@ -68,7 +68,7 @@ def test_track_add(tmp_path, sample_wav):
 def test_episode_reorder_track_reports_service_result(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
 
     with patch("podcast_mcp.cli.episode.EpisodeService") as service:
         service.return_value.reorder_track.return_value = {"id": "guest", "index": 0}
@@ -94,7 +94,7 @@ def test_episode_reorder_track_reports_service_result(tmp_path):
 def test_edit_crossfade_joins_reports_service_result(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
 
     with (
         patch("podcast_mcp.cli.edit.EditService") as service,
@@ -127,7 +127,7 @@ def test_edit_crossfade_joins_reports_service_result(tmp_path):
 def test_transcribe_command_passes_model_to_transcript_service(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
 
     with patch("podcast_mcp.cli.episode.TranscriptService") as service:
         result = runner.invoke(
@@ -144,7 +144,7 @@ def test_transcribe_command_passes_model_to_transcript_service(tmp_path):
 def test_transcribe_command_reports_track_count(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
 
     with patch("podcast_mcp.cli.episode.TranscriptService") as service:
         service.return_value.transcribe.return_value = ["host", "guest"]
@@ -158,7 +158,7 @@ def test_transcribe_command_reports_track_count(tmp_path):
 def test_transcribe_command_warns_when_nothing_transcribed(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
 
     with patch("podcast_mcp.cli.episode.TranscriptService") as service:
         service.return_value.transcribe.return_value = []
@@ -176,7 +176,7 @@ def test_transcribe_command_empty_project_reports_zero(tmp_path, monkeypatch):
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
 
     result = runner.invoke(app, ["transcribe", "--project", str(project)])
 
@@ -191,7 +191,7 @@ def test_propose_edits_command(tmp_path):
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project_path = ws / "episode.project.json"
+    project_path = ws / "episode.sharecut"
     proj = load_project(project_path)
     proj.transcripts.append(
         Transcript(
@@ -234,7 +234,7 @@ def test_propose_edits_command_without_discourse_skips(tmp_path):
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project_path = ws / "episode.project.json"
+    project_path = ws / "episode.sharecut"
     proj = load_project(project_path)
     proj.transcripts.append(
         Transcript(
@@ -257,7 +257,7 @@ def test_propose_edits_json(tmp_path):
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project_path = ws / "episode.project.json"
+    project_path = ws / "episode.sharecut"
     proj = load_project(project_path)
     proj.transcripts.append(
         Transcript(
@@ -283,7 +283,7 @@ def test_edit_suggest_handoff_cut_command(tmp_path):
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project_path = ws / "episode.project.json"
+    project_path = ws / "episode.sharecut"
     with (
         patch("podcast_mcp.cli.edit.EditService") as svc_cls,
         patch("podcast_mcp.cli.edit.TimelineService", svc_cls),
@@ -324,7 +324,7 @@ def test_export_transcript_command(tmp_path):
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project_path = ws / "episode.project.json"
+    project_path = ws / "episode.sharecut"
     proj = load_project(project_path)
     proj.combined_transcript = CombinedTranscript(
         utterances=[
@@ -351,7 +351,7 @@ def test_info_command(tmp_path):
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     result = runner.invoke(
         app,
-        ["info", "--project", str(ws / "episode.project.json")],
+        ["info", "--project", str(ws / "episode.sharecut")],
     )
     assert result.exit_code == 0
     assert "episode" in result.stdout
@@ -362,7 +362,7 @@ def test_info_command_prints_summary_by_default(tmp_path):
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     result = runner.invoke(
         app,
-        ["info", "--project", str(ws / "episode.project.json")],
+        ["info", "--project", str(ws / "episode.sharecut")],
     )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -385,7 +385,7 @@ def test_info_command_json_flag_dumps_full_project(tmp_path):
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     result = runner.invoke(
         app,
-        ["info", "--project", str(ws / "episode.project.json"), "--json"],
+        ["info", "--project", str(ws / "episode.sharecut"), "--json"],
     )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -399,7 +399,7 @@ def test_info_command_json_flag_omits_document_sync(tmp_path):
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project_path = ws / "episode.project.json"
+    project_path = ws / "episode.sharecut"
     proj = load_project(project_path)
     proj.document_sync.last_command = SavedDocumentCommand(
         command_id="cmd-1",
@@ -419,7 +419,7 @@ def test_info_command_json_flag_omits_document_sync(tmp_path):
 @pytest.mark.parametrize(
     "exc",
     [
-        ProjectBusyError("/artifacts/episode.project.json.lock"),
+        ProjectBusyError("/artifacts/episode.sharecut.lock"),
         RenderBusyError("/artifacts/render.lock"),
         Timeout("/artifacts/transcript_context.yaml.lock"),
     ],
@@ -442,7 +442,7 @@ def test_history_goto_reports_busy_lock_via_root_group(minimal_project, monkeypa
     """A lock timeout from a nested sub-Typer command still reaches the root ``BusyErrorGroup`` (#488)."""
 
     def _raise(self, *args, **kwargs):
-        raise ProjectBusyError("/artifacts/episode.project.json.lock")
+        raise ProjectBusyError("/artifacts/episode.sharecut.lock")
 
     monkeypatch.setattr(HistoryService, "goto", _raise)
     result = runner.invoke(

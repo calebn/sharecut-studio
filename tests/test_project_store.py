@@ -177,7 +177,7 @@ def test_load_repairs_missing_workspace_dir(tmp_path) -> None:
     ws.mkdir()
     missing = tmp_path / "does_not_exist_yet"
     project = EpisodeProject.create("portable", str(missing))
-    path = save_project(project, ws / "episode.project.json")
+    path = save_project(project, ws / "episode.sharecut")
     store = ProjectStore(path)
     loaded = store.load()
     assert loaded.workspace_path() == ws.resolve()
@@ -190,7 +190,7 @@ def test_load_project_remaps_stale_absolute_workspace_dir(tmp_path) -> None:
     ws = tmp_path / "episode_ws"
     ws.mkdir()
     project = EpisodeProject.create("stale", "/Users/someone/elsewhere")
-    path = save_project(project, ws / "episode.project.json")
+    path = save_project(project, ws / "episode.sharecut")
     # Corrupt the on-disk path the way an old fixture might look.
     text = path.read_text(encoding="utf-8").replace(
         str(ws.resolve()),
@@ -377,7 +377,7 @@ def test_read_history_index_missing_valid_and_corrupt(tmp_path) -> None:
 
 def test_adopt_history_index_raises_on_a_corrupt_index(tmp_path) -> None:
     project = EpisodeProject.create("p", str(tmp_path))
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     save_project(project, path)
     index_path = history_index_path(project)
     index_path.parent.mkdir(parents=True, exist_ok=True)

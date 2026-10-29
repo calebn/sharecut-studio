@@ -13,7 +13,7 @@ beforeEach(() => {
   registerDawCommands();
   useDawStore
     .getState()
-    .hydrate("/tmp/player-bar/episode.project.json", minimalProject());
+    .hydrate("/tmp/player-bar/episode.sharecut", minimalProject());
   useDawStore.setState({
     auditionMode: "mix",
     guestMode: null,

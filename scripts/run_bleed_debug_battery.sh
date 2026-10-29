@@ -10,8 +10,8 @@ if [[ ! -x "$PODCAST" ]]; then
   PODCAST="podcast"
 fi
 
-SYNTH_PROJECT="$ROOT/tests/fixtures/synthetic_bleed_60s/episode.project.json"
-AMI_PROJECT="$ROOT/tests/fixtures/ami_bleed_60s/episode.project.json"
+SYNTH_PROJECT="$ROOT/tests/fixtures/synthetic_bleed_60s/episode.sharecut"
+AMI_PROJECT="$ROOT/tests/fixtures/ami_bleed_60s/episode.sharecut"
 RECONCILE_DEFAULTS="$ROOT/tests/fixtures/synthetic_bleed_e2e_pipeline.yaml"
 
 export PODCAST_MCP_PIPELINE_DEFAULTS="$RECONCILE_DEFAULTS"

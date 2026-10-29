@@ -19,7 +19,7 @@ def test_add_chapter_cli_saves_one_document_command(tmp_path):
     workspace = tmp_path / "episode"
     initialized = runner.invoke(app, ["episode", "init", "--dir", str(workspace)])
     assert initialized.exit_code == 0, initialized.output
-    path = workspace / "episode.project.json"
+    path = workspace / "episode.sharecut"
     assert DocumentSyncService.open(path).store.commands_after(0) == []
 
     result = runner.invoke(

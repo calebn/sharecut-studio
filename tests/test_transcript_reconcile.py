@@ -286,7 +286,7 @@ def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
     host = project.transcript_for_track("host")
     assert host is not None
     host.words.append(TranscriptWord(text="unlocked", start=2.0, end=2.5, confidence=0.9))
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     save_project(project, project_path)
     workspace = ProjectWorkspace.open(project_path)
 
@@ -325,7 +325,7 @@ def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
 def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
     """Return to automatic (#824) lets the next reconcile recompute a locked word."""
     project = _two_track_project(tmp_path)
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     save_project(project, project_path)
     workspace = ProjectWorkspace.open(project_path)
 
@@ -367,7 +367,7 @@ def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
 @_ROOM_PAIR_MEASURED
 def test_waiver_stays_clear_after_real_reconciliation(tmp_path: Path):
     project = _two_track_project(tmp_path)
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     save_project(project, project_path)
     workspace = ProjectWorkspace.open(project_path)
     skip = [

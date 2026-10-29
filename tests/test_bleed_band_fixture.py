@@ -10,12 +10,12 @@ from podcast_mcp.project.store import ProjectStore
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "tests" / "fixtures" / "bleed_band_demo"
-PROJECT = DEMO / "episode.project.json"
+PROJECT = DEMO / "episode.sharecut"
 
 
 @pytest.mark.parametrize(
     "rel",
-    ["episode.project.json", "README.md", "raw/reference.wav", "raw/guest.wav"],
+    ["episode.sharecut", "README.md", "raw/reference.wav", "raw/guest.wav"],
 )
 def test_bleed_band_fixture_files_exist(rel: str) -> None:
     path = DEMO / rel

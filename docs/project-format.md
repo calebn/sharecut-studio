@@ -2,13 +2,15 @@
 
 **Canonical spec:** [episode-format-v2.md](episode-format-v2.md) (version `2.0` only — no backward compatibility yet).
 
-Primary file: `episode.project.json` in the episode workspace directory.
+Primary file: `episode.sharecut` in the episode workspace directory.
+
+The extension is `.sharecut`; the content is the same JSON document (version `2.0`). The Python constant `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`) and the web constant in `gui/web/src/utils/projectFile.ts` are the only places that spell the name. The previous name `episode.project.json` is retired with no fallback: opening it from Home returns the coded error `project_old_filename`. A folder still resolves to `<folder>/episode.sharecut`.
 
 ## Layout
 
 ```
 my_episode/
-├── episode.project.json
+├── episode.sharecut
 ├── raw/                 # Source recordings (never overwritten)
 ├── transcripts/         # Per-track and combined JSON
 ├── history/             # Undo/redo snapshots (editable state only)
@@ -128,12 +130,12 @@ fixture:
 
 ```bash
 python -m podcast_mcp.cli.main --no-progress episode upgrade \
-	--project /path/to/old/episode.project.json \
+	--project /path/to/old/episode.sharecut \
 	--output /path/to/new-workspace
 ```
 
 `--output` names a new workspace directory. The command must publish its current
-`episode.project.json`, history index, every retained upgraded snapshot, and
+`episode.sharecut`, history index, every retained upgraded snapshot, and
 unchanged raw media there. It must leave the source unchanged. The guard first
 requires ordinary loading to reject the source version. A missing command,
 nonzero exit, absent output, discarded history, changed media, or failed current

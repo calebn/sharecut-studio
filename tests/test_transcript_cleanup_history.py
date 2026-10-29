@@ -27,7 +27,7 @@ def _project_with_transcript(tmp_path) -> ProjectWorkspace:
             ],
         )
     ]
-    path = ws_dir / "episode.project.json"
+    path = ws_dir / "episode.sharecut"
     save_project(p, path)
     HistoryManager(path).record(p, "initial", force=True)
     save_project(p, path)

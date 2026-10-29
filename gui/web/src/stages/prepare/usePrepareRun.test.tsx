@@ -81,7 +81,7 @@ function setup(models = modelsFor("missing")) {
   const view = renderHook(
     ({ ingestBusy, mediaKey, canRun = true }: Props) =>
       usePrepareRun({
-        projectPath: "/tmp/p/episode.project.json",
+        projectPath: "/tmp/p/episode.sharecut",
         workingSet: ws,
         untranscribed: 1,
         mediaKey,
@@ -102,7 +102,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   useDawStore.setState({
-    projectPath: "/tmp/p/episode.project.json",
+    projectPath: "/tmp/p/episode.sharecut",
     pipelineJob: null,
     activityJob: null,
   });
@@ -196,7 +196,7 @@ describe("usePrepareRun auto-run", () => {
   });
 
   it("starts once when Home imported the audio and left the intent", async () => {
-    writeOpenIntent("/tmp/p/episode.project.json", {
+    writeOpenIntent("/tmp/p/episode.sharecut", {
       stage: "prepare",
       autoRun: true,
     });
@@ -208,11 +208,11 @@ describe("usePrepareRun auto-run", () => {
     rerender({ ingestBusy: false, mediaKey: "a:/a.wav|b:/b.wav" });
     await act(async () => undefined);
     expect(start).toHaveBeenCalledOnce();
-    expect(takeOpenStage("/tmp/p/episode.project.json")).toBe("prepare");
+    expect(takeOpenStage("/tmp/p/episode.sharecut")).toBe("prepare");
   });
 
   it("keeps Home's auto-run as a waiting run when the slot is busy, then starts it", async () => {
-    writeOpenIntent("/tmp/p/episode.project.json", {
+    writeOpenIntent("/tmp/p/episode.sharecut", {
       stage: "prepare",
       autoRun: true,
     });
@@ -273,7 +273,7 @@ describe("usePrepareRun auto-run", () => {
     const { result, rerender } = renderHook(
       (p: Props) =>
         usePrepareRun({
-          projectPath: "/tmp/p/episode.project.json",
+          projectPath: "/tmp/p/episode.sharecut",
           workingSet: ws,
           untranscribed: 1,
           nameOf: (id) => id,
@@ -391,7 +391,7 @@ describe("usePrepareRun after a model download", () => {
     const view = renderHook(
       () =>
         usePrepareRun({
-          projectPath: "/tmp/p/episode.project.json",
+          projectPath: "/tmp/p/episode.sharecut",
           workingSet: ws,
           untranscribed: 1,
           mediaKey: "a:/a.wav",

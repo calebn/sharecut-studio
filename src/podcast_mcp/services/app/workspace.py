@@ -202,7 +202,7 @@ class ProjectWorkspace:
         the saved state is adopted. If the file cannot be stat'ed afterwards, only ``self.project.history`` is put back; the index and snapshots are left as they are. Cleanup failures are logged; the original error is the
         one raised. An unreadable index is restored from the saved project's history.
 
-        Assumes every writer of ``episode.project.json`` and ``history/`` holds
+        Assumes every writer of ``episode.sharecut`` and ``history/`` holds
         ``project_commit_lock``, as every in-tree writer does in every process
         (``transaction()``, ``save()``, ``HistoryManager``): the "file replaced, so
         adopt" check and the snapshot cleanup would misread a writer outside it.

@@ -340,7 +340,7 @@ def test_bleed_mute_history_records_gate_flag(tmp_path: Path, sample_wav: Path) 
     from podcast_mcp.services.document import AnalysisService, HistoryService
 
     project = _project_with_stem(tmp_path, sample_wav)
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     from podcast_mcp.project.store import ProjectStore
 
     ProjectStore(path).commit(project)

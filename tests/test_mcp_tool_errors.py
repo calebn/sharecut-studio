@@ -105,7 +105,7 @@ REFUSALS = [
     pytest.param(
         lambda p, tmp: (
             "get_comment_tool",
-            {"project_path": str(tmp / "gone" / "episode.project.json"), "comment_id": "c"},
+            {"project_path": str(tmp / "gone" / "episode.sharecut"), "comment_id": "c"},
         ),
         "Project not found:",
         "project_not_found",

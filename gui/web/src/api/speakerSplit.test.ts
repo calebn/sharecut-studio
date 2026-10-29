@@ -16,7 +16,7 @@ describe("startSplitSpeakersJob", () => {
       new Response(JSON.stringify({ job }), { status: 200 }),
     );
     await expect(
-      startSplitSpeakersJob("/tmp/ep/episode.project.json", {
+      startSplitSpeakersJob("/tmp/ep/episode.sharecut", {
         trackId: "room",
         speakerCount: 3,
         names: ["Ana", "Ben", "Cy"],
@@ -27,7 +27,7 @@ describe("startSplitSpeakersJob", () => {
     expect(url).toBe("/api/speaker/split");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body)).toEqual({
-      path: "/tmp/ep/episode.project.json",
+      path: "/tmp/ep/episode.sharecut",
       track_id: "room",
       speaker_count: 3,
       names: ["Ana", "Ben", "Cy"],
@@ -42,7 +42,7 @@ describe("startSplitSpeakersJob", () => {
       }),
     );
     await expect(
-      startSplitSpeakersJob("/tmp/ep/episode.project.json", {
+      startSplitSpeakersJob("/tmp/ep/episode.sharecut", {
         trackId: "room",
         speakerCount: 2,
         names: null,

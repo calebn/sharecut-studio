@@ -132,7 +132,7 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
         (["contracts/new-contract.json"], True, "full", PR_E2E),
         (["new-area/file.py"], True, "full", PR_E2E),
         (["scripts/ci_plan.py"], True, "full", PR_E2E),
-        (["tests/fixtures/aligned_dialogue/episode.project.json"], True, "full", PR_E2E),
+        (["tests/fixtures/aligned_dialogue/episode.sharecut"], True, "full", PR_E2E),
         ([".github/workflows/test.yml"], True, "full", PR_E2E),
         ([".github/workflows/desktop.yml"], False, "full", []),
         (["gui/desktop/src-tauri/src/main.rs"], False, "full", []),

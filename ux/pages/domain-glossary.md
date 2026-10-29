@@ -62,7 +62,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 
 | Concept | User-facing meaning | Storage | Screens |
 |---------|---------------------|---------|---------|
-| **Episode / project** | The session being edited | `episode.project.json` (`meta`, …) | All |
+| **Episode / project** | The session being edited | `episode.sharecut` (`meta`, …) | All |
 | **Host home** | New / Open before a project is loaded | `POST /api/project/create\|open\|pick` | Loopback ShareCut Studio only (not guests) |
 | **Mix sheet** | Phone More → Mix controls all tracks. Hosts and Editors save M and Volume; other guests use local M. S is local for everyone | Existing track mix and listen state | Phone full-height sheet |
 | **Track** | One speaker/mic (or bed) | `timeline.tracks` (+ sources) | Timeline headers, Mix, FX inspector |
@@ -116,7 +116,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 
 ```text
 my_episode/
-├── episode.project.json   ← source of truth (v2)
+├── episode.sharecut   ← source of truth (v2)
 ├── raw/                   ← source audio (never overwritten by edits)
 ├── transcripts/           ← cache only (not authoritative)
 ├── history/
@@ -128,7 +128,7 @@ my_episode/
 
 ```mermaid
 flowchart LR
-  P[episode.project.json] --> GUI[ShareCut Studio]
+  P[episode.sharecut] --> GUI[ShareCut Studio]
   P --> CLI[CLI / MCP agents]
   P --> H[history snapshots]
   raw[raw/] --> ART[artifacts/]
@@ -259,7 +259,7 @@ sequenceDiagram
   participant U as User / Guest
   participant UI as ShareCut Studio
   participant S as Services
-  participant P as episode.project.json
+  participant P as episode.sharecut
   U->>UI: Select + Approve / edit
   UI->>S: Document command
   S->>P: mutate + history snapshot

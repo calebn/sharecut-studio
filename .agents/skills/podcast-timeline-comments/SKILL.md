@@ -35,19 +35,19 @@ One **Ask thread per pending decision**: pass `edit_decision_id` on the first `a
 ## CLI
 
 ```bash
-podcast comment add --project episode.project.json \
+podcast comment add --project episode.sharecut \
   --author agent --start 12.5 --end 20 --body "Trim the intro" \
   --tracks host --action "Cut filler"
 
-podcast comment list --project episode.project.json --open-only
-podcast comment list --project episode.project.json --open-actions
-podcast comment get --project episode.project.json --id <cid>
-podcast comment update --project episode.project.json --id <cid> --body "…"
-podcast comment add-action --project episode.project.json --id <cid> --text "Re-check levels"
-podcast comment reply --project episode.project.json --id <cid> --author agent --body "Fixed in history #N"
-podcast comment done --project episode.project.json --id <cid> --action-id <aid> --by agent
-podcast comment resolve --project episode.project.json --id <cid> --by agent
-podcast comment delete --project episode.project.json --id <cid>
+podcast comment list --project episode.sharecut --open-only
+podcast comment list --project episode.sharecut --open-actions
+podcast comment get --project episode.sharecut --id <cid>
+podcast comment update --project episode.sharecut --id <cid> --body "…"
+podcast comment add-action --project episode.sharecut --id <cid> --text "Re-check levels"
+podcast comment reply --project episode.sharecut --id <cid> --author agent --body "Fixed in history #N"
+podcast comment done --project episode.sharecut --id <cid> --action-id <aid> --by agent
+podcast comment resolve --project episode.sharecut --id <cid> --by agent
+podcast comment delete --project episode.sharecut --id <cid>
 ```
 
 ## Agent work-queue workflow

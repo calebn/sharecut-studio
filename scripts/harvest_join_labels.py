@@ -5,7 +5,7 @@ Audio must live under the podcast_mcp repo (short fixtures preferred). External
 episode trees (Eladio, cleanup-test, etc.) are rejected - copy short clips into
 ``tests/fixtures/join_continuity/raw/`` if you need real speech.
 
-Default project: ``tests/fixtures/join_continuity/episode.project.json``
+Default project: ``tests/fixtures/join_continuity/episode.sharecut``
 
 Usage:
   uv run python scripts/harvest_join_labels.py

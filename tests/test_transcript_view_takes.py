@@ -390,7 +390,7 @@ def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
             )
         ]
     )
-    workspace = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    workspace = ProjectWorkspace(tmp_path / "episode.sharecut", project)
     empty_history = HistoryListResult(
         cursor=-1,
         head_id="root",

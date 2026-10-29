@@ -431,7 +431,7 @@ def test_session_handoff_requires_quiet_peer_audio(tmp_path, muted):
     p.timeline.clips.append(
         Clip(id="g1", track_id="guest", source_start=0, source_end=30, timeline_start=0)
     )
-    path = Path(p.workspace_dir) / "episode.project.json"
+    path = Path(p.workspace_dir) / "episode.sharecut"
     save_project(p, path)
     service = AnalysisService(ProjectWorkspace.open(path))
     out = service.suggest_handoff_cut(keep_left_end=1, keep_right_start=5)
@@ -549,7 +549,7 @@ def test_default_quiet_session_excludes_music_and_adapters_work(tmp_path):
         Clip(id="g", track_id="guest", source_start=0, source_end=30, timeline_start=0)
     )
     p.timeline.tracks.append(Track(id="music", label="Music", role=TrackRole.MUSIC))
-    path = Path(p.workspace_dir) / "episode.project.json"
+    path = Path(p.workspace_dir) / "episode.sharecut"
     save_project(p, path)
     result = CliRunner().invoke(
         app,
@@ -600,7 +600,7 @@ def test_explicit_music_lane_keeps_handoff_and_waveform_evidence(tmp_path, proce
         stem = Path(p.workspace_dir) / "artifacts/tracks/music.wav"
         stem.parent.mkdir(parents=True)
         _write_wav(stem, np.zeros(30 * 16000))
-    path = Path(p.workspace_dir) / "episode.project.json"
+    path = Path(p.workspace_dir) / "episode.sharecut"
     save_project(p, path)
     service = AnalysisService(ProjectWorkspace.open(path))
     out = service.suggest_handoff_cut(keep_left_end=1, keep_right_start=5, **selector)

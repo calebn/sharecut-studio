@@ -14,7 +14,7 @@ from test_retained_bleed_alignment import _episode
 def _workspace(tmp_path: Path) -> ProjectWorkspace:
     project = _episode(tmp_path)
     rerender_preview(project, reconcile=False, defaults=load_defaults())
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", project)
     ws.save()
     return ws
 

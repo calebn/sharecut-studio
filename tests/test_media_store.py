@@ -687,7 +687,7 @@ def test_host_media_upload_maps_lock_timeout_to_project_busy(minimal_project, mo
     def boom(*_args, **_kwargs):
         from filelock import Timeout
 
-        raise Timeout("/artifacts/episode.project.json.lock")
+        raise Timeout("/artifacts/episode.sharecut.lock")
 
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.media.write_upload_chunk",
@@ -769,7 +769,7 @@ def test_guest_media_upload_maps_lock_timeout_to_project_busy(
     def boom(*_args, **_kwargs):
         from filelock import Timeout
 
-        raise Timeout("/artifacts/episode.project.json.lock")
+        raise Timeout("/artifacts/episode.sharecut.lock")
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.write_upload_chunk",

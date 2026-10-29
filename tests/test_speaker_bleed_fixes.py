@@ -46,7 +46,7 @@ def _project(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
     raw.mkdir()
     for tid in ("host", "guest"):
         (raw / f"{tid}.wav").write_bytes(sample_wav.read_bytes())
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     proj = EpisodeProject.create("bleed_fix", str(tmp_path))
     proj.tracks = [
         Track(
@@ -251,7 +251,7 @@ def test_label_track_home_speaker_suppresses_bleed_windows(tmp_path, sample_wav)
 
 def test_gate_track_service_dry_run(tmp_path, sample_wav) -> None:
     _project(tmp_path, sample_wav)
-    ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
+    ws = ProjectWorkspace.open(tmp_path / "episode.sharecut")
     with patch(
         "podcast_mcp.services.media.speaker.label_track_home_speaker",
         return_value={"dry_run": True, "words_would_suppress": 2, "words_suppressed": 0},
@@ -262,7 +262,7 @@ def test_gate_track_service_dry_run(tmp_path, sample_wav) -> None:
 
 def test_gate_track_service_apply_mutates(tmp_path, sample_wav) -> None:
     _project(tmp_path, sample_wav)
-    ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
+    ws = ProjectWorkspace.open(tmp_path / "episode.sharecut")
 
     def _run_mutate(_before: str, _after: str, fn):
         return fn(ws.project)
@@ -280,7 +280,7 @@ def test_gate_track_service_apply_mutates(tmp_path, sample_wav) -> None:
 
 def test_attribute_apply_mutates(tmp_path, sample_wav) -> None:
     _project(tmp_path, sample_wav)
-    ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
+    ws = ProjectWorkspace.open(tmp_path / "episode.sharecut")
 
     def _run_mutate(_before: str, _after: str, fn):
         return fn(ws.project)
@@ -300,7 +300,7 @@ def test_compare_pair_mcp_tool(tmp_path, sample_wav) -> None:
     from podcast_mcp.mcp.tools import speaker as mcp_speaker
 
     _project(tmp_path, sample_wav)
-    path = str(tmp_path / "episode.project.json")
+    path = str(tmp_path / "episode.sharecut")
     with patch.object(
         SpeakerService,
         "compare_pair",
@@ -314,7 +314,7 @@ def test_compare_pair_mcp_tool(tmp_path, sample_wav) -> None:
 
 def test_score_returns_error_when_unscorable(tmp_path, sample_wav) -> None:
     proj = _project(tmp_path, sample_wav)
-    ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
+    ws = ProjectWorkspace.open(tmp_path / "episode.sharecut")
     (proj.workspace_path() / "raw" / "host.wav").unlink()
     with patch(
         "podcast_mcp.services.media.speaker.score_window",
@@ -395,7 +395,7 @@ def test_bleed_mute_does_not_depend_on_speaker_extension(tmp_path, sample_wav) -
             words=[TranscriptWord(text="hi", start=0.0, end=0.5, suppressed=False)],
         )
     ]
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     save_project(proj, path)
     proj = load_project(path)
     stems = proj.artifacts_dir() / "tracks"
@@ -515,7 +515,7 @@ def test_label_track_home_speaker_dry_run_counts_would_suppress(tmp_path, sample
 
 def test_compare_pair_error_when_unscorable(tmp_path, sample_wav) -> None:
     _project(tmp_path, sample_wav)
-    ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
+    ws = ProjectWorkspace.open(tmp_path / "episode.sharecut")
     with patch(
         "podcast_mcp.services.media.speaker.score_window",
         return_value=None,
@@ -541,7 +541,7 @@ def test_mock_backend_empty_samples() -> None:
 def test_enroll_service_skips_tracks_without_transcript(tmp_path, sample_wav) -> None:
     proj = _project(tmp_path, sample_wav)
     proj.transcripts = [t for t in proj.transcripts if t.track_id == "host"]
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     save_project(proj, path)
     ws = ProjectWorkspace.open(path)
     with patch(
@@ -577,7 +577,7 @@ def test_enroll_track_no_transcript_returns_none(tmp_path, sample_wav) -> None:
 
 def test_enroll_segment_via_service_returns_empty_when_invalid(tmp_path, sample_wav) -> None:
     _project(tmp_path, sample_wav)
-    ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
+    ws = ProjectWorkspace.open(tmp_path / "episode.sharecut")
     out = SpeakerService(ws).enroll(
         speaker_id="alice",
         track_id="host",

@@ -5,7 +5,7 @@ import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { writeOpenIntent } from "../../utils/openIntent";
 import { useLandingStage } from "./useLandingStage";
 
-const PATH = "/tmp/test/episode.project.json";
+const PATH = "/tmp/test/episode.sharecut";
 
 function open(guestMode: string | null = null) {
   useDawStore.setState({

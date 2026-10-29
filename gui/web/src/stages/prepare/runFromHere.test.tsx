@@ -45,7 +45,7 @@ const api = modelsApi({
 const wrapper = ({ children }: { children: ReactNode }) => (
   <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
 );
-const P = "/tmp/test/episode.project.json";
+const P = "/tmp/test/episode.sharecut";
 const utt = (id: string) =>
   ({
     track_id: id,

@@ -71,7 +71,7 @@ export interface RelocatedE2eProject {
  * modified fixture whose review.versions or render.artifacts entries point at
  * artifacts/ audio will not resolve that audio in the copy; restore the clean
  * committed state with
- * `git checkout -- tests/fixtures/aligned_dialogue/episode.project.json`.
+ * `git checkout -- tests/fixtures/aligned_dialogue/episode.sharecut`.
  */
 export function createRelocatedE2eProject(
   prefix = "sharecut-e2e-",
@@ -89,7 +89,7 @@ export function createRelocatedE2eProject(
       filter: (item) =>
         shouldCopyWorkspaceEntry(path.relative(sourceRoot, item)),
     });
-    const projectPath = path.join(workspaceDir, "episode.project.json");
+    const projectPath = path.join(workspaceDir, "episode.sharecut");
     relocateWorkspaceDir(projectPath, workspaceDir);
     return { projectPath, workspaceDir };
   } catch (error) {

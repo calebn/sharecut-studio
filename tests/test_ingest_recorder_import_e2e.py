@@ -85,7 +85,7 @@ def test_recorder_folder_import_places_tracks_on_session_clock(tmp_path: Path) -
 
     project_dir = tmp_path / "episode"
     _invoke("episode", "init", "--dir", str(project_dir), "--name", "us3")
-    project = project_dir / "episode.project.json"
+    project = project_dir / "episode.sharecut"
     _invoke(
         "ingest",
         "consolidate",

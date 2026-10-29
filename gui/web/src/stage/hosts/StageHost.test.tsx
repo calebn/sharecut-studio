@@ -36,7 +36,7 @@ vi.mock("../edit/EditWorkspace", () => ({
   EditWorkspace: () => <div>edit workspace</div>,
 }));
 
-const HOST_PATH = "/tmp/stage-hosts/episode.project.json";
+const HOST_PATH = "/tmp/stage-hosts/episode.sharecut";
 
 function asHost(stage: StageId, tracks = [sampleTrack()]) {
   useDawStore.getState().hydrate(HOST_PATH, minimalProject({ tracks }));

@@ -591,7 +591,7 @@ def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region,
 
 def test_approve_reject_undo_mute(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
-    path = tmp_path / "ws" / "episode.project.json"
+    path = tmp_path / "ws" / "episode.sharecut"
     from podcast_mcp.project.store import ProjectStore
 
     ProjectStore(path).commit(project)
@@ -659,7 +659,7 @@ def test_clip_mute_regions_schema_round_trip(tmp_path, sample_wav):
     assert clip["mute_regions"][0]["start_s"] == pytest.approx(0.2)
     from podcast_mcp.project.store import ProjectStore
 
-    path = Path(project.workspace_dir) / "episode.project.json"
+    path = Path(project.workspace_dir) / "episode.sharecut"
     store = ProjectStore(path)
     store.commit(project)
     loaded = store.load()
@@ -1081,7 +1081,7 @@ def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, samp
     assert track_render_hash(project, "host", defaults=load_defaults()) != h1
     assert audio_state_fingerprint(project, defaults=load_defaults()) != fp1
     assert not stem_is_fresh(project, "host", defaults=load_defaults())
-    path = Path(project.workspace_dir) / "episode.project.json"
+    path = Path(project.workspace_dir) / "episode.sharecut"
     store = ProjectStore(path)
     store.commit(project)
     loaded = store.load()
@@ -1138,7 +1138,7 @@ def test_revert_mute_subtracts_regions_without_ripple(tmp_path, sample_wav):
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions
     record = project.editorial.edit_log[0]
-    path = Path(project.workspace_dir) / "episode.project.json"
+    path = Path(project.workspace_dir) / "episode.sharecut"
     save_project(project, path)
     reverted = json.loads(mcp_server.revert_applied_edit_tool(str(path), record.id))
     assert reverted["operation"] == "revert_applied_edit"
@@ -1363,7 +1363,7 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
     from podcast_mcp.project.store import ProjectStore
 
     project = _project_with_audio(tmp_path, sample_wav)
-    path = Path(project.workspace_dir) / "episode.project.json"
+    path = Path(project.workspace_dir) / "episode.sharecut"
     store = ProjectStore(path)
     store.commit(project)
     project = store.load()
@@ -1676,7 +1676,7 @@ def test_split_inside_a_mute_renders_like_the_unsplit_mute(tmp_path):
 
     project, region, whole = _approved_silent_mute(tmp_path)
     silent_start, silent_end = _silent_span(region)
-    path = Path(project.workspace_dir) / "episode.project.json"
+    path = Path(project.workspace_dir) / "episode.sharecut"
     ProjectStore(path).commit(project)
     ws = ProjectWorkspace.open(path)
     unsplit = [c.model_dump() for c in ws.project.clips]
@@ -1748,7 +1748,7 @@ def _approved_mute_workspace(tmp_path: Path):
     from podcast_mcp.project.store import ProjectStore
 
     project, region, whole = _approved_silent_mute(tmp_path)
-    path = Path(project.workspace_dir) / "episode.project.json"
+    path = Path(project.workspace_dir) / "episode.sharecut"
     ProjectStore(path).commit(project)
     return ProjectWorkspace.open(path), region, whole
 
@@ -1814,7 +1814,7 @@ def test_repeated_trims_never_duplicate_the_saved_mute_region(tmp_path):
         for source_sec in positions:
             _trim(ws, edge, source_sec)
 
-    saved = json.loads((Path(ws.project.workspace_dir) / "episode.project.json").read_text())
+    saved = json.loads((Path(ws.project.workspace_dir) / "episode.sharecut").read_text())
     (clip,) = saved["timeline"]["clips"]
     assert [(r["start_s"], r["end_s"]) for r in clip["mute_regions"]] == [
         (region.start_s, region.end_s)
@@ -1889,7 +1889,7 @@ def test_repeated_rolls_never_duplicate_the_saved_mute_region(tmp_path):
     for delta in (-1.2, 0.5, -0.4, 1.0, -1.5):
         _roll(ws, delta)
 
-    saved = json.loads((Path(ws.project.workspace_dir) / "episode.project.json").read_text())
+    saved = json.loads((Path(ws.project.workspace_dir) / "episode.sharecut").read_text())
     for clip in saved["timeline"]["clips"]:
         assert [(r["start_s"], r["end_s"]) for r in clip["mute_regions"]] == [
             (region.start_s, region.end_s)

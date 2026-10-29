@@ -40,7 +40,7 @@ vi.mock("../../document/applyDocumentUpdate", async (original) => ({
   refreshDocumentProject: vi.fn(async () => undefined),
 }));
 
-const PATH = "/tmp/p/episode.project.json";
+const PATH = "/tmp/p/episode.sharecut";
 const models = modelsApi({ status: modelStatus(registryRows()) });
 const wrapper = ({ children }: { children: ReactNode }) => (
   <ModelsContext.Provider value={models}>{children}</ModelsContext.Provider>

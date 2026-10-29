@@ -177,9 +177,9 @@ def world(tmp_path: Path, sample_wav: Path) -> World:
 
 def _break(world: World, how: str) -> None:
     if how == PROJECT_GONE:
-        (world.workspace / "episode.project.json").unlink()
+        (world.workspace / "episode.sharecut").unlink()
         return
-    project = load_project(world.workspace / "episode.project.json")
+    project = load_project(world.workspace / "episode.sharecut")
     version_id = project.review.versions[0].id
     mp3 = get_version(project, version_id).mp3_relpath
     world.mix.unlink()
@@ -548,7 +548,7 @@ def test_a_fault_in_any_guest_handler_reads_the_fixed_answer(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    fault = _faults(world.workspace / "episode.project.json")[fault_name]
+    fault = _faults(world.workspace / "episode.sharecut")[fault_name]
     client = _client(world)
 
     for (method, template), probe in sorted(PROBES.items()):
@@ -847,7 +847,7 @@ def test_a_fault_inside_an_admitted_guest_socket_reads_the_fixed_answer(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    fault = _faults(world.workspace / "episode.project.json")[fault_name]
+    fault = _faults(world.workspace / "episode.sharecut")[fault_name]
     client = _client(world)
 
     for key, (site, first) in sorted(IN_SESSION.items()):
@@ -950,7 +950,7 @@ def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(world: Wor
     client = _client(world)
     missing_mix = client.get(f"/api/review/{world.token}/daw/audio?kind=premix", headers=RELAYED)
 
-    project_path = world.workspace / "episode.project.json"
+    project_path = world.workspace / "episode.sharecut"
     project = load_project(project_path)
     track_id = "track-private-id"
     project.tracks.append(
@@ -980,7 +980,7 @@ def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(world: Wor
 
 def test_host_still_reads_the_path_when_the_mix_is_gone(world: World) -> None:
     _break(world, MIX_MISSING)
-    project = load_project(world.workspace / "episode.project.json")
+    project = load_project(world.workspace / "episode.sharecut")
 
     with pytest.raises(CodedFileNotFoundError) as refusal:
         version_audio_path(project, project.review.versions[0].id)

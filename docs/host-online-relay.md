@@ -15,7 +15,7 @@ Guest browser / MCP client
   podcast tunnel (your laptop, outbound only)
         │
         ▼
-  podcast gui  ←→  episode.project.json + artifacts
+  podcast gui  ←→  episode.sharecut + artifacts
 ```
 
 **Source of truth stays on your machine.**  The relay is a pass-through proxy;
@@ -162,17 +162,17 @@ No hosted account required to develop or test.
 docker compose -f deploy/relay/docker-compose.yml up --build
 
 # 2. Start the local GUI authority
-podcast gui --project /path/to/episode.project.json --no-open
+podcast gui --project /path/to/episode.sharecut --no-open
 
 # 3. Open the tunnel (advertises your project's share tokens)
 podcast tunnel \
-  --project /path/to/episode.project.json \
+  --project /path/to/episode.sharecut \
   --relay-url ws://127.0.0.1:8080/tunnel \
   --host-token dev-host-token
 
 # 4. Create a share (in a third terminal or via MCP)
 podcast review share create \
-  --project /path/to/episode.project.json \
+  --project /path/to/episode.sharecut \
   --version-id <version_id> \
   --public-base-url http://127.0.0.1:8080
 
@@ -273,22 +273,22 @@ A review link **follows the latest published version**: publishing a fix (`revie
 ```bash
 # Read-only full DAW (timeline + playback)
 podcast review share --role viewer \
-  --project episode.project.json \
+  --project episode.sharecut \
   --base-url https://sharecut.studio
 
 # Comments + Suggest cut (the default role)
 podcast review share --role commenter \
-  --project episode.project.json \
+  --project episode.sharecut \
   --base-url https://sharecut.studio
 
 # Edit directly and approve suggestions
 podcast review share --role editor \
-  --project episode.project.json \
+  --project episode.sharecut \
   --base-url https://sharecut.studio
 
 # Remote MCP (capability-scoped; trusted collaborators)
 podcast review share --role commenter --with-mcp \
-  --project episode.project.json \
+  --project episode.sharecut \
   --base-url https://share.example.com
 ```
 
@@ -567,8 +567,8 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 ### Enable on the host
 
 ```bash
-podcast gui --project /path/to/episode.project.json --no-open
-podcast tunnel --project /path/to/episode.project.json \
+podcast gui --project /path/to/episode.sharecut --no-open
+podcast tunnel --project /path/to/episode.sharecut \
   --relay-url wss://share.example.com/tunnel --host-token <token>
 ```
 
@@ -669,10 +669,10 @@ Against a live host (local bridge; same code path as the public relay MCP URL):
 
 ```bash
 podcast gui \
-  --project /path/to/episode.project.json --no-open
+  --project /path/to/episode.sharecut --no-open
 
 uv run python scripts/verify_remote_mcp_shares.py \
-  --project /path/to/episode.project.json
+  --project /path/to/episode.sharecut
 ```
 
 The script creates short-lived shares for the tiers `viewer`, `commenter` and `editor` (each with `mcp`) plus `viewer_no_mcp`, checks
@@ -720,7 +720,7 @@ the secret:
 ```bash
 # On the episode host (the half that pairs with host-1:<secret> above)
 export PODCAST_RELAY_HOST_ID=host-1
-podcast tunnel --project /path/to/episode.project.json \
+podcast tunnel --project /path/to/episode.sharecut \
   --relay-url wss://share.example.com/tunnel --host-token "<secret>"
 ```
 

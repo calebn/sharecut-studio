@@ -89,7 +89,7 @@ def test_port_in_use_localhost():
 
 
 def test_ensure_viewer_process_exits(tmp_path: Path):
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     proc = MagicMock()
     proc.pid = 9
@@ -105,7 +105,7 @@ def test_ensure_viewer_process_exits(tmp_path: Path):
 
 
 def test_ensure_viewer_timeout(tmp_path: Path):
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     proc = MagicMock()
     proc.pid = 10
@@ -122,7 +122,7 @@ def test_ensure_viewer_timeout(tmp_path: Path):
 
 
 def test_ensure_viewer_hint_when_dist_missing(tmp_path: Path):
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     with (
         patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=True),

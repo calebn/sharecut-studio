@@ -29,7 +29,7 @@ from podcast_mcp.util.coded_error import CodedError, CodedFileNotFoundError
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
 
-EPISODE_PROJECT_FILENAME = "episode.project.json"
+EPISODE_PROJECT_FILENAME = "episode.sharecut"
 _T = TypeVar("_T")
 # Track volume fader range (dB), on top of the pipeline's staging gain_db.
 FADER_MIN_DB = -60.0
@@ -1519,7 +1519,7 @@ def load_project(path: Path) -> EpisodeProject:
         raise _unreadable_project(
             f"unexpected contents at {where}" if where else "unexpected contents"
         ) from exc
-    # Workspace is always the directory that contains episode.project.json.
+    # Workspace is always the directory that contains episode.sharecut.
     # Do not trust committed absolute paths (machine-specific / portable clones).
     project.meta.workspace_dir = str(path.parent.resolve())
     return project

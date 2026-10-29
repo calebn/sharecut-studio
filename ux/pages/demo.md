@@ -14,7 +14,7 @@ git clone https://github.com/calebn/sharecut-studio.git
 cd sharecut-studio
 ./install.sh && uv sync --extra gui
 cd gui/web && npm install && npm run build && cd ../..
-podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json
+podcast gui --project tests/fixtures/sharecut_ux_demo/episode.sharecut
 ```
 
 Fixture path: [`tests/fixtures/sharecut_ux_demo/`](https://github.com/calebn/sharecut-studio/tree/main/tests/fixtures/sharecut_ux_demo)
@@ -24,7 +24,7 @@ Fixture path: [`tests/fixtures/sharecut_ux_demo/`](https://github.com/calebn/sha
 ```bash
 # Terminal A — GUI with a share registry (use a free port)
 export PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite
-podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json --port 8777
+podcast gui --project tests/fixtures/sharecut_ux_demo/episode.sharecut --port 8777
 
 # Terminal B — publish review mix + create tokens
 PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite \

@@ -58,7 +58,7 @@ vi.mock("../edit/EditWorkspace", () => ({
   EditWorkspace: () => <div>edit workspace</div>,
 }));
 
-const HOST_PATH = "/tmp/palette-coverage/episode.project.json";
+const HOST_PATH = "/tmp/palette-coverage/episode.sharecut";
 
 type User = ReturnType<typeof userEvent.setup>;
 type Probe = (user: User) => Promise<void>;

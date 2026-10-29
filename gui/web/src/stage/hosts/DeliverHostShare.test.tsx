@@ -46,8 +46,8 @@ import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 import { ShareFlowProvider } from "./shareFlow";
 
-const PATH = "/tmp/ep/episode.project.json";
-const OTHER = "/tmp/other/episode.project.json";
+const PATH = "/tmp/ep/episode.sharecut";
+const OTHER = "/tmp/other/episode.sharecut";
 
 let server: ReturnType<typeof fakeExportServer>;
 

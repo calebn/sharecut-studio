@@ -73,7 +73,7 @@ def test_busy_lock_is_project_busy_without_the_lock_path() -> None:
     assert refusal.code == PROJECT_BUSY_CODE
     assert refusal.message == "This project is busy; try again."
     assert "/secret" not in refusal.message
-    busy = ProjectBusyError("/some/secret/episode.project.json.lock")
+    busy = ProjectBusyError("/some/secret/episode.sharecut.lock")
     assert lock_timeout_cause(RuntimeError("x")) is None
     assert tool_refusal(busy) == ToolRefusal(str(busy), PROJECT_BUSY_CODE)
     assert tool_refusal(busy, for_guest=True) == refusal

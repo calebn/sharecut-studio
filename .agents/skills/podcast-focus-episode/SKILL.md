@@ -183,7 +183,7 @@ alone.
 
 ```bash
 # After enabling focus.enabled:
-podcast pipeline run --project episode.project.json --only analyze_focus_cuts
+podcast pipeline run --project episode.sharecut --only analyze_focus_cuts
 ```
 
 ## Rules for agents

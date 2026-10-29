@@ -62,21 +62,19 @@ describe("project.open", () => {
       assign,
     });
     pickMock.mockResolvedValue({
-      project_path: "/tmp/ep/episode.project.json",
+      project_path: "/tmp/ep/episode.sharecut",
     });
     openMock.mockResolvedValue({
-      project_path: "/tmp/ep/episode.project.json",
+      project_path: "/tmp/ep/episode.sharecut",
       name: "episode",
     });
     expect((await execute("project.open")).status).toBe("ok");
     await waitFor(() => {
-      expect(openMock).toHaveBeenCalledWith("/tmp/ep/episode.project.json");
+      expect(openMock).toHaveBeenCalledWith("/tmp/ep/episode.sharecut");
     });
     expect(assign).toHaveBeenCalled();
     const opened = new URL(String(assign.mock.calls[0]?.[0]));
-    expect(opened.searchParams.get("project")).toBe(
-      "/tmp/ep/episode.project.json",
-    );
+    expect(opened.searchParams.get("project")).toBe("/tmp/ep/episode.sharecut");
     expect(opened.searchParams.has("sc_close_guard")).toBe(false);
   });
 
@@ -221,7 +219,7 @@ describe("project.open", () => {
       assign,
     });
     await act(async () => {
-      finishPick({ project_path: "/tmp/new/episode.project.json" });
+      finishPick({ project_path: "/tmp/new/episode.sharecut" });
     });
     expect(openMock).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
@@ -293,7 +291,7 @@ describe("project.open", () => {
 
   it("announces open failure", async () => {
     pickMock.mockResolvedValue({
-      project_path: "/tmp/ep/episode.project.json",
+      project_path: "/tmp/ep/episode.sharecut",
     });
     openMock.mockRejectedValue(new Error("not a project"));
     expect((await execute("project.open")).status).toBe("ok");

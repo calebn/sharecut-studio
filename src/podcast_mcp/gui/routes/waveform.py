@@ -125,7 +125,7 @@ def waveform_call(fn: Callable[[], T]) -> T:
 @router.get("/api/waveform/status")
 def get_waveform_status(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     kind: str = Query("raw", description="raw (track/source media) or stem"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
@@ -143,7 +143,7 @@ def get_waveform_status(
 def get_waveform_tiles(
     key: str,
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     ref: str = Query(..., description="track:<id>, source:<id> or stem:<id>"),
     level: int = Query(...),
     start: int = Query(..., description="First data tile"),
@@ -160,7 +160,7 @@ def get_waveform_tiles(
 def get_waveform_pcm(
     key: str,
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     ref: str = Query(..., description="track:<id>, source:<id> or stem:<id>"),
     block: int = Query(..., description="PCM block (pcm_block_frames frames each)"),
     token: str | None = Query(None),

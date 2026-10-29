@@ -23,7 +23,7 @@ import {
 import { bleedAttenuationRegionKey } from "./bleedAttenuation";
 import { createClipBleedSession } from "./clipBleedSession";
 
-const path = "/tmp/bleed/episode.project.json";
+const path = "/tmp/bleed/episode.sharecut";
 const occurrence = { trackId: "host", clipId: "clip-1", clipLabel: "Host" };
 const head = parseHistoryEntryId("restore-head")!;
 const peerHead = parseHistoryEntryId("peer-head")!;

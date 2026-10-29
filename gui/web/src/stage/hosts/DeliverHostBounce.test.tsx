@@ -32,8 +32,8 @@ import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
 
-const PATH = "/tmp/ep/episode.project.json";
-const OTHER = "/tmp/other/episode.project.json";
+const PATH = "/tmp/ep/episode.sharecut";
+const OTHER = "/tmp/other/episode.sharecut";
 
 const RANGE = {
   kind: "exact_range",

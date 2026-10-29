@@ -172,7 +172,7 @@ def pad_source(
 
 
 def build_fixture(fixture: Path, canned: Path, gold_dir: Path = GOLD_DIR) -> None:
-    project_path = fixture / "episode.project.json"
+    project_path = fixture / "episode.sharecut"
     project = load_project(project_path)
     transcripts = []
     manifest_tracks = []

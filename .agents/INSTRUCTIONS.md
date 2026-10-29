@@ -25,7 +25,7 @@ All episode state changes must be **undoable** and must **never overwrite `raw/`
 |----|--------|
 | Add a `*Service` method that calls `ProjectWorkspace.mutate("before …", "after …", fn)` | Call domain `edits/*` functions on a loaded project from CLI/MCP/skills without `mutate` |
 | Expose that service method via thin MCP/CLI adapters | Call `save_project` / `ws.save()` for state mutations without a history snapshot |
-| Batch related fixes into **one** `mutate` per user-approved step | Edit `transcripts/*.json` or `episode.project.json` by hand |
+| Batch related fixes into **one** `mutate` per user-approved step | Edit `transcripts/*.json` or `episode.sharecut` by hand |
 | Document undo labels and `history_undo` in skills that mutate transcripts or edits | Re-implement snapshot logic outside `project/history/session.py` |
 
 Canonical implementation: [`run_mutation`](../src/podcast_mcp/project/history/session.py) (snapshot before → change → snapshot after → `ProjectStore.commit`).

@@ -45,7 +45,7 @@ the audio from the source recordings and verify the shifted labels.
 ## Exercise
 
 ```bash
-PROJECT=tests/fixtures/aligned_dialogue/episode.project.json
+PROJECT=tests/fixtures/aligned_dialogue/episode.sharecut
 podcast fixture seed-transcript --project "$PROJECT" \
   --from tests/fixtures/canned_transcript_aligned.json
 podcast play --project "$PROJECT" --compare --start 2 --end 15 --rerender

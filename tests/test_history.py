@@ -442,7 +442,7 @@ def _comment(body: str) -> TimelineComment:
 def _dead_first_commit(path: Path) -> None:
     """What a first commit killed before ``save_project`` leaves on disk (#576).
 
-    ``history/index.json`` and both snapshots are written; episode.project.json still
+    ``history/index.json`` and both snapshots are written; episode.sharecut still
     holds the empty history and no comment.
     """
     project = load_project(path)
@@ -609,9 +609,9 @@ def test_store_load_does_not_adopt_an_index_without_a_readable_current_snapshot(
 @pytest.mark.parametrize("fixture", ["synthetic_bleed_60s", "ami_bleed_60s"])
 def test_a_saved_snapshot_matches_the_project_it_came_from(tmp_path, fixture):
     """Every editable field survives the snapshot file's JSON round trip (#589)."""
-    source = Path(__file__).parent / "fixtures" / fixture / "episode.project.json"
-    shutil.copy(source, tmp_path / "episode.project.json")
-    project = load_project(tmp_path / "episode.project.json")
+    source = Path(__file__).parent / "fixtures" / fixture / "episode.sharecut"
+    shutil.copy(source, tmp_path / "episode.sharecut")
+    project = load_project(tmp_path / "episode.sharecut")
     rel = write_snapshot(project, snapshot_from_project(project), "roundtrip")
     history = ProjectHistory(
         cursor=0, entries=[HistoryEntry(id="roundtrip", label="x", snapshot_file=rel)]

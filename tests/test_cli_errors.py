@@ -114,7 +114,7 @@ def test_recursion_error_is_never_swallowed(monkeypatch):
 def test_suggest_handoff_cut_without_dialogue_prints_clean_error(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     result = runner.invoke(
         app,
         [
@@ -140,7 +140,7 @@ def test_suggest_handoff_cut_debug_env_var_shows_original_exception(tmp_path, mo
     monkeypatch.setenv("PODCAST_DEBUG", "1")
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     result = runner.invoke(
         app,
         [
@@ -222,7 +222,7 @@ def test_busy_project_without_holder_details_explains_how_to_retry():
 
     @demo.command("boom-busy")
     def _boom_busy() -> None:
-        raise ProjectBusyError("/private/workspace/episode.project.json.lock")
+        raise ProjectBusyError("/private/workspace/episode.sharecut.lock")
 
     result = runner.invoke(demo, ["boom-busy"])
     assert result.exit_code == 1

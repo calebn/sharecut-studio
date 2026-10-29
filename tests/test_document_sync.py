@@ -2466,7 +2466,7 @@ def test_document_set_track_media_rejects_path_escape(minimal_project, sample_wa
         apply_command(
             ws,
             "SetTrackMedia",
-            {"track_id": "host", "rel_path": "raw/../episode.project.json"},
+            {"track_id": "host", "rel_path": "raw/../episode.sharecut"},
         )
 
 
@@ -3201,7 +3201,7 @@ def test_command_id_retry_from_another_client_is_a_conflict(minimal_project):
 @pytest.mark.parametrize(
     "error",
     [
-        Timeout("episode.project.json.lock"),
+        Timeout("episode.sharecut.lock"),
         sqlite3.OperationalError("database is locked"),
         RenderBusyError("/artifacts/render.lock"),
     ],

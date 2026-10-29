@@ -116,7 +116,7 @@ export const RefineWaiver: Story = {
     episode: { responses: { "POST /api/transcript/refine/waive": {} } },
   },
   args: {
-    refineWaiverProject: "/episodes/mira/episode.project.json",
+    refineWaiverProject: "/episodes/mira/episode.sharecut",
     conflicts: [
       offlineConflict({
         reason: TRANSCRIPT_REFINE_REFUSAL,

@@ -21,9 +21,9 @@ description: >-
 **CLI:**
 
 ```bash
-podcast gui --project /path/to/episode.project.json --background
+podcast gui --project /path/to/episode.sharecut --background
 # foreground (blocks the terminal):
-podcast gui --project /path/to/episode.project.json
+podcast gui --project /path/to/episode.sharecut
 ```
 
 ## Prerequisites

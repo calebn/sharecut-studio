@@ -780,7 +780,7 @@ def test_transcript_cuts_resolve_source_and_placement(tmp_path):
     by_utterance = cut_utterance(proj, 1, use_inaudible_opt=False, defaults=load_defaults())
     assert by_utterance.source_id == "B"
     assert by_utterance.source_timeline_span.start == 10
-    saved = load_project(save_project(proj, tmp_path / "episode.project.json"))
+    saved = load_project(save_project(proj, tmp_path / "episode.sharecut"))
     persisted = next(row for row in saved.edit_decisions if row.id == by_word.id)
     assert persisted.source_id == "B"
     assert persisted.source_timeline_span.start == 10
@@ -832,7 +832,7 @@ def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monk
     assert decision.source_timeline_span.start == 20.1
     assert decision.source_timeline_span.end == pytest.approx(20.4)
 
-    saved = load_project(save_project(proj, tmp_path / "episode.project.json"))
+    saved = load_project(save_project(proj, tmp_path / "episode.sharecut"))
     persisted = next(row for row in saved.edit_decisions if row.id == decision.id)
     assert persisted.source_id == "B"
     assert persisted.source_timeline_span.start == 20.1
@@ -963,7 +963,7 @@ def test_combined_projection_rebuilds_from_saved_current_source_transcripts(tmp_
             CombinedUtterance(track_id="host", speaker="Host", start=0, end=0.4, text="old cache")
         ]
     )
-    path = save_project(proj, tmp_path / "episode.project.json")
+    path = save_project(proj, tmp_path / "episode.sharecut")
 
     reloaded = load_project(path)
     rebuilt = ensure_combined_transcript(reloaded, defaults=load_defaults())

@@ -67,7 +67,7 @@ if ! prints_usage "$IMG" --cli --help; then
   exit 1
 fi
 "$IMG" --mcp --help >/dev/null
-"$IMG" --cli info --project "$ROOT/tests/fixtures/aligned_dialogue/episode.project.json" >/dev/null
+"$IMG" --cli info --project "$ROOT/tests/fixtures/aligned_dialogue/episode.sharecut" >/dev/null
 outer_gui_status=0
 timeout 60 "$IMG" --cli --no-progress gui --no-open >/dev/null 2>&1 || outer_gui_status=$?
 if [[ "$outer_gui_status" -ne 2 ]]; then

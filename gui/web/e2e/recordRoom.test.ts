@@ -239,7 +239,7 @@ function writeProject(
     sources?: Array<{ id: string; path: string }>;
   } = {},
 ): string {
-  const projectPath = path.join(dir, "episode.project.json");
+  const projectPath = path.join(dir, "episode.sharecut");
   const project = {
     sources: overrides.sources ?? [
       { id: "s1", path: "raw/a.wav" },
@@ -394,20 +394,20 @@ describe("landedTrackPeakOrPending", () => {
     writeRawWavs(dir);
     writeProject(dir);
     await expect(
-      landedTrackPeakOrPending(path.join(dir, "episode.project.json"), "Ava"),
+      landedTrackPeakOrPending(path.join(dir, "episode.sharecut"), "Ava"),
     ).resolves.toBeCloseTo(0.5, 6);
   });
 
   it("resolves to 0 when the project file does not exist yet", async () => {
     const dir = tempWorkspace("landed-peak-");
     await expect(
-      landedTrackPeakOrPending(path.join(dir, "episode.project.json"), "Ava"),
+      landedTrackPeakOrPending(path.join(dir, "episode.sharecut"), "Ava"),
     ).resolves.toBe(0);
   });
 
   it("resolves to 0 for a half-written project JSON", async () => {
     const dir = tempWorkspace("landed-peak-");
-    const projectPath = path.join(dir, "episode.project.json");
+    const projectPath = path.join(dir, "episode.sharecut");
     fs.writeFileSync(projectPath, "{");
     await expect(landedTrackPeakOrPending(projectPath, "Ava")).resolves.toBe(0);
   });
