@@ -21,12 +21,7 @@ export type Panel =
   | "pipeline"
   | "comments";
 
-export type ProjectDialog =
-  | "share"
-  | "bounce"
-  | "record"
-  | "palette"
-  | "gestures";
+export type ProjectDialog = "share" | "record" | "palette" | "gestures";
 
 export type Audition = "mix" | "fx" | "raw";
 
@@ -285,7 +280,6 @@ export async function openProjectMenu(page: Page): Promise<Locator> {
 /** Dialog rows and the Project menu item that opens each. */
 const MOVED_MENU_ITEMS: Record<string, ProjectDialog> = {
   "Share…": "share",
-  "Bounce…": "bounce",
   "Record room…": "record",
   "Commands and shortcuts": "palette",
 };
@@ -297,6 +291,14 @@ export function deliverPage(page: Page): Locator {
 export async function startExport(page: Page): Promise<void> {
   await goToStage(page, "deliver");
   await page.getByRole("button", { name: "Export", exact: true }).click();
+}
+
+/** Go to Deliver and bounce with the choices there. */
+export async function startBounce(page: Page): Promise<void> {
+  await goToStage(page, "deliver");
+  await deliverPage(page)
+    .getByRole("button", { name: "Bounce", exact: true })
+    .click();
 }
 
 /** Rows with no menu item; the palette runs them. */
@@ -331,8 +333,7 @@ export async function openProjectMenuItem(
 }
 
 /**
- * Open the dialog `dialog` from where it lives now: Share and Bounce on
- * Deliver, the Record stage, the palette on the header's search.
+ * Open the dialog `dialog` from where it lives now: Share on Deliver, the Record stage, the palette on the header's search.
  */
 export async function openProjectDialog(
   page: Page,
@@ -342,10 +343,6 @@ export async function openProjectDialog(
     case "share":
       await goToStage(page, "deliver");
       await page.getByRole("button", { name: "Share a listen link" }).click();
-      return;
-    case "bounce":
-      await goToStage(page, "deliver");
-      await page.getByRole("button", { name: "Bounce…", exact: true }).click();
       return;
     case "record":
       await goToStage(page, "record");

@@ -21,13 +21,13 @@ import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { useHostRoom } from "./record/useHostRoom";
 import { isShareProjectKey } from "./shareMode";
-import { BounceDialog } from "./stage/dialogs/BounceDialog";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { ShareDialog } from "./stage/dialogs/ShareDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
+import { BounceFlowProvider } from "./stage/hosts/bounceFlow";
 import { ExportFlowProvider } from "./stage/hosts/exportFlow";
 import { StageHost } from "./stage/hosts/StageHost";
 import { useDawStore } from "./state/dawStore";
@@ -213,41 +213,42 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   return (
     <HostRoomProvider value={hostRoom}>
       <ExportFlowProvider>
-        {engines}
-        <div data-daw-app-chrome>
-          <StageFrame
-            guestShare={guestShare}
-            loadFailure={loadFailure}
-            attentionHost={feedbackHost}
-            sheets={EDIT_SHEETS}
-          >
-            <StageHost
+        <BounceFlowProvider>
+          {engines}
+          <div data-daw-app-chrome>
+            <StageFrame
               guestShare={guestShare}
               loadFailure={loadFailure}
-              feedbackHostRef={setFeedbackHost}
-            />
-          </StageFrame>
-        </div>
-        <CheatsheetDialogs />
-        <BounceDialog />
-        <ShareDialog />
-        <HostMcpDialog
-          open={hostMcpDialogOpen}
-          onClose={() => setHostMcpDialogOpen(false)}
-          hasProject={hasProject}
-        />
-        <HelpDialog
-          open={helpDialogOpen}
-          onClose={() => setHelpDialogOpen(false)}
-        />
-        {syncEnabled ? (
-          <ModelsDialog
-            open={modelsDialogOpen}
-            onClose={() => setModelsDialogOpen(false)}
+              attentionHost={feedbackHost}
+              sheets={EDIT_SHEETS}
+            >
+              <StageHost
+                guestShare={guestShare}
+                loadFailure={loadFailure}
+                feedbackHostRef={setFeedbackHost}
+              />
+            </StageFrame>
+          </div>
+          <CheatsheetDialogs />
+          <ShareDialog />
+          <HostMcpDialog
+            open={hostMcpDialogOpen}
+            onClose={() => setHostMcpDialogOpen(false)}
+            hasProject={hasProject}
           />
-        ) : null}
-        <AskDialog />
-        <FeedbackToast host={feedbackHost} />
+          <HelpDialog
+            open={helpDialogOpen}
+            onClose={() => setHelpDialogOpen(false)}
+          />
+          {syncEnabled ? (
+            <ModelsDialog
+              open={modelsDialogOpen}
+              onClose={() => setModelsDialogOpen(false)}
+            />
+          ) : null}
+          <AskDialog />
+          <FeedbackToast host={feedbackHost} />
+        </BounceFlowProvider>
       </ExportFlowProvider>
     </HostRoomProvider>
   );

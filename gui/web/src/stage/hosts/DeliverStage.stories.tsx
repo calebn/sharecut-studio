@@ -9,6 +9,7 @@ import {
 import { episode } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
+import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost, type StageHostProps } from "./StageHost";
 
@@ -35,9 +36,11 @@ const meta: Meta<StageHostProps> = {
     withEpisode,
     (Story) => (
       <ExportFlowProvider>
-        <div data-daw-app-chrome>
-          <Story />
-        </div>
+        <BounceFlowProvider>
+          <div data-daw-app-chrome>
+            <Story />
+          </div>
+        </BounceFlowProvider>
       </ExportFlowProvider>
     ),
   ],
@@ -52,7 +55,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Deliver stage host: Readiness, Chapters and Clips with their edits saved to the project, the project's export formats with Export, its progress and its outcome, then the Bounce and Listen link entry points. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
+          "The Deliver stage host: Readiness, Chapters and Clips with their edits saved to the project, the project's export formats with Export, its progress and its outcome, the Bounce section with its progress and outcome, then the Listen link entry point. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
       },
     },
   },
@@ -90,7 +93,7 @@ export const Ready: Story = {
     await expect(
       await canvas.findByRole("button", { name: "Export" }),
     ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Bounce…" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Bounce" })).toBeVisible();
   },
 };
 

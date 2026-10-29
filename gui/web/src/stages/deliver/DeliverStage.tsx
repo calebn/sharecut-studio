@@ -7,6 +7,8 @@ import { VERBS } from "../../system/verbs";
 import type { StageId } from "../../types/stage";
 import { Toast, type ToastState } from "../../ui";
 import { isApplePlatform } from "../../utils/platform";
+import { BounceSection } from "./BounceSection";
+import type { BounceOptions } from "./bounceLogic";
 import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import type { ClipWord } from "./clipTrim";
@@ -87,6 +89,8 @@ export type DeliverStageProps = {
   /** False when the app frame already carries the Player bar. */
   showPlayer?: boolean;
   exportOptions?: ExportOptions;
+  /** Without it the Bounce section is not shown. */
+  bounce?: BounceOptions;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
   /** False when the host cannot save a clip's title or approval. */
@@ -140,6 +144,7 @@ export function DeliverStage({
   showLink = true,
   showPlayer = true,
   exportOptions,
+  bounce,
   clipUndo = true,
   showClipEdits = true,
   onChapters,
@@ -407,6 +412,9 @@ export function DeliverStage({
               onReveal={onReveal}
               onDownload={onDownload}
             />
+            {bounce ? (
+              <BounceSection options={bounce} state={sharedState} />
+            ) : null}
             {phone ? null : (
               <>
                 {chaptersPart}

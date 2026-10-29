@@ -164,7 +164,8 @@ export async function runRangeAction(
   }
   if (action === "bounce") {
     state.setBounceRangeTarget(structuredClone(target));
-    state.setBounceDialogOpen(true);
+    state.openStage("deliver");
+    state.setBounceRequested(true);
     return { status: "ok" };
   }
   state.setRangeBusy(true);

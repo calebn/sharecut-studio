@@ -179,7 +179,10 @@ export function registerHostCommands(): void {
     if (blocked) {
       return blocked;
     }
-    useDawStore.getState().setBounceDialogOpen(true);
+    const s = useDawStore.getState();
+    s.setBounceRangeTarget(null);
+    s.openStage("deliver");
+    s.setBounceRequested(true);
     return { status: "ok" };
   });
 

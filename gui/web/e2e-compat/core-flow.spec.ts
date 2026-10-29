@@ -4,7 +4,6 @@ import { expectPageAxeClean } from "../e2e/axe";
 import { bouncedWavs } from "../e2e/exportFiles";
 import { keeperContextSource, RECORDER_CONTEXT } from "../e2e/keeperContexts";
 import { keeperWavBytes, ONE_SECOND_KEEPER_WAV_BYTES } from "../e2e/keeperOpfs";
-import { openDialogFromMenu } from "../e2e/overlayReachability";
 import { expectPlaybackAdvancesThenHolds, playButton } from "../e2e/playback";
 import {
   clickHostTransport,
@@ -23,7 +22,12 @@ import {
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
 import { createReviewShare, openGuestShare } from "../e2e/shareNavigation";
-import { goToStage, openPanel, waitForLanding } from "../e2e/stageNav";
+import {
+  deliverPage,
+  goToStage,
+  openPanel,
+  waitForLanding,
+} from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
 import {
   openTranscriptPanel,
@@ -220,18 +224,21 @@ test.describe("core flow", () => {
           });
 
           await test.step("export: bounce the mix to a non-silent WAV", async () => {
-            await openDialogFromMenu(host, "Bounce…");
-            const dlg = host.getByRole("dialog", { name: "Bounce…" });
-            await expect(dlg).toBeVisible();
+            await goToStage(host, "deliver");
+            const deliver = deliverPage(host);
+            await expect(
+              deliver.getByRole("heading", { name: "Bounce" }),
+            ).toBeVisible();
             if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
               await expectPageAxeClean(host);
             }
-            await dlg
+            await deliver
               .getByRole("button", { name: "Bounce", exact: true })
               .click();
-            // The dialog closes only on success; a failure shows an inline
-            // error and leaves it open.
-            await expect(dlg).toBeHidden({ timeout: 60_000 });
+            // A failure shows "Bounce failed" in the section instead.
+            await expect(
+              deliver.getByText("Bounced", { exact: true }),
+            ).toBeVisible({ timeout: 60_000 });
             await expect(
               host
                 .getByRole("status")

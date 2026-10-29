@@ -24,8 +24,8 @@ const CATALOG = [
     use: "Use the shared modal behavior and scrolling body.",
   },
   {
-    label: "Bounce dialog",
-    id: "templates-bouncedialog--docs",
+    label: "Bounce section",
+    id: "stages-deliver-bounce--docs",
     use: "See aligned controls and section spacing in a real task.",
   },
   {

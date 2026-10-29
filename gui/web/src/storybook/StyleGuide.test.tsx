@@ -15,10 +15,9 @@ describe("StyleGuide", () => {
       expect(href).toMatch(/^#/);
       expect(href && container.querySelector(href)).toBeInTheDocument();
     }
-    expect(screen.getByRole("link", { name: "Bounce dialog" })).toHaveAttribute(
-      "href",
-      "./?path=/docs/templates-bouncedialog--docs",
-    );
+    expect(
+      screen.getByRole("link", { name: "Bounce section" }),
+    ).toHaveAttribute("href", "./?path=/docs/stages-deliver-bounce--docs");
     await expectNoA11yViolations(container);
   });
 

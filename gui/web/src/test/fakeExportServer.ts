@@ -41,6 +41,20 @@ export const EXPORT_FINISHED: PipelineJobSnapshot = {
   },
 };
 
+export const BOUNCE_STARTED: PipelineJobSnapshot = {
+  ...EXPORT_STARTED,
+  id: "b1",
+  kind: "bounce",
+  message: "Bouncing…",
+};
+
+export const BOUNCE_FINISHED: PipelineJobSnapshot = {
+  ...BOUNCE_STARTED,
+  status: "ok",
+  current: 2,
+  result: { paths: ["/tmp/ep/export/bounces/ep.wav"] },
+};
+
 export const EXPORT_MODEL_NEEDED: PipelineJobSnapshot = {
   ...EXPORT_STARTED,
   status: "error",
@@ -87,6 +101,8 @@ export function fakeExportServer() {
     settled: null as PipelineJobSnapshot | null,
     configRequests: [] as string[],
     exportRequests: [] as { path: string; formats: unknown }[],
+    bounceRequests: [] as Record<string, unknown>[],
+    bounceAnswer: null as Answer | null,
     cancelRequests: [] as { job_id: string | null }[],
     settle(job: PipelineJobSnapshot) {
       server.settled = job;
@@ -132,6 +148,10 @@ export function fakeExportServer() {
         server.exportRequests.push(body);
         await server.holdStart;
         return json(server.startAnswer, { job: server.started });
+      }
+      if (url.includes("/api/export/bounce")) {
+        server.bounceRequests.push(body);
+        return json(server.bounceAnswer, { job: BOUNCE_STARTED });
       }
       if (url.includes("/api/pipeline/cancel")) {
         server.cancelRequests.push(body);
