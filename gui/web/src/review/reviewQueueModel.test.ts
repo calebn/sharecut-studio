@@ -6,7 +6,6 @@ import {
   filterCounts,
   filterItems,
   groupQueue,
-  KIND_ORDER,
   progressLine,
   type ReviewItem,
   resultText,
@@ -21,9 +20,24 @@ const item = (over: Partial<ReviewItem>): ReviewItem => ({
   ...over,
 });
 
-describe("KIND_ORDER", () => {
-  it("is the queue order of every kind", () => {
-    expect(KIND_ORDER).toEqual([
+describe("queue order", () => {
+  it("groups every kind in the same fixed order", () => {
+    const kinds = [
+      "suggestion",
+      "sound",
+      "false-start",
+      "repeat",
+      "pause",
+      "filler",
+      "comment",
+      "unsure-word",
+      "check",
+    ] as const;
+    expect(
+      groupQueue(kinds.map((kind) => item({ id: kind, kind }))).map(
+        (group) => group.kind,
+      ),
+    ).toEqual([
       "check",
       "unsure-word",
       "comment",

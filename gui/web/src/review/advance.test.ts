@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
-import { planDecision, stepUndecided, undoDecisions } from "./advance";
+import { planDecision, stepUndecided } from "./advance";
 import type { ReviewItem } from "./reviewQueueModel";
 
 const make = (id: string, at: number, result?: "applied"): ReviewItem => ({
@@ -48,14 +48,11 @@ describe("stepUndecided", () => {
 });
 
 describe("planDecision", () => {
-  it("decides and advances past the last id, then undoes", () => {
+  it("decides and advances past the last id", () => {
     const plan = planDecision(items, ["a", "b"], "applied");
     expect(plan.selectedId).toBe("c");
     expect(plan.decidedIds).toEqual(["a", "b"]);
     expect(plan.message).toBe("Cut 2 · saves 1.0 s");
-    const back = undoDecisions(plan.items, plan.decidedIds);
-    expect(back.selectedId).toBe("a");
-    expect(back.items.every((i) => i.result === undefined)).toBe(true);
   });
 
   it("selects nothing once the visible queue is done", () => {

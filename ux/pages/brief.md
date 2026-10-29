@@ -158,7 +158,7 @@ Guest step flows: [Guest journeys](#/journeys).
 | Surface | Audience | Notes |
 |---------|----------|-------|
 | **ShareCut Studio host** | Editor | Full project; document commands + pipeline |
-| **ShareCut Studio guest** | Every review role | Mode banner; role gates; proxy MP3 when available; no Impact/History/Pipeline |
+| **ShareCut Studio guest** | Every review role | Mode banner; role gates; proxy MP3 when available; no History/Pipeline |
 | **CLI / MCP** | Agent + power user | Same domain services; not a parallel product |
 | **Remote MCP (share)** | Agent as guest | Same caps as the share; `{base}/mcp/{token}/mcp` |
 

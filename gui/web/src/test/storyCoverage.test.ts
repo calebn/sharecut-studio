@@ -33,7 +33,7 @@ const COVERED: Record<string, string[]> = {
   "DLG-STEP-PARAMS": ["Stages/Prepare/AdvancedSteps"],
   "PNL-PIPELINE": ["Stages/Prepare/AdvancedSteps", "Stages/Prepare/ReadyList"],
   "PNL-TIGHTEN": ["Templates/Editor · Tighten panel"],
-  "PNL-IMPACT": ["Stages/Review/Host"],
+  "PNL-REVIEW-QUEUE": ["Stages/Review/Host"],
   "PNL-HISTORY": ["Templates/Editor · History panel"],
   "INS-PEEK": ["Templates/Editor · Inspector · Peek"],
   "INS-RANGE": ["Templates/Editor · Inspector · Range", "System/ScrubField"],

@@ -48,7 +48,7 @@ make ux-demo-screens   # refresh Pages screenshots
 | Listen | Two timeline comments + action item |
 | Timeline | Pending word-removal overlay, chapters, levels envelope |
 | Text | Low-confidence “delighted”, suppressed “uncle” |
-| Impact / More | Pending review cut |
+| Review / More | Pending review cut |
 | Mix / FX | Audition Full mix/Edited stems/Original in transport; volume envelope on the Volume envelope layer |
 | Social | One clip candidate |
 

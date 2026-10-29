@@ -355,7 +355,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Groups, each with a bulk primary in its header ("Cut all 11", plain "Cut" for one item, Shift+Enter; held items add "N to decide one by one" for editors; the Find bar's Cut all is Mod+Shift+Enter).
   - Sorts: by kind (default) or chronological.
 - Placements: Review left 360 px; Record right rail (Comments filter, chronological, Composer at the bottom); guest Review left (Comments and Your suggestions); phone Queue sheet.
-- Used: SCR-REVIEW, PNL-IMPACT, PNL-TIGHTEN, PNL-COMMENTS, CMP-REC-LIVECOMMENTS, SCR-GUEST-COMMENTER.
+- Used: SCR-REVIEW, PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-COMMENTS, CMP-REC-LIVECOMMENTS, SCR-GUEST-COMMENTER.
 - Replaces: Review queue (rdp), Notes rail (record).
 - Story: `System/ReviewQueue`: Groups, CommentsChronological, Guest, PhoneSheet, BulkRunning.
 
@@ -373,7 +373,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Comment (thread, action items, Composer, Resolve).
   - Check (unsure words stepper, transcript check, conflict).
 - Placements: Review center (max 760 px); Edit Inspect on a suggestion or comment (anchored Sheet, 320 px compact); phone Review full screen, with swipes.
-- Used: SCR-REVIEW, INS-PENDING, INS-COMMENT, CMP-COMMENT-CARD, PNL-IMPACT-REFINE-GATE, FLOW-REC-LATER pickups.
+- Used: SCR-REVIEW, INS-PENDING, INS-COMMENT, CMP-COMMENT-CARD, PNL-REVIEW-QUEUE-REFINE-GATE, FLOW-REC-LATER pickups.
 - Replaces: Decision card and comment thread (rdp), comment popover and suggestion inspector (edit).
 - Story: `System/DecisionCard`: Filler, Pause, Sound, Pickup, Comment, Check, Adjusting, CompactInEdit, Phone, PhoneSwipe.
 
