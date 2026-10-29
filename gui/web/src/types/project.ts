@@ -198,7 +198,7 @@ export interface PendingEditView {
   label?: string | null;
   /** Table default for this kind: cut, shorten, lower or leave. */
   suggested_action?: "cut" | "shorten" | "lower" | "leave" | null;
-  /** Plain sentence on why the edit is suggested (`edits/tighten_hits.py`); null for a share guest's suggestion (the guest chooses its reason) and for a reason the server cannot read, so the card omits it; a tighten-shaped reason from an agent plan is shown as written. */
+  /** Server sentence for a readable, recognized reason on an authorless row; otherwise null, so the card omits it. Does not prove engine origin. */
   why?: string | null;
 }
 
