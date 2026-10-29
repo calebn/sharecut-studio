@@ -120,10 +120,18 @@ describe("new episode names", () => {
     );
   });
   it("falls back to the day when the file's name is one Windows reserves", () => {
-    for (const name of ["con.wav", "NUL.mp3", "aux.m4a", "Com1.take2.wav", " lpt9 .wav"]) {
+    for (const name of [
+      "con.wav",
+      "NUL.mp3",
+      "aux.m4a",
+      "Com1.take2.wav",
+      " lpt9 .wav",
+    ]) {
       expect(episodeNameFromFiles([{ name }], NOW)).toBe("Episode, 27 Oct");
     }
-    expect(episodeNameFromFiles([{ name: "console.wav" }], NOW)).toBe("console");
+    expect(episodeNameFromFiles([{ name: "console.wav" }], NOW)).toBe(
+      "console",
+    );
   });
   it("dates an untitled recording", () => {
     expect(untitledEpisodeName(NOW)).toBe("Untitled episode · 27 Oct");
