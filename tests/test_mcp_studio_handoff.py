@@ -114,6 +114,7 @@ def _deadline_peer(
     trickle: bool = False,
     session_id: bool = False,
     ping_answers: bool = True,
+    ping_error: bool = False,
     wedge_call: bool = False,
 ) -> Iterator[tuple[list[str], threading.Event, threading.Event]]:
     methods: list[str] = []
@@ -181,6 +182,10 @@ def _deadline_peer(
             elif method == "ping":
                 if not ping_answers:
                     self.stream()
+                    return
+                if ping_error:
+                    error = {"code": -32601, "message": "no ping here"}
+                    self.reply({"jsonrpc": "2.0", "id": request["id"], "error": error})
                     return
                 result = {}
             elif method == "tools/call":
@@ -334,12 +339,13 @@ def test_studio_that_wedges_after_taking_the_call_is_reported_not_waited_on(
     assert direct.calls == []
 
 
+@pytest.mark.parametrize("ping_error", [False, True])
 def test_a_long_tool_on_a_studio_that_answers_pings_is_not_cut_short(
-    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch, ping_error: bool
 ) -> None:
     _heartbeat_every(monkeypatch, 0.1)
     direct = _wrapped()
-    with _deadline_peer(minimal_project, stalled=False) as (methods, _, _):
+    with _deadline_peer(minimal_project, stalled=False, ping_error=ping_error) as (methods, _, _):
         result = asyncio.run(
             direct.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
         )
@@ -619,7 +625,7 @@ def test_studio_that_stops_answering_after_the_send_reports_a_possible_change(
             return None
 
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
     assert isinstance(result, CallToolResult)
@@ -644,7 +650,7 @@ def test_studio_that_cannot_be_reached_before_the_send_stops_the_call(
         async def __aexit__(self, *_a: Any) -> None:
             return None
 
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Unreachable())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Unreachable())
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
     assert isinstance(result, CallToolResult)
@@ -678,7 +684,7 @@ def test_studio_whose_initialize_fails_after_a_good_ping_stops_the_call(
             return None
 
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
     assert isinstance(result, CallToolResult)
@@ -756,7 +762,7 @@ def test_relative_file_arguments_are_made_absolute_before_the_send(
             return None
 
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
     monkeypatch.chdir(tmp_path)
     server = _wrapped()
     asyncio.run(
@@ -836,7 +842,7 @@ def _fake_studio_session(monkeypatch: pytest.MonkeyPatch, seen: dict[str, Any], 
             return None
 
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
 
 
 def test_progress_is_relayed_in_order_with_total_and_message(
