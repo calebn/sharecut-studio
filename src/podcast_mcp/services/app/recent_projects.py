@@ -30,6 +30,7 @@ from typing import Any
 
 from podcast_mcp import settings
 from podcast_mcp.util.atomic_file import atomic_write
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
 
 log = logging.getLogger(__name__)
@@ -37,6 +38,16 @@ log = logging.getLogger(__name__)
 RECENT_FILENAME = "recent_projects.json"
 RECENT_LIMIT = 20
 
+_WINDOWS_RESERVED = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{n}" for n in range(1, 10)),
+        *(f"LPT{n}" for n in range(1, 10)),
+    }
+)
 _LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 _LOCK = threading.Lock()
 _RESERVE_LOCK = threading.Lock()
@@ -356,11 +367,17 @@ def default_workspace_dir(name: str) -> Path:
     """Reserve ``<workspace root>/<name>``, numbered " 2", " 3"... when that folder is taken.
 
     The folder is created here (``mkdir`` without ``exist_ok``), so two creates in flight
-    cannot be handed the same one.
+    cannot be handed the same one. A name Windows reserves for a device (``con``, ``nul.wav``,
+    ``com1``) is refused with ``project_name_reserved``, never renamed.
     """
     root = settings.text("PODCAST_WORKSPACE_ROOT")
     base = (Path(root).expanduser() if root else Path.home() / "ShareCut").resolve()
     clean = "".join(c for c in name if c not in '/\\:*?"<>|\0').strip(" .") or "episode"
+    if clean.split(".", 1)[0].upper() in _WINDOWS_RESERVED:
+        raise CodedError(
+            f'Windows can\'t use "{clean}" as a folder name. Choose another episode name.',
+            code="project_name_reserved",
+        )
     with _RESERVE_LOCK:
         base.mkdir(parents=True, exist_ok=True)
         n = 1

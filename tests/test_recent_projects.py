@@ -118,6 +118,20 @@ def test_default_workspace_reserves_and_numbers_a_taken_folder(tmp_path):
     assert recent.default_workspace_dir("  ") == (root / "episode").resolve()
 
 
+@pytest.mark.parametrize("name", ["con", "CON", "NUL.wav", "com1", "Lpt9.txt", " aux. "])
+def test_a_reserved_windows_name_is_refused_and_creates_no_folder(local, tmp_path, name):
+    res = local.post("/api/project/create", json={"name": name})
+    assert res.status_code == 400
+    assert res.headers[CODE] == "project_name_reserved"
+    assert "Choose another episode name." in res.json()["detail"]
+    assert not (tmp_path / "workspaces").exists() or not any((tmp_path / "workspaces").iterdir())
+
+
+@pytest.mark.parametrize("name", ["console", "com10", "con 2", "Episode, 12 Mar", "nullable.wav"])
+def test_names_that_only_start_like_a_reserved_one_are_kept(tmp_path, name):
+    assert recent.default_workspace_dir(name).name == name
+
+
 def test_concurrent_reservations_never_share_a_folder(tmp_path):
     with ThreadPoolExecutor(max_workers=8) as pool:
         got = list(pool.map(lambda _: recent.default_workspace_dir("Pilot"), range(24)))

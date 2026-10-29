@@ -55,6 +55,15 @@ const NOT_AN_EPISODE_CODES = new Set([
   "project_file_missing",
 ]);
 
+const NAME_RESERVED_CODE = "project_name_reserved";
+
+function startFailure(error: unknown, name: string): string {
+  if (error instanceof ApiError && error.code === NAME_RESERVED_CODE) {
+    return `Windows can't use "${name}" as a folder name. Choose another episode name.`;
+  }
+  return NOT_STARTED;
+}
+
 function navigateToProject(path: string): true {
   window.location.assign(projectUrl(window.location.href, path));
   return true;
@@ -228,13 +237,11 @@ export function HomeScreen() {
         setNotice(NO_TOOLS);
         return Promise.resolve();
       }
+      const name = episodeNameFromFiles(files, new Date());
       return guarded(
         async () => {
           if (files.length === 0) return undefined;
-          const created = await createEpisodeProject(
-            "",
-            episodeNameFromFiles(files, new Date()),
-          );
+          const created = await createEpisodeProject("", name);
           try {
             await ingestIntoNewProject(created.project_path, files);
           } catch (error: unknown) {
@@ -250,7 +257,7 @@ export function HomeScreen() {
           });
           return navigateToProject(created.project_path);
         },
-        () => setNotice(NOT_STARTED),
+        (error) => setNotice(startFailure(error, name)),
         importingLine(files.length),
       );
     },

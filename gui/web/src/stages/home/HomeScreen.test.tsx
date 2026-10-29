@@ -491,6 +491,23 @@ describe("HomeScreen", () => {
       );
     });
 
+    it("names a reserved Windows name instead of the generic failure", async () => {
+      const user = userEvent.setup();
+      const file = new File(["x"], "con.wav", { type: "audio/wav" });
+      pickFiles.mockResolvedValue([file]);
+      create.mockRejectedValue(
+        new ApiError("server words", "project_name_reserved", 400),
+      );
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: /^Import audio/ }),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        `Windows can't use "con" as a folder name. Choose another episode name.`,
+      );
+      expect(ingestInto).not.toHaveBeenCalled();
+    });
+
     it("says the episode did not start when create fails", async () => {
       const user = userEvent.setup();
       create.mockRejectedValue(new Error("nope"));
