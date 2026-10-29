@@ -121,9 +121,10 @@ the first matching row (`_RULES` in `tunnel_status.py`):
 
 Failed is the one kind a missing process does not touch: `podcast tunnel` exits on an
 auth or config failure, so its process is gone by design and the fix stays on screen
-until the file is abandoned. "Unknown" is a file with no usable `pid`, or a platform
-that cannot be probed (Windows); the age rows decide. A reused pid reads as running and
-falls to the age rows too.
+until the file is abandoned. "Unknown" is a file with no usable `pid`, or a pid that
+cannot be probed (on Windows: access denied, any other kernel32 error, a pid beyond 32
+bits, or no kernel32); the age rows decide. A reused pid reads as running and falls to
+the age rows too.
 
 **Why 45 s and 10 minutes.** A running tunnel rewrites its file every 15 s, also while
 it backs off, so three missed beats (45 s) means something is wrong: that is an outage

@@ -248,7 +248,9 @@ def test_the_probe_tells_a_running_process_from_a_finished_one():
     assert pid_is_alive(child.pid) is False
 
 
-def test_the_probe_never_signals_a_process_on_windows(monkeypatch: pytest.MonkeyPatch):
+def test_the_probe_never_signals_a_process_on_windows_and_reads_a_missing_kernel32_as_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+):
     def never(*_a: Any) -> None:
         raise AssertionError("os.kill terminates the process on Windows")
 
