@@ -101,7 +101,7 @@ export function Wave() {
         background: "var(--color-timeline-well)",
       }}
       role="img"
-      aria-label="Word waveform with one neighbour each side"
+      aria-label="Word waveform, static demo"
     >
       {bars}
     </div>
