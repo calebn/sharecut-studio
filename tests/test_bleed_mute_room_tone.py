@@ -226,7 +226,7 @@ def test_the_fill_does_not_depend_on_how_the_stem_is_read(tmp_path: Path) -> Non
 def test_the_fill_keeps_its_spectral_density_at_another_sample_rate() -> None:
     """Noise measured at 48 kHz is realised at 16 kHz with the band that exists there."""
     psd = tuple(float(x) for x in np.full(513, 1e-6))
-    fill = BleedFill("comfort_noise", -60.0, -60.0, None, 48_000, 1024, psd)
+    fill = BleedFill("comfort_noise", -60.0, -60.0, None, 48_000, 1024, psd, "host:comfort_noise")
 
     levels = {
         rate: _db(np.round(fill.noise(0, 4 * rate, rate) * 32768).astype(np.int16))
@@ -239,7 +239,7 @@ def test_the_fill_keeps_its_spectral_density_at_another_sample_rate() -> None:
 
 def test_the_fill_has_nothing_above_the_band_it_was_measured_in() -> None:
     psd = tuple(float(x) for x in np.full(513, 1e-6))
-    fill = BleedFill("comfort_noise", -60.0, -60.0, None, 16_000, 1024, psd)
+    fill = BleedFill("comfort_noise", -60.0, -60.0, None, 16_000, 1024, psd, "host:comfort_noise")
 
     noise = fill.noise(0, 48_000, 48_000)
     spectrum = np.abs(np.fft.rfft(noise * np.hanning(noise.size))) ** 2

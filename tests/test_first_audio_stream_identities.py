@@ -37,9 +37,6 @@ from podcast_mcp.util.project_state import file_revision_key
 MAIN_MEDIA_KEY = "aaa47cb2e786ca55e370"
 MAIN_SILENCE_FINGERPRINT = "bdfa08a23038fd29f56cb4216a1ef6b3f352a2292fdfa83c195ee14c3949948f"
 MAIN_BALANCE_DIGEST = "e240b20362847f7f6656bc8b6a8eab18da442e6bb316305db92eee82a4e8f6b1"
-# Single-stream render keys. Each one hashes BLEED_FILL_REV, so they moved once, when it went
-# 1 -> 2 (#2556); with the revision at 1 they equal main's values (stem 18baeb38, proxy e834252c,
-# gate db543990). Regenerate only for an intended revision bump, never for other drift.
 RENDER_DIGESTS = {
     "stem": "e8b1ae45e863b3117f1b814633e93a9b54a5afd38ec2bc6cf8c2ad50155e4ff6",
     "proxy": "22bea67c70ce597bf5350ba8067ad3e266978d291e6bf94b6ed5d12692b01d05",
