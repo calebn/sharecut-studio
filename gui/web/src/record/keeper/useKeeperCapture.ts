@@ -26,12 +26,8 @@ type Args = {
   sink?: ByteSink | null;
   resetKey?: number;
   onActivity?: () => void;
-  /** Tell the room how many segments this take opened; `final` once the take has stopped. */
-  reportSegments?: (
-    takeIndex: number,
-    segments: number,
-    final: boolean,
-  ) => void;
+  /** Tell the room how many segments this take has opened so far. */
+  reportSegments?: (takeIndex: number, segments: number) => void;
 };
 
 type CapturedGate = {
@@ -127,7 +123,6 @@ export function useKeeperCapture({
         participantId: string;
         takeIndex: number;
         segments: number;
-        final: boolean;
       }
     >(),
   );
@@ -136,15 +131,13 @@ export function useKeeperCapture({
       participantId: string,
       takeIndex: number,
       segments: number,
-      final: boolean,
       force = false,
     ) => {
       const last = reportedRef.current.get(takeIndex);
       const same =
         last?.participantId === participantId &&
         last.takeIndex === takeIndex &&
-        last.segments === segments &&
-        last.final === final;
+        last.segments === segments;
       if (same && !force) {
         return;
       }
@@ -152,9 +145,8 @@ export function useKeeperCapture({
         participantId,
         takeIndex,
         segments,
-        final,
       });
-      reportRef.current?.(takeIndex, segments, final);
+      reportRef.current?.(takeIndex, segments);
     },
     [],
   );
@@ -166,7 +158,6 @@ export function useKeeperCapture({
           gate.participantId,
           takeIndex,
           session.segmentsOpened(takeIndex),
-          true,
         );
       }
     },
@@ -340,7 +331,7 @@ export function useKeeperCapture({
             onSegmentOpen: (takeIndex, segments) => {
               const id = gateRef.current.participantId;
               if (id && !cancelled) {
-                sendReport(id, takeIndex, segments, false);
+                sendReport(id, takeIndex, segments);
               }
             },
           },
@@ -488,19 +479,8 @@ export function useKeeperCapture({
         (row) => row.take_index === local.takeIndex,
       );
       const known = take?.segment_reports?.[local.participantId];
-      if (
-        take &&
-        (!known ||
-          known.segments < local.segments ||
-          (local.final && !known.final))
-      ) {
-        sendReport(
-          local.participantId,
-          local.takeIndex,
-          local.segments,
-          local.final,
-          true,
-        );
+      if (take && (!known || known < local.segments)) {
+        sendReport(local.participantId, local.takeIndex, local.segments, true);
       }
     }
   }, [snapshot, sendReport]);

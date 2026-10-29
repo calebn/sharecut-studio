@@ -550,14 +550,14 @@ def test_without_a_report_a_resumed_take_with_every_segment_in_is_not_flagged(
     assert _flags(ws) == (False, 0)
 
 
-def _report(svc, pid: str, segments: int, *, final: bool = True, take: int = 0) -> None:
+def _report(svc, pid: str, segments: int, *, take: int = 0) -> None:
     host = pid == "p_host"
     svc.submit(
         _cmd(
             "SegmentReport",
             pid=pid,
             role="host" if host else "guest",
-            payload={"take_index": take, "segments": segments, "final": final},
+            payload={"take_index": take, "segments": segments},
         ),
         capabilities=None if host else ["join"],
     )
@@ -700,31 +700,20 @@ def test_a_room_with_only_stalled_recordings_is_not_closed(
     assert unsaved.closed is False
 
 
-def test_a_report_with_no_final_is_saving_inside_the_window_then_stalled(
+def test_a_report_matching_every_acked_row_neither_blocks_nor_warns(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed(minimal_project, sample_wav)
     old, [ava], svc = _stopped_room(ws, ["Ava"])
     _ack_segment(ws, old, ava, 0)
-    _report(svc, ava, 1, final=False)
-    _at(monkeypatch, STOP_AT + 60_000)
+    _report(svc, ava, 1)
     snap = RecordControlService(ws).snapshot()
-    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 0)
+    assert snap["land_first_possible"] is True
     snap = _stalled_after_grace(ws, monkeypatch)
-    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
-    assert ShareService(ws).create_record_room(land_first=True)["left_behind"] == 1
-
-
-def test_a_final_report_that_matches_the_rows_adds_nothing(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
-):
-    ws = _seed(minimal_project, sample_wav)
-    old, [ava], svc = _stopped_room(ws, ["Ava"])
-    _ack_segment(ws, old, ava, 0)
-    _report(svc, ava, 1, final=False)
-    _report(svc, ava, 1, final=True)
-    snap = _stalled_after_grace(ws, monkeypatch)
-    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0, 0)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 0)
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert len(new["landed_first"]["clips"]) == 1 and "left_behind" not in new
 
 
 def test_a_count_above_the_cap_still_owes_the_trailing_segment(
@@ -733,7 +722,7 @@ def test_a_count_above_the_cap_still_owes_the_trailing_segment(
     ws = _seed(minimal_project, sample_wav)
     old, [ava], svc = _stopped_room(ws, ["Ava"])
     _ack_segment(ws, old, ava, 0)
-    _report(svc, ava, 10**6, final=True)
+    _report(svc, ava, 10**6)
     snap = _stalled_after_grace(ws, monkeypatch)
     assert snap["unlanded_stalled"] == MAX_REPORTED_SEGMENTS - 1
 

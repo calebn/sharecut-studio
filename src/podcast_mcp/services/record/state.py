@@ -34,12 +34,6 @@ class PauseEntry(BaseModel):
     pause_reason: PauseReason | None = None
 
 
-class SegmentReportEntry(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    segments: int = 0
-    final: bool = False
-
-
 class TakeState(BaseModel):
     model_config = ConfigDict(extra="ignore")
     take_index: int
@@ -48,7 +42,7 @@ class TakeState(BaseModel):
     stopped_wall_ms: int | None = None
     pauses: list[PauseEntry] = Field(default_factory=list)
     consented_participant_ids: list[str]
-    segment_reports: dict[str, SegmentReportEntry] = Field(default_factory=dict)
+    segment_reports: dict[str, int] = Field(default_factory=dict)
 
 
 class EndTarget(BaseModel):

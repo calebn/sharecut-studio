@@ -771,7 +771,7 @@ def test_failed_comment_write_leaves_no_command_and_retry_applies(
     assert [c["id"] for c in svc.snapshot()["comments"]] == ["live-retry"]
 
 
-_REPORT = {"take_index": 0, "segments": 1, "final": True}
+_REPORT = {"take_index": 0, "segments": 1}
 
 
 def test_every_record_command_type_journals_inside_one_write_transaction(

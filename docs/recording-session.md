@@ -158,19 +158,17 @@ A bad `target` or `expires_at` is refused before anything lands (a `replace` tar
 checked against the episode after the land, which can change its length).
 
 "Saving" is bounded. Each browser keeper (guest and host) tells the room how many upload
-segments it opened for a take with a `SegmentReport` command (`take_index`, `segments`,
-`final`): once at every segment open, after the segment is recorded on the device, and once at Stop
-after the last segment closed (`final`, with 0 when none opened). It is self-only (the
-server stores it under the sender's own participant id), needs the join capability, never
-shrinks, and a `final` flag stays set. The keeper resends it when the room's snapshot
-shows an older count. For each consented, not removed person the server owes
-`max(reported segments, highest uploaded segment + 1)` segments, so an upload row the report
-does not mention still counts. A segment with no upload yet counts as saving for
-`UPLOAD_GRACE_MS` (10 minutes) after Stop, and as stalled after it. A person whose last report is not `final` (the Stop report was lost, or the tab closed first)
-reads as saving until the window ends, then adds one stalled entry for the segment the server
-cannot see. A final report owes exactly the count above and nothing more. A count above 5000
-is clamped to 5000. A final report of 0 owes
-nothing (a host whose mic was denied, a guest who consented late and never recorded). An upload that has started but not finished
+segments it opened for a take with a `SegmentReport` command (`take_index`, `segments`):
+at every segment open, after the segment is recorded on the device, and at Stop (0 when
+none opened). It is self-only (the server stores it under the sender's own participant id),
+needs the join capability, never shrinks, and a count above 5000 is clamped to 5000. The keeper
+resends it, for every take, when the room's snapshot shows an older count. For each consented, not
+removed person the server owes `max(reported segments, highest uploaded segment + 1)`
+segments, so an upload row the report does not mention still counts. A segment with no upload yet counts as saving for
+`UPLOAD_GRACE_MS` (10 minutes) after Stop, and as stalled after it. A report of 0 owes
+nothing (a host whose mic was denied, a guest who consented late and never recorded). A client that dies before its
+last report is judged by the last count it sent, so a segment it opened but never reported is
+not seen. An upload that has started but not finished
 gets the full window from the later trusted time of Stop or its newest chunk, even when
 that chunk arrived before Stop. This partial-upload rule applies to the host's recording
 too. After the window it is stalled: reported ("N recordings never
@@ -189,8 +187,7 @@ run no keeper and a host whose mic was denied never uploads; a host that did not
 never raises a warning, so a host segment that never uploaded goes unnoticed in that case.
 
 `unlanded_saving` counts takes with an upload still inside the window; `unlanded_stalled`
-counts recordings (one per missing or unfinished segment of a person, plus one for a
-person who never sent a final report), so one take can add several.
+counts recordings (one per missing or unfinished segment of a person, so one take can add several.
 
 Land-first lands what finished (host and finished guests) and mints. Every mint that leaves
 stalled audio behind that the server detected, with or without land-first, sets
@@ -210,8 +207,8 @@ route that is a 400 carrying the land's own code (`record_land_refused`, or e.g.
 `session_suggestion_closed`, `insert_anchor_taken`). A land that ran stays saved;
 retrying is safe. `land_first` with nothing to save just mints.
 
-Known gaps (#2416). A person who never sends a report falls back to the inferred count (a
-host to nothing), so a keeper that dies before its first report can still be missed. Two devices that share one
+Known gaps (#2416). A keeper that dies before its first report is judged by the Resume
+inference (a guest) or not at all (the host). Two devices that share one
 participant id share one report and one set of segment indices, so the server cannot tell their
 segments apart. A removed guest with no upload row is not reported (only a partial row
 is). If an insert or replace room's staging land is undone from History, its uploads still

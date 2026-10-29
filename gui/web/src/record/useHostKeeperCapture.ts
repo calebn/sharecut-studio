@@ -102,11 +102,10 @@ export function useHostKeeperCapture(enabled = true): {
     sink,
     resetKey,
     onActivity: onKeeperActivity,
-    reportSegments: (takeIndex, segments, final) => {
+    reportSegments: (takeIndex, segments) => {
       sendRecordHostCommand("SegmentReport", {
         take_index: takeIndex,
         segments,
-        final,
       });
     },
   });
