@@ -195,6 +195,20 @@ describe("listing", () => {
     expect(listHostShares).not.toHaveBeenCalled();
   });
 
+  it("drops a pending Refresh mix retry when the Share dialog closes", async () => {
+    createHostShare.mockRejectedValueOnce(
+      new ApiError("premix.wav is stale", "stale_mix", 409),
+    );
+    mount();
+    act(() => flow.create());
+    await waitFor(() => expect(flow.recovery.kind).toBe("needs_refresh"));
+    act(() => useDawStore.getState().setShareDialogOpen(true));
+    act(() => useDawStore.getState().setShareDialogOpen(false));
+    expect(flow.recovery).toEqual({ kind: "idle" });
+    act(() => flow.refreshMix());
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("lists again when the Share dialog closes on Deliver", async () => {
     mount();
     act(() => flow.reload());
