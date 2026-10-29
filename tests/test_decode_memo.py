@@ -27,7 +27,8 @@ class Decoder:
         self.lock = threading.Lock()
         self.gate: threading.Barrier | None = None
         self.fail = False
-        self.delay = 0.0
+        self.fail_once = False
+        self.hold: threading.Event | None = None
         self.active = 0
         self.peak = 0
 
@@ -38,8 +39,12 @@ class Decoder:
             self.active += 1
             self.peak = max(self.peak, self.active)
         try:
-            time.sleep(self.delay)
-            if self.fail:
+            if self.hold is not None:
+                self.hold.wait(timeout=10)
+            with self.lock:
+                failing = self.fail or self.fail_once
+                self.fail_once = False
+            if failing:
                 raise RuntimeError("decode failed")
         finally:
             with self.lock:
@@ -177,9 +182,13 @@ def test_a_rewrite_with_a_restored_mtime_misses_on_ctime(tmp_path: Path, decoder
     path = _recording(tmp_path)
     stamp = path.stat().st_mtime_ns
     TrackRmsCache.from_recording(path, sample_rate=RATE)
-    time.sleep(0.01)
-    path.write_bytes(b"q" * 100)
-    os.utime(path, ns=(stamp, stamp))
+    before = path.stat().st_ctime_ns
+    for _ in range(100_000):  # rewrite until the filesystem's clock has moved on
+        path.write_bytes(b"q" * 100)
+        os.utime(path, ns=(stamp, stamp))
+        if path.stat().st_ctime_ns != before:
+            break
+    assert path.stat().st_ctime_ns != before
     TrackRmsCache.from_recording(path, sample_rate=RATE)
     assert len(decoder.calls) == 2
 
@@ -367,33 +376,47 @@ def test_a_failed_decode_is_not_stored_and_the_next_call_retries(
 
 
 def test_waiters_after_a_failed_decode_retry_one_at_a_time(
-    tmp_path: Path, decoder: Decoder
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    waiters = 6
+    queued = threading.Event()
+
+    class CountedFlight(decode_memo._Flight):
+        """Sets ``queued`` once every caller holds or waits on the key's flight."""
+
+        @property
+        def users(self) -> int:
+            return self._users
+
+        @users.setter
+        def users(self, value: int) -> None:
+            self._users = value
+            if value >= waiters:
+                queued.set()
+
+    monkeypatch.setattr(decode_memo, "_Flight", CountedFlight)
     path = _recording(tmp_path)
-    decoder.fail = True
-    decoder.delay = 0.1
+    decoder.fail_once = True  # the first decode fails, the retries succeed
+    decoder.hold = threading.Event()
     outcomes: list[str] = []
 
-    def work(late: float) -> None:
-        time.sleep(late)
+    def work() -> None:
         try:
             TrackRmsCache.from_recording(path, sample_rate=RATE)
             outcomes.append("ok")
         except RuntimeError:
             outcomes.append("failed")
 
-    def heal() -> None:
-        time.sleep(0.15)  # the first decode has failed, the waiters are queued
-        decoder.fail = False
-
-    threads = [threading.Thread(target=work, args=(0.02 * n,)) for n in range(6)]
-    threads.append(threading.Thread(target=heal))
+    threads = [threading.Thread(target=work) for _ in range(waiters)]
     for t in threads:
         t.start()
+    assert queued.wait(timeout=10)  # one is decoding and the others are queued behind it
+    decoder.hold.set()
     for t in threads:
         t.join(timeout=10)
     assert decoder.peak == 1
-    assert outcomes.count("ok") >= 4
+    assert sorted(outcomes) == ["failed"] + ["ok"] * (waiters - 1)
+    assert len(decoder.calls) == 2  # the failure, then one retry whose result the rest hit
     assert len(decode_memo._MEMO) == 1
     assert not decode_memo._MEMO._building
 
