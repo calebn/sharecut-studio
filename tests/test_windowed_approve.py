@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import itertools
 import os
@@ -464,8 +465,6 @@ def test_a_plain_track_the_rebuild_drops_is_absent_from_a_carried_set_not_its_ol
         )
 
     monkeypatch.setattr(cut_proof, "build_track_rms_caches", without_guest)
-    timeline.applied(10.0)
-    timeline._stems_fresh = (True, True)  # a stem went stale: the plain tracks are built again
 
     carried = timeline._carried_with_current_stems(project, defaults)
 
@@ -488,15 +487,41 @@ def test_a_plain_track_with_a_stale_stem_gets_the_rebuilt_cache_not_the_carried_
         return built[-1]
 
     monkeypatch.setattr(cut_proof, "build_track_rms_caches", record)
-    timeline.applied(10.0)
-    timeline._stems_fresh = (True, True)  # a stem went stale: the plain tracks are built again
 
+    # The merge itself: every plain track is built again, whatever the carried stem was.
     carried = timeline._carried_with_current_stems(project, defaults)
 
     assert len(built) == 1  # exactly one plain track was built again
     assert carried.caches["guest"] is built[-1].caches["guest"]
     assert carried.caches["guest"] is not first.caches["guest"]
     assert carried.caches["host"] is first.caches["host"]
+
+
+def test_the_plain_tracks_built_again_carry_the_batch_base_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A track built from a later project reports the profile it had at the batch start."""
+    project = _project(tmp_path, chained=("host",))
+    defaults = load_defaults()
+    timeline = cut_proof.CarriedTimelineRms(project)
+    first = timeline.caches_for(project, (40.0, 40.35), reach=6.0, defaults=defaults)
+    base = first.caches["guest"].profile
+    real = cut_proof.build_track_rms_caches
+    own = LevelProfile(base.room_db - 7.0, base.speech_db - 7.0, base.loud_db - 7.0)
+
+    def with_own_profile(*args, **kwargs):  # type: ignore[no-untyped-def]
+        built = real(*args, **kwargs)  # its tracks measure their own, shorter samples
+        return TrackRmsCacheSet(
+            caches={tid: c.with_profile(own) for tid, c in built.caches.items()}
+        )
+
+    monkeypatch.setattr(cut_proof, "build_track_rms_caches", with_own_profile)
+    later = copy.deepcopy(project)  # the project as an earlier cut of the batch left it
+
+    carried = timeline._carried_with_current_stems(later, defaults)
+
+    assert base != own
+    assert carried.caches["guest"].profile == base
 
 
 # --- the verdict key carries the batch-base profile -----------------------------------------
