@@ -128,6 +128,16 @@ def test_a_reserved_windows_name_is_refused_and_creates_no_folder(local, tmp_pat
     assert not (tmp_path / "workspaces").exists() or not any((tmp_path / "workspaces").iterdir())
 
 
+def test_a_reserved_name_with_a_lone_surrogate_is_a_400_not_a_500(local):
+    res = local.post(
+        "/api/project/create",
+        content=b'{"name": "CON.\\ud800"}',
+        headers={"content-type": "application/json"},
+    )
+    assert res.status_code == 400
+    assert res.headers[CODE] == "project_name_reserved"
+
+
 @pytest.mark.parametrize("name", ["console", "com10", "con 2", "Episode, 12 Mar", "nullable.wav"])
 def test_names_that_only_start_like_a_reserved_one_are_kept(tmp_path, name):
     assert recent.default_workspace_dir(name).name == name
