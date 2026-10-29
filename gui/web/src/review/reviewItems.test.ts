@@ -230,9 +230,9 @@ describe("checkEntryOf", () => {
     );
   });
 
-  it("prefers the server hint", () => {
+  it("words the detail as the count even when the server sends a hint", () => {
     expect(
-      checkEntryOf(status({ hint: "Check the names." }))?.content.check?.detail,
-    ).toBe("Check the names.");
+      checkEntryOf(status({ hint: "Run the CLI." }))?.content.check?.detail,
+    ).toBe("3 words the transcript is unsure of.");
   });
 });

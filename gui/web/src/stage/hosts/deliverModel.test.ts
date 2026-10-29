@@ -147,7 +147,11 @@ describe("fixRoute", () => {
       "comments",
       { kind: "stage", stage: "review", section: "comments" },
     ],
-    ["review", "unsure-words", { kind: "stage", stage: "review" }],
+    [
+      "review",
+      "unsure-words",
+      { kind: "stage", stage: "review", section: "queue" },
+    ],
     ["edit", "peaks", { kind: "stage", stage: "edit" }],
   ] as const)("%s %s", (stage, target, route) => {
     expect(fixRoute(stage, target)).toEqual(route);
