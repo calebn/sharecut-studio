@@ -102,6 +102,13 @@ export function useHostKeeperCapture(enabled = true): {
     sink,
     resetKey,
     onActivity: onKeeperActivity,
+    reportSegments: (takeIndex, segments, final) => {
+      sendRecordHostCommand("SegmentReport", {
+        take_index: takeIndex,
+        segments,
+        final,
+      });
+    },
   });
   const clipping = useTakeClipping({
     sink,

@@ -167,6 +167,8 @@ export function useGuestRoom(
     consented: me?.consented ?? null,
     stream: mic.stream,
     sink,
+    reportSegments: (takeIndex, segments, final) =>
+      send("SegmentReport", { take_index: takeIndex, segments, final }),
   });
   useDesktopCloseGuard(
     keeper.recordingLocally ||

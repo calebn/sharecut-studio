@@ -84,6 +84,28 @@ describe("useRecordSync", () => {
     expect(result.current.me?.display_name).toBe("Ava");
   });
 
+  it("sends a segment report over the open socket and refuses without one", async () => {
+    const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+    expect(result.current.send("SegmentReport", { take_index: 0 })).toBe(false);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const ws = FakeWebSocket.instances[0];
+    let sent = false;
+    await act(async () => {
+      sent = result.current.send("SegmentReport", {
+        take_index: 0,
+        segments: 2,
+        final: true,
+      });
+    });
+    expect(sent).toBe(true);
+    const frame = JSON.parse(ws.sent[ws.sent.length - 1] || "{}");
+    expect(frame.command_type).toBe("SegmentReport");
+    expect(frame.payload).toEqual({ take_index: 0, segments: 2, final: true });
+  });
+
   it("resends cached participant ids on reconnect Join", async () => {
     loadRecordParticipant.mockResolvedValue({
       participant_id: "p_g",
