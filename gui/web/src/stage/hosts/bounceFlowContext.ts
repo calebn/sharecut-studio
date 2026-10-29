@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { ModelGate } from "../../models";
 import type { BounceChoices } from "../../stages/deliver/bounceLogic";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
+import type { ExactRangeTarget } from "../../types/project";
 
 /** The bounce's own progress; the live job snapshot comes from the store. */
 export type BounceRun =
@@ -11,6 +12,8 @@ export type BounceRun =
       jobId: string | null;
       cancelling: boolean;
       cancelError: string | null;
+      /** The range this run captured at start; null for a bounce without one. */
+      range: ExactRangeTarget | null;
     }
   | { kind: "done"; paths: string[] }
   | { kind: "failed"; reason: string }
