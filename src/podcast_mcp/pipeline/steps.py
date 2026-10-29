@@ -240,7 +240,9 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         ),
         encoding="utf-8",
     )
-    summary = f"{len(transcripts) - len(plan.retime)} transcribed, {len(plan.reused)} reused, {words} words"
+    summary = (
+        f"{len(transcripts) - len(plan.retime)} processed, {len(plan.reused)} reused, {words} words"
+    )
     if plan.overwrite_edited:
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
     if trimmed := sum(c.trimmed for c in span_trims.values()):

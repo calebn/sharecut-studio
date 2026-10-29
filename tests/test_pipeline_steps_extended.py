@@ -1271,14 +1271,14 @@ def test_transcribe_tracks_second_run_reuses_and_keeps_corrections(
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
         first = steps.transcribe_tracks(proj, load_defaults())
-    assert "1 transcribed, 0 reused" in first
+    assert "1 processed, 0 reused" in first
     assert proj.transcripts[0].audio_sha256
     assert proj.transcripts[0].audio_size == (tmp_workspace / "raw" / "host.wav").stat().st_size
     proj.transcripts[0].words[0].text = "the"
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         second = steps.transcribe_tracks(proj, load_defaults())
     eng_cls.assert_not_called()
-    assert "0 transcribed, 1 reused" in second
+    assert "0 processed, 1 reused" in second
     assert proj.transcripts[0].words[0].text == "the"
 
 
@@ -1336,7 +1336,7 @@ def test_transcribe_tracks_force_bypasses_asr_cache(minimal_project, sample_wav,
         assert any(proj.transcripts_dir().glob("host_*.json"))
         summary = steps.transcribe_tracks(proj, transcribe_run_config(None, force=True))
     assert asr.call_count == 2
-    assert "1 transcribed, 0 reused" in summary
+    assert "1 processed, 0 reused" in summary
 
 
 def test_transcribe_tracks_confirmed_overwrite_replaces_edited_in_batch(
@@ -1764,7 +1764,7 @@ def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         summary = steps.transcribe_tracks(proj, defaults)
     eng_cls.assert_not_called()
-    assert "0 transcribed, 1 reused" in summary
+    assert "0 processed, 1 reused" in summary
     assert "0 words re-timed" in summary
     assert "1 reused track(s) not re-timed (Re-time words to re-time)" in summary
 
@@ -1793,7 +1793,7 @@ def test_transcribe_tracks_flag_on_skips_reused_tracks_the_aligner_cannot_place(
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         summary = steps.transcribe_tracks(proj, defaults)
     eng_cls.assert_not_called()
-    assert "0 transcribed, 1 reused" in summary
+    assert "0 processed, 1 reused" in summary
     assert "not re-timed" not in summary
 
 
@@ -1828,7 +1828,7 @@ def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         second = steps.transcribe_tracks(proj, defaults)
     eng_cls.assert_not_called()
-    assert "0 transcribed, 1 reused" in second
+    assert "0 processed, 1 reused" in second
     assert "not re-timed" not in second
 
 
@@ -1861,7 +1861,7 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
     ):
         summary = steps.transcribe_tracks(proj, defaults)
 
-    assert "0 transcribed, 0 reused" in summary
+    assert "0 processed, 0 reused" in summary
     assert "1 reused track(s) re-timed from the ASR cache" in summary
     assert "1 words re-timed" in summary
     assert proj.transcripts[0].word_aligner == "onnx-base"
@@ -1911,7 +1911,7 @@ def test_transcribe_tracks_retime_words_falls_back_to_pre_primer_cache(
     ):
         summary = steps.transcribe_tracks(proj, defaults)
 
-    assert "0 transcribed, 0 reused" in summary
+    assert "0 processed, 0 reused" in summary
     assert "1 reused track(s) re-timed from the ASR cache" in summary
     assert "1 words re-timed" in summary
     assert proj.transcripts[0].word_aligner == "onnx-base"
@@ -2237,7 +2237,7 @@ def test_transcribe_tracks_retime_words_ignored_for_flag_off_config(
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         summary = steps.transcribe_tracks(proj, defaults)
     eng_cls.assert_not_called()
-    assert "0 transcribed, 1 reused" in summary
+    assert "0 processed, 1 reused" in summary
 
 
 def _loop_entry(**fields):
