@@ -1,4 +1,4 @@
-"""A real non-UTF-8 project folder is refused before it is pinned (trail 2295i)."""
+"""A real non-UTF-8 project folder is refused before it is pinned."""
 
 from __future__ import annotations
 
