@@ -191,17 +191,14 @@ export function useReviewQueue() {
     seen: TranscriptCheckStatus | null,
     closes: boolean,
     changed: boolean,
+    complete: boolean,
   ) => {
     const sayError = (error: unknown) =>
       useDawStore
         .getState()
         .announceStatus(errorMessage(error), { tone: "error" });
     if (closes) {
-      if (
-        useDawStore.getState().project?.meta?.hydration?.transcript_words ===
-        false
-      )
-        return revert([CHECK_ID]);
+      if (!complete) return revert([CHECK_ID]);
       try {
         const next = await markTranscriptChecked(path);
         requests.current++;
@@ -209,6 +206,7 @@ export function useReviewQueue() {
       } catch (error) {
         revert([CHECK_ID]);
         sayError(error);
+        return false;
       }
     } else if (changed && seen?.clear) {
       if (seen.status === "done") await markTranscriptChecked(path);
@@ -236,6 +234,9 @@ export function useReviewQueue() {
     const word = target && { target, text };
     const closes = plan.decidedIds.includes(CHECK_ID);
     const seen = status;
+    const complete =
+      useDawStore.getState().project?.meta?.hydration?.transcript_words !==
+      false;
     const message =
       target && changed ? `Fixed “${target.text}” to “${text}”` : plan.message;
     try {
@@ -247,10 +248,14 @@ export function useReviewQueue() {
         closes,
       );
       if (!current()) return;
-      if (word)
-        await settleCheck(path, seen, closes, changed).catch(() => null);
+      const marked = word
+        ? await settleCheck(path, seen, closes, changed, complete).catch(
+            () => null,
+          )
+        : null;
       if (intent.waive || closes || changed) void refreshStatus();
       if (!current()) return;
+      if (marked === false) return false;
       if (!reply) return say(plan.message);
       if (reply.queued) return say(PENDING_REVIEW_QUEUED_MESSAGE);
       const heldCuts = [...(reply.held ?? [])];
