@@ -932,13 +932,18 @@ def test_a_changed_ingest_shift_makes_the_pool_be_picked_again(tmp_path: Path) -
     assert room_tone.read_room_tone_pool(project, "host") is None
 
 
-def test_a_trimmed_ingest_records_a_shift_that_is_not_the_files_relation(
+def test_ingest_entries_relate_the_files_whatever_the_first_clips_are_placed_at(
     tmp_path: Path,
 ) -> None:
-    host, guest = _bleed_pair((5.0, 7.0))
+    from podcast_mcp.engines import room_tone
+
+    host, guest = _bleed_pair((3.0, 5.0))
     project = _project(tmp_path, host=host, guest=guest)
+    for clip in project.clips:
+        clip.source_start = {"host": 3.0, "guest": 1.0}[clip.track_id]
     _record_alignment(project, host_shift=0.0, guest_shift=2.0)
 
+    assert room_tone._ingest_shift(project, "guest") == pytest.approx(2.0)
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None

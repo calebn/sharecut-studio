@@ -339,8 +339,7 @@ def _peer_tracks(project: EpisodeProject, track_id: str) -> list[Track]:
 def _ingest_shift(project: EpisodeProject, track_id: str) -> float:
     """Timeline minus source seconds that ingest placed the track's primary recording at.
 
-    An entry counts only while it matches where the earliest primary clip sits: a trimmed
-    ingest records the untrimmed shift but places every clip at 0.
+    The entries relate the files to each other, so where the clips sit now is not compared.
     """
     track = project.track_by_id(track_id)
     entries = project.meta.ingest_alignment
@@ -373,8 +372,6 @@ def _ingest_shift(project: EpisodeProject, track_id: str) -> float:
         if speaker_key_unique(project, track) and speaker_label(track) in entries:
             shifts.append(entries[speaker_label(track)].source_to_timeline_shift_sec)
     if not shifts or max(shifts) - min(shifts) > _SHIFT_EPS_SEC:
-        return 0.0
-    if abs(shifts[0] - clip_source_to_timeline_shift(first)) > _SHIFT_EPS_SEC:
         return 0.0
     return shifts[0]
 
