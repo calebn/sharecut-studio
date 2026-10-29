@@ -298,7 +298,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-RIPPLE | Ripple on cut or delete (RippleArrow) | Cut or delete with ripple | OVL-PENDING, CMP-CLIP | Mod+Backspace | partial |
 | INT-RANGE | Select a time range; act on it (Play, Cut, Mute, Room tone, Move to speaker, Comment, Bounce) | Drag empty lane; Shift-drag clip; Select range tool; phone Select range | CMP-RANGE-ACTIONS, OVL-RANGE | none | NONE for actions |
 | INT-COMMENT-MODE | Removed in #2294: the ruler no longer anchors a comment; compose from the Comments panel or the Player bar | none | PNL-COMMENTS | none | n/a |
-| INT-COMMENT-RESOLVE | Resolve/reopen, reply, edit a comment | Comment card actions; swipe left on touch | CMP-COMMENT-CARD, INS-COMMENT | swipe left | yes |
+| INT-COMMENT-RESOLVE | Resolve/reopen, reply, edit a comment | Comment card actions; swipe right on touch (Review queue) | CMP-COMMENT-CARD, INS-COMMENT | swipe right | yes |
 | INT-WORD-SELECT | Select words by click, Shift-click, drag, hold-then-drag on touch | Transcript Select intent | PNL-TRANSCRIPT, CMP-RANGE-ACTIONS | long-press then drag | partial (Active/Selected turn) |
 | INT-WORD-CUT | Cut or mute selected words/range | Range actions on a text selection | CMP-RANGE-ACTIONS, CMP-WORDRANGE | none (Mod+X is Cut when `canApplyPass12`) | NONE |
 | INT-WORD-CORRECT | Correct a word | Correct intent, F2, double-click or double-tap | POP-WORD-EDIT, INS-WORD | F2 | NONE |
