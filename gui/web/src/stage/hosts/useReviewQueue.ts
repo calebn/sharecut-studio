@@ -213,9 +213,7 @@ export function useReviewQueue() {
         const next = await markTranscriptChecked(
           path,
           undefined,
-          changed
-            ? (await loadTranscriptCheck(path)).fingerprint
-            : seen?.fingerprint,
+          (await loadTranscriptCheck(path)).fingerprint,
         );
         requests.current++;
         setStatus(next);
