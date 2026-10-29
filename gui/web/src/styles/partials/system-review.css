@@ -279,6 +279,16 @@ button.sys-queue-row--decided {
   cursor: pointer;
 }
 
+@media (pointer: coarse) {
+  button.sys-queue-row--decided {
+    block-size: 2.75rem;
+  }
+}
+
+.sys-decision-thread-slot {
+  min-inline-size: 0;
+}
+
 .sys-queue-decided-text {
   flex: 1;
   min-inline-size: 0;

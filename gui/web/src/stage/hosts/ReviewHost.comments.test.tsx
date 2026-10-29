@@ -465,6 +465,11 @@ describe("Review host comments", () => {
     expect(heading()).toBe("Comment from Sam");
   });
 
+  it("ignores a stale pick of a comment that is already resolved", () => {
+    mount([OPEN, LATER, DONE], "c3");
+    expect(heading()).toBe("Comment from Rosa");
+  });
+
   it("moves the queue again when the same comment is picked a second time", async () => {
     mount([OPEN, LATER, DONE], "c2");
     expect(heading()).toBe("Comment from Sam");
