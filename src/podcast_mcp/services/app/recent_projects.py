@@ -4,8 +4,8 @@ A small JSON most-recently-used list next to the other per-install config
 (``PODCAST_CONFIG_DIR``, default ``~/.config/podcast_mcp``). It holds only
 ``{path, opened_at}`` entries, newest first, deduplicated by resolved path and
 capped at :data:`RECENT_LIMIT`. The list is a convenience: a missing, unreadable
-or corrupt file reads as empty, and a failed write never fails the open or create
-that triggered it. Project state stays in the project file.
+or corrupt file reads as empty, an entry whose path JSON cannot carry is dropped, and a
+failed write never fails the open or create that triggered it. Project state stays in the project file.
 
 :func:`recent_project_cards` turns each entry into the card Home draws from a cheap
 read of the project file (JSON only, no model validation, no media). The parsed summary
@@ -124,6 +124,8 @@ def record_recent(project_path: Path | str, *, now: datetime | None = None) -> N
     """Move *project_path* to the front of the list. Never raises."""
     try:
         resolved = str(Path(project_path).expanduser().resolve())
+        if resolved != _clean(resolved):
+            return
         stamp = (now or datetime.now(UTC)).isoformat(timespec="seconds")
         with _LOCK:
             kept = [e for e in read_recent() if e.path != resolved]
@@ -313,15 +315,13 @@ def _clean(text: str) -> str:
 def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
     project_file = Path(entry.path)
     base: dict[str, Any] = {
-        "path": _clean(entry.path),
+        "path": entry.path,
         "name": _clean(project_file.parent.name or entry.path),
         "opened_at": _clean(entry.opened_at),
         "duration_sec": None,
         "edited_at": None,
         "peaks": [],
     }
-    if base["path"] != entry.path:
-        return _attention_card(base)
     try:
         stat = project_file.stat()
     except OSError:
@@ -360,7 +360,15 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
 
 def recent_project_cards(jobs: Any = None) -> list[dict[str, Any]]:
     """Card data for Home, newest first. *jobs* is the host job manager when one is running."""
-    entries = read_recent()
+    with _LOCK:
+        entries = read_recent()
+        kept = [e for e in entries if e.path == _clean(e.path)]
+        if len(kept) != len(entries):
+            try:
+                _write(kept)
+            except OSError:
+                log.warning("Cannot save the recent projects list at %s", recent_projects_path())
+    entries = kept
     _prune_summaries(entries)
     return [_card(entry, jobs) for entry in entries]
 

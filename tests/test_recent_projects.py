@@ -481,23 +481,51 @@ def test_non_finite_duration_is_dropped_and_the_response_renders(local, tmp_path
     assert res.json()["projects"][0]["duration_sec"] is None
 
 
-def test_a_lone_surrogate_path_never_fails_the_list(local, tmp_path):
-    good = _make(tmp_path, "good")
+def _seed_unencodable(good: Path) -> Path:
     recent.record_recent(good)
-    bad = tmp_path / "config" / "recent_projects.json"
-    data = json.loads(bad.read_text(encoding="utf-8"))
+    saved = recent.recent_projects_path()
+    data = json.loads(saved.read_text(encoding="utf-8"))
     data["projects"].append({"path": "/x/\ud800/episode.project.json", "opened_at": "t\ud800"})
-    bad.write_text(json.dumps(data), encoding="utf-8")
+    saved.write_text(json.dumps(data), encoding="utf-8")
+    return saved
+
+
+def test_an_entry_whose_path_json_cannot_carry_is_dropped_from_list_and_file(local, tmp_path):
+    good = _make(tmp_path, "good")
+    saved = _seed_unencodable(good)
     res = local.get("/api/projects/recent")
     assert res.status_code == 200
-    by_name = {c["name"]: c for c in res.json()["projects"]}
-    broken = by_name["\ufffd"]
-    assert broken["path"] == "/x/\ufffd/episode.project.json"
-    assert broken["opened_at"] == "t\ufffd"
-    assert broken["chip"]["text"] == "Needs attention"
-    assert broken["folder_missing"] is False
-    assert by_name["good"]["path"] == str(good.resolve())
-    assert [e.path for e in recent.read_recent()][-1] == "/x/\ud800/episode.project.json"
+    cards = res.json()["projects"]
+    assert [c["name"] for c in cards] == ["good"]
+    assert not any("\ufffd" in c["name"] + c["path"] for c in cards)
+    assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
+    assert [p["path"] for p in json.loads(saved.read_text(encoding="utf-8"))["projects"]] == [
+        str(good.resolve())
+    ]
+    before = saved.read_bytes()
+    assert local.get("/api/projects/recent").status_code == 200
+    assert saved.read_bytes() == before
+
+
+def test_a_failed_rewrite_still_hides_the_dropped_entry(local, tmp_path, monkeypatch):
+    good = _make(tmp_path, "good")
+    saved = _seed_unencodable(good)
+
+    def refuse(entries):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(recent, "_write", refuse)
+    res = local.get("/api/projects/recent")
+    assert res.status_code == 200
+    assert [c["name"] for c in res.json()["projects"]] == ["good"]
+    assert len(json.loads(saved.read_text(encoding="utf-8"))["projects"]) == 2
+
+
+def test_record_recent_skips_a_path_json_cannot_carry(tmp_path):
+    good = _make(tmp_path, "good")
+    recent.record_recent(good)
+    recent.record_recent(tmp_path / "caf\udcff" / "episode.project.json")
+    assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
 
 
 def test_a_lone_surrogate_project_name_is_cleaned_on_its_card(local, tmp_path):
