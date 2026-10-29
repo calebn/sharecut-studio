@@ -323,6 +323,22 @@ describe("InspectorSheet phone", () => {
     expect(third.onDetentChange.mock.calls).toEqual([["half"]]);
   });
 
+  it("leaves Enter and Escape in the Name field to the input method while a composition is open", () => {
+    const onRename = vi.fn();
+    const { onClose, onDetentChange } = phone({ detent: "half", onRename });
+    const field = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(field, { target: { value: "にほん" } });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(field, { key: "Escape", keyCode: 229 });
+    expect(onRename).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onDetentChange).not.toHaveBeenCalled();
+    expect(field).toHaveValue("にほん");
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(onRename.mock.calls).toEqual([["にほん"]]);
+  });
+
   it("steps with the four arrows, jumps with Home and End, toggles with Enter and Space, and closes on Escape", () => {
     const { onDetentChange, onClose } = phone({ detent: "half" });
     for (const key of [

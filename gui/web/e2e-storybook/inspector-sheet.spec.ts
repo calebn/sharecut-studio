@@ -657,3 +657,35 @@ test("System/InspectorSheet the inline rename ignores Enter and Escape while an 
   await name.press("Enter");
   await expect(sheet(page)).toHaveAccessibleName("にほん");
 });
+
+test("System/InspectorSheet the phone sheet's inline rename ignores Enter and Escape during an IME composition and keeps its detent", async ({
+  page,
+}) => {
+  await open(page, PHONE_HALF, 360, 740);
+  const cdp = await page.context().newCDPSession(page);
+  const name = page.getByRole("textbox", { name: "Name" });
+  await name.focus();
+  await name.selectText();
+  await cdp.send("Input.imeSetComposition", {
+    text: "にほん",
+    selectionStart: 3,
+    selectionEnd: 3,
+  });
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Enter",
+    windowsVirtualKeyCode: 229,
+  });
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    windowsVirtualKeyCode: 229,
+  });
+  await expect(name).toHaveValue("にほん");
+  await expect(sheet(page)).toHaveAccessibleName("Maya · 12:04");
+  await expect(grip(page)).toHaveAttribute("aria-valuetext", "Half height");
+  await cdp.send("Input.insertText", { text: "にほん" });
+  await name.press("Enter");
+  await expect(sheet(page)).toHaveAccessibleName("にほん");
+  await expect(grip(page)).toHaveAttribute("aria-valuetext", "Half height");
+});
