@@ -126,3 +126,46 @@ def test_an_inverted_range_is_a_coded_invalid_payload(minimal_project, monkeypat
         mcp_timeline.fill_with_room_tone_tool(path, track_id="host", start_sec=5.0, end_sec=2.0)
     assert raised.value.code == "invalid_payload"
     assert _rows(path) == []
+
+
+def _command(payload: dict, seq: int, command_id: str | None = None) -> DocumentCommand:
+    return DocumentCommand(
+        type="FillRoomTone",
+        payload=payload,
+        client_id="browser",
+        client_seq=seq,
+        role="agent",
+        **({"command_id": command_id} if command_id else {}),
+    )
+
+
+def test_a_hand_built_command_journals_the_same_row_shape_as_the_tool(minimal_project, monkeypatch):
+    gap_project(minimal_project, monkeypatch)
+    path = str(minimal_project)
+    svc = DocumentSyncService.open(path)
+    svc.submit(_command({"track_id": "host", "start_sec": 0.5, "end_sec": 1.5}, 1))
+    mcp_timeline.fill_with_room_tone_tool(path, track_id="host", start_sec=1.5, end_sec=2.0)
+    built, tool = (set(row["payload"]) - {"result"} for row in _rows(path))
+    assert built == tool == {"track_id", "speaker", "start_sec", "end_sec"}
+
+
+def test_a_hand_built_malformed_command_is_refused_before_journalling(minimal_project, monkeypatch):
+    gap_project(minimal_project, monkeypatch)
+    path = str(minimal_project)
+    with pytest.raises(ValueError):
+        DocumentSyncService.open(path).submit(
+            _command({"track_id": "host", "start_sec": 1.5, "end_sec": 0.5}, 1)
+        )
+    assert _rows(path) == []
+
+
+def test_a_retry_with_a_new_command_id_stays_idempotent_after_normalising(
+    minimal_project, monkeypatch
+):
+    gap_project(minimal_project, monkeypatch)
+    path = str(minimal_project)
+    payload = {"track_id": "host", "start_sec": 0.5, "end_sec": 1.5}
+    DocumentSyncService.open(path).submit(_command(payload, 1))
+    again = DocumentSyncService.open(path).submit(_command(payload, 1, command_id="retry"))
+    assert again["idempotent"] is True
+    assert len(_rows(path)) == 1
