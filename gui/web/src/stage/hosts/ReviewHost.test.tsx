@@ -850,6 +850,9 @@ describe("Review host unsure words", () => {
       });
     await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(3));
     expect(order).not.toContain("done");
+    expect(toast()).toBe(
+      "Looks right. The transcript check stays open until every word has loaded.",
+    );
     await checks();
   });
 
@@ -866,6 +869,32 @@ describe("Review host unsure words", () => {
     expect(toast()).toBe("Fixed “uncle” to “oncle”");
     await waitFor(() => expect(order).toContain("done"));
     expect(server.waived).toEqual([]);
+  });
+
+  it("says so in the toast when keeping a done check after a Fix fails", async () => {
+    server.markFails = true;
+    setup("done");
+    await pick(/uncle/);
+    await fix("oncle");
+    await waitFor(() => expect(order).toContain("done"));
+    await waitFor(() =>
+      expect(toast()).toMatch(
+        /^Fixed “uncle” to “oncle”\. The transcript check could not be kept/,
+      ),
+    );
+  });
+
+  it("frees the cuts that hold a word as soon as the word is confirmed from its own row", async () => {
+    setup("done");
+    await pick(/gnu/);
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(1));
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
   });
 
   it("re-waives a waived check with its notes", async () => {

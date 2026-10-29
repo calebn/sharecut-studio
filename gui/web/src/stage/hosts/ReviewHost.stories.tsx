@@ -84,7 +84,7 @@ const unsureWordsPlay: Story["play"] = async ({ canvasElement }) => {
 
 export const UnsureWords: Story = { play: unsureWordsPlay };
 
-export const UnsureWordsPhone: Story = { ...phone, play: queuePlay };
+export const UnsureWordsPhone: Story = { ...phone, play: unsureWordsPlay };
 
 export const SwitchSection: Story = {
   play: async ({ canvasElement }) => {

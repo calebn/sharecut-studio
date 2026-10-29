@@ -123,6 +123,21 @@ describe("DecisionCard", () => {
     expect(onFix).not.toHaveBeenCalled();
   });
 
+  it("carries Open in Edit on the phone's unsure card, where the dock has none", async () => {
+    const onOpenInEdit = vi.fn();
+    const props = {
+      ...base(),
+      kind: "unsure-word" as const,
+      unsure: { word: "uncle", guess: "uncle", onFix: vi.fn() },
+      onOpenInEdit,
+    };
+    const { rerender } = render(<DecisionCard {...props} layout="phone" />);
+    await userEvent.click(screen.getByRole("button", { name: "Open in Edit" }));
+    expect(onOpenInEdit).toHaveBeenCalledTimes(1);
+    rerender(<DecisionCard {...props} layout="phone" canEdit={false} />);
+    expect(screen.queryByRole("button", { name: "Open in Edit" })).toBeNull();
+  });
+
   it("enables the cut once the unsure word is resolved", () => {
     render(
       <DecisionCard

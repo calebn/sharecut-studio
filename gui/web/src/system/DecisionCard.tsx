@@ -1,4 +1,10 @@
-import { type CSSProperties, type ReactNode, useId, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { presenceColorVar } from "../presence/colors";
 import { Button, EmptyState } from "../ui";
 import { AbAudition } from "./AbAudition";
@@ -94,14 +100,19 @@ function Swatch({ colorIndex }: { colorIndex?: number }) {
 function UnsureWord({
   unsure,
   canSkip,
+  onOpenInEdit,
 }: {
   unsure: NonNullable<DecisionCardProps["unsure"]>;
+  /** The phone dock has no Open in Edit link, so the card carries it. */
+  onOpenInEdit?: () => void;
   /** A cut touching the word can be released with Looks right; the word's own card uses its verb. */
   canSkip: boolean;
 }) {
   const fieldId = useId();
   const [fixing, setFixing] = useState(false);
   const [text, setText] = useState(unsure.word);
+  const [empty, setEmpty] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
   return (
     <div className="sys-decision-unsure">
       <p className="sys-decision-unsure-line">
@@ -131,6 +142,12 @@ function UnsureWord({
             Hear
           </Button>
         ) : null}
+        {onOpenInEdit ? (
+          <Button variant="link" onClick={onOpenInEdit}>
+            <SystemIcon name="stage-edit" size={16} />
+            Open in Edit
+          </Button>
+        ) : null}
         {canSkip ? (
           <Button variant="link" onClick={unsure.onLooksRight}>
             <SystemIcon name={iconOf("approve")} size={16} />
@@ -144,17 +161,27 @@ function UnsureWord({
           className="sys-decision-fix"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!text.trim()) return;
+            if (!text.trim()) {
+              setEmpty(true);
+              field.current?.focus();
+              return;
+            }
             unsure.onFix(text.trim());
             setFixing(false);
           }}
         >
           <input
+            ref={field}
             aria-label="Fix text"
+            aria-invalid={empty}
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value);
+              setEmpty(false);
+            }}
           />
           <Button type="submit">Save</Button>
+          {empty ? <p role="alert">Type the corrected word.</p> : null}
         </form>
       ) : null}
     </div>
@@ -351,6 +378,7 @@ export function DecisionCard(props: DecisionCardProps) {
           <UnsureWord
             unsure={unsure}
             canSkip={kind !== "unsure-word" && !unsure.resolved}
+            onOpenInEdit={phone && canEdit !== false ? onOpenInEdit : undefined}
           />
         ) : null}
         {abInBar ? null : ab}
