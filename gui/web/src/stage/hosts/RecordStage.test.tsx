@@ -1460,3 +1460,115 @@ describe("Record stage partial keeper recovery", () => {
     expect(useRecordHostStore.getState().keeperSink).toBe(sink);
   });
 });
+
+describe("Record stage session target", () => {
+  const clipRow = {
+    id: "c9",
+    track_id: "t1",
+    source_start: 0,
+    source_end: 3130,
+    timeline_start: 0,
+    timeline_end: 3130,
+    fade_in_ms: 0,
+    fade_out_ms: 0,
+    join_in_mode: "fade" as const,
+    source_id: "src",
+    source_duration_sec: null,
+    recording_key: null,
+  };
+  const withClip = () => {
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", {
+      ...project,
+      clips: { ...project.clips, tracks: { t1: [clipRow] } },
+    });
+  };
+  const chip = (name: string) =>
+    screen.getByRole("button", { name: `Where this session goes: ${name}` });
+
+  it("shows where the session lands and sends the pick", async () => {
+    withClip();
+    setRoom({ target: { kind: "end" } });
+    mount();
+    await userEvent.click(
+      await waitFor(() => chip("Lands at the end · after 52:10")),
+    );
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual(["At the end", "At the start", "At the playhead (0:00)"]);
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "At the start" }),
+    );
+    expect(exec).toHaveBeenCalledWith(
+      "record.setTarget",
+      { target: { kind: "start" } },
+      { skipWhen: true },
+    );
+  });
+
+  it("offers the playhead and a replace of the Edit selection", async () => {
+    withClip();
+    useDawStore.setState({
+      playheadSec: 724.8,
+      selection: {
+        kind: "clip",
+        id: "c9",
+        trackId: "t1",
+      },
+    });
+    setRoom({ target: { kind: "end" } });
+    mount();
+    await userEvent.click(
+      await waitFor(() => chip("Lands at the end · after 52:10")),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "At the playhead (12:04)" }),
+    );
+    expect(exec).toHaveBeenLastCalledWith(
+      "record.setTarget",
+      { target: { kind: "insert", at_sec: 724 } },
+      { skipWhen: true },
+    );
+    await userEvent.click(chip("Lands at the end · after 52:10"));
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Replace selection" }),
+    );
+    expect(exec).toHaveBeenLastCalledWith(
+      "record.setTarget",
+      {
+        target: {
+          kind: "replace",
+          from_sec: 0,
+          to_sec: 3130,
+          track_ids: ["t1"],
+        },
+      },
+      { skipWhen: true },
+    );
+  });
+
+  it("locks once a take has landed", async () => {
+    withClip();
+    setRoom({
+      state: "stopped",
+      take_index: 0,
+      target: { kind: "insert", at_sec: 724 },
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 1000,
+          session_start_iso: "t",
+          stopped_wall_ms: 61_000,
+          pauses: [],
+          consented_participant_ids: ["p_host"],
+        },
+      ],
+    });
+    mount();
+    expect(await screen.findByText("Inserts at 12:04")).toBeVisible();
+    expect(screen.getByText("Set when the first take landed")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Where this session goes/ }),
+    ).toBeNull();
+  });
+});

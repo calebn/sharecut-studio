@@ -518,7 +518,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/RecordButton`.
 
 **42. Session target chip**
-- 32 px: placement glyph and text ("Starts the episode", "At the end · after 52:10", "Inserts at 12:04", "Replaces 12:04 to 12:09"). A Menu changes it before the first take, and a lock glyph appears after.
+- 32 px: placement glyph and text ("Starts the episode", "Lands at the end · after 52:10", "Inserts at 12:04", "Replaces 12:04-12:09"; wording in `system/sessionTargetText.ts`). A Menu changes it before the first take: At the end, At the start, At the playhead (12:04) and Replace selection, the last two only when Edit has a playhead or a selection to read. A lock glyph replaces the menu once the first take has landed (the snapshot holds a take). Prepare keeps the two-value form (Starts the episode, At the end).
 - Used: DLG-RECORD session header, FLOW-REC-LATER, FLOW-REC-PICKUP, Session group header.
 - Story: `System/SessionTargetChip`.
 

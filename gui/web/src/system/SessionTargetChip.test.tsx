@@ -49,4 +49,72 @@ describe("SessionTargetChip", () => {
     await userEvent.tab();
     expect(document.body).toHaveFocus();
   });
+
+  describe("with a view target", () => {
+    const open = async (name: string) =>
+      userEvent.click(screen.getByRole("button", { name }));
+    const items = () =>
+      screen.getAllByRole("menuitem").map((item) => item.textContent);
+
+    it("words the trigger and offers only end and start without Edit state", async () => {
+      render(<SessionTargetChip target={{ kind: "end", afterSec: 3130 }} />);
+      await open("Where this session goes: Lands at the end · after 52:10");
+      expect(items()).toEqual(["At the end", "At the start"]);
+    });
+
+    it("offers the playhead and the selection when Edit has them", async () => {
+      const onChange = vi.fn();
+      render(
+        <SessionTargetChip
+          target={{ kind: "insert", atSec: 724 }}
+          playheadSec={724}
+          selection={{ fromSec: 724, toSec: 749 }}
+          endAfterSec={3130}
+          onChange={onChange}
+        />,
+      );
+      await open("Where this session goes: Inserts at 12:04");
+      expect(items()).toEqual([
+        "At the end",
+        "At the start",
+        "At the playhead (12:04)",
+        "Replace selection",
+      ]);
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "Replace selection" }),
+      );
+      expect(onChange).toHaveBeenCalledWith({
+        kind: "replace",
+        fromSec: 724,
+        toSec: 749,
+      });
+    });
+
+    it("picks the end with where it lands", async () => {
+      const onChange = vi.fn();
+      render(
+        <SessionTargetChip
+          target={{ kind: "start" }}
+          endAfterSec={3130}
+          onChange={onChange}
+        />,
+      );
+      await open("Where this session goes: Starts the episode");
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "At the end" }),
+      );
+      expect(onChange).toHaveBeenCalledWith({ kind: "end", afterSec: 3130 });
+    });
+
+    it("locks with the wording of the target", () => {
+      render(
+        <SessionTargetChip
+          target={{ kind: "replace", fromSec: 724, toSec: 749 }}
+          locked
+        />,
+      );
+      expect(screen.getByText("Replaces 12:04-12:29")).toBeVisible();
+      expect(screen.queryByRole("button")).toBeNull();
+    });
+  });
 });

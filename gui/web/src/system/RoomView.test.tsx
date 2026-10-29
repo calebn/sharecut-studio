@@ -49,6 +49,29 @@ const names = () =>
     .map((b) => b.getAttribute("aria-label"));
 
 describe("RoomView", () => {
+  it("shows the target slot in the header, full and embedded", () => {
+    const { rerender } = renderRoom({
+      target: <span>Starts the episode</span>,
+    });
+    expect(
+      within(screen.getByRole("banner")).getByText("Starts the episode"),
+    ).toBeVisible();
+    rerender(
+      <RoomView
+        seat="guest"
+        title="Episode 14"
+        people={[HOST, JON]}
+        phase={LIVE}
+        notes={[]}
+        selfName="Jon"
+        onSendNote={vi.fn()}
+        target={<span>Starts the episode</span>}
+        embedded
+      />,
+    );
+    expect(screen.getByText("Starts the episode")).toBeVisible();
+  });
+
   it("prints the title as the one h1 and keeps one main landmark", () => {
     renderRoom();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
