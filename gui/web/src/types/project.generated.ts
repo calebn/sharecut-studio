@@ -294,6 +294,13 @@ export interface TrackView {
   fade_max_ms?: number | null;
 }
 
+export interface TranscriptExportRequest {
+  path: string;
+  formats?: Array<string>;
+  dry_run?: boolean;
+  with_text?: boolean;
+}
+
 export interface TranscriptRefineDoneRequest {
   path: string;
   notes?: string | null;
