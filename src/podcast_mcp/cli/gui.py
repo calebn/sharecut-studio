@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 import typer
 
+from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.services.app import ensure_viewer, packaged_cli_gui_refusal, viewer_url
 
 gui_app = typer.Typer(help="DAW-style episode viewer.")
@@ -45,6 +46,13 @@ def gui_cmd(
     if project is not None and not project.is_file():
         typer.echo(f"Project not found: {project}", err=True)
         raise typer.Exit(1)
+
+    if project is not None:
+        try:
+            ensure_utf8_path(project.resolve())
+        except ValueError as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(1) from exc
 
     if background:
         if project is None:

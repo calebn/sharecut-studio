@@ -23,6 +23,16 @@ def resolve_project_path(path: Path | str) -> Path:
     return p
 
 
+def ensure_utf8_path(path: Path | str) -> None:
+    """Raise ``ValueError`` when *path* cannot be written as UTF-8 (a non-UTF-8 folder name)."""
+    try:
+        str(path).encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError(
+            f"project path is not valid UTF-8; rename the folder: {str(path)!a}"
+        ) from None
+
+
 def require_episode_project_file(path: Path | str) -> Path:
     """Resolve *path* (file or workspace dir) and require episode.project.json basename.
 
