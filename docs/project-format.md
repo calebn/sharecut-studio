@@ -4,7 +4,7 @@
 
 Primary file: `episode.sharecut` in the episode workspace directory.
 
-The file is the same version `2.0` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the source for engine code. The previous name `episode.project.json` has no fallback: opening that file, or a folder that holds it but no `episode.sharecut`, returns the coded error `project_old_filename` from every entry point (Home, `--project`, MCP and the GUI data routes). The fix is to rename the file to `episode.sharecut`.
+The file is the same version `2.0` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the source for engine code. The previous name `episode.project.json` is not read. The first time Studio opens that file, or a folder that holds it but no `episode.sharecut`, it renames the file to `episode.sharecut` in place (same bytes, logged once) and carries on, from every entry point (Home, `--project`, MCP and the GUI data routes). The rename is one-way: an older build can no longer open the folder. When both files exist, `episode.sharecut` is used and the old file is left alone. If the rename fails (a read-only folder, for example), the entry point returns the coded error `project_old_filename` and the file must be renamed by hand.
 
 ## Layout
 
@@ -135,8 +135,8 @@ python -m podcast_mcp.cli.main --no-progress episode upgrade \
 ```
 
 `--project` names a file called `episode.sharecut`. A workspace saved before the
-rename holds `episode.project.json`: rename it first, or the command refuses with
-`project_old_filename`. `--output` names a new workspace directory. The command
+rename holds `episode.project.json`: Studio renames it to `episode.sharecut` in place
+on first open, or the command refuses with `project_old_filename` when that rename fails. `--output` names a new workspace directory. The command
 must publish its current `episode.sharecut`, history index, every retained upgraded snapshot, and
 unchanged raw media there. It must leave the source unchanged. The guard first
 requires ordinary loading to reject the source version. A missing command,

@@ -60,19 +60,23 @@ def test_open_project_bad_paths(local, tmp_path):
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 400, "project_unreadable")
 
 
-def test_open_project_refuses_the_retired_file_name(local, tmp_path):
-    retired = tmp_path / RETIRED_PROJECT_FILENAME
-    retired.write_text("{}")
-    res = local.post("/api/project/open", json={"path": str(retired)})
-    _assert(res, 400, "project_old_filename")
-    assert "Rename it to episode.sharecut" in res.text
+def _retired_project_dir(minimal_project):
+    minimal_project.rename(minimal_project.with_name(RETIRED_PROJECT_FILENAME))
+    return minimal_project.parent
 
 
-def test_open_project_refuses_a_folder_holding_only_the_retired_file(local, tmp_path):
-    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}")
-    res = local.post("/api/project/open", json={"path": str(tmp_path)})
-    _assert(res, 400, "project_old_filename")
-    assert "Rename it to episode.sharecut" in res.text
+def test_open_project_renames_a_folder_holding_only_the_retired_file(local, minimal_project):
+    ws = _retired_project_dir(minimal_project)
+    res = local.post("/api/project/open", json={"path": str(ws)})
+    assert res.status_code == 200
+    assert sorted(child.name for child in ws.iterdir() if child.is_file()) == ["episode.sharecut"]
+
+
+def test_open_project_renames_the_retired_file_given_directly(local, minimal_project):
+    ws = _retired_project_dir(minimal_project)
+    res = local.post("/api/project/open", json={"path": str(ws / RETIRED_PROJECT_FILENAME)})
+    assert res.status_code == 200
+    assert sorted(child.name for child in ws.iterdir() if child.is_file()) == ["episode.sharecut"]
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="needs a non-UTF-8 directory name")

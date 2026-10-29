@@ -61,7 +61,7 @@ const NOT_AN_EPISODE_CODES = new Set([
 ]);
 
 const OLD_FILENAME_CODE = "project_old_filename";
-const OLD_FILENAME = `This episode uses the old file name. In its folder, rename ${RETIRED_PROJECT_FILENAME} to ${EPISODE_PROJECT_FILENAME}, then open it again.`;
+const OLD_FILENAME = `Studio couldn't update this episode's old file name. In its folder, rename ${RETIRED_PROJECT_FILENAME} to ${EPISODE_PROJECT_FILENAME}, then open it again.`;
 
 const NAME_RESERVED_CODE = "project_name_reserved";
 
