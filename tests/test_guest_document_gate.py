@@ -919,8 +919,8 @@ STRIP = {"track_id": "host"}
 
 @pytest.mark.parametrize(
     "caps",
-    [[*COMMENTER, "mcp"]],
-    ids=["commenter-mcp"],
+    [VIEWER, EDITOR, [*COMMENTER, "mcp"]],
+    ids=["viewer", "editor", "commenter-mcp"],
 )
 def test_strip_silence_is_host_only(minimal_project, monkeypatch, caps):
     svc = gap_project(minimal_project, monkeypatch)
