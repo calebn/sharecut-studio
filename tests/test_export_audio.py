@@ -18,9 +18,10 @@ from podcast_mcp.export.audio import (
     specs_from_extensions,
     write_audio_formats,
 )
+from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.episode import export_episode_deliverables
 from podcast_mcp.export.names import MAX_EXPORT_STEM_BYTES, sanitize_export_stem
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import ChapterMarker, EpisodeProject
 from podcast_mcp.util.progress import CancelledProgress
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -156,6 +157,121 @@ def test_export_reaps_temps_a_crashed_export_left(tmp_path: Path):
     export_episode_deliverables(project, eng, mastered, {"export": MP3})
 
     assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"NEW-WAV"}
+
+
+def test_chapters_json_matches_podcasting_2_golden_for_unsorted_markers_with_image():
+    markers = [
+        ChapterMarker(time=61.23456, title="Café ☕ 日本語", image_url="https://cdn.example/b.jpg"),
+        ChapterMarker(time=0.1 + 0.2, title="Intro"),
+        ChapterMarker(time=12.0, title="Middle"),
+    ]
+    assert render_chapters_json(markers) == (
+        "{\n"
+        '  "version": "1.2.0",\n'
+        '  "chapters": [\n'
+        "    {\n"
+        '      "startTime": 0.3,\n'
+        '      "title": "Intro"\n'
+        "    },\n"
+        "    {\n"
+        '      "startTime": 12,\n'
+        '      "title": "Middle"\n'
+        "    },\n"
+        "    {\n"
+        '      "startTime": 61.235,\n'
+        '      "title": "Café ☕ 日本語",\n'
+        '      "img": "https://cdn.example/b.jpg"\n'
+        "    }\n"
+        "  ]\n"
+        "}\n"
+    )
+
+
+def test_chapters_json_for_no_chapters_is_an_empty_list():
+    assert json.loads(render_chapters_json([])) == {"version": "1.2.0", "chapters": []}
+
+
+def test_export_publishes_chapters_json_in_the_same_set_as_the_audio(tmp_path: Path):
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.ensure_dirs()
+    project.chapters = [ChapterMarker(time=0.0, title="Start"), ChapterMarker(time=30.0, title="B")]
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"RIFF")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+
+    paths = export_episode_deliverables(project, eng, mastered, {"export": MP3})
+
+    chapters_path = tmp_path / "export" / "ep.chapters.json"
+    assert chapters_path in paths
+    assert json.loads(chapters_path.read_text("utf-8"))["chapters"] == [
+        {"startTime": 0, "title": "Start"},
+        {"startTime": 30, "title": "B"},
+    ]
+
+
+def test_a_failed_encode_keeps_the_previous_chapters_file(tmp_path: Path):
+    project = _project_with_previous_export(tmp_path)
+    old = project.export_dir() / "ep.chapters.json"
+    old.write_text("OLD-CHAPTERS", encoding="utf-8")
+    project.chapters = [ChapterMarker(time=5.0, title="New")]
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"NEW-WAV")
+    eng = MagicMock()
+    eng.export_audio.side_effect = subprocess.CalledProcessError(1, ["ffmpeg"])
+
+    with pytest.raises(subprocess.CalledProcessError):
+        export_episode_deliverables(project, eng, mastered, {"export": MP3})
+
+    assert old.read_text("utf-8") == "OLD-CHAPTERS"
+
+
+def test_a_project_without_chapters_writes_none_and_removes_a_stale_file(tmp_path: Path):
+    project = _project_with_previous_export(tmp_path)
+    stale = project.export_dir() / "ep.chapters.json"
+    stale.write_text("OLD-CHAPTERS", encoding="utf-8")
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"NEW-WAV")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+
+    paths = export_episode_deliverables(project, eng, mastered, {"export": MP3})
+
+    assert stale not in paths
+    assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"NEW-WAV"}
+
+
+@pytest.mark.parametrize(
+    ("chapters", "expected_prefix"),
+    [
+        (
+            [ChapterMarker(time=0.0, title="A"), ChapterMarker(time=9.0, title="B")],
+            "2 audio files, 2 chapters",
+        ),
+        ([], "2 audio files, "),
+    ],
+)
+def test_the_export_step_summary_counts_audio_files_and_chapters_not_sidecars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, chapters, expected_prefix
+):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.pipeline import steps
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.ensure_dirs()
+    project.chapters = chapters
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"RIFF")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+    monkeypatch.setattr(steps, "ensure_current_master", lambda *_a, **_k: mastered)
+    monkeypatch.setattr(steps, "ffmpeg", lambda: eng)
+    defaults = {**load_defaults(), "export": MP3}
+
+    summary = steps.export_deliverables(project, defaults)
+
+    assert summary.startswith(expected_prefix)
+    assert summary.count("chapters") == (1 if chapters else 0)
 
 
 @pytest.fixture
@@ -385,3 +501,32 @@ def test_the_m4a_preset_encodes_aac_lc_that_decodes_to_the_same_length(
     assert tags["major_brand"].strip() == "M4A"
     assert (tags["title"], tags["album"]) == ("Ep", "Show")
     assert _decoded_pcm_bytes(eng.ffmpeg, paths[0]) == _decoded_pcm_bytes(eng.ffmpeg, source)
+
+
+def test_the_studio_export_publishes_chapters_through_the_same_exporter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from podcast_mcp.models import save_project
+    from podcast_mcp.pipeline import steps
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.pipeline import PipelineService
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.ensure_dirs()
+    project.chapters = [ChapterMarker(time=2.5, title="Cold open")]
+    project_file = save_project(project)
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"RIFF")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+    monkeypatch.setattr(steps, "ensure_current_master", lambda *_a, **_k: mastered)
+    monkeypatch.setattr(steps, "read_master_qc", lambda *_a, **_k: None)
+    monkeypatch.setattr("podcast_mcp.services.pipeline.service.ffmpeg", lambda: eng)
+
+    result = PipelineService(ProjectWorkspace.open(project_file)).export_audio()
+
+    chapters_path = tmp_path / "export" / "ep.chapters.json"
+    assert chapters_path in result.paths
+    assert json.loads(chapters_path.read_text("utf-8"))["chapters"] == [
+        {"startTime": 2.5, "title": "Cold open"}
+    ]

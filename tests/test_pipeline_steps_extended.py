@@ -435,14 +435,19 @@ def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_work
     if not eng.check_available()[0]:
         pytest.skip("ffmpeg not available")
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    proj.chapters = [ChapterMarker(time=0.0, title="Start")]
+    proj.chapters = [ChapterMarker(time=0.0, title="Start"), ChapterMarker(time=1.5, title="Two")]
     defaults = load_defaults()
     steps.ingest_tracks(proj, defaults)
     steps.assemble_timeline(proj, defaults)
     steps.mix_with_music(proj, defaults)
     steps.master_loudness(proj, defaults)
-    steps.export_deliverables(proj, defaults)
-    assert (proj.export_dir() / f"{proj.name}.chapters.json").is_file()
+    summary = steps.export_deliverables(proj, defaults)
+    chapters = json.loads((proj.export_dir() / f"{proj.name}.chapters.json").read_text("utf-8"))
+    assert chapters == {
+        "version": "1.2.0",
+        "chapters": [{"startTime": 0, "title": "Start"}, {"startTime": 1.5, "title": "Two"}],
+    }
+    assert summary.startswith("2 audio files, 2 chapters, SRT+MD")
     assert (proj.export_dir() / f"{proj.name}.srt").is_file()
 
 

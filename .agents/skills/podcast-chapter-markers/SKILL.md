@@ -13,7 +13,7 @@ description: >-
 - `remove_chapter_tool(project_path, title)` — remove by title (all markers with that title)
 - `list_chapters_tool`
 - Sharecut Studio / guest document command `DeleteChapter` matches `(time, title)` when two chapters share a title
-- `pipeline_run` / export — chapters written to `export/<name>.chapters.json`; MP3 gets title metadata
+- `pipeline_run` / export (Studio Deliver, `export_audio_tool`, `podcast pipeline export-audio`) — chapters written to `export/<name>.chapters.json` in Podcasting 2.0 JSON chapters v1.2 shape (`{"version": "1.2.0", "chapters": [{"startTime", "title", "img"?}]}`, sorted by time; `img` only when the marker has an image URL); a project with no chapters writes none and removes an older file; MP3 gets title metadata
 - Sharecut Studio GUI: `edit.addChapter` (host only) — desktop transport **Menu › Markers → Add chapter at playhead**, or the phone **More → Add chapter at playhead** action; titles the chapter from the playhead time and turns the Markers layer on
 
 ## NL workflow
