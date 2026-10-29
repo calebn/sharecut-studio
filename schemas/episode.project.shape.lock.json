@@ -2264,6 +2264,10 @@
                 }
               ],
               "default": null
+            },
+            "name": {
+              "default": null,
+              "type": "string"
             }
           },
           "type": "object"
@@ -5685,6 +5689,10 @@
                 }
               ],
               "default": null
+            },
+            "name": {
+              "default": null,
+              "type": "string"
             }
           },
           "type": "object"

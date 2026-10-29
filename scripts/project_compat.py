@@ -73,6 +73,7 @@ def snapshot_model() -> type[BaseModel]:
         if name == "meta":
             meta = create_model(
                 "SnapshotMeta",
+                name=(ProjectMeta.model_fields["name"].annotation, None),
                 ingest_alignment=(ProjectMeta.model_fields["ingest_alignment"].annotation, None),
             )
             fields[name] = (meta | None, None)

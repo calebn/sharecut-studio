@@ -195,6 +195,7 @@
   },
   "render_last_completed_step": "ingest",
   "meta": {
+    "name": "DEVELOPMENT compatibility example, never shipped",
     "ingest_alignment": {
       "host": {
         "session_start_in_file_sec": 0.0,
