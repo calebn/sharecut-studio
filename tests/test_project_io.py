@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 
 import pytest
 
 from podcast_mcp.project.io import (
     RETIRED_PROJECT_FILENAME,
+    adopt_retired_entry_file,
     copy_relocated_workspace,
     open_project,
     require_episode_project_file,
@@ -35,47 +38,105 @@ def test_resolve_project_path_dir(tmp_path):
     assert resolve_project_path(ws).name == "episode.sharecut"
 
 
-def test_resolve_project_path_renames_a_folder_holding_only_the_retired_file(tmp_path):
-    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b'{"version": "2.0"}\n')
-    resolved = resolve_project_path(tmp_path)
-    assert resolved == (tmp_path / "episode.sharecut").resolve()
-    assert resolved.read_bytes() == b'{"version": "2.0"}\n'
-    assert sorted(child.name for child in tmp_path.iterdir()) == ["episode.sharecut"]
+def _names(folder):
+    return sorted(child.name for child in folder.iterdir())
 
 
-def test_resolve_project_path_renames_the_retired_file_given_directly(tmp_path):
+def test_resolve_project_path_maps_a_retired_file_to_its_sibling_without_renaming(tmp_path):
     retired = tmp_path / RETIRED_PROJECT_FILENAME
     retired.write_bytes(b"{}")
-    resolved = resolve_project_path(retired)
-    assert resolved == (tmp_path / "episode.sharecut").resolve()
-    assert resolved.read_bytes() == b"{}"
-    assert not retired.exists()
-
-
-def test_resolve_project_path_rename_is_a_no_op_the_second_time(tmp_path):
-    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
-    first = resolve_project_path(tmp_path)
-    second = resolve_project_path(tmp_path)
-    assert first == second == (tmp_path / "episode.sharecut").resolve()
-    assert sorted(child.name for child in tmp_path.iterdir()) == ["episode.sharecut"]
-
-
-def test_resolve_project_path_leaves_the_retired_file_when_the_current_one_exists(tmp_path):
-    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"old")
-    (tmp_path / "episode.sharecut").write_bytes(b"new")
-    retired = tmp_path / RETIRED_PROJECT_FILENAME
     assert resolve_project_path(retired) == (tmp_path / "episode.sharecut").resolve()
-    assert (tmp_path / RETIRED_PROJECT_FILENAME).read_bytes() == b"old"
-    assert (tmp_path / "episode.sharecut").read_bytes() == b"new"
+    assert resolve_project_path(tmp_path) == (tmp_path / "episode.sharecut").resolve()
+    assert _names(tmp_path) == [RETIRED_PROJECT_FILENAME]
 
 
-def test_resolve_project_path_does_not_rename_a_missing_retired_file(tmp_path):
+def test_resolve_project_path_maps_a_missing_retired_file_without_error(tmp_path):
     missing = tmp_path / RETIRED_PROJECT_FILENAME
-    assert resolve_project_path(missing) == missing.resolve()
+    assert resolve_project_path(missing) == (tmp_path / "episode.sharecut").resolve()
     assert list(tmp_path.iterdir()) == []
 
 
-def test_resolve_project_path_asks_for_a_hand_rename_when_the_rename_fails(tmp_path, monkeypatch):
+def test_resolve_project_path_returns_any_other_path_unchanged(tmp_path):
+    other = tmp_path / "notes.json"
+    assert resolve_project_path(other) == other.resolve()
+
+
+def test_adopt_renames_a_folder_holding_only_the_retired_file(tmp_path, caplog):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b'{"version": "2.0"}\n')
+    with caplog.at_level(logging.INFO, logger="podcast_mcp.project.io"):
+        adopted = adopt_retired_entry_file(tmp_path)
+    assert adopted == (tmp_path / "episode.sharecut").resolve()
+    assert adopted.read_bytes() == b'{"version": "2.0"}\n'
+    assert _names(tmp_path) == ["episode.sharecut"]
+    assert [r.getMessage() for r in caplog.records if r.levelno == logging.INFO] == [
+        f"renamed {tmp_path.resolve() / RETIRED_PROJECT_FILENAME} to {adopted}"
+    ]
+
+
+def test_adopt_renames_the_retired_file_given_directly(tmp_path):
+    retired = tmp_path / RETIRED_PROJECT_FILENAME
+    retired.write_bytes(b"{}")
+    adopted = adopt_retired_entry_file(retired)
+    assert adopted == (tmp_path / "episode.sharecut").resolve()
+    assert adopted.read_bytes() == b"{}"
+    assert _names(tmp_path) == ["episode.sharecut"]
+
+
+def test_adopt_is_a_silent_no_op_the_second_time(tmp_path, caplog):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
+    first = adopt_retired_entry_file(tmp_path)
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="podcast_mcp.project.io"):
+        second = adopt_retired_entry_file(first)
+    assert first == second == (tmp_path / "episode.sharecut").resolve()
+    assert _names(tmp_path) == ["episode.sharecut"]
+    assert caplog.records == []
+
+
+def test_adopt_leaves_a_folder_without_either_file_alone(tmp_path):
+    assert adopt_retired_entry_file(tmp_path) == (tmp_path / "episode.sharecut").resolve()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_adopt_ignores_a_file_that_is_not_an_entry_path(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
+    other = tmp_path / "notes.json"
+    assert adopt_retired_entry_file(other) == other.resolve()
+    assert _names(tmp_path) == [RETIRED_PROJECT_FILENAME]
+
+
+def test_adopt_keeps_the_current_file_and_the_older_retired_file(tmp_path, caplog):
+    retired = tmp_path / RETIRED_PROJECT_FILENAME
+    retired.write_bytes(b"old")
+    current = tmp_path / "episode.sharecut"
+    current.write_bytes(b"new")
+    os.utime(retired, (1_000, 1_000))
+    os.utime(current, (2_000, 2_000))
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.project.io"):
+        assert adopt_retired_entry_file(retired) == current.resolve()
+    assert retired.read_bytes() == b"old"
+    assert current.read_bytes() == b"new"
+    assert caplog.records == []
+
+
+def test_adopt_warns_once_when_the_retired_file_is_newer_than_the_current_one(tmp_path, caplog):
+    retired = tmp_path / RETIRED_PROJECT_FILENAME
+    retired.write_bytes(b"edited by an older build")
+    current = tmp_path / "episode.sharecut"
+    current.write_bytes(b"new")
+    os.utime(current, (1_000, 1_000))
+    os.utime(retired, (2_000, 2_000))
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.project.io"):
+        assert adopt_retired_entry_file(tmp_path) == current.resolve()
+    assert [r.getMessage() for r in caplog.records] == [
+        f"{retired.resolve()} is newer than {current.resolve()} and is ignored; "
+        "edits saved by an older build are not loaded"
+    ]
+    assert retired.read_bytes() == b"edited by an older build"
+    assert current.read_bytes() == b"new"
+
+
+def test_adopt_asks_for_a_hand_rename_when_the_rename_fails(tmp_path, monkeypatch):
     (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
 
     def refuse(src, dst):
@@ -83,35 +144,46 @@ def test_resolve_project_path_asks_for_a_hand_rename_when_the_rename_fails(tmp_p
 
     monkeypatch.setattr("podcast_mcp.project.io.os.rename", refuse)
     with pytest.raises(ValueError) as raised:
-        resolve_project_path(tmp_path)
+        adopt_retired_entry_file(tmp_path)
     assert raised.value.code == "project_old_filename"
     assert str(raised.value) == (
         "episode.project.json could not be renamed automatically. "
         "Rename it to episode.sharecut by hand and open it again."
     )
-    assert [child.name for child in tmp_path.iterdir()] == [RETIRED_PROJECT_FILENAME]
+    assert _names(tmp_path) == [RETIRED_PROJECT_FILENAME]
 
 
-def test_resolve_project_path_treats_losing_the_rename_race_as_success(tmp_path, monkeypatch):
+@pytest.mark.parametrize("lost", [FileNotFoundError, FileExistsError])
+def test_adopt_treats_losing_the_rename_race_as_success(tmp_path, monkeypatch, lost):
     (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"{}")
 
     def another_process_wins(src, dst):
         (tmp_path / "episode.sharecut").write_bytes(b"{}")
         (tmp_path / RETIRED_PROJECT_FILENAME).unlink()
-        raise FileNotFoundError(src)
+        raise lost(src)
 
     monkeypatch.setattr("podcast_mcp.project.io.os.rename", another_process_wins)
-    assert resolve_project_path(tmp_path) == (tmp_path / "episode.sharecut").resolve()
+    assert adopt_retired_entry_file(tmp_path) == (tmp_path / "episode.sharecut").resolve()
 
 
-def test_resolve_project_path_prefers_the_current_file_over_a_retired_sibling(tmp_path):
-    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}", encoding="utf-8")
-    (tmp_path / "episode.sharecut").write_text("{}", encoding="utf-8")
-    assert resolve_project_path(tmp_path) == (tmp_path / "episode.sharecut").resolve()
+def test_workspace_open_adopts_the_retired_file_given_as_a_folder_or_a_file(minimal_project):
+    retired = minimal_project.rename(minimal_project.with_name(RETIRED_PROJECT_FILENAME))
+    ws = ProjectWorkspace.open(retired.parent)
+    assert ws.path == minimal_project.resolve()
+    assert minimal_project.is_file()
+    assert not retired.exists()
 
 
-def test_resolve_project_path_leaves_an_empty_folder_to_the_caller(tmp_path):
-    assert resolve_project_path(tmp_path) == (tmp_path / "episode.sharecut").resolve()
+def test_copy_relocated_workspace_adopts_the_source_and_copies_the_new_name(
+    minimal_project, tmp_path
+):
+    retired = minimal_project.rename(minimal_project.with_name(RETIRED_PROJECT_FILENAME))
+    dest = tmp_path / "copy"
+    copy_relocated_workspace(retired, dest)
+    assert minimal_project.is_file()
+    assert not retired.exists()
+    assert (dest / "episode.sharecut").is_file()
+    assert not (dest / RETIRED_PROJECT_FILENAME).exists()
 
 
 def test_workspace_create_works_beside_a_retired_file(tmp_path):

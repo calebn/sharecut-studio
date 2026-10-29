@@ -136,11 +136,11 @@ def doctor(
     )
 
     if bundle:
-        from podcast_mcp.project.io import open_project
+        from podcast_mcp.project.io import adopt_retired_entry_file, open_project
 
         ep = None
         if project is not None:
-            _, ep = open_project(project)
+            _, ep = open_project(adopt_retired_entry_file(project))
         report = DiagnosticsService().build_bundle(
             ep,
             out_dir=out.expanduser() if out is not None else default_bundle_dir(),

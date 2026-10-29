@@ -14,7 +14,7 @@ from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpan
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
+from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, adopt_retired_entry_file, open_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review_shares import (
     create_share,
@@ -674,11 +674,10 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
     if share_hard_expired(row):
         reg.demote_to_cooldown(token, reason="expired")
         raise CodedKeyError("invalid or revoked share token", code="share_not_found")
-    workspace = Path(str(row.get("project_workspace") or ""))
-    candidate = workspace / EPISODE_PROJECT_FILENAME
+    candidate = _share_entry_file(row)
     if candidate.is_file():
         try:
-            resolved_workspace = resolve_project_path(candidate).parent
+            resolved_workspace = candidate.resolve().parent
             touch_share_last_used_for_workspace(resolved_workspace, token)
             side = sidecar_share(resolved_workspace, str(row.get("id") or ""))
             if side is not None and not side.get("revoked"):
@@ -706,9 +705,23 @@ def _mark_share_revoked(token: str, *, ws: ProjectWorkspace | None = None) -> No
         register_share_globally(entry)
 
 
-def workspace_from_share_row(row: dict[str, Any]) -> ProjectWorkspace:
+def _share_entry_file(row: dict[str, Any]) -> Path:
+    """The entry file of a share row's workspace, adopting a retired name.
+
+    The workspace comes from the trusted registry row, so a share created before the
+    rename keeps working for a project the host has not reopened yet. A guest never sees
+    the rename failure: the entry then reads as missing.
+    """
     workspace = Path(str(row.get("project_workspace") or ""))
-    candidate = workspace / EPISODE_PROJECT_FILENAME
+    try:
+        return adopt_retired_entry_file(workspace)
+    except CodedValueError:
+        log.warning("Cannot rename the retired entry file in %s", workspace, exc_info=True)
+        return workspace / EPISODE_PROJECT_FILENAME
+
+
+def workspace_from_share_row(row: dict[str, Any]) -> ProjectWorkspace:
+    candidate = _share_entry_file(row)
     if not candidate.is_file():
         raise CodedFileNotFoundError("episode project missing for share", code="project_not_found")
     return ProjectWorkspace.open(candidate)
@@ -1136,9 +1149,7 @@ def share_daw_waveform_tiles(
     from podcast_mcp.services.media import live_key, media_index, tile_bytes
 
     row = lookup_share(token, kind=SHARE_KIND_REVIEW)
-    project_path = (
-        Path(str(row.get("project_workspace") or "")) / EPISODE_PROJECT_FILENAME
-    ).resolve()
+    project_path = _share_entry_file(row).resolve()
     vid = str(row.get("review_version_id") or "")
     if vid and row.get("follow_latest"):
         # Any live version keeps a follow-latest link valid; the check below then
