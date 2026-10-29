@@ -23,6 +23,7 @@ import {
   reviewIdOf,
   unsureEntriesOf,
   type WordTarget,
+  wordIdOf,
 } from "../../review/reviewItems";
 import { verbOf } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
@@ -53,6 +54,8 @@ const WAIVE_NOTE = "Approved after listening in Review";
 const CLOSER_LOOK = "Needs a closer look in Edit";
 const UNSURE_REASON = "unsure_word";
 const HEAR_PAD_SEC = 2;
+const OPEN_CHECK =
+  "The transcript check stays open until every word has loaded.";
 const CUT_AGAIN = "The transcript isn't checked yet. Cut again to cut anyway.";
 
 const rangeOf = (e: PendingEditView) =>
@@ -80,6 +83,7 @@ export function useReviewQueue() {
   );
   const stageRef = useRef<HTMLDivElement>(null);
   const requests = useRef(0);
+  const confirmed = useRef(new Set<string>());
   const pending = project?.pending_edits;
 
   const refreshStatus = useStableCallback(async () => {
@@ -192,26 +196,48 @@ export function useReviewQueue() {
     closes: boolean,
     changed: boolean,
     complete: boolean,
-  ) => {
-    const sayError = (error: unknown) =>
-      useDawStore
-        .getState()
-        .announceStatus(errorMessage(error), { tone: "error" });
+  ): Promise<string | false | undefined> => {
     if (closes) {
-      if (!complete) return revert([CHECK_ID]);
+      if (!complete) {
+        revert([CHECK_ID]);
+        return OPEN_CHECK;
+      }
       try {
         const next = await markTranscriptChecked(path);
         requests.current++;
         setStatus(next);
       } catch (error) {
         revert([CHECK_ID]);
-        sayError(error);
+        useDawStore
+          .getState()
+          .announceStatus(errorMessage(error), { tone: "error" });
         return false;
       }
     } else if (changed && seen?.clear) {
-      if (seen.status === "done") await markTranscriptChecked(path);
-      else if (seen.status === "waived")
-        await waiveTranscriptRefine(path, seen.notes || WAIVE_NOTE);
+      try {
+        if (seen.status === "done") await markTranscriptChecked(path);
+        else if (seen.status === "waived")
+          await waiveTranscriptRefine(path, seen.notes || WAIVE_NOTE);
+      } catch (error) {
+        return `The transcript check could not be kept: ${errorMessage(error)}`;
+      }
+    }
+  };
+
+  const releaseCuts = (wordId: string) => {
+    confirmed.current.add(wordId);
+    for (const edit of useDawStore.getState().project?.pending_edits ?? []) {
+      const unsure = edit.unsure_words ?? [];
+      if (
+        !edit.applied &&
+        unsure.length &&
+        unsure.every((w) =>
+          confirmed.current.has(
+            wordIdOf(w.track_id, w.source_id, w.word_index),
+          ),
+        )
+      )
+        session.props.onLooksRight(reviewIdOf(edit.id));
     }
   };
 
@@ -237,7 +263,7 @@ export function useReviewQueue() {
     const complete =
       useDawStore.getState().project?.meta?.hydration?.transcript_words !==
       false;
-    const message =
+    const said =
       target && changed ? `Fixed “${target.text}” to “${text}”` : plan.message;
     try {
       const reply: Reply | void | null = await send(
@@ -249,13 +275,13 @@ export function useReviewQueue() {
       );
       if (!current()) return;
       const marked = word
-        ? await settleCheck(path, seen, closes, changed, complete).catch(
-            () => null,
-          )
-        : null;
+        ? await settleCheck(path, seen, closes, changed, complete)
+        : undefined;
+      const message = typeof marked === "string" ? `${said}. ${marked}` : said;
       if (intent.waive || closes || changed) void refreshStatus();
       if (!current()) return;
       if (marked === false) return false;
+      if (target) releaseCuts(intent.ids[0]);
       if (!reply) return say(plan.message);
       if (reply.queued) return say(PENDING_REVIEW_QUEUED_MESSAGE);
       const heldCuts = [...(reply.held ?? [])];
@@ -314,6 +340,7 @@ export function useReviewQueue() {
           undo: reply.historyHead,
           onUndone: () => {
             session.revert(plan.decidedIds);
+            confirmed.current.delete(intent.ids[0]);
             if (closes || changed) void refreshStatus();
             stageRef.current?.focus({ preventScroll: true });
           },
