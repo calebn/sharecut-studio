@@ -57,18 +57,32 @@ async function createTrackWithMedia(
   return tid;
 }
 
+export type NewProjectIngest = {
+  /** Files that became tracks before the first failure (all of them when none failed). */
+  added: number;
+  /** What stopped the import; later files were not tried. */
+  failed?: unknown;
+};
+
 /**
  * Adds each file as a new track of a project the store has not opened yet
- * (Home's Import). Throws on the first failure so the caller can say so.
+ * (Home's Import). Stops at the first failure and reports how many were added.
  */
 export async function ingestIntoNewProject(
   projectPath: string,
   files: readonly File[],
-): Promise<void> {
+): Promise<NewProjectIngest> {
   const taken = new Set<string>();
+  let added = 0;
   for (const file of files) {
-    await createTrackWithMedia(projectPath, file, taken);
+    try {
+      await createTrackWithMedia(projectPath, file, taken);
+    } catch (failed: unknown) {
+      return { added, failed };
+    }
+    added += 1;
   }
+  return { added };
 }
 
 function focusImportedTrack(trackId: string): void {

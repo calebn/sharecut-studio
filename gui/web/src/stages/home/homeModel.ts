@@ -106,6 +106,24 @@ export function importingLine(count: number): string {
   return `Importing ${count} ${plural(count, "file")}…`;
 }
 
+export type ImportStop = {
+  reason: string;
+  added: number;
+  total: number;
+  name: string;
+  projectPath: string;
+};
+
+/** What a stopped Import left on disk: the episode stays listed, so say what is in it and where. */
+export function importStoppedLine(stop: ImportStop): string {
+  const reason = /[.!?]$/.test(stop.reason) ? stop.reason : `${stop.reason}.`;
+  const folder = stop.projectPath.replace(/[\\/][^\\/]*$/, "");
+  if (stop.added === 0) {
+    return `${reason} Nothing was added. The new episode is empty and still in Recent. Its folder is ${folder}.`;
+  }
+  return `${reason} ${stop.added} of ${stop.total} ${plural(stop.total, "file")} were added to "${stop.name}". Open it from Recent to add the rest. Its folder is ${folder}.`;
+}
+
 function needsDownload(model: ModelView): boolean {
   const kind = model.state.kind;
   return kind === "missing" || kind === "update_needed" || kind === "failed";

@@ -208,10 +208,23 @@ describe("ingestIntoNewProject", () => {
     ]);
   });
 
-  it("throws the first failure so Home can say so", async () => {
-    uploadMock.mockRejectedValue(new Error("Disk full."));
-    await expect(
-      ingestIntoNewProject(PATH, [new File(["a"], "a.wav")]),
-    ).rejects.toThrow("Disk full.");
+  it("stops at the first failure and says how many files were added", async () => {
+    uploadMock.mockImplementation(async (_path, file) => {
+      if (file.name === "b.wav") throw new Error("Disk full.");
+      return { complete: true, rel_path: `raw/${file.name}` };
+    });
+    const result = await ingestIntoNewProject(PATH, [
+      new File(["a"], "a.wav"),
+      new File(["b"], "b.wav"),
+      new File(["c"], "c.wav"),
+    ]);
+    expect(result.added).toBe(1);
+    expect(result.failed).toEqual(new Error("Disk full."));
+    expect(addTrackMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports every file added when none fails", async () => {
+    const result = await ingestIntoNewProject(PATH, [new File(["a"], "a.wav")]);
+    expect(result).toEqual({ added: 1 });
   });
 });
