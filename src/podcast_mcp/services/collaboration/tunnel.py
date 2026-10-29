@@ -757,8 +757,8 @@ def run_tunnel_sync(
     The live status snapshot the GUI reads is written to ``tunnel_status_path(cfg)``
     under the machine cache, whatever ``config_path`` is. A retired entry file name or a
     workspace folder in *project_path* is resolved once here, so every reconnect reads the
-    same entry file. SIGINT and SIGTERM stop the
-    tunnel cleanly: the snapshot ends Stopped and this function returns.
+    same entry file. SIGINT and SIGTERM stop the tunnel cleanly: the snapshot ends Stopped
+    and this function returns.
     Raises ``TunnelError`` on an auth or config failure that retrying cannot fix.
     """
     if project_path is not None:

@@ -43,7 +43,7 @@ from podcast_mcp.services.collaboration.share import (
     lookup_share,
     workspace_from_share_row,
 )
-from podcast_mcp.services.collaboration.tunnel import RelayConfig, TunnelClient, run_tunnel_sync
+from podcast_mcp.services.collaboration.tunnel import TunnelClient, run_tunnel_sync
 from podcast_mcp.services.support.doctor import _load_project
 
 LOOPBACK = ("127.0.0.1", 50000)
@@ -340,15 +340,6 @@ def test_tunnel_resolves_the_retired_file_once_at_entry(minimal_project: Path, p
     assert [c._project_path for c in built] == [entry]
     assert _files(legacy.parent) == ["episode.sharecut"]
     assert len(built[0]._build_shares()) == 1
-
-
-def test_tunnel_client_reads_the_shares_of_the_resolved_file_after_another_opener_adopted_it(
-    minimal_project: Path, published_share
-):
-    published_share(label="tunnel")
-    legacy = minimal_project.rename(minimal_project.with_name(RETIRED_PROJECT_FILENAME))
-    entry = adopt_retired_entry_file(legacy)
-    assert len(TunnelClient(RelayConfig(), project_path=entry)._build_shares()) == 1
 
 
 def test_doctor_bundle_with_the_retired_file_opens_and_renames_it(legacy: Path, tmp_path: Path):
