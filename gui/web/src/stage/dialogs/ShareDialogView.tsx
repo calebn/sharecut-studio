@@ -1,4 +1,5 @@
 import { type RefCallback, useId, useRef, useState } from "react";
+import { TunnelStatusLine } from "../../stages/deliver/TunnelStatusLine";
 import {
   type HostShareRow,
   REVIEW_ROLES,
@@ -18,7 +19,6 @@ import {
   type ShareCopyKind,
   shareCopyKey,
 } from "./shareCopyKey";
-import { TunnelStatusLine } from "./TunnelStatusLine";
 
 const MCP_HELP =
   "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions.";
