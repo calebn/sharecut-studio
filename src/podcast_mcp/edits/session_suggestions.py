@@ -202,7 +202,8 @@ def restore_followed_tracks(
     A replace follows a person who is moved to another track; when their staged pieces are gone,
     the row goes back to the track they were set to cover. It stays put when a staged take or
     bed sits on either track, when a track in ``contested`` is wanted by another person by
-    choice or by an acknowledged take still to be staged, or when ``only`` is given and the moved-to track is not in it.
+    choice or by an acknowledged take still to be staged, or when ``only`` is given and the
+    moved-to track is not in it. A follow whose origin is a track that stays put is skipped.
     """
     for row in project.editorial.session_suggestions:
         if row.session_id != session_id or row.status != "pending":
@@ -217,6 +218,13 @@ def restore_followed_tracks(
             and current in row.track_ids
             and (only is None or current in only)
         }
+        current_ids = set(row.track_ids)
+        while True:
+            blocked = [c for c, o in back.items() if o in current_ids and o not in back]
+            if not blocked:
+                break
+            for current in blocked:
+                del back[current]
         if not back:
             continue
         row.track_ids = list(dict.fromkeys(back.get(t, t) for t in row.track_ids))
