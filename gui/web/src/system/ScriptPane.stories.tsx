@@ -888,13 +888,18 @@ export const LongGestures: Story = {
 };
 
 /**
- * Axe rules the jsdom run (allStories.test.tsx) turns off for HugeGestures. The story is one 1500-word turn, about 3000 nodes under
- * one parent, and each of these four costs 4.5 to 5.6 s on its own there (unloaded, node 22, 4 cores), against a 5 s limit for the
- * whole story. Their cost grows faster than the word count: button-name takes 1.0 s at 500 words, 1.9 s at 1000 and 5.6 s at 1500.
- * It is the single long turn, not the word count, that does it: for LongGestures (60 turns of 24 words, 1440 words) axe takes 1.3 s
- * with every rule on, and the whole story 3 s under load in the full run, so it keeps them all. Turning off three of the four still leaves 4 to 4.7 s, so all four go; the whole run then takes 0.6 s unloaded and
- * 0.8 s under three busy loops. Every other rule stays on. Playwright (e2e/axe.ts, wcag2a and wcag2aa) still runs button-name and
- * nested-interactive on this story; region and tabindex are best practices that only this jsdom run checks.
+ * Axe rules the jsdom run (allStories.test.tsx) turns off for HugeGestures. The story is one 1500-word turn, about 3000 nodes
+ * under one parent, and each of these four costs 4.5 to 5.6 s on its own there (unloaded, node 22, 4 cores), against a 5 s limit
+ * for the whole story. Their cost grows faster than the word count: button-name takes 1.0 s at 500 words, 1.9 s at 1000 and
+ * 5.6 s at 1500. Turning off three of the four still leaves 4 to 4.7 s, so all four go; the whole run then takes 0.6 s unloaded
+ * and 0.8 s under three busy loops. Every other rule stays on.
+ *
+ * What is lost: tabindex now runs nowhere for this story (the ScriptPane meta already switches region off for every story),
+ * and button-name and nested-interactive run only in Playwright (e2e/axe.ts, tags wcag2a and wcag2aa). region and tabindex are
+ * best-practice rules that Playwright never runs.
+ *
+ * LongGestures (60 turns of 24 words) keeps every rule: its axe run is 3.3 s cold with all rules and about 2.7 s with these four
+ * and aria-allowed-attr off, because its cost is spread over many rules, so no rule choice makes it fast.
  */
 const slowSharedCostRules = [
   "button-name",
