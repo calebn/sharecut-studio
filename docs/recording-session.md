@@ -1260,7 +1260,8 @@ cannot. Every button runs the same `record.*` command as the palette.
   recordings are still saving ("Recordings are still saving to the project."),
   before anything arrived ("No recordings have reached the project yet.") and
   when everything landed ("Every take is on the timeline."). It turns into
-  **Retry land** after a failed land, and also lands unlanded live comments.
+  **Retry land** after a failed land, and also lands unlanded live comments
+  once nothing is still saving; comments never override the saving reason.
   The server refuses an open take with the same reason, so every host surface
   (the `record.land` command, `POST /api/record/land`, `record_land_tool`,
   `podcast record land`) stops at one check in `RecordControlService.land`.
