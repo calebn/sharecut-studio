@@ -206,8 +206,7 @@ const IN_PLACE: Record<string, string> = {
   "edit.bladeCut": "the blade line splits the clip on the timeline",
   "edit.split":
     "runs edit.bladeCut, which announces the split with Undo (editing.ts)",
-  "edit.keep":
-    "rejects the suggestion or opens History",
+  "edit.keep": "rejects the suggestion or opens History",
   "edit.mute":
     "runs range.mute, transcript.ignoreWords or track.muteToggle, each proven here",
   "edit.rollClipJoin": "the join marker moves under the person's hand",
