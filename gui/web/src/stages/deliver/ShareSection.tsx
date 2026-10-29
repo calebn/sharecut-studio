@@ -94,7 +94,7 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
     );
     const selection = window.getSelection?.();
     if (text && selection) selection.selectAllChildren(text);
-  }, [blockedKey]);
+  }, [blockedKey, rows]);
 
   // Escape keeps the link or room, as Keep does.
   const asking = pending !== null;

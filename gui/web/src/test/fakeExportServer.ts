@@ -111,8 +111,6 @@ export function fakeExportServer() {
     shareRequests: [] as Record<string, unknown>[],
     /** Fails `POST /api/shares` (a refused create) when set. */
     shareAnswer: null as Answer | null,
-    /** Holds `POST /api/shares` until released. */
-    holdShare: null as Promise<void> | null,
     revokeRequests: [] as string[],
     settle(job: PipelineJobSnapshot) {
       server.settled = job;
@@ -165,7 +163,6 @@ export function fakeExportServer() {
         }
         if (method === "POST") {
           server.shareRequests.push(body);
-          await server.holdShare;
           if (server.shareAnswer) return json(server.shareAnswer, {});
           const token = `made-link-${server.shareRequests.length}`;
           const row: HostShareRow = {

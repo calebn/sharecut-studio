@@ -347,6 +347,17 @@ describe("ShareSection review links", () => {
     expect(window.getSelection()?.toString()).toBe(review.url);
   });
 
+  it("selects the refused link once its row is listed", () => {
+    const blocked = options({
+      rows: [],
+      blockedKey: "link:sample-review-link",
+    });
+    const view = render(<ShareSection options={blocked} />);
+    expect(window.getSelection()?.toString()).toBe("");
+    view.rerender(<ShareSection options={{ ...blocked, rows: [review] }} />);
+    expect(window.getSelection()?.toString()).toBe(review.url);
+  });
+
   it("disables Copy for a link with no address, with the reason", () => {
     render(
       <ShareSection

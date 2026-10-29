@@ -158,7 +158,7 @@ export const REFRESH_MIX_MESSAGES: ReadonlyMap<string, string> = new Map([
   ],
 ]);
 
-export const STALE_MASTER_MESSAGE =
+const STALE_MASTER_MESSAGE =
   "The mastered mix is out of date. Export a new master before creating a review link.";
 
 /** What a failed create means: Refresh mix will fix it, only an export will, or it is just an error. */

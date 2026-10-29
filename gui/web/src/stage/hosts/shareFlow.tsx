@@ -228,8 +228,8 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   }, [dialogOpen, onDeliver, reload]);
 
   /**
-   * Mints and copies. `minted` is already running: the copy starts with it,
-   * inside the click, and takes the link when it arrives.
+   * Mints and copies. `minted` is already running and the copy starts with it,
+   * then takes the link when it arrives; from a click, that keeps the gesture.
    */
   const finishCreate = useCallback(
     async (request: CreateRequest, minted: Promise<HostShareRow>) => {
