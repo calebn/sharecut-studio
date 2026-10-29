@@ -332,9 +332,37 @@
   inset-block-start: var(--space-1);
 }
 
-.sys-stage-bar--tabs .sys-stage-badge--pill {
+/* The take clock or "Paused" is wider than an equal tab: its tab takes the
+   width the pill needs and the others share the rest (never under the touch
+   minimum), and the pill takes the label's row. The label stays in the
+   accessible name, as in the bar form. */
+.sys-stage-bar--tabs .sys-stage-list:has(.sys-stage-badge--pill) {
+  display: flex;
+}
+
+.sys-stage-bar--tabs
+  .sys-stage-list:has(.sys-stage-badge--pill)
+  .sys-stage-tab {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.sys-stage-bar--tabs
+  .sys-stage-list
+  .sys-stage-tab:has(.sys-stage-badge--pill) {
+  flex: 0 0 auto;
+}
+
+.sys-stage-bar--tabs
+  .sys-stage-tab:has(.sys-stage-badge--pill)
+  .sys-stage-label {
   position: absolute;
-  inset-inline: 50% auto;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* App header */

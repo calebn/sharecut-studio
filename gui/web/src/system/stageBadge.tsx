@@ -4,13 +4,13 @@ import {
   Badge,
   type RecordBadge,
   RecordBadgeView,
-  type StageBarProps,
-} from "./StageBar";
+  type StageBadge,
+} from "./StageBadgeViews";
 
 /** A stage's badge, or null. Record's `failed` badge outranks its room badge. */
 export function stageBadge(
   id: StageId,
-  badges: StageBarProps["badges"],
+  badges: Partial<Record<StageId, StageBadge>> | undefined,
   record: RecordBadge | undefined,
 ): ReactNode {
   const given = badges?.[id];

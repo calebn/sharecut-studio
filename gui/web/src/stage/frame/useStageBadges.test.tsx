@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HostRoom } from "../../record";
 import { HostRoomProvider } from "../../record/hostRoomContext";
@@ -79,7 +79,9 @@ describe("useRecordBadge", () => {
     let setRoom: (room: HostRoom) => void = () => {};
     function Switchable({ children }: { children: ReactNode }) {
       const [value, set] = useState(waiting());
-      setRoom = set;
+      useEffect(() => {
+        setRoom = set;
+      }, [set]);
       return <HostRoomProvider value={value}>{children}</HostRoomProvider>;
     }
     const { result } = renderHook(

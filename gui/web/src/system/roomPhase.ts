@@ -3,7 +3,8 @@ import type { StatusState } from "./statusText";
 export type RoomPhase =
   | { kind: "waiting"; host?: string }
   | { kind: "countdown"; secondsLeft: 3 | 2 | 1 }
-  | { kind: "live"; take: number; clockSec: number }
+  /** The Stage bar's badge has no take to name; the pill then reads the clock alone. */
+  | { kind: "live"; take?: number; clockSec: number }
   | { kind: "paused"; clockSec: number }
   | {
       kind: "saving";
@@ -59,9 +60,10 @@ export function roomPillRendering(
     case "live":
       return {
         state: "live",
-        text: compact
-          ? clockText(phase.clockSec)
-          : `${clockText(phase.clockSec)} · Take ${phase.take}`,
+        text:
+          compact || phase.take === undefined
+            ? clockText(phase.clockSec)
+            : `${clockText(phase.clockSec)} · Take ${phase.take}`,
       };
     case "paused":
       return {

@@ -5,7 +5,7 @@ import {
   recordingClockMs,
   roomAlerts,
 } from "../../record";
-import type { RecordBadge } from "../../system/StageBar";
+import type { RecordBadge } from "../../system/StageBadgeViews";
 
 type RecordBadgeRoom = Pick<
   HostRoom,
