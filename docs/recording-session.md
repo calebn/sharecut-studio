@@ -207,7 +207,7 @@ route that is a 400 carrying the land's own code (`record_land_refused`, or e.g.
 `session_suggestion_closed`, `insert_anchor_taken`). A land that ran stays saved;
 retrying is safe. `land_first` with nothing to save just mints.
 
-Known gaps (#2416). A keeper that dies before its first report is judged by the Resume
+Known gaps (#2416). A client can over-report its own count; only its own take then warns. A keeper that dies before its first report is judged by the Resume
 inference (a guest) or not at all (the host). Two devices that share one
 participant id share one report and one set of segment indices, so the server cannot tell their
 segments apart. A removed guest with no upload row is not reported (only a partial row

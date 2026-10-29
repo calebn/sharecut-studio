@@ -8,7 +8,11 @@ import {
 import { useMountedRef } from "../../hooks/useMountedRef";
 import { errorMessage } from "../../utils/apiError";
 import { recordingClockMs } from "../clock";
-import type { RecordRole, RecordSnapshot } from "../types";
+import {
+  MAX_REPORTED_SEGMENTS,
+  type RecordRole,
+  type RecordSnapshot,
+} from "../types";
 import { type TakeClipping, takeRelativeMs } from "./clipRegions";
 import { type KeeperTap, openKeeperTap } from "./graph";
 import { type KeeperClipEvent, KeeperSession } from "./session";
@@ -130,9 +134,10 @@ export function useKeeperCapture({
     (
       participantId: string,
       takeIndex: number,
-      segments: number,
+      count: number,
       force = false,
     ) => {
+      const segments = Math.min(count, MAX_REPORTED_SEGMENTS);
       const last = reportedRef.current.get(takeIndex);
       const same =
         last?.participantId === participantId &&
