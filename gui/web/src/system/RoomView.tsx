@@ -28,7 +28,7 @@ import { SystemIcon } from "./SystemIcon";
 
 /** The phase's identity for the time chip: a new take or state is a new key. */
 function phaseKey(phase: RoomPhase): string {
-  return phase.kind === "live" ? `live-${phase.take}` : phase.kind;
+  return phase.kind === "live" ? `live-${phase.take ?? ""}` : phase.kind;
 }
 
 export type RoomViewProps = {
