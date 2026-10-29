@@ -86,8 +86,9 @@ function RecordStageBody({
       stale: cap.staleMic,
       levelDb: meter.levelDb,
       clipped: meter.clipped,
-      // The keeper's Stop flush may still settle after the room is stopped.
-      inputLocked: live || paused || cap.keeperFinalizing,
+      // The keeper's Stop flush may still settle after the room is stopped; a
+      // failed one stays "finalizing" until reload, so it must not hold the lock.
+      inputLocked: live || paused || (cap.keeperFinalizing && !cap.keeperError),
       detail: cap.micError ?? undefined,
     },
   );

@@ -163,8 +163,9 @@ function GuestRoomSession({
       stale: staleMic,
       levelDb: meter.levelDb,
       clipped: meter.clipped,
-      // The keeper's Stop flush may still settle after the room is stopped.
-      inputLocked: onAir || keeper.finalizing,
+      // The keeper's Stop flush may still settle after the room is stopped; a
+      // failed one stays "finalizing" until reload, so it must not hold the lock.
+      inputLocked: onAir || (keeper.finalizing && keeper.error === null),
       detail: lostDetail,
     },
   );
