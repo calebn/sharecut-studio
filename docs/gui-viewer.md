@@ -526,6 +526,14 @@ A banner and colored timeline border show who you are following. Strong local na
 
 Timeline comments from `review.comments[]` (session clock). Hideable pins/range bars, a Comments tab whose always-visible comment field posts at the selected range or the playhead (Commenter and Editor review links open on it; after Post a toast confirms it, with no selection or Inspector sheet on any shell; on tablet and desktop the field stays focused for the next comment, and on the phone Listen dock the keyboard closes; #1338), and its list with action-item check-off and resolve. A comment with `edit_decision_id` still pointing at a pending cut opens the pending inspector (Ask thread) instead of the generic comment inspector. Mutations via `POST/PATCH /api/comments` (same `CommentService` as CLI/MCP; optional `edit_decision_id` on create). See [timeline-comments.md](timeline-comments.md).
 
+## Review stage: Find more and Cut all
+
+The Queue header's **Find more** button (host only) reruns suggestion finding through `POST /api/pipeline/run` with `only_step: analyze_fillers_pauses` and the project's saved **How tight** (`tighten.intensity`, set in Prepare Cleanup; Review has no intensity control). The host fetches the working set fresh, forces `tighten.enabled` for that run only (`use_working_set: false`) and asks before it replaces pending hits, including ones you nudged. A missing model opens the model gate dialog in the stage. The button is disabled with a reason while the pipeline slot is busy (`useFindMore`).
+
+While any pipeline job runs, the Queue shows a top **Job row**: "Finding more suggestions" for the job Find more started, "Finding suggestions" for another pipeline run such as Prepare's, with a percent only when the job reports a total. A failed job (or a failed start) replaces it with "Could not find more suggestions", its cause behind Details and a Try again button.
+
+A group's **Cut all N** hides the group at once, so the host owns the running state: the Queue shows "Cutting N…" in its place until the request ends. The host reports no count for this command, so the row is indeterminate (elapsed time after 2 s, no percent), and the decision ends with one Undo for the whole group.
+
 ## Prepare stage (orchestration)
 
 The Prepare stage (`stages/prepare/`, bound by `stage/hosts/PrepareStage.tsx` through `usePrepareModel`) replaces the Pipeline tab. Sources, the Getting ready list and the Ready column read the project and the pipeline job; the presentational views take props only.

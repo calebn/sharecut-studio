@@ -79,4 +79,64 @@ describe("ReviewQueue", () => {
     );
     expect(queryByText(/to decide one by one/)).toBeNull();
   });
+
+  it("shows the bulk row for a group that has left the queue, without a fake bar", () => {
+    const { getByText, queryByRole, queryByText } = render(
+      <ReviewQueue
+        items={[]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        bulkRunning={{
+          kind: "filler",
+          total: 11,
+          startedAtSec: Date.now() / 1000 - 5,
+        }}
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(getByText("Cutting 11…")).toBeInTheDocument();
+    expect(getByText("0:05 so far")).toBeInTheDocument();
+    expect(queryByRole("progressbar")).toBeNull();
+    expect(queryByText("Nothing to decide")).toBeNull();
+  });
+
+  it("keeps the count and bar in the group header when the host reports done", () => {
+    const { getByText, getByRole, queryByRole } = render(
+      <ReviewQueue
+        items={fillers}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        bulkRunning={{ kind: "filler", total: 4, done: 1 }}
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(getByText("1 done")).toBeInTheDocument();
+    expect(getByRole("progressbar")).toHaveAttribute("aria-valuenow", "25");
+    expect(queryByRole("button", { name: /^Cut all/ })).toBeNull();
+  });
+
+  it("shows a job error with Try again, and a job without a percent", () => {
+    const onFindMore = vi.fn();
+    const props = {
+      items: [],
+      content: reviewContent,
+      selectedId: null,
+      filter: "all" as const,
+      onFilter: vi.fn(),
+      onSelect: vi.fn(),
+      onFindMore,
+    };
+    const { getByRole, getByText, rerender, queryByText } = render(
+      <ReviewQueue {...props} job={{ title: "Finding suggestions" }} />,
+    );
+    expect(getByText("Finding suggestions")).toBeInTheDocument();
+    expect(queryByText(/%/)).toBeNull();
+    rerender(<ReviewQueue {...props} job={{ title: "", error: "Crashed." }} />);
+    fireEvent.click(getByRole("button", { name: "Try again" }));
+    expect(onFindMore).toHaveBeenCalledOnce();
+  });
 });
