@@ -120,7 +120,9 @@ export const DoneBadge: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const prepare = canvas.getByRole("tab", { name: /Prepare/ });
-    await expect(prepare.querySelector(".sys-stage-badge")).not.toBeNull();
+    await expect(prepare.querySelector(".sys-stage-badge")).toHaveTextContent(
+      "Done",
+    );
     await expect(
       canvas
         .getByRole("tab", { name: /Edit/ })
