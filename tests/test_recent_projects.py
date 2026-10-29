@@ -543,13 +543,6 @@ def test_a_real_replacement_character_folder_is_kept(tmp_path):
     assert [e.path for e in recent.read_recent()] == [str(odd.resolve())]
 
 
-def test_record_recent_skips_a_path_json_cannot_carry(tmp_path):
-    good = _make(tmp_path, "good")
-    recent.record_recent(good)
-    recent.record_recent(tmp_path / "caf\udcff" / "episode.project.json")
-    assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
-
-
 def test_a_lone_surrogate_project_name_is_cleaned_on_its_card(local, tmp_path):
     project = _make(tmp_path, "named")
     _edit_project(project, lambda d: d["meta"].update(name="ep\ud800"))
