@@ -117,4 +117,14 @@ describe("SessionTargetChip", () => {
       expect(screen.queryByRole("button")).toBeNull();
     });
   });
+
+  it("marks the trigger unavailable with its reason", () => {
+    render(
+      <SessionTargetChip
+        target="end"
+        disabledReason="Waiting for the last change"
+      />,
+    );
+    expect(screen.getByRole("button")).toBeDisabled();
+  });
 });

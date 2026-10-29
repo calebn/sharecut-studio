@@ -9,9 +9,10 @@ import {
 
 const SUBJECT = "Where this session goes";
 
-export type SessionTarget = "start" | "end";
+/** Prepare's two-value target. */
+export type PrepareTarget = "start" | "end";
 
-const TARGET_TEXT: Record<SessionTarget, string> = {
+const TARGET_TEXT: Record<PrepareTarget, string> = {
   start: "Starts the episode",
   end: "At the end",
 };
@@ -77,56 +78,64 @@ function viewEntries(
   return entries;
 }
 
-export type SessionTargetChipProps = {
-  /** The two words are Prepare's; a view adds insert and replace and the richer text. */
-  target: SessionTarget | SessionTargetView;
+type ChipBase = {
   /** Locked once the first take landed. */
   locked?: boolean;
-  /** The two-value pick, for a `SessionTarget` string. */
-  onTarget?: (target: SessionTarget) => void;
-  /** The pick for a view target. */
+  /** Why the menu cannot be opened now, e.g. while a command is in flight. */
+  disabledReason?: string;
+  /** The session it belongs to, added to the control name. */
+  session?: string;
+};
+
+/** Prepare's two words, with the two-value pick. */
+type PrepareChipProps = ChipBase & {
+  target: PrepareTarget;
+  onTarget?: (target: PrepareTarget) => void;
+  onChange?: never;
+  playheadSec?: never;
+  selection?: never;
+  endAfterSec?: never;
+};
+
+/** A view adds insert and replace, the richer text and the Edit-driven entries. */
+type ViewChipProps = ChipBase & {
+  target: SessionTargetView;
   onChange?: (target: SessionTargetView) => void;
+  onTarget?: never;
   /** Edit's playhead; without it the menu has no At the playhead entry. */
   playheadSec?: number;
   /** Edit's selection; without it the menu has no Replace selection entry. */
   selection?: SessionTargetSelection;
   /** The end of the last clip, shown on the end target. */
   endAfterSec?: number;
-  /** The session it belongs to, added to the control name. */
-  session?: string;
 };
+
+export type SessionTargetChipProps = PrepareChipProps | ViewChipProps;
+
+function isPrepare(props: SessionTargetChipProps): props is PrepareChipProps {
+  return typeof props.target === "string";
+}
 
 /**
  * Where a session goes in the episode. Text only. Before the first take it
  * is a menu; after, it is a lock and the reason in words, not a control.
  */
-export function SessionTargetChip({
-  target,
-  locked = false,
-  onTarget,
-  onChange,
-  playheadSec,
-  selection,
-  endAfterSec,
-  session,
-}: SessionTargetChipProps) {
+export function SessionTargetChip(props: SessionTargetChipProps) {
+  const { locked = false, disabledReason, session } = props;
   const [open, setOpen] = useState(false);
   const reasonId = useId();
-  const text =
-    typeof target === "string"
-      ? TARGET_TEXT[target]
-      : sessionTargetText(target);
-  const entries: Entry[] =
-    typeof target === "string"
-      ? (["start", "end"] as const).map((value) => ({
-          key: value,
-          label: TARGET_TEXT[value],
-          checked: value === target,
-          pick: () => onTarget?.(value),
-        }))
-      : viewEntries(target, { playheadSec, selection, endAfterSec }, (next) =>
-          onChange?.(next),
-        );
+  const prepare = isPrepare(props);
+  const text = prepare
+    ? TARGET_TEXT[props.target]
+    : sessionTargetText(props.target);
+  const entries: Entry[] = prepare
+    ? (["start", "end"] as const).map((value) => ({
+        key: value,
+        label: TARGET_TEXT[value],
+        checked: value === props.target,
+        pick: () => props.onTarget?.(value),
+      }))
+    : viewEntries(props.target, props, (next) => props.onChange?.(next));
   if (locked) {
     return (
       <span
@@ -153,6 +162,7 @@ export function SessionTargetChip({
         <Button
           {...props}
           className="sys-target-trigger"
+          disabledReason={disabledReason}
           aria-label={`${SUBJECT}: ${text}${session ? `, ${session}` : ""}`}
         >
           <span>{text}</span>

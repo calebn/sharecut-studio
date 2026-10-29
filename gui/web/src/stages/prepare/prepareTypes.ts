@@ -1,4 +1,4 @@
-import type { SessionTarget } from "../../system/SessionTargetChip";
+import type { PrepareTarget } from "../../system/SessionTargetChip";
 import type { SourceCardProps } from "../../system/SourceCard";
 
 /** One file in a session, as data. The card's callbacks come from `SourceActions`. */
@@ -26,7 +26,7 @@ export type PrepareSession = {
   takes: number;
   /** "14:20". */
   duration: string;
-  target: SessionTarget;
+  target: PrepareTarget;
   /** The first take has landed, so the place is set. */
   targetLocked?: boolean;
   status: "idle" | "running" | "done" | "failed";

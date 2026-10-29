@@ -31,6 +31,7 @@ import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
 import { SessionTargetChip } from "../../system/SessionTargetChip";
 import { TakesTray } from "../../system/TakesTray";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { dbToFraction } from "../../ui/metering";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { hostStateOf } from "./hostModels";
@@ -56,6 +57,8 @@ export type RecordStageProps = {
   loadFailure?: LoadFailure | null;
 };
 
+// The server refuses a replace that ends past the timeline by more than this.
+const TIMELINE_EPSILON = 1e-3;
 const SPEAKING_FRACTION = 0.2;
 const TAKE_START = { segmentIndex: 0, segmentStartMs: 0, startMs: 0, endMs: 0 };
 
@@ -176,7 +179,11 @@ function RecordStageBody({
   const selected =
     project && editSelection ? selectionSpan(editSelection, project) : null;
   const replaceable =
-    selected && selected.end > selected.start && selected.trackIds.length > 0
+    selected &&
+    selected.end > selected.start &&
+    selected.trackIds.length > 0 &&
+    selected.end <=
+      (project?.clips.timeline_duration_sec ?? endSec ?? 0) + TIMELINE_EPSILON
       ? selected
       : null;
   const targetChip = snapshot ? (
@@ -184,6 +191,7 @@ function RecordStageBody({
       target={targetViewOf(snapshot.target, endSec)}
       locked={targetLocked(snapshot)}
       endAfterSec={endSec}
+      disabledReason={room.transportBusy ? BUSY_REASON : undefined}
       playheadSec={endSec === undefined ? undefined : playheadSec}
       selection={
         replaceable
