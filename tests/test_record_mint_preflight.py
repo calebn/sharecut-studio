@@ -587,6 +587,47 @@ def test_a_reported_segment_that_never_uploaded_is_saving_then_stalled_after_a_c
     assert new["left_behind"] == 1 and "left behind" in new["left_behind_message"]
 
 
+def _declined_before_stop(ws, name: str, *, report: int = 1):
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    pid = _join_guest(svc, room, name, 0)
+    _consented_before_start(svc, [pid])
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=STOP_AT - 3_000)
+    svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
+    if report:
+        _report(svc, pid, report)
+    svc.submit(
+        _cmd("Consent", pid=pid, role="guest", payload={"accepted": False}),
+        now_wall_ms=STOP_AT - 500,
+        capabilities=["join"],
+    )
+    svc.submit(_cmd("Stop"), now_wall_ms=STOP_AT)
+    return room, pid
+
+
+def test_a_guest_who_reported_then_declined_and_never_uploaded_is_saving_then_stalled(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    _declined_before_stop(ws, "Ava")
+    _at(monkeypatch, STOP_AT + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+    new = ShareService(ws).create_record_room(land_first=True)
+    assert new["left_behind"] == 1
+
+
+def test_a_guest_who_declined_without_a_report_still_owes_nothing(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    _declined_before_stop(ws, "Ava", report=0)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 0)
+
+
 def test_a_report_below_the_rows_never_shrinks_what_is_owed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
