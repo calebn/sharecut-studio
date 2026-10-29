@@ -18,7 +18,7 @@ const PROTECT_SELECTORS = [
   ".comment-compose",
   ".comment-author-line",
   ".comment-author-edit",
-  ".comment-name-step",
+  ".sys-composer",
 ] as const;
 
 /** Phone chrome docked to the top edge; the toast stays below it. */
