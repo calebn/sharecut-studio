@@ -22,7 +22,7 @@ from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.audio_eval import Piece
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import LevelProfile
-from podcast_mcp.engines.ungated_audio import resampler_locality
+from podcast_mcp.engines.ungated_audio import resampler_grid, resampler_locality
 
 _NO_SAMPLES = np.empty(0, dtype=np.float32)
 
@@ -144,7 +144,7 @@ def resampled_window(
 
     The conversion restarts ``warm_up`` input samples before the first wanted output and
     feeds ``guard`` samples past the last one, both calibrated by ``resampler_locality``; the
-    restart is on a multiple of the grid, counted from the start of the track, because a
+    restart is on a whole resampling period, counted from the start of the track, because a
     restart on another sample changes the resampler's phase. A window that stops short of
     the end of the track learns the length of the conversion from a restart near the end.
     """
@@ -156,7 +156,7 @@ def resampled_window(
     if found is None:
         return None
     warm_up, guard = found
-    grid = from_rate // rate
+    inputs, outputs = resampler_grid(from_rate, rate)
     size = piece.size
 
     def convert(begin: int, stop: int) -> np.ndarray:
@@ -167,19 +167,24 @@ def resampled_window(
     # A run of under a couple of hundred samples emits fewer outputs than its length implies, so
     # every run is at least a few widths long, whatever the window asks.
     shortest = 4 * (warm_up + guard)
-    reachable = size // grid * grid
-    begin = max(0, min(max(first, 0) * grid, reachable) - warm_up)
-    begin = min(begin, max(0, (size - shortest) // grid * grid))
-    stop = min(size, max(last * grid + guard, begin + shortest))
+    reachable = size // inputs * inputs
+    # The period holding output ``first`` starts at this input sample; the period ending at output
+    # ``last`` (rounded up) ends at ``last_input``, and ``guard`` is fed past it.
+    first_input = max(first, 0) // outputs * inputs
+    begin = max(0, min(first_input, reachable) - warm_up)
+    begin = min(begin, max(0, (size - shortest) // inputs * inputs))
+    last_input = -(-last // outputs) * inputs
+    stop = min(size, max(last_input + guard, begin + shortest))
     got = convert(begin, stop)
+    begin_out = begin // inputs * outputs
     if stop == size:
-        total = begin // grid + got.size
+        total = begin_out + got.size
     else:
-        tail = max(0, (size - shortest) // grid * grid)
-        total = tail // grid + convert(tail, size).size
+        tail = max(0, (size - shortest) // inputs * inputs)
+        total = tail // inputs * outputs + convert(tail, size).size
     kept_first = min(max(first, 0), total)
     kept_last = min(last, total)
-    lo = kept_first - begin // grid
+    lo = kept_first - begin_out
     if lo + max(0, kept_last - kept_first) > got.size:
         return None
     return got[lo : lo + max(0, kept_last - kept_first)], kept_first, total
