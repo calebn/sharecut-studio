@@ -10,6 +10,7 @@ import {
 } from "./roomAlertModel";
 import { StatusList } from "./StatusList";
 import { StatusRow } from "./StatusRow";
+import { useFocusOffDisabled } from "./useFocusOffDisabled";
 import { useFocusRescue } from "./useFocusRescue";
 
 export type RoomAlertProps = {
@@ -33,6 +34,7 @@ export function RoomAlert({ alerts }: RoomAlertProps) {
   // still there, else the empty region itself.
   useFocusRescue(slot, () => () => chip.current ?? region.current);
   const { top, rest } = sortRoomAlerts(alerts);
+  useFocusOffDisabled(slot, top?.actionDisabledReason !== undefined);
   // The list closes by itself once nothing is left behind the chip.
   if (rest.length === 0 && expanded) setExpanded(false);
   const open = expanded && rest.length > 0;

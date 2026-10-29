@@ -106,7 +106,7 @@ describe("deviceTone", () => {
     expect(
       deviceTone({ ...base, status: "capturing", clock: roomToneClock(60) }),
     ).toMatchObject({
-      message: "Recording room tone…",
+      message: "Saving room tone…",
       endEarlyDisabled: true,
     });
   });

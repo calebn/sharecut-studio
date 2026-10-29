@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import {
@@ -12,6 +12,8 @@ import type { JoinMicAction } from "./joinSheetModel";
 import { MicRow } from "./MicRow";
 import { Sheet } from "./Sheet";
 import { SheetRow } from "./SheetRow";
+import { useFocusOffDisabled } from "./useFocusOffDisabled";
+import { useFocusRescue } from "./useFocusRescue";
 
 export type DeviceSheetProps = {
   /** `phone` is the bottom sheet; `desktop` a centred card. */
@@ -56,6 +58,19 @@ export function DeviceSheet({
 }: DeviceSheetProps) {
   const [detent, setDetent] = useState<DrawerDetent>("full");
   const model = deviceSheetModel({ mic, micNotes, headphones, tone });
+  const toneControls = useRef<HTMLDivElement>(null);
+  // Record gives way to End early and Cancel, and back: focus follows to the
+  // button that replaces the one pressed (Cancel while a take runs, else Record).
+  useFocusRescue(toneControls, (target) => {
+    const starting = !target.closest(".sys-device-tone-actions");
+    return () =>
+      starting
+        ? toneControls.current?.querySelector<HTMLElement>(
+            ".sys-device-tone-actions button:last-child",
+          )
+        : toneControls.current?.querySelector<HTMLElement>("button");
+  });
+  useFocusOffDisabled(toneControls, tone.endEarlyDisabled === true);
   return (
     <Sheet
       form={viewerWidth === "phone" ? "bottom" : "centered"}
@@ -87,26 +102,28 @@ export function DeviceSheet({
           </SheetRow>
         ) : null}
         <SheetRow row={model.toneRow}>
-          {tone.state === "capturing" ? (
-            <div className="sys-device-tone-actions">
+          <div ref={toneControls} className="sys-device-tone">
+            {tone.state === "capturing" ? (
+              <div className="sys-device-tone-actions">
+                <Button
+                  disabledReason={
+                    tone.endEarlyDisabled ? "Room tone is saving." : undefined
+                  }
+                  onClick={onEndRoomToneEarly}
+                >
+                  End early
+                </Button>
+                <Button onClick={onCancelRoomTone}>Cancel</Button>
+              </div>
+            ) : (
               <Button
-                disabledReason={
-                  tone.endEarlyDisabled ? "Room tone is saving." : undefined
-                }
-                onClick={onEndRoomToneEarly}
+                disabledReason={tone.disabledReason}
+                onClick={onRecordRoomTone}
               >
-                End early
+                {tone.label}
               </Button>
-              <Button onClick={onCancelRoomTone}>Cancel</Button>
-            </div>
-          ) : (
-            <Button
-              disabledReason={tone.disabledReason}
-              onClick={onRecordRoomTone}
-            >
-              {tone.label}
-            </Button>
-          )}
+            )}
+          </div>
         </SheetRow>
       </div>
     </Sheet>

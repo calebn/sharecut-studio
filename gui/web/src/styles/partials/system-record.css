@@ -1165,3 +1165,7 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   gap: var(--space-1);
   overflow-wrap: anywhere;
 }
+
+.sys-device-tone {
+  display: contents;
+}

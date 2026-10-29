@@ -121,6 +121,8 @@ export type RoomAlertInput = {
   progress?: number;
   /** Without it the alert shows no action, even when its kind has one. */
   onAction?: () => void;
+  /** Keeps the action in place but pressed no more, with this as the reason. */
+  actionDisabledReason?: string;
   /** Without it the alert shows no second action, even when its kind has one. */
   onSecondaryAction?: () => void;
 };
@@ -153,10 +155,16 @@ export function roomAlertTitle({
 /** The one action an alert offers, or undefined when it has none to offer. */
 export function roomAlertAction(
   alert: RoomAlertInput,
-): { label: string; onAction: () => void } | undefined {
+):
+  | { label: string; onAction: () => void; disabledReason?: string }
+  | undefined {
   const label = ROOM_ALERT_TEXT[alert.kind].action;
   if (!label || !alert.onAction) return undefined;
-  return { label, onAction: alert.onAction };
+  return {
+    label,
+    onAction: alert.onAction,
+    disabledReason: alert.actionDisabledReason,
+  };
 }
 
 /** The second action an alert offers, or undefined when it has none to offer. */

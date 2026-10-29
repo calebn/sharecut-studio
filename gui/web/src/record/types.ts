@@ -222,6 +222,7 @@ export const ROOM_TONE_TOO_LOUD_COPY = "Too loud: is something playing?";
 export const ROOM_TONE_DEVICE_COPY = "Room tone saved on this device";
 export const ROOM_TONE_HOST_COPY = "Room tone sent to the host";
 export const ROOM_TONE_CAPTURING_COPY = "Recording room tone…";
+export const ROOM_TONE_SAVING_COPY = "Saving room tone…";
 export const ROOM_TONE_NOT_READY_COPY = "Room tone capture is not ready yet.";
 
 /** The capture problem a REC surface shows while recording. */

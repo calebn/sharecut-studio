@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { KEEPER_BYTES_PER_SECOND } from "./keeper/pcm";
 import { MemorySink } from "./keeper/store";
 import { ROOM_TONE_DURATION_SEC, ROOM_TONE_MIN_SEC } from "./types";
 import { memoryUploadTransport } from "./upload/transport";
@@ -343,7 +344,11 @@ describe("useRoomToneCapture", () => {
       act(() => {
         result.current.record();
       });
-      expect(result.current.clock).toEqual({ remainingSec: 60, progress: 0 });
+      expect(result.current.clock).toEqual({
+        remainingSec: 60,
+        progress: 0,
+        saving: false,
+      });
       act(() => {
         vi.advanceTimersByTime(18_000);
       });
@@ -429,6 +434,134 @@ describe("useRoomToneCapture", () => {
         result.current.cancel();
       });
       expect(result.current.status).toBe("recorded");
+    });
+
+    it("freezes the clock and says it is saving once End early is pressed", () => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+      takeStoppedAt(30);
+      const { result } = renderHook(() => useRoomToneCapture(hookArgs()));
+      act(() => {
+        result.current.record();
+      });
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(result.current.clock).toMatchObject({
+        remainingSec: 30,
+        saving: false,
+      });
+      act(() => {
+        result.current.endEarly();
+      });
+      expect(result.current.clock).toMatchObject({
+        remainingSec: 30,
+        saving: true,
+      });
+      act(() => {
+        vi.advanceTimersByTime(40_000);
+      });
+      expect(result.current.clock).toMatchObject({
+        remainingSec: 30,
+        saving: true,
+      });
+    });
+
+    it("revokes a bed whose upload was cancelled between its two parts", async () => {
+      const base = memoryUploadTransport();
+      const revoke = vi.fn(async () => undefined);
+      let release: () => void = () => undefined;
+      let parts = 0;
+      const transport = {
+        ...base,
+        revokeRoomTone: revoke,
+        put: async (...a: Parameters<typeof base.put>) => {
+          parts += 1;
+          if (parts === 2) {
+            await new Promise<void>((resolve) => {
+              release = resolve;
+            });
+          }
+          return base.put(...a);
+        },
+      };
+      encode.mockResolvedValue({
+        wav: new Uint8Array(44 + KEEPER_BYTES_PER_SECOND * 40),
+        samples: new Float32Array(4).fill(0.001),
+        durationSec: 40,
+      });
+      const { result } = renderHook(() =>
+        useRoomToneCapture(hookArgs({ transport })),
+      );
+      act(() => {
+        result.current.record();
+      });
+      await waitFor(() => expect(parts).toBe(2));
+      act(() => {
+        result.current.cancel();
+      });
+      expect(result.current.status).toBe("idle");
+      await act(async () => {
+        release();
+      });
+      await waitFor(() => expect(revoke).toHaveBeenCalledOnce());
+    });
+
+    it("revokes the earlier bed when a re-take comes out too short", async () => {
+      const sink = new MemorySink();
+      const transport = memoryUploadTransport();
+      const revoke = vi.spyOn(transport, "revokeRoomTone");
+      const { result } = renderHook(() =>
+        useRoomToneCapture(hookArgs({ sink, transport })),
+      );
+      act(() => {
+        result.current.record();
+      });
+      await waitFor(() => expect(result.current.status).toBe("recorded"));
+      takeStoppedAt(ROOM_TONE_MIN_SEC - 1);
+      act(() => {
+        result.current.record();
+      });
+      act(() => {
+        result.current.endEarly();
+      });
+      await waitFor(() => expect(result.current.status).toBe("too_short"));
+      expect(revoke).toHaveBeenCalledOnce();
+      expect(result.current.delivery).toBe("device");
+      expect(
+        await sink.read("Sharecut Recordings/room1/room-tone/p_a.wav"),
+      ).toBeNull();
+    });
+
+    it("removes the local bed after a write that a cancel overtook", async () => {
+      const sink = new MemorySink();
+      let land: () => void = () => undefined;
+      const slowWrite = sink.write.bind(sink);
+      sink.write = async (path, bytes) => {
+        await new Promise<void>((resolve) => {
+          land = resolve;
+        });
+        return slowWrite(path, bytes);
+      };
+      const { result } = renderHook(() =>
+        useRoomToneCapture(hookArgs({ sink, canUpload: false })),
+      );
+      act(() => {
+        result.current.record();
+      });
+      await waitFor(() => expect(result.current.status).toBe("capturing"));
+      await waitFor(() => expect(land).not.toBe(undefined));
+      await act(async () => {});
+      act(() => {
+        result.current.cancel();
+      });
+      await act(async () => {
+        land();
+      });
+      await waitFor(async () =>
+        expect(
+          await sink.read("Sharecut Recordings/room1/room-tone/p_a.wav"),
+        ).toBeNull(),
+      );
     });
   });
 });
