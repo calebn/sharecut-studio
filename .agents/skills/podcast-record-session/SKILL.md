@@ -17,6 +17,8 @@ full-quality recording; "keeper" in code and schema only), hear remote peers
 only (mix-minus), and save it to the host's project in chunks until the file
 ACK. Say "Saving to project…" while a segment is in flight and "Saved to
 project" once the host holds the verified file, per participant and segment.
+Each keeper reports how many segments it opened (`SegmentReport`), and a take stays
+"saving" until every reported segment is in, then "stalled".
 After that the host copies each segment into `raw/` and registers one clip at
 `take_offset_s + join_offset_ms / 1000` (2 s gap between takes). During REC or
 PAUSED, everyone can add a live comment (`M` → `body` `"Marker"`; typed notes
@@ -29,8 +31,8 @@ use the same path). Comments land as ordinary `review.comments[]` at
 
 | Tool | When |
 |------|------|
-| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`). If the current room has a stopped take not yet landed, the result carries `unlanded_take`, `unlanded_takes`, `unlanded_saving`, `unlanded_stalled`, `land_first_possible` and a `warning` and still mints; pass `land_first` to land it first (adds `landed_first`; every mint that leaves audio the server detected as never finished uploading reports `left_behind` (a count) and `left_behind_message`; refused, nothing minted, while uploads are still saving, after the session was accepted or skipped and something is landable or saving, or if the land leaves a finished recording unsaved) |
-| `record_state_tool` | Roster, take clock, `start_blockers`, consent, `unlanded_take` / `unlanded_takes` / `unlanded_saving` / `unlanded_stalled` / `land_first_possible` (stopped takes not yet landed, how many are still uploading or not started, how many recordings never finished, and whether a land can save something now) |
+| `create_record_room_tool` | Mint guest + producer links; revokes the previous room's links. Optional `target` (default `end`). If the current room has a stopped take not yet landed, the result carries `unlanded_take`, `unlanded_takes`, `unlanded_saving` (takes), `unlanded_stalled` (recordings), `land_first_possible` (false in a decided session) and a `warning` and still mints; pass `land_first` to land it first (adds `landed_first`; every mint that leaves audio the server detected as never finished uploading reports `left_behind` (a count) and `left_behind_message`; refused, nothing minted, while uploads are still saving, after the session was accepted or skipped and something is landable or saving, or if the land leaves a finished recording unsaved) |
+| `record_state_tool` | Roster, take clock, `start_blockers`, consent, `unlanded_take` / `unlanded_takes` / `unlanded_saving` / `unlanded_stalled` / `land_first_possible` (stopped takes not yet landed, how many takes are still uploading or not started, how many recordings never finished, and whether a land can save something now: false once the session was accepted or skipped) |
 | `record_start_tool` | Host Start (a solo take works; blocked while a joined guest has not consented) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |

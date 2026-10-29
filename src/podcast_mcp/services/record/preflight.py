@@ -33,7 +33,7 @@ class Unsaved:
     window. ``stalled``: recordings that never finished (a partial upload gone quiet,
     a removed guest's partial upload, or nothing arriving after the grace window); a land
     cannot save them. ``closed``: the room's staged session was already accepted or skipped,
-    so landing refuses its newer takes.
+    so landing refuses its newer takes (set only while something is landable or saving).
     """
 
     takes: int = 0

@@ -570,7 +570,7 @@ Pipeline edits fetch the latest working set before each save, then reapply the r
 | `GET /api/shares?path=` | Host share list with review versions and record invite closure (`invite_closed`, null for review links). Collaboration extension. |
 | `POST /api/shares` | Body `{ path, role?, with_mcp?, review_version_id?, freeze? }` (`freeze` pins the link to the version it starts on) — mint a link share (`ShareService.create_for_host`; publishes a review mix if none exists) |
 | `POST /api/shares/{token}/revoke` | Body `{ path }` — revoke + cooldown (`ShareService.revoke`) |
-| `POST /api/shares/record` | Body `{ path, expires_at?, target?, land_first? }`; mint a record room (guest + producer links) and revoke the previous room's links (`ShareService.create_record_room`); 409 while a take is open. The result carries `unlanded_take`, `unlanded_takes`, `unlanded_saving`, `unlanded_stalled`, `land_first_possible`, `warning` for a stopped take not yet landed (the mint still happens); `land_first` lands it first (`landed_first`; every mint reports `left_behind` when the server detects audio that never finished uploading), or answers 400 with the land's code (`record_land_refused`) and mints nothing. |
+| `POST /api/shares/record` | Body `{ path, expires_at?, target?, land_first? }`; mint a record room (guest + producer links) and revoke the previous room's links (`ShareService.create_record_room`); 409 while a take is open. The result carries `unlanded_take`, `unlanded_takes`, `unlanded_saving`, `unlanded_stalled`, `land_first_possible` (false once the room's session was accepted or skipped), `warning` for a stopped take not yet landed (the mint still happens); `land_first` lands it first (`landed_first`; every mint reports `left_behind` when the server detects audio that never finished uploading), or answers 400 with the land's code (`record_land_refused`) and mints nothing. |
 | `POST /api/shares/record/{source_token}/replace` | Host-only body `{ path }`; replace a closed, usable record invite in its original room with the same role and expiry (`ShareService.replace_closed_record_invite`). Existing participant leases remain valid. |
 | `GET /api/pipeline/events?job_id=` | SSE stream of progress + per-step timings |
 
@@ -725,7 +725,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `POST /api/shares` | Mint a link share (`ShareService.create_for_host`) |
 | `POST /api/shares/{token}/revoke` | Revoke a live share |
 | `POST /api/shares/record/{source_token}/replace` | Replace a closed record invite in the same room with its original role and expiry; host-only. |
-| `GET /api/record/state?path=` | Host record-room snapshot plus `unlanded_take`, `unlanded_takes`, `unlanded_saving`, `unlanded_stalled`, `land_first_possible` (404 if no room) |
+| `GET /api/record/state?path=` | Host record-room snapshot plus `unlanded_take`, `unlanded_takes`, `unlanded_saving` (takes still uploading), `unlanded_stalled` (recordings that never finished), `land_first_possible` (false in an accepted or skipped session; 404 if no room) |
 | `POST /api/record/command` | Host record command (`Start` / `Pause` / `Resume` / `Stop`) |
 | `GET /api/record/upload?path=` | Host full-quality recording ACK status for **all** participants |
 | `POST /api/record/upload` | Host `p_host` full-quality recording chunks (5 MB part cap) |
