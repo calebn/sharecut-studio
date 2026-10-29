@@ -63,6 +63,8 @@ from podcast_mcp.util.dsp import (
     frame_rms_db,
     rms_db,
 )
+from podcast_mcp.util.hardware import cpu_budget
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.progress import (
@@ -77,7 +79,8 @@ _LOG = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
-    from podcast_mcp.engines.windowed_rms import TimelineWindow
+    from podcast_mcp.engines.track_evidence import WindowPlan
+    from podcast_mcp.engines.windowed_rms import TimelineWindow, WindowedTrackRmsCache
 
 _RMS_SAMPLE_RATE = 8000
 # The transcript gate's overreach check judges a word only where its ungated audio is
@@ -664,6 +667,9 @@ def build_track_rms_caches(
     return TrackRmsCacheSet(caches=caches)
 
 
+_WINDOW_SKIPS = (OSError, CalledProcessError, NoAudioDecodedError, ValueError)
+
+
 def _windowed_caches(
     project: EpisodeProject,
     track_ids: Collection[str],
@@ -674,25 +680,42 @@ def _windowed_caches(
     """The windowed cache of each track in ``track_ids`` that a window can serve."""
     from podcast_mcp.engines import track_evidence
 
-    found: dict[str, TrackRmsCache] = {}
+    planned: list[tuple[str, WindowPlan]] = []
     for tid in track_ids:
         if tid not in window.profiles:
             continue
         try:
-            cache = track_evidence.rms_window(
-                project,
-                tid,
-                defaults,
-                window.start_sec,
-                window.end_sec,
-                profile=window.profiles[tid],
-                private=private_copy,
-            )
-        except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
-            # The whole-track path raises or falls back for this track as it always has.
+            plan = track_evidence.plan_window(project, tid, defaults, private=private_copy)
+        except _WINDOW_SKIPS as exc:
             _LOG.info("no window for track %s: %s", tid, exc)
             continue
+        if plan is not None:
+            planned.append((tid, plan))
+
+    def build(item: tuple[str, WindowPlan]) -> WindowedTrackRmsCache | Exception | None:
+        tid, plan = item
+        try:
+            return track_evidence.build_window(
+                plan, window.start_sec, window.end_sec, profile=window.profiles[tid]
+            )
+        except Exception as exc:
+            return exc
+
+    built = run_parallel(planned, build, max_workers=min(len(planned), cpu_budget()))
+    found: dict[str, TrackRmsCache] = {}
+    for (tid, plan), cache in zip(planned, built, strict=True):
+        if isinstance(cache, Exception):
+            if not isinstance(cache, _WINDOW_SKIPS):
+                raise cache
+            # The whole-track path raises or falls back for this track as it always has.
+            _LOG.info("no window for track %s: %s", tid, cache)
+            continue
         if cache is not None:
+            try:
+                plan.verify(cache)
+            except _WINDOW_SKIPS as exc:
+                _LOG.info("no window for track %s: %s", tid, exc)
+                continue
             found[tid] = cache
     return found
 

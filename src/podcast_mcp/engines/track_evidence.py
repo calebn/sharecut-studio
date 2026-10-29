@@ -209,6 +209,79 @@ def rms_readers(
     return {track_id: partial(read, track_id) for track_id in planned}
 
 
+@dataclass(frozen=True)
+class WindowPlan:
+    """What :func:`plan_window` settled on the calling thread for :func:`build_window` to read."""
+
+    project: EpisodeProject
+    track_id: str
+    defaults: EffectiveConfig
+    private: bool
+    key: EvidenceKey
+    tree: Audio
+    rate: int
+
+    def verify(self, window: WindowedTrackRmsCache) -> None:
+        """With ``PODCAST_EVIDENCE_VERIFY=1``, raise ``AssertionError`` unless the window is the whole track's evidence there."""
+        if settings.flag(VERIFY_ENV):
+            whole = _entry(self.project, self.track_id, self.defaults, locked=not self.private)
+            _verify_window(window, whole)
+
+
+def plan_window(
+    project: EpisodeProject,
+    track_id: str,
+    defaults: EffectiveConfig,
+    *,
+    private: bool = False,
+) -> WindowPlan | None:
+    """The part of :func:`rms_window` that reads the project; ``None`` when the whole track serves.
+
+    Takes ``project_state_lock``, so it runs on the thread that may already hold it, never in
+    a pool worker. :func:`build_window` reads only the plan.
+    """
+    with project_state_lock(project) if not private else nullcontext():
+        planned = _plan(project, track_id, defaults)
+    if isinstance(planned, Declined):
+        return None
+    key, tree = planned
+    if _store().holds(key) or not single_layout(tree):
+        return None
+    rate = common_rate(tree)
+    if rate is None:
+        return None
+    return WindowPlan(project, track_id, defaults, private, key, tree, rate)
+
+
+def build_window(
+    plan: WindowPlan, start_sec: float, end_sec: float, *, profile: LevelProfile
+) -> WindowedTrackRmsCache | None:
+    """The window of a planned track, as :func:`rms_window` gives it, without reading the project.
+
+    Safe in a pool worker: it takes no project lock and calls neither ``scoped`` nor ``frozen``.
+    """
+    rate = plan.rate
+    with decoded_sources(rate) as reader:
+        piece = plan_audio(
+            plan.tree, crossfade_curve=plan.key.curve, reader=reader, sample_rate=rate
+        )
+        if piece is None or piece.size == 0:
+            return None
+        first = max(0, math.floor(start_sec * JUMP_SAMPLE_RATE) - _WINDOW_SLACK)
+        last = math.ceil(end_sec * JUMP_SAMPLE_RATE) + _WINDOW_SLACK
+        found = resampled_window(piece, rate, JUMP_SAMPLE_RATE, first, last)
+    if found is None or found[2] == 0:
+        return None
+    window, first, total = found
+    return WindowedTrackRmsCache(
+        window,
+        first_index=first,
+        total_size=total,
+        sample_rate=JUMP_SAMPLE_RATE,
+        profile=profile,
+    )
+
+
 def rms_window(
     project: EpisodeProject,
     track_id: str,
@@ -232,35 +305,12 @@ def rms_window(
     nothing. With ``PODCAST_EVIDENCE_VERIFY=1`` the window is compared with the whole-track
     evidence and raises ``AssertionError`` on a difference.
     """
-    with project_state_lock(project) if not private else nullcontext():
-        planned = _plan(project, track_id, defaults)
-    if isinstance(planned, Declined):
+    plan = plan_window(project, track_id, defaults, private=private)
+    if plan is None:
         return None
-    key, tree = planned
-    if _store().holds(key) or not single_layout(tree):
-        return None
-    rate = common_rate(tree)
-    if rate is None:
-        return None
-    with decoded_sources(rate) as reader:
-        piece = plan_audio(tree, crossfade_curve=key.curve, reader=reader, sample_rate=rate)
-        if piece is None or piece.size == 0:
-            return None
-        first = max(0, math.floor(start_sec * JUMP_SAMPLE_RATE) - _WINDOW_SLACK)
-        last = math.ceil(end_sec * JUMP_SAMPLE_RATE) + _WINDOW_SLACK
-        found = resampled_window(piece, rate, JUMP_SAMPLE_RATE, first, last)
-    if found is None or found[2] == 0:
-        return None
-    window, first, total = found
-    cache = WindowedTrackRmsCache(
-        window,
-        first_index=first,
-        total_size=total,
-        sample_rate=JUMP_SAMPLE_RATE,
-        profile=profile,
-    )
-    if settings.flag(VERIFY_ENV):
-        _verify_window(cache, _entry(project, track_id, defaults, locked=not private))
+    cache = build_window(plan, start_sec, end_sec, profile=profile)
+    if cache is not None:
+        plan.verify(cache)
     return cache
 
 

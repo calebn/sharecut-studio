@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import copy
+import threading
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines import track_evidence, windowed_rms
+from podcast_mcp.engines import audio_audit, track_evidence, windowed_rms
 from podcast_mcp.engines.audio import (
     At,
     Audio,
@@ -35,6 +36,7 @@ from podcast_mcp.engines.windowed_rms import (
     resampled_window,
 )
 from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.project_state import project_state_lock
 from test_audio_eval import (
     CLIP_LAYOUTS,
     _chained,
@@ -791,3 +793,148 @@ def test_a_chained_track_is_windowed_and_the_rest_are_not(tmp_path: Path) -> Non
     # the whole-track build measures its own profile; the window must not
     assert unwindowed.caches["caleb"].profile != BASE
     assert track_profile(unwindowed.caches["caleb"].samples, RATE) != BASE
+
+
+# --- the windows of one rebuild are built together (#2359) --------------------------------
+
+
+def _two_tracks(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Track ids ``a`` and ``b`` that both stand for the project's one track."""
+    real = track_evidence.plan_window
+
+    def plan(project, track_id, defaults, **kwargs):  # type: ignore[no-untyped-def]
+        return real(project, "caleb", defaults, **kwargs)
+
+    monkeypatch.setattr(track_evidence, "plan_window", plan)
+    return ["a", "b"]
+
+
+def _windowed(project, ids: list[str], *, private: bool = True) -> dict:
+    window = windowed_rms.TimelineWindow(2.0, 6.0, {tid: BASE for tid in ids})
+    return audio_audit._windowed_caches(project, ids, window, load_defaults(), private)
+
+
+@pytest.mark.parametrize("mono_rate", [None, 44100])
+def test_windows_built_together_are_those_built_one_after_another(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mono_rate: int | None
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads", mono_rate=mono_rate)
+    ids = _two_tracks(monkeypatch)
+    with monkeypatch.context() as serial:
+        serial.setattr(audio_audit, "cpu_budget", lambda: 1)
+        one_by_one = _windowed(project, ids)
+    monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
+
+    together = _windowed(project, ids)
+
+    assert list(together) == list(one_by_one) == ids
+    for tid in ids:
+        got, want = together[tid], one_by_one[tid]
+        assert isinstance(got, WindowedTrackRmsCache) and isinstance(want, WindowedTrackRmsCache)
+        assert (got.coverage, got.total_size) == (want.coverage, want.total_size)
+        assert _same(got.held, want.held)
+
+
+def test_windows_are_built_while_the_caller_holds_the_project_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    ids = _two_tracks(monkeypatch)
+    monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
+    result: dict = {}
+
+    def approve() -> None:
+        with project_state_lock(project):
+            result.update(_windowed(project, ids, private=False))
+
+    caller = threading.Thread(target=approve, daemon=True)
+    caller.start()
+    caller.join(timeout=120)
+
+    assert not caller.is_alive(), "a window build waited for the lock its caller held"
+    assert list(result) == ids
+
+
+def test_a_track_whose_window_cannot_be_built_is_skipped_and_the_other_is_built(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    ids = _two_tracks(monkeypatch)
+    monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
+    profiles = {"a": BASE, "b": LevelProfile(room_db=-61.0, speech_db=-21.0, loud_db=-13.0)}
+    real = track_evidence.build_window
+
+    def build(plan, start, end, *, profile):  # type: ignore[no-untyped-def]
+        if profile is profiles["a"]:
+            raise ValueError("bad")
+        return real(plan, start, end, profile=profile)
+
+    monkeypatch.setattr(track_evidence, "build_window", build)
+    window = windowed_rms.TimelineWindow(2.0, 6.0, profiles)
+
+    found = audio_audit._windowed_caches(project, ids, window, load_defaults(), True)
+
+    assert list(found) == ["b"]
+    assert found["b"].profile is profiles["b"]
+
+
+@pytest.mark.parametrize(
+    ("errors", "raised"),
+    [
+        ({"a": RuntimeError("first"), "b": KeyError("second")}, RuntimeError),
+        ({"a": OSError("skipped"), "b": KeyError("second")}, KeyError),
+        ({"a": KeyError("first"), "b": OSError("skipped")}, KeyError),
+    ],
+)
+def test_the_first_error_by_track_order_is_the_one_raised(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    errors: dict[str, Exception],
+    raised: type[Exception],
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads")
+    ids = _two_tracks(monkeypatch)
+    monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
+    profiles = {"a": BASE, "b": LevelProfile(room_db=-61.0, speech_db=-21.0, loud_db=-13.0)}
+    by_profile = {id(profile): tid for tid, profile in profiles.items()}
+
+    def build(plan, start, end, *, profile):  # type: ignore[no-untyped-def]
+        raise errors[by_profile[id(profile)]]
+
+    monkeypatch.setattr(track_evidence, "build_window", build)
+    window = windowed_rms.TimelineWindow(2.0, 6.0, profiles)
+
+    with pytest.raises(raised) as caught:
+        audio_audit._windowed_caches(project, ids, window, load_defaults(), True)
+
+    expected = next(e for e in errors.values() if not isinstance(e, OSError))
+    assert caught.value is expected
+
+
+@pytest.mark.parametrize("extra", [0, 5])
+def test_the_window_and_the_tail_are_converted_at_the_same_time(
+    monkeypatch: pytest.MonkeyPatch, extra: int
+) -> None:
+    _ffmpeg_or_skip()
+    samples = _noise(3, 9.0)[: 9 * SOURCE_RATE - 3 + extra]
+    whole = _whole(samples)
+    first, last = 20_000, 24_000
+    real = FFmpegEngine.resample_streams
+    both_running = threading.Barrier(2, timeout=20)
+
+    def meeting(chunks, from_rate, rates):  # type: ignore[no-untyped-def]
+        both_running.wait()
+        return real(chunks, from_rate, rates)
+
+    monkeypatch.setattr(FFmpegEngine, "resample_streams", staticmethod(meeting))
+
+    got = resampled_window(_Array(samples), SOURCE_RATE, RATE, first, last)
+
+    assert got is not None
+    window, at, total = got
+    assert total == whole.size
+    assert _same(window, whole[at : min(last, total)])

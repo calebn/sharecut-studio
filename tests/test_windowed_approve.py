@@ -142,15 +142,22 @@ class _Counts:
         self.windows: list[tuple[float, float]] = []
         self.declined = 0
         self.fell_back = 0
-        real_eval, real_window = track_evidence._evaluate, track_evidence.rms_window
+        real_eval = track_evidence._evaluate
+        real_plan, real_build = track_evidence.plan_window, track_evidence.build_window
         real_whole = cut_proof.CarriedTimelineRms.whole
 
         def evaluate(tree, curve):  # type: ignore[no-untyped-def]
             self.whole.append(curve)
             return real_eval(tree, curve)
 
-        def window(project, track_id, defaults, start, end, **kwargs):  # type: ignore[no-untyped-def]
-            found = real_window(project, track_id, defaults, start, end, **kwargs)
+        def plan(*args, **kwargs):  # type: ignore[no-untyped-def]
+            found = real_plan(*args, **kwargs)
+            if found is None:
+                self.declined += 1
+            return found
+
+        def window(window_plan, start, end, **kwargs):  # type: ignore[no-untyped-def]
+            found = real_build(window_plan, start, end, **kwargs)
             if found is None:
                 self.declined += 1
             else:
@@ -162,7 +169,8 @@ class _Counts:
             return real_whole(timeline, project, defaults=defaults)
 
         monkeypatch.setattr(track_evidence, "_evaluate", evaluate)
-        monkeypatch.setattr(track_evidence, "rms_window", window)
+        monkeypatch.setattr(track_evidence, "plan_window", plan)
+        monkeypatch.setattr(track_evidence, "build_window", window)
         monkeypatch.setattr(cut_proof.CarriedTimelineRms, "whole", whole)
 
 
@@ -217,7 +225,7 @@ def test_without_windows_the_same_batch_evaluates_a_track_again_for_every_close_
 ) -> None:
     counts = _Counts(monkeypatch)
     # after the counter, so every window is declined and none is counted
-    monkeypatch.setattr(track_evidence, "rms_window", lambda *args, **kwargs: None)
+    monkeypatch.setattr(track_evidence, "plan_window", lambda *args, **kwargs: None)
 
     _approve(_project(tmp_path))
 
@@ -228,7 +236,7 @@ def test_a_windowed_batch_decides_as_the_same_batch_on_whole_track_rebuilds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     windowed = _approve(_project(tmp_path / "windowed"))
-    monkeypatch.setattr(track_evidence, "rms_window", lambda *args, **kwargs: None)
+    monkeypatch.setattr(track_evidence, "plan_window", lambda *args, **kwargs: None)
     rebuilt = _approve(_project(tmp_path / "rebuilt"))
 
     assert windowed == rebuilt
@@ -291,7 +299,7 @@ def test_a_stem_gone_stale_after_a_cut_does_not_evaluate_a_chained_track_again(
     assert len(counts.whole) == 1  # the host, once
     assert counts.fell_back == 0
 
-    monkeypatch.setattr(track_evidence, "rms_window", lambda *args, **kwargs: None)
+    monkeypatch.setattr(track_evidence, "plan_window", lambda *args, **kwargs: None)
     rebuilt = _project(tmp_path / "rebuilt", chained=("host",))
     _with_a_fresh_guest_stem(rebuilt)
     assert _approve(rebuilt) == outcome
@@ -1071,7 +1079,7 @@ def test_a_window_that_cannot_be_built_is_left_to_the_whole_track_build(
     def broken(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise error
 
-    monkeypatch.setattr(track_evidence, "rms_window", broken)
+    monkeypatch.setattr(track_evidence, "build_window", broken)
     host = LevelProfile(room_db=-70.0, speech_db=-20.0, loud_db=-15.0)
 
     built = build_track_rms_caches(
@@ -1092,7 +1100,7 @@ def test_a_window_that_raises_something_else_is_not_swallowed(
     def broken(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise KeyError("a bug")
 
-    monkeypatch.setattr(track_evidence, "rms_window", broken)
+    monkeypatch.setattr(track_evidence, "build_window", broken)
     with pytest.raises(KeyError):
         build_track_rms_caches(
             _project(tmp_path),
@@ -1172,13 +1180,13 @@ def test_a_window_near_the_start_of_the_timeline_begins_at_zero(
     timeline.caches_for(project, (40.0, 40.35), reach=6.0, defaults=defaults)
     timeline.applied(0.0)
     starts: list[float] = []
-    real = track_evidence.rms_window
+    real = track_evidence.build_window
 
-    def spy(p, t, d, start, end, **kw):  # type: ignore[no-untyped-def]
+    def spy(plan, start, end, **kw):  # type: ignore[no-untyped-def]
         starts.append(start)
-        return real(p, t, d, start, end, **kw)
+        return real(plan, start, end, **kw)
 
-    monkeypatch.setattr(track_evidence, "rms_window", spy)
+    monkeypatch.setattr(track_evidence, "build_window", spy)
 
     timeline.caches_for(project, (1.0, 1.35), reach=6.0, defaults=defaults)
 
