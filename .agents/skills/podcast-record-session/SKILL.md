@@ -107,7 +107,7 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    segment. Stop (it asks once: **Stop take** or **Keep recording**) ends
    the take (Stopped) and keeps a **blocking saving state**
    ("Saving to project… N of M chunks", then "Saved to project") until the
-   file ACK; the host Record stage lists the same status per participant and segment. Mute writes zeros (file stays continuous) and stops that
+   file ACK; the host Record stage lists the same status per participant. Mute writes zeros (file stays continuous) and stops that
    person's send. **M** (or the Marker button) posts a live comment with body
    `"Marker"`; typed notes use the same path. Guests see only their own comments
    in the room (other guests never see them there). Host DAW `daw.record.marker`

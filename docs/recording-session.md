@@ -628,7 +628,7 @@ shows the persistent "No sound is reaching the recorder." room alert with a
 PCM or a successful Check mic (context `running`, track live, enabled and not
 muted; the watchdog then re-arms, so still-silent input re-alarms after another
 ~5 s, this time with the "Still no audio" guidance until real PCM arrives). A failed check adds "Still no audio" guidance. Pause, mute, and normal
-quiet input never trigger it. Host heartbeats are unchanged. On the host the alert shows in the Record stage room; unlike mic loss it can be dismissed. Limitation: any sample above the floor counts as signal, so a dead input that delivers a constant DC offset or a dither floor above 2^-24 is not detected. Check mic while the tap is closed shows the "Still no audio" guidance and reopens the tap; a successful reopen clears it, and a failed one shows the keeper error. Safari's `interrupted` context state (a phone call, or another app holding audio) counts as a failed Check mic; the alarm itself does not depend on context state. A late timer tick (throttled or background tab, laptop sleep) restarts the 5 s window instead of counting the gap as silence.
+quiet input never trigger it. Host heartbeats are unchanged. On the host the alert shows in the Record stage room. It has no dismiss; it clears when audio arrives or Check mic finds a running microphone. Limitation: any sample above the floor counts as signal, so a dead input that delivers a constant DC offset or a dither floor above 2^-24 is not detected. Check mic while the tap is closed shows the "Still no audio" guidance and reopens the tap; a successful reopen clears it, and a failed one shows the keeper error. Safari's `interrupted` context state (a phone call, or another app holding audio) counts as a failed Check mic; the alarm itself does not depend on context state. A late timer tick (throttled or background tab, laptop sleep) restarts the 5 s window instead of counting the gap as silence.
 
 If the host's microphone is denied or unavailable when an active take begins,
 the Record stage shows browser or desktop recovery copy with Retry. The room
@@ -1271,12 +1271,15 @@ cannot. Every button runs the same `record.*` command as the palette.
   `X-Sharecut-Error-Code: take_open`. Landing a finished take's keeper on file
   ACK calls `RecordLandingService.land` directly and still runs while a later
   take is open.
-- Mute, Comment, the Record button and **More** sit in the dock under the room, so
-  they stay in reach on a phone. **More** holds **Stop take**, Land, **Record room
+- Mute, the Record button and **More** sit in the dock under the room, so they
+  stay in reach on a phone; Comment joins them once a take is live. **More** holds **Stop take**, Land, **Record room
   tone**, the upload status, a note when a removed participant's invite is closed
   and, last, **Invite and links…** (opens Share). **Record room tone** appears
-  there only in the lobby or after Stop. After **Create record room** or the
-  palette's **Copy guest link** the app toast says "Guest link copied".
+  there only in the lobby or after Stop. **Create record room**
+  announces "Record room created and guest link copied" ("Record room created" if
+  the copy failed); from the stage button the same words also show as a note on
+  the stage. The palette's **Copy guest link** (not a stage button) announces
+  "Guest link copied" in the app toast.
 - If the room lookup fails, the error comes with **Check again**.
 - Live comments announce what a new comment says ("Sam: Cut the cough"), never a
   count. Comments present when the stage opens and your own stay silent.

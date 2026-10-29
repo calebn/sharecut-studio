@@ -300,7 +300,7 @@ flowchart TD
    "No sound is reaching the recorder." alert with **Check mic** appears.
    Real audio, or a Check mic that finds a running,
    unmuted microphone, clears it. A sleeping or throttled tab restarts the
-   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. On the host the alert shows in the Record stage room, where it can be dismissed, and the stage status keeps the same capture state. Hardware checks for this alert are listed in the recording-session golden-ear checklist.
+   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. On the host the alert shows in the Record stage room, with no dismiss, and the stage status keeps the same capture state. Hardware checks for this alert are listed in the recording-session golden-ear checklist.
    Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the Join sheet,
    microphone loss disables Join and record until recovery.
