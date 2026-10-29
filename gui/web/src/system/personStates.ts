@@ -38,4 +38,5 @@ export const ROOM_TILE_TEXT = {
   saved: PERSON_STATES.saved.text,
   failed: "Couldn't save",
   invite: "Invite",
+  devices: "Devices",
 } as const;

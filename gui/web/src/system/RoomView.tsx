@@ -58,6 +58,8 @@ export type RoomViewProps = {
   onPause?: () => void;
   onMore?: () => void;
   onLeave?: () => void;
+  /** The viewer's own tile is pressable and opens the Device sheet. */
+  onSelfPress?: () => void;
   /**
    * The viewer declined to be recorded: the room dims behind a peek bar with
    * Join recording, and the rest of the room goes inert.
@@ -147,6 +149,7 @@ export function RoomView({
   onPause,
   onMore,
   onLeave,
+  onSelfPress,
   declined,
   embedded = false,
   recordDisabledReason,
@@ -282,7 +285,12 @@ export function RoomView({
                   onInvite={onInvite}
                 />
               ) : tile.kind === "invite" ? null : (
-                <RoomTile key={tile.key} {...tile.props} />
+                <RoomTile
+                  key={tile.key}
+                  {...(tile.props.presence === "live" && tile.props.isMe
+                    ? { ...tile.props, onPress: onSelfPress }
+                    : tile.props)}
+                />
               ),
             )}
           </div>

@@ -71,6 +71,7 @@ type TileBodyProps = {
   speaking?: boolean;
   saving?: RoomSaving | null;
   isMe?: boolean;
+  onPress?: () => void;
   badges?: ReactNode;
   glyphs?: ReactNode;
 };
@@ -81,6 +82,7 @@ function TileBody({
   speaking,
   saving,
   isMe,
+  onPress,
   badges,
   glyphs,
 }: TileBodyProps) {
@@ -106,6 +108,14 @@ function TileBody({
       }
     >
       {badges}
+      {onPress ? (
+        <button
+          type="button"
+          className="sys-room-press"
+          aria-label={ROOM_TILE_TEXT.devices}
+          onClick={onPress}
+        />
+      ) : null}
       <div className="sys-room-main">
         <div className="sys-room-face" style={levelStyle}>
           <PersonAvatar person={person} size={32} />
@@ -147,6 +157,7 @@ function LiveTile(props: LiveProps) {
       speaking={speaking}
       saving={props.saving}
       isMe={props.isMe}
+      onPress={props.onPress}
       badges={
         props.alert || clips ? (
           <div className="sys-room-badges">

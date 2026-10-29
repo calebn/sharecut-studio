@@ -58,6 +58,24 @@ describe("RoomView", () => {
     expect(screen.getAllByRole("main")).toHaveLength(1);
   });
 
+  it("opens the device sheet from the viewer's own tile only", async () => {
+    const onSelfPress = vi.fn();
+    renderRoom({ onSelfPress });
+    const presses = screen.getAllByRole("button", { name: "Devices" });
+    expect(presses).toHaveLength(1);
+    const tile = presses[0].closest(".sys-room-tile");
+    expect(tile).toHaveTextContent("Jon");
+    presses[0].focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(presses[0]);
+    expect(onSelfPress).toHaveBeenCalledTimes(2);
+  });
+
+  it("draws no press target without a handler", () => {
+    renderRoom();
+    expect(screen.queryByRole("button", { name: "Devices" })).toBeNull();
+  });
+
   it("shows the status pill and the one live alert row", () => {
     renderRoom({
       alerts: [{ kind: "mic-lost", onAction: vi.fn() }],

@@ -50,7 +50,7 @@ export type JoinRow = {
   action?: { label: string; name: string; kind: JoinMicAction | "blocker" };
 };
 
-type JoinNote = { tone: "warning"; text: string };
+export type JoinNote = { tone: "warning"; text: string };
 
 type JoinGuestInput = {
   name: string;
@@ -178,7 +178,7 @@ function nameRow(name: string): JoinRow {
   };
 }
 
-function micRow(mic: JoinMic): JoinRow {
+export function micRow(mic: JoinMic): JoinRow {
   switch (mic.status) {
     case "idle":
       return {
@@ -244,7 +244,7 @@ function storageRow(blocker: JoinBlocker): JoinRow {
   };
 }
 
-function headphonesRow(on: boolean): JoinRow {
+export function headphonesRow(on: boolean): JoinRow {
   return {
     key: "headphones",
     state: on ? "done" : "queued",
@@ -259,6 +259,15 @@ function primaryFor(
 ): JoinPrimary {
   if (joining) return { label: JOIN_TEXT.joining, reason: null, busy: true };
   return { label, reason, busy: false };
+}
+
+/** The mic row's lines under the meter: the caller's, then too loud. */
+export function micNoteList(mic: JoinMic, extra: string[] = []): JoinNote[] {
+  const notes: JoinNote[] = extra.map((text) => ({ tone: "warning", text }));
+  if (mic.status === "ready" && mic.clipped) {
+    notes.push({ tone: "warning", text: JOIN_TEXT.tooLoud });
+  }
+  return notes;
 }
 
 export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
@@ -279,13 +288,7 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
         : next === "mic" && input.mic.status !== "ready"
           ? MIC_REASON[input.mic.status]
           : REASON[next];
-  const micNotes: JoinNote[] = (input.micNotes ?? []).map((text) => ({
-    tone: "warning",
-    text,
-  }));
-  if (input.mic.status === "ready" && input.mic.clipped) {
-    micNotes.push({ tone: "warning", text: JOIN_TEXT.tooLoud });
-  }
+  const micNotes = micNoteList(input.mic, input.micNotes);
   if (input.lowStorage) {
     micNotes.push({ tone: "warning", text: JOIN_TEXT.lowStorage });
   }

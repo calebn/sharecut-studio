@@ -1,0 +1,145 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
+import { DeviceSheet, type DeviceSheetProps } from "./DeviceSheet";
+import type { DeviceMic } from "./deviceSheetModel";
+
+const READY = {
+  status: "ready",
+  input: "USB Mic",
+  level: 0.3,
+  devices: [
+    { id: "a", label: "USB Mic" },
+    { id: "b", label: "Headset" },
+  ],
+  inputId: "a",
+} satisfies DeviceMic;
+
+const TONE = { state: "idle", label: "Record 3 seconds of room tone" } as const;
+
+const sheet = (props: Partial<DeviceSheetProps> = {}) => (
+  <DeviceSheet
+    mic={READY}
+    tone={TONE}
+    onRecordRoomTone={vi.fn()}
+    onClose={vi.fn()}
+    {...props}
+  />
+);
+
+describe("DeviceSheet", () => {
+  it("is a Devices dialog with no Apply", async () => {
+    const { baseElement } = render(sheet());
+    expect(screen.getByRole("dialog", { name: "Devices" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /apply/i })).toBeNull();
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("applies an input change at once", async () => {
+    const onInputChange = vi.fn();
+    render(sheet({ onInputChange }));
+    await userEvent.selectOptions(screen.getByLabelText("Input"), "b");
+    expect(onInputChange).toHaveBeenCalledWith("b");
+  });
+
+  it("locks the input menu while a take is running", () => {
+    render(sheet({ mic: { ...READY, inputLocked: true } }));
+    expect(screen.getByLabelText("Input")).toBeDisabled();
+    expect(
+      screen.getByText("Can't change while a take is running."),
+    ).toBeVisible();
+  });
+
+  it("toggles headphones, and omits the toggle without a handler", async () => {
+    const onHeadphonesChange = vi.fn();
+    const { rerender } = render(sheet({ onHeadphonesChange }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "I'm wearing headphones" }),
+    );
+    expect(onHeadphonesChange).toHaveBeenCalledWith(true);
+    rerender(sheet());
+    expect(screen.queryByText("Headphones")).toBeNull();
+  });
+
+  it("records room tone from the row", async () => {
+    const onRecordRoomTone = vi.fn();
+    render(sheet({ onRecordRoomTone }));
+    await userEvent.click(screen.getByRole("button", { name: TONE.label }));
+    expect(onRecordRoomTone).toHaveBeenCalledOnce();
+  });
+
+  it("says why room tone waits", () => {
+    render(
+      sheet({ tone: { ...TONE, disabledReason: "Record between takes." } }),
+    );
+    expect(screen.getByRole("button", { name: TONE.label })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: TONE.label }),
+    ).toHaveAccessibleDescription("Record between takes.");
+  });
+
+  it("shows a room tone that was too loud", async () => {
+    const { baseElement } = render(
+      sheet({
+        tone: {
+          ...TONE,
+          state: "too-loud",
+          message: "Too loud: is something playing?",
+        },
+      }),
+    );
+    expect(screen.getByText("Too loud: is something playing?")).toBeVisible();
+    expect(baseElement.querySelector("[data-state]")).toHaveAttribute(
+      "data-state",
+      "room-tone-too-loud",
+    );
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("asks the caller to act when the mic is blocked", async () => {
+    const onMicAction = vi.fn();
+    const { baseElement } = render(
+      sheet({ mic: { status: "denied" }, onMicAction }),
+    );
+    expect(screen.queryByLabelText("Input")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "How to allow the microphone" }),
+    );
+    expect(onMicAction).toHaveBeenCalledWith("how-to");
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("offers Retry for a lost input and for no input", async () => {
+    const onMicAction = vi.fn();
+    const { rerender } = render(
+      sheet({
+        mic: { status: "lost", detail: "Microphone disconnected." },
+        onMicAction,
+      }),
+    );
+    expect(screen.getByText("Microphone disconnected.")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry microphone" }),
+    );
+    rerender(sheet({ mic: { status: "none" }, onMicAction }));
+    expect(screen.getByText("No microphone found")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry microphone" }),
+    );
+    expect(onMicAction).toHaveBeenCalledTimes(2);
+    expect(onMicAction).toHaveBeenLastCalledWith("retry");
+  });
+
+  it("closes on Escape", async () => {
+    const onClose = vi.fn();
+    render(sheet({ onClose }));
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("is a bottom sheet on the phone", () => {
+    render(sheet({ viewerWidth: "phone" }));
+    expect(screen.getByRole("dialog", { name: "Devices" })).toBeInTheDocument();
+  });
+});

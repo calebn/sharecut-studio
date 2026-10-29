@@ -139,7 +139,7 @@ const COVERED: Record<string, string[]> = {
   "SCR-REC-DECLINED": ["Stages/Record/Room"],
   "SCR-REC-LOBBY-GUEST": ["Stages/Record/JoinSheet"],
   "SCR-REC-LOBBY-PRODUCER": ["Stages/Record/JoinSheet"],
-  "CMP-REC-DEVICE": ["Stages/Record/JoinSheet"],
+  "CMP-REC-DEVICE": ["Stages/Record/JoinSheet", "Stages/Record/DeviceSheet"],
   "CMP-REC-CONSENT": ["Stages/Record/JoinSheet"],
   "SCR-REC-ROOM-GUEST": ["Stages/Record/Room"],
   "SCR-REC-ROOM-PRODUCER": ["Stages/Record/Room"],

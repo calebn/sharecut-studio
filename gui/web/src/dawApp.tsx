@@ -177,6 +177,10 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       onRetryMic: hostKeeper.retryMic,
       onCheckMic: hostKeeper.checkMic,
       micCheckFailed: hostKeeper.micCheckFailed,
+      devices: hostKeeper.devices,
+      deviceId: hostKeeper.deviceId,
+      staleMic: hostKeeper.staleMic,
+      onDeviceChange: hostKeeper.setDeviceId,
     },
     { hydrate: syncEnabled && recordStageActive },
   );
