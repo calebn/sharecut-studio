@@ -12,6 +12,8 @@ export type ShareFlow = {
   rows: readonly HostShareRow[];
   /** False until the first list of this project answers. */
   loaded: boolean;
+  /** True while the last list failed, until a list answers. */
+  listFailed: boolean;
   choices: ShareChoices;
   setChoices: (next: ShareChoices) => void;
   /** One action runs at a time; a second is dropped while this is true. */

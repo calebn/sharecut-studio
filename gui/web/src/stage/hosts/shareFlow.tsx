@@ -65,6 +65,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const announceStatus = useDawStore((s) => s.announceStatus);
   const [rows, setRows] = useState<readonly HostShareRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [listFailed, setListFailed] = useState(false);
   const [choices, setChoices] = useState<ShareChoices>(SHARE_DEFAULTS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,9 +167,11 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         if (mine !== loadGeneration.current || !isCurrent(scope)) return;
         setRows(data.shares);
         setLoaded(true);
+        setListFailed(false);
         setError((shown) => (shown === listFailure.current ? null : shown));
       } catch (err) {
         if (mine === loadGeneration.current && isCurrent(scope)) {
+          setListFailed(true);
           listFailure.current = errorMessage(err);
           setError(listFailure.current);
         }
@@ -224,6 +227,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     if (!sameProject) {
       setRows([]);
       setLoaded(false);
+      setListFailed(false);
     }
   }, [projectPath, projectEpoch, onDeliver, clearCopiedTimer]);
 
@@ -581,6 +585,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     () => ({
       rows,
       loaded,
+      listFailed,
       choices,
       setChoices,
       busy,
@@ -601,6 +606,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [
       rows,
       loaded,
+      listFailed,
       choices,
       busy,
       recovery,
