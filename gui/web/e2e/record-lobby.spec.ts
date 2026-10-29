@@ -30,6 +30,7 @@ import {
   joinNameField,
   landParticipant,
   markSharecutE2e,
+  openHostDevices,
   openHostMore,
   openHostRecordRoom,
   openRecordLink,
@@ -941,7 +942,7 @@ test.describe("record lobby", () => {
           ),
         ).toHaveCount(0);
         await expect(
-          (await openHostMore(room)).getByRole("button", {
+          (await openHostDevices(room)).getByRole("button", {
             name: "Record 3 seconds of room tone",
           }),
         ).toBeEnabled();

@@ -515,6 +515,18 @@ export async function openHostMore(scope: Page | Locator): Promise<Locator> {
   return dialog;
 }
 
+export async function openHostDevices(scope: Page | Locator): Promise<Locator> {
+  const page = "page" in scope ? scope.page() : scope;
+  const dialog = page.getByRole("dialog", { name: "Devices", exact: true });
+  if (await dialog.isVisible()) {
+    return dialog;
+  }
+  const more = await openHostMore(scope);
+  await more.getByRole("button", { name: "Devices…", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
 export async function closeHostMore(scope: Page | Locator): Promise<void> {
   const dialog = hostMoreDialog(scope);
   if (await dialog.isVisible()) {
