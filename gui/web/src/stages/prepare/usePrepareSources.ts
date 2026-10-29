@@ -69,7 +69,7 @@ export function usePrepareSources(input: {
     const { projectPath: path } = latest.current;
     const trimmed = name.trim();
     if (!trimmed) return;
-    // The rename becomes the newest history entry, so a standing Undo would undo it instead.
+    // The rename becomes the newest history entry, so a standing Undo would be refused as stale.
     const toast = useDawStore.getState().feedbackToast;
     if (toast?.undo) useDawStore.getState().dropFeedbackUndo(toast.id);
     void setTrackMetaCommand(path, trackId, {
