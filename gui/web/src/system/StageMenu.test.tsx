@@ -48,4 +48,19 @@ describe("StageMenu", () => {
     expect(onSelect).toHaveBeenCalledWith("deliver");
     expect(screen.queryByRole("menu")).toBeNull();
   });
+
+  it("carries the Record badge on the Record row", async () => {
+    const user = userEvent.setup();
+    render(
+      <StageMenu
+        active="edit"
+        record={{ kind: "waiting", count: 3 }}
+        onSelect={() => undefined}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Stage menu, Edit" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Record 3 waiting" }),
+    ).toBeInTheDocument();
+  });
 });

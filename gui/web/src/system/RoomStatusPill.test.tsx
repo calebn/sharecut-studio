@@ -21,6 +21,19 @@ describe("RoomStatusPill", () => {
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
+  it("reads the clock alone while live and the word alone while paused in the compact form", () => {
+    expect(
+      roomPillRendering({ kind: "live", take: 2, clockSec: 724 }, true).text,
+    ).toBe("12:04");
+    expect(
+      roomPillRendering({ kind: "paused", clockSec: 724 }, true).text,
+    ).toBe("Paused");
+    render(<RoomStatusPill compact phase={{ kind: "paused", clockSec: 9 }} />);
+    expect(screen.getByText("Paused").closest(".sys-pill")).toHaveClass(
+      "sys-pill--compact",
+    );
+  });
+
   it("uses the live glyph only while a take runs", () => {
     expect(
       roomPillRendering({ kind: "live", take: 1, clockSec: 0 }).state,

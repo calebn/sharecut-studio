@@ -21,7 +21,7 @@ const meta: Meta<typeof RoomStatusPill> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "What the room is doing, in one status pill, the same for every role and place. Capture health (mic lost, no audio) is on a person's tile and in the alert slot, so the pill only says waiting, counting in, live with the take clock, paused, saving, saved or reconnecting. Paused shares the hollow glyph with waiting; the word tells them apart.\n\n**Motion.** Later: a turning saving ring. The clock text changes without animation.",
+          "What the room is doing, in one status pill, the same for every role and place. Capture health (mic lost, no audio) is on a person's tile and in the alert slot, so the pill only says waiting, counting in, live with the take clock, paused, saving, saved or reconnecting. The compact form is the Stage bar's badge: the clock alone while live, \"Paused\" without it. Paused shares the hollow glyph with waiting; the word tells them apart.\n\n**Motion.** Later: a turning saving ring. The clock text changes without animation.",
       },
     },
   },
@@ -57,4 +57,10 @@ export const Saving: Story = {
 export const Saved: Story = { args: { phase: { kind: "saved" } } };
 export const Reconnecting: Story = {
   args: { phase: { kind: "reconnecting" } },
+};
+export const Compact: Story = {
+  args: { phase: { kind: "live", take: 2, clockSec: 724 }, compact: true },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText("12:04")).toBeInTheDocument();
+  },
 };
