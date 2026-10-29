@@ -81,7 +81,7 @@ Listen-first review keeps the conversation on the pending inspector (current tim
 
 A thread on a generated tighten hit (filler, pause, repetition, restart, acoustic) survives **Find more** / `propose_edits` re-runs: re-proposal replaces the pending decision but derives its id from the hit's track, kind and target span, so the fresh decision carries the id the thread links to, even when intensity moves its edges. A hit that no longer comes back (the transcript under it changed, or analysis dropped it) leaves its thread unlinked. See [filler-cut-quality.md § CLI / MCP](filler-cut-quality.md#cli--mcp).
 
-The Ask compose and the public review page default the author to the same session display name as the Comments tab (saved name, else Host for the host and Guest for a share guest). A blank name field falls back to that same display name for posts, replies, resolves and action items, so a guest never acts under a host's saved `Host` (or the reverse).
+The Ask compose and the public review page default the author to the same session display name as the Review comment field and the Comments tab (saved name, else Host for the host and Guest for a share guest). A blank name field falls back to that same display name for posts, replies, resolves and action items, so a guest never acts under a host's saved `Host` (or the reverse).
 
 ## Comments from Align tracks
 
@@ -232,7 +232,7 @@ Requires the FOSS `collaboration` extension (default; disable with `PODCAST_EXTE
 
 Token algorithm, roles, Restricted identity: **[share-tokens.md](share-tokens.md)**. Revoke: `podcast review revoke-share --token …`. Threat model: on link shares the token is the capability set; on Restricted shares the coolname alone is insufficient. Host workspace metadata and object storage keys stay private. Comment and reply text is returned as authored, including path-like text. Remote MCP guests never receive `project_path` and cannot call host-only tools (pipeline, ingest, laptop play).
 
-**Comment resolve is host-only.** The host can resolve or reopen a thread in the Comments tab or on its Review queue card; that state lives in the project and persists when the host publishes another review version. Guests (human and agent) may add comments, replies, and toggle action items when those caps are on the token. There is no share HTTP or `guest_*` tool to resolve/reopen a thread. Anonymous link shares have no verified per-guest identity for own-thread resolve; if guest resolve is added later, it must ship HTTP and MCP together.
+**Comment resolve is host-only.** The host can resolve or reopen a thread on its Review queue card (or in a guest-visible Comments tab); that state lives in the project and persists when the host publishes another review version. Guests (human and agent) may add comments, replies, and toggle action items when those caps are on the token. There is no share HTTP or `guest_*` tool to resolve/reopen a thread. Anonymous link shares have no verified per-guest identity for own-thread resolve; if guest resolve is added later, it must ship HTTP and MCP together.
 
 The host Comments panel keeps the latest resolved comment in panel-local toast
 state. Successful Undo clears that toast and announces `Comment reopened` while
