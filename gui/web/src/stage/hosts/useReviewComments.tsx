@@ -215,20 +215,38 @@ export function useReviewComments(enabled: boolean) {
       state.setCommentDraft(resolveCommentAnchor(state).draft);
   };
 
+  // The field unmounts when the draft clears, so focus goes back to the stage
+  // (found before it unmounts) and the keyboard keeps its place.
+  const stageOf = () =>
+    composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
+
   const close = () => {
+    const stage = stageOf();
     setBody("");
     postComment.setError(null);
     useDawStore.getState().setCommentDraft(null);
+    stage?.focus({ preventScroll: true });
   };
 
+  const postBusy = useRef(false);
   const post = async () => {
-    const result = await postComment.post({
-      body,
-      author: commitCommentActor(name, COMMENT_ROLE, setName),
-    });
-    if (!result.ok) return;
-    setBody("");
-    useDawStore.getState().announceStatus(commentPostedStatus(result.comment));
+    if (postBusy.current) return;
+    postBusy.current = true;
+    const stage = stageOf();
+    try {
+      const result = await postComment.post({
+        body,
+        author: commitCommentActor(name, COMMENT_ROLE, setName),
+      });
+      if (!result.ok) return;
+      setBody("");
+      useDawStore
+        .getState()
+        .announceStatus(commentPostedStatus(result.comment));
+      stage?.focus({ preventScroll: true });
+    } finally {
+      postBusy.current = false;
+    }
   };
 
   const composer =
@@ -236,7 +254,12 @@ export function useReviewComments(enabled: boolean) {
       <div
         className="rv-compose"
         onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
+          if (
+            event.key !== "Escape" ||
+            event.nativeEvent.isComposing ||
+            event.keyCode === 229
+          )
+            return;
           event.stopPropagation();
           close();
         }}
