@@ -86,23 +86,49 @@ describe("landGate", () => {
     ).toEqual({ enabled: true, label: "Retry land" });
   });
 
+  const withComment = recordSnapshot({
+    state: "stopped",
+    take_index: 0,
+    comments: [
+      {
+        id: "c1",
+        take_index: 0,
+        recording_ms: 10,
+        pressed_wall_ms: 10,
+        author: "p_host",
+        body: "Marker",
+      },
+    ],
+  });
+  const saving = "Recordings are still saving to the project.";
+
   it("lands live comments even when every recording already landed", () => {
-    const withComment = recordSnapshot({
-      state: "stopped",
-      take_index: 0,
-      comments: [
-        {
-          id: "c1",
-          take_index: 0,
-          recording_ms: 10,
-          pressed_wall_ms: 10,
-          author: "p_host",
-          body: "Marker",
-        },
-      ],
-    });
     expect(
       landGate(withComment, [segment({ file_ack: true, landed: true })]),
+    ).toEqual({ enabled: true, label: "Land" });
+    expect(landGate(withComment, [])).toEqual({ enabled: true, label: "Land" });
+  });
+
+  it("keeps Land disabled while a recording saves, comments or not", () => {
+    expect(landGate(withComment, [segment({ file_ack: false })])).toEqual({
+      enabled: false,
+      label: "Land",
+      reason: saving,
+    });
+  });
+
+  it("lands an acknowledged recording with comments present", () => {
+    expect(
+      landGate(withComment, [segment({ file_ack: true, landed: false })]),
+    ).toEqual({ enabled: true, label: "Land" });
+  });
+
+  it("lands what is ready while another recording still saves", () => {
+    expect(
+      landGate(withComment, [
+        segment({ file_ack: true, landed: false }),
+        { ...segment({ file_ack: false }), segment_index: 1 },
+      ]),
     ).toEqual({ enabled: true, label: "Land" });
   });
 

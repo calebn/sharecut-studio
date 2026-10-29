@@ -95,7 +95,7 @@ export function landGate(
     return { enabled: true, label: "Retry land" };
   }
   const waiting = segments.some((row) => row.file_ack && !row.landed);
-  if (waiting || (snapshot.comments?.length ?? 0) > 0) {
+  if (waiting) {
     return { enabled: true, label: "Land" };
   }
   if (segments.some((row) => !row.file_ack)) {
@@ -104,6 +104,9 @@ export function landGate(
       label: "Land",
       reason: "Recordings are still saving to the project.",
     };
+  }
+  if ((snapshot.comments?.length ?? 0) > 0) {
+    return { enabled: true, label: "Land" };
   }
   if (segments.length === 0) {
     return {
