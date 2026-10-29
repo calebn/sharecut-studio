@@ -310,7 +310,7 @@ const fetchStub = vi.fn(
     }
     if (url.includes("/refine/waive")) {
       order.push("waive");
-      server.waived.push(JSON.parse(String(init?.body)).reason);
+      server.waived.push(JSON.parse(init?.body as string).reason);
       if (!server.gateSticks) server.gate = false;
       return server.waiveFails ? json({ detail: "no" }, 500) : json({});
     }
@@ -777,7 +777,9 @@ describe("Review host unsure words", () => {
     await pick(/uncle/);
     expect(heading()).toBe("Is this “uncle”?");
     expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
-    act(() => press("Enter"));
+    act(() => {
+      press("Enter");
+    });
     expect(heading()).toBe("Is this “gnu”?");
     await undoButton();
     expect(sent("CorrectTranscriptWord")).toHaveLength(1);
@@ -800,7 +802,9 @@ describe("Review host unsure words", () => {
     setup();
     await pick(/uncle/);
     for (let i = 0; i < 3; i++) {
-      act(() => press("Enter"));
+      act(() => {
+        press("Enter");
+      });
       await waitFor(() =>
         expect(sent("CorrectTranscriptWord")).toHaveLength(i + 1),
       );
@@ -821,7 +825,10 @@ describe("Review host unsure words", () => {
     server.markFails = true;
     setup();
     await pick(/uncle/);
-    for (let i = 0; i < 3; i++) act(() => press("Enter"));
+    for (let i = 0; i < 3; i++)
+      act(() => {
+        press("Enter");
+      });
     await waitFor(() => expect(order).toContain("done"));
     await checks();
     expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
@@ -837,7 +844,10 @@ describe("Review host unsure words", () => {
       },
     });
     await pick(/uncle/);
-    for (let i = 0; i < 3; i++) act(() => press("Enter"));
+    for (let i = 0; i < 3; i++)
+      act(() => {
+        press("Enter");
+      });
     await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(3));
     expect(order).not.toContain("done");
     await checks();
@@ -895,7 +905,9 @@ describe("Review host unsure words", () => {
     server.correctFails = true;
     setup();
     await pick(/uncle/);
-    act(() => press("Enter"));
+    act(() => {
+      press("Enter");
+    });
     await waitFor(() =>
       expect(useDawStore.getState().feedbackToast?.tone).toBe("error"),
     );
