@@ -69,20 +69,34 @@ async function openPrepare(
 }
 
 async function textFits(page: Page, selector: string): Promise<void> {
-  const widths = await page.locator(selector).evaluateAll((elements) =>
-    elements.map((element) => ({
-      text: element.textContent,
-      client: element.clientWidth,
-      scroll: element.scrollWidth,
-    })),
+  const boxes = await page.locator(selector).evaluateAll((elements) =>
+    elements
+      .filter((element) => element.getClientRects().length > 0)
+      .map((element) => {
+        const box = element.getBoundingClientRect();
+        const parent = element.parentElement?.getBoundingClientRect();
+        return {
+          text: element.textContent,
+          width: box.width,
+          right: box.right,
+          parentRight: parent?.right ?? null,
+          client: element.clientWidth,
+          scroll: element.scrollWidth,
+        };
+      }),
   );
-  expect(widths.length).toBeGreaterThan(0);
-  for (const { text, client, scroll } of widths) {
+  // A hidden match has no box and would pass every width check below.
+  expect(boxes.length).toBeGreaterThan(0);
+  for (const { text, width, right, parentRight, client, scroll } of boxes) {
+    expect(width, `${text} has a box`).toBeGreaterThan(0);
+    expect(parentRight, `${text} has a parent`).not.toBeNull();
+    // An inline span reports a client width of 0, so its edge is held to its parent's.
+    expect(right, text ?? "").toBeLessThanOrEqual((parentRight ?? 0) + 1);
     expect(scroll, text ?? "").toBeLessThanOrEqual(client + 1);
   }
 }
 
-test.use({ hasTouch: true });
+test.use({ hasTouch: true, isMobile: true });
 
 const CELLS = [320, 390, 1440].flatMap((width) =>
   [16, 32].map((rootFont) => ({
