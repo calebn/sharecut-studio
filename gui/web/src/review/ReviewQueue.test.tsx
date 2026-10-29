@@ -139,4 +139,39 @@ describe("ReviewQueue", () => {
     fireEvent.click(getByRole("button", { name: "Try again" }));
     expect(onFindMore).toHaveBeenCalledOnce();
   });
+
+  it("keeps the standalone Cutting row out of a filter that does not hold its kind", () => {
+    const props = {
+      items: [],
+      content: reviewContent,
+      selectedId: null,
+      onFilter: vi.fn(),
+      onSelect: vi.fn(),
+      bulkRunning: { kind: "filler" as const, total: 4 },
+    };
+    const { queryByText, rerender } = render(
+      <ReviewQueue {...props} filter="comments" />,
+    );
+    expect(queryByText("Cutting 4…")).toBeNull();
+    rerender(<ReviewQueue {...props} filter="suggestions" />);
+    expect(queryByText("Cutting 4…")).not.toBeNull();
+  });
+
+  it("describes the disabled Find more by a visible note", () => {
+    const { getByRole, getByText } = render(
+      <ReviewQueue
+        items={[]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        findMoreDisabled="Wait for the settings to load."
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(getByRole("button", { name: "Find more" })).toHaveAttribute(
+      "aria-describedby",
+      getByText("Wait for the settings to load.").id,
+    );
+  });
 });
