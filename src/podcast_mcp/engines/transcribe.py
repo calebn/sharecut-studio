@@ -71,12 +71,12 @@ ASR_CACHE_VARIANTS = 2
 ASR_CACHE_LOCK_TIMEOUT_SEC = 10.0
 
 _T = TypeVar("_T")
-
+# A bare "out of memory" is left out: the host raises it too, and the CPU needs more host memory.
+_GPU_ERROR = re.compile(r"cuda|cublas|cudnn|\bgpu\b", re.IGNORECASE)
+# The probe's loop ratio is faster-whisper's own compression_ratio_threshold.
 _PROBE_MAX_NEW_TOKENS = 32
 _PROBE_LOOP_RATIO = 2.4
 _PROBE_REPETITION_PENALTY = 1.3
-# A bare "out of memory" is left out: the host raises it too, and the CPU needs more host memory.
-_GPU_ERROR = re.compile(r"cuda|cublas|cudnn|\bgpu\b", re.IGNORECASE)
 
 # ``forced_alignment_jobs`` statuses where the aligner's times replaced Whisper's
 # (set in ``_align_words``); ``keep_whisper`` records ``failed`` / ``skipped``.
@@ -492,8 +492,7 @@ class TranscriptionEngine:
         cpu_threads: int | None = None,
     ) -> None:
         self.model_size = validate_whisper_model(model_size)
-        # None leaves the thread count to CTranslate2; a fixed count keeps CPU results the same
-        # across machines.
+        # A fixed count keeps the CPU decode the same from run to run (#2632).
         self.cpu_threads = cpu_threads
         if device not in ("auto", "cpu", "cuda"):
             raise CodedValueError(
@@ -781,9 +780,7 @@ class TranscriptionEngine:
         sound that is not a word comes back as a filler or nothing. Temperature 0 only: the
         default fallback ladder samples from a shared random generator, so the same span
         could read as a word on one call and not on the next (#2632). Plain temperature 0
-        can loop on a short filler ("Uh, uh, uh, ..."), so a decode whose compression ratio
-        passes the ladder's own threshold is run again with a repetition penalty and that
-        one is kept; both are capped at a few words of tokens.
+        can loop on a short filler ("Uh, uh, uh, ..."), hence the penalised retry.
         """
 
         def decode(**extra: object) -> tuple[str, bool]:

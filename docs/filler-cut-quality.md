@@ -1313,7 +1313,10 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   unlabelled and counts `word_probe:unavailable`. A span whose Whisper decode fails counts
   `word_probe:failed` and Propose still returns the rest; the human summary names both
   (`N word probe unavailable`, `N word probe failed`). Listening reports a named
-  `word-probe` progress child once per heard span. The decode is deterministic (#2632): temperature 0 with no fallback ladder, so no sampling (a decode that loops, compression ratio above 2.4, is run once more with a repetition penalty of 1.3, and both decodes stop at 32 tokens), and the probe's CPU model is pinned to 4 threads, so a span reads the same on every call, in every process and on every machine. Lab (2026-10-13, #1062; oracle: the #1024
+  `word-probe` progress child once per heard span. The decode is deterministic (#2632):
+  temperature 0 with no fallback ladder, a penalised retry for a looping decode, and the
+  probe's CPU model pinned to 4 threads, so a span reads the same on every call and in
+  every process (`transcribe_samples`). Lab (2026-10-13, #1062; oracle: the #1024
   classification, Whisper `base.en` on each span with the disfluency prompt, so the probe model
   and the oracle differ): proposal counts are identical before and after in all four variants
   (mute 58 and 91, ripple 27 and 54, Whisper and forced-aligner word times); of 17 oracle

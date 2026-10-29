@@ -40,7 +40,7 @@ WHISPER_SAMPLE_RATE = 16_000
 SPAN_PAD_SEC = 0.3
 # Keeps the model from tidying a hesitation away and lets it write the sound it hears.
 DISFLUENCY_PROMPT = "Umm, uh, hmm. Uh, um, mm-hmm. Uhh."
-# A fixed count, so the same span reads the same on any machine (#2632).
+# A fixed count, so the same span reads the same from run to run (#2632).
 PROBE_CPU_THREADS = 4
 
 # Sounds a model writes down that are not words: hesitations, laughs, backchannels, breaths.
