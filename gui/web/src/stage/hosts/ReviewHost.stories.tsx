@@ -248,6 +248,12 @@ export const PhoneGuestCommenter: Story = {
     await expect(
       canvas.queryByRole("tablist", { name: "Review sections" }),
     ).toBeNull();
+    await expect(
+      await canvas.findByRole("textbox", { name: "Comment" }),
+    ).toBeVisible();
+    await expect(
+      await canvas.findByRole("textbox", { name: "Your name" }),
+    ).toBeVisible();
   },
 };
 
@@ -261,5 +267,6 @@ export const GuestViewer: Story = {
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Deliver" })).toBeNull();
     await expect(canvas.queryByRole("tab", { name: /Queue/ })).toBeNull();
+    await expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull();
   },
 };

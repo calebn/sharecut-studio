@@ -7,7 +7,6 @@ import {
   CommentCompose,
   commentPostedStatus,
   commentTimeLabel,
-  GuestNameStep,
   setCommentResolved,
   useCommentActions,
   useGuestName,
@@ -22,11 +21,7 @@ import { commitCommentActor } from "../utils/commentAuthor";
 
 type Filter = "open" | "resolved" | "actions" | "all";
 
-export function CommentsPanel({
-  guestShare = false,
-}: {
-  guestShare?: boolean;
-}) {
+export function CommentsPanel() {
   const {
     project,
     projectPath,
@@ -48,7 +43,7 @@ export function CommentsPanel({
   }));
 
   const [filter, setFilter] = useState<Filter>("open");
-  const role = commentRole(projectPath, guestMode, guestShare);
+  const role = commentRole(projectPath, guestMode);
   const guestName = useGuestName(role);
   const [body, setBody] = useState("");
   const [actionLine, setActionLine] = useState("");
@@ -130,8 +125,7 @@ export function CommentsPanel({
 
   const onCreate = () => {
     setActionError(null);
-    const who = guestName.authorForPost();
-    return who === null ? Promise.resolve() : createAs(who);
+    return createAs(guestName.name);
   };
 
   const focusCompose = () => bodyRef.current?.focus();
@@ -189,21 +183,8 @@ export function CommentsPanel({
           anchor={<CommentAnchorChip />}
           bodyPlaceholder="Add a comment…"
           bodyRows={2}
-          hideSubmit={guestName.asking}
         >
-          {guestName.asking ? (
-            <GuestNameStep
-              name={guestName.draft}
-              onNameChange={guestName.setDraft}
-              onConfirm={() => void onCreate()}
-              onPostAsGuest={() => void createAs(guestName.postAsGuest())}
-              busy={busy}
-              postDisabledReason={
-                body.trim() ? undefined : "Write a comment to post."
-              }
-            />
-          ) : null}
-          {!guestShare && body.trim() !== "" && (
+          {body.trim() !== "" && (
             <>
               <textarea
                 aria-label="Action items (one per line, optional)"
@@ -245,7 +226,6 @@ export function CommentsPanel({
               comment={c}
               selected={selected}
               busy={busy}
-              guestShare={guestShare}
               swipeToResolve
               replyDraft={replyDrafts[c.id] ?? ""}
               onReplyDraftChange={
@@ -268,17 +248,12 @@ export function CommentsPanel({
                       })
                   : undefined
               }
-              onResolve={
-                guestShare
-                  ? undefined
-                  : (resolved) => void onResolve(c, resolved)
-              }
+              onResolve={(resolved) => void onResolve(c, resolved)}
               onToggleAction={
                 mayAction
                   ? (actionId, done) => void toggleAction(c, actionId, done)
                   : undefined
               }
-              showResolve={!guestShare}
               showReply={mayReply}
             />
           );

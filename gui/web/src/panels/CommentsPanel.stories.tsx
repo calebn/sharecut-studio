@@ -48,44 +48,4 @@ export const Empty: Story = {
   },
 };
 
-export const GuestCommenter: Story = {
-  args: { guestShare: true },
-  parameters: { episode: { role: "commenter" } },
-  play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("textbox", { name: "Comment" }),
-    ).toBeVisible();
-  },
-};
-
-export const GuestNameStep: Story = {
-  args: { guestShare: true },
-  parameters: { episode: { role: "commenter" } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.type(
-      await canvas.findByRole("textbox", { name: "Comment" }),
-      "The cold open runs long.",
-    );
-    await userEvent.click(
-      await canvas.findByRole("button", { name: "Post comment" }),
-    );
-    await expect(
-      await canvas.findByRole("textbox", { name: "Your name" }),
-    ).toBeVisible();
-  },
-};
-
-export const Viewer: Story = {
-  args: { guestShare: true },
-  parameters: { episode: { role: "viewer" } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      await canvas.findByText("Can we trim the pause before this answer?"),
-    ).toBeVisible();
-    await expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull();
-  },
-};
-
 export const Phone: Story = { parameters: { framePhone: true } };

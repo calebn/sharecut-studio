@@ -29,7 +29,7 @@ const COVERED: Record<string, string[]> = {
     "Templates/CommentCard",
     "Templates/CommentCompose",
   ],
-  "CMP-GUEST-NAME": ["Templates/Editor · Comments panel"],
+  "CMP-GUEST-NAME": ["System/Composer"],
   "DLG-STEP-PARAMS": ["Stages/Prepare/AdvancedSteps"],
   "PNL-PIPELINE": ["Stages/Prepare/AdvancedSteps", "Stages/Prepare/ReadyList"],
   "PNL-REVIEW-QUEUE": ["Stages/Review/Host"],
@@ -215,7 +215,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-TIMELINE": ["Templates/TimelineRange", "Templates/Timeline"],
   "CMP-REC-NOTICES": ["Stages/Record/RoomAlert", "Templates/Record · Notices"],
   "TOAST-MAIN": ["Molecules/Toast", "Templates/Toast dock"],
-  "CMP-GUEST-COMMENT": ["Templates/CommentCompose", "Templates/GuestNameStep"],
+  "CMP-GUEST-COMMENT": ["Templates/CommentCompose", "System/Composer"],
 };
 
 /** Listed in the inventory but with nothing to draw. */

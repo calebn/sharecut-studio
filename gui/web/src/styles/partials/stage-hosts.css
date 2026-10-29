@@ -167,3 +167,19 @@ html[data-shell="phone"] .stage-host-guest-script {
   flex: 0 0 auto;
   block-size: clamp(6rem, 17dvh, 16rem);
 }
+
+.stage-host-guest-comments {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stage-host-guest-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
