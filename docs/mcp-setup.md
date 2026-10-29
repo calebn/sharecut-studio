@@ -17,9 +17,9 @@ PID is confirmed gone: on POSIX when the signal-0 probe finds no process, on
 Windows when `OpenProcess` reports no such process or `GetExitCodeProcess`
 shows an exit code other than 259 (a read-only query, never a signal).
 Nonpositive PIDs, PIDs beyond 32 bits and uncertain process checks (access
-denied, any other error) retain the protective ping. When stdio discovers an announced Studio,
-each loopback ping has five seconds to complete its network exchange. Receiving
-part of a reply does not restart that time. A timeout is retried once. If both
+denied, any other error) retain the protective ping. When stdio discovers an
+announced Studio, each loopback ping has five seconds to complete its network
+exchange. Receiving part of a reply does not restart that time. A timeout is retried once. If both
 attempts time out,
 the tool stops with an error instead of running locally, since Studio may still
 be serving the project. A refused connection before the deadline is treated as
