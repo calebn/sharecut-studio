@@ -1603,6 +1603,7 @@ def test_the_engine_hands_the_model_only_the_samples_it_was_given() -> None:
 
     class _Segment:
         text = " Then. "
+        compression_ratio = 0.5
 
     class _Model:
         def transcribe(self, audio: np.ndarray, **kwargs: object):
@@ -1621,9 +1622,48 @@ def test_the_engine_hands_the_model_only_the_samples_it_was_given() -> None:
         "vad_filter": False,
         "condition_on_previous_text": False,
         "temperature": 0.0,
+        "max_new_tokens": 32,
         "dtype": np.dtype("float32"),
         "size": 1600,
     }
+
+
+def test_a_looping_probe_decode_is_retried_with_a_repetition_penalty_and_that_is_kept() -> None:
+    calls: list[dict[str, object]] = []
+
+    def segment(text: str, ratio: float) -> SimpleNamespace:
+        return SimpleNamespace(text=text, compression_ratio=ratio)
+
+    class _Model:
+        def transcribe(self, audio: np.ndarray, **kwargs: object):
+            calls.append(kwargs)
+            if "repetition_penalty" in kwargs:
+                return iter([segment(" Um, uh, hmm. ", 0.6)]), None
+            return iter([segment(" Uh, uh, uh, uh, uh, uh, uh, uh. ", 26.0)]), None
+
+    engine = TranscriptionEngine(model_size="base", defaults=load_defaults())
+    engine._model = _Model()
+
+    assert engine.transcribe_samples(np.zeros(1600), language="en") == "Um, uh, hmm."
+    assert len(calls) == 2
+    assert calls[1]["repetition_penalty"] == 1.3
+    assert calls[1]["temperature"] == 0.0
+    assert calls[1]["max_new_tokens"] == 32
+
+
+def test_a_probe_decode_that_does_not_loop_is_decoded_once() -> None:
+    calls: list[dict[str, object]] = []
+
+    class _Model:
+        def transcribe(self, audio: np.ndarray, **kwargs: object):
+            calls.append(kwargs)
+            return iter([SimpleNamespace(text=" Okay. ", compression_ratio=2.4)]), None
+
+    engine = TranscriptionEngine(model_size="base", defaults=load_defaults())
+    engine._model = _Model()
+
+    assert engine.transcribe_samples(np.zeros(1600), language="en") == "Okay."
+    assert len(calls) == 1
 
 
 def test_the_word_probe_engine_pins_its_cpu_threads() -> None:
