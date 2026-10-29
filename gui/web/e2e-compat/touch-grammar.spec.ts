@@ -875,11 +875,6 @@ test("the strip follows the finger; a flick opens or closes it fully, a slow dra
       full: Math.min(box.height, 56.25 * rem),
     };
   });
-  /**
-   * A point on the drawer's header clear of its buttons, which do not drag. A
-   * finger lands on a button within its touch radius, so the point keeps 24 px
-   * of header on each side.
-   */
   const grab = async () => {
     const box = await page.locator(".bottom-sheet-grabber").boundingBox();
     if (!box) throw new Error("no grabber");
