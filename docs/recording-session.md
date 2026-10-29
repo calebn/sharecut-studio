@@ -54,7 +54,7 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
 - Join sheet: **name, microphone (Allow microphone, device picker, level),
   storage check and headphones** before a guest joins; the host starts the
   optional 3 s room tone from the room.
-- While recording: a persistent **status pill** (`m:ss · Take N`) in the room header and the host transport chip, plus a start notification. PAUSED, saving and local capture failure remain distinct text states and alerts.
+- While recording: a persistent **status pill** (`m:ss · Take N`) in the room header and on the host Record stage, plus a start notification. PAUSED, saving and local capture failure remain distinct text states and alerts.
 - **Live timestamped notes** are table stakes: Riverside markers (`M` key →
   dots on the editor timeline), Zencastr Footnotes (host-only), Descript Rooms
   Editor Comments (host/co-host/producer; private from guests; land in the
@@ -405,7 +405,7 @@ after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave after complete segments
 are acknowledged. While Stop is still finalizing the last segment, Leave stays
 held until its complete metadata lands or capture latches a failure (a latched
-failure counts as settled so recovery and export appear). The panel reads "Saving to project… N of M chunks"
+failure counts as settled so recovery and export appear). The room reads "Saving to project… N of M chunks"
 while finalized WAV totals are known, then "Saved to project" once the file is ACK'd. When a participant has
 several segments, a list shows one "Saving to project…" or "Saved to project" line per segment. Each segment's
 line appears the moment its upload starts and flips as its chunks and file ACK land (the upload hook publishes during
@@ -478,7 +478,7 @@ check where `navigator.storage.estimate()` is available
 (`StorageHeadroomWarning`). Nothing renders while the estimate is pending; a
 low estimate, a rejected estimate, or a missing API warns the operator in a
 persistent `role="status"` region but never blocks recording by itself. The
-host panel re-checks after a take stops.
+host Record stage re-checks after a take stops.
 
 ```mermaid
 sequenceDiagram
@@ -628,18 +628,18 @@ shows the persistent "No sound is reaching the recorder." room alert with a
 PCM or a successful Check mic (context `running`, track live, enabled and not
 muted; the watchdog then re-arms, so still-silent input re-alarms after another
 ~5 s, this time with the "Still no audio" guidance until real PCM arrives). A failed check adds "Still no audio" guidance. Pause, mute, and normal
-quiet input never trigger it. Host heartbeats are unchanged. The host record dialog opens once when the alert appears but, unlike mic loss, can be closed. Limitation: any sample above the floor counts as signal, so a dead input that delivers a constant DC offset or a dither floor above 2^-24 is not detected. Check mic while the tap is closed shows the "Still no audio" guidance and reopens the tap; a successful reopen clears it, and a failed one shows the keeper error. Safari's `interrupted` context state (a phone call, or another app holding audio) counts as a failed Check mic; the alarm itself does not depend on context state. A late timer tick (throttled or background tab, laptop sleep) restarts the 5 s window instead of counting the gap as silence.
+quiet input never trigger it. Host heartbeats are unchanged. On the host the alert shows in the Record stage room; unlike mic loss it can be dismissed. Limitation: any sample above the floor counts as signal, so a dead input that delivers a constant DC offset or a dither floor above 2^-24 is not detected. Check mic while the tap is closed shows the "Still no audio" guidance and reopens the tap; a successful reopen clears it, and a failed one shows the keeper error. Safari's `interrupted` context state (a phone call, or another app holding audio) counts as a failed Check mic; the alarm itself does not depend on context state. A late timer tick (throttled or background tab, laptop sleep) restarts the 5 s window instead of counting the gap as silence.
 
 If the host's microphone is denied or unavailable when an active take begins,
-the record dialog opens and stays open with browser or desktop recovery copy
-and Retry. The room alert ("Your mic stopped.") stays until a live stream is
-restored; the transport chip uses the same capture state. Retry reacquires the mic without
+the Record stage shows browser or desktop recovery copy with Retry. The room
+alert ("Your mic stopped.") stays until a live stream is restored, and the stage
+status uses the same capture state. Retry reacquires the mic without
 deleting any keeper segment. A stopped take clears the capture warning. An
 empty, zero-sample WAV cannot be acknowledged as an uploaded take.
 If the host joined the take but never captured a full-quality recording, Stop shows an explicit
 "No full-quality recording was captured" warning even when no mic stream was ever
 available; zero upload parts are not presented as a completed host recording.
-After Stop, a prior microphone-loss notice no longer holds the panel open.
+After Stop, a prior microphone-loss notice no longer stays on the stage.
 
 ```mermaid
 sequenceDiagram
@@ -1000,8 +1000,8 @@ sequenceDiagram
 A guest opening a `/rec/` link sees the shared Record room (`system/RoomView`,
 mounted by `record/GuestRoomApp.tsx`) with the **Join sheet** over it. The sheet's
 title is "Join the room", or "{Names} is here" (one person) / "{Names} are here"
-(several) once others are in. It holds four rows in order: **Your name**,
-**Microphone**, **Storage** and **Headphones** ("I'm wearing headphones"). **Join and record** stays disabled and names the first
+(several) once others are in. It holds the rows in order: **Storage** (only when the storage check has a
+problem), **Your name**, **Microphone** and **Headphones** ("I'm wearing headphones"). **Join and record** stays disabled and names the first
 row still open as its reason ("Add your name first", "Allow your microphone
 first", "Put on headphones first", "Fix storage first"). A producer sees the name
 row and **Join to listen** ("You'll listen and take notes. You won't be
@@ -1059,7 +1059,7 @@ while the preflight is pending or if the browser/app environment cannot provide 
 Storage row asks the participant to use a compatible browser and offers **Retry storage check**
 (low free space adds "Low space on this device. Close other tabs.").
 The host Start transport checks the same verified sink even when invoked outside
-the room panel, and host capture uses that sink. A guest who leaves and rejoins
+the Record stage, and host capture uses that sink. A guest who leaves and rejoins
 in the lobby or between takes must complete a fresh preflight and join again
 before host Start. While waiting to re-consent after a stopped take, the guest
 can still resume saving or download the previous full-quality recording from the room's alerts or Cover. Producers are not recorded and do not need this preflight. There is no upload-only or
@@ -1246,7 +1246,8 @@ cannot. Every button runs the same `record.*` command as the palette.
   (`no_recorder`: nobody recorded is in the room yet, so Start waits for the
   host's own automatic Join), "Waiting for {name} to accept recording.", the
   device storage check and "Recording room tone. Start is available when it
-  finishes."
+  finishes." When the storage check fails, the room alert offers **Retry
+  recording**.
 - **Stop.** Holding the Record button while live stops the take; Enter or Space
   asks first ("Stop this take? Recording ends for everyone in the room."). **More**
   also has **Stop take**, which asks once with **Keep recording** (focused) and
@@ -1273,9 +1274,9 @@ cannot. Every button runs the same `record.*` command as the palette.
 - Mute, Comment, the Record button and **More** sit in the dock under the room, so
   they stay in reach on a phone. **More** holds **Stop take**, Land, **Record room
   tone**, the upload status, a note when a removed participant's invite is closed
-  and, last, **Invite and links…** (opens Share). After **Create record room** or
-  the palette's **Copy guest link** the stage shows the announcement ("Guest link
-  copied") as a visible note.
+  and, last, **Invite and links…** (opens Share). **Record room tone** appears
+  there only in the lobby or after Stop. After **Create record room** or the
+  palette's **Copy guest link** the app toast says "Guest link copied".
 - If the room lookup fails, the error comes with **Check again**.
 - Live comments announce what a new comment says ("Sam: Cut the cough"), never a
   count. Comments present when the stage opens and your own stay silent.
@@ -1306,15 +1307,13 @@ non-terminal code (for example the heartbeat's `join_first` after
 `room_full`) never replaces a terminal one.
 
 On the host, every failed `record.start` / `pause` / `resume` / `stop` /
-`land` command (from the keyboard, command palette or the panel buttons, which
-run the same commands) is announced, stored in
-`useRecordHostStore.transportError`, and shown on the Record stage, which
-opens so the error is visible rather than only announced. When the panel is already open the failure is
-only shown there, inside its polite live region, and not also announced, so
-screen readers hear it once. Over the Share
-dialog the failure is only announced and nothing is stored. The next record
-command clears it, and the panel clears it whenever it closes (by any route,
-including **Invite and links…**) or the project changes.
+`land` command (from the keyboard, command palette or the Record stage buttons,
+which run the same commands) is revealed by `revealRecordFailure`
+(`commands/host.ts`). On the Record stage the room alert slot shows it and it is
+not announced a second time. Elsewhere it is announced and stored in
+`useRecordHostStore.transportError` for the stage; over the Share dialog it is
+only announced and nothing is stored. The next record command clears it, and so
+does a project change.
 
 If the host record WebSocket drops after it has connected, while a take is
 recording or paused (`useRecordHostStore.dropped`; not before the first
@@ -1322,7 +1321,7 @@ connect or after an intentional teardown; a replaced socket's late close after
 a project switch is ignored), the Record stage status reads
 "Reconnecting…" and shows "Lost
 connection to the record room. Reconnecting…". Capture-health labels (failed,
-waiting for microphone, no audio) still take precedence on the chip. Pending live comments queue with
+waiting for microphone, no audio) still take precedence on the stage status. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
 If an OPFS write or close fails, the keeper latches a local-capture failure and

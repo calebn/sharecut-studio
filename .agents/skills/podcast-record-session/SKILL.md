@@ -87,9 +87,9 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    row (name, mic, headphones, storage) is done and names the first row still
    open. The recorder is armed on Join and record and writes **zero bytes**
    until Start. Room tone is host-triggered with `record_room_tone_tool` (see
-   the tool table below Harness), not a step of joining. Producers enter a name
+   the tool table above), not a step of joining. Producers enter a name
    and **Join to listen** (no mic, no consent, no full-quality recording).
-4. `record_state_tool` / the panel: Start stays disabled while `start_blockers`
+4. `record_state_tool` / the Record stage: Start stays disabled while `start_blockers`
    is non-empty. Each row has a `code`:
    - `{"code": "no_recorder"}` — nobody recorded yet (the host's Join
      fixes it). The host alone can start a solo take.
@@ -98,16 +98,16 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
      (`consented: false`) does **not** block Start.
    Producers never appear in `start_blockers`. A refused Start reads
    `cannot start: nobody has joined the room` or `cannot start: Ava has not
-   accepted recording`. With no room, the panel's **Create record room** mints one in
+   accepted recording`. With no room, the Record stage's **Create record room** mints one in
    place (same as `create_record_room_tool`).
 5. Start → every client shows **REC** and a recording clock; recorded clients
    show **Recording in full quality on this device.** Everyone who is connected hears
    the room (**Hearing the room.**). Pause freezes the clock (PAUSED)
    and the current full-quality recording segment; the monitor stays live. Resume opens a new
-   segment. Stop (the panel asks once: **Stop take** or **Keep recording**) ends
-   the take (Stopped) and keeps a **blocking saving panel**
+   segment. Stop (it asks once: **Stop take** or **Keep recording**) ends
+   the take (Stopped) and keeps a **blocking saving state**
    ("Saving to project… N of M chunks", then "Saved to project") until the
-   file ACK; the host panel lists the same status per participant and segment. Mute writes zeros (file stays continuous) and stops that
+   file ACK; the host Record stage lists the same status per participant and segment. Mute writes zeros (file stays continuous) and stops that
    person's send. **M** (or the Marker button) posts a live comment with body
    `"Marker"`; typed notes use the same path. Guests see only their own comments
    in the room (other guests never see them there). Host DAW `daw.record.marker`
