@@ -187,7 +187,7 @@ run no keeper and a host whose mic was denied never uploads; a host that did not
 never raises a warning, so a host segment that never uploaded goes unnoticed in that case.
 
 `unlanded_saving` counts takes with an upload still inside the window; `unlanded_stalled`
-counts recordings (one per missing or unfinished segment of a person, so one take can add several.
+counts recordings (one per missing or unfinished segment of a person), so one take can add several.
 
 Land-first lands what finished (host and finished guests) and mints. Every mint that leaves
 stalled audio behind that the server detected, with or without land-first, sets
