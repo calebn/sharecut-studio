@@ -419,7 +419,7 @@ describe("ReviewStage unsure words", () => {
     await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
     const field = screen.getByRole("textbox", { name: "Fix text" });
     await userEvent.clear(field);
-    await userEvent.type(field, text);
+    if (text) await userEvent.type(field, text);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
   };
 
@@ -433,6 +433,32 @@ describe("ReviewStage unsure words", () => {
       result: "applied",
       text: "oncle",
     });
+  });
+
+  it("gives a guest a word item no controls and no decision", () => {
+    const onDecide = vi.fn();
+    const { press } = setup({
+      initialItems: QUEUE_ITEMS,
+      initialSelectedId: "u1",
+      guest: true,
+      onDecide,
+    });
+    expect(
+      screen.queryByRole("button", { name: /Fix text|Looks right/ }),
+    ).toBeNull();
+    press("Enter");
+    expect(onDecide).not.toHaveBeenCalled();
+  });
+
+  it("says so and keeps the field when Save is empty", async () => {
+    const onDecide = vi.fn();
+    setup({ initialItems: QUEUE_ITEMS, initialSelectedId: "u1", onDecide });
+    await fix("");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Type the corrected word.",
+    );
+    expect(screen.getByRole("textbox", { name: "Fix text" })).toHaveFocus();
+    expect(onDecide).not.toHaveBeenCalled();
   });
 
   it("fixes a cut's word through its card and keeps the cut selected with its verb free", async () => {
