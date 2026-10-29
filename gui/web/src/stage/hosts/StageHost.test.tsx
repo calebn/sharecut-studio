@@ -11,7 +11,6 @@ import { fakeExportServer } from "../../test/fakeExportServer";
 import {
   minimalProject,
   pipelineJobSnapshot,
-  sampleComment,
   sampleTrack,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";

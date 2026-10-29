@@ -75,53 +75,6 @@ test.describe("control state parity", () => {
     expect(annotatedPaint.border).not.toBe("rgba(0, 0, 0, 0)");
   });
 
-  test("active quiet section tab hover keeps underline-only border", async ({
-    page,
-  }) => {
-    await openProject(page, e2eProjectPath);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /aligned dialogue/i,
-    );
-
-    await openPanel(page, "comments");
-    const transcriptTab = page
-      .getByRole("tablist", { name: "Review sections" })
-      .getByRole("tab", { name: /^Comments\b/ });
-    await expect(transcriptTab).toHaveAttribute("aria-selected", "true");
-    expect(
-      await transcriptTab.evaluate((el) =>
-        el.classList.contains("ui-control--quiet"),
-      ),
-    ).toBe(true);
-
-    const bg = (el: typeof transcriptTab) =>
-      el.evaluate((node) => getComputedStyle(node).backgroundColor);
-
-    await page.mouse.move(0, 0);
-    const restBg = await bg(transcriptTab);
-
-    await transcriptTab.hover();
-    const hoverBg = await bg(transcriptTab);
-    const borders = await transcriptTab.evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return {
-        top: cs.borderTopColor,
-        right: cs.borderRightColor,
-        bottom: cs.borderBottomColor,
-        left: cs.borderLeftColor,
-      };
-    });
-
-    expect(hoverBg).not.toBe(restBg);
-
-    // Sides stay transparent; bottom keeps the accent underline.
-    expect(borders.top).toBe("rgba(0, 0, 0, 0)");
-    expect(borders.right).toBe("rgba(0, 0, 0, 0)");
-    expect(borders.left).toBe("rgba(0, 0, 0, 0)");
-    expect(borders.bottom).not.toBe("rgba(0, 0, 0, 0)");
-    expect(borders.bottom).not.toBe(borders.top);
-  });
-
   test("the pressed mix side keeps its fill on hover", async ({ page }) => {
     await openProject(page, e2eProjectPath);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(

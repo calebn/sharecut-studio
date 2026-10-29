@@ -32,16 +32,13 @@ const STAGE_LABEL: Record<Stage, string> = {
   deliver: "Deliver",
 };
 
-/** Where each panel lives: its stage and, for Review, the section tab. */
-const PANEL_HOME: Record<
-  Panel,
-  { stage: Stage; section?: string; sheet?: "history" }
-> = {
+/** Where each panel lives: its stage and, for History, its sheet. A host's Review is the Queue alone, comments included. */
+const PANEL_HOME: Record<Panel, { stage: Stage; sheet?: "history" }> = {
   transcript: { stage: "edit" },
   history: { stage: "edit", sheet: "history" },
-  queue: { stage: "review", section: "Queue" },
+  queue: { stage: "review" },
   pipeline: { stage: "prepare" },
-  comments: { stage: "review", section: "Comments" },
+  comments: { stage: "review" },
 };
 
 const AUDITION_LABEL: Record<Audition, string> = {
@@ -228,7 +225,7 @@ export const phone = {
   },
 };
 
-/** Open `panel`: its stage, then its section tab or sheet. */
+/** Open `panel`: its stage, then its sheet. */
 export async function openPanel(page: Page, panel: Panel): Promise<void> {
   const home = PANEL_HOME[panel];
   if (panel === "transcript" && (await isPhoneShell(page))) {
@@ -236,15 +233,6 @@ export async function openPanel(page: Page, panel: Panel): Promise<void> {
     return;
   }
   await goToStage(page, home.stage);
-  if (home.section) {
-    const tab = page
-      .getByRole("tablist", { name: "Review sections" })
-      .getByRole("tab", { name: new RegExp(`^${home.section}\\b`) });
-    if ((await tab.getAttribute("aria-selected")) !== "true") {
-      await tab.click();
-    }
-    await expect(tab).toHaveAttribute("aria-selected", "true");
-  }
   if (home.sheet === "history") {
     await openHistorySheet(page);
   }

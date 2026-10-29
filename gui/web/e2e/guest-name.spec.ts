@@ -40,9 +40,17 @@ async function expectNoHorizontalScroll(page: Page, width: number) {
 async function hostComments(host: Page, count: number): Promise<string[]> {
   await reloadProject(host);
   await openPanel(host, "comments");
-  const rows = host.locator(".comments-list > li");
+  const rows = host.locator('.sys-queue-row[data-kind="comment"]');
   await expect(rows).toHaveCount(count);
-  return rows.allInnerTexts();
+  // The author is on the card's heading, so open each row to read it.
+  const texts: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    await rows.nth(i).getByRole("button").click();
+    const heading = host.getByRole("heading", { level: 2 });
+    await expect(heading).toContainText("Comment from");
+    texts.push(`${await heading.innerText()} ${await rows.nth(i).innerText()}`);
+  }
+  return texts;
 }
 
 function composer(guest: Page): Locator {
@@ -93,7 +101,9 @@ for (const theme of ["light", "dark"] as const) {
             await expectInView(skip);
             await expectInView(post);
             await expect(field).toHaveValue("Loved the intro");
-            await expect(host.locator(".comments-list > li")).toHaveCount(0);
+            await expect(
+              host.locator('.sys-queue-row[data-kind="comment"]'),
+            ).toHaveCount(0);
             await expectTouchTarget(skip);
             await expectTouchTarget(post);
             expect(

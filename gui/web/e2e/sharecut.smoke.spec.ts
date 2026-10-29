@@ -20,10 +20,11 @@ test.describe("ShareCut Studio smoke", () => {
     await expect(page.getByRole("region", { name: "Script" })).toBeVisible();
     await openPanel(page, "comments");
     await expect(
-      page
-        .getByRole("tablist", { name: "Review sections" })
-        .getByRole("tab", { name: /^Comments\b/ }),
+      page.getByRole("region", { name: "Review queue" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("tablist", { name: "Review sections" }),
+    ).toHaveCount(0);
     await expect(page.locator(".stage-frame")).toBeVisible();
 
     await expectPageAxeClean(page);
@@ -46,7 +47,9 @@ test.describe("ShareCut Studio smoke", () => {
     await expect(
       page.getByText("AddComment did not return a comment"),
     ).toHaveCount(0);
-    await expect(page.getByPlaceholder("Add a comment…")).toHaveValue("");
+    await expect(
+      page.getByRole("textbox", { name: "Comment", exact: true }),
+    ).toHaveCount(0);
 
     setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
