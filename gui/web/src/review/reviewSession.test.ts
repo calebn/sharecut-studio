@@ -144,6 +144,27 @@ describe("revert", () => {
     expect(s.selectedId).toBe("a");
   });
 
+  it("clears Looks right on the held ids when no row was decided", () => {
+    let s = start();
+    s = reviewSession(s, { type: "looksRight", id: "a" });
+    s = reviewSession(s, { type: "looksRight", id: "b" });
+    const out = reviewSession(s, {
+      type: "revert",
+      ids: ["zzz"],
+      hold: ["a"],
+    });
+    expect([...out.looksRight]).toEqual(["b"]);
+    expect(out.decided).toBe(s.decided);
+    expect(out.selectedId).toBe(s.selectedId);
+  });
+
+  it("leaves the state alone when the held ids are not marked", () => {
+    const s = start();
+    expect(
+      reviewSession(s, { type: "revert", ids: ["zzz"], hold: ["a"] }),
+    ).toBe(s);
+  });
+
   it("is a no-op for an id that is not decided", () => {
     const s = start();
     expect(reviewSession(s, { type: "revert", ids: ["zzz"] })).toBe(s);
