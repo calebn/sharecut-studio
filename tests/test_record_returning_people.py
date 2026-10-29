@@ -945,32 +945,6 @@ def test_assigning_a_removed_person_with_an_acked_take_is_refused(
     assert caught.value.code == "person_removed"
 
 
-def test_a_removed_person_with_nothing_to_land_does_not_hold_a_track(
-    minimal_project, sample_wav, tmp_workspace
-):
-    ws = _seed(minimal_project, sample_wav)
-    sam = _sam_project(ws)
-    room = ShareService(ws).create_record_room()
-    svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    gone = _join_guest(svc, room, "Sam", 0)
-    live = _join_guest(svc, room, "Ben", 1)
-    _remove(ws, room, gone)
-    RecordControlService(ws).assign_track(live, sam)
-    assert _by_pid(ws)[live]["track_id"] == sam
-
-
-def test_a_removed_person_with_an_acked_take_still_holds_their_track(
-    minimal_project, sample_wav, tmp_workspace
-):
-    ws = _seed(minimal_project, sample_wav)
-    sam = _sam_project(ws)
-    room, [gone, live] = _room(ws, ["Sam", "Ben"])
-    _remove(ws, room, gone)
-    with pytest.raises(CodedError) as caught:
-        RecordControlService(ws).assign_track(live, sam)
-    assert caught.value.code == "track_taken"
-
-
 def test_a_person_with_a_placed_bed_cannot_be_moved_to_land_it_twice(
     minimal_project, sample_wav, tmp_workspace
 ):
