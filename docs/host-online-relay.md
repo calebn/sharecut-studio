@@ -635,6 +635,8 @@ both composites share the one `LimiterSet`.
 bridge, a bare JSON body). Both set status 429 and `Retry-After` from
 `RateLimitDecision.retry_after_header`. The waveform decoder-busy refusal is a 503
 `WaveformBusyError` that reuses the same header value, not a 429.
+The relay forwards the host's `Retry-After` value unchanged, including HTTP-date
+text. Forwarding does not parse the value or add HTTP-date support to clients.
 
 Guest WS fanout (host→guest) is unlimited; only inbound guest→host text frames hit
 `PODCAST_RELAY_WS_MSG_RPM`. Responses: HTTP **429** + `Retry-After`; WS close
