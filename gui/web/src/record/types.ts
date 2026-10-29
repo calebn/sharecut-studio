@@ -57,7 +57,7 @@ export type TakeState = {
   /** Server-owned roster for keeper uploads, independent of live consent. */
   consented_participant_ids: string[];
   /** Segment counts each participant reported for this take, by participant id. */
-  segment_reports?: Record<string, { segments: number; final: boolean }>;
+  segment_reports?: Record<string, number>;
 };
 
 export type SessionTarget =

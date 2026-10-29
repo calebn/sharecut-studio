@@ -10,7 +10,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StrictBool,
     StrictInt,
     ValidationError,
     field_validator,
@@ -122,7 +121,6 @@ class SegmentReportPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     take_index: StrictInt = Field(ge=0)
     segments: StrictInt = Field(ge=0)
-    final: StrictBool
 
     @field_validator("segments")
     @classmethod

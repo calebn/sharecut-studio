@@ -53,7 +53,7 @@ def _owed_segments(take: TakeState, person: ParticipantState, have_max: int) -> 
     """
     report = take.segment_reports.get(person.participant_id)
     if report is not None:
-        return max(report.segments, have_max + 1)
+        return max(report, have_max + 1)
     if person.role != "guest":
         return 0
     since = person.consented_wall_ms or 0
@@ -125,12 +125,6 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
                     continue
                 if stopped_quiet is None or stopped_quiet > UPLOAD_GRACE_MS:
                     stalled.add((index, pid, segment))
-                else:
-                    saving.add(index)
-            report = take.segment_reports.get(pid)
-            if report is not None and not report.final:
-                if stopped_quiet is None or stopped_quiet > UPLOAD_GRACE_MS:
-                    stalled.add((index, pid, -1))
                 else:
                     saving.add(index)
     landable -= saving
