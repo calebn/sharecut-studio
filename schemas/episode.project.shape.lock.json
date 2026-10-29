@@ -2228,6 +2228,12 @@
               ],
               "default": null
             },
+            "track_follows": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
             "track_ids": {
               "items": {
                 "type": "string"
@@ -5642,6 +5648,12 @@
                 }
               ],
               "default": null
+            },
+            "track_follows": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
             },
             "track_ids": {
               "items": {
