@@ -24,7 +24,7 @@ from podcast_mcp import settings
 from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir
 from podcast_mcp.config.distribution import runtime_distribution_metadata
 from podcast_mcp.engines.models.whisper import resolve_whisper_model, whisper_model_is_cached
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EPISODE_PROJECT_FILENAME, EpisodeProject
 from podcast_mcp.services.app import resolve_gui_static_root
 from podcast_mcp.services.pipeline import component_status
 from podcast_mcp.services.support.doctor import (
@@ -53,7 +53,7 @@ FORBIDDEN_LOG_NAMES = frozenset(
         "shares.json",
         "sync.db",
         "relay.yaml",
-        "episode.project.json",
+        EPISODE_PROJECT_FILENAME,
     }
 )
 _AUDIO_SUFFIXES = frozenset({".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".aiff"})
@@ -83,7 +83,7 @@ ENV_ALLOWLIST = (
     "PODCAST_SHARE_REGISTRY",
 )
 _BOOL_VALUES = frozenset({"0", "1", "true", "false", "yes", "no", "on", "off"})
-_README = """ShareCut Studio diagnostics bundle
+_README = f"""ShareCut Studio diagnostics bundle
 =================================
 
 This zip was created on your machine. Creation does not upload it.
@@ -96,7 +96,7 @@ Contents
 
 Not included
 ------------
-Audio, transcripts, episode.project.json, shares.json, sync.db, relay.yaml,
+Audio, transcripts, {EPISODE_PROJECT_FILENAME}, shares.json, sync.db, relay.yaml,
 or share tokens.
 
 How to report

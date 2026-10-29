@@ -8,7 +8,7 @@ from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.engines.media_probe import probe_media
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, project_file_path
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 RERUN_STEPS = (
@@ -73,5 +73,5 @@ def stale_stream_lines(project: EpisodeProject, found: list[StaleStreamFile]) ->
         f"Stale audio streams (several audio streams, analyzed from another stream than "
         f"the first): {names}. A file added since this fix was read correctly; if every listed file was added "
         f"since, just run mark-streams-current. To fix, run {RERUN_STEPS}; then run "
-        f"`podcast episode mark-streams-current --project {project.workspace_path() / 'episode.project.json'}`."
+        f"`podcast episode mark-streams-current --project {project_file_path(project.workspace_path())}`."
     ]

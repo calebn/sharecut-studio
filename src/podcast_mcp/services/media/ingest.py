@@ -37,6 +37,7 @@ from podcast_mcp.ingest.import_folder import (
 )
 from podcast_mcp.ingest.manifest import IngestManifest, SessionConfig, SpeakerGroup
 from podcast_mcp.models import (
+    EPISODE_PROJECT_FILENAME,
     Clip,
     SourceRecording,
     SpeakerIngestAlignment,
@@ -901,12 +902,12 @@ def _next_steps(audio_dir: Path, manifest: Path, *, dry_run: bool = False) -> li
             "Re-run without --dry-run to write ingest.yaml, then:",
             f"podcast ingest suggest --audio-dir {audio!r} --manifest {man!r}",
             "Merge suggested session_start_in_file_sec values into ingest.yaml (suggest prints a fragment only)",
-            f"podcast ingest consolidate --audio-dir {audio!r} --manifest {man!r} --project episode.project.json",
+            f"podcast ingest consolidate --audio-dir {audio!r} --manifest {man!r} --project {EPISODE_PROJECT_FILENAME}",
         ]
     return [
         f"podcast ingest suggest --audio-dir {audio!r} --manifest {man!r}",
         "Merge suggested session_start_in_file_sec values into ingest.yaml (suggest prints a fragment only)",
-        f"podcast ingest consolidate --audio-dir {audio!r} --manifest {man!r} --project episode.project.json",
+        f"podcast ingest consolidate --audio-dir {audio!r} --manifest {man!r} --project {EPISODE_PROJECT_FILENAME}",
         "Or run the pipeline after consolidate (transcribe_tracks → align_tracks)",
     ]
 

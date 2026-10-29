@@ -16,6 +16,7 @@ from typing import Concatenate, ParamSpec, TypeVar
 from filelock import Timeout
 
 from podcast_mcp.models import (
+    EPISODE_PROJECT_FILENAME,
     EpisodeProject,
     project_file_path,
     record_artifacts_dir,
@@ -119,7 +120,10 @@ def _workspace_key(project: EpisodeProject) -> str:
 
 def project_commit_lock_path(project: EpisodeProject) -> Path:
     """Lock file for cross-process commits (not under ``history/``: that dir arms index writes)."""
-    return workspace_artifacts_dir(project.workspace_path().resolve()) / "episode.project.json.lock"
+    return (
+        workspace_artifacts_dir(project.workspace_path().resolve())
+        / f"{EPISODE_PROJECT_FILENAME}.lock"
+    )
 
 
 def render_lock_path(project: EpisodeProject) -> Path:

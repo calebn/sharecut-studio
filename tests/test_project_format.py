@@ -31,7 +31,7 @@ def test_rejects_v1_project_file(tmp_path: Path):
         ),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match=r"Unsupported episode.project.json version"):
+    with pytest.raises(ValueError, match=r"Unsupported project file version"):
         load_project(v1_path)
 
 
