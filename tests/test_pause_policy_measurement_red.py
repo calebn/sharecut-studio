@@ -40,11 +40,15 @@ def test_real_pcm_availability_failures_keep_distinct_selection_causes(
     configure(monkeypatch, defaults())
     result = project(tmp_path, guest=kind)
 
-    selected = room_tone_span(result, "guest", near_sec=2, duration_sec=0.25)
+    selected = room_tone_span(
+        result, "guest", near_sec=2, near_source_id=None, timeline_sec=2, duration_sec=0.25
+    )
 
     assert selected is not None, f"measurement erased {cause}"
     assert getattr(selected, "cause", None) == cause
-    positive = room_tone_span(result, "host", near_sec=2, duration_sec=0.25)
+    positive = room_tone_span(
+        result, "host", near_sec=2, near_source_id=None, timeline_sec=2, duration_sec=0.25
+    )
     assert positive is not None
     assert type(positive) is not type(selected)
 
@@ -59,7 +63,9 @@ def test_absent_track_or_metadata_is_not_a_measured_gate(tmp_path, monkeypatch, 
         tid = "host"
         result.track_by_id(tid).media = None
 
-    selected = room_tone_span(result, tid, near_sec=2, duration_sec=0.25)
+    selected = room_tone_span(
+        result, tid, near_sec=2, near_source_id=None, timeline_sec=2, duration_sec=0.25
+    )
 
     assert selected is not None, f"measurement erased {cause}"
     assert getattr(selected, "cause", None) == cause
@@ -69,11 +75,21 @@ def test_pending_exclusions_are_reported_without_authorizing_source_replay(tmp_p
     configure(monkeypatch, defaults())
     result = project(tmp_path)
 
-    selected = room_tone_span(result, "host", near_sec=2, duration_sec=0.25, avoid=[(0, 6)])
+    selected = room_tone_span(
+        result,
+        "host",
+        near_sec=2,
+        near_source_id=None,
+        timeline_sec=2,
+        duration_sec=0.25,
+        avoid=[(0, 6)],
+    )
 
     assert selected is not None, "measurement erased exhausted exclusions"
     assert getattr(selected, "cause", None) == "excluded"
-    positive = room_tone_span(result, "host", near_sec=2, duration_sec=0.25)
+    positive = room_tone_span(
+        result, "host", near_sec=2, near_source_id=None, timeline_sec=2, duration_sec=0.25
+    )
     assert positive is not None
     assert type(positive) is not type(selected)
 
@@ -114,13 +130,17 @@ def test_finite_sample_inventory_reports_what_was_actually_tried(tmp_path, monke
 
         monkeypatch.setattr(room_tone, "load_mono_window", read)
 
-    selected = room_tone_span(result, "host", near_sec=0, duration_sec=0.25)
+    selected = room_tone_span(
+        result, "host", near_sec=0, near_source_id=None, timeline_sec=0, duration_sec=0.25
+    )
 
     assert selected is not None, f"measurement erased {failure}"
     assert getattr(selected, "cause", None) == failure
     if failure == "candidate_limit":
         assert selected.rejected_checks == ("voiced",)
-        accepted = room_tone_span(result, "host", near_sec=16.4, duration_sec=0.25)
+        accepted = room_tone_span(
+            result, "host", near_sec=16.4, near_source_id=None, timeline_sec=16.4, duration_sec=0.25
+        )
         assert accepted is not None
         assert type(accepted) is not type(selected)
 

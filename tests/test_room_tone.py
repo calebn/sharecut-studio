@@ -23,12 +23,12 @@ from podcast_mcp.engines.room_tone import (
     RecordedBedSample,
     Sample,
     SampleAbsent,
-    _from_pool,
     room_tone_bed_digest,
     room_tone_span,
 )
 from podcast_mcp.models import (
     Clip,
+    ClipMuteRegion,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -257,7 +257,9 @@ def test_contaminated_bed_is_reported_and_left_untouched(tmp_path: Path) -> None
     bed_file = tmp_path / "raw" / "room-tone" / "host.wav"
     before = (bed_file.read_bytes(), project.model_dump_json())
 
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+    selected = room_tone_span(
+        project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
+    )
 
     assert isinstance(selected, OwnQuietSample)
     assert selected.bed_failure == "contaminated_bed"
@@ -271,7 +273,9 @@ def test_short_burst_in_a_long_bed_is_not_averaged_away(tmp_path: Path) -> None:
     _add_voice(bed, 3.0, 3.6, VOICE_DB)
     _add_bed(project, tmp_path, bed)
 
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+    selected = room_tone_span(
+        project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
+    )
 
     assert isinstance(selected, OwnQuietSample)
     assert selected.bed_failure == "contaminated_bed"
@@ -283,7 +287,9 @@ def test_gated_bed_with_clean_room_noise_is_accepted(tmp_path: Path) -> None:
     bed[:SR] = _noise(-62.0, seed=7)[:SR]
     _add_bed(project, tmp_path, bed)
 
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+    selected = room_tone_span(
+        project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
+    )
 
     assert isinstance(selected, RecordedBedSample)
 
@@ -295,7 +301,9 @@ def test_speech_in_a_gated_bed_is_still_rejected(tmp_path: Path) -> None:
     _add_voice(bed, 0.5, 1.5, VOICE_DB)
     _add_bed(project, tmp_path, bed)
 
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+    selected = room_tone_span(
+        project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
+    )
 
     assert isinstance(selected, OwnQuietSample)
     assert selected.bed_failure == "contaminated_bed"
@@ -316,7 +324,10 @@ def test_clean_bed_passes_without_a_voice_detector(tmp_path: Path, no_voice_dete
     _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
 
     assert isinstance(
-        room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5), RecordedBedSample
+        room_tone_span(
+            project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
+        ),
+        RecordedBedSample,
     )
 
 
@@ -331,7 +342,9 @@ def test_bed_the_voice_detector_cannot_measure_is_not_used(
 
     monkeypatch.setattr("podcast_mcp.engines.room_tone._speech_prob", broken)
 
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+    selected = room_tone_span(
+        project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
+    )
 
     assert not isinstance(selected, RecordedBedSample)
     assert selected.bed_failure == "unreadable_file"
@@ -341,7 +354,9 @@ def test_clean_bed_has_no_bed_failure(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
 
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+    selected = room_tone_span(
+        project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.5
+    )
 
     assert isinstance(selected, RecordedBedSample)
 
@@ -373,8 +388,18 @@ def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:
 def test_room_tone_is_not_taken_from_source_a_pending_cut_still_plays(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
 
-    nearest = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3)
-    kept = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3, avoid=[(5.0, 7.0)])
+    nearest = room_tone_span(
+        project, "host", near_sec=4.25, near_source_id=None, timeline_sec=4.25, duration_sec=0.3
+    )
+    kept = room_tone_span(
+        project,
+        "host",
+        near_sec=4.25,
+        near_source_id=None,
+        timeline_sec=4.25,
+        duration_sec=0.3,
+        avoid=[(5.0, 7.0)],
+    )
 
     assert isinstance(nearest, OwnQuietSample)
     assert nearest.sample.start == pytest.approx(5.15)
@@ -384,17 +409,21 @@ def test_room_tone_is_not_taken_from_source_a_pending_cut_still_plays(tmp_path: 
 
 def test_no_room_tone_without_audio_or_length(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
-    assert room_tone_span(project, "host", near_sec=4.25, duration_sec=0.0) == SampleAbsent(
-        "no_fill_requested"
-    )
+    assert room_tone_span(
+        project, "host", near_sec=4.25, near_source_id=None, timeline_sec=4.25, duration_sec=0.0
+    ) == SampleAbsent("no_fill_requested")
     host = project.track_by_id("host")
     assert host is not None
     host.media = None
-    missing = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.5)
+    missing = room_tone_span(
+        project, "host", near_sec=4.25, near_source_id=None, timeline_sec=4.25, duration_sec=0.5
+    )
     assert isinstance(missing, SampleAbsent)
     assert missing.cause == "missing_media"
     gated = _project(tmp_path / "gated", host=np.zeros(round(DURATION_SEC * SR)))
-    silent = room_tone_span(gated, "host", near_sec=4.25, duration_sec=0.5)
+    silent = room_tone_span(
+        gated, "host", near_sec=4.25, near_source_id=None, timeline_sec=4.25, duration_sec=0.5
+    )
     assert isinstance(silent, SampleAbsent)
     assert silent.cause == "digital_silence"
 
@@ -495,12 +524,22 @@ def test_a_gated_track_has_no_room_tone_without_a_voice_detector(
     project = _project(tmp_path, host=_host_audio(), guest=guest)
 
     for near in (4.0, 6.5, 8.5):
-        selected = room_tone_span(project, "guest", near_sec=near, duration_sec=0.3)
+        selected = room_tone_span(
+            project,
+            "guest",
+            near_sec=near,
+            near_source_id=None,
+            timeline_sec=near,
+            duration_sec=0.3,
+        )
         assert isinstance(selected, SampleAbsent)
         assert selected.cause == cause
     # The host's room floor is still found without the detector.
     assert isinstance(
-        room_tone_span(project, "host", near_sec=4.0, duration_sec=0.3), OwnQuietSample
+        room_tone_span(
+            project, "host", near_sec=4.0, near_source_id=None, timeline_sec=4.0, duration_sec=0.3
+        ),
+        OwnQuietSample,
     )
 
 
@@ -515,7 +554,14 @@ def test_word_onsets_and_tails_are_never_room_tone(
         _add_word(host, start, end, VOICE_DB)
     project = _project(tmp_path, host=host)
 
-    span = room_tone_span(project, "host", near_sec=near_sec, duration_sec=duration_sec)
+    span = room_tone_span(
+        project,
+        "host",
+        near_sec=near_sec,
+        near_source_id=None,
+        timeline_sec=near_sec,
+        duration_sec=duration_sec,
+    )
 
     assert isinstance(span, OwnQuietSample)
     start, end = span.sample.start, span.sample.end
@@ -689,11 +735,21 @@ def test_room_tone_is_picked_once_and_recorded_with_the_project(
     monkeypatch.setattr(room_tone, "_pick_sample", refuse)
     assert room_tone.record_room_tone_pool(project, "host") == pool
 
-    nearest = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3)
+    nearest = room_tone_span(
+        project, "host", near_sec=4.25, near_source_id=None, timeline_sec=4.25, duration_sec=0.3
+    )
     assert isinstance(nearest, OwnQuietSample)
     assert any(x.start <= nearest.sample.start and nearest.sample.end <= x.end for x in pool)
     avoided = (nearest.sample.start - 0.01, nearest.sample.end + 0.01)
-    other = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3, avoid=[avoided])
+    other = room_tone_span(
+        project,
+        "host",
+        near_sec=4.25,
+        near_source_id=None,
+        timeline_sec=4.25,
+        duration_sec=0.3,
+        avoid=[avoided],
+    )
     assert isinstance(other, OwnQuietSample)
     assert other.sample.end <= avoided[0] or other.sample.start >= avoided[1]
 
@@ -804,16 +860,115 @@ def test_a_peer_voice_bleeding_below_the_level_checks_is_not_room_tone(tmp_path:
     assert fill.end_s <= 5.0 or fill.start_s >= 7.0
 
 
-def test_a_cut_in_another_recording_is_not_ranked_by_its_position_in_the_primary() -> None:
-    pool = tuple(Sample(10.0 * i, 10.0 * i + 1.0, -75.0, 0.0) for i in range(30))
+POOL = (
+    Sample(0.0, 2.0, -75.0, 0.0),
+    Sample(10.0, 12.0, -75.0, 0.0),
+    Sample(20.0, 22.0, -75.0, 0.0),
+)
 
-    picked = {
-        _from_pool(pool, near_sec=None, spread_key=float(key), duration_sec=0.5, avoid=())
-        for key in range(2300, 2400, 3)
-    }
-    starts = {p.sample.start for p in picked if p is not None}
 
-    assert len(starts) > 10
+def _pooled_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pool: tuple[Sample, ...]
+) -> EpisodeProject:
+    from podcast_mcp.engines import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    _write_wav(tmp_path / "raw" / "later.wav", _noise(FLOOR_DB, seed=2265))
+    project.sources.append(
+        SourceRecording(
+            id="later",
+            path="raw/later.wav",
+            duration_sec=DURATION_SEC,
+            sample_rate=SR,
+            channels=1,
+        )
+    )
+    monkeypatch.setattr(room_tone, "read_room_tone_pool", lambda _project, _track: pool)
+    return project
+
+
+def _taken(project: EpisodeProject, selected: OwnQuietSample, timeline_start: float) -> int:
+    project.clips.append(
+        Clip(
+            id=f"pad{len(project.clips)}",
+            track_id="host",
+            source_start=selected.sample.start,
+            source_end=selected.sample.end,
+            timeline_start=timeline_start,
+        )
+    )
+    return next(i for i, x in enumerate(POOL) if x.start <= selected.sample.start < x.end)
+
+
+def _cut(project: EpisodeProject, near: float, timeline: float, source_id: str | None):
+    selected = room_tone_span(
+        project,
+        "host",
+        near_sec=near,
+        near_source_id=source_id,
+        timeline_sec=timeline,
+        duration_sec=0.5,
+    )
+    assert isinstance(selected, OwnQuietSample)
+    return selected
+
+
+def test_later_recording_cuts_within_two_minutes_take_different_samples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+
+    first = _cut(project, 2300.0, 1000.0, "later")
+    index = _taken(project, first, 1000.0)
+    nearby = _cut(project, 2371.0, 1071.0, "later")
+    distant = _cut(project, 2600.0, 1300.0, "later")
+
+    assert index == 0
+    assert (nearby.sample.start, nearby.sample.end) != (first.sample.start, first.sample.end)
+    assert POOL[1].start <= nearby.sample.start < POOL[1].end
+    assert (distant.sample.start, distant.sample.end) == (first.sample.start, first.sample.end)
+
+
+def test_a_primary_cut_whose_nearest_sample_is_in_use_takes_the_second_nearest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+
+    first = _cut(project, 1.0, 1.0, None)
+    _taken(project, first, 1.0)
+    second = _cut(project, 1.0, 5.0, None)
+
+    assert POOL[0].start <= first.sample.start and first.sample.end <= POOL[0].end
+    assert POOL[1].start <= second.sample.start and second.sample.end <= POOL[1].end
+
+
+def test_a_one_sample_pool_is_still_used_when_that_sample_is_in_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL[:1])
+
+    first = _cut(project, 1.0, 1.0, None)
+    _taken(project, first, 1.0)
+    again = _cut(project, 1.0, 5.0, None)
+
+    assert (again.sample.start, again.sample.end) == (first.sample.start, first.sample.end)
+
+
+def test_two_nearby_mute_fills_take_different_samples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = (Sample(3.0, 5.0, -75.0, 0.0), Sample(6.0, 8.0, -75.0, 0.0))
+    project = _pooled_project(tmp_path, monkeypatch, pool)
+    clip = _host_clip(project)
+
+    first = mute_room_tone_fill(project, clip, 4.0, 4.5)
+    assert first is not None
+    clip.mute_regions.append(ClipMuteRegion(start_s=4.0, end_s=4.5, fill=first))
+    second = mute_room_tone_fill(project, clip, 4.6, 5.0)
+
+    assert second is not None
+    assert first.start_s >= 3.0 and first.end_s <= 5.0
+    assert second.start_s >= 6.0 and second.end_s <= 8.0
 
 
 def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_path: Path) -> None:

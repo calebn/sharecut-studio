@@ -28,7 +28,8 @@ the cut from each, and returns the first window that passes every row of ``CHECK
 Picking is done once per recording: :func:`record_room_tone_pool` runs that pick at evenly
 spaced points along the track, keeps the samples that passed, and records them under the
 project's ``artifacts``, keyed on the recording's identity. A request on a track with a pool
-takes the nearest pooled sample that is clear of ``avoid``, reading no audio; a track
+takes the nearest pooled sample that is clear of ``avoid``, preferring one that no clip
+or mute fill within ``TAKEN_WINDOW_SEC`` of the cut already plays, reading no audio; a track
 without one picks as above. Spectral flatness is not a check: on the lab tape the room floor's flatness (median
 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold
 separates them; the floor band does.
@@ -40,7 +41,6 @@ import json
 import logging
 import math
 import threading
-import zlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -215,13 +215,15 @@ def room_tone_span(
     track_id: str,
     *,
     near_sec: float,
+    near_source_id: str | None,
+    timeline_sec: float,
     duration_sec: float,
     avoid: Sequence[Span] = (),
-    near_source_id: str | None = None,
 ) -> RoomToneSelection:
     """Measured room tone or an actual absence cause for this request.
 
-    ``near_sec`` is the cut's position in the track's source seconds. ``avoid`` is source
+    ``near_sec`` is the cut's position in the source named by ``near_source_id`` and
+    ``timeline_sec`` its position on the timeline. ``avoid`` is source
     time a sample of the track's own audio may not come from: a pad that replays the
     source of a cut that has not been applied yet makes that cut play in two places, and
     approving it then removes everything between them. The track's
@@ -240,12 +242,14 @@ def room_tone_span(
         return _after_bed(bed, SampleAbsent("missing_media"))
 
     on_primary = None in project.equivalent_source_ids(track_id, near_source_id)
+    pool = read_room_tone_pool(project, track_id) or ()
+    taken = _pool_spans_in_use(project, track_id, pool, timeline_sec)
     pooled = _from_pool(
-        read_room_tone_pool(project, track_id) or (),
+        pool,
         near_sec=near_sec if on_primary else None,
-        spread_key=near_sec,
         duration_sec=duration_sec,
         avoid=avoid,
+        taken=taken,
     )
     if pooled is not None:
         return _after_bed(bed, pooled)
@@ -256,13 +260,18 @@ def room_tone_span(
         return _after_bed(bed, SampleAbsent("digital_silence"))
     if read.gated:
         return _after_bed(bed, SampleAbsent("gated_live"))
+    clear = _no_foreign_voice(project, track_id)
     selected = _pick_sample(
         read.floor,
-        near_sec=near_sec if on_primary else _spread_near(read.floor, near_sec),
+        near_sec=near_sec,
         duration_sec=duration_sec,
-        avoid=avoid,
-        clear=_no_foreign_voice(project, track_id),
+        avoid=[*avoid, *taken],
+        clear=clear,
     )
+    if isinstance(selected, SampleAbsent) and taken:
+        selected = _pick_sample(
+            read.floor, near_sec=near_sec, duration_sec=duration_sec, avoid=avoid, clear=clear
+        )
     return _after_bed(bed, selected)
 
 
@@ -276,6 +285,9 @@ POOL_SAMPLE_SEC = 2.0
 # A pooled sample shorter than this is a scrap that a pad tiles into a stutter.
 POOL_MIN_SAMPLE_SEC = 1.0
 _POOL_REV = 3
+# A pooled sample that a clip or mute fill this close to the cut (timeline seconds, either
+# side) already plays ranks after the unused ones: the listener hears both fills together.
+TAKEN_WINDOW_SEC = 120.0
 _POOLS_KEPT = 64
 _POOL_RECORDS_KEPT = 64
 _POOLS: dict[tuple[str, FileRevision], tuple[Sample, ...]] = {}
@@ -490,38 +502,57 @@ def room_tone_bed_digest(project: EpisodeProject) -> str:
     return json.dumps(parts) if parts else ""
 
 
-def _spread_fraction(key: float) -> float:
-    """A fixed fraction in [0, 1) for ``key``, so nearby cut positions differ."""
-    return (zlib.crc32(f"{key:.1f}".encode()) % 10_000) / 10_000.0
+def _pool_spans_in_use(
+    project: EpisodeProject, track_id: str, pool: Sequence[Sample], timeline_sec: float
+) -> list[Span]:
+    """Source spans of ``pool`` that this track plays within ``TAKEN_WINDOW_SEC`` of the cut.
 
-
-def _spread_near(floor: TrackFloor, key: float) -> float:
-    if not floor.runs:
-        return key
-    low, high = floor.runs[0][0], floor.runs[-1][1]
-    return low + (high - low) * _spread_fraction(key)
+    A pad clip is a plain clip whose source span lies inside one pooled sample; a mute fill
+    is a region's own-media ``fill``.
+    """
+    spans: list[Span] = []
+    for clip in project.clips:
+        if (
+            clip.track_id != track_id
+            or clip.timeline_end < timeline_sec - TAKEN_WINDOW_SEC
+            or clip.timeline_start > timeline_sec + TAKEN_WINDOW_SEC
+        ):
+            continue
+        spans.extend(
+            (r.fill.start_s, r.fill.end_s)
+            for r in clip.mute_regions
+            if r.fill is not None and r.fill.source_id is None
+        )
+        if any(
+            x.start - 1e-6 <= clip.source_start and clip.source_end <= x.end + 1e-6 for x in pool
+        ) and (None in project.equivalent_source_ids(track_id, clip.source_id)):
+            spans.append((clip.source_start, clip.source_end))
+    return [s for s in spans if any(s[0] < x.end and x.start < s[1] for x in pool)]
 
 
 def _from_pool(
     pool: Sequence[Sample],
     *,
     near_sec: float | None,
-    spread_key: float,
     duration_sec: float,
     avoid: Sequence[Span],
+    taken: Sequence[Span],
 ) -> OwnQuietSample | None:
-    """The pooled sample nearest ``near_sec`` with a clear piece long enough, else None.
+    """The unused pooled sample nearest ``near_sec`` with a clear piece long enough, else None.
 
-    With no ``near_sec`` (the cut is not on the pool's recording) the samples are taken in
-    an order fixed by ``spread_key``.
+    A sample that overlaps ``taken`` ranks after every sample that does not. With no
+    ``near_sec`` (the cut is not on the pool's recording) the samples are taken in
+    recording order.
     """
     need = min(duration_sec, MIN_SAMPLE_SEC)
-    if near_sec is None:
-        order = {id(x): _spread_fraction(spread_key + i) for i, x in enumerate(pool)}
-        ranked = sorted(pool, key=lambda x: order[id(x)])
-    else:
-        ranked = sorted(pool, key=lambda x: max(x.start - near_sec, near_sec - x.end, 0.0))
-    for sample in ranked:
+
+    def rank(x: Sample) -> tuple[bool, float]:
+        used = any(a < x.end and x.start < b for a, b in taken)
+        if near_sec is None:
+            return used, x.start
+        return used, max(x.start - near_sec, near_sec - x.end, 0.0)
+
+    for sample in sorted(pool, key=rank):
         for piece in subtract_intervals([(sample.start, sample.end)], avoid):
             if piece[1] - piece[0] >= need - 1e-9:
                 centre = (piece[0] + piece[1]) / 2.0 if near_sec is None else near_sec
@@ -547,7 +578,7 @@ def _follows(own: np.ndarray, other: np.ndarray) -> bool:
     if count < 8:
         return False
     a, b = own[:count], other[:count]
-    if np.std(a) < 1e-6 or np.std(b) < 1e-6:
+    if np.ptp(a) == 0.0 or np.ptp(b) == 0.0:
         return False
     return float(np.corrcoef(a, b)[0, 1]) >= BLEED_ENVELOPE_CORRELATION
 
