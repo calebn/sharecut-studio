@@ -63,10 +63,8 @@ def test_resolve_project_path_rename_is_a_no_op_the_second_time(tmp_path):
 def test_resolve_project_path_leaves_the_retired_file_when_the_current_one_exists(tmp_path):
     (tmp_path / RETIRED_PROJECT_FILENAME).write_bytes(b"old")
     (tmp_path / "episode.sharecut").write_bytes(b"new")
-    assert (
-        resolve_project_path(tmp_path.joinpath(RETIRED_PROJECT_FILENAME))
-        == (tmp_path / "episode.sharecut").resolve()
-    )
+    retired = tmp_path / RETIRED_PROJECT_FILENAME
+    assert resolve_project_path(retired) == (tmp_path / "episode.sharecut").resolve()
     assert (tmp_path / RETIRED_PROJECT_FILENAME).read_bytes() == b"old"
     assert (tmp_path / "episode.sharecut").read_bytes() == b"new"
 
