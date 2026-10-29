@@ -173,6 +173,16 @@ describe("listing", () => {
     expect(flow.loaded).toBe(false);
   });
 
+  it("clears a list error when a later list answers", async () => {
+    listHostShares.mockRejectedValueOnce(new Error("List failed"));
+    mount();
+    act(() => flow.reload());
+    await waitFor(() => expect(flow.error).toBe("List failed"));
+    act(() => flow.reload());
+    await waitFor(() => expect(flow.loaded).toBe(true));
+    expect(flow.error).toBeNull();
+  });
+
   it("drops a list error and a list from an obsolete project generation", async () => {
     const old = deferred<ReturnType<typeof listed>>();
     listHostShares.mockReturnValueOnce(old.promise);

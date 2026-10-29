@@ -273,7 +273,7 @@
   }
 }
 
-/* The segmented choices share the row and wrap their words instead of widening the page. */
+/* The segmented choices stay inside the section instead of widening the page. */
 .dv-field .ui-segmented {
   max-inline-size: 100%;
 }

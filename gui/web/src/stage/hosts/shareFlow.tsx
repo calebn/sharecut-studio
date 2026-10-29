@@ -75,6 +75,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     kind: "idle",
   });
   const mounted = useRef(true);
+  const listFailure = useRef<string | null>(null);
   const generation = useRef(0);
   const loadGeneration = useRef(0);
   const busyOwner = useRef<Owner | null>(null);
@@ -165,9 +166,11 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         if (mine !== loadGeneration.current || !isCurrent(scope)) return;
         setRows(data.shares);
         setLoaded(true);
+        setError((shown) => (shown === listFailure.current ? null : shown));
       } catch (err) {
         if (mine === loadGeneration.current && isCurrent(scope)) {
-          setError(errorMessage(err));
+          listFailure.current = errorMessage(err);
+          setError(listFailure.current);
         }
       }
     },

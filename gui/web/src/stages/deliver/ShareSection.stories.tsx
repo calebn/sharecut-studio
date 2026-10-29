@@ -139,7 +139,7 @@ const meta: Meta<typeof ShareSection> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Review links and record rooms for the open project. The role, MCP and freeze choices apply to the next link; Create review link makes it (and copies it when the browser allows), and each link in the list has its own Copy and an in-place Stop sharing. Online sharing status sits on top; a link that only this network can open says so.\n\n**Motion.** Animations come later: the Copied label holds for 2 s and then eases back.",
+          "Review links and record rooms for the open project. The role, MCP and freeze choices apply to the next link; Create review link makes it (and copies it when the browser allows), and each link in the list has its own Copy and an in-place Stop sharing. Online sharing status sits on top; a link that only this network can open says so.\n\n**Motion.** Animations come later: the Copied label holds for 2 s and then reads Copy again.",
       },
     },
   },
