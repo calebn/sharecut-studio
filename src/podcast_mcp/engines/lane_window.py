@@ -18,7 +18,7 @@ from podcast_mcp.engines.mute_regions import (
     sample_mute_envelopes,
 )
 from podcast_mcp.engines.sample_grid import Piece, lay_out
-from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+from podcast_mcp.engines.timeline_render import ClipAudioPaths
 from podcast_mcp.models import Clip, EpisodeProject, Track
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
@@ -87,7 +87,11 @@ def lane_clip_placements(project: EpisodeProject, track: Track) -> list[tuple[Cl
                 timeline_start=0.0,
             )
         ]
-    return [(clip, _clip_placement(project, track, clip, ignored, sample_rates)) for clip in clips]
+    audio_path = ClipAudioPaths(project, track)
+    return [
+        (clip, _clip_placement(project, track, clip, ignored, sample_rates, audio_path))
+        for clip in clips
+    ]
 
 
 def lane_placements(project: EpisodeProject, track: Track) -> list[Placement]:
@@ -127,9 +131,10 @@ def _clip_placement(
     clip: Clip,
     ignored: IgnoredWordRegions,
     sample_rates: dict[Path, int | None],
+    audio_path: ClipAudioPaths,
 ) -> Placement:
     try:
-        media: Path | None = resolve_clip_audio_path(project, track, clip)
+        media: Path | None = audio_path(clip)
     except (OSError, ValueError):
         media = None
     ignored_regions = ignored.for_clip(clip)

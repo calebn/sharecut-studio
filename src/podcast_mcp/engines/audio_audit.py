@@ -571,7 +571,7 @@ def build_track_rms_caches(
     ``window`` names for it (#2357). A track the window cannot serve is built whole.
     """
     from podcast_mcp.engines import track_evidence
-    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+    from podcast_mcp.engines.timeline_render import ClipAudioPaths
 
     caches: dict[str, TrackRmsCache] = {}
     sources: dict[Path, np.ndarray] = {}
@@ -627,8 +627,9 @@ def build_track_rms_caches(
             continue
         try:
             spans = timeline.lane_clip_spans(tid)
+            audio_path = ClipAudioPaths(project, track)
             paths = (
-                [resolve_clip_audio_path(project, track, span.clip) for span in spans]
+                [audio_path(span.clip) for span in spans]
                 if spans
                 else [track_audio_path(project, tid).resolve()]
             )
