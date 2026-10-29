@@ -11,6 +11,7 @@ import {
   ToggleButton,
 } from "../../ui";
 import { BUSY_REASON, useDisabledReasonNote } from "../../ui/disabledReason";
+import { cancelInlineConfirm } from "../../ui/inlineConfirmGate";
 import { DeliverSection } from "./DeliverSection";
 import {
   FREEZE_HELP,
@@ -94,6 +95,18 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
     const selection = window.getSelection?.();
     if (text && selection) selection.selectAllChildren(text);
   }, [blockedKey]);
+
+  // Escape keeps the link or room, as Keep does, before anything else takes it.
+  const asking = pending !== null;
+  useEffect(() => {
+    if (!asking) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (cancelInlineConfirm()) event.stopPropagation();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [asking]);
 
   if (pageState === "loading") {
     return (
@@ -307,15 +320,6 @@ type ConfirmProps = {
   onConfirm: () => void;
 };
 
-/** Escape keeps the link, as Keep does. */
-function keepOnEscape(onKeep: () => void) {
-  return (event: React.KeyboardEvent) => {
-    if (event.key !== "Escape") return;
-    event.stopPropagation();
-    onKeep();
-  };
-}
-
 function ReviewRow({
   row,
   options,
@@ -335,7 +339,7 @@ function ReviewRow({
   const key = shareCopyKey("link", row.token);
   const busyReason = busy ? BUSY_REASON : undefined;
   return (
-    <li className="dv-share-row" onKeyDown={keepOnEscape(onKeep)}>
+    <li className="dv-share-row">
       <LinkRow
         access={roleOf(row)}
         link={row.url}
@@ -412,7 +416,7 @@ function RoomCard({
   const busyReason = busy ? BUSY_REASON : undefined;
   const created = room.guests[0]?.created_at ?? room.producers[0]?.created_at;
   return (
-    <li className="dv-share-row" onKeyDown={keepOnEscape(onKeep)}>
+    <li className="dv-share-row">
       <div className="dv-share-main">
         <span id={labelId} className="dv-share-title">
           Record room
