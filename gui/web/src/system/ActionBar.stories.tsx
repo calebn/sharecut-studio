@@ -102,7 +102,7 @@ function DockScene({
 }: SceneProps & { width: string }) {
   const scene = barScene(selection, { role, clipboardHasAudio });
   return (
-    <div
+    <main
       style={{
         display: "flex",
         flexDirection: "column",
@@ -120,7 +120,7 @@ function DockScene({
         primary={scene.primary}
         onVerb={onVerb}
       />
-    </div>
+    </main>
   );
 }
 
