@@ -931,7 +931,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   },
   "comment.draftAt": {
     id: "comment.draftAt",
-    category: "review",
+    category: "edit",
     label: "Add comment",
     when: "canComment",
     notes:

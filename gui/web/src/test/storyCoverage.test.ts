@@ -252,7 +252,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(132);
+    expect(INVENTORY_IDS).toHaveLength(131);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });
