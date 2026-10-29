@@ -192,7 +192,7 @@ error inline; timeline handles and phone nudges show the same recovery in a toas
 |--|--|
 | **Purpose** | Guest-style review: play the mix, scan comments, jump from badges |
 | **Primary actions** | Player scrub and ±15s · type a comment and **Post comment** · open comment · tap a Stage bar badge |
-| **Always visible** | App header · Review sections (Queue · Comments; guests see Comments) · Player bar · the five-tab Stage bar (none for a Commenter link). A comment field with the **at 0:12** chip and **Post comment** |
+| **Always visible** | App header · Review (the host reads comments in the Queue and presses **C** to comment; guests see the Comments section) · Player bar · the five-tab Stage bar (none for a Commenter link). A comment field with the **at 0:12** chip and **Post comment** |
 | **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale badges |
 | **Empty** | “No comments yet.” (the shared quiet empty state). With no tracks yet and no playback to finish, Play and Stop are unavailable (“Import audio to play.”). If the final track disappears during playback, Pause remains available |
 | **Out of scope** | Multitrack waveform editing |
