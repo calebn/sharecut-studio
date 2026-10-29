@@ -17,6 +17,7 @@ RECORDED_ROLES: frozenset[str] = frozenset({"host", "guest"})
 DEFAULT_RECORDED_CAP = 4
 DEFAULT_PRODUCER_CAP = 2
 HOST_PARTICIPANT_ID = "p_host"
+MAX_REPORTED_SEGMENTS = 500
 HOST_OFFLINE_PAUSE_MS = 10_000
 HOST_HEARTBEAT_STALE_MS = 7_500
 TAKE_OPEN_REMINT_MSG = "A take is open (REC/PAUSED). Stop it before minting a new room."
@@ -33,6 +34,12 @@ class PauseEntry(BaseModel):
     pause_reason: PauseReason | None = None
 
 
+class SegmentReportEntry(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    segments: int = 0
+    final: bool = False
+
+
 class TakeState(BaseModel):
     model_config = ConfigDict(extra="ignore")
     take_index: int
@@ -41,6 +48,7 @@ class TakeState(BaseModel):
     stopped_wall_ms: int | None = None
     pauses: list[PauseEntry] = Field(default_factory=list)
     consented_participant_ids: list[str]
+    segment_reports: dict[str, SegmentReportEntry] = Field(default_factory=dict)
 
 
 class EndTarget(BaseModel):

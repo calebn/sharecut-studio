@@ -10,7 +10,7 @@ from podcast_mcp.edits.session_suggestions import session_suggestion_for
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.record.landing import STAGED_TARGET_KINDS
 from podcast_mcp.services.record.service import RecordSessionService, _store_for
-from podcast_mcp.services.record.state import RecordSnapshot, TakeState
+from podcast_mcp.services.record.state import ParticipantState, RecordSnapshot, TakeState
 from podcast_mcp.services.record.upload import RecordUploadService
 
 #: How long after the latest trusted Stop or chunk time an upload still counts as "saving".
@@ -43,17 +43,28 @@ class Unsaved:
     closed: bool = False
 
 
-def _expected_segments(take: TakeState) -> int:
-    """Segments a recorded guest uploads for a take: one, plus one per real Resume.
+def _owed_segments(take: TakeState, person: ParticipantState, have_max: int) -> int:
+    """How many segments ``person`` uploads for ``take``, as far as the server can tell.
 
-    Stop while paused also closes the open pause, with ``resume_wall_ms`` equal to the stop
-    time; that is not a Resume and records nothing.
+    A participant's own ``SegmentReport`` is the count; the uploads already in never shrink it.
+    With no report, a guest is expected to upload one segment plus one per real Resume since
+    they consented (Stop while paused closes the open pause at the stop time: that is not a
+    Resume). The host with no report is not expected: a CLI or MCP host may run no keeper.
     """
-    return 1 + sum(
+    report = take.segment_reports.get(person.participant_id)
+    if report is not None:
+        return max(report.segments, have_max + 1)
+    if person.role != "guest":
+        return 0
+    since = person.consented_wall_ms or 0
+    resumes = sum(
         1
         for entry in take.pauses
-        if entry.resume_wall_ms is not None and entry.resume_wall_ms != take.stopped_wall_ms
+        if entry.resume_wall_ms is not None
+        and entry.resume_wall_ms != take.stopped_wall_ms
+        and entry.resume_wall_ms >= since
     )
+    return 1 + resumes
 
 
 def _quiet_ms(now: int, *stamps: int | None) -> int | None:
@@ -77,6 +88,9 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
     tombstoned = uploads.tombstoned_takes(session_id)
     by_pid = {p.participant_id: p for p in snap.participants}
     have = {(int(r["take_index"]), str(r["participant_id"]), int(r["segment_index"])) for r in rows}
+    have_max: dict[tuple[int, str], int] = {}
+    for take_index, pid, segment in have:
+        have_max[(take_index, pid)] = max(have_max.get((take_index, pid), -1), segment)
     landable: set[int] = set()
     saving: set[int] = set()
     stalled: set[tuple[int, str, int]] = set()
@@ -99,14 +113,14 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
                 stalled.add((index, pid, segment))
             else:
                 saving.add(index)
-        # A consenting guest owes one upload per recorded segment; none yet is "saving" for the
-        # grace window after Stop, then stalled. The host is not expected (a host whose mic was
-        # denied never uploads), and a removed guest with no upload at all is not known.
+        # Each consenting recorded person owes the segments they reported (a guest with no report,
+        # the inferred count); none yet is "saving" for the grace window after Stop, then stalled.
+        # A removed person with no upload at all is not known.
         for pid in take.consented_participant_ids:
             person = by_pid.get(pid)
-            if person is None or person.role != "guest" or person.removed:
+            if person is None or person.removed:
                 continue
-            for segment in range(_expected_segments(take)):
+            for segment in range(_owed_segments(take, person, have_max.get((index, pid), -1))):
                 if (index, pid, segment) in have:
                     continue
                 if stopped_quiet is None or stopped_quiet > UPLOAD_GRACE_MS:
@@ -127,7 +141,7 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
         landable=len(landable),
         saving=len(saving),
         stalled=len(stalled),
-        closed=held is not None and held.status != "pending",
+        closed=bool(landable or saving) and held is not None and held.status != "pending",
     )
 
 

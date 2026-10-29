@@ -771,6 +771,9 @@ def test_failed_comment_write_leaves_no_command_and_retry_applies(
     assert [c["id"] for c in svc.snapshot()["comments"]] == ["live-retry"]
 
 
+_REPORT = {"take_index": 0, "segments": 1, "final": True}
+
+
 def test_every_record_command_type_journals_inside_one_write_transaction(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -792,6 +795,11 @@ def test_every_record_command_type_journals_inside_one_write_transaction(
     svc.submit(_cmd("Pause"), now_wall_ms=30_000)
     svc.submit(_cmd("Resume"), now_wall_ms=40_000)
     svc.submit(_cmd("Stop"), now_wall_ms=50_000)
+    svc.submit(
+        _cmd("SegmentReport", pid=guest, role="guest", payload=_REPORT),
+        now_wall_ms=55_000,
+        capabilities=caps,
+    )
     svc.submit(_cmd("RemoveParticipant", payload={"participant_id": guest}), now_wall_ms=60_000)
     svc.submit(_cmd("Leave"), now_wall_ms=70_000)
     assert {row["type"] for row in svc._store.commands_after(0)} == set(COMMAND_TYPES)

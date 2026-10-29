@@ -14,6 +14,7 @@ from podcast_mcp.services.record.state import (
     PauseReason,
     RecordSnapshot,
     RoomToneRound,
+    SegmentReportEntry,
     TakeState,
     describe_start_blockers,
     find_participant,
@@ -243,6 +244,16 @@ def apply_record_command(
     if ctype == "Comment":
         if cmd.role != "host":
             _require_self(out, cmd)
+        return out
+    if ctype == "SegmentReport":
+        person = _require_self(out, cmd)
+        index = int(cmd.payload["take_index"])
+        take = next((t for t in out.takes if t.take_index == index), None)
+        if take is None:
+            raise RecordStateError("unknown take")
+        entry = take.segment_reports.setdefault(person.participant_id, SegmentReportEntry())
+        entry.segments = max(entry.segments, int(cmd.payload["segments"]))
+        entry.final = entry.final or bool(cmd.payload["final"])
         return out
     if ctype == "Start":
         if out.state not in ("lobby", "stopped"):
