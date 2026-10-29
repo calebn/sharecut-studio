@@ -100,10 +100,13 @@ def _load_defaults_calls(source: str) -> list[int]:
 
 def test_domain_packages_never_read_the_shipped_defaults() -> None:
     root = Path(__file__).resolve().parents[1] / "src" / "podcast_mcp"
+    gate_files = [root / "services" / "media" / "transcript_refine.py"]
     offenders = {
         str(path.relative_to(root)): lines
-        for package in _DOMAIN_PACKAGES
-        for path in sorted((root / package).rglob("*.py"))
+        for path in [
+            *(p for package in _DOMAIN_PACKAGES for p in sorted((root / package).rglob("*.py"))),
+            *gate_files,
+        ]
         if (lines := _load_defaults_calls(path.read_text(encoding="utf-8")))
     }
     assert offenders == {}
@@ -116,7 +119,7 @@ def test_the_governance_check_sees_a_fallback() -> None:
 
 
 @pytest.mark.refine_gate
-def test_mark_checked_reads_the_gate_with_the_project_effective_config(
+def test_mark_checked_passes_the_project_effective_config_to_the_gate_report(
     minimal_project: Path, monkeypatch
 ):
     workspace = ProjectWorkspace.open(minimal_project)
