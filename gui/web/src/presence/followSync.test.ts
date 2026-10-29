@@ -261,6 +261,21 @@ describe("followSync", () => {
     expect(plan.degraded).toEqual({});
   });
 
+  it("lands an old client's tighten tab on Queue", () => {
+    const plan = planFollowUi(
+      { tab: "tighten" },
+      { guestShare: false, breakpoint: "desktop" },
+    );
+    expect(plan.apply.stage).toEqual({ stage: "review", section: "queue" });
+    expect(plan.degraded).toEqual({});
+    const guest = planFollowUi(
+      { tab: "tighten" },
+      { guestShare: true, breakpoint: "desktop" },
+    );
+    expect(guest.apply.stage).toBeUndefined();
+    expect(guest.degraded.tab).toBe("tighten");
+  });
+
   it("degrades guest follow for host-only tabs and non-Mix audition", () => {
     const pipeline = planFollowUi(
       { tab: "pipeline", audition: "fx", viewer_mute: ["host"], solo: ["g"] },
