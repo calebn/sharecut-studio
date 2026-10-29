@@ -329,8 +329,9 @@ flowchart TD
    Resume while paused) and keeps Stop alone at the end behind a divider; Stop
    asks once ("Stop this take? Recording ends for everyone in the room.",
    **Keep recording** or **Stop take**). Land stays disabled with its reason
-   beside it while a recording is still saving and until there is something to
-   land; live comments do not enable it while a recording saves. The native
+   beside it while recordings are still saving and none is ready to land, and
+   until there is something to land; live comments do not enable it while a
+   recording saves. The native
    leave warning stays
    until your full-quality recording finishes writing its final file, then
    clears. The guest's pill reads "Saving · N%" while the file uploads and "Saved"
