@@ -29,6 +29,7 @@ from podcast_mcp.edits.session_suggestions import (
     drop_staged_takes,
     ensure_session_suggestion,
     hold_room_tone,
+    restore_followed_tracks,
     session_suggestion_for,
     session_suggestion_id,
     stage_comments,
@@ -614,10 +615,17 @@ class RecordLandingService:
                 int(row["segment_index"]),
             )
         )
+        removed = {person.participant_id for person in snap.participants if person.removed}
+        kept = {
+            str(row["participant_id"])
+            for row in status["segments"]
+            if row.get("file_ack") and int(row["take_index"]) not in tombstoned
+        }
         pending_room_tone = [
             row
             for row in self._upload.room_tone_status(session_id=self.session_id)
             if row.get("file_ack")
+            and (str(row["participant_id"]) not in removed or str(row["participant_id"]) in kept)
             and (
                 not row.get("landed") or self._room_tone_missing(str(row["participant_id"]), staged)
             )
@@ -1120,6 +1128,7 @@ class RecordLandingService:
             project.sources = [src for src in project.sources if src.id not in drop_ids]
             project.clips = [clip for clip in project.clips if clip.source_id not in drop_ids]
             drop_staged_takes(project, self.session_id, take)
+            restore_followed_tracks(project, self.session_id)
             kept = {clip.track_id for clip in project.clips}
             project.tracks = [
                 track for track in project.tracks if track.id not in drop_tracks or track.id in kept
@@ -1469,6 +1478,7 @@ class RecordLandingService:
                     project, self.session_id, prior.source_id
                 ):
                     touched.add(prior.track_id)
+            restore_followed_tracks(project, self.session_id)
             if touched:
                 refresh_timeline_duration(project)
                 if self._close_start_tail(project, extent_before):

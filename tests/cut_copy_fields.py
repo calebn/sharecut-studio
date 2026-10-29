@@ -72,7 +72,7 @@ SHARED_FIELDS: dict[str, str] = {
     ),
     "SessionSuggestion": (
         "anchor at_sec end_anchor from_sec id kind room_tone selected_take session_id session_number "
-        "status takes to_sec track_ids"
+        "status takes to_sec track_follows track_ids"
     ),
     "SocialClipCandidate": (
         "approved caption_suggestion end exported_path id reasons review_required score "

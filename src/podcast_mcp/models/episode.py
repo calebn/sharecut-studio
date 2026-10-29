@@ -1007,6 +1007,7 @@ class SessionSuggestion(BaseModel):
     from_sec: float | None = Field(default=None, ge=0)
     to_sec: float | None = Field(default=None, ge=0)
     track_ids: list[str] = Field(default_factory=list)
+    track_follows: dict[str, str] = Field(default_factory=dict)
     takes: list[StagedTake] = Field(default_factory=list)
     room_tone: list[StagedRoomTone] = Field(default_factory=list)
     selected_take: int | None = None

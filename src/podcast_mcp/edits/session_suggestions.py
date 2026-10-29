@@ -190,6 +190,24 @@ def drop_staged_takes(project: EpisodeProject, session_id: str, take_index: int)
     project.editorial.session_suggestions = kept
 
 
+def restore_followed_tracks(project: EpisodeProject, session_id: str) -> None:
+    """Point a pending replace back at the tracks it was moved off once nobody staged is on the new one.
+
+    A replace follows a person who is moved to another track; when their staged pieces are gone,
+    the row goes back to the track they were set to cover, unless a staged piece now sits there.
+    """
+    for row in project.editorial.session_suggestions:
+        if row.session_id != session_id or row.status != "pending":
+            continue
+        for current, origin in list(row.track_follows.items()):
+            held = {take.track_id for take in row.takes} | {bed.track_id for bed in row.room_tone}
+            if current in held or origin in held or current not in row.track_ids:
+                continue
+            swapped = [origin if t == current else t for t in row.track_ids]
+            row.track_ids = list(dict.fromkeys(swapped))
+            del row.track_follows[current]
+
+
 def discard_unchosen_takes(
     project: EpisodeProject, row: SessionSuggestion, chosen: int
 ) -> list[int]:
@@ -450,6 +468,19 @@ def _chosen_take(row: SessionSuggestion, take_index: int | None) -> int:
     return available[-1]
 
 
+def _track_label(project: EpisodeProject, row: SessionSuggestion, track_id: str) -> str:
+    """A track's name for a message: the track, a staged piece on it, the track it follows, or its id."""
+    track = project.track_by_id(track_id)
+    if track is not None:
+        return track.label
+    staged: list[StagedTake | StagedRoomTone] = [*row.takes, *row.room_tone]
+    label = next((piece.track_label for piece in staged if piece.track_id == track_id), None)
+    if label:
+        return label
+    origin = row.track_follows.get(track_id)
+    return _track_label(project, row, origin) if origin and origin != track_id else track_id
+
+
 def _check_take(
     project: EpisodeProject, row: SessionSuggestion, take_index: int | None
 ) -> tuple[int, list[StagedTake], float, list[str]]:
@@ -466,8 +497,9 @@ def _check_take(
     recorded = sorted({take.track_id for take in takes})
     missing = [tid for tid in row.track_ids if tid not in recorded]
     if missing:
+        names = ", ".join(f'"{_track_label(project, row, tid)}"' for tid in missing)
         raise CodedValueError(
-            f"Take {chosen} did not record {', '.join(missing)}, which this pickup was set to "
+            f"Take {chosen} did not record {names}, which this pickup was set to "
             "replace. Pick a take that recorded every track, or record the session again.",
             code="track_not_recorded",
         )
