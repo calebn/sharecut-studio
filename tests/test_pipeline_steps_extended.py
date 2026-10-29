@@ -1300,8 +1300,9 @@ def test_transcribe_tracks_honours_input_keyed_cache(minimal_project, sample_wav
     )
     defaults = load_defaults()
     with patch.object(Engine, "transcribe_file") as asr:
-        steps.transcribe_tracks(proj, defaults)
+        summary = steps.transcribe_tracks(proj, defaults)
     asr.assert_not_called()
+    assert "1 processed, 0 reused" in summary
     assert proj.transcripts[0].words[0].text == "old"
 
 
