@@ -39,7 +39,14 @@ export type ReviewContent = {
     | "why"
     | "comment"
     | "change"
-  > & { unsure?: { word: string; guess: string } };
+  > & {
+    unsure?: {
+      word: string;
+      guess: string;
+      id?: string;
+      step?: { index: number; total: number };
+    };
+  };
 };
 
 export type BulkProgress = { kind: DecisionKind; total: number; done: number };

@@ -100,7 +100,14 @@ describe("lowConfidenceStops", () => {
         track_id: "host",
         text: "so",
         words: [
-          { text: "so", start: 1, end: 1.2, word_index: 0, confidence: 0.4, unsure: true },
+          {
+            text: "so",
+            start: 1,
+            end: 1.2,
+            word_index: 0,
+            confidence: 0.4,
+            unsure: true,
+          },
         ],
       }),
     ];

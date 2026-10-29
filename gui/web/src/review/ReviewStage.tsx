@@ -34,6 +34,8 @@ export type ReviewIntent = {
   ids: readonly string[];
   result: ReviewResult;
   waive?: { note?: string };
+  /** The corrected text of an unsure word; same as its own text means Looks right. */
+  text?: string;
   /** Sent by a group verb, which never cuts through unsure words. */
   group?: true;
 };
@@ -154,7 +156,13 @@ export function ReviewStage({
     : undefined;
 
   const keep = (id: string) => {
-    if (!guest && items.some((i) => i.id === id && !i.result && !i.transcript))
+    if (
+      !guest &&
+      items.some(
+        (i) =>
+          i.id === id && !i.result && !i.transcript && i.kind !== "unsure-word",
+      )
+    )
       void onDecide({ ids: [id], result: "kept" });
   };
 
@@ -203,7 +211,8 @@ export function ReviewStage({
 
   const hear = (next: AuditionSide) => {
     setSide(next);
-    if (selected && (wave || card.change)) onHear?.(selected.id, next);
+    if (selected?.kind === "unsure-word") onHear?.(selected.id, "A");
+    else if (selected && (wave || card.change)) onHear?.(selected.id, next);
   };
 
   const handleKey = useEffectEvent((event: KeyboardEvent) => {
@@ -282,11 +291,21 @@ export function ReviewStage({
       ? {
           ...body.card.unsure,
           resolved: looksRight.has(selected.id),
-          onFix: () => {
+          ...(selected.kind === "unsure-word" && onHear
+            ? { onHear: () => onHear(selected.id, "A") }
+            : {}),
+          onFix: (text: string) => {
             if (guest || selected.result) return;
-            onLooksRight(selected.id);
             if (selected.kind === "unsure-word")
-              void onDecide({ ids: [selected.id], result: "applied" });
+              return void onDecide({
+                ids: [selected.id],
+                result: "applied",
+                text,
+              });
+            const word = body.card.unsure?.id;
+            if (word) void onDecide({ ids: [word], result: "applied", text });
+            onLooksRight(selected.id);
+            onSelect(selected.id);
           },
           onLooksRight: () => !guest && onLooksRight(selected.id),
         }
@@ -376,7 +395,7 @@ export function ReviewStage({
             onRetry={onRetry}
             onVerb={() => selected && verb(selected.id)}
             onKeep={
-              selected?.transcript
+              selected?.transcript || selected?.kind === "unsure-word"
                 ? undefined
                 : () => selected && keep(selected.id)
             }
