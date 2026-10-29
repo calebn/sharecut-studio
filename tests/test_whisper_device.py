@@ -118,7 +118,13 @@ def _engine(device: str = "auto") -> TranscriptionEngine:
 
 
 def _words_model(text: str = "hi"):
-    seg = MagicMock(text=text, start=0.0, end=0.5, words=[MagicMock(word=text, start=0.0, end=0.5)])
+    seg = MagicMock(
+        text=text,
+        start=0.0,
+        end=0.5,
+        compression_ratio=0.5,
+        words=[MagicMock(word=text, start=0.0, end=0.5)],
+    )
     model = MagicMock()
     model.transcribe.return_value = ([seg], MagicMock(duration=1.0))
     return model
