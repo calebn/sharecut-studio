@@ -176,11 +176,6 @@ them against the registry and catalog so the copy cannot drift; the live
 `EditCorner` and `CommandPalette` adapters keep reading
 DAW state and dispatching through `execute`.
 
-`Templates/ShareDialog` renders the production `ShareDialogView`, the same
-view the live `ShareDialog` adapter renders. Stories use fictional
-`hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
-clipboard and the record-panel handoff, and the view owns the in-place Stop
-sharing and End room confirmations.
 `Stages/Deliver/Share` renders the props-only `ShareSection` of the Deliver
 stage. `ShareFlowProvider` in `DawApp` (`stage/hosts/shareFlow.tsx`) lists,
 makes, copies and stops the links and runs record rooms; `deliverShare.ts` maps

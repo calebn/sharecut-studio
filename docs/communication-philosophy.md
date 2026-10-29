@@ -44,7 +44,7 @@ make them feel the software is fragile.
   - Don't: "Operation completed successfully."
 - Name the consequence, not the mechanism.
   - Do: "End this record room? Both guest and producer links will
-    stop working." (ShareDialog end-room copy — good words, wrong
+    stop working." (Share section end-room copy — good words, wrong
     mechanism; see Errors and confirmations)
   - Don't: "Stop sharing coolname-xyz?" — tokens and IDs are
     addresses for machines, never labels for people. (Surface 2)
@@ -236,9 +236,9 @@ choice; phone and tablet keep their existing editing rail and compact inspector.
 - **Defaults are opt-in (least privilege).** A control that mints
   externally visible artifacts (e.g. "Allow AI assistants (MCP)" minting an
   MCP URL on every share) starts OFF. The consequence is disclosed
-  adjacent to the control so the opt-in is informed: in ShareDialog the
-  helper text sits under the checkbox and is its accessible description; in
-  the Deliver Share section it sits under the toggle and is described by it.
+  adjacent to the control so the opt-in is informed: in the Deliver Share
+  section the helper text sits under the toggle and is its accessible
+  description.
   (Surface 2; maintainer decision 2026-09-21: MCP stays opt-in.)
 
 ## Empty states
@@ -277,7 +277,7 @@ the empty state, not a separate discovery task.
   stacking a second dialog: the row swaps its actions for the
   consequence, Keep first and focused, the danger action last. Escape
   keeps (cancels) the open confirm before it closes the dialog. The
-  Share dialog's Stop sharing and End room are the reference.
+  Share section's Stop sharing and End room are the reference.
   (Surfaces 2, 5, 6.)
 - **Confirm copy names the target and the consequence** in human
   terms: "Stop sharing this Viewer link? Anyone using it loses access.
@@ -742,3 +742,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-20 — Names and chrome (#1794): every control shows its command's catalog label or one declared short form, and a Vitest walk compares buttons, menu rows, palette rows and the capabilities manifest. Select tool, Blade tool and Toggle comment mode name the pointer tools, and the rail's cut reads Blade cut. The status row and Activity chip read as sentences. The clip inspector drops the monospace ID rows and the fade sliders for number fields with Apply and nudges, and its Delete pair says which leaves a gap and which ripples. The phone help copy names taps and holds, panel tabs are a tablist, and the Ripple and Leave a gap rows name the Delete buttons. The Needs attention banner shows that one string as its heading and the Comments panel's mode button uses the command's name, Toggle comment mode.
 - 2026-10-23 — A job that fails for a missing model says which one and offers the download (#2046): Export and Bounce ask inside their own dialog and run once more after **Download**, and every other failed job shows **Download {model}** beside the Activity chip, which opens its prompt only when pressed. A failed Refresh mix resumes once after the download; nothing downloads on its own.
 - 2026-10-29 — Share in Deliver (#2450): the Share section carries the Share dialog's words unchanged (role descriptions, "Allow AI assistants (MCP)" and its help, the Stop sharing and End room confirms, "No review links yet.", the Refresh mix recovery copy). A copy the browser refuses no longer shows the browser's error: the row says "Press Ctrl C" and selects the whole link, and a record or MCP address that cannot be copied is named in the message so it can be copied by hand.
+- 2026-10-29 — Share dialog removed (#2450, part B): the header Invite, Project > Share… and the Record stage's Invite and links go to the Deliver Share section, which carries every word the dialog had. The dialog's cases in this document now name the section.

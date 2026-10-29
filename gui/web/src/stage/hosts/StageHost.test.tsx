@@ -410,7 +410,7 @@ describe("Deliver host", () => {
     expect([
       chrome.exportRequested,
       chrome.bounceRequested,
-      chrome.shareDialogOpen,
+      chrome.shareRequested,
     ]).toEqual([false, false, false]);
   });
 

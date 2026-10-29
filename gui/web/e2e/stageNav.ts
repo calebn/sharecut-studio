@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Stage-level navigation for specs. Every helper here says what the spec wants
- * (open the Comments panel, open the Share dialog) and none of them names the
+ * (open the Comments panel, open the palette) and none of them names the
  * chrome that gets there. It drives the stage frame: the Stage bar in
  * the App header (the tab bar on a phone), the Project menu, the Edit stage's
  * eye sheet, and the Player's hear menu.
@@ -338,7 +338,7 @@ export async function openProjectMenuItem(
 }
 
 /**
- * Open the dialog `dialog` from its entry point: Share from the header's Invite, the Record stage, the palette on the header's search.
+ * Open `dialog` from its entry point: Share (the Deliver section) from the header's Invite, the Record stage, the palette on the header's search.
  */
 export async function openProjectDialog(
   page: Page,

@@ -244,21 +244,6 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(() => void load(scopeNow()), [load, scopeNow]);
 
-  // The Share dialog makes and stops links and refreshes the mix too; when it
-  // closes, drop a retry waiting on Refresh mix here and list again.
-  const dialogOpen = useDawStore((s) => s.chrome.shareDialogOpen);
-  const dialogWasOpen = useRef(dialogOpen);
-  useEffect(() => {
-    const wasOpen = dialogWasOpen.current;
-    dialogWasOpen.current = dialogOpen;
-    if (!wasOpen || dialogOpen || !onDeliver) return;
-    if (recoveryRef.current.kind === "needs_refresh") {
-      staleRequest.current = null;
-      setRecovery({ kind: "idle" });
-    }
-    reload();
-  }, [dialogOpen, onDeliver, reload]);
-
   /**
    * Mints and copies. `minted` is already running and the copy starts with it,
    * then takes the link when it arrives; from a click, that keeps the gesture.

@@ -382,7 +382,7 @@ test.describe("Share on Deliver", () => {
     });
   });
 
-  test("the Share a listen link button focuses the section, and the header Invite still opens the dialog", async ({
+  test("the Share a listen link button focuses the section, and the header Invite brings Share into focus from another stage", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -391,12 +391,14 @@ test.describe("Share on Deliver", () => {
       await expect(
         section.getByRole("button", { name: "Create review link" }),
       ).toBeFocused();
-      await expect(page.getByRole("dialog", { name: "Share" })).toBeHidden();
+      await expect(page.getByRole("dialog")).toBeHidden();
 
+      await goToStage(page, "edit");
       await openProjectDialog(page, "share");
       await expect(
-        page.getByRole("dialog", { name: "Share", exact: true }),
-      ).toBeVisible();
+        section.getByRole("button", { name: "Create review link" }),
+      ).toBeFocused();
+      await expect(page.getByRole("dialog")).toBeHidden();
     });
   });
 });

@@ -79,7 +79,7 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
 
 ## Workflow
 
-1. Mint a room (`create_record_room_tool` or Share dialog **Create record links**).
+1. Mint a room (`create_record_room_tool` or Deliver Share section **Create record links**).
    Minting ends the previous room: its links show the dead-link cover.
    Send the **guest** `/rec/` URL to talent and the **producer** URL only to the
    silent listener.

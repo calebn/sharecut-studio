@@ -97,7 +97,7 @@ checks the `pid` and the age too.
 The `tunnel.status` feature serves `GET /api/tunnel/status` (host role only; the tunnel
 never maps `/api/tunnel`). It reads every file and reports one `state`:
 
-| `state` | When | Share dialog line |
+| `state` | When | Share section line |
 |---------|------|-------------------|
 | `online` | A tunnel is connected | Guests can open your links |
 | `connecting` | Starting up | Connecting… guests can open your links once you're online |

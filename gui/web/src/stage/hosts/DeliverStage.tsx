@@ -120,6 +120,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     setExportRequested,
     bounceRequested,
     setBounceRequested,
+    shareRequested,
+    setShareRequested,
     bounceRange,
     setBounceRange,
     selection,
@@ -134,6 +136,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       setExportRequested: s.setExportRequested,
       bounceRequested: s.chrome.bounceRequested,
       setBounceRequested: s.setBounceRequested,
+      shareRequested: s.chrome.shareRequested,
+      setShareRequested: s.setShareRequested,
       bounceRange: s.bounceRangeTarget,
       setBounceRange: s.setBounceRangeTarget,
       selection: s.selection,
@@ -231,6 +235,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         if (liveHosts > 0) return;
         useDawStore.getState().setExportRequested(false);
         useDawStore.getState().setBounceRequested(false);
+        useDawStore.getState().setShareRequested(false);
       }, 0);
     };
   }, []);
@@ -275,6 +280,11 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   ]);
   const [focusShare, setFocusShare] = useState(false);
   const clearShareFocus = useCallback(() => setFocusShare(false), []);
+  useEffect(() => {
+    if (!shareRequested || state !== "ready") return;
+    setShareRequested(false);
+    if (shareOffered) setFocusShare(true);
+  }, [shareRequested, state, shareOffered, setShareRequested]);
   // The links are listed as Deliver shows, and again for a reopened project.
   useEffect(() => {
     if (state !== "ready" || !shareOffered || !projectPath) return;

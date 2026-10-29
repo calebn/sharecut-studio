@@ -3,7 +3,7 @@
 Status: **links + lobby/consent + local keepers + mix-minus + chunk upload +
 timeline landing + live comments + host live-room reconnect + room-tone beds shipped**. Owner row: [Beta plan § Journeys](../docs/beta-plan.md#journeys).
 Audio-first MVP; beta still requires a **host laptop online**. Mint `/rec/`
-URLs with `podcast review share --kind record` (or Share dialog / MCP
+URLs with `podcast review share --kind record` (or the Deliver Share section / MCP
 `create_record_room_tool`). `build.capture`, `build.monitor`, and `build.upload`
 are on. After file ACK, keepers copy into `raw/` as one clip per segment.
 Optional 3 s room-tone beds land at `raw/room-tone/{session}/{participant}.wav`
@@ -1335,8 +1335,7 @@ On the host, every failed `record.start` / `pause` / `resume` / `stop` /
 which run the same commands) is revealed by `revealRecordFailure`
 (`commands/host.ts`). On the Record stage the room alert slot shows it and it is
 not announced a second time. Elsewhere it is announced and stored in
-`useRecordHostStore.transportError` for the stage; over the Share dialog it is
-only announced and nothing is stored. The next record command clears it, and so
+`useRecordHostStore.transportError` for the stage. The next record command clears it, and so
 does a project change.
 
 If the host record WebSocket drops after it has connected, while a take is

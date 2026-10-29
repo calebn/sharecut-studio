@@ -1242,7 +1242,6 @@
       "surfaces": {
         "command": "render.refreshMix",
         "gui": [
-          "ShareDialog",
           "deliverShare"
         ],
         "keyboard": "Mod+B",
@@ -1301,7 +1300,6 @@
       "surfaces": {
         "command": "share.manage",
         "gui": [
-          "ShareDialog",
           "deliverShare"
         ],
         "cli": "podcast review share"

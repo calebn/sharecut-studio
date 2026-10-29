@@ -112,7 +112,6 @@ const COVERED: Record<string, string[]> = {
     "System/InspectorSheet",
   ],
   "CMP-SEEK-FOOTER": ["Templates/InspectorSeekFooter"],
-  "DLG-SHARE": ["Templates/ShareDialog"],
   "DLG-MCP": ["Templates/HostMcpDialog"],
   "DLG-SPLIT": ["Stages/Prepare/SplitSpeakers"],
   "DLG-PALETTE": ["Templates/CommandPalette"],
@@ -148,7 +147,7 @@ const COVERED: Record<string, string[]> = {
   "EMPTY-STATES": ["Atoms/EmptyState"],
   "CMP-INLINE-ERROR": ["Atoms/InlineError"],
   "DLG-HELP": ["Templates/HelpDialog"],
-  "CMP-TUNNEL": ["Templates/ShareDialog", "Stages/Deliver/Share"],
+  "CMP-TUNNEL": ["Stages/Deliver/Share"],
   "SCR-SETUP": ["Stages/Home/SetupCard"],
   "SCR-SETUP-CHECKING": ["Stages/Home/SetupCard"],
   "SCR-SETUP-DOWNLOAD": ["Stages/Home/SetupCard"],
@@ -252,7 +251,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(131);
+    expect(INVENTORY_IDS).toHaveLength(130);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });

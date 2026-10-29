@@ -23,7 +23,6 @@ import { useHostRoom } from "./record/useHostRoom";
 import { isShareProjectKey } from "./shareMode";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
-import { ShareDialog } from "./stage/dialogs/ShareDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
@@ -236,7 +235,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
               </StageFrame>
             </div>
             <CheatsheetDialogs />
-            <ShareDialog />
             <HostMcpDialog
               open={hostMcpDialogOpen}
               onClose={() => setHostMcpDialogOpen(false)}

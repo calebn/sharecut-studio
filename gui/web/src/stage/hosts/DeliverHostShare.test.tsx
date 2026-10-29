@@ -328,14 +328,32 @@ describe("Share on the Deliver stage", () => {
 });
 
 describe("Share entry button", () => {
-  it("brings Share into focus without opening the dialog", async () => {
+  it("brings Share into focus", async () => {
     render(<Host />);
     await screen.findByText("No review links yet.");
     await userEvent.click(
       screen.getByRole("button", { name: "Share a listen link" }),
     );
     await waitFor(() => expect(button("Create review link")).toHaveFocus());
-    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
+  });
+
+  it("focuses Share when a share request is waiting, then clears it", async () => {
+    useDawStore.getState().setShareRequested(true);
+    render(<Host />);
+    await waitFor(() => expect(button("Create review link")).toHaveFocus());
+    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
+  });
+
+  it("drops a share request when the feature is off", async () => {
+    useDawStore.getState().setShareRequested(true);
+    render(<Host features={[]} />);
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.shareRequested).toBe(false),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Create review link" }),
+    ).toBeNull();
   });
 
   it("stays out of the way when the share feature is off", () => {

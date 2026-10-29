@@ -728,7 +728,7 @@ describe("Record stage capture and storage", () => {
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Invite and links…" }),
     );
-    expect(useDawStore.getState().chrome.shareDialogOpen).toBe(true);
+    expect(exec).toHaveBeenCalledWith("share.manage", {}, { skipWhen: true });
   });
 });
 

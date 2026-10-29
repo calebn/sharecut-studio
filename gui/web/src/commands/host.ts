@@ -53,8 +53,7 @@ function shareFeatureGate(what: string): ExecuteResult | null {
 /**
  * Keep a failed record command visible. On the Record stage the room's alert
  * slot shows it, so it is not announced again. Elsewhere it is announced and
- * stored for the stage; over the Share dialog it is only announced, so no stale
- * error waits in the store for the next visit.
+ * stored for the stage.
  */
 function revealRecordFailure(reason: string): void {
   const daw = useDawStore.getState();
@@ -63,9 +62,6 @@ function revealRecordFailure(reason: string): void {
     return;
   }
   daw.announceStatus(reason, { tone: "error" });
-  if (daw.chrome.shareDialogOpen) {
-    return;
-  }
   useRecordHostStore.getState().setTransportError(reason);
 }
 
@@ -221,7 +217,9 @@ export function registerHostCommands(): void {
     if (blocked) {
       return blocked;
     }
-    useDawStore.getState().setShareDialogOpen(true);
+    const s = useDawStore.getState();
+    s.openStage("deliver");
+    s.setShareRequested(true);
     return { status: "ok" };
   });
 

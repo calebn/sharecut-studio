@@ -74,7 +74,7 @@ export async function expectVisibleInOverlay(
   target: Locator,
 ): Promise<void> {
   await expect(target).toBeVisible();
-  // ShareDialog can add/remove room rows after the heading first renders. A
+  // A dialog can add or remove rows after its heading first renders. A
   // one-time scroll can therefore become stale while the dialog body reflows.
   // Re-scroll on every geometry poll, while retaining the explicit body-clip
   // assertion that `toBeVisible` does not provide.
@@ -152,35 +152,6 @@ export async function expectMenuLastItemReachable(
  * scroller. Assert the panel fits, only the shared body scrolls, and the rooms
  * target stays reachable.
  */
-export async function expectShareRecordRoomsReachable(
-  page: Page,
-): Promise<void> {
-  await openDialogFromMenu(page, "Share…");
-  const dialog = page.getByRole("dialog", { name: "Share" });
-  await expect(dialog).toBeVisible();
-  const panel = dialog.locator(".command-palette-panel");
-  const body = dialog.locator(".command-palette-body");
-  await expectOverflowYAuto(body);
-  await expect
-    .poll(async () =>
-      dialog
-        .locator(".share-dialog-body")
-        .evaluate((el) => getComputedStyle(el).overflowY),
-    )
-    .not.toMatch(/^(auto|scroll)$/);
-  await expectFitsViewport(page, panel);
-  const rooms = dialog.getByRole("heading", { name: "Record rooms" });
-  await expectVisibleInOverlay(body, rooms);
-  const roomsTarget = dialog
-    .getByRole("button", { name: "End room" })
-    .or(dialog.getByText("No record rooms yet."))
-    .first();
-  await expectVisibleInOverlay(body, roomsTarget);
-  await expectActionableWhenApplicable(roomsTarget);
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-}
-
 /**
  * Generic Dialog reachability for `.command-palette-body` consumers: the panel
  * fits the viewport, the body scrolls, and the lowest action/content target is
