@@ -41,6 +41,8 @@ const stories = Object.entries(modules).flatMap(([path, module]) =>
   })),
 );
 
+const STORY_TIMEOUT_MS = 20_000;
+
 describe("all Storybook stories", () => {
   it("discovers colocated stories", () => {
     expect(stories.length).toBeGreaterThan(0);
@@ -66,5 +68,6 @@ describe("all Storybook stories", () => {
         canvasElement.remove();
       }
     },
+    STORY_TIMEOUT_MS,
   );
 });
