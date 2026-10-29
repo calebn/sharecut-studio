@@ -145,6 +145,8 @@ const fresh = () => ({
   held: [] as Held[],
   omitSnapshot: false,
   staleWordsOnUndo: false,
+  undoKeepsFixedWordsConfirmed: false,
+  confirmedNow: new Set<number>(),
   holdStatus: null as Promise<void> | null,
   status: "clear" as "clear" | "pending" | "done" | "waived",
   waiveFails: false,
@@ -159,7 +161,8 @@ const server = fresh();
 const order: string[] = [];
 const marks: { expected_fingerprint?: string }[] = [];
 
-const stillUnsure = (index: number) => server.words[index]?.unsure ?? true;
+const stillUnsure = (index: number) =>
+  !server.confirmedNow.has(index) && (server.words[index]?.unsure ?? true);
 
 const transcriptOf = (all = server.words) =>
   all.length === 0
@@ -266,7 +269,13 @@ function answer(body: { type: string; payload: Record<string, unknown> }) {
   if (body.type === "UndoHistory") {
     const before = server.words;
     serverUndo();
-    return reply(0, [], server.staleWordsOnUndo ? before : server.words);
+    // The real server drops a confirmed word from unsure_words after Fix; the
+    // Undo reply may still be built from that state.
+    if (server.undoKeepsFixedWordsConfirmed)
+      server.confirmedNow = new Set(server.corrections);
+    const out = reply(0, [], server.staleWordsOnUndo ? before : server.words);
+    server.confirmedNow = new Set();
+    return out;
   }
   if (body.type === "ApproveEdits" && server.approveFails)
     return {
@@ -1112,6 +1121,30 @@ describe("Review host unsure words", () => {
     await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
     expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+  });
+
+  it("holds the freed cuts again on Undo though the server dropped the word after Fix", async () => {
+    // Fix freed the cut while the store still listed the word; the Undo reply
+    // then arrives with the word already dropped, so the store cannot say
+    // which cuts to hold.
+    server.omitSnapshot = true;
+    server.undoKeepsFixedWordsConfirmed = true;
+    setup("done");
+    await pick(/gnu/);
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(1));
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+    server.omitSnapshot = false;
+    await userEvent.click(await undoButton());
+    await waitFor(() => expect(sent("UndoHistory")).toHaveLength(1));
+    await waitFor(() =>
+      expect(wire.refresh).toHaveBeenCalledWith(PATH, "full"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
     expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 
