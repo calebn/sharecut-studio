@@ -482,7 +482,7 @@ def test_non_finite_duration_is_dropped_and_the_response_renders(local, tmp_path
 
 
 def _seed_unencodable(*good: Path) -> Path:
-    """Save *good* (first = newest), then put an unreachable entry on top of the file."""
+    """Save *good* (first = newest), then put an unreachable entry on top."""
     for path in reversed(good):
         recent.record_recent(path)
     saved = recent.recent_projects_path()
