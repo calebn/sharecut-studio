@@ -50,8 +50,8 @@ def _project_with_combined() -> EpisodeProject:
 def test_combined_transcript_markdown():
     md = combined_transcript_markdown(_project_with_combined(), defaults=load_defaults())
     assert "# export-test" in md
-    assert "**Host** [0.0s]: Hello world" in md
-    assert "**Guest** [2.0s]: Thanks for listening" in md
+    assert "**Host** [0:00]: Hello world" in md
+    assert "**Guest** [0:02]: Thanks for listening" in md
 
 
 def test_write_combined_transcript_markdown(tmp_path):

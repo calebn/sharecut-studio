@@ -77,6 +77,16 @@ Add `{workspace}/show_glossary.yaml` for show-specific replacements (see doc exa
 | Low-confidence / grammar | refine → audition |
 | One unclear span | audition only |
 
+## Exporting the transcript
+
+`podcast transcript export --project P [--format txt|md|srt|vtt]... [--dry-run] [--text] [--json]`
+or MCP `export_transcript(project_path, formats=["md","srt"], dry_run, with_text)` writes the
+edited episode's transcript next to the audio (all files or none; `transcript_empty` when
+nothing is left, `export_busy` while another export runs). Use `--dry-run` / `dry_run` to
+preview the turns and language first. `podcast transcript exports` / `list_exported_transcripts`
+list the files on disk with their `mime`, `language` and whether each is still `current`.
+Full contract: [docs/transcript-workflow.md](../../docs/transcript-workflow.md#exporting-the-transcript).
+
 ## Handoffs
 
 - After precorrect: **podcast-transcript-refine** (`refine-brief` → episode pass → `refine-done`)

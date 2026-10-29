@@ -96,8 +96,8 @@ def export_transcript_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    out = TranscriptService(ws).export_markdown()
-    typer.echo(f"Wrote {out}")
+    result = TranscriptService(ws).export(["md"])
+    typer.echo(f"Wrote {result.files[0].path}")
 
 
 def info_cmd(

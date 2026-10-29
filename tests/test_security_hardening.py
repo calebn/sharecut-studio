@@ -68,7 +68,9 @@ def test_strict_authz_remote_peer_needs_token(minimal_project, monkeypatch):
     assert ok.status_code == 200
 
 
-@pytest.mark.parametrize("route", ["/api/export/bounce", "/api/export/deliverables"])
+@pytest.mark.parametrize(
+    "route", ["/api/export/bounce", "/api/export/deliverables", "/api/transcript/export"]
+)
 def test_export_routes_reject_share_token_guest(
     route: str, minimal_project, published_share, monkeypatch
 ) -> None:

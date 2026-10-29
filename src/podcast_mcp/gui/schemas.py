@@ -177,6 +177,13 @@ class FeedWriteRequest(BaseModel):
     path: str
 
 
+class TranscriptExportRequest(BaseModel):
+    path: str
+    formats: list[str] = ["md", "srt"]
+    dry_run: bool = False
+    with_text: bool = False
+
+
 class ViewerSessionSnapshot(BaseModel):
     """Partial DAW transport snapshot (compat POST → typed commands)."""
 

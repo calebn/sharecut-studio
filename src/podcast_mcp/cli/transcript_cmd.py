@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ import yaml
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
-from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
+from podcast_mcp.export.transcript import CaptionLimits, format_clock, resolve_caption_limits
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
 from podcast_mcp.services.media import (
@@ -296,9 +297,21 @@ def transcript_review_cmd(
     typer.echo(json.dumps(words, indent=2))
 
 
-@transcript_app.command("export-srt")
-def transcript_export_srt_cmd(
+_FORMAT_CHOICES = ("txt", "md", "srt", "vtt")
+
+
+@transcript_app.command("export")
+def transcript_export_cmd(
     project: Path = typer.Option(..., "--project"),
+    formats: list[str] = typer.Option(
+        None,
+        "--format",
+        help="txt, md, srt or vtt; repeat for several (default: md and srt).",
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Preview the turns and a cue sample; write nothing."
+    ),
+    text: bool = typer.Option(False, "--text", help="Print the reading text to stdout."),
     max_duration_sec: float | None = typer.Option(
         None, "--max-duration-sec", help="Cue duration cap in seconds (default: export.captions)."
     ),
@@ -308,7 +321,15 @@ def transcript_export_srt_cmd(
     max_lines: int | None = typer.Option(
         None, "--max-lines", help="Cue line-count cap (default: export.captions)."
     ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the full result as JSON."),
 ) -> None:
+    """Write the edited episode's transcript next to the audio (txt, md, srt, vtt)."""
+    chosen = list(formats) if formats else ["md", "srt"]
+    for fmt in chosen:
+        if fmt not in _FORMAT_CHOICES:
+            raise typer.BadParameter(
+                f"{fmt!r} is not one of {', '.join(_FORMAT_CHOICES)}", param_hint="'--format'"
+            )
     ws = ProjectWorkspace.open(project)
     limits = _caption_limits(
         ws,
@@ -316,32 +337,43 @@ def transcript_export_srt_cmd(
         max_chars_per_line=max_chars_per_line,
         max_lines=max_lines,
     )
-    path = TranscriptService(ws).export_subtitles("srt", limits=limits)
-    typer.echo(str(path))
+    result = TranscriptService(ws).export(chosen, dry_run=dry_run, with_text=text, limits=limits)
+    if as_json:
+        typer.echo(json.dumps(asdict(result), indent=2))
+        return
+    if text:
+        typer.echo(result.text or "")
+        if not dry_run:
+            for f in result.files:
+                typer.echo(f.path, err=True)
+        return
+    if dry_run:
+        for turn in result.preview:
+            typer.echo(f"{turn.speaker}  {format_clock(turn.start_sec)}  {turn.text}")
+        typer.echo(
+            f"{len(result.preview)} of {result.turns} turns - "
+            f"{format_clock(result.duration_sec)} - {result.language}"
+        )
+        if result.cue_sample:
+            typer.echo(result.cue_sample)
+        return
+    for f in result.files:
+        typer.echo(f.path)
 
 
-@transcript_app.command("export-vtt")
-def transcript_export_vtt_cmd(
+@transcript_app.command("exports")
+def transcript_exports_cmd(
     project: Path = typer.Option(..., "--project"),
-    max_duration_sec: float | None = typer.Option(
-        None, "--max-duration-sec", help="Cue duration cap in seconds (default: export.captions)."
-    ),
-    max_chars_per_line: int | None = typer.Option(
-        None, "--max-chars-per-line", help="Cue line-length cap (default: export.captions)."
-    ),
-    max_lines: int | None = typer.Option(
-        None, "--max-lines", help="Cue line-count cap (default: export.captions)."
-    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the list as JSON."),
 ) -> None:
+    """List transcript files already exported next to the audio."""
     ws = ProjectWorkspace.open(project)
-    limits = _caption_limits(
-        ws,
-        max_duration_sec=max_duration_sec,
-        max_chars_per_line=max_chars_per_line,
-        max_lines=max_lines,
-    )
-    path = TranscriptService(ws).export_subtitles("vtt", limits=limits)
-    typer.echo(str(path))
+    files = TranscriptService(ws).exported()
+    if as_json:
+        typer.echo(json.dumps([asdict(f) for f in files], indent=2))
+        return
+    for f in files:
+        typer.echo(f"{f.path}{'' if f.current else '  (edited since export)'}")
 
 
 @transcript_app.command("precorrect")
