@@ -524,10 +524,7 @@ export class KeeperSession {
       await removeBestEffort(this.sink, keeperMetaPath(wavPath)),
       await removeBestEffort(this.sink, wavPath),
     ];
-    if (
-      removed.every(Boolean) &&
-      this.cursor.nextSegmentIndex === open.segmentIndex + 1
-    ) {
+    if (removed.every(Boolean)) {
       this.cursor = { ...this.cursor, nextSegmentIndex: open.segmentIndex };
     }
   }
