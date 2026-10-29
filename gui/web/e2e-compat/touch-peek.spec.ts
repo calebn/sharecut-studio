@@ -99,6 +99,19 @@ const chooser = (page: Page) =>
   page.locator(".target-chooser:not(.is-closing)");
 const sheet = (page: Page) => page.locator(".bottom-sheet");
 
+/**
+ * Inspect opens the sheet for the selection. The key toggles, and a tap that
+ * retargets a sheet already up may leave it up or shut it, so look again and
+ * press it once more if the sheet did not end up open.
+ */
+async function ensureInspected(page: Page): Promise<void> {
+  if ((await page.locator(".bottom-sheet").count()) > 0) {
+    await page.waitForTimeout(300);
+    if ((await page.locator(".bottom-sheet").count()) > 0) return;
+  }
+  await inspectSelectionByKey(page);
+}
+
 async function centerOfBox(locator: Locator): Promise<Point> {
   const box = await locator.boundingBox({ timeout: 5000 });
   if (!box) throw new Error("no box");
@@ -182,7 +195,7 @@ async function tapTarget(
   await page.waitForTimeout(60);
   await finger.up();
   await page.waitForTimeout(700);
-  await inspectSelectionByKey(page);
+  await ensureInspected(page);
 }
 
 /**
@@ -370,7 +383,7 @@ async function chipCase(
   await run(page, finger, (step) =>
     frame(page, info, `chip-${slug}-${browserName}-${step}`),
   );
-  await inspectSelectionByKey(page);
+  await ensureInspected(page);
   const row = {
     case: name,
     input: finger.input,
@@ -732,13 +745,15 @@ async function expandRemembered(
     await finger.up();
     await page.waitForTimeout(700);
   };
-  const tapPoint = async (id: string) =>
-    tap(
+  const tapPoint = async (id: string) => {
+    await tap(
       await centerOf(
         page,
         `${lane} [data-hit-kind="envelope-point"][data-hit-id="${id}"]`,
       ),
     );
+    await ensureInspected(page);
+  };
   /** A finger on the button where it is drawn; null if something covers it. */
   const tapButton = async (name: string) => {
     const at = await centerOfBox(page.getByRole("button", { name }));
@@ -823,6 +838,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
       await finger.down(at);
       await page.waitForTimeout(60);
       await finger.up();
+      await ensureInspected(page);
       await page.evaluate((font) => {
         document.documentElement.style.fontSize = `${font}px`;
       }, rootFont);
@@ -946,6 +962,7 @@ test("both themes and reduced motion with the strip open", async ({
     await page.waitForTimeout(SETTLE_MS);
     await finger.up();
     await page.waitForTimeout(700);
+    await ensureInspected(page);
     const axeStrip = ownsStudioAxe({ suite: "compat", engine: browserName })
       ? await new AxeBuilder({ page })
           .disableRules([...STUDIO_AXE_DISABLED_RULES])
