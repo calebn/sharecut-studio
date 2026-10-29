@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { clampUnit, percentOf } from "./progress";
-import { type SessionTarget, SessionTargetChip } from "./SessionTargetChip";
+import { type PrepareTarget, SessionTargetChip } from "./SessionTargetChip";
 import { StageHandoff, type StageHandoffProps } from "./StageHandoff";
 import { StatusGlyph } from "./StatusGlyph";
 
@@ -12,9 +12,9 @@ export type SessionGroupProps = {
   takes: number;
   /** "14:20". */
   duration: string;
-  target: SessionTarget;
+  target: PrepareTarget;
   targetLocked?: boolean;
-  onTarget?: (target: SessionTarget) => void;
+  onTarget?: (target: PrepareTarget) => void;
   /** Names the session in the target control so two sessions differ. */
   targetFor?: string;
   status: SessionGroupStatus;

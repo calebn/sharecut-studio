@@ -1571,4 +1571,48 @@ describe("Record stage session target", () => {
       screen.queryByRole("button", { name: /Where this session goes/ }),
     ).toBeNull();
   });
+
+  it("hides Replace selection when the selection ends past the timeline", async () => {
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", {
+      ...project,
+      clips: {
+        ...project.clips,
+        timeline_duration_sec: 3000,
+        tracks: { t1: [clipRow] },
+      },
+    });
+    useDawStore.setState({
+      playheadSec: 0,
+      selection: { kind: "clip", id: "c9", trackId: "t1" },
+    });
+    setRoom({ target: { kind: "end" } });
+    mount();
+    await userEvent.click(
+      await waitFor(() => chip("Lands at the end · after 52:10")),
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: "Replace selection" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("menuitem", { name: "At the playhead (0:00)" }),
+    ).toBeVisible();
+  });
+
+  it("disables the chip while a command is in flight", async () => {
+    withClip();
+    setRoom({ target: { kind: "end" } });
+    let finish: (value: { status: "ok" }) => void = () => undefined;
+    exec.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    mount();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Record" }),
+    );
+    const trigger = chip("Lands at the end · after 52:10");
+    await waitFor(() => expect(trigger).toBeDisabled());
+    finish({ status: "ok" });
+    await waitFor(() => expect(trigger).toBeEnabled());
+  });
 });

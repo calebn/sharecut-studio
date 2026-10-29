@@ -7,6 +7,7 @@ import {
   viewportStoryParameters,
 } from "../storybook/storyLayout";
 import {
+  type PrepareTarget,
   SessionTargetChip,
   type SessionTargetChipProps,
   type SessionTargetView,
@@ -42,14 +43,22 @@ type Story = StoryObj<typeof SessionTargetChip>;
 
 function Choosing(props: SessionTargetChipProps) {
   const [target, setTarget] = useState(props.target);
+  if (typeof props.target === "string") {
+    return (
+      <SessionTargetChip
+        {...props}
+        target={target as PrepareTarget}
+        onTarget={(next) => {
+          setTarget(next);
+          props.onTarget?.(next);
+        }}
+      />
+    );
+  }
   return (
     <SessionTargetChip
       {...props}
-      target={target}
-      onTarget={(next) => {
-        setTarget(next);
-        props.onTarget?.(next);
-      }}
+      target={target as SessionTargetView}
       onChange={(next) => {
         setTarget(next);
         props.onChange?.(next);
