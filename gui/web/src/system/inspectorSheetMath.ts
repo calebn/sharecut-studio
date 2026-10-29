@@ -8,7 +8,8 @@ export const INSPECTOR_DETENTS: readonly InspectorDetent[] = [
   "full",
 ];
 
-const DOCK_PX = 64;
+/** The dock is 4 rem, so this is its height at the default root size; the sheet measures the real one. */
+export const DOCK_PX = 64;
 const HALF_SHARE = 0.5;
 const FULL_SHARE = 0.92;
 /** Released this far below the dock the sheet is dismissed; a flick dismisses only a sheet that began at the dock. */
@@ -39,8 +40,12 @@ type CardPlacement = {
   maxBlock: number;
 };
 
-export function detentHeight(detent: InspectorDetent, container: number) {
-  if (detent === "dock") return DOCK_PX;
+export function detentHeight(
+  detent: InspectorDetent,
+  container: number,
+  dock = DOCK_PX,
+) {
+  if (detent === "dock") return dock;
   return container * (detent === "half" ? HALF_SHARE : FULL_SHARE);
 }
 
@@ -69,14 +74,15 @@ export function settleDetent(
   velocity: number,
   container: number,
   fromDock = false,
+  dock = DOCK_PX,
 ): InspectorDetent | "dismiss" {
   const projected = height + velocity * FLICK_MS;
-  const bar = DOCK_PX - DISMISS_PX;
+  const bar = dock - DISMISS_PX;
   if (height < bar || (fromDock && projected < bar)) return "dismiss";
   let best: InspectorDetent = "dock";
   let bestGap = Number.POSITIVE_INFINITY;
   for (const detent of INSPECTOR_DETENTS) {
-    const gap = Math.abs(projected - detentHeight(detent, container));
+    const gap = Math.abs(projected - detentHeight(detent, container, dock));
     if (gap < bestGap) {
       best = detent;
       bestGap = gap;
