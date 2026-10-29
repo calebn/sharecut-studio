@@ -62,12 +62,15 @@ import { ApiError } from "../../utils/apiError";
 import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage as HostDeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
+import { ShareFlowProvider } from "./shareFlow";
 
 function DeliverStage() {
   return (
     <ExportFlowProvider>
       <BounceFlowProvider>
-        <HostDeliverStage />
+        <ShareFlowProvider>
+          <HostDeliverStage />
+        </ShareFlowProvider>
       </BounceFlowProvider>
     </ExportFlowProvider>
   );

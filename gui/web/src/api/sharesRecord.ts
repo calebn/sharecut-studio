@@ -32,6 +32,8 @@ export async function createHostShare(
   body: {
     role: ShareRole;
     with_mcp?: boolean;
+    /** Play the current version for good instead of following the latest. */
+    freeze?: boolean;
     review_version_id?: string | null;
   },
 ): Promise<HostShareRow> {

@@ -18,6 +18,7 @@ import type { StageId } from "../../types/stage";
 import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
+import { ShareFlowProvider } from "./shareFlow";
 
 vi.mock("../../panels/TightenPanel", () => ({
   TightenPanel: () => <div>tighten panel</div>,
@@ -59,7 +60,9 @@ function mount(guestShare = false) {
     >
       <ExportFlowProvider>
         <BounceFlowProvider>
-          <StageHost guestShare={guestShare} />
+          <ShareFlowProvider>
+            <StageHost guestShare={guestShare} />
+          </ShareFlowProvider>
         </BounceFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>,
@@ -397,7 +400,7 @@ describe("Deliver host", () => {
     server = fakeExportServer();
   });
 
-  it("starts the export and bounce here and opens the share dialog through its command", async () => {
+  it("starts the export and bounce here, and the Share button brings Share into focus without the dialog", async () => {
     asHost("deliver");
     mount();
     const exportButton = await screen.findByRole("button", { name: "Export" });
@@ -409,14 +412,17 @@ describe("Deliver host", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Share a listen link" }),
     );
-    await waitFor(() => {
-      const { chrome } = useDawStore.getState();
-      expect([
-        chrome.exportRequested,
-        chrome.bounceRequested,
-        chrome.shareDialogOpen,
-      ]).toEqual([false, false, true]);
-    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Create review link" }),
+      ).toHaveFocus(),
+    );
+    const { chrome } = useDawStore.getState();
+    expect([
+      chrome.exportRequested,
+      chrome.bounceRequested,
+      chrome.shareDialogOpen,
+    ]).toEqual([false, false, false]);
   });
 
   it("sends an open row to the stage that fixes it", async () => {
@@ -452,7 +458,9 @@ describe("Deliver host", () => {
       >
         <ExportFlowProvider>
           <BounceFlowProvider>
-            <StageHost />
+            <ShareFlowProvider>
+              <StageHost />
+            </ShareFlowProvider>
           </BounceFlowProvider>
         </ExportFlowProvider>
       </FeaturesContext.Provider>,
@@ -460,6 +468,7 @@ describe("Deliver host", () => {
     expect(
       screen.queryByRole("button", { name: "Share a listen link" }),
     ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
   });
 });
 

@@ -3,6 +3,7 @@ import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
 } from "../types/pipeline";
+import type { HostShareRow } from "../types/shares";
 
 export const EXPORT_PATH = "/tmp/ep/episode.project.json";
 
@@ -87,7 +88,7 @@ class FakeEventSource {
   }
 }
 
-type Answer = { status?: number; body?: unknown };
+type Answer = { status?: number; body?: unknown; code?: string };
 
 export function fakeExportServer() {
   const server = {
@@ -104,6 +105,15 @@ export function fakeExportServer() {
     bounceRequests: [] as Record<string, unknown>[],
     bounceAnswer: null as Answer | null,
     cancelRequests: [] as { job_id: string | null }[],
+    /** The project's share rows, as `GET /api/shares` lists them. */
+    shares: [] as HostShareRow[],
+    shareListRequests: 0,
+    shareRequests: [] as Record<string, unknown>[],
+    /** Fails `POST /api/shares` (a refused create) when set. */
+    shareAnswer: null as Answer | null,
+    /** Holds `POST /api/shares` until released. */
+    holdShare: null as Promise<void> | null,
+    revokeRequests: [] as string[],
     settle(job: PipelineJobSnapshot) {
       server.settled = job;
       for (const source of FakeEventSource.all) {
@@ -123,7 +133,10 @@ export function fakeExportServer() {
   const json = (answer: Answer | null, fallback: unknown) =>
     new Response(JSON.stringify(answer?.body ?? fallback), {
       status: answer?.status ?? 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(answer?.code ? { "X-Sharecut-Error-Code": answer.code } : {}),
+      },
     });
   vi.stubGlobal("EventSource", FakeEventSource);
   vi.stubGlobal(
@@ -137,6 +150,46 @@ export function fakeExportServer() {
             : input.url;
       const body =
         typeof init?.body === "string" ? JSON.parse(init.body) : null;
+      if (url.includes("/api/shares")) {
+        const method = init?.method ?? "GET";
+        const revoked = /\/api\/shares\/([^/]+)\/revoke/.exec(url);
+        if (revoked) {
+          const token = decodeURIComponent(revoked[1]);
+          server.revokeRequests.push(token);
+          server.shares = server.shares.map((row) =>
+            row.token === token
+              ? { ...row, usable: false, revoked: true }
+              : row,
+          );
+          return json(null, { ok: true });
+        }
+        if (method === "POST") {
+          server.shareRequests.push(body);
+          await server.holdShare;
+          if (server.shareAnswer) return json(server.shareAnswer, {});
+          const token = `made-link-${server.shareRequests.length}`;
+          const row: HostShareRow = {
+            token,
+            url: `http://127.0.0.1:8765/r/${token}`,
+            kind: "review",
+            docs_role: body?.role ?? "commenter",
+            mcp_url: body?.with_mcp
+              ? `http://127.0.0.1:8765/mcp/${token}/mcp`
+              : null,
+            usable: true,
+            invite_closed: null,
+            review_version_label: "Share mix",
+            follow_latest: !body?.freeze,
+          };
+          server.shares = [...server.shares, row];
+          return json(null, { share: row });
+        }
+        server.shareListRequests += 1;
+        return json(null, {
+          shares: server.shares,
+          public_origin: "http://127.0.0.1:8765",
+        });
+      }
       if (url.includes("/api/pipeline/config")) {
         server.configRequests.push(
           decodeURIComponent(url.split("path=")[1] ?? ""),

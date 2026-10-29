@@ -30,6 +30,7 @@ import type { HistoryEntryId } from "../../types/project";
 import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
+import { ShareFlowProvider } from "./shareFlow";
 
 const PATH = "/tmp/ep/episode.project.json";
 const MP3 = { ext: "mp3", codec: "libmp3lame", bitrate_kbps: 128 };
@@ -45,7 +46,9 @@ function Host() {
   return (
     <ExportFlowProvider>
       <BounceFlowProvider>
-        <Stages />
+        <ShareFlowProvider>
+          <Stages />
+        </ShareFlowProvider>
       </BounceFlowProvider>
     </ExportFlowProvider>
   );

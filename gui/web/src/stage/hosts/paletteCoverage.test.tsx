@@ -36,6 +36,7 @@ import { StageFrame } from "../frame/StageFrame";
 import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
+import { ShareFlowProvider } from "./shareFlow";
 
 /**
  * Every command that was reachable from the transport Menu, the View menu, the layout presets, the phone More hub or
@@ -149,7 +150,9 @@ function mountStage(stage: "prepare" | "review" | "deliver" | "record") {
     >
       <ExportFlowProvider>
         <BounceFlowProvider>
-          <StageHost />
+          <ShareFlowProvider>
+            <StageHost />
+          </ShareFlowProvider>
         </BounceFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>,
@@ -272,13 +275,6 @@ const gesturesButton: Probe = async () => {
   expect(button("Gestures")).toBeInTheDocument();
 };
 
-const deliverButton =
-  (name: string, id: string): Probe =>
-  async (user) => {
-    mountStage("deliver");
-    await runs(id, () => user.click(button(name)));
-  };
-
 const exportButton: Probe = async (user) => {
   const exportServer = fakeExportServer();
   mountStage("deliver");
@@ -311,7 +307,9 @@ const refreshMixRow: Probe = async (user) => {
   render(
     <ExportFlowProvider>
       <BounceFlowProvider>
-        <StageHost />
+        <ShareFlowProvider>
+          <StageHost />
+        </ShareFlowProvider>
       </BounceFlowProvider>
     </ExportFlowProvider>,
   );
@@ -408,10 +406,7 @@ const REMOVED_SURFACES: Entry[] = [
   entry("transport Menu", "Export deliverables", "export.deliverables", [
     exportButton,
   ]),
-  entry("transport Menu", "Share", "share.manage", [
-    deliverButton("Share a listen link", "share.manage"),
-    headerInvite,
-  ]),
+  entry("transport Menu", "Share", "share.manage", [headerInvite]),
   entry("transport Menu", "Record room", "stage.record", [
     plusMenuRow(/Go to Record/, "stage.record"),
   ]),

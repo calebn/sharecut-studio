@@ -21,6 +21,9 @@ vi.mock("./stage/dialogs/CheatsheetDialogs", () => ({
 vi.mock("./stage/hosts/bounceFlow", () => ({
   BounceFlowProvider: ({ children }: { children: ReactNode }) => children,
 }));
+vi.mock("./stage/hosts/shareFlow", () => ({
+  ShareFlowProvider: ({ children }: { children: ReactNode }) => children,
+}));
 vi.mock("./stage/hosts/exportFlow", () => ({
   ExportFlowProvider: ({ children }: { children: ReactNode }) => children,
 }));

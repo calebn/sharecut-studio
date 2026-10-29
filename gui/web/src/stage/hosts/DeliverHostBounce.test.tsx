@@ -30,6 +30,7 @@ import type { ExactRangeTarget } from "../../types/project";
 import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
+import { ShareFlowProvider } from "./shareFlow";
 
 const PATH = "/tmp/ep/episode.project.json";
 const OTHER = "/tmp/other/episode.project.json";
@@ -52,7 +53,9 @@ function Host() {
   return (
     <ExportFlowProvider>
       <BounceFlowProvider>
-        <Stages />
+        <ShareFlowProvider>
+          <Stages />
+        </ShareFlowProvider>
       </BounceFlowProvider>
     </ExportFlowProvider>
   );
