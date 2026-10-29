@@ -614,7 +614,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Spec:**
   - Opened by the action bar's Inspect (sliders), the I key, or double-click on an object. Never open by default on selection.
   - Desktop/tablet: a 320 px card anchored to the action bar, below or above it whichever has room, max height 60 % of the box it is placed in, scrolls inside. Header 40 px: object icon + name (rename inline where applicable) + close ✕. Body: rows of label (12 px secondary, left) and Scrub field (right). Sections collapse by heading.
-  - Phone: the action dock (64 px) is the sheet's first detent. Drag up to half (50 %) and full (92 %); drag down past the dock clears the selection. Working grip, 36 × 5 px with a 44 px hit. No Expand/Collapse buttons; tapping the grip toggles half/dock.
+  - Phone: the action dock (4 rem: 64 px at the default root size) is the sheet's first detent. Drag up to half (50 %) and full (92 %); drag down past the dock clears the selection. Working grip, 36 × 5 px with a 44 px hit. No Expand/Collapse buttons; tapping the grip toggles half/dock.
   - Values apply as they change (live preview), committing one undo step on release or Enter. No Apply buttons anywhere.
   - CMP-SEEK-FOOTER's Seek/Play/A-B buttons are removed from the footer; Hear and A/B live in the action bar at the top, always visible.
 - **Shared elements used:** Inspector sheet, NEW: Scrub field, Action bar.
