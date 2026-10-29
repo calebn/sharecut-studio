@@ -581,17 +581,22 @@ def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span]
     def clear(span: Span) -> bool:
         try:
             own = envelope(own_path, span)
-            for path, floor_db in others:
-                theirs = envelope(path, span)
-                if (
-                    theirs.size
-                    and float(np.max(theirs)) > floor_db + FLOOR_BAND_DB
-                    and _follows(own, theirs)
-                ):
-                    return False
         except Exception as exc:
             log.warning("room tone window %.2f-%.2f unreadable: %s", span[0], span[1], exc)
             return False
+        for path, floor_db in others:
+            try:
+                theirs = envelope(path, span)
+            except Exception as exc:
+                # A recording that ends before the window has no voice there to bleed in.
+                log.debug("room tone window %.2f-%.2f not on %s: %s", span[0], span[1], path, exc)
+                continue
+            if (
+                theirs.size
+                and float(np.max(theirs)) > floor_db + FLOOR_BAND_DB
+                and _follows(own, theirs)
+            ):
+                return False
         return True
 
     return clear

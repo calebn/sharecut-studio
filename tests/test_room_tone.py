@@ -814,3 +814,12 @@ def test_a_cut_in_another_recording_is_not_ranked_by_its_position_in_the_primary
     starts = {p.sample.start for p in picked if p is not None}
 
     assert len(starts) > 10
+
+
+def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_path: Path) -> None:
+    guest = _noise(-64.0, seed=2)[: SR * 3]
+    project = _project(tmp_path, host=_host_audio(), guest=guest)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
