@@ -87,9 +87,9 @@ def lane_clip_placements(project: EpisodeProject, track: Track) -> list[tuple[Cl
                 timeline_start=0.0,
             )
         ]
-    audio_path = ClipAudioPaths(project, track)
+    clip_path = ClipAudioPaths(project, track)
     return [
-        (clip, _clip_placement(project, track, clip, ignored, sample_rates, audio_path))
+        (clip, _clip_placement(project, track, clip, ignored, sample_rates, clip_path))
         for clip in clips
     ]
 
@@ -131,10 +131,10 @@ def _clip_placement(
     clip: Clip,
     ignored: IgnoredWordRegions,
     sample_rates: dict[Path, int | None],
-    audio_path: ClipAudioPaths,
+    clip_path: ClipAudioPaths,
 ) -> Placement:
     try:
-        media: Path | None = audio_path(clip)
+        media: Path | None = clip_path(clip)
     except (OSError, ValueError):
         media = None
     ignored_regions = ignored.for_clip(clip)

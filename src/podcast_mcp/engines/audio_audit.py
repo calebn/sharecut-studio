@@ -627,9 +627,9 @@ def build_track_rms_caches(
             continue
         try:
             spans = timeline.lane_clip_spans(tid)
-            audio_path = ClipAudioPaths(project, track)
+            clip_path = ClipAudioPaths(project, track)
             paths = (
-                [audio_path(span.clip) for span in spans]
+                [clip_path(span.clip) for span in spans]
                 if spans
                 else [track_audio_path(project, tid).resolve()]
             )

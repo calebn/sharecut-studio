@@ -76,11 +76,7 @@ def resolve_clip_audio_path(
 class ClipAudioPaths:
     """``resolve_clip_audio_path`` for one track, remembering each source's path.
 
-    A clip's path depends only on its ``source_id``, the project's sources and the track's
-    media, none of which change while one call walks a lane, so the walk resolves each
-    distinct source once instead of once per clip. Hold one for the length of one call and
-    drop it; it never outlives the project state it read. A failure is not remembered: the
-    next clip with that source raises its own error, naming its own id.
+    Hold one for a single call only; a failure is not remembered.
     """
 
     def __init__(self, project: EpisodeProject, track: Track) -> None:
@@ -91,9 +87,8 @@ class ClipAudioPaths:
     def __call__(self, clip: Clip) -> Path:
         path = self._paths.get(clip.source_id)
         if path is None:
-            path = self._paths[clip.source_id] = resolve_clip_audio_path(
-                self._project, self._track, clip
-            )
+            path = resolve_clip_audio_path(self._project, self._track, clip)
+            self._paths[clip.source_id] = path
         return path
 
 
@@ -355,14 +350,14 @@ def track_grid(
     recordings: dict[Path, None] = {}
     others: dict[Path, None] = {}
     optional: dict[Path, None] = {}
-    audio_path = ClipAudioPaths(project, track)
+    clip_path = ClipAudioPaths(project, track)
     for clip in clips:
         inside = window is None or (
             clip.timeline_end > window[0] and clip.timeline_start < window[1]
         )
         found: dict[Path, None] = {}
         try:
-            path = audio_path(clip)
+            path = clip_path(clip)
             found[path] = None
             if (fill := gate_fill_paths(project, track, [path])[0]) is not None:
                 found[fill] = None
@@ -522,7 +517,7 @@ def placed_track_audio(
     spans: list[tuple[float, float, tuple[float, float] | None]] = []
     cells: list[tuple[int, int, int] | None] = []
     origin_frame = grid.frame(window[0]) if grid and window else 0
-    audio_path = ClipAudioPaths(project, track)
+    clip_path = ClipAudioPaths(project, track)
     for clip in sorted_clips:
         if grid is None:
             timeline_start = max(window[0], clip.timeline_start) if window else clip.timeline_start
@@ -545,7 +540,7 @@ def placed_track_audio(
             spans.append((start / grid.rate, end / grid.rate, None))
             cells.append(None)
             continue
-        path = audio_path(clip)
+        path = clip_path(clip)
         origin = grid.source_frame(path, clip.source_start) + start - first
         cells.append((start, end, origin))
         spans.append(
@@ -581,7 +576,7 @@ def placed_track_audio(
             continue
         borrow_in = borrow[index]
         borrow_out = borrow[index + 1] if index + 1 < len(sorted_clips) else 0.0
-        src = audio_path(clip)
+        src = clip_path(clip)
         if grid and (cell := cells[index]):
             start, end, origin = cell
             source_start = grid.source_time(src, origin - grid.frame(borrow_in))
