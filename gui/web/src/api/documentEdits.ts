@@ -201,11 +201,7 @@ export async function applySuggestedActions(
     },
   );
   if (result.queued === true)
-    return {
-      queued: true,
-      summary: null,
-      historyHead: null,
-    };
+    return { queued: true, summary: null, historyHead: null };
   const command = result.command;
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const done = isSuggestionRecord(payload) ? payload.result : null;
