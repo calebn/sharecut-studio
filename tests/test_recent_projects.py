@@ -481,43 +481,54 @@ def test_non_finite_duration_is_dropped_and_the_response_renders(local, tmp_path
     assert res.json()["projects"][0]["duration_sec"] is None
 
 
-def _seed_unencodable(good: Path) -> Path:
-    recent.record_recent(good)
+def _seed_unencodable(*good: Path) -> Path:
+    """Save *good* (first = newest), then put an unreachable entry on top of the file."""
+    for path in reversed(good):
+        recent.record_recent(path)
     saved = recent.recent_projects_path()
     data = json.loads(saved.read_text(encoding="utf-8"))
-    data["projects"].append({"path": "/x/\ud800/episode.project.json", "opened_at": "t\ud800"})
+    data["projects"].insert(0, {"path": "/x/\ud800/episode.project.json", "opened_at": "t\ud800"})
     saved.write_text(json.dumps(data), encoding="utf-8")
     return saved
 
 
-def test_an_entry_whose_path_json_cannot_carry_is_dropped_from_list_and_file(local, tmp_path):
+def _saved_paths(saved: Path) -> list[str]:
+    return [p["path"] for p in json.loads(saved.read_text(encoding="utf-8"))["projects"]]
+
+
+def test_an_unreachable_entry_is_left_out_of_the_list(local, tmp_path):
     good = _make(tmp_path, "good")
-    saved = _seed_unencodable(good)
+    _seed_unencodable(good)
     res = local.get("/api/projects/recent")
     assert res.status_code == 200
     cards = res.json()["projects"]
     assert [c["name"] for c in cards] == ["good"]
-    assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
-    assert [p["path"] for p in json.loads(saved.read_text(encoding="utf-8"))["projects"]] == [
-        str(good.resolve())
-    ]
-    before = saved.read_bytes()
-    assert local.get("/api/projects/recent").status_code == 200
-    assert saved.read_bytes() == before
+    assert not any("\ufffd" in c["name"] or "\ufffd" in c["path"] for c in cards)
 
 
-def test_a_failed_rewrite_still_hides_the_dropped_entry(local, tmp_path, monkeypatch):
-    good = _make(tmp_path, "good")
-    saved = _seed_unencodable(good)
-
-    def refuse(entries):
-        raise OSError("read-only")
-
-    monkeypatch.setattr(recent, "_write", refuse)
+def test_an_unreachable_entry_on_top_does_not_evict_a_valid_one(local, tmp_path):
+    goods = [_make(tmp_path, f"g{n}") for n in range(recent.RECENT_LIMIT)]
+    _seed_unencodable(*goods)
     res = local.get("/api/projects/recent")
     assert res.status_code == 200
-    assert [c["name"] for c in res.json()["projects"]] == ["good"]
-    assert len(json.loads(saved.read_text(encoding="utf-8"))["projects"]) == 2
+    assert [c["name"] for c in res.json()["projects"]] == [f"g{n}" for n in range(20)]
+
+
+def test_the_next_forget_or_record_drops_the_unreachable_entry_from_the_file(local, tmp_path):
+    a, b, c = (_make(tmp_path, n) for n in "abc")
+    saved = _seed_unencodable(a, b)
+    assert any("\ud800" in p for p in _saved_paths(saved))
+    assert recent.forget_recent(b)
+    assert _saved_paths(saved) == [str(a.resolve())]
+    saved = _seed_unencodable(a)
+    recent.record_recent(c)
+    assert _saved_paths(saved) == [str(c.resolve()), str(a.resolve())]
+
+
+def test_a_real_replacement_character_folder_is_kept(tmp_path):
+    odd = _make(tmp_path, "a\ufffdb")
+    recent.record_recent(odd)
+    assert [e.path for e in recent.read_recent()] == [str(odd.resolve())]
 
 
 def test_record_recent_skips_a_path_json_cannot_carry(tmp_path):
