@@ -25,13 +25,13 @@ import {
   type ShareRole,
 } from "../../types/shares";
 import { ApiError, errorMessage } from "../../utils/apiError";
+import { useTunnelStatus } from "../hosts/useTunnelStatus";
 import {
   type ShareCreateRecovery,
   ShareDialogView,
   type ShareLastCreated,
 } from "./ShareDialogView";
 import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
-import { useTunnelStatus } from "./useTunnelStatus";
 
 const COPIED_MS = 2000;
 
