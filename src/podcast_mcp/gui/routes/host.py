@@ -34,6 +34,7 @@ from podcast_mcp.services.record import (
     record_hub_key,
     route_record_ws_message,
 )
+from podcast_mcp.services.record.service import connection_holds
 from podcast_mcp.services.session_sync import (
     AuthzDecision,
     SessionSyncService,
@@ -180,6 +181,15 @@ async def host_ws(
                     record = None
                     attached_sid = None
 
+    def claim_lost() -> bool:
+        return (
+            record is not None
+            and attached_sid is not None
+            and not connection_holds(
+                record_hub_key(workspace.project), HOST_PARTICIPANT_ID, connection_id
+            )
+        )
+
     async def attach_record() -> None:
         async with attach_lock:
             await attach_record_locked()
@@ -189,7 +199,7 @@ async def host_ws(
         session_id = await run_in_threadpool(
             RecordSessionService.active_session_id, workspace.project
         )
-        if record is not None and attached_sid == session_id and session_id:
+        if record is not None and attached_sid == session_id and session_id and not claim_lost():
             return
         if record is not None:
             await detach_record()
@@ -247,7 +257,7 @@ async def host_ws(
                 sid = await run_in_threadpool(
                     RecordSessionService.active_session_id, workspace.project
                 )
-                if sid != attached_sid and (not sid or sid != failed_sid):
+                if (sid != attached_sid or claim_lost()) and (not sid or sid != failed_sid):
                     await attach_record()
             except asyncio.CancelledError:
                 raise

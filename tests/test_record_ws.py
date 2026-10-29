@@ -573,6 +573,55 @@ def test_host_ws_joins_a_room_minted_after_it_opened_without_a_frame(
         assert roster[HOST_PARTICIPANT_ID]["connected"] is True
 
 
+def test_host_ws_joins_again_when_a_room_reset_clears_its_claim(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import threading
+    from urllib.parse import quote
+
+    from podcast_mcp.services.record.service import (
+        begin_record_session,
+        connection_holds,
+        record_hub_key,
+    )
+    from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+
+    _isolate()
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
+    real_join = RecordSessionService.join
+    joins: list[str] = []
+    armed = threading.Event()
+    rejoined = threading.Event()
+
+    def counting_join(self, *args, **kwargs):
+        result = real_join(self, *args, **kwargs)
+        if kwargs.get("role") == "host":
+            joins.append(kwargs["connection_id"])
+            if armed.is_set() and connection_holds(
+                record_hub_key(self.project), HOST_PARTICIPANT_ID, kwargs["connection_id"]
+            ):
+                rejoined.set()
+        return result
+
+    monkeypatch.setattr(RecordSessionService, "join", counting_join)
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    with client.websocket_connect(url) as host:
+        assert host.receive_json()["type"] == "Snapshot"
+        created = ShareService(ws).create_record_room()
+        _drain_until(host, lambda m: m.get("plane") == "record", n=40)
+        begin_record_session(ws.project, created["session_id"])
+        armed.set()
+        hub = record_hub_key(ws.project)
+        if not connection_holds(hub, HOST_PARTICIPANT_ID, joins[-1]):
+            assert rejoined.wait(10)
+        svc = RecordSessionService(ws.project, session_id=created["session_id"])
+        roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
+        assert HOST_PARTICIPANT_ID in roster
+        assert connection_holds(hub, HOST_PARTICIPANT_ID, joins[-1])
+
+
 def test_host_record_watcher_survives_a_failed_poll(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
