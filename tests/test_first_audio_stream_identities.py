@@ -42,7 +42,7 @@ RENDER_DIGESTS = {
     "proxy": "22bea67c70ce597bf5350ba8067ad3e266978d291e6bf94b6ed5d12692b01d05",
     "gate": "477c81fd42d46dd3178f5d4a0f15a115c1489de6d12755a71a6b2d082669daa6",
 }
-MAIN_POOL_RECORD_NAME = "3bd63e34b6d9d47a.json"
+MAIN_POOL_RECORD_NAME = "b299f5fe475f1fff.json"
 MAIN_ALIGN_NAME = "asr.word_align_8ddd9e4881f64893.json"
 
 
@@ -73,7 +73,7 @@ def test_probe_counts_audio_streams(tmp_path: Path, mono_wav: Path) -> None:
 def test_revisions_that_feed_decodes_keep_their_main_values() -> None:
     assert level_profile._RECORD_REV == 2
     assert bleed_gate.BLEED_GATE_REV == 19
-    assert room_tone._POOL_REV == 3
+    assert room_tone._POOL_REV == 4
     assert waveform_pyramid._BUILD_REVISION == 2
     assert prosody_profile.ALGORITHM_VERSION == 5
 
@@ -356,15 +356,15 @@ def test_level_record_name_follows_the_first_stream_for_several_only(
 def test_pool_record_name_follows_the_first_stream_for_several_only(tmp_path: Path) -> None:
     project = EpisodeProject.create("Pools", str(tmp_path))
     revision = (1, 2, 3, 4)
-    unprobeable = room_tone._pool_record_path(project, ("/ws/mono.wav", revision))
+    unprobeable = room_tone._pool_record_path(project, ("/ws/mono.wav", revision, ()))
     assert unprobeable.name == MAIN_POOL_RECORD_NAME
     several = media.multistream(tmp_path, "two_b.mkv")
-    parts = [3, str(several), str(revision)]
+    parts = [4, str(several), str(revision), str(())]
     old = short_digest(json.dumps(parts))
-    assert room_tone._pool_record_path(project, (str(several), revision)).stem != old
+    assert room_tone._pool_record_path(project, (str(several), revision, ())).stem != old
     mono = media.single_stream_media(tmp_path)["wav"]
-    kept = short_digest(json.dumps([3, str(mono), str(revision)]))
-    assert room_tone._pool_record_path(project, (str(mono), revision)).stem == kept
+    kept = short_digest(json.dumps([4, str(mono), str(revision), str(())]))
+    assert room_tone._pool_record_path(project, (str(mono), revision, ())).stem == kept
 
 
 def test_pool_written_under_the_old_name_is_not_read_for_several_streams(
@@ -373,10 +373,10 @@ def test_pool_written_under_the_old_name_is_not_read_for_several_streams(
     several = media.multistream(tmp_path, "two_b.mkv")
     project = _project(tmp_path, several)
     monkeypatch.setattr(room_tone, "_POOLS", {})
-    key = room_tone._pool_key(several)
+    key = room_tone._pool_key(project, "t")
     assert key is not None
     path = room_tone._pool_record_path(project, key)
-    old = path.with_name(f"{short_digest(json.dumps([3, *map(str, key)]))}.json")
+    old = path.with_name(f"{short_digest(json.dumps([4, *map(str, key)]))}.json")
     old.parent.mkdir(parents=True, exist_ok=True)
     old.write_text(json.dumps({"samples": [[0.0, 1.0, -60.0, None]]}))
     assert room_tone.read_room_tone_pool(project, "t") is None

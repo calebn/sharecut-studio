@@ -1278,6 +1278,7 @@ def fill_with_room_tone(
     inserted: list[Clip] = []
     absent: SampleAbsent | None = None
     covered = 0.0
+    chosen: list[tuple[float, float]] = []
     for i, clip in enumerate(clips):
         new_clips.append(clip)
         if i + 1 >= len(clips):
@@ -1297,12 +1298,14 @@ def fill_with_room_tone(
             near_source_id=clip.source_id,
             timeline_sec=gap_start,
             duration_sec=min(sample_duration_sec, gap),
+            also_taken=tuple(chosen),
         )
         if isinstance(span, SampleAbsent):
             absent = span
             continue
         if isinstance(span, OwnQuietSample):
             sample_src, src_end, source_id = span.sample.start, span.sample.end, None
+            chosen.append((sample_src, src_end))
         else:
             sample_src, src_end, source_id = span.start, span.end, span.source_id
         piece = max(1e-3, src_end - sample_src)

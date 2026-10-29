@@ -15,6 +15,7 @@ from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,
+    fill_with_room_tone,
     insert_room_tone_pad,
     mute_room_tone_fill,
 )
@@ -503,6 +504,12 @@ def _gated_steady_word() -> np.ndarray:
     return guest
 
 
+def _gated_voice(start: float, end: float) -> np.ndarray:
+    guest = np.zeros(round(DURATION_SEC * SR))
+    _add_voice(guest, start, end, -25.0)
+    return guest
+
+
 def _gated_talker() -> np.ndarray:
     # Speech on 60% of the track; the gate passes each word's attack and reverb tail
     # until it falls under the 16-bit floor, then digital silence.
@@ -808,8 +815,8 @@ def test_the_in_memory_pools_are_bounded(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(room_tone, "_POOLS_KEPT", 3)
     monkeypatch.setattr(room_tone, "_POOLS", {})
     for index in range(6):
-        room_tone._remember_pool((f"/f{index}", (1, 1, 1, index)), ())
-    assert [path for path, _ in room_tone._POOLS] == ["/f3", "/f4", "/f5"]
+        room_tone._remember_pool((f"/f{index}", (1, 1, 1, index), ()), ())
+    assert [key[0] for key in room_tone._POOLS] == ["/f3", "/f4", "/f5"]
 
 
 def test_ensure_pools_records_once_and_skips_unreadable_tracks(
@@ -923,10 +930,156 @@ def test_later_recording_cuts_within_two_minutes_take_different_samples(
     nearby = _cut(project, 2371.0, 1071.0, "later")
     distant = _cut(project, 2600.0, 1300.0, "later")
 
-    assert index == 0
+    assert index == 2
     assert (nearby.sample.start, nearby.sample.end) != (first.sample.start, first.sample.end)
-    assert POOL[1].start <= nearby.sample.start < POOL[1].end
-    assert (distant.sample.start, distant.sample.end) == (first.sample.start, first.sample.end)
+    assert POOL[0].start <= nearby.sample.start < POOL[0].end
+    assert POOL[1].start <= distant.sample.start < POOL[1].end
+
+
+def test_distant_cuts_on_a_later_recording_spread_over_the_pool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+
+    picks = [_cut(project, 2300.0, t, "later").sample for t in (1000.0, 1300.0, 1450.0)]
+
+    assert [(x.start, x.end) for x in picks] == [(20.75, 21.25), (10.75, 11.25), (0.75, 1.25)]
+
+
+def test_a_request_never_tiles_a_scrap_an_avoid_carved_out_of_a_pool_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, (Sample(0.0, 2.0, -75.0, 0.0),))
+
+    selected = room_tone_span(
+        project,
+        "host",
+        near_sec=1.0,
+        near_source_id=None,
+        timeline_sec=1.0,
+        duration_sec=0.5,
+        avoid=[(0.0, 1.75), (2.0, 10.0)],
+    )
+
+    assert isinstance(selected, SampleAbsent)
+    assert selected.cause == "excluded"
+
+
+def test_a_later_recording_cut_with_no_pool_picks_from_the_first_quiet_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, ())
+
+    selected = _cut(project, 2300.0, 1000.0, "later")
+
+    assert (selected.sample.start, selected.sample.end) == (0.0, 0.5)
+
+
+def test_two_nearby_later_recording_mute_fills_with_no_pool_differ(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, ())
+    clip = Clip(
+        id="later_clip",
+        track_id="host",
+        source_id="later",
+        source_start=0.0,
+        source_end=DURATION_SEC,
+        timeline_start=1000.0,
+    )
+    project.clips.append(clip)
+
+    first = mute_room_tone_fill(project, clip, 4.0, 4.4)
+    assert first is not None
+    clip.mute_regions.append(ClipMuteRegion(start_s=4.0, end_s=4.4, fill=first))
+    second = mute_room_tone_fill(project, clip, 4.6, 5.0)
+
+    assert second is not None
+    assert (first.start_s, first.end_s) == (pytest.approx(0.0), pytest.approx(0.4))
+    assert (second.start_s, second.end_s) == (pytest.approx(0.4), pytest.approx(0.8))
+
+
+def test_gaps_filled_in_one_call_take_different_samples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=3.0, source_end=4.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=4.0, source_end=5.0, timeline_start=5.0),
+        Clip(id="c", track_id="host", source_start=5.0, source_end=6.0, timeline_start=10.0),
+    ]
+
+    fill_with_room_tone(project, "host", defaults=load_defaults())
+
+    firsts = sorted(
+        (c.timeline_start, c.source_start, c.source_end)
+        for c in project.clips
+        if c.id not in {"a", "b", "c"} and c.timeline_start in (1.0, 6.0)
+    )
+    assert firsts == [(1.0, 1.75, 2.0), (6.0, 10.0, 10.25)]
+
+
+def test_a_pool_recorded_before_a_peer_existed_is_rebuilt(tmp_path: Path) -> None:
+    from podcast_mcp.engines import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    assert room_tone.record_room_tone_pool(project, "host")
+
+    _write_wav(tmp_path / "raw" / "guest.wav", _noise(-64.0, seed=2))
+    project.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            media=MediaAsset(path="raw/guest.wav"),
+            role=TrackRole.DIALOGUE,
+        )
+    )
+    assert room_tone.read_room_tone_pool(project, "host") is None
+
+    assert room_tone.record_room_tone_pool(project, "host")
+    _write_wav(tmp_path / "raw" / "guest.wav", _noise(-60.0, seed=3))
+    assert room_tone.read_room_tone_pool(project, "host") is None
+
+
+def test_a_gated_peers_voice_reaching_the_mic_is_not_room_tone(tmp_path: Path) -> None:
+    host = _host_audio()
+    _add_voice(host, 5.0, 7.0, -68.0)
+    project = _project(tmp_path, host=host, guest=_gated_voice(5.0, 7.0))
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert fill.end_s <= 5.0 or fill.start_s >= 7.0
+
+
+def test_a_long_clip_does_not_count_a_mute_fill_outside_the_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    clip = _host_clip(project)
+    clip.source_end = 600.0
+    clip.mute_regions.append(
+        ClipMuteRegion(start_s=8.0, end_s=8.5, fill=RoomToneFill(start_s=0.0, end_s=0.5))
+    )
+
+    far = _cut(project, 1.0, 500.0, None)
+    near = _cut(project, 1.0, 20.0, None)
+
+    assert (far.sample.start, far.sample.end) == (0.75, 1.25)
+    assert (near.sample.start, near.sample.end) == (10.0, 10.5)
+
+
+def test_a_pad_clip_that_partly_overlaps_a_pool_sample_counts_as_playing_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    project.clips.append(
+        Clip(id="pad", track_id="host", source_start=1.5, source_end=2.5, timeline_start=5.0)
+    )
+
+    selected = _cut(project, 1.0, 6.0, None)
+
+    assert (selected.sample.start, selected.sample.end) == (10.0, 10.5)
 
 
 def test_a_primary_cut_whose_nearest_sample_is_in_use_takes_the_second_nearest(
