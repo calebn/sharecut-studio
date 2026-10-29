@@ -15,6 +15,7 @@ import {
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { StageId } from "../../types/stage";
+import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 
@@ -57,7 +58,9 @@ function mount(guestShare = false) {
       }}
     >
       <ExportFlowProvider>
-        <StageHost guestShare={guestShare} />
+        <BounceFlowProvider>
+          <StageHost guestShare={guestShare} />
+        </BounceFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>,
   );
@@ -394,14 +397,15 @@ describe("Deliver host", () => {
     server = fakeExportServer();
   });
 
-  it("starts the export and opens the bounce and share dialogs through their commands", async () => {
+  it("starts the export and bounce here and opens the share dialog through its command", async () => {
     asHost("deliver");
     mount();
     const exportButton = await screen.findByRole("button", { name: "Export" });
     await waitFor(() => expect(exportButton).toBeEnabled());
     await userEvent.click(exportButton);
     await waitFor(() => expect(server.exportRequests).toHaveLength(1));
-    await userEvent.click(screen.getByRole("button", { name: "Bounce…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Bounce" }));
+    await waitFor(() => expect(server.bounceRequests).toHaveLength(1));
     await userEvent.click(
       screen.getByRole("button", { name: "Share a listen link" }),
     );
@@ -409,9 +413,9 @@ describe("Deliver host", () => {
       const { chrome } = useDawStore.getState();
       expect([
         chrome.exportRequested,
-        chrome.bounceDialogOpen,
+        chrome.bounceRequested,
         chrome.shareDialogOpen,
-      ]).toEqual([false, true, true]);
+      ]).toEqual([false, false, true]);
     });
   });
 
@@ -447,7 +451,9 @@ describe("Deliver host", () => {
         value={{ ready: true, manifest: { api_version: 1, features: [] } }}
       >
         <ExportFlowProvider>
-          <StageHost />
+          <BounceFlowProvider>
+            <StageHost />
+          </BounceFlowProvider>
         </ExportFlowProvider>
       </FeaturesContext.Provider>,
     );

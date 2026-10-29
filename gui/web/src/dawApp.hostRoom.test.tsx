@@ -15,9 +15,11 @@ vi.mock("./TransportEngine", () => ({
 }));
 vi.mock("./stage/frame/StageFrame", () => ({ StageFrame: () => null }));
 vi.mock("./stage/frame/useLandingStage", () => ({ useLandingStage: () => {} }));
-vi.mock("./stage/dialogs/BounceDialog", () => ({ BounceDialog: () => null }));
 vi.mock("./stage/dialogs/CheatsheetDialogs", () => ({
   CheatsheetDialogs: () => null,
+}));
+vi.mock("./stage/hosts/bounceFlow", () => ({
+  BounceFlowProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("./stage/hosts/exportFlow", () => ({
   ExportFlowProvider: ({ children }: { children: ReactNode }) => children,

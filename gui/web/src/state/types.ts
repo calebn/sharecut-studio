@@ -34,8 +34,8 @@ export interface ChromeFlags {
   commandPaletteOpen: boolean;
   /** Mobile gestures cheatsheet open. */
   gesturesSheetOpen: boolean;
-  /** Bounce dialog open (host export/bounces). */
-  bounceDialogOpen: boolean;
+  /** A bounce asked for by a command; the Deliver stage focuses its Bounce button and clears this. */
+  bounceRequested: boolean;
   /** An export asked for by a command; the Deliver stage starts it and clears this. */
   exportRequested: boolean;
   /** Host share management dialog. */
@@ -556,7 +556,7 @@ export interface DawState {
   setCommandPaletteOpen: (on: boolean) => void;
   setGesturesSheetOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;
-  setBounceDialogOpen: (on: boolean) => void;
+  setBounceRequested: (on: boolean) => void;
   setTranscriptFindReplaceOpen: (on: boolean) => void;
   setExportRequested: (on: boolean) => void;
   setPrepareFocusTrackId: (trackId: string | null) => void;

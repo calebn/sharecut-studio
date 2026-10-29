@@ -582,7 +582,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: true,
     when: "hostProjectLoaded",
-    notes: "Mod+Shift+B: bounce dialog (export/bounces/)",
+    notes: "Mod+Shift+B: Bounce in Deliver (export/bounces/)",
   },
   {
     id: "export.deliverables",

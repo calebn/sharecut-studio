@@ -6,7 +6,7 @@ import { useDawStore } from "./dawStore";
 const FLAGS = [
   "commandPaletteOpen",
   "gesturesSheetOpen",
-  "bounceDialogOpen",
+  "bounceRequested",
   "exportRequested",
   "shareDialogOpen",
   "hostMcpDialogOpen",
@@ -19,7 +19,7 @@ type Flag = (typeof FLAGS)[number];
 const SETTERS: Record<Flag, string> = {
   commandPaletteOpen: "setCommandPaletteOpen",
   gesturesSheetOpen: "setGesturesSheetOpen",
-  bounceDialogOpen: "setBounceDialogOpen",
+  bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
   shareDialogOpen: "setShareDialogOpen",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
@@ -111,16 +111,6 @@ describe("dawStore chrome flags", () => {
     expect(read("gesturesSheetOpen")).toBe(true);
   });
 
-  it("closing the bounce dialog clears its range target; opening keeps it", () => {
-    const s = () => useDawStore.getState();
-    const target = { startSec: 1, endSec: 2 } as never;
-    s().setBounceRangeTarget(target);
-    s().setBounceDialogOpen(true);
-    expect(s().bounceRangeTarget).toBe(target);
-    s().setBounceDialogOpen(false);
-    expect(s().bounceRangeTarget).toBeNull();
-  });
-
   describe("hydrate", () => {
     const OTHER = [
       "commandPaletteOpen",
@@ -139,7 +129,7 @@ describe("dawStore chrome flags", () => {
       openEverything();
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       expect(read("transcriptFindReplaceOpen")).toBe(true);
-      expect(read("bounceDialogOpen")).toBe(true);
+      expect(read("bounceRequested")).toBe(true);
       expect(read("exportRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
@@ -152,11 +142,11 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes the bounce dialog and drops a pending export request when the project switches", () => {
+    it("drops a pending bounce and export request when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
-      expect(read("bounceDialogOpen")).toBe(false);
+      expect(read("bounceRequested")).toBe(false);
       expect(read("exportRequested")).toBe(false);
     });
   });
