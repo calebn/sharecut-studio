@@ -212,7 +212,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
-  inline-size: 6rem;
+  inline-size: var(--stage-tab-width);
   min-block-size: var(--control-height);
   padding: 0 var(--space-3);
   border: 0;
@@ -223,6 +223,12 @@
   font-size: var(--font-size-ui);
   font-weight: 500;
   cursor: pointer;
+}
+
+/* :where() keeps this at the base rule's specificity, so the tabs that size
+   to their content below still win. */
+:where(:root[data-shell="tablet"]) .sys-stage-tab {
+  inline-size: var(--stage-tab-width-tablet);
 }
 
 @media (pointer: coarse) {

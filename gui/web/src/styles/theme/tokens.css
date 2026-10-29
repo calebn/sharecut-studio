@@ -294,6 +294,8 @@
   --action-bar-height-touch: 2.75rem;
   --action-dock-height: 4rem;
   --tab-bar-height: 3.5rem;
+  --stage-tab-width: 6rem;
+  --stage-tab-width-tablet: 5.5rem;
 
   /* Spacing (4.2): 32 and 48 continue the --space-N steps */
   --space-7: 2rem;
