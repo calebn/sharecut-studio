@@ -2317,7 +2317,7 @@ test("System/Player the collapsed Play button, AppHeader project button and Stat
   expect(project.width).toBeGreaterThanOrEqual(44);
 });
 
-test("System/AppHeader a failed save leaves the title 120 px at 360", async ({
+test("System/AppHeader a failed save leaves the title 120 px at 360 and 430", async ({
   browser,
 }) => {
   const { context, page } = await coarsePage(
@@ -2335,9 +2335,12 @@ test("System/AppHeader a failed save leaves the title 120 px at 360", async ({
   const retry = await page
     .getByRole("button", { name: /Retry/ })
     .evaluate((el) => el.getBoundingClientRect().height);
+  await page.setViewportSize({ width: 430, height: 900 });
+  const wide = await title.evaluate((el) => el.clientWidth);
   await context.close();
   expect(shown).toBeGreaterThanOrEqual(120);
   expect(retry).toBeGreaterThanOrEqual(44);
+  expect(wide).toBeGreaterThanOrEqual(120);
 });
 
 test("System/AppHeader a failed save keeps Invite and search in the Project menu, and a guest link keeps its search button", async ({
@@ -2351,6 +2354,9 @@ test("System/AppHeader a failed save keeps Invite and search in the Project menu
     document.documentElement.dataset.shell = "phone";
   });
   await owner.page.setViewportSize({ width: 360, height: 800 });
+  await expect(
+    owner.page.getByRole("button", { name: /Episode 14/ }),
+  ).toBeVisible();
   await expect(owner.page.locator(".sys-header-right")).toBeHidden();
   await owner.page.getByRole("button", { name: /Episode 14/ }).click();
   await expect(
