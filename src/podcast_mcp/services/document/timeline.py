@@ -687,6 +687,16 @@ class TimelineService(CutMutatingService):
         within: tuple[float, float] | None = None,
     ) -> dict:
         tid = self._resolve(track_id, speaker)
+        if within is None:
+            with self.ws.transaction() as project:
+                if sum(clip.track_id == tid for clip in project.clips) < 2:
+                    return change_summary(
+                        project,
+                        operation="fill_with_room_tone",
+                        affected_tracks=[tid],
+                        pad_samples=[],
+                        unchanged=True,
+                    )
         return self.ws.mutate(
             "before fill room tone",
             "after fill room tone",

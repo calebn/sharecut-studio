@@ -1893,7 +1893,7 @@ def test_edit_split_clip_and_fill_room_tone(minimal_project, sample_wav) -> None
     with patch(
         "podcast_mcp.services.document.timeline.fill_with_room_tone", return_value=fill_report
     ):
-        out = TimelineService(ws).fill_room_tone(track_id="host")
+        out = TimelineService(ws).fill_room_tone(track_id="host", within=(0.0, 1.0))
     assert out == fill_report
 
 
