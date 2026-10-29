@@ -278,6 +278,30 @@ def test_a_conversion_shorter_than_its_input_implies_has_no_window(
     assert resampled_window(_Array(samples), SOURCE_RATE, RATE, first, last) is None
 
 
+def test_a_conversion_one_sample_short_of_what_the_window_needs_has_no_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ffmpeg_or_skip()
+    samples = _noise(5, 6.0)
+    first, last = 4000, 6000
+    _, guard = resampler_locality(SOURCE_RATE, RATE) or (0, 0)
+    real = FFmpegEngine.resample_streams
+    results = []
+    for short in range(guard // GRID + 4):
+
+        def shorter(streams, from_rate, rates, short=short):  # type: ignore[no-untyped-def]
+            converted = real(streams, from_rate, rates)
+            return {rate: out[: out.size - short] for rate, out in converted.items()}
+
+        monkeypatch.setattr(FFmpegEngine, "resample_streams", staticmethod(shorter))
+        results.append(resampled_window(_Array(samples), SOURCE_RATE, RATE, first, last))
+
+    assert results[0] is not None
+    assert results[-1] is None
+    # a window is the whole length asked for, or there is none: never one sample short
+    assert all(r is None or r[0].size == last - first for r in results)
+
+
 @pytest.mark.parametrize("extra", range(GRID))
 def test_a_one_sample_read_inside_and_at_the_end_of_the_resampled_track_is_the_whole_resample(
     extra: int,

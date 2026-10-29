@@ -493,6 +493,7 @@ def test_a_plain_track_with_a_stale_stem_gets_the_rebuilt_cache_not_the_carried_
 
     carried = timeline._carried_with_current_stems(project, defaults)
 
+    assert len(built) == 1  # exactly one plain track was built again
     assert carried.caches["guest"] is built[-1].caches["guest"]
     assert carried.caches["guest"] is not first.caches["guest"]
     assert carried.caches["host"] is first.caches["host"]
@@ -887,18 +888,19 @@ def test_a_stamp_that_cannot_be_measured_gives_no_key_and_the_cut_is_still_check
     assert len(verdict_cache._STORE) == 0  # nothing was stored under a key
 
 
+@pytest.mark.parametrize("error", [RuntimeError("a bug"), TypeError("a bug")])
 def test_a_stamp_that_fails_for_another_reason_is_not_swallowed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
     verdict_cache._STORE.clear()
 
     def broken(self, *, defaults):  # type: ignore[no-untyped-def]
-        raise RuntimeError("a bug")
+        raise error
 
     monkeypatch.setattr(cut_proof.BatchBase, "stamp", broken)
 
-    with pytest.raises(RuntimeError, match="a bug"):
+    with pytest.raises(type(error), match="a bug"):
         _approve(_project(tmp_path))
 
 
@@ -961,20 +963,21 @@ def test_a_window_miss_in_observe_is_made_again_on_whole_caches_with_the_same_ve
     assert wholes == [1]
 
 
-def test_a_value_error_from_the_timeline_caches_is_not_made_again_on_whole_caches(
-    tmp_path: Path,
+@pytest.mark.parametrize("error", [ValueError("a bug"), RuntimeError("a bug")])
+def test_an_error_from_the_timeline_caches_other_than_a_window_miss_is_not_made_again(
+    tmp_path: Path, error: Exception
 ) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
 
     class Broken:
         def caches_for(self, project, span, *, reach, defaults):  # type: ignore[no-untyped-def]
-            raise ValueError("a bug")
+            raise error
 
         def whole(self, project, *, defaults):  # type: ignore[no-untyped-def]
             raise AssertionError("only a window miss is made again on whole caches")
 
-    with pytest.raises(ValueError, match="a bug"):
+    with pytest.raises(type(error), match="a bug"):
         cut_application._observe(
             project,
             edit,
