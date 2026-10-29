@@ -202,7 +202,7 @@ def _serves(request: Request, project: str) -> bool:
     if served is None:
         return False
     try:
-        return resolve_project_path(project) == resolve_project_path(served)
+        return resolve_project_path(project).samefile(resolve_project_path(served))
     except (OSError, ValueError):
         return False
 
