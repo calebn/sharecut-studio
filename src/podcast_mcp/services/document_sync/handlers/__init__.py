@@ -63,6 +63,7 @@ HANDLERS: dict[str, Handler] = {
     "InsertGap": edits.insert_gap,
     "FillRoomTone": edits.fill_room_tone,
     "ApplyAutoEdits": edits.apply_auto_edits,
+    "ProposeTighten": edits.propose_tighten,
     "ApplyEditPlan": edits.apply_edit_plan,
     "ShortenWordGaps": edits.shorten_word_gaps,
     "StripSilence": edits.strip_silence,

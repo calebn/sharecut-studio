@@ -362,12 +362,19 @@ def test_the_check_runs_after_the_proposal_is_saved_and_saves_nothing_itself(tmp
     seen: list[tuple] = []
 
     def spy(self, ids=None):
-        seen.append((list(ids), _history(path)["total"], [d.applied for d in _decisions(path)]))
+        seen.append(
+            (
+                list(ids),
+                _history(path)["total"],
+                [d.applied for d in _decisions(path)],
+                _journal(path),
+            )
+        )
         return [], []
 
     monkeypatch.setattr(EditService, "held_by_checks", spy)
     reply = _run(path)
-    assert seen == [([reply["edits"][0]["id"]], 2, [False])]
+    assert seen == [([reply["edits"][0]["id"]], 2, [False], ["ProposeTighten"])]
     assert _history(path)["total"] == 2
 
 
@@ -420,7 +427,7 @@ def test_a_failing_check_is_swallowed_and_the_proposal_is_returned_unchecked(
     assert reply["summary"] == _CLEAN_SUMMARY
     assert len(_decisions(path)) == 1
     assert _labels(path) == ["before propose edits", "after propose edits"]
-    assert _journal(path) == ["ExternalMutate"]
+    assert _journal(path) == ["ProposeTighten"]
 
 
 def test_a_failing_check_leaves_held_and_checked_at_their_defaults(tmp_path, monkeypatch):
@@ -433,14 +440,22 @@ def test_a_failing_check_leaves_held_and_checked_at_their_defaults(tmp_path, mon
     assert len(proposal.decisions) == 1
 
 
-def test_a_direct_tool_call_journals_one_external_mutate_row(tmp_path, monkeypatch):
+def test_a_direct_tool_call_journals_one_propose_tighten_row(tmp_path, monkeypatch):
     path = _path(tmp_path, monkeypatch)
-    _run(path)
+    reply = _run(path)
     (row,) = _rows(path)
-    assert row["type"] == "ExternalMutate"
-    assert row["client_id"] == "server:external"
+    assert row["type"] == "ProposeTighten"
+    assert row["client_id"] == "mcp-agent"
     assert row["role"] == "agent"
-    assert row["payload"] == {"projection": "shell"}
+    assert set(row["payload"]) == {"edit_mode", "intensity", "result"}
+    assert (row["payload"]["edit_mode"], row["payload"]["intensity"]) == (None, None)
+    stored = row["payload"]["result"]
+    assert set(stored) == _REPLY_KEYS
+    assert all("audio_check" not in edit for edit in stored["edits"])
+    assert stored["summary"] == _CLEAN_SUMMARY
+    assert [e["id"] for e in stored["edits"]] == [e["id"] for e in reply["edits"]]
+    assert reply["summary"] == _HELD_SUMMARY
+    assert reply["edits"][0]["audio_check"]["status"] == "held"
 
 
 def test_the_service_alone_journals_nothing(tmp_path, monkeypatch):
@@ -453,7 +468,7 @@ def test_the_service_alone_journals_nothing(tmp_path, monkeypatch):
 def test_a_no_candidate_call_still_journals_one_row(tmp_path, monkeypatch):
     path = _path(tmp_path, monkeypatch, filler=False)
     _run(path)
-    assert _journal(path) == ["ExternalMutate"]
+    assert _journal(path) == ["ProposeTighten"]
 
 
 def test_a_failed_call_journals_nothing(tmp_path, monkeypatch):
@@ -470,15 +485,15 @@ def test_the_registered_tool_returns_the_same_reply_and_journals_one_row(tmp_pat
     reply = json.loads(result.content[0].text)
     assert set(reply) == _REPLY_KEYS
     assert reply["summary"] == _HELD_SUMMARY
-    assert _journal(path) == ["ExternalMutate"]
-    assert [r["client_id"] for r in _rows(path)] == ["server:external"]
+    assert _journal(path) == ["ProposeTighten"]
+    assert [r["client_id"] for r in _rows(path)] == ["mcp-agent"]
 
 
 def test_the_registered_tool_second_call_journals_a_second_row(tmp_path, monkeypatch):
     path = _path(tmp_path, monkeypatch)
     _registered({"project_path": path})
     _registered({"project_path": path})
-    assert _journal(path) == ["ExternalMutate", "ExternalMutate"]
+    assert _journal(path) == ["ProposeTighten", "ProposeTighten"]
 
 
 def test_the_registered_tool_passes_its_arguments_through(tmp_path, monkeypatch):
@@ -533,7 +548,7 @@ def test_the_tool_is_registered_as_propose_edits_and_there_is_no_propose_tighten
     assert "propose_tighten" not in found
 
 
-def test_there_is_no_propose_tighten_document_command_yet(tmp_path, monkeypatch):
+def test_only_the_host_can_submit_the_propose_tighten_command(tmp_path, monkeypatch):
     path = _path(tmp_path, monkeypatch)
     before = Path(path).read_bytes()
     command = DocumentCommand(
@@ -543,12 +558,10 @@ def test_there_is_no_propose_tighten_document_command_yet(tmp_path, monkeypatch)
         DocumentSyncService.open(path).submit(command, capabilities=capabilities_for_role("editor"))
     assert raised.value.code == "share_capability_required"
     assert str(raised.value) == "share capabilities do not allow document command: ProposeTighten"
+    assert Path(path).read_bytes() == before
+    assert _journal(path) == []
     host = DocumentCommand(
         type="ProposeTighten", payload={}, client_id="host", client_seq=None, role="host"
     )
-    with pytest.raises(CodedValueError) as unknown:
-        DocumentSyncService.open(path).submit(host)
-    assert unknown.value.code == "document_command_unknown"
-    assert str(unknown.value) == "unknown document command: ProposeTighten"
-    assert Path(path).read_bytes() == before
-    assert _journal(path) == []
+    DocumentSyncService.open(path).submit(host)
+    assert _journal(path) == ["ProposeTighten"]

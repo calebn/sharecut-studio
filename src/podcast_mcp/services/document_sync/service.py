@@ -816,6 +816,7 @@ class DocumentSyncService:
             "ApplyEditPlan",
             "ShortenWordGaps",
             "StripSilence",
+            "ProposeTighten",
             "UndoHistory",
             "RedoHistory",
         }:
