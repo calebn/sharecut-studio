@@ -21,11 +21,14 @@ export async function loadTranscriptCheck(
 
 /**
  * Mark the transcript checked for the host. Safe to repeat. "Cut anyway" is not
- * this: it keeps `waiveTranscriptRefine`, which records a waiver.
+ * this: it keeps `waiveTranscriptRefine`, which records a waiver. With
+ * `expectedFingerprint` the server refuses (409 `transcript_changed`) when the
+ * transcript is no longer the one the host reviewed.
  */
 export async function markTranscriptChecked(
   projectPath: string,
   notes?: string,
+  expectedFingerprint?: string,
 ): Promise<TranscriptCheckStatus> {
   requireHost(projectPath);
   const response = await apiFetch(
@@ -34,7 +37,11 @@ export async function markTranscriptChecked(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: projectPath, notes }),
+      body: JSON.stringify({
+        path: projectPath,
+        notes,
+        expected_fingerprint: expectedFingerprint,
+      }),
     },
   );
   return response.json() as Promise<TranscriptCheckStatus>;
