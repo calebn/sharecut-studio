@@ -530,7 +530,7 @@ Timeline comments from `review.comments[]` (session clock). Hideable pins/range 
 
 The Queue header's **Find more** button (host only) reruns suggestion finding through `POST /api/pipeline/run` with `only_step: analyze_fillers_pauses` and the project's saved **How tight** (`tighten.intensity`, set in Prepare Cleanup; Review has no intensity control). The host fetches the working set fresh, forces `tighten.enabled` for that run only (`use_working_set: false`) and asks before it replaces pending hits, including ones you nudged. A missing model opens the model gate dialog in the stage. The button is disabled with a reason while the pipeline slot is busy (`useFindMore`).
 
-While any pipeline job runs, the Queue shows a top **Job row**: "Finding more suggestions" for the job Find more started, "Finding suggestions" for another pipeline run such as Prepare's, with a percent only when the job reports a total. A failed job (or a failed start) replaces it with "Could not find more suggestions", its cause behind Details and a Try again button.
+While any pipeline job runs, the Queue shows a top **Job row**: "Finding more suggestions" for the job Find more started, "Finding suggestions" for another pipeline run such as Prepare's, with a percent only when the job reports a total. A failed Find more run (or a failed start) replaces it with "Could not find more suggestions", its cause behind Details and a Try again button.
 
 A group's **Cut all N** hides the group at once, so the host owns the running state: the Queue shows "Cutting N…" in its place until the request ends. The host reports no count for this command, so the row is indeterminate (elapsed time after 2 s, no percent), and the decision ends with one Undo for the whole group.
 

@@ -83,7 +83,8 @@ export function findHitsConfirm(
 export function findHitsRunError(
   jobId: string | null,
   job: PipelineJobSnapshot | null,
+  fallback = "Find hits failed.",
 ): string | null {
   if (!jobId || job?.id !== jobId || job.status !== "error") return null;
-  return jobErrorText(job) || "Find hits failed.";
+  return jobErrorText(job) || fallback;
 }

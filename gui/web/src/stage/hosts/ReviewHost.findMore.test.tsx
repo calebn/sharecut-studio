@@ -135,7 +135,9 @@ describe("Find more in the Review host", () => {
     await waitFor(async () => expect(await button()).toBeEnabled());
     await userEvent.click(await button());
     await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
-    expect(confirm.mock.calls[0][0].message).toContain("the 1 pending hit");
+    expect(confirm.mock.calls[0][0].message).toContain(
+      "the 1 undecided suggestion",
+    );
     expect(startPipelineRun).not.toHaveBeenCalled();
     await userEvent.click(await button());
     await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(1));
@@ -296,9 +298,27 @@ describe("Find more in the Review host", () => {
     expect(await screen.findByRole("button", { name: "All, 1" })).toBeVisible();
   });
 
-  it("has no Find more for a commenter", async () => {
+  it("counts only undecided hits in the confirm", async () => {
+    mount([hit, pendingEditView({ id: "f2", kind: "filler", applied: true })]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(confirm.mock.calls[0][0].message).toContain(
+      "1 undecided suggestion ",
+    );
+  });
+
+  it("has no Find more for a commenter and never fetches or starts", async () => {
     mount([], "comment");
     expect(screen.queryByRole("button", { name: "Find more" })).toBeNull();
     expect(loadPipelineConfig).not.toHaveBeenCalled();
+    expect(startPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it("has no Find more for a guest on a share key", async () => {
+    mount([], "guest");
+    expect(screen.queryByRole("button", { name: "Find more" })).toBeNull();
+    expect(loadPipelineConfig).not.toHaveBeenCalled();
+    expect(startPipelineRun).not.toHaveBeenCalled();
   });
 });
