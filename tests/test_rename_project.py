@@ -58,6 +58,10 @@ def test_rename_is_one_undo_step(minimal_project):
         "tab\there",
         "bell\x07",
         "a‮b",
+        "a\u2028b",
+        "a\u2029b",
+        "a​b",
+        "a\ufeffb",
     ],
 )
 def test_rename_rejects_invalid_names_and_leaves_the_project(minimal_project, name):
@@ -67,6 +71,18 @@ def test_rename_rejects_invalid_names_and_leaves_the_project(minimal_project, na
         apply_command(ws, "RenameProject", {"name": name})
     assert err.value.code == "invalid_project_name"
     assert ProjectWorkspace.open(minimal_project).project.meta.name == original
+
+
+def test_rename_refusal_names_invisible_formatting_characters(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(CodedValueError, match="control or invisible formatting characters"):
+        apply_command(ws, "RenameProject", {"name": "a\u200bb"})
+
+
+def test_rename_accepts_a_zwj_emoji_sequence(minimal_project):
+    name = "Family \U0001f468\u200d\U0001f469\u200d\U0001f467 show"
+    ws = ProjectWorkspace.open(minimal_project)
+    assert apply_command(ws, "RenameProject", {"name": name}) == {"name": name}
 
 
 def test_rename_accepts_the_longest_name(minimal_project):
