@@ -10,6 +10,8 @@ import {
   openProjectDialog,
 } from "./stageNav";
 
+const TUNNEL_POLL_MS = 5_000;
+
 type Row = {
   token: string;
   url: string | null;
@@ -225,13 +227,17 @@ test.describe("Share on Deliver", () => {
         polls += 1;
         return route.fulfill({ json: tunnel("online") });
       });
+      await page.clock.install();
       const section = await openShare(page, projectPath);
       await expect(
         section.getByText("Guests can open your links"),
       ).toBeVisible();
+      const shown = polls;
+      await page.clock.runFor(TUNNEL_POLL_MS + 100);
+      await expect.poll(() => polls).toBeGreaterThan(shown);
       await goToStage(page, "edit");
       const left = polls;
-      await page.waitForTimeout(6_000);
+      await page.clock.runFor(2 * TUNNEL_POLL_MS + 100);
       expect(polls).toBe(left);
     });
   });
