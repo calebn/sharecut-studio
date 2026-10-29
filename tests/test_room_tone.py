@@ -36,6 +36,7 @@ from podcast_mcp.models import (
     MediaAsset,
     RoomToneFill,
     SourceRecording,
+    SpeakerIngestAlignment,
     Track,
     TrackRole,
     Transcript,
@@ -867,6 +868,64 @@ def test_a_peer_voice_bleeding_below_the_level_checks_is_not_room_tone(tmp_path:
     assert fill.end_s <= 5.0 or fill.start_s >= 7.0
 
 
+def _aligned(project: EpisodeProject, host_shift: float, guest_shift: float) -> None:
+    project.meta.ingest_alignment = {
+        "Host": SpeakerIngestAlignment.from_source_to_timeline_shift(
+            host_shift, align_method="test"
+        ),
+        "Guest": SpeakerIngestAlignment.from_source_to_timeline_shift(
+            guest_shift, align_method="test"
+        ),
+    }
+
+
+def _bleed_pair(guest_voice: tuple[float, float]) -> tuple[np.ndarray, np.ndarray]:
+    host = _host_audio()
+    _add_voice(host, 5.0, 7.0, -68.0)
+    guest = _noise(-64.0, seed=2)
+    _add_voice(guest, *guest_voice, -25.0)
+    return host, guest
+
+
+def test_a_peer_voice_that_lines_up_after_the_ingest_shift_is_not_room_tone(
+    tmp_path: Path,
+) -> None:
+    host, guest = _bleed_pair((7.0, 9.0))
+    project = _project(tmp_path, host=host, guest=guest)
+    _aligned(project, host_shift=2.0, guest_shift=0.0)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+
+
+def test_a_peer_voice_that_only_lines_up_at_the_same_raw_second_is_not_evidence(
+    tmp_path: Path,
+) -> None:
+    host, guest = _bleed_pair((5.0, 7.0))
+    project = _project(tmp_path, host=host, guest=guest)
+    _aligned(project, host_shift=2.0, guest_shift=0.0)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((5.15, 5.65))
+
+
+def test_a_changed_ingest_shift_makes_the_pool_be_picked_again(tmp_path: Path) -> None:
+    from podcast_mcp.engines import room_tone
+
+    project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
+    _aligned(project, host_shift=2.0, guest_shift=0.0)
+    assert room_tone.record_room_tone_pool(project, "host")
+    assert room_tone.read_room_tone_pool(project, "host") is not None
+
+    _aligned(project, host_shift=2.0, guest_shift=1.0)
+
+    assert room_tone.read_room_tone_pool(project, "host") is None
+
+
 POOL = (
     Sample(0.0, 2.0, -75.0, 0.0),
     Sample(10.0, 12.0, -75.0, 0.0),
@@ -1006,7 +1065,7 @@ def test_a_later_recording_cut_with_no_pool_picks_from_the_first_quiet_run(
     assert (selected.sample.start, selected.sample.end) == (0.0, 0.5)
 
 
-def test_nearby_mute_fills_on_a_later_recording_without_a_pool_take_different_samples(
+def test_nearby_mute_fills_on_a_later_recording_without_a_pool_take_the_same_sample(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _pooled_project(tmp_path, monkeypatch, ())
@@ -1027,7 +1086,7 @@ def test_nearby_mute_fills_on_a_later_recording_without_a_pool_take_different_sa
 
     assert second is not None
     assert (first.start_s, first.end_s) == (pytest.approx(0.0), pytest.approx(0.4))
-    assert (second.start_s, second.end_s) == (pytest.approx(0.4), pytest.approx(0.8))
+    assert (second.start_s, second.end_s) == (pytest.approx(0.0), pytest.approx(0.4))
 
 
 def test_gaps_filled_in_one_call_take_different_samples(
@@ -1139,7 +1198,26 @@ def test_a_one_sample_pool_is_still_used_when_that_sample_is_in_use(
     assert (again.sample.start, again.sample.end) == (first.sample.start, first.sample.end)
 
 
-def test_two_nearby_mute_fills_take_different_samples(
+def test_a_mute_fill_ignores_the_fills_and_clips_near_it_on_the_timeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    clip = _host_clip(project)
+    alone = mute_room_tone_fill(project, clip, 1.0, 1.5)
+
+    project.clips.append(
+        Clip(id="pad", track_id="host", source_start=0.0, source_end=2.0, timeline_start=5.0)
+    )
+    clip.mute_regions.append(
+        ClipMuteRegion(start_s=8.0, end_s=8.5, fill=RoomToneFill(start_s=0.0, end_s=0.5))
+    )
+    crowded = mute_room_tone_fill(project, clip, 1.0, 1.5)
+
+    assert alone == RoomToneFill(start_s=1.0, end_s=1.5)
+    assert crowded == alone
+
+
+def test_two_nearby_mute_fills_pick_by_source_position_alone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pool = (Sample(3.0, 5.0, -75.0, 0.0), Sample(6.0, 8.0, -75.0, 0.0))
@@ -1151,9 +1229,31 @@ def test_two_nearby_mute_fills_take_different_samples(
     clip.mute_regions.append(ClipMuteRegion(start_s=4.0, end_s=4.5, fill=first))
     second = mute_room_tone_fill(project, clip, 4.6, 5.0)
 
-    assert second is not None
-    assert first.start_s >= 3.0 and first.end_s <= 5.0
-    assert second.start_s >= 6.0 and second.end_s <= 8.0
+    assert first == RoomToneFill(start_s=4.0, end_s=4.5)
+    assert second == RoomToneFill(start_s=4.6, end_s=5.0)
+
+
+def test_an_off_clock_mute_fill_rotates_the_pool_by_its_source_position(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    clip = Clip(
+        id="later_clip",
+        track_id="host",
+        source_id="later",
+        source_start=2000.0,
+        source_end=2600.0,
+        timeline_start=1000.0,
+    )
+    project.clips.append(clip)
+
+    at_2300 = mute_room_tone_fill(project, clip, 2300.0, 2300.5)
+    at_2500 = mute_room_tone_fill(project, clip, 2500.0, 2500.5)
+
+    assert at_2300 is not None
+    assert at_2500 is not None
+    assert (at_2300.start_s, at_2300.end_s) == pytest.approx((10.75, 11.25))
+    assert (at_2500.start_s, at_2500.end_s) == pytest.approx((20.75, 21.25))
 
 
 def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_path: Path) -> None:
