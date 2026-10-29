@@ -221,6 +221,8 @@ Examples: `audioJohnSmith11234567890.m4a` → `John Smith`; `Jane_Doe-track-2026
 
 Home → “Import recorder folder” GUI is a follow-up.
 
+Home's Import and drop (`ingestIntoNewProject` in `gui/web/src/ingest/ingestFiles.ts`) add each file as a track of a new episode, stop at the first failure, and report how many files were added.
+
 ## Workflow
 
 1. Put raw files in a folder (e.g. `Audio Files/`), or run **`podcast ingest import DIR`** to draft `ingest.yaml` from filenames.
