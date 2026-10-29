@@ -230,7 +230,7 @@ export type ShareOptions = {
   copiedKey: ShareCopiedKey | null;
   /** The copy the browser refused: its link is selected for Mod+C. */
   blockedKey: ShareCopiedKey | null;
-  /** Online sharing state; absent when the `tunnel.status` feature is unavailable. */
+  /** Online sharing state; null or undefined when the `tunnel.status` feature is unavailable. */
   tunnel?: TunnelStatus | null;
   /** Why Share is unavailable (the command's reason); undefined when it is available. */
   blockedReason?: string;
