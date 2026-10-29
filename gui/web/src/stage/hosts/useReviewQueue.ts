@@ -264,6 +264,15 @@ export function useReviewQueue() {
     }
   };
 
+  const cutsHolding = (wordId: string) =>
+    (useDawStore.getState().project?.pending_edits ?? [])
+      .filter((edit) =>
+        (edit.unsure_words ?? []).some(
+          (w) => wordIdOf(w.track_id, w.source_id, w.word_index) === wordId,
+        ),
+      )
+      .map((edit) => reviewIdOf(edit.id));
+
   const releaseCuts = (wordId: string) => {
     confirmed.current.add(wordId);
     for (const edit of useDawStore.getState().project?.pending_edits ?? []) {
@@ -382,8 +391,12 @@ export function useReviewQueue() {
         {
           undo: reply.historyHead,
           onUndone: () => {
-            session.revert(plan.decidedIds);
             confirmed.current.delete(intent.ids[0]);
+            session.revert(
+              plan.decidedIds,
+              undefined,
+              cutsHolding(intent.ids[0]),
+            );
             // A same-text Undo reply keeps the old timed words, so reload them.
             if (target && current())
               void refreshDocumentProject(path, "full").catch(() => {

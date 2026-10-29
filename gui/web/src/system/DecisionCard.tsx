@@ -224,6 +224,9 @@ export function DecisionCard(props: DecisionCardProps) {
   const phone = layout === "phone";
   const holdVerb =
     unsure !== undefined && kind !== "unsure-word" && !unsure.resolved;
+  const verbReason = holdVerb
+    ? "Check the unsure word first."
+    : verbDisabledReason;
   const verbHeld = holdVerb || verbDisabledReason !== undefined;
   const swipe = useSwipeDecision(
     { verb: verbHeld ? undefined : onVerb, keep: onKeep, next: onLater },
@@ -372,9 +375,9 @@ export function DecisionCard(props: DecisionCardProps) {
           </>
         ) : null}
         {why ? <p className="sys-decision-why">{why}</p> : null}
-        {verbDisabledReason && !readOnly ? (
+        {verbReason && !readOnly ? (
           <p id={verbNoteId} className="sys-decision-why">
-            {verbDisabledReason}
+            {verbReason}
           </p>
         ) : null}
         {unsure && !readOnly ? (
@@ -392,9 +395,7 @@ export function DecisionCard(props: DecisionCardProps) {
         verb={verb ?? meta.verb}
         verbLabel={verb && verb !== meta.verb ? undefined : meta.verbLabel}
         verbNoteId={verbNoteId}
-        verbDisabledReason={
-          holdVerb ? "Check the unsure word first." : verbDisabledReason
-        }
+        verbDisabledReason={verbReason}
         readOnly={readOnly}
         canEdit={canEdit}
         promptOpen={prompt !== undefined}

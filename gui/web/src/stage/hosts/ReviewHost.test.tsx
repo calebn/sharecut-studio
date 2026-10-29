@@ -1094,6 +1094,27 @@ describe("Review host unsure words", () => {
     expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
   });
 
+  it("holds the freed cuts again when Looks right on their word is undone", async () => {
+    server.omitSnapshot = true;
+    setup("done");
+    await pick(/gnu/);
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(1));
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+    await userEvent.click(await undoButton());
+    await waitFor(() => expect(sent("UndoHistory")).toHaveLength(1));
+    await waitFor(() =>
+      expect(wire.refresh).toHaveBeenCalledWith(PATH, "full"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: /filler f2/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+  });
+
   it("frees the cuts that hold a word even when no fresh project arrives", async () => {
     server.omitSnapshot = true;
     setup("done");
