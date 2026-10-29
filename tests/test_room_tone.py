@@ -869,6 +869,12 @@ def test_a_peer_voice_bleeding_below_the_level_checks_is_not_room_tone(tmp_path:
 
 
 def _aligned(project: EpisodeProject, host_shift: float, guest_shift: float) -> None:
+    for clip in project.clips:
+        clip.timeline_start = {"host": host_shift, "guest": guest_shift}[clip.track_id]
+    _record_alignment(project, host_shift, guest_shift)
+
+
+def _record_alignment(project: EpisodeProject, host_shift: float, guest_shift: float) -> None:
     project.meta.ingest_alignment = {
         "Host": SpeakerIngestAlignment.from_source_to_timeline_shift(
             host_shift, align_method="test"
@@ -924,6 +930,114 @@ def test_a_changed_ingest_shift_makes_the_pool_be_picked_again(tmp_path: Path) -
     _aligned(project, host_shift=2.0, guest_shift=1.0)
 
     assert room_tone.read_room_tone_pool(project, "host") is None
+
+
+def test_a_trimmed_ingest_records_a_shift_that_is_not_the_files_relation(
+    tmp_path: Path,
+) -> None:
+    host, guest = _bleed_pair((5.0, 7.0))
+    project = _project(tmp_path, host=host, guest=guest)
+    _record_alignment(project, host_shift=0.0, guest_shift=2.0)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+
+
+def _host_clips(project: EpisodeProject, ids: tuple[str, ...], shift: float) -> None:
+    project.clips = [c for c in project.clips if c.track_id != "host"]
+    for i, clip_id in enumerate(ids):
+        project.clips.append(
+            Clip(
+                id=clip_id,
+                track_id="host",
+                source_start=float(i),
+                source_end=float(i) + 1.0,
+                timeline_start=float(i) + shift,
+            )
+        )
+
+
+def _per_clip_entry(shift: float) -> SpeakerIngestAlignment:
+    return SpeakerIngestAlignment.from_source_to_timeline_shift(shift, align_method="test")
+
+
+def test_a_split_clip_without_its_own_entry_uses_the_shift_the_others_agree_on(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.engines import room_tone
+
+    project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
+    _host_clips(project, ("b", "c"), shift=2.0)
+    project.meta.ingest_alignment = {"host:a": _per_clip_entry(2.0), "host:d": _per_clip_entry(2.0)}
+
+    assert room_tone._ingest_shift(project, "host") == pytest.approx(2.0)
+
+
+def test_a_split_clip_without_its_own_entry_falls_back_when_the_others_disagree(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.engines import room_tone
+
+    project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
+    _host_clips(project, ("b", "c"), shift=2.0)
+    project.meta.ingest_alignment = {"host:a": _per_clip_entry(2.0), "host:d": _per_clip_entry(3.0)}
+
+    assert room_tone._ingest_shift(project, "host") == 0.0
+
+
+def test_ingest_shift_resolves_each_source_once_however_many_clips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines import room_tone
+
+    project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
+    _aligned(project, host_shift=2.0, guest_shift=0.0)
+    project.clips.extend(
+        Clip(
+            id=f"x{i}",
+            track_id="host",
+            source_start=0.0,
+            source_end=0.5,
+            timeline_start=100.0 + i,
+            source_id=None,
+        )
+        for i in range(300)
+    )
+    resolved: list[str | None] = []
+    original = EpisodeProject.equivalent_source_ids
+
+    def counting(self: EpisodeProject, track_id: str, source_id: str | None) -> object:
+        resolved.append(source_id)
+        return original(self, track_id, source_id)
+
+    monkeypatch.setattr(EpisodeProject, "equivalent_source_ids", counting)
+
+    assert room_tone._ingest_shift(project, "host") == pytest.approx(2.0)
+    assert len(resolved) <= 1
+
+    project.meta.ingest_alignment = None
+    resolved.clear()
+
+    assert room_tone._ingest_shift(project, "host") == 0.0
+    assert resolved == []
+
+
+def test_a_music_track_is_not_a_peer_whose_voice_can_bleed(tmp_path: Path) -> None:
+    from podcast_mcp.engines import room_tone
+
+    host, guest = _bleed_pair((5.0, 7.0))
+    project = _project(tmp_path, host=host, guest=guest)
+    project.tracks[1].role = TrackRole.MUSIC
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((5.15, 5.65))
+    key = room_tone._pool_key(project, "host")
+    assert key is not None
+    assert key[2] == ()
 
 
 POOL = (
