@@ -875,8 +875,8 @@ Universal Links, if used, are managed by the distributor's web deployment.
 A project is a folder whose entry file is `episode.sharecut` (JSON). The `.sharecut`
 file association is not registered yet. Release builds will declare it through the
 distribution profile overlay, and the dev identifier `studio.sharecut.dev` must not
-claim it. Launching the app with a project path, and the macOS open event, are not
-wired yet: the single-instance callback drops argv, and Home opens projects through
+claim it. Launching with a project path and the macOS open event are not wired: the
+single-instance callback drops argv, and Home opens projects through
 `POST /api/project/open`.
 
 ## Related

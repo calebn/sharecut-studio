@@ -1,6 +1,6 @@
 # Episode Project Format v2
 
-Canonical file: `episode.sharecut` in the episode workspace. The extension is `.sharecut`; the file is JSON.
+Canonical file: `episode.sharecut` in the episode workspace. The file is JSON.
 
 Version `2.0` is the **single source of truth** for editable project state. CLI, MCP, pipeline, and history all load and commit through `ProjectStore`.
 
@@ -8,7 +8,7 @@ Version `2.0` is the **single source of truth** for editable project state. CLI,
 
 ```
 my_episode/
-├── episode.sharecut    # v2 project (required)
+├── episode.sharecut        # v2 project (required)
 ├── raw/                    # Source / consolidated audio (never overwritten by edits)
 ├── transcripts/            # Optional write-through caches (not authoritative)
 ├── history/
